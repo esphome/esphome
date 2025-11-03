@@ -1,8 +1,9 @@
 substitutions:
-  scl_pin: GPIO5
-  sda_pin: GPIO4
   irq0_pin: GPIO13
   irq1_pin: GPIO15
   reset_pin: GPIO16
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
 
 <<: !include common.yaml

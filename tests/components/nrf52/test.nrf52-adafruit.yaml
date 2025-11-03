@@ -1,13 +1,17 @@
-logger:
-  level: VERBOSE
-
 esphome:
   on_boot:
     - lambda: |-
         int x = 100;
-        x = constrain(x, 50, 90);
+        x = clamp(x, 50, 90);
         assert(x == 90);
-        x = constrain_at_least(x, 95);
+        x = clamp_at_least(x, 95);
         assert(x == 95);
-        x = constrain_at_most(x, 40);
+        x = clamp_at_most(x, 40);
         assert(x == 40);
+nrf52:
+  dfu:
+    reset_pin:
+      number: 14
+      inverted: true
+      mode:
+        output: true

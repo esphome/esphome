@@ -141,7 +141,7 @@ void UFireISEComponent::write_data_(uint8_t reg, float data) {
 void UFireISEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "uFire-ISE");
   LOG_I2C_DEVICE(this)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PH Sensor", this->ph_sensor_);
   LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_);
   LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);

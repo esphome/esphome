@@ -16,9 +16,9 @@ esphome:
         if (!mac_address_is_valid(my_addr))
           ESP_LOGD("test", "Invalid mac address %X", my_addr[0]); // etc.
         int x = 100;
-        x = constrain(x, 50, 90);
+        x = clamp(x, 50, 90);
         assert(x == 90);
-        x = constrain_at_least(x, 95);
+        x = clamp_at_least(x, 95);
         assert(x == 95);
-        x = constrain_at_most(x, 40);
+        x = clamp_at_most(x, 40);
         assert(x == 40);

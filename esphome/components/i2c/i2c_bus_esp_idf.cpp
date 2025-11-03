@@ -1,6 +1,7 @@
 #ifdef USE_ESP_IDF
 
 #include "i2c_bus_esp_idf.h"
+
 #include <driver/gpio.h>
 #include <cinttypes>
 #include <cstring>
@@ -8,10 +9,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
-#define SOC_HP_I2C_NUM SOC_I2C_NUM
-#endif
 
 namespace esphome {
 namespace i2c {
@@ -34,7 +31,6 @@ void IDFI2CBus::setup() {
 
   this->recover_();
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
   next_port = (i2c_port_t) (next_port + 1);
 
   i2c_master_bus_config_t bus_conf{};
@@ -77,56 +73,8 @@ void IDFI2CBus::setup() {
 
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning for devices");
-    this->i2c_scan();
+    this->i2c_scan_();
   }
-#else
-#if SOC_HP_I2C_NUM > 1
-  next_port = (next_port == I2C_NUM_0) ? I2C_NUM_1 : I2C_NUM_MAX;
-#else
-  next_port = I2C_NUM_MAX;
-#endif
-
-  i2c_config_t conf{};
-  memset(&conf, 0, sizeof(conf));
-  conf.mode = I2C_MODE_MASTER;
-  conf.sda_io_num = sda_pin_;
-  conf.sda_pullup_en = sda_pullup_enabled_;
-  conf.scl_io_num = scl_pin_;
-  conf.scl_pullup_en = scl_pullup_enabled_;
-  conf.master.clk_speed = frequency_;
-#ifdef USE_ESP32_VARIANT_ESP32S2
-  // workaround for https://github.com/esphome/issues/issues/6718
-  conf.clk_flags = I2C_SCLK_SRC_FLAG_AWARE_DFS;
-#endif
-  esp_err_t err = i2c_param_config(port_, &conf);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-  if (timeout_ > 0) {
-    err = i2c_set_timeout(port_, timeout_ * 80);  // unit: APB 80MHz clock cycle
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "i2c_set_timeout failed: %s", esp_err_to_name(err));
-      this->mark_failed();
-      return;
-    } else {
-      ESP_LOGV(TAG, "i2c_timeout set to %" PRIu32 " ticks (%" PRIu32 " us)", timeout_ * 80, timeout_);
-    }
-  }
-  err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, 0);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  initialized_ = true;
-  if (this->scan_) {
-    ESP_LOGV(TAG, "Scanning bus for active devices");
-    this->i2c_scan();
-  }
-#endif
 }
 
 void IDFI2CBus::dump_config() {
@@ -166,267 +114,73 @@ void IDFI2CBus::dump_config() {
   }
 }
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
-void IDFI2CBus::i2c_scan() {
-  for (uint8_t address = 8; address < 120; address++) {
-    auto err = i2c_master_probe(this->bus_, address, 20);
-    if (err == ESP_OK) {
-      this->scan_results_.emplace_back(address, true);
-    }
-  }
-}
-#endif
-
-ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
-  // logging is only enabled with vv level, if warnings are shown the caller
+ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                                 size_t read_count) {
+  // logging is only enabled with v level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
-    ESP_LOGVV(TAG, "i2c bus not initialized!");
+    ESP_LOGW(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
-  i2c_operation_job_t jobs[cnt + 4];
-  uint8_t read = (address << 1) | I2C_MASTER_READ;
-  size_t last = 0, num = 0;
-
-  jobs[num].command = I2C_MASTER_CMD_START;
-  num++;
-
-  jobs[num].command = I2C_MASTER_CMD_WRITE;
-  jobs[num].write.ack_check = true;
-  jobs[num].write.data = &read;
-  jobs[num].write.total_bytes = 1;
-  num++;
-
-  // find the last valid index
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    if (buf.len == 0) {
-      continue;
+  i2c_operation_job_t jobs[8]{};
+  size_t num_jobs = 0;
+  uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
+  uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
+  ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", write_count, read_count);
+  if (read_count == 0 && write_count == 0) {
+    // basically just a bus probe. Send a start, address and stop
+    ESP_LOGV(TAG, "0x%02X BUS PROBE", address);
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+    jobs[num_jobs].write.ack_check = true;
+    jobs[num_jobs].write.data = &write_addr;
+    jobs[num_jobs++].write.total_bytes = 1;
+  } else {
+    if (write_count != 0) {
+      ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty(write_buffer, write_count).c_str());
+      jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+      jobs[num_jobs].write.ack_check = true;
+      jobs[num_jobs].write.data = &write_addr;
+      jobs[num_jobs++].write.total_bytes = 1;
+      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+      jobs[num_jobs].write.ack_check = true;
+      jobs[num_jobs].write.data = (uint8_t *) write_buffer;
+      jobs[num_jobs++].write.total_bytes = write_count;
     }
-    last = i;
-  }
-
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    if (buf.len == 0) {
-      continue;
-    }
-    if (i == last) {
-      // the last byte read before stop should always be a nack,
-      // split the last read if len is larger than 1
-      if (buf.len > 1) {
-        jobs[num].command = I2C_MASTER_CMD_READ;
-        jobs[num].read.ack_value = I2C_ACK_VAL;
-        jobs[num].read.data = (uint8_t *) buf.data;
-        jobs[num].read.total_bytes = buf.len - 1;
-        num++;
+    if (read_count != 0) {
+      ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
+      jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+      jobs[num_jobs].write.ack_check = true;
+      jobs[num_jobs].write.data = &read_addr;
+      jobs[num_jobs++].write.total_bytes = 1;
+      if (read_count > 1) {
+        jobs[num_jobs].command = I2C_MASTER_CMD_READ;
+        jobs[num_jobs].read.ack_value = I2C_ACK_VAL;
+        jobs[num_jobs].read.data = read_buffer;
+        jobs[num_jobs++].read.total_bytes = read_count - 1;
       }
-      jobs[num].command = I2C_MASTER_CMD_READ;
-      jobs[num].read.ack_value = I2C_NACK_VAL;
-      jobs[num].read.data = (uint8_t *) buf.data + buf.len - 1;
-      jobs[num].read.total_bytes = 1;
-      num++;
-    } else {
-      jobs[num].command = I2C_MASTER_CMD_READ;
-      jobs[num].read.ack_value = I2C_ACK_VAL;
-      jobs[num].read.data = (uint8_t *) buf.data;
-      jobs[num].read.total_bytes = buf.len;
-      num++;
+      jobs[num_jobs].command = I2C_MASTER_CMD_READ;
+      jobs[num_jobs].read.ack_value = I2C_NACK_VAL;
+      jobs[num_jobs].read.data = read_buffer + read_count - 1;
+      jobs[num_jobs++].read.total_bytes = 1;
     }
   }
-
-  jobs[num].command = I2C_MASTER_CMD_STOP;
-  num++;
-
-  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs, num, 20);
+  jobs[num_jobs++].command = I2C_MASTER_CMD_STOP;
+  ESP_LOGV(TAG, "Sending %zu jobs", num_jobs);
+  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs, num_jobs, 20);
   if (err == ESP_ERR_INVALID_STATE) {
-    ESP_LOGVV(TAG, "RX from %02X failed: not acked", address);
+    ESP_LOGV(TAG, "TX to %02X failed: not acked", address);
     return ERROR_NOT_ACKNOWLEDGED;
   } else if (err == ESP_ERR_TIMEOUT) {
-    ESP_LOGVV(TAG, "RX from %02X failed: timeout", address);
+    ESP_LOGV(TAG, "TX to %02X failed: timeout", address);
     return ERROR_TIMEOUT;
   } else if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "RX from %02X failed: %s", address, esp_err_to_name(err));
+    ESP_LOGV(TAG, "TX to %02X failed: %s", address, esp_err_to_name(err));
     return ERROR_UNKNOWN;
   }
-#else
-  i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-  esp_err_t err = i2c_master_start(cmd);
-  if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "RX from %02X master start failed: %s", address, esp_err_to_name(err));
-    i2c_cmd_link_delete(cmd);
-    return ERROR_UNKNOWN;
-  }
-  err = i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_READ, true);
-  if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "RX from %02X address write failed: %s", address, esp_err_to_name(err));
-    i2c_cmd_link_delete(cmd);
-    return ERROR_UNKNOWN;
-  }
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    if (buf.len == 0)
-      continue;
-    err = i2c_master_read(cmd, buf.data, buf.len, i == cnt - 1 ? I2C_MASTER_LAST_NACK : I2C_MASTER_ACK);
-    if (err != ESP_OK) {
-      ESP_LOGVV(TAG, "RX from %02X data read failed: %s", address, esp_err_to_name(err));
-      i2c_cmd_link_delete(cmd);
-      return ERROR_UNKNOWN;
-    }
-  }
-  err = i2c_master_stop(cmd);
-  if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "RX from %02X stop failed: %s", address, esp_err_to_name(err));
-    i2c_cmd_link_delete(cmd);
-    return ERROR_UNKNOWN;
-  }
-  err = i2c_master_cmd_begin(port_, cmd, 20 / portTICK_PERIOD_MS);
-  // i2c_master_cmd_begin() will block for a whole second if no ack:
-  // https://github.com/espressif/esp-idf/issues/4999
-  i2c_cmd_link_delete(cmd);
-  if (err == ESP_FAIL) {
-    // transfer not acked
-    ESP_LOGVV(TAG, "RX from %02X failed: not acked", address);
-    return ERROR_NOT_ACKNOWLEDGED;
-  } else if (err == ESP_ERR_TIMEOUT) {
-    ESP_LOGVV(TAG, "RX from %02X failed: timeout", address);
-    return ERROR_TIMEOUT;
-  } else if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "RX from %02X failed: %s", address, esp_err_to_name(err));
-    return ERROR_UNKNOWN;
-  }
-#endif
-
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  char debug_buf[4];
-  std::string debug_hex;
-
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    for (size_t j = 0; j < buf.len; j++) {
-      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
-      debug_hex += debug_buf;
-    }
-  }
-  ESP_LOGVV(TAG, "0x%02X RX %s", address, debug_hex.c_str());
-#endif
-
-  return ERROR_OK;
-}
-
-ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
-  // logging is only enabled with vv level, if warnings are shown the caller
-  // should log them
-  if (!initialized_) {
-    ESP_LOGVV(TAG, "i2c bus not initialized!");
-    return ERROR_NOT_INITIALIZED;
-  }
-
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  char debug_buf[4];
-  std::string debug_hex;
-
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    for (size_t j = 0; j < buf.len; j++) {
-      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
-      debug_hex += debug_buf;
-    }
-  }
-  ESP_LOGVV(TAG, "0x%02X TX %s", address, debug_hex.c_str());
-#endif
-
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
-  i2c_operation_job_t jobs[cnt + 3];
-  uint8_t write = (address << 1) | I2C_MASTER_WRITE;
-  size_t num = 0;
-
-  jobs[num].command = I2C_MASTER_CMD_START;
-  num++;
-
-  jobs[num].command = I2C_MASTER_CMD_WRITE;
-  jobs[num].write.ack_check = true;
-  jobs[num].write.data = &write;
-  jobs[num].write.total_bytes = 1;
-  num++;
-
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    if (buf.len == 0) {
-      continue;
-    }
-    jobs[num].command = I2C_MASTER_CMD_WRITE;
-    jobs[num].write.ack_check = true;
-    jobs[num].write.data = (uint8_t *) buf.data;
-    jobs[num].write.total_bytes = buf.len;
-    num++;
-  }
-
-  if (stop) {
-    jobs[num].command = I2C_MASTER_CMD_STOP;
-    num++;
-  }
-
-  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs, num, 20);
-  if (err == ESP_ERR_INVALID_STATE) {
-    ESP_LOGVV(TAG, "TX to %02X failed: not acked", address);
-    return ERROR_NOT_ACKNOWLEDGED;
-  } else if (err == ESP_ERR_TIMEOUT) {
-    ESP_LOGVV(TAG, "TX to %02X failed: timeout", address);
-    return ERROR_TIMEOUT;
-  } else if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "TX to %02X failed: %s", address, esp_err_to_name(err));
-    return ERROR_UNKNOWN;
-  }
-#else
-  i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-  esp_err_t err = i2c_master_start(cmd);
-  if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "TX to %02X master start failed: %s", address, esp_err_to_name(err));
-    i2c_cmd_link_delete(cmd);
-    return ERROR_UNKNOWN;
-  }
-  err = i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, true);
-  if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "TX to %02X address write failed: %s", address, esp_err_to_name(err));
-    i2c_cmd_link_delete(cmd);
-    return ERROR_UNKNOWN;
-  }
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    if (buf.len == 0)
-      continue;
-    err = i2c_master_write(cmd, buf.data, buf.len, true);
-    if (err != ESP_OK) {
-      ESP_LOGVV(TAG, "TX to %02X data write failed: %s", address, esp_err_to_name(err));
-      i2c_cmd_link_delete(cmd);
-      return ERROR_UNKNOWN;
-    }
-  }
-  if (stop) {
-    err = i2c_master_stop(cmd);
-    if (err != ESP_OK) {
-      ESP_LOGVV(TAG, "TX to %02X master stop failed: %s", address, esp_err_to_name(err));
-      i2c_cmd_link_delete(cmd);
-      return ERROR_UNKNOWN;
-    }
-  }
-  err = i2c_master_cmd_begin(port_, cmd, 20 / portTICK_PERIOD_MS);
-  i2c_cmd_link_delete(cmd);
-  if (err == ESP_FAIL) {
-    // transfer not acked
-    ESP_LOGVV(TAG, "TX to %02X failed: not acked", address);
-    return ERROR_NOT_ACKNOWLEDGED;
-  } else if (err == ESP_ERR_TIMEOUT) {
-    ESP_LOGVV(TAG, "TX to %02X failed: timeout", address);
-    return ERROR_TIMEOUT;
-  } else if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "TX to %02X failed: %s", address, esp_err_to_name(err));
-    return ERROR_UNKNOWN;
-  }
-#endif
   return ERROR_OK;
 }
 
@@ -436,8 +190,8 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
 void IDFI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing bus recovery");
 
-  const gpio_num_t scl_pin = static_cast<gpio_num_t>(scl_pin_);
-  const gpio_num_t sda_pin = static_cast<gpio_num_t>(sda_pin_);
+  const auto scl_pin = static_cast<gpio_num_t>(scl_pin_);
+  const auto sda_pin = static_cast<gpio_num_t>(sda_pin_);
 
   // For the upcoming operations, target for a 60kHz toggle frequency.
   // 1000kHz is the maximum frequency for I2C running in standard-mode,
@@ -545,5 +299,4 @@ void IDFI2CBus::recover_() {
 
 }  // namespace i2c
 }  // namespace esphome
-
 #endif  // USE_ESP_IDF

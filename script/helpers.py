@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import cache
 import json
 import os
@@ -7,6 +8,7 @@ import os.path
 from pathlib import Path
 import re
 import subprocess
+import sys
 import time
 from typing import Any
 
@@ -23,11 +25,32 @@ CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
 # Python file extensions
 PYTHON_FILE_EXTENSIONS = (".py", ".pyi")
 
+# Combined C++ and Python file extensions for convenience
+CPP_AND_PYTHON_FILE_EXTENSIONS = (*CPP_FILE_EXTENSIONS, *PYTHON_FILE_EXTENSIONS)
+
 # YAML file extensions
 YAML_FILE_EXTENSIONS = (".yaml", ".yml")
 
 # Component path prefix
 ESPHOME_COMPONENTS_PATH = "esphome/components/"
+
+# Test components path prefix
+ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
+
+# Tuple of component and test paths for efficient startswith checks
+COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
+
+# Base bus components - these ARE the bus implementations and should not
+# be flagged as needing migration since they are the platform/base components
+BASE_BUS_COMPONENTS = {
+    "i2c",
+    "spi",
+    "uart",
+    "modbus",
+    "canbus",
+    "remote_transmitter",
+    "remote_receiver",
+}
 
 
 def parse_list_components_output(output: str) -> list[str]:
@@ -46,16 +69,77 @@ def parse_list_components_output(output: str) -> list[str]:
     return [c.strip() for c in output.strip().split("\n") if c.strip()]
 
 
+def parse_test_filename(test_file: Path) -> tuple[str, str]:
+    """Parse test filename to extract test name and platform.
+
+    Test files follow the naming pattern: test.<platform>.yaml or test-<variant>.<platform>.yaml
+
+    Args:
+        test_file: Path to test file
+
+    Returns:
+        Tuple of (test_name, platform)
+    """
+    parts = test_file.stem.split(".")
+    if len(parts) == 2:
+        return parts[0], parts[1]  # test, platform
+    return parts[0], "all"
+
+
+def get_component_from_path(file_path: str) -> str | None:
+    """Extract component name from a file path.
+
+    Args:
+        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp"
+                                or "tests/components/uart/test.esp32-idf.yaml")
+
+    Returns:
+        Component name if path is in components or tests directory, None otherwise
+    """
+    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
+        ESPHOME_TESTS_COMPONENTS_PATH
+    ):
+        parts = file_path.split("/")
+        if len(parts) >= 3 and parts[2]:
+            return parts[2]
+    return None
+
+
+def get_component_test_files(
+    component: str, *, all_variants: bool = False
+) -> list[Path]:
+    """Get test files for a component.
+
+    Args:
+        component: Component name (e.g., "wifi")
+        all_variants: If True, returns all test files including variants (test-*.yaml).
+                     If False, returns only base test files (test.*.yaml).
+                     Default is False.
+
+    Returns:
+        List of test file paths for the component, or empty list if none exist
+    """
+    tests_dir = Path(root_path) / "tests" / "components" / component
+    if not tests_dir.exists():
+        return []
+
+    if all_variants:
+        # Match both test.*.yaml and test-*.yaml patterns
+        return list(tests_dir.glob("test[.-]*.yaml"))
+    # Match only test.*.yaml (base tests)
+    return list(tests_dir.glob("test.*.yaml"))
+
+
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
     prefix = "".join(color) if isinstance(color, tuple) else color
     suffix = colorama.Style.RESET_ALL if reset else ""
     return prefix + msg + suffix
 
 
-def print_error_for_file(file: str, body: str | None) -> None:
+def print_error_for_file(file: str | Path, body: str | None) -> None:
     print(
         styled(colorama.Fore.GREEN, "### File ")
-        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file)
+        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), str(file))
     )
     print()
     if body is not None:
@@ -233,7 +317,10 @@ def get_changed_components() -> list[str] | None:
         for f in changed
     )
     if core_cpp_changed:
-        print("Core C++/header files changed - will run full clang-tidy scan")
+        print(
+            "Core C++/header files changed - will run full clang-tidy scan",
+            file=sys.stderr,
+        )
         return None
 
     # Use list-components.py to get changed components
@@ -247,7 +334,10 @@ def get_changed_components() -> list[str] | None:
         return parse_list_components_output(result.stdout)
     except subprocess.CalledProcessError:
         # If the script fails, fall back to full scan
-        print("Could not determine changed components - will run full clang-tidy scan")
+        print(
+            "Could not determine changed components - will run full clang-tidy scan",
+            file=sys.stderr,
+        )
         return None
 
 
@@ -299,14 +389,14 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
             if f in changed and not f.startswith(ESPHOME_COMPONENTS_PATH)
         ]
         if not files:
-            print("No files changed")
+            print("No files changed", file=sys.stderr)
         return files
 
     # Scenario 3: Specific components changed
     # Action: Check ALL files in each changed component
     # Convert component list to set for O(1) lookups
     component_set = set(components)
-    print(f"Changed components: {', '.join(sorted(components))}")
+    print(f"Changed components: {', '.join(sorted(components))}", file=sys.stderr)
 
     # The 'files' parameter contains ALL files in the codebase that clang-tidy would check.
     # We filter this down to only files in the changed components.
@@ -314,11 +404,9 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
     # because changes in one file can affect other files in the same component.
     filtered_files = []
     for f in files:
-        if f.startswith(ESPHOME_COMPONENTS_PATH):
-            # Check if file belongs to any of the changed components
-            parts = f.split("/")
-            if len(parts) >= 3 and parts[2] in component_set:
-                filtered_files.append(f)
+        component = get_component_from_path(f)
+        if component and component in component_set:
+            filtered_files.append(f)
 
     return filtered_files
 
@@ -513,7 +601,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
-    CORE.config_path = str(root)
+    CORE.config_path = root
     CORE.data[KEY_CORE] = {}
 
     # Keep finding dependencies until no new ones are found
@@ -529,7 +617,16 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
             new_components.update(dep.split(".")[0] for dep in comp.dependencies)
 
             # Add auto_load components
-            new_components.update(comp.auto_load)
+            auto_load = comp.auto_load
+            if callable(auto_load):
+                import inspect
+
+                if inspect.signature(auto_load).parameters:
+                    auto_load = auto_load(None)
+                else:
+                    auto_load = auto_load()
+
+            new_components.update(auto_load)
 
         # Check if we found any new components
         new_components -= all_components
@@ -553,7 +650,7 @@ def get_components_from_integration_fixtures() -> set[str]:
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(str(yaml_file))
+        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 
@@ -570,3 +667,313 @@ def get_components_from_integration_fixtures() -> set[str]:
                     components.add(item["platform"])
 
     return components
+
+
+def filter_component_and_test_files(file_path: str) -> bool:
+    """Check if a file path is a component or test file.
+
+    Args:
+        file_path: Path to check
+
+    Returns:
+        True if the file is in a component or test directory
+    """
+    return file_path.startswith(COMPONENT_AND_TESTS_PATHS) or (
+        file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
+        and file_path.endswith(YAML_FILE_EXTENSIONS)
+    )
+
+
+def filter_component_and_test_cpp_files(file_path: str) -> bool:
+    """Check if a file is a C++ source file in component or test directories.
+
+    Args:
+        file_path: Path to check
+
+    Returns:
+        True if the file is a C++ source/header file in component or test directories
+    """
+    return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
+        COMPONENT_AND_TESTS_PATHS
+    )
+
+
+def extract_component_names_from_files(files: list[str]) -> list[str]:
+    """Extract unique component names from a list of file paths.
+
+    Args:
+        files: List of file paths
+
+    Returns:
+        List of unique component names (preserves order)
+    """
+    return list(
+        dict.fromkeys(comp for file in files if (comp := get_component_from_path(file)))
+    )
+
+
+def add_item_to_components_graph(
+    components_graph: dict[str, list[str]], parent: str, child: str
+) -> None:
+    """Add a dependency relationship to the components graph.
+
+    Args:
+        components_graph: Graph mapping parent components to their children
+        parent: Parent component name
+        child: Child component name (dependent)
+    """
+    if not parent.startswith("__") and parent != child:
+        if parent not in components_graph:
+            components_graph[parent] = []
+        if child not in components_graph[parent]:
+            components_graph[parent].append(child)
+
+
+def resolve_auto_load(
+    auto_load: list[str] | Callable[[], list[str]] | Callable[[dict | None], list[str]],
+    config: dict | None = None,
+) -> list[str]:
+    """Resolve AUTO_LOAD to a list, handling callables with or without config parameter.
+
+    Args:
+        auto_load: The AUTO_LOAD value (list or callable)
+        config: Optional config to pass to callable AUTO_LOAD functions
+
+    Returns:
+        List of component names to auto-load
+    """
+    if not callable(auto_load):
+        return auto_load
+
+    import inspect
+
+    if inspect.signature(auto_load).parameters:
+        return auto_load(config)
+    return auto_load()
+
+
+def create_components_graph() -> dict[str, list[str]]:
+    """Create a graph of component dependencies.
+
+    Returns:
+        Dictionary mapping parent components to their children (dependencies)
+    """
+    from pathlib import Path
+
+    from esphome import const
+    from esphome.core import CORE
+    from esphome.loader import ComponentManifest, get_component, get_platform
+
+    # The root directory of the repo
+    root = Path(__file__).parent.parent
+    components_dir = root / ESPHOME_COMPONENTS_PATH
+    # Fake some directory so that get_component works
+    CORE.config_path = root
+    # Various configuration to capture different outcomes used by `AUTO_LOAD` function.
+    KEY_CORE = const.KEY_CORE
+    KEY_TARGET_FRAMEWORK = const.KEY_TARGET_FRAMEWORK
+    KEY_TARGET_PLATFORM = const.KEY_TARGET_PLATFORM
+    PLATFORM_ESP32 = const.PLATFORM_ESP32
+    PLATFORM_ESP8266 = const.PLATFORM_ESP8266
+
+    TARGET_CONFIGURATIONS = [
+        {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: None},
+        {KEY_TARGET_FRAMEWORK: "arduino", KEY_TARGET_PLATFORM: None},
+        {KEY_TARGET_FRAMEWORK: "esp-idf", KEY_TARGET_PLATFORM: None},
+        {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: PLATFORM_ESP32},
+        {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: PLATFORM_ESP8266},
+    ]
+    CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
+
+    components_graph = {}
+    platforms = []
+    components: list[tuple[ComponentManifest, str, Path]] = []
+
+    for path in components_dir.iterdir():
+        if not path.is_dir():
+            continue
+        if not (path / "__init__.py").is_file():
+            continue
+        name = path.name
+        comp = get_component(name)
+        if comp is None:
+            raise RuntimeError(
+                f"Cannot find component {name}. Make sure current path is pip installed ESPHome"
+            )
+
+        components.append((comp, name, path))
+        if comp.is_platform_component:
+            platforms.append(name)
+
+    platforms = set(platforms)
+
+    for comp, name, path in components:
+        for dependency in comp.dependencies:
+            add_item_to_components_graph(
+                components_graph, dependency.split(".")[0], name
+            )
+
+        for target_config in TARGET_CONFIGURATIONS:
+            CORE.data[KEY_CORE] = target_config
+            for item in resolve_auto_load(comp.auto_load, config=None):
+                add_item_to_components_graph(components_graph, item, name)
+        # restore config
+        CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
+
+        for platform_path in path.iterdir():
+            platform_name = platform_path.stem
+            if platform_name == name or platform_name not in platforms:
+                continue
+            platform = get_platform(platform_name, name)
+            if platform is None:
+                continue
+
+            add_item_to_components_graph(components_graph, platform_name, name)
+
+            for dependency in platform.dependencies:
+                add_item_to_components_graph(
+                    components_graph, dependency.split(".")[0], name
+                )
+
+            for target_config in TARGET_CONFIGURATIONS:
+                CORE.data[KEY_CORE] = target_config
+                for item in resolve_auto_load(platform.auto_load, config={}):
+                    add_item_to_components_graph(components_graph, item, name)
+            # restore config
+            CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
+
+    return components_graph
+
+
+def find_children_of_component(
+    components_graph: dict[str, list[str]], component_name: str, depth: int = 0
+) -> list[str]:
+    """Find all components that depend on the given component (recursively).
+
+    Args:
+        components_graph: Graph mapping parent components to their children
+        component_name: Component name to find children for
+        depth: Current recursion depth (max 10)
+
+    Returns:
+        List of all dependent component names (may contain duplicates removed at end)
+    """
+    if component_name not in components_graph:
+        return []
+
+    children = []
+
+    for child in components_graph[component_name]:
+        children.append(child)
+        if depth < 10:
+            children.extend(
+                find_children_of_component(components_graph, child, depth + 1)
+            )
+    # Remove duplicate values
+    return list(set(children))
+
+
+def get_components_with_dependencies(
+    files: list[str], get_dependencies: bool = False
+) -> list[str]:
+    """Get component names from files, optionally including their dependencies.
+
+    Args:
+        files: List of file paths
+        get_dependencies: If True, include all dependent components
+
+    Returns:
+        Sorted list of component names
+    """
+    components = extract_component_names_from_files(files)
+
+    if get_dependencies:
+        components_graph = create_components_graph()
+
+        all_components = components.copy()
+        for c in components:
+            all_components.extend(find_children_of_component(components_graph, c))
+        # Remove duplicate values
+        all_changed_components = list(set(all_components))
+
+        return sorted(all_changed_components)
+
+    return sorted(components)
+
+
+def get_all_component_files() -> list[str]:
+    """Get all component and test files from git.
+
+    Returns:
+        List of all component and test file paths
+    """
+    files = git_ls_files()
+    return list(filter(filter_component_and_test_files, files))
+
+
+def get_all_components() -> list[str]:
+    """Get all component names.
+
+    This function uses git to find all component files and extracts the component names.
+    It returns the same list as calling list-components.py without arguments.
+
+    Returns:
+        List of all component names
+    """
+    return get_components_with_dependencies(get_all_component_files(), False)
+
+
+def core_changed(files: list[str]) -> bool:
+    """Check if any core C++ or Python files have changed.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any core C++ or Python files have changed
+    """
+    return any(
+        f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
+def get_cpp_changed_components(files: list[str]) -> list[str]:
+    """Get components that have changed C++ files or tests.
+
+    This function analyzes a list of changed files and determines which components
+    are affected. It handles two scenarios:
+
+    1. Test files changed (tests/components/<component>/*.cpp):
+       - Adds the component to the affected list
+       - Only that component needs to be tested
+
+    2. Component C++ files changed (esphome/components/<component>/*):
+       - Adds the component to the affected list
+       - Also adds all components that depend on this component (recursively)
+       - This ensures that changes propagate to dependent components
+
+    Args:
+        files: List of file paths to analyze (should be C++ files)
+
+    Returns:
+        Sorted list of component names that need C++ unit tests run
+    """
+    components_graph = create_components_graph()
+    affected: set[str] = set()
+    for file in files:
+        if not file.endswith(CPP_FILE_EXTENSIONS):
+            continue
+        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 4:
+                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
+                if component_dir.is_dir():
+                    affected.add(parts[2])
+        elif file.startswith(ESPHOME_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 4:
+                component = parts[2]
+                affected.update(find_children_of_component(components_graph, component))
+                affected.add(component)
+    return sorted(affected)

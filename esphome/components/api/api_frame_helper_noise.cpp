@@ -10,13 +10,22 @@
 #include <cstring>
 #include <cinttypes>
 
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+
 namespace esphome::api {
 
 static const char *const TAG = "api.noise";
+#ifdef USE_ESP8266
+static const char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
+#else
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
+#endif
 static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, this->client_info_->get_combined_info().c_str(), ##__VA_ARGS__)
+#define HELPER_LOG(msg, ...) \
+  ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
 
 #ifdef HELPER_LOG_PACKETS
 #define LOG_PACKET_RECEIVED(buffer) ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(buffer).c_str())
@@ -27,42 +36,42 @@ static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 #endif
 
 /// Convert a noise error code to a readable error
-std::string noise_err_to_str(int err) {
+const LogString *noise_err_to_logstr(int err) {
   if (err == NOISE_ERROR_NO_MEMORY)
-    return "NO_MEMORY";
+    return LOG_STR("NO_MEMORY");
   if (err == NOISE_ERROR_UNKNOWN_ID)
-    return "UNKNOWN_ID";
+    return LOG_STR("UNKNOWN_ID");
   if (err == NOISE_ERROR_UNKNOWN_NAME)
-    return "UNKNOWN_NAME";
+    return LOG_STR("UNKNOWN_NAME");
   if (err == NOISE_ERROR_MAC_FAILURE)
-    return "MAC_FAILURE";
+    return LOG_STR("MAC_FAILURE");
   if (err == NOISE_ERROR_NOT_APPLICABLE)
-    return "NOT_APPLICABLE";
+    return LOG_STR("NOT_APPLICABLE");
   if (err == NOISE_ERROR_SYSTEM)
-    return "SYSTEM";
+    return LOG_STR("SYSTEM");
   if (err == NOISE_ERROR_REMOTE_KEY_REQUIRED)
-    return "REMOTE_KEY_REQUIRED";
+    return LOG_STR("REMOTE_KEY_REQUIRED");
   if (err == NOISE_ERROR_LOCAL_KEY_REQUIRED)
-    return "LOCAL_KEY_REQUIRED";
+    return LOG_STR("LOCAL_KEY_REQUIRED");
   if (err == NOISE_ERROR_PSK_REQUIRED)
-    return "PSK_REQUIRED";
+    return LOG_STR("PSK_REQUIRED");
   if (err == NOISE_ERROR_INVALID_LENGTH)
-    return "INVALID_LENGTH";
+    return LOG_STR("INVALID_LENGTH");
   if (err == NOISE_ERROR_INVALID_PARAM)
-    return "INVALID_PARAM";
+    return LOG_STR("INVALID_PARAM");
   if (err == NOISE_ERROR_INVALID_STATE)
-    return "INVALID_STATE";
+    return LOG_STR("INVALID_STATE");
   if (err == NOISE_ERROR_INVALID_NONCE)
-    return "INVALID_NONCE";
+    return LOG_STR("INVALID_NONCE");
   if (err == NOISE_ERROR_INVALID_PRIVATE_KEY)
-    return "INVALID_PRIVATE_KEY";
+    return LOG_STR("INVALID_PRIVATE_KEY");
   if (err == NOISE_ERROR_INVALID_PUBLIC_KEY)
-    return "INVALID_PUBLIC_KEY";
+    return LOG_STR("INVALID_PUBLIC_KEY");
   if (err == NOISE_ERROR_INVALID_FORMAT)
-    return "INVALID_FORMAT";
+    return LOG_STR("INVALID_FORMAT");
   if (err == NOISE_ERROR_INVALID_SIGNATURE)
-    return "INVALID_SIGNATURE";
-  return to_string(err);
+    return LOG_STR("INVALID_SIGNATURE");
+  return LOG_STR("UNKNOWN");
 }
 
 /// Initialize the frame helper, returns OK if successful.
@@ -75,7 +84,11 @@ APIError APINoiseFrameHelper::init() {
   // init prologue
   size_t old_size = prologue_.size();
   prologue_.resize(old_size + PROLOGUE_INIT_LEN);
+#ifdef USE_ESP8266
+  memcpy_P(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
+#else
   std::memcpy(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
+#endif
 
   state_ = State::CLIENT_HELLO;
   return APIError::OK;
@@ -83,18 +96,18 @@ APIError APINoiseFrameHelper::init() {
 // Helper for handling handshake frame errors
 APIError APINoiseFrameHelper::handle_handshake_frame_error_(APIError aerr) {
   if (aerr == APIError::BAD_INDICATOR) {
-    send_explicit_handshake_reject_("Bad indicator byte");
+    send_explicit_handshake_reject_(LOG_STR("Bad indicator byte"));
   } else if (aerr == APIError::BAD_HANDSHAKE_PACKET_LEN) {
-    send_explicit_handshake_reject_("Bad handshake packet len");
+    send_explicit_handshake_reject_(LOG_STR("Bad handshake packet len"));
   }
   return aerr;
 }
 
 // Helper for handling noise library errors
-APIError APINoiseFrameHelper::handle_noise_error_(int err, const char *func_name, APIError api_err) {
+APIError APINoiseFrameHelper::handle_noise_error_(int err, const LogString *func_name, APIError api_err) {
   if (err != 0) {
     state_ = State::FAILED;
-    HELPER_LOG("%s failed: %s", func_name, noise_err_to_str(err).c_str());
+    HELPER_LOG("%s failed: %s", LOG_STR_ARG(func_name), LOG_STR_ARG(noise_err_to_logstr(err)));
     return api_err;
   }
   return APIError::OK;
@@ -119,26 +132,16 @@ APIError APINoiseFrameHelper::loop() {
   return APIFrameHelper::loop();
 }
 
-/** Read a packet into the rx_buf_. If successful, stores frame data in the frame parameter
+/** Read a packet into the rx_buf_.
  *
- * @param frame: The struct to hold the frame information in.
- *   msg_start: points to the start of the payload - this pointer is only valid until the next
- *     try_receive_raw_ call
- *
- * @return 0 if a full packet is in rx_buf_
- * @return -1 if error, check errno.
+ * @return APIError::OK if a full packet is in rx_buf_
  *
  * errno EWOULDBLOCK: Packet could not be read without blocking. Try again later.
  * errno ENOMEM: Not enough memory for reading packet.
  * errno API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
  * errno API_ERROR_HANDSHAKE_PACKET_LEN: Packet too big for this phase.
  */
-APIError APINoiseFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
-  if (frame == nullptr) {
-    HELPER_LOG("Bad argument for try_read_frame_");
-    return APIError::BAD_ARG;
-  }
-
+APIError APINoiseFrameHelper::try_read_frame_() {
   // read header
   if (rx_header_buf_len_ < 3) {
     // no header information yet
@@ -165,16 +168,17 @@ APIError APINoiseFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
   // read body
   uint16_t msg_size = (((uint16_t) rx_header_buf_[1]) << 8) | rx_header_buf_[2];
 
-  if (state_ != State::DATA && msg_size > 128) {
-    // for handshake message only permit up to 128 bytes
+  // Check against size limits to prevent OOM: MAX_HANDSHAKE_SIZE for handshake, MAX_MESSAGE_SIZE for data
+  uint16_t limit = (state_ == State::DATA) ? MAX_MESSAGE_SIZE : MAX_HANDSHAKE_SIZE;
+  if (msg_size > limit) {
     state_ = State::FAILED;
-    HELPER_LOG("Bad packet len for handshake: %d", msg_size);
-    return APIError::BAD_HANDSHAKE_PACKET_LEN;
+    HELPER_LOG("Bad packet: message size %u exceeds maximum %u", msg_size, limit);
+    return (state_ == State::DATA) ? APIError::BAD_DATA_PACKET : APIError::BAD_HANDSHAKE_PACKET_LEN;
   }
 
-  // reserve space for body
-  if (rx_buf_.size() != msg_size) {
-    rx_buf_.resize(msg_size);
+  // Reserve space for body
+  if (this->rx_buf_.size() != msg_size) {
+    this->rx_buf_.resize(msg_size);
   }
 
   if (rx_buf_len_ < msg_size) {
@@ -192,12 +196,12 @@ APIError APINoiseFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
     }
   }
 
-  LOG_PACKET_RECEIVED(rx_buf_);
-  *frame = std::move(rx_buf_);
-  // consume msg
-  rx_buf_ = {};
-  rx_buf_len_ = 0;
-  rx_header_buf_len_ = 0;
+  LOG_PACKET_RECEIVED(this->rx_buf_);
+
+  // Clear state for next frame (rx_buf_ still contains data for caller)
+  this->rx_buf_len_ = 0;
+  this->rx_header_buf_len_ = 0;
+
   return APIError::OK;
 }
 
@@ -219,18 +223,17 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::CLIENT_HELLO) {
     // waiting for client hello
-    std::vector<uint8_t> frame;
-    aerr = try_read_frame_(&frame);
+    aerr = this->try_read_frame_();
     if (aerr != APIError::OK) {
       return handle_handshake_frame_error_(aerr);
     }
     // ignore contents, may be used in future for flags
     // Resize for: existing prologue + 2 size bytes + frame data
-    size_t old_size = prologue_.size();
-    prologue_.resize(old_size + 2 + frame.size());
-    prologue_[old_size] = (uint8_t) (frame.size() >> 8);
-    prologue_[old_size + 1] = (uint8_t) frame.size();
-    std::memcpy(prologue_.data() + old_size + 2, frame.data(), frame.size());
+    size_t old_size = this->prologue_.size();
+    this->prologue_.resize(old_size + 2 + this->rx_buf_.size());
+    this->prologue_[old_size] = (uint8_t) (this->rx_buf_.size() >> 8);
+    this->prologue_[old_size + 1] = (uint8_t) this->rx_buf_.size();
+    std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), this->rx_buf_.size());
 
     state_ = State::SERVER_HELLO;
   }
@@ -239,7 +242,6 @@ APIError APINoiseFrameHelper::state_action_() {
     const std::string &name = App.get_name();
     const std::string &mac = get_mac_address();
 
-    std::vector<uint8_t> msg;
     // Calculate positions and sizes
     size_t name_len = name.size() + 1;  // including null terminator
     size_t mac_len = mac.size() + 1;    // including null terminator
@@ -247,17 +249,17 @@ APIError APINoiseFrameHelper::state_action_() {
     size_t mac_offset = name_offset + name_len;
     size_t total_size = 1 + name_len + mac_len;
 
-    msg.resize(total_size);
+    auto msg = std::make_unique<uint8_t[]>(total_size);
 
     // chosen proto
     msg[0] = 0x01;
 
     // node name, terminated by null byte
-    std::memcpy(msg.data() + name_offset, name.c_str(), name_len);
+    std::memcpy(msg.get() + name_offset, name.c_str(), name_len);
     // node mac, terminated by null byte
-    std::memcpy(msg.data() + mac_offset, mac.c_str(), mac_len);
+    std::memcpy(msg.get() + mac_offset, mac.c_str(), mac_len);
 
-    aerr = write_frame_(msg.data(), msg.size());
+    aerr = write_frame_(msg.get(), total_size);
     if (aerr != APIError::OK)
       return aerr;
 
@@ -272,29 +274,30 @@ APIError APINoiseFrameHelper::state_action_() {
     int action = noise_handshakestate_get_action(handshake_);
     if (action == NOISE_ACTION_READ_MESSAGE) {
       // waiting for handshake msg
-      std::vector<uint8_t> frame;
-      aerr = try_read_frame_(&frame);
+      aerr = this->try_read_frame_();
       if (aerr != APIError::OK) {
         return handle_handshake_frame_error_(aerr);
       }
 
-      if (frame.empty()) {
-        send_explicit_handshake_reject_("Empty handshake message");
+      if (this->rx_buf_.empty()) {
+        send_explicit_handshake_reject_(LOG_STR("Empty handshake message"));
         return APIError::BAD_HANDSHAKE_ERROR_BYTE;
-      } else if (frame[0] != 0x00) {
-        HELPER_LOG("Bad handshake error byte: %u", frame[0]);
-        send_explicit_handshake_reject_("Bad handshake error byte");
+      } else if (this->rx_buf_[0] != 0x00) {
+        HELPER_LOG("Bad handshake error byte: %u", this->rx_buf_[0]);
+        send_explicit_handshake_reject_(LOG_STR("Bad handshake error byte"));
         return APIError::BAD_HANDSHAKE_ERROR_BYTE;
       }
 
       NoiseBuffer mbuf;
       noise_buffer_init(mbuf);
-      noise_buffer_set_input(mbuf, frame.data() + 1, frame.size() - 1);
+      noise_buffer_set_input(mbuf, this->rx_buf_.data() + 1, this->rx_buf_.size() - 1);
       err = noise_handshakestate_read_message(handshake_, &mbuf, nullptr);
       if (err != 0) {
         // Special handling for MAC failure
-        send_explicit_handshake_reject_(err == NOISE_ERROR_MAC_FAILURE ? "Handshake MAC failure" : "Handshake error");
-        return handle_noise_error_(err, "noise_handshakestate_read_message", APIError::HANDSHAKESTATE_READ_FAILED);
+        send_explicit_handshake_reject_(err == NOISE_ERROR_MAC_FAILURE ? LOG_STR("Handshake MAC failure")
+                                                                       : LOG_STR("Handshake error"));
+        return handle_noise_error_(err, LOG_STR("noise_handshakestate_read_message"),
+                                   APIError::HANDSHAKESTATE_READ_FAILED);
       }
 
       aerr = check_handshake_finished_();
@@ -307,8 +310,8 @@ APIError APINoiseFrameHelper::state_action_() {
       noise_buffer_set_output(mbuf, buffer + 1, sizeof(buffer) - 1);
 
       err = noise_handshakestate_write_message(handshake_, &mbuf, nullptr);
-      APIError aerr_write =
-          handle_noise_error_(err, "noise_handshakestate_write_message", APIError::HANDSHAKESTATE_WRITE_FAILED);
+      APIError aerr_write = handle_noise_error_(err, LOG_STR("noise_handshakestate_write_message"),
+                                                APIError::HANDSHAKESTATE_WRITE_FAILED);
       if (aerr_write != APIError::OK)
         return aerr_write;
       buffer[0] = 0x00;  // success
@@ -331,51 +334,66 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   return APIError::OK;
 }
-void APINoiseFrameHelper::send_explicit_handshake_reject_(const std::string &reason) {
-  std::vector<uint8_t> data;
-  data.resize(reason.length() + 1);
+void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reason) {
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
+  size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
+  size_t data_size = reason_len + 1;
+  auto data = std::make_unique<uint8_t[]>(data_size);
+  data[0] = 0x01;  // failure
+
+  // Copy error message from PROGMEM
+  if (reason_len > 0) {
+    memcpy_P(data.get() + 1, reinterpret_cast<PGM_P>(reason), reason_len);
+  }
+#else
+  // Normal memory access
+  const char *reason_str = LOG_STR_ARG(reason);
+  size_t reason_len = strlen(reason_str);
+  size_t data_size = reason_len + 1;
+  auto data = std::make_unique<uint8_t[]>(data_size);
   data[0] = 0x01;  // failure
 
   // Copy error message in bulk
-  if (!reason.empty()) {
-    std::memcpy(data.data() + 1, reason.c_str(), reason.length());
+  if (reason_len > 0) {
+    std::memcpy(data.get() + 1, reason_str, reason_len);
   }
+#endif
 
   // temporarily remove failed state
   auto orig_state = state_;
   state_ = State::EXPLICIT_REJECT;
-  write_frame_(data.data(), data.size());
+  write_frame_(data.get(), data_size);
   state_ = orig_state;
 }
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  int err;
-  APIError aerr;
-  aerr = state_action_();
+  APIError aerr = this->state_action_();
   if (aerr != APIError::OK) {
     return aerr;
   }
 
-  if (state_ != State::DATA) {
+  if (this->state_ != State::DATA) {
     return APIError::WOULD_BLOCK;
   }
 
-  std::vector<uint8_t> frame;
-  aerr = try_read_frame_(&frame);
+  aerr = this->try_read_frame_();
   if (aerr != APIError::OK)
     return aerr;
 
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
-  noise_buffer_set_inout(mbuf, frame.data(), frame.size(), frame.size());
-  err = noise_cipherstate_decrypt(recv_cipher_, &mbuf);
-  APIError decrypt_err = handle_noise_error_(err, "noise_cipherstate_decrypt", APIError::CIPHERSTATE_DECRYPT_FAILED);
-  if (decrypt_err != APIError::OK)
+  noise_buffer_set_inout(mbuf, this->rx_buf_.data(), this->rx_buf_.size(), this->rx_buf_.size());
+  int err = noise_cipherstate_decrypt(this->recv_cipher_, &mbuf);
+  APIError decrypt_err =
+      handle_noise_error_(err, LOG_STR("noise_cipherstate_decrypt"), APIError::CIPHERSTATE_DECRYPT_FAILED);
+  if (decrypt_err != APIError::OK) {
     return decrypt_err;
+  }
 
   uint16_t msg_size = mbuf.size;
-  uint8_t *msg_data = frame.data();
+  uint8_t *msg_data = this->rx_buf_.data();
   if (msg_size < 4) {
-    state_ = State::FAILED;
+    this->state_ = State::FAILED;
     HELPER_LOG("Bad data packet: size %d too short", msg_size);
     return APIError::BAD_DATA_PACKET;
   }
@@ -383,12 +401,12 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   uint16_t type = (((uint16_t) msg_data[0]) << 8) | msg_data[1];
   uint16_t data_len = (((uint16_t) msg_data[2]) << 8) | msg_data[3];
   if (data_len > msg_size - 4) {
-    state_ = State::FAILED;
+    this->state_ = State::FAILED;
     HELPER_LOG("Bad data packet: data_len %u greater than msg_size %u", data_len, msg_size);
     return APIError::BAD_DATA_PACKET;
   }
 
-  buffer->container = std::move(frame);
+  buffer->container = std::move(this->rx_buf_);
   buffer->data_offset = 4;
   buffer->data_len = data_len;
   buffer->type = type;
@@ -416,8 +434,7 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
     return APIError::OK;
   }
 
-  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
-  uint8_t *buffer_data = raw_buffer->data();  // Cache buffer pointer
+  uint8_t *buffer_data = buffer.get_buffer()->data();
 
   this->reusable_iovs_.clear();
   this->reusable_iovs_.reserve(packets.size());
@@ -450,7 +467,8 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
                            4 + packet.payload_size + frame_footer_size_);
 
     int err = noise_cipherstate_encrypt(send_cipher_, &mbuf);
-    APIError aerr = handle_noise_error_(err, "noise_cipherstate_encrypt", APIError::CIPHERSTATE_ENCRYPT_FAILED);
+    APIError aerr =
+        handle_noise_error_(err, LOG_STR("noise_cipherstate_encrypt"), APIError::CIPHERSTATE_ENCRYPT_FAILED);
     if (aerr != APIError::OK)
       return aerr;
 
@@ -504,25 +522,27 @@ APIError APINoiseFrameHelper::init_handshake_() {
   nid_.modifier_ids[0] = NOISE_MODIFIER_PSK0;
 
   err = noise_handshakestate_new_by_id(&handshake_, &nid_, NOISE_ROLE_RESPONDER);
-  APIError aerr = handle_noise_error_(err, "noise_handshakestate_new_by_id", APIError::HANDSHAKESTATE_SETUP_FAILED);
+  APIError aerr =
+      handle_noise_error_(err, LOG_STR("noise_handshakestate_new_by_id"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;
 
   const auto &psk = ctx_->get_psk();
   err = noise_handshakestate_set_pre_shared_key(handshake_, psk.data(), psk.size());
-  aerr = handle_noise_error_(err, "noise_handshakestate_set_pre_shared_key", APIError::HANDSHAKESTATE_SETUP_FAILED);
+  aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_set_pre_shared_key"),
+                             APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;
 
   err = noise_handshakestate_set_prologue(handshake_, prologue_.data(), prologue_.size());
-  aerr = handle_noise_error_(err, "noise_handshakestate_set_prologue", APIError::HANDSHAKESTATE_SETUP_FAILED);
+  aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_set_prologue"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;
   // set_prologue copies it into handshakestate, so we can get rid of it now
   prologue_ = {};
 
   err = noise_handshakestate_start(handshake_);
-  aerr = handle_noise_error_(err, "noise_handshakestate_start", APIError::HANDSHAKESTATE_SETUP_FAILED);
+  aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_start"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;
   return APIError::OK;
@@ -540,7 +560,8 @@ APIError APINoiseFrameHelper::check_handshake_finished_() {
     return APIError::HANDSHAKESTATE_BAD_STATE;
   }
   int err = noise_handshakestate_split(handshake_, &send_cipher_, &recv_cipher_);
-  APIError aerr = handle_noise_error_(err, "noise_handshakestate_split", APIError::HANDSHAKESTATE_SPLIT_FAILED);
+  APIError aerr =
+      handle_noise_error_(err, LOG_STR("noise_handshakestate_split"), APIError::HANDSHAKESTATE_SPLIT_FAILED);
   if (aerr != APIError::OK)
     return aerr;
 

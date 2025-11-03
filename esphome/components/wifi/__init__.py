@@ -3,7 +3,7 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
-from esphome.components.network import IPAddress
+from esphome.components.network import ip_address_literal
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.config_validation import only_with_esp_idf
@@ -44,14 +44,14 @@ from esphome.const import (
     CONF_USERNAME,
     PlatformFramework,
 )
-from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
 
 from . import wpa2_eap
 
 AUTO_LOAD = ["network"]
 
-NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2]
+NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
@@ -125,8 +125,8 @@ EAP_AUTH_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME): cv.string_strict,
             cv.Optional(CONF_PASSWORD): cv.string_strict,
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
-            cv.SplitDefault(CONF_TTLS_PHASE_2, esp32_idf="mschapv2"): cv.All(
-                cv.enum(TTLS_PHASE_2), cv.only_with_esp_idf
+            cv.SplitDefault(CONF_TTLS_PHASE_2, esp32="mschapv2"): cv.All(
+                cv.enum(TTLS_PHASE_2), cv.only_on_esp32
             ),
             cv.Inclusive(
                 CONF_CERTIFICATE, "certificate_and_key"
@@ -179,8 +179,8 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 def validate_variant(_):
     if CORE.is_esp32:
         variant = get_esp32_variant()
-        if variant in NO_WIFI_VARIANTS:
-            raise cv.Invalid(f"{variant} does not support WiFi")
+        if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
+            raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
 
 
 def final_validate(config):
@@ -213,11 +213,15 @@ def _validate(config):
         if CONF_EAP in config:
             network[CONF_EAP] = config.pop(CONF_EAP)
         if CONF_NETWORKS in config:
-            raise cv.Invalid(
-                "You cannot use the 'ssid:' option together with 'networks:'. Please "
-                "copy your network into the 'networks:' key"
-            )
-        config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
+            # In testing mode, merged component tests may have both ssid and networks
+            # Just use the networks list and ignore the single ssid
+            if not CORE.testing_mode:
+                raise cv.Invalid(
+                    "You cannot use the 'ssid:' option together with 'networks:'. Please "
+                    "copy your network into the 'networks:' key"
+                )
+        else:
+            config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
 
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
         config = config.copy()
@@ -280,11 +284,11 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
-            cv.SplitDefault(CONF_ENABLE_BTM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_ENABLE_BTM, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
-            cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional("enable_mdns"): cv.invalid(
@@ -330,9 +334,7 @@ def eap_auth(config):
 
 
 def safe_ip(ip):
-    if ip is None:
-        return IPAddress(0, 0, 0, 0)
-    return IPAddress(str(ip))
+    return ip_address_literal(ip)
 
 
 def manual_ip(config):
@@ -370,7 +372,7 @@ def wifi_network(config, ap, static_ip):
     return ap
 
 
-@coroutine_with_priority(60.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
@@ -378,14 +380,19 @@ async def to_code(config):
     # Track if any network uses Enterprise authentication
     has_eap = False
 
-    def add_sta(ap, network):
-        ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-        cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+    # Initialize FixedVector with the count of networks
+    networks = config.get(CONF_NETWORKS, [])
+    if networks:
+        cg.add(var.init_sta(len(networks)))
 
-    for network in config.get(CONF_NETWORKS, []):
-        if CONF_EAP in network:
-            has_eap = True
-        cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
+        def add_sta(ap: cg.MockObj, network: dict) -> None:
+            ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+            cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+
+        for network in networks:
+            if CONF_EAP in network:
+                has_eap = True
+            cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
@@ -402,12 +409,13 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
     # Disable Enterprise WiFi support if no EAP is configured
-    if CORE.is_esp32 and CORE.using_esp_idf and not has_eap:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
+    if CORE.is_esp32:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
-    cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
+    if config[CONF_FAST_CONNECT]:
+        cg.add_define("USE_WIFI_FAST_CONNECT")
     cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
@@ -416,10 +424,10 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
-    elif (CORE.is_esp32 and CORE.using_arduino) or CORE.is_rp2040:
+    elif CORE.is_rp2040:
         cg.add_library("WiFi", None)
 
-    if CORE.is_esp32 and CORE.using_esp_idf:
+    if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
             add_idf_sdkconfig_option("CONFIG_WPA_11KV_SUPPORT", True)
             cg.add_define("USE_WIFI_11KV_SUPPORT")
@@ -447,6 +455,8 @@ async def to_code(config):
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
 
+    CORE.add_job(final_step)
+
 
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
 async def wifi_connected_to_code(config, condition_id, template_arg, args):
@@ -466,6 +476,28 @@ async def wifi_enable_to_code(config, action_id, template_arg, args):
 @automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
 async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
+
+
+KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
+
+
+def request_wifi_scan_results():
+    """Request that WiFi scan results be kept in memory after connection.
+
+    Components that need access to scan results after WiFi is connected should
+    call this function during their code generation. This prevents the WiFi component from
+    freeing scan result memory after successful connection.
+    """
+    CORE.data[KEEP_SCAN_RESULTS_KEY] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure scan result retention."""
+    if CORE.data.get(KEEP_SCAN_RESULTS_KEY, False):
+        cg.add(
+            cg.RawExpression("wifi::global_wifi_component->set_keep_scan_results(true)")
+        )
 
 
 @automation.register_action(
@@ -506,8 +538,10 @@ async def wifi_set_sta_to_code(config, action_id, template_arg, args):
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "wifi_component_esp32_arduino.cpp": {PlatformFramework.ESP32_ARDUINO},
-        "wifi_component_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "wifi_component_esp_idf.cpp": {
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.ESP32_ARDUINO,
+        },
         "wifi_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "wifi_component_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,

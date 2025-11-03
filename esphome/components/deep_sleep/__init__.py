@@ -197,7 +197,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
                 cv.only_on_esp32,
                 esp32.only_on_variant(
-                    unsupported=[VARIANT_ESP32C3], msg_prefix="Wakeup from ext1"
+                    unsupported=[VARIANT_ESP32C2, VARIANT_ESP32C3],
+                    msg_prefix="Wakeup from ext1",
                 ),
                 cv.Schema(
                     {
@@ -214,7 +215,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TOUCH_WAKEUP): cv.All(
                 cv.only_on_esp32,
                 esp32.only_on_variant(
-                    unsupported=[VARIANT_ESP32C3], msg_prefix="Wakeup from touch"
+                    unsupported=[
+                        VARIANT_ESP32C2,
+                        VARIANT_ESP32C3,
+                        VARIANT_ESP32C6,
+                        VARIANT_ESP32H2,
+                    ],
+                    msg_prefix="Wakeup from touch",
                 ),
                 cv.boolean,
             ),

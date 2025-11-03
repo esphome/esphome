@@ -1,6 +1,6 @@
 one_wire:
   - platform: gpio
-    pin: 4
+    pin: ${one_wire_pin}
 
 sensor:
   - platform: dallas_temp

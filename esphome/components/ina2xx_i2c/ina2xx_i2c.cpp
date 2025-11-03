@@ -21,7 +21,7 @@ void INA2XXI2C::dump_config() {
 }
 
 bool INA2XXI2C::read_ina_register(uint8_t reg, uint8_t *data, size_t len) {
-  auto ret = this->read_register(reg, data, len, false);
+  auto ret = this->read_register(reg, data, len);
   if (ret != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "read_ina_register_ failed. Reg=0x%02X Err=%d", reg, ret);
   }

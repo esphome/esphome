@@ -1,6 +1,7 @@
 #ifdef USE_ESP8266
 
 #include <c_types.h>
+#include <cinttypes>
 extern "C" {
 #include "spi_flash.h"
 }
@@ -119,16 +120,16 @@ static bool load_from_rtc(size_t offset, uint32_t *data, size_t len) {
 
 class ESP8266PreferenceBackend : public ESPPreferenceBackend {
  public:
-  size_t offset = 0;
   uint32_t type = 0;
+  uint16_t offset = 0;
+  uint8_t length_words = 0;  // Max 255 words (1020 bytes of data)
   bool in_flash = false;
-  size_t length_words = 0;
 
   bool save(const uint8_t *data, size_t len) override {
     if (bytes_to_words(len) != length_words) {
       return false;
     }
-    size_t buffer_size = length_words + 1;
+    size_t buffer_size = static_cast<size_t>(length_words) + 1;
     std::unique_ptr<uint32_t[]> buffer(new uint32_t[buffer_size]());  // Note the () for zero-initialization
     memcpy(buffer.get(), data, len);
     buffer[length_words] = calculate_crc(buffer.get(), buffer.get() + length_words, type);
@@ -142,7 +143,7 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
     if (bytes_to_words(len) != length_words) {
       return false;
     }
-    size_t buffer_size = length_words + 1;
+    size_t buffer_size = static_cast<size_t>(length_words) + 1;
     std::unique_ptr<uint32_t[]> buffer(new uint32_t[buffer_size]());
     bool ret = in_flash ? load_from_flash(offset, buffer.get(), buffer_size)
                         : load_from_rtc(offset, buffer.get(), buffer_size);
@@ -176,15 +177,19 @@ class ESP8266Preferences : public ESPPreferences {
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
     uint32_t length_words = bytes_to_words(length);
+    if (length_words > 255) {
+      ESP_LOGE(TAG, "Preference too large: %" PRIu32 " words > 255", length_words);
+      return {};
+    }
     if (in_flash) {
       uint32_t start = current_flash_offset;
       uint32_t end = start + length_words + 1;
       if (end > ESP8266_FLASH_STORAGE_SIZE)
         return {};
       auto *pref = new ESP8266PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
-      pref->offset = start;
+      pref->offset = static_cast<uint16_t>(start);
       pref->type = type;
-      pref->length_words = length_words;
+      pref->length_words = static_cast<uint8_t>(length_words);
       pref->in_flash = true;
       current_flash_offset = end;
       return {pref};
@@ -210,9 +215,9 @@ class ESP8266Preferences : public ESPPreferences {
     uint32_t rtc_offset = in_normal ? start + 32 : start - 96;
 
     auto *pref = new ESP8266PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
-    pref->offset = rtc_offset;
+    pref->offset = static_cast<uint16_t>(rtc_offset);
     pref->type = type;
-    pref->length_words = length_words;
+    pref->length_words = static_cast<uint8_t>(length_words);
     pref->in_flash = false;
     current_offset += length_words + 1;
     return pref;

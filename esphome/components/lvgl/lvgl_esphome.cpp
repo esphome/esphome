@@ -82,6 +82,18 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   area->y2 = (area->y2 + draw_rounding) / draw_rounding * draw_rounding - 1;
 }
 
+void LvglComponent::monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px) {
+  ESP_LOGVV(TAG, "Draw end: %" PRIu32 " pixels in %" PRIu32 " ms", px, time);
+  auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
+  comp->draw_end_();
+}
+
+void LvglComponent::render_start_cb(lv_disp_drv_t *disp_drv) {
+  ESP_LOGVV(TAG, "Draw start");
+  auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
+  comp->draw_start_();
+}
+
 lv_event_code_t lv_api_event;     // NOLINT
 lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
@@ -101,7 +113,10 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
     lv_disp_trig_activity(this->disp_);  // resets the inactivity time
     lv_obj_invalidate(lv_scr_act());
   }
-  this->pause_callbacks_.call(paused);
+  if (paused && this->pause_callback_ != nullptr)
+    this->pause_callback_->trigger();
+  if (!paused && this->resume_callback_ != nullptr)
+    this->resume_callback_->trigger();
 }
 
 void LvglComponent::esphome_lvgl_init() {
@@ -222,13 +237,6 @@ IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeo
     } else if (this->is_idle_ && idle_time < this->timeout_.value()) {
       this->is_idle_ = false;
     }
-  });
-}
-
-PauseTrigger::PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused) : paused_(std::move(paused)) {
-  parent->add_on_pause_callback([this](bool pausing) {
-    if (this->paused_.value() == pausing)
-      this->trigger();
   });
 }
 
@@ -474,6 +482,12 @@ void LvglComponent::setup() {
       return;
     }
   }
+  if (this->draw_start_callback_ != nullptr) {
+    this->disp_drv_.render_start_cb = render_start_cb;
+  }
+  if (this->draw_end_callback_ != nullptr) {
+    this->disp_drv_.monitor_cb = monitor_cb;
+  }
 #if LV_USE_LOG
   lv_log_register_print_cb([](const char *buf) {
     auto next = strchr(buf, ')');
@@ -502,8 +516,9 @@ void LvglComponent::loop() {
   if (this->paused_) {
     if (this->show_snow_)
       this->write_random_();
+  } else {
+    lv_timer_handler_run_in_period(5);
   }
-  lv_timer_handler_run_in_period(5);
 }
 
 #ifdef USE_LVGL_ANIMIMG

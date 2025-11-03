@@ -1,0 +1,165 @@
+esphome:
+  name: multi-device-preferences-test
+  # Define multiple devices for testing preference storage
+  devices:
+    - id: device_a
+      name: Device A
+    - id: device_b
+      name: Device B
+
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+# Test entities with restore modes to verify preference storage
+
+# Switches with same name on different devices - test restore mode
+switch:
+  - platform: template
+    name: Light
+    id: light_device_a
+    device_id: device_a
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: |-
+          ESP_LOGI("test", "Device A Light turned ON");
+    turn_off_action:
+      - lambda: |-
+          ESP_LOGI("test", "Device A Light turned OFF");
+
+  - platform: template
+    name: Light
+    id: light_device_b
+    device_id: device_b
+    restore_mode: RESTORE_DEFAULT_ON  # Different default to test uniqueness
+    turn_on_action:
+      - lambda: |-
+          ESP_LOGI("test", "Device B Light turned ON");
+    turn_off_action:
+      - lambda: |-
+          ESP_LOGI("test", "Device B Light turned OFF");
+
+  - platform: template
+    name: Light
+    id: light_main
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: |-
+          ESP_LOGI("test", "Main Light turned ON");
+    turn_off_action:
+      - lambda: |-
+          ESP_LOGI("test", "Main Light turned OFF");
+
+# Numbers with restore to test preference storage
+number:
+  - platform: template
+    name: Setpoint
+    id: setpoint_device_a
+    device_id: device_a
+    min_value: 10.0
+    max_value: 30.0
+    step: 0.5
+    restore_value: true
+    initial_value: 20.0
+    set_action:
+      - lambda: |-
+          ESP_LOGI("test", "Device A Setpoint set to %.1f", x);
+          id(setpoint_device_a).state = x;
+
+  - platform: template
+    name: Setpoint
+    id: setpoint_device_b
+    device_id: device_b
+    min_value: 10.0
+    max_value: 30.0
+    step: 0.5
+    restore_value: true
+    initial_value: 25.0  # Different initial to test uniqueness
+    set_action:
+      - lambda: |-
+          ESP_LOGI("test", "Device B Setpoint set to %.1f", x);
+          id(setpoint_device_b).state = x;
+
+  - platform: template
+    name: Setpoint
+    id: setpoint_main
+    min_value: 10.0
+    max_value: 30.0
+    step: 0.5
+    restore_value: true
+    initial_value: 22.0
+    set_action:
+      - lambda: |-
+          ESP_LOGI("test", "Main Setpoint set to %.1f", x);
+          id(setpoint_main).state = x;
+
+# Selects with restore to test preference storage
+select:
+  - platform: template
+    name: Mode
+    id: mode_device_a
+    device_id: device_a
+    options:
+      - "Auto"
+      - "Manual"
+      - "Off"
+    restore_value: true
+    initial_option: "Auto"
+    set_action:
+      - lambda: |-
+          ESP_LOGI("test", "Device A Mode set to %s", x.c_str());
+          id(mode_device_a).state = x;
+
+  - platform: template
+    name: Mode
+    id: mode_device_b
+    device_id: device_b
+    options:
+      - "Auto"
+      - "Manual"
+      - "Off"
+    restore_value: true
+    initial_option: "Manual"  # Different initial to test uniqueness
+    set_action:
+      - lambda: |-
+          ESP_LOGI("test", "Device B Mode set to %s", x.c_str());
+          id(mode_device_b).state = x;
+
+  - platform: template
+    name: Mode
+    id: mode_main
+    options:
+      - "Auto"
+      - "Manual"
+      - "Off"
+    restore_value: true
+    initial_option: "Off"
+    set_action:
+      - lambda: |-
+          ESP_LOGI("test", "Main Mode set to %s", x.c_str());
+          id(mode_main).state = x;
+
+# Button to trigger preference logging test
+button:
+  - platform: template
+    name: Test Preferences
+    on_press:
+      - lambda: |-
+          ESP_LOGI("test", "Testing preference storage uniqueness:");
+          ESP_LOGI("test", "Device A Light state: %s", id(light_device_a).state ? "ON" : "OFF");
+          ESP_LOGI("test", "Device B Light state: %s", id(light_device_b).state ? "ON" : "OFF");
+          ESP_LOGI("test", "Main Light state: %s", id(light_main).state ? "ON" : "OFF");
+          ESP_LOGI("test", "Device A Setpoint: %.1f", id(setpoint_device_a).state);
+          ESP_LOGI("test", "Device B Setpoint: %.1f", id(setpoint_device_b).state);
+          ESP_LOGI("test", "Main Setpoint: %.1f", id(setpoint_main).state);
+          ESP_LOGI("test", "Device A Mode: %s", id(mode_device_a).state.c_str());
+          ESP_LOGI("test", "Device B Mode: %s", id(mode_device_b).state.c_str());
+          ESP_LOGI("test", "Main Mode: %s", id(mode_main).state.c_str());
+          // Log preference hashes for entities that actually store preferences
+          ESP_LOGI("test", "Device A Switch Pref Hash: %u", id(light_device_a).get_preference_hash());
+          ESP_LOGI("test", "Device B Switch Pref Hash: %u", id(light_device_b).get_preference_hash());
+          ESP_LOGI("test", "Main Switch Pref Hash: %u", id(light_main).get_preference_hash());
+          ESP_LOGI("test", "Device A Number Pref Hash: %u", id(setpoint_device_a).get_preference_hash());
+          ESP_LOGI("test", "Device B Number Pref Hash: %u", id(setpoint_device_b).get_preference_hash());
+          ESP_LOGI("test", "Main Number Pref Hash: %u", id(setpoint_main).get_preference_hash());

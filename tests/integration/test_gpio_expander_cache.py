@@ -30,9 +30,15 @@ async def test_gpio_expander_cache(
 
     logs_done = asyncio.Event()
 
-    # Patterns to match in logs
-    digital_read_hw_pattern = re.compile(r"digital_read_hw pin=(\d+)")
-    digital_read_cache_pattern = re.compile(r"digital_read_cache pin=(\d+)")
+    # Patterns to match in logs - match any variation of digital_read
+    read_hw_pattern = re.compile(r"(?:uint16_)?digital_read_hw pin=(\d+)")
+    read_cache_pattern = re.compile(r"(?:uint16_)?digital_read_cache pin=(\d+)")
+
+    # Keep specific patterns for building the expected order
+    digital_read_hw_pattern = re.compile(r"^digital_read_hw pin=(\d+)")
+    digital_read_cache_pattern = re.compile(r"^digital_read_cache pin=(\d+)")
+    uint16_read_hw_pattern = re.compile(r"^uint16_digital_read_hw pin=(\d+)")
+    uint16_read_cache_pattern = re.compile(r"^uint16_digital_read_cache pin=(\d+)")
 
     # ensure logs are in the expected order
     log_order = [
@@ -59,6 +65,17 @@ async def test_gpio_expander_cache(
         (digital_read_cache_pattern, 14),
         (digital_read_hw_pattern, 14),
         (digital_read_cache_pattern, 14),
+        # uint16_t component tests (single bank of 16 pins)
+        (uint16_read_hw_pattern, 0),  # First pin triggers hw read
+        [
+            (uint16_read_cache_pattern, i) for i in range(0, 16)
+        ],  # All 16 pins return via cache
+        # After cache reset
+        (uint16_read_hw_pattern, 5),  # First read after reset triggers hw
+        (uint16_read_cache_pattern, 5),
+        (uint16_read_cache_pattern, 10),  # These use cache (same bank)
+        (uint16_read_cache_pattern, 15),
+        (uint16_read_cache_pattern, 0),
     ]
     # Flatten the log order for easier processing
     log_order: list[tuple[re.Pattern, int]] = [
@@ -77,17 +94,22 @@ async def test_gpio_expander_cache(
 
         clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
 
-        if "digital_read" in clean_line:
+        # Extract just the log message part (after the log level)
+        msg = clean_line.split(": ", 1)[-1] if ": " in clean_line else clean_line
+
+        # Check if this line contains a read operation we're tracking
+        if read_hw_pattern.search(msg) or read_cache_pattern.search(msg):
             if index >= len(log_order):
-                print(f"Received unexpected log line: {clean_line}")
+                print(f"Received unexpected log line: {msg}")
                 logs_done.set()
                 return
 
             pattern, expected_pin = log_order[index]
-            match = pattern.search(clean_line)
+            match = pattern.search(msg)
 
             if not match:
-                print(f"Log line did not match next expected pattern: {clean_line}")
+                print(f"Log line did not match next expected pattern: {msg}")
+                print(f"Expected pattern: {pattern.pattern}")
                 logs_done.set()
                 return
 
@@ -99,9 +121,10 @@ async def test_gpio_expander_cache(
 
             index += 1
 
-        elif "DONE" in clean_line:
-            # Check if we reached the end of the expected log entries
-            logs_done.set()
+        elif "DONE_UINT16" in clean_line:
+            # uint16 component is done, check if we've seen all expected logs
+            if index == len(log_order):
+                logs_done.set()
 
     # Run with log monitoring
     async with (

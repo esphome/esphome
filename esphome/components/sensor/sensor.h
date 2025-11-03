@@ -6,7 +6,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/sensor/filter.h"
 
-#include <vector>
+#include <initializer_list>
 #include <memory>
 
 namespace esphome {
@@ -33,7 +33,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_TOTAL = 3,
 };
 
-std::string state_class_to_string(StateClass state_class);
+const LogString *state_class_to_string(StateClass state_class);
 
 /** Base-class for all sensors.
  *
@@ -77,10 +77,10 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    *   SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
    * });
    */
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the filters and replace them by filters.
-  void set_filters(const std::vector<Filter *> &filters);
+  void set_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the entire filter chain.
   void clear_filters();

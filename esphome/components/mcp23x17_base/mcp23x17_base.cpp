@@ -11,13 +11,13 @@ bool MCP23X17Base::digital_read_hw(uint8_t pin) {
   uint8_t data;
   if (pin < 8) {
     if (!this->read_reg(mcp23x17_base::MCP23X17_GPIOA, &data)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return false;
     }
     this->input_mask_ = encode_uint16(this->input_mask_ >> 8, data);
   } else {
     if (!this->read_reg(mcp23x17_base::MCP23X17_GPIOB, &data)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return false;
     }
     this->input_mask_ = encode_uint16(data, this->input_mask_ & 0xFF);

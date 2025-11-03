@@ -60,11 +60,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
     if (address == 0) {
       this->address_str_ = "";
     } else {
-      this->address_str_ =
-          str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, (uint8_t) (this->address_ >> 40) & 0xff,
-                       (uint8_t) (this->address_ >> 32) & 0xff, (uint8_t) (this->address_ >> 24) & 0xff,
-                       (uint8_t) (this->address_ >> 16) & 0xff, (uint8_t) (this->address_ >> 8) & 0xff,
-                       (uint8_t) (this->address_ >> 0) & 0xff);
+      char buf[18];
+      format_mac_addr_upper(this->remote_bda_, buf);
+      this->address_str_ = buf;
     }
   }
   const std::string &address_str() const { return this->address_str_; }
@@ -133,10 +131,14 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   void log_event_(const char *name);
   void log_gattc_event_(const char *name);
-  void restore_medium_conn_params_();
+  void update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
+                           const char *param_type);
+  void set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
+                        const char *param_type);
   void log_gattc_warning_(const char *operation, esp_gatt_status_t status);
   void log_gattc_warning_(const char *operation, esp_err_t err);
   void log_connection_params_(const char *param_type);
+  void handle_connection_result_(esp_err_t ret);
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);
   void log_error_(const char *message, int code);

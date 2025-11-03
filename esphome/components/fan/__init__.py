@@ -31,14 +31,13 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
-FanState = fan_ns.class_("Fan", Fan, cg.Component)
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = {
@@ -189,10 +188,6 @@ def fan_schema(
 
     return _FAN_SCHEMA.extend(schema)
 
-
-# Remove before 2025.11.0
-FAN_SCHEMA = fan_schema(Fan)
-FAN_SCHEMA.add_extra(cv.deprecated_schema_constant("fan"))
 
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(cv.string_strict),
@@ -398,6 +393,6 @@ async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(fan_ns.using)

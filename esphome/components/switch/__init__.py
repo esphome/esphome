@@ -21,7 +21,7 @@ from esphome.const import (
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -139,11 +139,6 @@ def switch_schema(
     return _SWITCH_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-SWITCH_SCHEMA = switch_schema(Switch)
-SWITCH_SCHEMA.add_extra(cv.deprecated_schema_constant("switch"))
-
-
 async def setup_switch_core_(var, config):
     await setup_entity(var, config, "switch")
 
@@ -230,6 +225,6 @@ async def switch_is_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(switch_ns.using)

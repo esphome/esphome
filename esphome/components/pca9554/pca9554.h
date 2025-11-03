@@ -3,22 +3,21 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/gpio_expander/cached_gpio.h"
 
 namespace esphome {
 namespace pca9554 {
 
-class PCA9554Component : public Component, public i2c::I2CDevice {
+class PCA9554Component : public Component,
+                         public i2c::I2CDevice,
+                         public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
   PCA9554Component() = default;
 
   /// Check i2c availability and setup masks
   void setup() override;
-  /// Poll for input changes periodically
+  /// Invalidate cache at start of each loop
   void loop() override;
-  /// Helper function to read the value of a pin.
-  bool digital_read(uint8_t pin);
-  /// Helper function to write the value of a pin.
-  void digital_write(uint8_t pin, bool value);
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
@@ -32,8 +31,12 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
 
  protected:
   bool read_inputs_();
-
   bool write_register_(uint8_t reg, uint16_t value);
+
+  // Virtual methods from CachedGpioExpander
+  bool digital_read_hw(uint8_t pin) override;
+  bool digital_read_cache(uint8_t pin) override;
+  void digital_write_hw(uint8_t pin, bool value) override;
 
   /// number of bits the expander has
   size_t pin_count_{8};
@@ -45,8 +48,6 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
   uint16_t output_mask_{0x00};
   /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
-  /// Flags to check if read previously during this loop
-  uint16_t was_previously_read_ = {0x00};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
 };

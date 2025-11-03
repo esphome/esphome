@@ -9,6 +9,7 @@
 #endif
 
 #include <functional>
+#include <span>
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -23,6 +24,10 @@
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+#include <lwip/sockets.h>
+#endif
 
 namespace esphome::esp32_ble {
 
@@ -74,17 +79,21 @@ class GAPScanEventHandler {
   virtual void gap_scan_event_handler(const BLEScanResult &scan_result) = 0;
 };
 
+#ifdef USE_ESP32_BLE_CLIENT
 class GATTcEventHandler {
  public:
   virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
 };
+#endif
 
+#ifdef USE_ESP32_BLE_SERVER
 class GATTsEventHandler {
  public:
   virtual void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) = 0;
 };
+#endif
 
 class BLEStatusEventHandler {
  public:
@@ -114,25 +123,40 @@ class ESP32BLE : public Component {
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
   void advertising_set_appearance(uint16_t appearance) { this->appearance_ = appearance; }
+  void advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name);
   void advertising_add_service_uuid(ESPBTUUID uuid);
   void advertising_remove_service_uuid(ESPBTUUID uuid);
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 #endif
 
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
+#endif
+#ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
   void register_gap_scan_event_handler(GAPScanEventHandler *handler) {
     this->gap_scan_event_handlers_.push_back(handler);
   }
+#endif
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
+#endif
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
   void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
+#endif
+#ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
   void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
     this->ble_status_event_handlers_.push_back(handler);
   }
+#endif
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:
+#ifdef USE_ESP32_BLE_SERVER
   static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
+#endif
+#ifdef USE_ESP32_BLE_CLIENT
   static void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
+#endif
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
   bool ble_setup_();
@@ -142,15 +166,30 @@ class ESP32BLE : public Component {
   void advertising_init_();
 #endif
 
+  // BLE uses the core wake_loop_threadsafe() mechanism to wake the main event loop
+  // from BLE tasks. This enables low-latency (~12μs) event processing instead of
+  // waiting for select() timeout (0-16ms). The wake socket is shared with other
+  // components that need this functionality.
+
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
 
-  // Vectors (12 bytes each on 32-bit, naturally aligned to 4 bytes)
-  std::vector<GAPEventHandler *> gap_event_handlers_;
-  std::vector<GAPScanEventHandler *> gap_scan_event_handlers_;
-  std::vector<GATTcEventHandler *> gattc_event_handlers_;
-  std::vector<GATTsEventHandler *> gatts_event_handlers_;
-  std::vector<BLEStatusEventHandler *> ble_status_event_handlers_;
+  // Handler vectors - use StaticVector when counts are known at compile time
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
+  StaticVector<GAPEventHandler *, ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT> gap_event_handlers_;
+#endif
+#ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
+  StaticVector<GAPScanEventHandler *, ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT> gap_scan_event_handlers_;
+#endif
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
+  StaticVector<GATTcEventHandler *, ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT> gattc_event_handlers_;
+#endif
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
+  StaticVector<GATTsEventHandler *, ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT> gatts_event_handlers_;
+#endif
+#ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
+  StaticVector<BLEStatusEventHandler *, ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT> ble_status_event_handlers_;
+#endif
 
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
