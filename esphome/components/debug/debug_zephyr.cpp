@@ -8,8 +8,7 @@
 
 #define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
@@ -343,6 +342,5 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 
 void DebugComponent::update_platform_() {}
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif
