@@ -425,7 +425,7 @@ message ListEntitiesFanResponse {
   bool disabled_by_default = 9;
   string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 11;
-  repeated string supported_preset_modes = 12 [(container_pointer) = "std::set"];
+  repeated string supported_preset_modes = 12 [(container_pointer_no_template) = "std::vector<const char *>"];
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
 }
 // Deprecated in API version 1.6 - only used in deprecated fields
