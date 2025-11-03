@@ -50,7 +50,7 @@ bool TCA9555Component::read_gpio_outputs_() {
     return false;
   uint8_t data[2];
   if (!this->read_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2)) {
-    this->status_set_warning("Failed to read output register");
+    this->status_set_warning(LOG_STR("Failed to read output register"));
     return false;
   }
   this->output_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
@@ -64,7 +64,7 @@ bool TCA9555Component::read_gpio_modes_() {
   uint8_t data[2];
   bool success = this->read_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2);
   if (!success) {
-    this->status_set_warning("Failed to read mode register");
+    this->status_set_warning(LOG_STR("Failed to read mode register"));
     return false;
   }
   this->mode_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
@@ -79,7 +79,7 @@ bool TCA9555Component::digital_read_hw(uint8_t pin) {
   uint8_t bank_number = pin < 8 ? 0 : 1;
   uint8_t register_to_read = bank_number ? TCA9555_INPUT_PORT_REGISTER_1 : TCA9555_INPUT_PORT_REGISTER_0;
   if (!this->read_bytes(register_to_read, &data, 1)) {
-    this->status_set_warning("Failed to read input register");
+    this->status_set_warning(LOG_STR("Failed to read input register"));
     return false;
   }
   uint8_t second_half = this->input_mask_ >> 8;
@@ -108,7 +108,7 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
   data[0] = this->output_mask_;
   data[1] = this->output_mask_ >> 8;
   if (!this->write_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2)) {
-    this->status_set_warning("Failed to write output register");
+    this->status_set_warning(LOG_STR("Failed to write output register"));
     return;
   }
 
@@ -123,7 +123,7 @@ bool TCA9555Component::write_gpio_modes_() {
   data[0] = this->mode_mask_;
   data[1] = this->mode_mask_ >> 8;
   if (!this->write_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2)) {
-    this->status_set_warning("Failed to write mode register");
+    this->status_set_warning(LOG_STR("Failed to write mode register"));
     return false;
   }
   this->status_clear_warning();

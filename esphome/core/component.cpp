@@ -16,7 +16,6 @@
 namespace esphome {
 
 static const char *const TAG = "component";
-static const char *const UNSPECIFIED_MESSAGE = "unspecified";
 
 // Global vectors for component data that doesn't belong in every instance.
 // Using vector instead of unordered_map for both because:
@@ -34,12 +33,22 @@ static const char *const UNSPECIFIED_MESSAGE = "unspecified";
 // Using namespace-scope static to avoid guard variables (saves 16 bytes total)
 // This is safe because ESPHome is single-threaded during initialization
 namespace {
+struct ComponentErrorMessage {
+  const Component *component;
+  const char *message;
+};
+
+struct ComponentPriorityOverride {
+  const Component *component;
+  float priority;
+};
+
 // Error messages for failed components
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<std::vector<std::pair<const Component *, const char *>>> component_error_messages;
+std::unique_ptr<std::vector<ComponentErrorMessage>> component_error_messages;
 // Setup priority overrides - freed after setup completes
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<std::vector<std::pair<const Component *, float>>> setup_priority_overrides;
+std::unique_ptr<std::vector<ComponentPriorityOverride>> setup_priority_overrides;
 }  // namespace
 
 namespace setup_priority {
@@ -135,15 +144,15 @@ void Component::call_dump_config() {
     // Look up error message from global vector
     const char *error_msg = nullptr;
     if (component_error_messages) {
-      for (const auto &pair : *component_error_messages) {
-        if (pair.first == this) {
-          error_msg = pair.second;
+      for (const auto &entry : *component_error_messages) {
+        if (entry.component == this) {
+          error_msg = entry.message;
           break;
         }
       }
     }
-    ESP_LOGE(TAG, "  %s is marked FAILED: %s", this->get_component_source(),
-             error_msg ? error_msg : UNSPECIFIED_MESSAGE);
+    ESP_LOGE(TAG, "  %s is marked FAILED: %s", LOG_STR_ARG(this->get_component_log_str()),
+             error_msg ? error_msg : LOG_STR_LITERAL("unspecified"));
   }
 }
 
@@ -154,14 +163,14 @@ void Component::call() {
     case COMPONENT_STATE_CONSTRUCTION: {
       // State Construction: Call setup and set state to setup
       this->set_component_state_(COMPONENT_STATE_SETUP);
-      ESP_LOGV(TAG, "Setup %s", this->get_component_source());
+      ESP_LOGV(TAG, "Setup %s", LOG_STR_ARG(this->get_component_log_str()));
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
       uint32_t start_time = millis();
 #endif
       this->call_setup();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
       uint32_t setup_time = millis() - start_time;
-      ESP_LOGCONFIG(TAG, "Setup %s took %ums", this->get_component_source(), (unsigned) setup_time);
+      ESP_LOGCONFIG(TAG, "Setup %s took %ums", LOG_STR_ARG(this->get_component_log_str()), (unsigned) setup_time);
 #endif
       break;
     }
@@ -182,10 +191,8 @@ void Component::call() {
       break;
   }
 }
-const char *Component::get_component_source() const {
-  if (this->component_source_ == nullptr)
-    return "<unknown>";
-  return this->component_source_;
+const LogString *Component::get_component_log_str() const {
+  return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
 }
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   if (blocking_time > this->warn_if_blocking_over_) {
@@ -201,7 +208,7 @@ bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   return false;
 }
 void Component::mark_failed() {
-  ESP_LOGE(TAG, "%s was marked as failed", this->get_component_source());
+  ESP_LOGE(TAG, "%s was marked as failed", LOG_STR_ARG(this->get_component_log_str()));
   this->set_component_state_(COMPONENT_STATE_FAILED);
   this->status_set_error();
   // Also remove from loop since failed components shouldn't loop
@@ -213,14 +220,14 @@ void Component::set_component_state_(uint8_t state) {
 }
 void Component::disable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGVV(TAG, "%s loop disabled", this->get_component_source());
+    ESP_LOGVV(TAG, "%s loop disabled", LOG_STR_ARG(this->get_component_log_str()));
     this->set_component_state_(COMPONENT_STATE_LOOP_DONE);
     App.disable_component_loop_(this);
   }
 }
 void Component::enable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGVV(TAG, "%s loop enabled", this->get_component_source());
+    ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
     this->set_component_state_(COMPONENT_STATE_LOOP);
     App.enable_component_loop_(this);
   }
@@ -240,7 +247,7 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
-    ESP_LOGI(TAG, "%s is being reset to construction state", this->get_component_source());
+    ESP_LOGI(TAG, "%s is being reset to construction state", LOG_STR_ARG(this->get_component_log_str()));
     this->set_component_state_(COMPONENT_STATE_CONSTRUCTION);
     // Clear error status when resetting
     this->status_clear_error();
@@ -277,50 +284,63 @@ bool Component::is_ready() const {
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
 }
+bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
+
 void Component::status_set_warning(const char *message) {
   // Don't spam the log. This risks missing different warning messages though.
   if ((this->component_state_ & STATUS_LED_WARNING) != 0)
     return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(), message ? message : UNSPECIFIED_MESSAGE);
+  ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
+           message ? message : LOG_STR_LITERAL("unspecified"));
+}
+void Component::status_set_warning(const LogString *message) {
+  // Don't spam the log. This risks missing different warning messages though.
+  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+    return;
+  this->component_state_ |= STATUS_LED_WARNING;
+  App.app_state_ |= STATUS_LED_WARNING;
+  ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
+           message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error(const char *message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
-  ESP_LOGE(TAG, "%s set Error flag: %s", this->get_component_source(), message ? message : UNSPECIFIED_MESSAGE);
+  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
+           message ? message : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
     // Lazy allocate the error messages vector if needed
     if (!component_error_messages) {
-      component_error_messages = std::make_unique<std::vector<std::pair<const Component *, const char *>>>();
+      component_error_messages = std::make_unique<std::vector<ComponentErrorMessage>>();
     }
     // Check if this component already has an error message
-    for (auto &pair : *component_error_messages) {
-      if (pair.first == this) {
-        pair.second = message;
+    for (auto &entry : *component_error_messages) {
+      if (entry.component == this) {
+        entry.message = message;
         return;
       }
     }
     // Add new error message
-    component_error_messages->emplace_back(this, message);
+    component_error_messages->emplace_back(ComponentErrorMessage{this, message});
   }
 }
 void Component::status_clear_warning() {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)
     return;
   this->component_state_ &= ~STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "%s cleared Warning flag", this->get_component_source());
+  ESP_LOGW(TAG, "%s cleared Warning flag", LOG_STR_ARG(this->get_component_log_str()));
 }
 void Component::status_clear_error() {
   if ((this->component_state_ & STATUS_LED_ERROR) == 0)
     return;
   this->component_state_ &= ~STATUS_LED_ERROR;
-  ESP_LOGE(TAG, "%s cleared Error flag", this->get_component_source());
+  ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
 void Component::status_momentary_warning(const std::string &name, uint32_t length) {
   this->status_set_warning();
@@ -331,13 +351,25 @@ void Component::status_momentary_error(const std::string &name, uint32_t length)
   this->set_timeout(name, length, [this]() { this->status_clear_error(); });
 }
 void Component::dump_config() {}
+
+// Function implementation of LOG_UPDATE_INTERVAL macro to reduce code size
+void log_update_interval(const char *tag, PollingComponent *component) {
+  uint32_t update_interval = component->get_update_interval();
+  if (update_interval == SCHEDULER_DONT_RUN) {
+    ESP_LOGCONFIG(tag, "  Update Interval: never");
+  } else if (update_interval < 100) {
+    ESP_LOGCONFIG(tag, "  Update Interval: %.3fs", update_interval / 1000.0f);
+  } else {
+    ESP_LOGCONFIG(tag, "  Update Interval: %.1fs", update_interval / 1000.0f);
+  }
+}
 float Component::get_actual_setup_priority() const {
   // Check if there's an override in the global vector
   if (setup_priority_overrides) {
     // Linear search is fine for small n (typically < 5 overrides)
-    for (const auto &pair : *setup_priority_overrides) {
-      if (pair.first == this) {
-        return pair.second;
+    for (const auto &entry : *setup_priority_overrides) {
+      if (entry.component == this) {
+        return entry.priority;
       }
     }
   }
@@ -346,21 +378,21 @@ float Component::get_actual_setup_priority() const {
 void Component::set_setup_priority(float priority) {
   // Lazy allocate the vector if needed
   if (!setup_priority_overrides) {
-    setup_priority_overrides = std::make_unique<std::vector<std::pair<const Component *, float>>>();
+    setup_priority_overrides = std::make_unique<std::vector<ComponentPriorityOverride>>();
     // Reserve some space to avoid reallocations (most configs have < 10 overrides)
     setup_priority_overrides->reserve(10);
   }
 
   // Check if this component already has an override
-  for (auto &pair : *setup_priority_overrides) {
-    if (pair.first == this) {
-      pair.second = priority;
+  for (auto &entry : *setup_priority_overrides) {
+    if (entry.component == this) {
+      entry.priority = priority;
       return;
     }
   }
 
   // Add new override
-  setup_priority_overrides->emplace_back(this, priority);
+  setup_priority_overrides->emplace_back(ComponentPriorityOverride{this, priority});
 }
 
 bool Component::has_overridden_loop() const {
@@ -419,8 +451,9 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
     should_warn = blocking_time > WARN_IF_BLOCKING_OVER_MS;
   }
   if (should_warn) {
-    const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
-    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms)", src, blocking_time);
+    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms)",
+             component_ == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component_->get_component_log_str()),
+             blocking_time);
     ESP_LOGW(TAG, "Components should block for at most 30 ms");
   }
 

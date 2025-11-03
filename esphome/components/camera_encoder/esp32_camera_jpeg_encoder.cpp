@@ -1,3 +1,5 @@
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32_CAMERA_JPEG_ENCODER
 
 #include "esp32_camera_jpeg_encoder.h"
@@ -15,7 +17,7 @@ camera::EncoderError ESP32CameraJPEGEncoder::encode_pixels(camera::CameraImageSp
   this->bytes_written_ = 0;
   this->out_of_output_memory_ = false;
   bool success = fmt2jpg_cb(pixels->get_data_buffer(), pixels->get_data_length(), spec->width, spec->height,
-                            to_internal_(spec->format), this->quality_, callback_, this);
+                            to_internal_(spec->format), this->quality_, callback, this);
 
   if (!success)
     return camera::ENCODER_ERROR_CONFIGURATION;
@@ -49,7 +51,7 @@ void ESP32CameraJPEGEncoder::dump_config() {
                 this->output_->get_max_size(), this->quality_, this->buffer_expand_size_);
 }
 
-size_t ESP32CameraJPEGEncoder::callback_(void *arg, size_t index, const void *data, size_t len) {
+size_t ESP32CameraJPEGEncoder::callback(void *arg, size_t index, const void *data, size_t len) {
   ESP32CameraJPEGEncoder *that = reinterpret_cast<ESP32CameraJPEGEncoder *>(arg);
   uint8_t *buffer = that->output_->get_data();
   size_t buffer_length = that->output_->get_max_size();

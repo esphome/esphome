@@ -6,6 +6,7 @@ namespace gpio {
 
 static const char *const TAG = "gpio.binary_sensor";
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
@@ -22,6 +23,7 @@ static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
 static const LogString *gpio_mode_to_string(bool use_interrupt) {
   return use_interrupt ? LOG_STR("interrupt") : LOG_STR("polling");
 }
+#endif
 
 void IRAM_ATTR GPIOBinarySensorStore::gpio_intr(GPIOBinarySensorStore *arg) {
   bool new_state = arg->isr_pin_.digital_read();

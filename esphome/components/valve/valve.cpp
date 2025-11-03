@@ -1,5 +1,6 @@
 #include "valve.h"
 #include "esphome/core/log.h"
+#include <strings.h>
 
 namespace esphome {
 namespace valve {
