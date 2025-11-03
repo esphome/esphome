@@ -218,6 +218,21 @@ def map_sequence(value):
     return tuple(value)
 
 
+def flatten_sequence(sequence: tuple | list):
+    """
+    Flatten an init sequence into a single list of bytes.
+    :param sequence:  The list of tuples
+    :return: a list of bytes
+    """
+    return sum(
+        tuple(
+            (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
+            for x in sequence
+        ),
+        (),
+    )
+
+
 def delay(ms):
     return DELAY_FLAG, ms
 
@@ -456,13 +471,7 @@ class DriverChip:
 
         # Flatten the sequence into a list of bytes, with the length of each command
         # or the delay flag inserted where needed
-        return sum(
-            tuple(
-                (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
-                for x in sequence
-            ),
-            (),
-        ), madctl
+        return flatten_sequence(sequence), madctl
 
 
 def requires_buffer(config) -> bool:
