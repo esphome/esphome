@@ -581,9 +581,17 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     GAP_ADV_COMPLETE_EVENTS:
     // Connection events - used by ble_client
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+      enqueue_ble_event(event, param);
+      return;
+
     // Security events - used by ble_client and bluetooth_proxy
+    // These are rare but interactive (pairing/bonding), so notify immediately
     GAP_SECURITY_EVENTS:
       enqueue_ble_event(event, param);
+      // Wake up main loop to process security event immediately
+#ifdef USE_SOCKET_SELECT_SUPPORT
+      global_ble->notify_main_loop_();
+#endif
       return;
 
     // Ignore these GAP events as they are not relevant for our use case
