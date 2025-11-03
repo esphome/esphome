@@ -7,6 +7,7 @@
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.6c";
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
+static constexpr unsigned char GRAY_THRESHOLD = 50;
 
 enum E6Color {
   BLACK,
@@ -24,7 +25,6 @@ static uint8_t color_to_hex(Color color) {
   // --- Step 1: Check for Grayscale (Black or White) ---
   // We define "grayscale" as a color where the min and max components
   // are close to each other.
-  const unsigned char GRAY_THRESHOLD = 50;
   unsigned char max_rgb = std::max({color.r, color.g, color.b});
   unsigned char min_rgb = std::min({color.r, color.g, color.b});
 
