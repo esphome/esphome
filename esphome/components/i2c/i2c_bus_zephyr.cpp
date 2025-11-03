@@ -92,7 +92,7 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
   } else {
     if (write_count) {
       // the same struct is used for read/write — const cast is fine; data isn't modified
-      msgs[cnt].buf = const_cast<uint8_t *>(write_buffer);  
+      msgs[cnt].buf = const_cast<uint8_t *>(write_buffer);
       msgs[cnt].len = write_count;
       msgs[cnt++].flags = I2C_MSG_WRITE;
     }
