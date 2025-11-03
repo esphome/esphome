@@ -8,8 +8,7 @@
 
 #define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
@@ -281,14 +280,18 @@ void DebugComponent::get_device_info_(std::string &device_info) {
            NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE));
   ESP_LOGD(TAG, "RAM: %ukB, Flash: %ukB, production test: %sdone", NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH,
            (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
+  bool n_reset_enabled = NRF_UICR->PSELRESET[0] == NRF_UICR->PSELRESET[1] &&
+                         (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
+                                                                                      << UICR_PSELRESET_CONNECT_Pos;
   ESP_LOGD(
       TAG, "GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
       YESNO((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos)),
-      YESNO(((NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) !=
-             (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos)) ||
-            ((NRF_UICR->PSELRESET[1] & UICR_PSELRESET_CONNECT_Msk) !=
-             (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos))));
-
+      YESNO(n_reset_enabled));
+  if (n_reset_enabled) {
+    uint8_t port = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PORT_Msk) >> UICR_PSELRESET_PORT_Pos;
+    uint8_t pin = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PIN_Msk) >> UICR_PSELRESET_PIN_Pos;
+    ESP_LOGD(TAG, "nRESET port P%u.%02u", port, pin);
+  }
 #ifdef USE_BOOTLOADER_MCUBOOT
   ESP_LOGD(TAG, "bootloader: mcuboot");
 #else
@@ -322,10 +325,22 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 #endif
   }
 #endif
+  auto uicr = [](volatile uint32_t *data, uint8_t size) {
+    std::string res;
+    char buf[sizeof(uint32_t) * 2 + 1];
+    for (size_t i = 0; i < size; i++) {
+      if (i > 0) {
+        res += ' ';
+      }
+      res += format_hex_pretty<uint32_t>(data[i], '\0', false);
+    }
+    return res;
+  };
+  ESP_LOGD(TAG, "NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
+  ESP_LOGD(TAG, "NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
 }
 
 void DebugComponent::update_platform_() {}
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif
