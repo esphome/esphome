@@ -31,15 +31,6 @@ void ZephyrI2CBus::setup() {
 }
 
 void ZephyrI2CBus::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "I2C Bus:"
-                "
-                "  SDA Pin: GPIO%u\n"
-                "  SCL Pin: GPIO%u\n",
-                "  Name: %s", this->sda_pin_, this->scl_pin_, this->scl_pin_);
-  ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
-  ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
-  ESP_LOGCONFIG(TAG, "  Name: %s", this->i2c_dev_->name);
   auto get_speed = [](uint32_t dev_config) {
     switch (I2C_SPEED_GET(dev_config)) {
       case I2C_SPEED_STANDARD:
@@ -55,7 +46,13 @@ void ZephyrI2CBus::dump_config() {
     }
     return "unknown";
   };
-  ESP_LOGCONFIG(TAG, "  Frequency: %s", get_speed(this->dev_config_));
+  ESP_LOGCONFIG(TAG,
+                "I2C Bus:\n"
+                "  SDA Pin: GPIO%u\n"
+                "  SCL Pin: GPIO%u\n"
+                "  Frequency: %s\n"
+                "  Name: %s",
+                this->sda_pin_, this->scl_pin_, get_speed(this->dev_config_), this->i2c_dev_->name);
 
   if (this->recovery_result_ != 0) {
     ESP_LOGCONFIG(TAG, "  Recovery: failed, err %d", this->recovery_result_);
@@ -124,7 +121,7 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
 
 void ZephyrI2CBus::set_frequency(uint32_t frequency) {
   this->dev_config_ &= ~I2C_SPEED_MASK;
-  if (frequency == 400000) {
+  if (frequency >= 400000) {
     this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_FAST);
   } else {
     this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_STANDARD);
