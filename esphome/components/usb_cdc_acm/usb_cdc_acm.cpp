@@ -1,4 +1,4 @@
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_cdc_acm.h"
 #include "esphome/core/log.h"
 
@@ -11,8 +11,7 @@
 #include "tusb.h"
 #include "tusb_cdc_acm.h"
 
-namespace esphome {
-namespace usb_cdc_acm {
+namespace esphome::usb_cdc_acm {
 
 static const char *TAG = "usb_cdc_acm";
 
@@ -140,7 +139,12 @@ void USBCDCACMInstance::setup() {
       .callback_line_coding_changed = &tinyusb_cdc_line_coding_changed_callback,
   };
 
-  ESP_ERROR_CHECK(tusb_cdc_acm_init(&this->acm_cfg_));
+  esp_err_t result = tusb_cdc_acm_init(&this->acm_cfg_);
+  if (result != ESP_OK) {
+    ESP_LOGE(TAG, "tusb_cdc_acm_init failed: %d", result);
+    this->parent_->mark_failed();
+    return;
+  }
 
   size_t stack_size = 4096;
   if (esp_log_level_get(TAG) > ESP_LOG_DEBUG) {
@@ -154,19 +158,20 @@ void USBCDCACMInstance::setup() {
 
   if (this->usb_tx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create USB TX task for itf %d", this->itf_);
+    this->parent_->mark_failed();
     return;
   }
 }
 
 void USBCDCACMInstance::invoke_line_coding_callback(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity,
                                                     uint8_t data_bits) {
-  if (this->line_coding_callback_) {
+  if (this->line_coding_callback_ != nullptr) {
     this->line_coding_callback_(bit_rate, stop_bits, parity, data_bits);
   }
 }
 
 void USBCDCACMInstance::invoke_line_state_callback(bool dtr, bool rts) {
-  if (this->line_state_callback_) {
+  if (this->line_state_callback_ != nullptr) {
     this->line_state_callback_(dtr, rts);
   }
 }
@@ -262,6 +267,5 @@ USBCDCACMInstance *USBCDCACMComponent::get_interface_by_number(uint8_t itf) {
   return nullptr;
 }
 
-}  // namespace usb_cdc_acm
-}  // namespace esphome
+}  // namespace esphome::usb_cdc_acm
 #endif

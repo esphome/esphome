@@ -1,6 +1,4 @@
-tinyusb:
-  usb_manufacturer_str: kbxManufacturer
-  usb_product_str: kbxProduct
+<<: !include tinyusb_common.yaml
 
 usb_cdc_acm:
   interfaces:
