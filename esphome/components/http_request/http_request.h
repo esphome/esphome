@@ -113,8 +113,8 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 
 class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
  public:
-  void process(std::shared_ptr<HttpContainer> container, std::string &response_body) {
-    this->trigger(std::move(container), response_body);
+  void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
+    this->trigger(container, response_body);
   }
 };
 
