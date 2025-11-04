@@ -41,6 +41,10 @@ class OpenThreadComponent : public Component {
   bool teardown_started_{false};
   bool teardown_complete_{false};
   std::function<void()> factory_reset_external_callback_;
+
+ private:
+  // Stores a pointer to a string literal (static storage duration).
+  // ONLY set from Python-generated code with string literals - never dynamic strings.
   const char *use_address_{""};
 };
 
