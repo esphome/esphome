@@ -110,7 +110,7 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
   bool check(Ts... x) override {
     if (!this->check_internal())
       return false;
-    return millis() - this->last_inactive_ >= this->time_.value(x...);
+    return App.get_loop_component_start_time() - this->last_inactive_ >= this->time_.value(x...);
   }
 
  protected:
@@ -367,7 +367,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     }
 
     // Store for later processing
-    auto now = millis();
+    auto now = App.get_loop_component_start_time();
     auto timeout = this->timeout_value_.optional_value(x...);
     this->var_queue_.emplace_front(now, timeout, std::make_tuple(x...));
 
