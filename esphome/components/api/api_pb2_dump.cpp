@@ -88,6 +88,12 @@ static void dump_field(std::string &out, const char *field_name, StringRef value
   out.append("\n");
 }
 
+static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
+  out.append("\n");
+}
+
 template<typename T> static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
@@ -662,6 +668,8 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
       return "ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE";
     case enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       return "ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE";
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE:
+      return "ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE";
     default:
       return "UNKNOWN";
   }
@@ -670,7 +678,9 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
 
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
-  dump_field(out, "client_info", this->client_info);
+  out.append("  client_info: ");
+  out.append(format_hex_pretty(this->client_info, this->client_info_len));
+  out.append("\n");
   dump_field(out, "api_version_major", this->api_version_major);
   dump_field(out, "api_version_minor", this->api_version_minor);
 }
@@ -682,7 +692,12 @@ void HelloResponse::dump_to(std::string &out) const {
   dump_field(out, "name", this->name_ref_);
 }
 #ifdef USE_API_PASSWORD
-void AuthenticationRequest::dump_to(std::string &out) const { dump_field(out, "password", this->password); }
+void AuthenticationRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "AuthenticationRequest");
+  out.append("  password: ");
+  out.append(format_hex_pretty(this->password, this->password_len));
+  out.append("\n");
+}
 void AuthenticationResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "AuthenticationResponse");
   dump_field(out, "invalid_password", this->invalid_password);
@@ -1094,8 +1109,8 @@ void HomeassistantServiceMap::dump_to(std::string &out) const {
   dump_field(out, "key", this->key_ref_);
   dump_field(out, "value", this->value);
 }
-void HomeassistantServiceResponse::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "HomeassistantServiceResponse");
+void HomeassistantActionRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "HomeassistantActionRequest");
   dump_field(out, "service", this->service_ref_);
   for (const auto &it : this->data) {
     out.append("  data: ");
@@ -1113,6 +1128,28 @@ void HomeassistantServiceResponse::dump_to(std::string &out) const {
     out.append("\n");
   }
   dump_field(out, "is_event", this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  dump_field(out, "call_id", this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_field(out, "wants_response", this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_field(out, "response_template", this->response_template);
+#endif
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void HomeassistantActionResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "HomeassistantActionResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  out.append("  response_data: ");
+  out.append(format_hex_pretty(this->response_data, this->response_data_len));
+  out.append("\n");
+#endif
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -1136,7 +1173,9 @@ void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeReques
 void GetTimeResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "GetTimeResponse");
   dump_field(out, "epoch_seconds", this->epoch_seconds);
-  dump_field(out, "timezone", this->timezone);
+  out.append("  timezone: ");
+  out.append(format_hex_pretty(this->timezone, this->timezone_len));
+  out.append("\n");
 }
 #ifdef USE_API_SERVICES
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
@@ -1259,6 +1298,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "feature_flags", this->feature_flags);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ClimateStateResponse");
@@ -1649,7 +1689,7 @@ void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
   dump_field(out, "handle", this->handle);
   dump_field(out, "response", this->response);
   out.append("  data: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size()));
+  out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
 }
 void BluetoothGATTReadDescriptorRequest::dump_to(std::string &out) const {
@@ -1662,7 +1702,7 @@ void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   out.append("  data: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size()));
+  out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
 }
 void BluetoothGATTNotifyRequest::dump_to(std::string &out) const {
@@ -1815,8 +1855,25 @@ void VoiceAssistantWakeWord::dump_to(std::string &out) const {
     dump_field(out, "trained_languages", it, 4);
   }
 }
+void VoiceAssistantExternalWakeWord::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "VoiceAssistantExternalWakeWord");
+  dump_field(out, "id", this->id);
+  dump_field(out, "wake_word", this->wake_word);
+  for (const auto &it : this->trained_languages) {
+    dump_field(out, "trained_languages", it, 4);
+  }
+  dump_field(out, "model_type", this->model_type);
+  dump_field(out, "model_size", this->model_size);
+  dump_field(out, "model_hash", this->model_hash);
+  dump_field(out, "url", this->url);
+}
 void VoiceAssistantConfigurationRequest::dump_to(std::string &out) const {
-  out.append("VoiceAssistantConfigurationRequest {}");
+  MessageDumpHelper helper(out, "VoiceAssistantConfigurationRequest");
+  for (const auto &it : this->external_wake_words) {
+    out.append("  external_wake_words: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
 }
 void VoiceAssistantConfigurationResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantConfigurationResponse");
@@ -2135,6 +2192,9 @@ void ZWaveProxyFrame::dump_to(std::string &out) const {
 void ZWaveProxyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyRequest");
   dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));
+  out.append("  data: ");
+  out.append(format_hex_pretty(this->data, this->data_len));
+  out.append("\n");
 }
 #endif
 

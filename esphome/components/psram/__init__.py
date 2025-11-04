@@ -1,4 +1,5 @@
 import logging
+import textwrap
 
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -62,6 +63,13 @@ SPIRAM_SPEEDS = {
 }
 
 
+def supported() -> bool:
+    if not CORE.is_esp32:
+        return False
+    variant = get_esp32_variant()
+    return variant in SPIRAM_MODES
+
+
 def validate_psram_mode(config):
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if config[CONF_SPEED] == "120MHZ":
@@ -95,8 +103,19 @@ def get_config_schema(config):
     variant = get_esp32_variant()
     speeds = [f"{s}MHZ" for s in SPIRAM_SPEEDS.get(variant, [])]
     if not speeds:
-        return cv.Invalid("PSRAM is not supported on this chip")
+        raise cv.Invalid("PSRAM is not supported on this chip")
     modes = SPIRAM_MODES[variant]
+    if CONF_MODE not in config and len(modes) != 1:
+        raise (
+            cv.Invalid(
+                textwrap.dedent(
+                    f"""
+                        {variant} requires PSRAM mode selection; one of {", ".join(modes)}
+                        Selection of the wrong mode for the board will cause a runtime failure to initialise PSRAM
+                    """
+                )
+            )
+        )
     return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),

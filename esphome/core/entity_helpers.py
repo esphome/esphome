@@ -105,7 +105,9 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         config[CONF_NAME],
         platform,
     )
-    add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+    # Only set disabled_by_default if True (default is False)
+    if config[CONF_DISABLED_BY_DEFAULT]:
+        add(var.set_disabled_by_default(True))
     if CONF_INTERNAL in config:
         add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:
@@ -246,12 +248,15 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                     "\n          to distinguish them"
                 )
 
-            raise cv.Invalid(
-                f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
-                f"{conflict_msg}. "
-                "Each entity on a device must have a unique name within its platform."
-                f"{sanitized_msg}"
-            )
+            # Skip duplicate entity name validation when testing_mode is enabled
+            # This flag is used for grouped component testing
+            if not CORE.testing_mode:
+                raise cv.Invalid(
+                    f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
+                    f"{conflict_msg}. "
+                    "Each entity on a device must have a unique name within its platform."
+                    f"{sanitized_msg}"
+                )
 
         # Store metadata about this entity
         entity_metadata: EntityMetadata = {

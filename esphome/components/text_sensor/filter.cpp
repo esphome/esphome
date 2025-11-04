@@ -62,19 +62,27 @@ optional<std::string> AppendFilter::new_value(std::string value) { return value 
 optional<std::string> PrependFilter::new_value(std::string value) { return this->prefix_ + value; }
 
 // Substitute
+SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &substitutions)
+    : substitutions_(substitutions) {}
+
 optional<std::string> SubstituteFilter::new_value(std::string value) {
   std::size_t pos;
-  for (size_t i = 0; i < this->from_strings_.size(); i++) {
-    while ((pos = value.find(this->from_strings_[i])) != std::string::npos)
-      value.replace(pos, this->from_strings_[i].size(), this->to_strings_[i]);
+  for (const auto &sub : this->substitutions_) {
+    while ((pos = value.find(sub.from)) != std::string::npos)
+      value.replace(pos, sub.from.size(), sub.to);
   }
   return value;
 }
 
 // Map
+MapFilter::MapFilter(const std::initializer_list<Substitution> &mappings) : mappings_(mappings) {}
+
 optional<std::string> MapFilter::new_value(std::string value) {
-  auto item = mappings_.find(value);
-  return item == mappings_.end() ? value : item->second;
+  for (const auto &mapping : this->mappings_) {
+    if (mapping.from == value)
+      return mapping.to;
+  }
+  return value;  // Pass through if no match
 }
 
 }  // namespace text_sensor
