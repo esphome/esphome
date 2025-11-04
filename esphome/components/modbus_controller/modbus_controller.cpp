@@ -25,6 +25,8 @@ void ModbusController::set_online(bool online, const ModbusCommandItem &command)
   } else if (!online && !this->module_offline_) {
     ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
 
+    this->clear_tx_queue(false);
+
     if (this->offline_skip_updates_ > 0) {
       // Update skip_updates_counter to stop flooding channel with timeouts
       for (auto &r : this->register_ranges_) {
@@ -40,30 +42,20 @@ void ModbusController::set_online(bool online, const ModbusCommandItem &command)
 // Queue incoming response
 void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
   this->modbusdevice->set_online(true, *this);
-  this->send_count_ = 0;  // reset send count on success
+  this->unresponded_send_count_ = 0;  // reset send count on success
   this->on_data_func(this->register_type, this->register_address, data);
+}
+
+// Modbus error message is a legit response from the device. Consider the device online.
+void ModbusCommandItem::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
+  this->modbusdevice->set_online(true, *this);
+  this->unresponded_send_count_ = 0;  // reset send count on success
 }
 
 void ModbusCommandItem::on_modbus_no_response() {
   if (this->should_retry(this->modbusdevice->max_cmd_retries_))
     this->send();
 }
-
-// TODO: Make a generic error logger in ModbusClientDevice
-//  void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
-//    ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
-//    // Remove pending command waiting for a response
-//    auto &current_command = this->command_queue_.front();
-//    if (current_command != nullptr) {
-//      ESP_LOGE(TAG,
-//               "Modbus error - last command: function code=0x%X  register address = 0x%X  "
-//               "registers count=%d "
-//               "payload size=%zu",
-//               function_code, current_command->register_address, current_command->register_count,
-//               current_command->payload.size());
-//      this->command_queue_.pop_front();
-//    }
-//  }
 
 SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
   auto reg_it = std::find_if(
@@ -115,6 +107,8 @@ void ModbusController::update() {
 
 // walk through the sensors and determine the register ranges to read
 size_t ModbusController::create_register_ranges_() {
+  // Clear the tx queue to remove any pending commands for this device
+  this->clear_tx_queue();
   this->register_ranges_.clear();
   if (this->sensorset_.empty()) {
     ESP_LOGW(TAG, "No sensors registered");
@@ -460,9 +454,9 @@ bool ModbusCommandItem::send() {
   } else {
     this->send_raw(this->payload);
   }
-  this->send_count_++;
+  this->unresponded_send_count_++;
   ESP_LOGV(TAG, "Command sent %d 0x%X %d send_count: %d", uint8_t(this->function_code), this->register_address,
-           this->register_count, this->send_count_);
+           this->register_count, this->unresponded_send_count_);
   return true;
 }
 

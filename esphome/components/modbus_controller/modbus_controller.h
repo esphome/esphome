@@ -102,7 +102,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
-  // void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
+  void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
   /// called when a modbus timeout occurred
   void on_modbus_no_response() override;
   uint16_t register_address{0};
@@ -114,7 +114,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   std::vector<uint8_t> payload = {};
   bool send();
   /// Check if the command should be retried based on the max_retries parameter
-  bool should_retry(uint8_t max_retries) { return this->send_count_ <= max_retries; };
+  bool should_retry(uint8_t max_retries) { return this->unresponded_send_count_ <= max_retries; };
 
   /// factory methods
   /** Create modbus read command
@@ -208,7 +208,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
  protected:
   // wrong commands (esp. custom commands) can block the send queue, limit the number of repeats.
   /// How many times this command has been sent
-  uint8_t send_count_{0};
+  uint8_t unresponded_send_count_{0};
 };
 
 /** Modbus controller class.
@@ -265,8 +265,6 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   SensorSet sensorset_;
   /// Continuous range of modbus registers
   std::vector<RegisterRange> register_ranges_{};
-  /// when was the last send operation
-  uint32_t last_command_timestamp_{0};
   /// if module didn't respond the last command
   bool module_offline_{false};
   /// how many updates to skip if module is offline
