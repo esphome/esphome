@@ -1,5 +1,5 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/components/uart/uart_component_esp_idf.h"
 #include "esphome/components/usb_cdc_acm/usb_cdc_acm.h"
 #include "esphome/core/component.h"
@@ -7,8 +7,7 @@
 #include "freertos/ringbuf.h"
 #include "tusb_cdc_acm.h"
 
-namespace esphome {
-namespace usb_uart_bridge {
+namespace esphome::usb_uart_bridge {
 
 class USBUARTBridge : public Component {
  public:
@@ -56,6 +55,5 @@ class USBUARTBridge : public Component {
   usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent_{nullptr};
 };
 
-}  // namespace usb_uart_bridge
-}  // namespace esphome
+}  // namespace esphome::usb_uart_bridge
 #endif

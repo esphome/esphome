@@ -1,4 +1,4 @@
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_uart_bridge.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -26,8 +26,7 @@
  * uint8_t  data_bits; ///< can be 5, 6, 7, 8 or 16
  * */
 
-namespace esphome {
-namespace usb_uart_bridge {
+namespace esphome::usb_uart_bridge {
 
 static const char *TAG = "usb_uart_bridge";
 
@@ -270,10 +269,12 @@ void USBUARTBridge::uart_tx_task() {
     }
 
     ESP_LOGV(TAG, "Waiting for UART TX to complete");
-    ESP_ERROR_CHECK(uart_wait_tx_done((uart_port_t) this->uart_parent_->get_hw_serial_number(), portMAX_DELAY));
+    esp_err_t result = uart_wait_tx_done((uart_port_t) this->uart_parent_->get_hw_serial_number(), portMAX_DELAY);
+    if (result != ESP_OK) {
+      ESP_LOGE(TAG, "uart_wait_tx_done failed: %d", result);
+    }
   }
 }
 
-}  // namespace usb_uart_bridge
-}  // namespace esphome
+}  // namespace esphome::usb_uart_bridge
 #endif
