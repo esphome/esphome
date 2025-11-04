@@ -250,9 +250,13 @@ void SingleButtonCover::start_direction_(CoverOperation dir) {
 
   // this->stop_prev_trigger_();
   int i = 0;
+  int interval_ms = 500;
+
   for (i = 0; i < clic_count_needed; i++) {
-    trig->trigger();
-    delay(500);
+    // trig->trigger();
+    // delay(500);
+
+    this->set_timeout(i * interval_ms, [this]() { this->single_button_trigger_->trigger(); });
   }
   this->prev_command_trigger_ = trig;
 
