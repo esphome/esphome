@@ -5,51 +5,58 @@
 namespace esphome {
 namespace usb_msc_host {
 
-static QueueHandle_t app_queue;
-static SemaphoreHandle_t ready_to_uninstall_usb;
+static const usb_standard_desc_t *next_interface_desc(const usb_standard_desc_t *desc, size_t len, size_t *offset) {
+  return usb_parse_next_descriptor_of_type(desc, len, USB_W_VALUE_DT_INTERFACE, (int *) offset);
+}
 
-#define MNT_PATH "/usb"
-static constexpr uint16_t BUFFER_SIZE = 8192;
-#define MAX_MSC_DEVICES CONFIG_FATFS_VOLUME_COUNT
+static const usb_intf_desc_t *find_msc_interface(const usb_config_desc_t *config_desc) {
+  size_t *offset = new size_t(0);
+  size_t total_length = config_desc->wTotalLength;
+  const usb_standard_desc_t *next_desc = (const usb_standard_desc_t *) config_desc;
 
-/**
- * @brief MSC Device Entry
- *
- * This structure holds information about a connected MSC device,
- * including the USB address, MSC device handle, VFS handle, and assigned mount point.
- */
-typedef struct {
-  uint8_t usb_addr;                    /*!< USB device address */
-  msc_host_device_handle_t msc_device; /*!< Handle of the MSC device */
-  msc_host_vfs_handle_t vfs_handle;    /*!< VFS handle assigned to the MSC device */
-} msc_dev_entry_t;
+  next_desc = next_interface_desc(next_desc, total_length, offset);
 
-static msc_dev_entry_t *msc_devices[MAX_MSC_DEVICES] = {NULL};
+  while (next_desc) {
+    const usb_intf_desc_t *ifc_desc = (const usb_intf_desc_t *) next_desc;
 
-/**
- * @brief Application Queue and its messages ID
- */
-typedef struct {
-  enum {
-    APP_QUIT,                 // Signals request to exit the application
-    APP_DEVICE_CONNECTED,     // USB device connect event
-    APP_DEVICE_DISCONNECTED,  // USB device disconnect event
-  } id;
-  union {
-    uint8_t new_dev_address;                 // Address of new USB device for APP_DEVICE_CONNECTED event
-    msc_host_device_handle_t device_handle;  // Handle of removed USB device for APP_DEVICE_DISCONNECTED event
-  } data;
-} app_message_t;
+    if (ifc_desc->bInterfaceClass == USB_CLASS_MASS_STORAGE && ifc_desc->bInterfaceSubClass == SCSI_COMMAND_SET &&
+        ifc_desc->bInterfaceProtocol == BULK_ONLY_TRANSFER) {
+      return ifc_desc;
+    }
+
+    next_desc = next_interface_desc(next_desc, total_length, offset);
+  };
+  return NULL;
+}
+
+static bool is_mass_storage_device(usb_config_desc_t *config_desc) {
+  if (find_msc_interface(config_desc)) {
+    return true;
+  } else {
+    ESP_LOGV(TAG, "Connected USB device is not MSC");
+    return false;
+  }
+}
 
 /**
  * @brief Find a free slot in the device table.
  *
  * @return Index of the free slot, or -1 if no free slot is available.
  */
-static inline int find_free_slot(void) {
+int8_t USBMscHost::find_free_slot(void) {
   for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (msc_devices[i] == NULL) {
+    if (this->msc_devices_[i] == NULL) {
       ESP_LOGI(TAG, "Found free slot for MSC device at index %d", i);
+      return i;
+    }
+  }
+  return -1;
+}
+
+int8_t USBMscHost::find_msc_device_slot(usb_device_handle_t device_handle) {
+  for (int i = 0; i < MAX_MSC_DEVICES; i++) {
+    if (this->msc_devices_[i]->usb_addr == reinterpret_cast<uint8_t>(device_handle)) {
+      ESP_LOGI(TAG, "Found MSC device slot at index %d", i);
       return i;
     }
   }
@@ -73,28 +80,28 @@ static inline int find_free_slot(void) {
  *         - ESP_ERR_NO_MEM if memory allocation fails.
  *         - Other esp_err_t codes if device installation or VFS registration fails.
  */
-static esp_err_t allocate_new_msc_device(uint8_t new_dev_address, int *out_slot) {
-  int slot = find_free_slot();
+esp_err_t USBMscHost::allocate_new_msc_device(uint8_t new_dev_address) {
+  int slot = this->find_free_slot();
   if (slot < 0) {
     ESP_LOGW(TAG, "No free slots for new MSC device (max %d)", MAX_MSC_DEVICES);
     return ESP_ERR_NOT_FOUND;
   }
   // void *slotbuffer = calloc(1, sizeof(msc_dev_entry_t));
-  msc_devices[slot] = (msc_dev_entry_t *) calloc(1, sizeof(msc_dev_entry_t));
-  if (msc_devices[slot] == NULL) {
+  this->msc_devices_[slot] = (msc_dev_entry_t *) calloc(1, sizeof(msc_dev_entry_t));
+  if (this->msc_devices_[slot] == NULL) {
     ESP_LOGE(TAG, "Failed to allocate memory for new MSC device entry");
     return ESP_ERR_NO_MEM;
   }
 
-  esp_err_t err = msc_host_install_device(new_dev_address, &msc_devices[slot]->msc_device);
+  esp_err_t err = msc_host_install_device(new_dev_address, &this->msc_devices_[slot]->msc_device);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "msc_host_install_device failed: %s", esp_err_to_name(err));
-    free(msc_devices[slot]);
-    msc_devices[slot] = NULL;
+    free(this->msc_devices_[slot]);
+    this->msc_devices_[slot] = NULL;
     return err;
   }
 
-  msc_devices[slot]->usb_addr = new_dev_address;
+  this->msc_devices_[slot]->usb_addr = new_dev_address;
 
   const esp_vfs_fat_mount_config_t mount_config = {
       .format_if_mount_failed = false,
@@ -103,39 +110,21 @@ static esp_err_t allocate_new_msc_device(uint8_t new_dev_address, int *out_slot)
   };
 
   char mount_path[16];
-  snprintf(mount_path, sizeof(mount_path), MNT_PATH "%d", slot);
+  snprintf(mount_path, sizeof(mount_path), "%s", MNT_PATH);
 
-  err = msc_host_vfs_register(msc_devices[slot]->msc_device, mount_path, &mount_config, &msc_devices[slot]->vfs_handle);
+  err = msc_host_vfs_register(this->msc_devices_[slot]->msc_device, mount_path, &mount_config,
+                              &this->msc_devices_[slot]->vfs_handle);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "msc_host_vfs_register failed: %s", esp_err_to_name(err));
-    esp_err_t res = (msc_host_uninstall_device(msc_devices[slot]->msc_device));
+    esp_err_t res = (msc_host_uninstall_device(this->msc_devices_[slot]->msc_device));
     if (res != ESP_OK) {
       ESP_LOGE(TAG, "msc_host_uninstall_device failed during cleanup: %s", esp_err_to_name(res));
     }
-    free(msc_devices[slot]);
-    msc_devices[slot] = NULL;
+    free(this->msc_devices_[slot]);
+    this->msc_devices_[slot] = NULL;
     return err;
   }
-
-  *out_slot = slot;
   return ESP_OK;
-}
-
-/**
- * @brief Find a slot by MSC device handle.
- *
- * This function searches for the slot corresponding to a given MSC device handle.
- *
- * @param handle MSC device handle to search for.
- * @return Index of the slot if found, otherwise -1.
- */
-static int find_slot_by_handle(msc_host_device_handle_t handle) {
-  for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (msc_devices[i] && msc_devices[i]->msc_device == handle) {
-      return i;
-    }
-  }
-  return -1;
 }
 
 /**
@@ -146,21 +135,21 @@ static int find_slot_by_handle(msc_host_device_handle_t handle) {
  *
  * @param slot Index of the MSC device in the device array.
  */
-static void free_msc_device(int slot) {
-  if (slot < 0 || slot >= MAX_MSC_DEVICES || !msc_devices[slot]) {
+void USBMscHost::free_msc_device(int slot) {
+  if (slot < 0 || slot >= MAX_MSC_DEVICES || !this->msc_devices_[slot]) {
     ESP_LOGE(TAG, "Invalid slot index for MSC device deallocation");
     return;
   }
 
-  if (msc_devices[slot]->vfs_handle) {
-    ESP_ERROR_CHECK(msc_host_vfs_unregister(msc_devices[slot]->vfs_handle));
+  if (this->msc_devices_[slot]->vfs_handle) {
+    ESP_ERROR_CHECK(msc_host_vfs_unregister(this->msc_devices_[slot]->vfs_handle));
   }
-  if (msc_devices[slot]->msc_device) {
-    ESP_ERROR_CHECK(msc_host_uninstall_device(msc_devices[slot]->msc_device));
+  if (this->msc_devices_[slot]->msc_device) {
+    ESP_ERROR_CHECK(msc_host_uninstall_device(this->msc_devices_[slot]->msc_device));
   }
 
-  free(msc_devices[slot]);
-  msc_devices[slot] = NULL;
+  free(this->msc_devices_[slot]);
+  this->msc_devices_[slot] = NULL;
 }
 
 /**
@@ -168,9 +157,9 @@ static void free_msc_device(int slot) {
  *
  * Iterates over all allocated MSC devices, unmounts them from VFS, and frees their memory.
  */
-static void free_all_msc_devices(void) {
+void USBMscHost::free_all_msc_devices(void) {
   for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (msc_devices[i]) {
+    if (this->msc_devices_[i]) {
       free_msc_device(i);
     }
   }
@@ -182,13 +171,28 @@ static void free_all_msc_devices(void) {
  * @param handle MSC device handle
  * @return USB addr, or -1 if not found.
  */
-static inline int8_t find_usb_addr_by_handle(msc_host_device_handle_t handle) {
-  for (int8_t i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (msc_devices[i] && msc_devices[i]->msc_device == handle) {
-      return msc_devices[i]->usb_addr;
+uint8_t USBMscDevice::find_usb_addr_by_handle(msc_host_device_handle_t handle) {
+  for (uint8_t i = 0; i < MAX_MSC_DEVICES; i++) {
+    if (this->parent_->msc_devices_[i] && this->parent_->msc_devices_[i]->msc_device == handle) {
+      return this->parent_->msc_devices_[i]->usb_addr;
     }
   }
   return -1;
+}
+
+/**
+ * @brief Get MSC device handle by USB addr
+ *
+ * @param usb_device_handle_t handle
+ * @return msc_host_device_handle_t, or nullptr if not found.
+ */
+msc_host_device_handle_t USBMscHost::get_handle_by_address(usb_device_handle_t handle) {
+  for (uint8_t i = 0; i < MAX_MSC_DEVICES; i++) {
+    if (this->msc_devices_[i] && this->msc_devices_[i]->usb_addr == reinterpret_cast<uint8_t>(handle)) {
+      return this->msc_devices_[i]->msc_device;
+    }
+  }
+  return nullptr;
 }
 
 /**
@@ -199,7 +203,19 @@ static inline int8_t find_usb_addr_by_handle(msc_host_device_handle_t handle) {
  *
  * @param[in] info Pointer to MSC device information structure.
  */
-static void print_device_info(msc_host_device_info_t *info) {
+void USBMscDevice::print_device_info() {
+  msc_host_device_info_t *info = nullptr;
+  uint8_t slot = this->parent_->find_msc_device_slot(this->device_handle_);
+  if (slot < 0) {
+    ESP_LOGE(TAG, "Device slot not found for printing device info");
+    return;
+  }
+  msc_host_device_handle_t handle = this->parent_->msc_devices_[slot]->msc_device;
+  esp_err_t err = msc_host_get_device_info(handle, info);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "msc_host_get_device_info failed: %s", esp_err_to_name(err));
+    return;
+  }
   const size_t megabyte = 1024 * 1024;
   uint64_t capacity = ((uint64_t) info->sector_size * info->sector_count) / megabyte;
 
@@ -226,11 +242,11 @@ static void print_device_info(msc_host_device_info_t *info) {
  *
  * @param[in] slot Index of the mounted USB device (0 to MAX_MSC_DEVICES-1).
  */
-static void file_operations(int slot) {
+void USBMscDevice::file_operations() {
   char directory[32];
   char file_path[32];
-  snprintf(directory, sizeof(directory), MNT_PATH "%d/esp", slot);
-  snprintf(file_path, sizeof(file_path), MNT_PATH "%d/esp/test.txt", slot);
+  snprintf(directory, sizeof(directory), "%s/esp", MNT_PATH);
+  snprintf(file_path, sizeof(file_path), "%s/esp/test.txt", MNT_PATH);
 
   // Create /usb<slot>/esp directory
   struct stat s = {0};
@@ -283,11 +299,11 @@ static void file_operations(int slot) {
  *
  * @param[in] slot Index of the mounted USB device (0 to MAX_MSC_DEVICES-1).
  */
-static void speed_test(int slot) {
+void USBMscDevice::speed_test() {
 #define ITERATIONS 256  // 256 * 4kb = 1MB
   int64_t test_start, test_end;
   char test_file[32];
-  snprintf(test_file, sizeof(test_file), MNT_PATH "%d/esp/dummy", slot);
+  snprintf(test_file, sizeof(test_file), "%s/esp/dummy", MNT_PATH);
 
   FILE *f = fopen(test_file, "wb+");
   if (f == NULL) {
@@ -343,12 +359,12 @@ static void speed_test(int slot) {
  *
  * If opening the directory fails, an error is logged.
  */
-static inline void show_list_files_all_devices(void) {
-  ESP_LOGI(TAG, "ls command output for all connected devices:");
+void USBMscDevice::list_files() {
+  ESP_LOGI(TAG, "ls command output for device:");
   for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (msc_devices[i] != NULL) {
+    if (this->parent_->msc_devices_[i] != NULL) {
       char mount_path[16];
-      snprintf(mount_path, sizeof(mount_path), MNT_PATH "%d", i);
+      snprintf(mount_path, sizeof(mount_path), "%s%d", MNT_PATH, i);
 
       ESP_LOGI(TAG, "Listing contents of %s", mount_path);
       struct dirent *d;
@@ -366,67 +382,37 @@ static inline void show_list_files_all_devices(void) {
   }
 }
 
-static void msc_event_cb(const msc_host_event_t *event, void *arg) {
-  if (event->event == msc_host_event_t::MSC_DEVICE_CONNECTED) {
-    ESP_LOGI(TAG, "MSC device connected");
-    int slot;
-    esp_err_t res = allocate_new_msc_device(event->device.address, &slot);
-    if (res != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to allocate new MSC device: %s", esp_err_to_name(res));
-      return;
-    }
-    ESP_LOGI(TAG, "Allocated memory for new MSC device: %s", esp_err_to_name(res));
-    // 2. Print information about the connected disk
-    msc_host_device_info_t info;
-    esp_err_t err = msc_host_get_device_info(msc_devices[slot]->msc_device, &info);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "msc_host_get_device_info failed: %s", esp_err_to_name(err));
-      return;
-    }
-    // msc_host_print_descriptors(msc_devices[slot]->msc_device);
-    print_device_info(&info);
-
-    // 3. List all the files in root directory from all connected msc devices
-    show_list_files_all_devices();
-
-    // 4. The disk is mounted to Virtual File System, perform some basic demo file operation
-    file_operations(slot);
-    // speed_test(slot);
-
-    ESP_LOGI(TAG, "Example finished, you can disconnect the USB flash drive (or connect another USB flash drive)");
-  } else if (event->event == msc_host_event_t::MSC_DEVICE_DISCONNECTED) {
-    ESP_LOGI(TAG, "MSC device disconnected");
-  }
-  xQueueSend(app_queue, event, 10);
-}
-
-void USBMscHost::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up USB MSC Host");
-
-  BaseType_t task_created;
-  ready_to_uninstall_usb = xSemaphoreCreateBinary();
-
-  app_queue = xQueueCreate(3, sizeof(msc_host_event_t));
-  assert(app_queue);
-
-  const msc_host_driver_config_t msc_config = {
-      .create_backround_task = true,
-      .task_priority = 5,
-      .stack_size = 4096,
-      .callback = msc_event_cb,
-  };
-  ESP_ERROR_CHECK(msc_host_install(&msc_config));
-}
-
-void USBMscHost::dump_config() { ESP_LOGCONFIG(TAG, "USB MSC Host:"); }
+void USBMscHost::setup() { ESP_LOGCONFIG(TAG, "Registering USB MSC Host Component..."); }
 
 void USBMscDevice::setup() { ESP_LOGCONFIG(TAG, "Registering USB MSC Device"); }
 
 void USBMscDevice::dump_config() { ESP_LOGCONFIG(TAG, "USB MSC Device:"); }
 
-void USBMscDevice::on_connected() { ESP_LOGCONFIG(TAG, "USB MSC Device connected"); }
+void USBMscDevice::on_connected() {
+  ESP_LOGD(TAG, "USB MSC Device connected");
+  esp_err_t err = this->parent_->allocate_new_msc_device(this->device_addr_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to allocate new MSC device: %s", esp_err_to_name(err));
+    return;
+  }
+  ESP_LOGI(TAG, "Allocated memory for new MSC device: %s", esp_err_to_name(err));
+  // 2. Print information about the connected disk
+  this->print_device_info();
+  this->list_files();
+  this->file_operations();
+  this->speed_test();
+}
 
-void USBMscDevice::disconnect() { ESP_LOGCONFIG(TAG, "USB MSC Device disconnected"); }
+void USBMscDevice::disconnect() {
+  ESP_LOGCONFIG(TAG, "USB MSC Device disconnected");
+  uint8_t slot = this->parent_->find_msc_device_slot(this->device_handle_);
+  if (slot == (uint8_t) -1) {
+    ESP_LOGE(TAG, "Could not find MSC device slot for disconnected device");
+    return;
+  }
+  this->parent_->free_msc_device(slot);
+  ESP_LOGI(TAG, "Freed MSC device resources for slot %d", slot);
+}
 
 }  // namespace usb_msc_host
 }  // namespace esphome
