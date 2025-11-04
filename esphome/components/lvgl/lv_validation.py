@@ -25,7 +25,6 @@ from esphome.types import Expression, SafeExpType
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
-    CONF_IF_NAN,
     CONF_START_VALUE,
     CONF_TIME_FORMAT,
     LV_FONTS,
@@ -34,7 +33,13 @@ from .defines import (
     call_lambda,
     literal,
 )
-from .helpers import add_lv_use, esphome_fonts_used, lv_fonts_used, requires_component
+from .helpers import (
+    CONF_IF_NAN,
+    add_lv_use,
+    esphome_fonts_used,
+    lv_fonts_used,
+    requires_component,
+)
 from .types import lv_font_t, lv_gradient_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
@@ -415,7 +420,7 @@ class TextValidator(LValidator):
                 format_str = cpp_string_escape(format_str)
                 sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
                 if nanval := value.get(CONF_IF_NAN):
-                    return literal(f"(isnan({arg_expr}) ? {nanval} : {sprintf_str})")
+                    return literal(f'(isnan({arg_expr}) ? "{nanval}" : {sprintf_str})')
                 return literal(sprintf_str)
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]

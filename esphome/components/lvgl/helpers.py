@@ -3,7 +3,7 @@ import re
 from esphome import config_validation as cv
 from esphome.const import CONF_ARGS, CONF_FORMAT
 
-from .defines import CONF_IF_NAN
+CONF_IF_NAN = "if_nan"
 
 lv_uses = {
     "USER_DATA",
@@ -25,7 +25,14 @@ lvgl_components_required = set()
 
 
 f_cfmt = r"""
-    ^[^%]*(?:%([-+0 #]{0,5})?(?:\d+|\*))?(?:\.(?:\d+|\)))?(?:[hl]|ll|[w]|[cCdiouxXeEfgGaAnpsSZ])?f$
+    (                                  # start of capture group 1
+    %                                  # literal "%"
+    (?:[-+0 #]{0,5})                   # optional flags
+    (?:\d+|\*)?                        # width
+    (?:\.(?:\d+|\*))?                  # precision
+    (?:h|l|ll|w|I|I32|I64)?            # size
+    f                                  # type
+    )
     """  # noqa
 f_regex = re.compile(f_cfmt, flags=re.VERBOSE)
 cfmt = r"""

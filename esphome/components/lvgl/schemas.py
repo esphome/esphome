@@ -19,8 +19,8 @@ from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_IF_NAN, CONF_TIME_FORMAT, LV_GRAD_DIR
-from .helpers import requires_component, validate_printf
+from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .helpers import CONF_IF_NAN, requires_component, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
