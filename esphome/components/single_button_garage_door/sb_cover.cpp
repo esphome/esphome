@@ -4,7 +4,7 @@
 #include "esphome/core/application.h"
 
 namespace esphome {
-namespace singlebutton {
+namespace single_button_garage_door {
 
 static const char *const TAG = "singlebutton.cover";
 
@@ -286,5 +286,5 @@ void SingleButtonCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace singlebutton
+}  // namespace single_button_garage_door
 }  // namespace esphome

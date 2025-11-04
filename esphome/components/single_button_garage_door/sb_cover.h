@@ -6,7 +6,7 @@
 #include "esphome/components/cover/cover.h"
 
 namespace esphome {
-namespace singlebutton {
+namespace single_button_garage_door {
 
 class SingleButtonCover : public cover::Cover, public Component {
  public:
@@ -55,5 +55,5 @@ class SingleButtonCover : public cover::Cover, public Component {
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
-}  // namespace singlebutton
+}  // namespace single_button_garage_door
 }  // namespace esphome

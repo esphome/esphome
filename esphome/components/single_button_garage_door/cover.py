@@ -12,7 +12,7 @@ from esphome.const import (
 
 CONF_SINGLE_BUTTON_ACTION = "single_button_action"
 
-singlebutton_ns = cg.esphome_ns.namespace("singlebutton")
+singlebutton_ns = cg.esphome_ns.namespace("single_button_garage_door")
 SingleButtonCover = singlebutton_ns.class_(
     "SingleButtonCover", cover.Cover, cg.Component
 )
