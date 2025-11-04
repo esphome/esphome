@@ -56,9 +56,11 @@ def validate_printf(value):
             f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
         )
 
-    if value.get(CONF_IF_NAN) and not f_regex.match(format_string):
+    if value.get(CONF_IF_NAN) and (
+        len(matches) != 1 or not f_regex.match(format_string)
+    ):
         raise cv.Invalid(
-            "Use of 'if_nan' requires a single valid printf-pattern of type f"
+            "Use of 'if_nan' requires a single valid printf-pattern of type %f"
         )
     return value
 
