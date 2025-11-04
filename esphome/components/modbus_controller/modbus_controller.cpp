@@ -9,101 +9,61 @@ static const char *const TAG = "modbus_controller";
 
 void ModbusController::setup() { this->create_register_ranges_(); }
 
-/*
- To work with the existing modbus class and avoid polling for responses a command queue is used.
- send_next_command will submit the command at the top of the queue and set the corresponding callback
- to handle the response from the device.
- Once the response has been processed it is removed from the queue and the next command is sent
-*/
-bool ModbusController::send_next_command_() {
-  uint32_t last_send = millis() - this->last_command_timestamp_;
+void ModbusController::set_online(bool online, const ModbusCommandItem &command) {
+  if (online && this->module_offline_) {
+    ESP_LOGW(TAG, "Modbus device=%d back online", this->address_);
 
-  if ((last_send > this->command_throttle_) && ready_for_immediate_send() && !this->command_queue_.empty()) {
-    auto &command = this->command_queue_.front();
-
-    // remove from queue if command was sent too often
-    if (!command->should_retry(this->max_cmd_retries_)) {
-      if (!this->module_offline_) {
-        ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
-
-        if (this->offline_skip_updates_ > 0) {
-          // Update skip_updates_counter to stop flooding channel with timeouts
-          for (auto &r : this->register_ranges_) {
-            r.skip_updates_counter = this->offline_skip_updates_;
-          }
-        }
-
-        this->module_offline_ = true;
-        this->offline_callback_.call((int) command->function_code, command->register_address);
-      }
-      ESP_LOGD(TAG, "Modbus command to device=%d register=0x%02X no response received - removed from send queue",
-               this->address_, command->register_address);
-      this->command_queue_.pop_front();
-    } else {
-      ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
-               command->register_address, command->register_count);
-      command->send();
-
-      this->last_command_timestamp_ = millis();
-
-      this->command_sent_callback_.call((int) command->function_code, command->register_address);
-
-      // remove from queue if no handler is defined
-      if (!command->on_data_func) {
-        this->command_queue_.pop_front();
+    if (this->offline_skip_updates_ > 0) {
+      // Restore skip_updates_counter to restore commands updates
+      for (auto &r : this->register_ranges_) {
+        r.skip_updates_counter = 0;
       }
     }
+    // Restore module online state
+    this->module_offline_ = false;
+    this->online_callback_.call((int) command.function_code, command.register_address);
+  } else if (!online && !this->module_offline_) {
+    ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
+
+    if (this->offline_skip_updates_ > 0) {
+      // Update skip_updates_counter to stop flooding channel with timeouts
+      for (auto &r : this->register_ranges_) {
+        r.skip_updates_counter = this->offline_skip_updates_;
+      }
+    }
+
+    this->module_offline_ = true;
+    this->offline_callback_.call((int) command.function_code, command.register_address);
   }
-  return (!this->command_queue_.empty());
 }
 
 // Queue incoming response
-void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
-  auto &current_command = this->command_queue_.front();
-  if (current_command != nullptr) {
-    if (this->module_offline_) {
-      ESP_LOGW(TAG, "Modbus device=%d back online", this->address_);
-
-      if (this->offline_skip_updates_ > 0) {
-        // Restore skip_updates_counter to restore commands updates
-        for (auto &r : this->register_ranges_) {
-          r.skip_updates_counter = 0;
-        }
-      }
-      // Restore module online state
-      this->module_offline_ = false;
-      this->online_callback_.call((int) current_command->function_code, current_command->register_address);
-    }
-
-    // Move the commandItem to the response queue
-    current_command->payload = data;
-    this->incoming_queue_.push(std::move(current_command));
-    ESP_LOGV(TAG, "Modbus response queued");
-    this->command_queue_.pop_front();
-  }
+void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
+  this->modbusdevice->set_online(true, *this);
+  this->send_count_ = 0;  // reset send count on success
+  this->on_data_func(this->register_type, this->register_address, data);
 }
 
-// Dispatch the response to the registered handler
-void ModbusController::process_modbus_data_(const ModbusCommandItem *response) {
-  ESP_LOGV(TAG, "Process modbus response for address 0x%X size: %zu", response->register_address,
-           response->payload.size());
-  response->on_data_func(response->register_type, response->register_address, response->payload);
+void ModbusCommandItem::on_modbus_no_response() {
+  if (this->should_retry(this->modbusdevice->max_cmd_retries_))
+    this->send();
 }
 
-void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
-  ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
-  // Remove pending command waiting for a response
-  auto &current_command = this->command_queue_.front();
-  if (current_command != nullptr) {
-    ESP_LOGE(TAG,
-             "Modbus error - last command: function code=0x%X  register address = 0x%X  "
-             "registers count=%d "
-             "payload size=%zu",
-             function_code, current_command->register_address, current_command->register_count,
-             current_command->payload.size());
-    this->command_queue_.pop_front();
-  }
-}
+// TODO: Make a generic error logger in ModbusClientDevice
+//  void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
+//    ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
+//    // Remove pending command waiting for a response
+//    auto &current_command = this->command_queue_.front();
+//    if (current_command != nullptr) {
+//      ESP_LOGE(TAG,
+//               "Modbus error - last command: function code=0x%X  register address = 0x%X  "
+//               "registers count=%d "
+//               "payload size=%zu",
+//               function_code, current_command->register_address, current_command->register_count,
+//               current_command->payload.size());
+//      this->command_queue_.pop_front();
+//    }
+//  }
 
 SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
   auto reg_it = std::find_if(
@@ -130,31 +90,12 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
   }
 }
 
-void ModbusController::queue_command(const ModbusCommandItem &command) {
-  this->command_queue_.push_back(make_unique<ModbusCommandItem>(command));
-}
-
 void ModbusController::update_range_(RegisterRange &r) {
   ESP_LOGV(TAG, "Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,
            r.skip_updates_counter);
   if (r.skip_updates_counter == 0) {
-    // if a custom command is used the user supplied custom_data is only available in the SensorItem.
-    if (r.register_type == ModbusRegisterType::CUSTOM) {
-      auto sensors = this->find_sensors_(r.register_type, r.start_address);
-      if (!sensors.empty()) {
-        auto sensor = sensors.cbegin();
-        auto command_item = ModbusCommandItem::create_custom_command(
-            this, (*sensor)->custom_data,
-            [this](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-              this->on_register_data(ModbusRegisterType::CUSTOM, start_address, data);
-            });
-        command_item.register_address = (*sensor)->start_address;
-        command_item.register_count = (*sensor)->register_count;
-        command_item.function_code = ModbusFunctionCode::CUSTOM;
-        queue_command(command_item);
-      }
-    } else {
-      queue_command(ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count));
+    if (r.command_item.get() != nullptr) {
+      r.command_item->send();
     }
     r.skip_updates_counter = r.skip_updates;  // reset counter to config value
   } else {
@@ -166,12 +107,6 @@ void ModbusController::update_range_(RegisterRange &r) {
 // Once we get a response to the command it is removed from the queue and the next command is send
 //
 void ModbusController::update() {
-  if (!this->command_queue_.empty()) {
-    ESP_LOGV(TAG, "%zu modbus commands already in queue", this->command_queue_.size());
-  } else {
-    ESP_LOGV(TAG, "Updating modbus component");
-  }
-
   for (auto &r : this->register_ranges_) {
     ESP_LOGVV(TAG, "Updating range 0x%X", r.start_address);
     update_range_(r);
@@ -267,7 +202,7 @@ size_t ModbusController::create_register_ranges_() {
       ix++;
     } else {
       ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
-      this->register_ranges_.push_back(r);
+      this->register_ranges_.push_back(std::move(r));
       r = {};
       buffer_offset = 0;
       // do not increment the iterator here because the current sensor has to be re-evaluated
@@ -279,7 +214,27 @@ size_t ModbusController::create_register_ranges_() {
   if (r.register_count > 0) {
     // Add the last range
     ESP_LOGV(TAG, "Add last range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
-    this->register_ranges_.push_back(r);
+    this->register_ranges_.push_back(std::move(r));
+  }
+
+  for (auto &r : this->register_ranges_) {
+    if (r.register_type == ModbusRegisterType::CUSTOM) {
+      auto sensors = this->find_sensors_(r.register_type, r.start_address);
+      if (!sensors.empty()) {
+        auto sensor = sensors.cbegin();
+        r.command_item = std::make_unique<ModbusCommandItem>(ModbusCommandItem::create_custom_command(
+            this, (*sensor)->custom_data,
+            [this](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+              this->on_register_data(ModbusRegisterType::CUSTOM, start_address, data);
+            }));
+        r.command_item->register_address = (*sensor)->start_address;
+        r.command_item->register_count = (*sensor)->register_count;
+        r.command_item->function_code = ModbusFunctionCode::CUSTOM;
+      }
+    } else {
+      r.command_item = std::make_unique<ModbusCommandItem>(
+          ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count));
+    }
   }
 
   return this->register_ranges_.size();
@@ -309,20 +264,6 @@ void ModbusController::dump_config() {
 #endif
 }
 
-void ModbusController::loop() {
-  // Incoming data to process?
-  if (!this->incoming_queue_.empty()) {
-    auto &message = this->incoming_queue_.front();
-    if (message != nullptr)
-      this->process_modbus_data_(message.get());
-    this->incoming_queue_.pop();
-
-  } else {
-    // all messages processed send pending commands
-    this->send_next_command_();
-  }
-}
-
 void ModbusController::on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
                                                   const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
@@ -342,6 +283,8 @@ ModbusCommandItem ModbusCommandItem::create_read_command(
         &&handler) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
+  cmd.set_parent(modbusdevice->parent_);
+  cmd.set_address(modbusdevice->address_);
   cmd.register_type = register_type;
   cmd.function_code = modbus_register_read_function(register_type);
   cmd.register_address = start_address;
@@ -355,6 +298,8 @@ ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *modbu
                                                          uint16_t register_count) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
+  cmd.set_parent(modbusdevice->parent_);
+  cmd.set_address(modbusdevice->address_);
   cmd.register_type = register_type;
   cmd.function_code = modbus_register_read_function(register_type);
   cmd.register_address = start_address;
@@ -371,6 +316,8 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
                                                                    const std::vector<uint16_t> &values) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
+  cmd.set_parent(modbusdevice->parent_);
+  cmd.set_address(modbusdevice->address_);
   cmd.register_type = ModbusRegisterType::HOLDING;
   cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
   cmd.register_address = start_address;
@@ -391,6 +338,8 @@ ModbusCommandItem ModbusCommandItem::create_write_single_coil(ModbusController *
                                                               bool value) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
+  cmd.set_parent(modbusdevice->parent_);
+  cmd.set_address(modbusdevice->address_);
   cmd.register_type = ModbusRegisterType::COIL;
   cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_COIL;
   cmd.register_address = address;
@@ -408,6 +357,8 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
                                                                  const std::vector<bool> &values) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
+  cmd.set_parent(modbusdevice->parent_);
+  cmd.set_address(modbusdevice->address_);
   cmd.register_type = ModbusRegisterType::COIL;
   cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_COILS;
   cmd.register_address = start_address;
@@ -440,6 +391,8 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
                                                                  uint16_t value) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
+  cmd.set_parent(modbusdevice->parent_);
+  cmd.set_address(modbusdevice->address_);
   cmd.register_type = ModbusRegisterType::HOLDING;
   cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_REGISTER;
   cmd.register_address = start_address;
@@ -460,6 +413,8 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
     std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd;
+  cmd.set_parent(modbusdevice->parent_);
+  cmd.set_address(modbusdevice->address_);
   cmd.modbusdevice = modbusdevice;
   cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
@@ -480,6 +435,8 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
         &&handler) {
   ModbusCommandItem cmd = {};
   cmd.modbusdevice = modbusdevice;
+  cmd.set_parent(modbusdevice->parent_);
+  cmd.set_address(modbusdevice->address_);
   cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
     cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
@@ -498,10 +455,10 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 
 bool ModbusCommandItem::send() {
   if (this->function_code != ModbusFunctionCode::CUSTOM) {
-    modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),
-                       this->payload.empty() ? nullptr : &this->payload[0]);
+    this->ModbusClientDevice::send(uint8_t(this->function_code), this->register_address, this->register_count,
+                                   this->payload.size(), this->payload.empty() ? nullptr : &this->payload[0]);
   } else {
-    modbusdevice->send_raw(this->payload);
+    this->send_raw(this->payload);
   }
   this->send_count_++;
   ESP_LOGV(TAG, "Command sent %d 0x%X %d send_count: %d", uint8_t(this->function_code), this->register_address,

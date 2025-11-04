@@ -11,6 +11,7 @@
 #include <set>
 #include <utility>
 #include <vector>
+#include <memory>
 
 namespace esphome {
 namespace modbus_controller {
@@ -83,19 +84,27 @@ class SensorItemsComparator {
 
 using SensorSet = std::set<SensorItem *, SensorItemsComparator>;
 
+class ModbusCommandItem;
 struct RegisterRange {
   uint16_t start_address;
   ModbusRegisterType register_type;
   uint8_t register_count;
-  uint16_t skip_updates;          // the config value
-  SensorSet sensors;              // all sensors of this range
-  uint16_t skip_updates_counter;  // the running value
+  uint16_t skip_updates;                            // the config value
+  SensorSet sensors;                                // all sensors of this range
+  uint16_t skip_updates_counter;                    // the running value
+  std::unique_ptr<ModbusCommandItem> command_item;  // the command item for this range
 };
 
-class ModbusCommandItem {
+class ModbusCommandItem : public modbus::ModbusClientDevice {
  public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
   ModbusController *modbusdevice{nullptr};
+  /// called when a modbus response was parsed without errors
+  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  /// called when a modbus error response was received
+  // void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
+  /// called when a modbus timeout occurred
+  void on_modbus_no_response() override;
   uint16_t register_address{0};
   uint16_t register_count{0};
   ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
@@ -213,30 +222,22 @@ class ModbusCommandItem {
 class ModbusController : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void dump_config() override;
-  void loop() override;
   void setup() override;
   void update() override;
+  void set_online(bool online, const ModbusCommandItem &command_item);
 
-  /// queues a modbus command in the send queue
-  void queue_command(const ModbusCommandItem &command);
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
-  /// called when a modbus response was parsed without errors
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
-  /// called when a modbus error response was received
-  void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
   /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
+  // TODO: MOve this to CommandItem
   void on_register_data(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
   /// default delegate called by process_modbus_data when a response for a write response has retrieved from the
   /// incoming queue
+  // TODO: Move to CommandItem
   void on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
                                   const std::vector<uint8_t> &data);
-  /// called by esphome generated code to set the command_throttle period
-  void set_command_throttle(uint16_t command_throttle) { this->command_throttle_ = command_throttle; }
   /// called by esphome generated code to set the offline_skip_updates
   void set_offline_skip_updates(uint16_t offline_skip_updates) { this->offline_skip_updates_ = offline_skip_updates; }
-  /// get the number of queued modbus commands (should be mostly empty)
-  size_t get_command_queue_length() { return command_queue_.size(); }
   /// get if the module is offline, didn't respond the last command
   bool get_module_offline() { return module_offline_; }
   /// Set callback for commands
@@ -251,30 +252,21 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
 
  protected:
+  friend ModbusCommandItem;
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
   // find register in sensormap. Returns iterator with all registers having the same start address
   SensorSet find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const;
   /// submit the read command for the address range to the send queue
   void update_range_(RegisterRange &r);
-  /// parse incoming modbus data
-  void process_modbus_data_(const ModbusCommandItem *response);
-  /// send the next modbus command from the send queue
-  bool send_next_command_();
   /// dump the parsed sensormap for diagnostics
   void dump_sensors_();
   /// Collection of all sensors for this component
   SensorSet sensorset_;
   /// Continuous range of modbus registers
   std::vector<RegisterRange> register_ranges_{};
-  /// Hold the pending requests to be sent
-  std::list<std::unique_ptr<ModbusCommandItem>> command_queue_;
-  /// modbus response data waiting to get processed
-  std::queue<std::unique_ptr<ModbusCommandItem>> incoming_queue_;
   /// when was the last send operation
   uint32_t last_command_timestamp_{0};
-  /// min time in ms between sending modbus commands
-  uint16_t command_throttle_{0};
   /// if module didn't respond the last command
   bool module_offline_{false};
   /// how many updates to skip if module is offline
