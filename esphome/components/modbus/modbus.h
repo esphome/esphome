@@ -67,7 +67,7 @@ class ModbusClient : public Modbus {
   void send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
             uint16_t number_of_entities, uint8_t payload_len = 0, const uint8_t *payload = nullptr);
   void send_raw(ModbusClientDevice *device, const std::vector<uint8_t> &payload);
-  void clear_tx_queue_for_address(uint8_t address);
+  void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
 
  protected:
   void parse_modbus_byte_(uint8_t byte) override;
@@ -114,7 +114,7 @@ class ModbusClientDevice {
     this->parent_->send(this, this->address_, function, start_address, number_of_entities, payload_len, payload);
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(this, payload); }
-  void clear_tx_queue() { this->parent_->clear_tx_queue_for_address(this->address_); }
+  void clear_tx_queue(bool clear_sent = true) { this->parent_->clear_tx_queue_for_address(this->address_); }
 
   // If more than one device is connected block sending a new command before a response is received
   bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }

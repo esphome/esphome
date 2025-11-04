@@ -591,18 +591,18 @@ void ModbusClient::send_raw(ModbusClientDevice *device, const std::vector<uint8_
   }
 }
 
-void ModbusClient::clear_tx_queue_for_address(uint8_t address) {
+void ModbusClient::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
   // Remove any pending commands for this address from the tx buffer
   auto &tx_buffer = this->tx_buffer_;
   tx_buffer.erase(std::remove_if(tx_buffer.begin(), tx_buffer.end(),
                                  [this, address](const ModbusDeviceCommand &cmd) { return cmd.frame[0] == address; }),
                   tx_buffer.end());
 
-  if (this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
+  if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
     if (this->waiting_for_response_.value().frame[0] == address) {
       ESP_LOGV(TAG, "Clearing waiting for response for address %d", address);
-      this->waiting_for_response_.value().device =
-          nullptr;  // Invalidate the waiting device so it won't process a response.
+      // Invalidate the waiting device so it won't process a response.
+      this->waiting_for_response_.value().device = nullptr;
     }
   }
 }
