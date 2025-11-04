@@ -459,6 +459,8 @@ void DlmsMeterComponent::loop() {
             if (year > 9999 || month > 12 || day > 31 || hour > 23 || minute > 59 || second > 59) {
               ESP_LOGE(TAG, "Invalid timestamp values: %04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour, minute,
                        second);
+              this->abort_();
+              return;
             }
             sprintf(timestamp, "%04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour, minute, second);
 
