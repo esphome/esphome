@@ -25,6 +25,7 @@ from esphome.types import Expression, SafeExpType
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
+    CONF_IF_NAN,
     CONF_START_VALUE,
     CONF_TIME_FORMAT,
     LV_FONTS,
@@ -412,7 +413,10 @@ class TextValidator(LValidator):
                 str_args = [str(x) for x in value[CONF_ARGS]]
                 arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(format_str)
-                return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
+                sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
+                if nanval := value.get(CONF_IF_NAN):
+                    return literal(f"(isnan({arg_expr}) ? {nanval} : {sprintf_str})")
+                return literal(sprintf_str)
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):

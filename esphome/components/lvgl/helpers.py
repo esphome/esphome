@@ -3,6 +3,8 @@ import re
 from esphome import config_validation as cv
 from esphome.const import CONF_ARGS, CONF_FORMAT
 
+from .defines import CONF_IF_NAN
+
 lv_uses = {
     "USER_DATA",
     "LOG",
@@ -22,8 +24,11 @@ esphome_fonts_used = set()
 lvgl_components_required = set()
 
 
-def validate_printf(value):
-    cfmt = r"""
+f_cfmt = r"""
+    ^[^%]*(?:%([-+0 #]{0,5})?(?:\d+|\*))?(?:\.(?:\d+|\)))?(?:[hl]|ll|[w]|[cCdiouxXeEfgGaAnpsSZ])?f$
+    """  # noqa
+f_regex = re.compile(f_cfmt, flags=re.VERBOSE)
+cfmt = r"""
     (                                  # start of capture group 1
     %                                  # literal "%"
     (?:[-+0 #]{0,5})                   # optional flags
@@ -33,10 +38,20 @@ def validate_printf(value):
     [cCdiouxXeEfgGaAnpsSZ]             # type
     )
     """  # noqa
-    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
+c_regex = re.compile(cfmt, flags=re.VERBOSE)
+
+
+def validate_printf(value):
+    format_string = value[CONF_FORMAT]
+    matches = c_regex.findall(format_string)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
             f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
+        )
+
+    if value.get(CONF_IF_NAN) and not f_regex.match(format_string):
+        raise cv.Invalid(
+            "Use of 'if_nan' requires a single valid printf-pattern of type f"
         )
     return value
 
