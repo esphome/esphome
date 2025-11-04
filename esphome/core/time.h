@@ -85,7 +85,7 @@ struct ESPTime {
   static ESPTime from_epoch_local(time_t epoch) {
     struct tm *c_tm = ::localtime(&epoch);
     if (c_tm == nullptr) {
-      return ESPTime{};  // Return an invalid ESPTime that will fail is_valid()
+      return ESPTime{};  // Return an invalid ESPTime
     }
     return ESPTime::from_c_tm(c_tm, epoch);
   }
@@ -97,7 +97,7 @@ struct ESPTime {
   static ESPTime from_epoch_utc(time_t epoch) {
     struct tm *c_tm = ::gmtime(&epoch);
     if (c_tm == nullptr) {
-      return ESPTime{};  // Return an invalid ESPTime that will fail is_valid()
+      return ESPTime{};  // Return an invalid ESPTime
     }
     return ESPTime::from_c_tm(c_tm, epoch);
   }
