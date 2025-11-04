@@ -42,19 +42,22 @@ void ModbusController::set_online(bool online, const ModbusCommandItem &command)
 // Queue incoming response
 void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
   this->controller->set_online(true, *this);
-  this->unresponded_send_count_ = 0;  // reset send count on success
+  this->controller->cmd_non_responses_ = 0;  // reset send count on success
   this->on_data_func(this->register_type, this->register_address, data);
 }
 
 // Modbus error message is a legit response from the device. Consider the device online.
 void ModbusCommandItem::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
   this->controller->set_online(true, *this);
-  this->unresponded_send_count_ = 0;  // reset send count on success
+  this->controller->cmd_non_responses_ = 0;  // reset send count on success
 }
 
 void ModbusCommandItem::on_modbus_no_response() {
-  if (this->should_retry(this->controller->max_cmd_retries_))
+  this->controller->cmd_non_responses_++;
+  if (this->controller->should_retry())
     this->send();
+  else
+    this->controller->set_online(false, *this);
 }
 
 SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
@@ -453,9 +456,8 @@ bool ModbusCommandItem::send() {
   } else {
     this->send_raw(this->payload);
   }
-  this->unresponded_send_count_++;
-  ESP_LOGV(TAG, "Command sent %d 0x%X %d send_count: %d", uint8_t(this->function_code), this->register_address,
-           this->register_count, this->unresponded_send_count_);
+  ESP_LOGV(TAG, "Command sent %d 0x%X %d non-reponses: %d", uint8_t(this->function_code), this->register_address,
+           this->register_count, this->controller->cmd_non_responses_);
   return true;
 }
 

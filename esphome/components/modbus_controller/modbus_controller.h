@@ -113,8 +113,6 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
-  /// Check if the command should be retried based on the max_retries parameter
-  bool should_retry(uint8_t max_retries) { return this->unresponded_send_count_ <= max_retries; };
 
   /// factory methods
   /** Create modbus read command
@@ -204,11 +202,6 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
           &&handler = nullptr);
 
   bool is_equal(const ModbusCommandItem &other);
-
- protected:
-  // wrong commands (esp. custom commands) can block the send queue, limit the number of repeats.
-  /// How many times this command has been sent
-  uint8_t unresponded_send_count_{0};
 };
 
 /** Modbus controller class.
@@ -250,6 +243,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
+  /// Check if the command should be retried based on the max_retries parameter
+  bool should_retry() { return this->cmd_non_responses_ <= this->max_cmd_retries_; };
 
  protected:
   friend ModbusCommandItem;
@@ -269,8 +264,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   bool module_offline_{false};
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_{0};
-  /// How many times we will retry a command if we get no response
+  /// How many times we will retry commands if we get no response
   uint8_t max_cmd_retries_{4};
+  /// How many commands were sent without a response
+  uint8_t cmd_non_responses_{0};
   /// Command sent callback
   CallbackManager<void(int, int)> command_sent_callback_{};
   /// Server online callback
