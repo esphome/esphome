@@ -543,6 +543,7 @@ def test_main_filters_components_without_tests(
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(helpers, "create_components_graph", return_value={}),
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(
             determine_jobs,
@@ -640,6 +641,7 @@ def test_main_detects_components_with_variant_tests(
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(helpers, "create_components_graph", return_value={}),
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(
             determine_jobs,
