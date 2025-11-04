@@ -20,9 +20,6 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="PR #11676 causes wait_until to timeout immediately when triggered mid-loop"
-)
 async def test_wait_until_mid_loop_timing(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
