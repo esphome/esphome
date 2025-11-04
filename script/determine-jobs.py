@@ -568,6 +568,18 @@ def detect_memory_impact_config(
         )
         platform = _select_platform_by_count(platform_counts)
 
+    # Filter components to only those that support the selected platform
+    # This ensures we don't try to build ESP32 components on ESP8266, etc.
+    compatible_components = [
+        component
+        for component in components_with_tests
+        if platform in component_platforms_map.get(component, set())
+    ]
+
+    # If no components are compatible with the selected platform, don't run
+    if not compatible_components:
+        return {"should_run": "false"}
+
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
     print(f"  Changed components: {sorted(changed_component_set)}", file=sys.stderr)
@@ -579,10 +591,11 @@ def detect_memory_impact_config(
     print(f"  Platform hints from filenames: {platform_hints}", file=sys.stderr)
     print(f"  Common platforms: {sorted(common_platforms)}", file=sys.stderr)
     print(f"  Selected platform: {platform}", file=sys.stderr)
+    print(f"  Compatible components: {compatible_components}", file=sys.stderr)
 
     return {
         "should_run": "true",
-        "components": components_with_tests,
+        "components": compatible_components,
         "platform": platform,
         "use_merged_config": "true",
     }
