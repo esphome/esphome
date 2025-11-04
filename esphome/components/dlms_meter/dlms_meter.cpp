@@ -89,6 +89,14 @@ void DlmsMeterComponent::loop() {
         return;
       }
 
+      // Ensure we have full frame (header + payload + checksum + stop byte) before accessing stop byte
+      size_t required_total = frame_length + MBUS_HEADER_INTRO_LENGTH + MBUS_FOOTER_LENGTH;  // payload + header + 2 footer bytes
+      if (this->receive_buffer_.size() - frame_offset < required_total) {
+        ESP_LOGE(TAG, "MBUS: Incomplete frame (need %d, have %d)", (unsigned int) required_total, this->receive_buffer_.size() - frame_offset);
+        this->abort_();
+        return;
+      }
+
       if (this->receive_buffer_[frame_offset + frame_length + MBUS_HEADER_INTRO_LENGTH + MBUS_FOOTER_LENGTH - 1] !=
           STOP_BYTE) {
         ESP_LOGE(TAG, "MBUS: Invalid stop byte");
