@@ -283,8 +283,8 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  const std::string &get_use_address() const;
-  void set_use_address(const std::string &use_address);
+  const char *get_use_address() const;
+  void set_use_address(const char *use_address);
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
@@ -393,7 +393,7 @@ class WiFiComponent : public Component {
   void wifi_scan_done_callback_();
 #endif
 
-  std::string use_address_;
+  const char *use_address_{""};
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
