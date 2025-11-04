@@ -393,6 +393,13 @@ void USBMscDevice::list_files() {
   }
 }
 
+// Dummy callback for msc_host_install - we don't use MSC library's event system
+// Device detection and initialization is handled by usb_host component instead
+static void msc_event_callback(const msc_host_event_t *event, void *arg) {
+  // Intentionally empty - we handle device events through usb_host component
+  // This callback is only here to satisfy msc_host_install() requirements
+}
+
 void USBMscHost::setup() {
   ESP_LOGCONFIG(TAG, "Registering USB MSC Host Component...");
   ESP_LOGI(TAG, "USBMscHost setup() called");
@@ -403,7 +410,7 @@ void USBMscHost::setup() {
       .create_backround_task = true,
       .task_priority = 5,
       .stack_size = 4096,
-      .callback = nullptr,
+      .callback = msc_event_callback,  // Dummy callback - we use usb_host for device detection
   };
 
   esp_err_t err = msc_host_install(&msc_config);
