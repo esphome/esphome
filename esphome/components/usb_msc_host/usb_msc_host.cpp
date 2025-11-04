@@ -119,7 +119,7 @@ esp_err_t USBMscHost::allocate_new_msc_device(uint8_t new_dev_address, const std
       .allocation_unit_size = 1024,
   };
 
-  err = msc_host_vfs_register(this->msc_devices_[slot]->msc_device, mount_path, &mount_config,
+  err = msc_host_vfs_register(this->msc_devices_[slot]->msc_device, mount_path.c_str(), &mount_config,
                               &this->msc_devices_[slot]->vfs_handle);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "msc_host_vfs_register failed: %s", esp_err_to_name(err));
