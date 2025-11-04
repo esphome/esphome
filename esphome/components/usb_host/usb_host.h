@@ -215,11 +215,14 @@ class USBHost : public Component {
   // NEW: Try to dispatch device to interface-class handlers (called when not claimed by VID/PID)
   void try_dispatch_to_handlers(uint8_t address);
 
+  // NEW: Close a device handle (for handlers that need to re-open with different client)
+  void close_device_handle(usb_device_handle_t device_handle);
+
  protected:
-  std::vector<USBClient *> clients_{};                    // EXISTING: VID/PID based clients
-  std::vector<USBDeviceHandler *> handlers_{};           // NEW: Interface-class based handlers
-  std::set<uint8_t> claimed_devices_{};                  // NEW: Track devices claimed by VID/PID clients
-  usb_host_client_handle_t coordinator_handle_{};        // NEW: Handle for handler dispatch
+  std::vector<USBClient *> clients_{};             // EXISTING: VID/PID based clients
+  std::vector<USBDeviceHandler *> handlers_{};     // NEW: Interface-class based handlers
+  std::set<uint8_t> claimed_devices_{};            // NEW: Track devices claimed by VID/PID clients
+  usb_host_client_handle_t coordinator_handle_{};  // NEW: Handle for handler dispatch
 };
 
 }  // namespace usb_host

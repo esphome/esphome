@@ -71,8 +71,7 @@ int8_t USBMscHost::find_msc_device_slot(uint8_t usb_addr) {
  *
  * If any step fails, the function ensures proper cleanup of allocated resources before returning an error.
  *
- * @param[in] msg        Message containing the address of the new USB device.
- * @param[out] out_slot  Pointer to store the allocated slot index on success.
+ * @param[in] new_dev_address    USB device address
  *
  * @return
  *         - ESP_OK on success.
@@ -420,11 +419,19 @@ bool USBMscDevice::matches_device(const usb_config_desc_t *config_desc) {
 
 // NEW: Called when device is matched and claimed by interface-class handler
 void USBMscDevice::on_device_connected(usb_device_handle_t device_handle, uint8_t addr) {
-  this->device_handle_ = device_handle;
-  this->device_addr_ = addr;
-
   ESP_LOGI(TAG, "USB MSC Device connected via interface-class matching (address=%d)", addr);
 
+  this->device_addr_ = addr;
+
+  // Close the device handle opened by usb_host - msc_host_install_device() will open it again with its own client
+  ESP_LOGD(TAG, "Closing device handle from usb_host before calling msc_host_install_device()");
+  if (this->usb_host_ != nullptr) {
+    this->usb_host_->close_device_handle(device_handle);
+  } else {
+    ESP_LOGE(TAG, "usb_host_ is nullptr, cannot close device handle!");
+  }
+
+  // Now call msc_host_install_device() which will open the device with its own client handle
   esp_err_t err = this->parent_->allocate_new_msc_device(addr);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to allocate new MSC device: %s", esp_err_to_name(err));

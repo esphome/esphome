@@ -76,6 +76,8 @@ class USBMscDevice : public Component, public usb_host::USBDeviceHandler, public
   void setup() override;
   void dump_config() override;
 
+  void set_usb_host(usb_host::USBHost *usb_host) { this->usb_host_ = usb_host; }
+
   // USBDeviceHandler Interface implementation
   bool matches_device(const usb_config_desc_t *config_desc) override;
   void on_device_connected(usb_device_handle_t device_handle, uint8_t addr) override;
@@ -91,6 +93,7 @@ class USBMscDevice : public Component, public usb_host::USBDeviceHandler, public
  protected:
   usb_device_handle_t device_handle_{nullptr};
   uint8_t device_addr_{255};
+  usb_host::USBHost *usb_host_{nullptr};
 };
 
 }  // namespace usb_msc_host

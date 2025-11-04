@@ -135,6 +135,12 @@ void USBHost::try_dispatch_to_handlers(uint8_t address) {
   usb_host_device_close(this->coordinator_handle_, device_handle);
 }
 
+void USBHost::close_device_handle(usb_device_handle_t device_handle) {
+  if (device_handle != nullptr) {
+    usb_host_device_close(this->coordinator_handle_, device_handle);
+  }
+}
+
 }  // namespace usb_host
 }  // namespace esphome
 
