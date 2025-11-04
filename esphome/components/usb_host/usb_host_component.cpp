@@ -63,6 +63,12 @@ void USBHost::loop() {
   if (event_flags != 0) {
     ESP_LOGD(TAG, "Event flags %" PRIu32 "X", event_flags);
   }
+
+  // NEW: Handle coordinator client events for interface-class handlers
+  // Without this, coordinator_event_cb() is never called!
+  if (this->coordinator_handle_ != nullptr) {
+    usb_host_client_handle_events(this->coordinator_handle_, 0);
+  }
 }
 
 // NEW: Device claiming system implementation
