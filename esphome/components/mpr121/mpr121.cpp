@@ -11,47 +11,49 @@ namespace mpr121 {
 static const char *const TAG = "mpr121";
 
 void MPR121Component::setup() {
+  this->disable_loop();
   // soft reset device
   this->write_byte(MPR121_SOFTRESET, 0x63);
-  delay(100);  // NOLINT
-  if (!this->write_byte(MPR121_ECR, 0x0)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
-    return;
-  }
+  this->set_timeout(100, [this]() {
+    if (!this->write_byte(MPR121_ECR, 0x0)) {
+      this->error_code_ = COMMUNICATION_FAILED;
+      this->mark_failed();
+      return;
+    }
+    // set touch sensitivity for all 12 channels
+    for (auto *channel : this->channels_) {
+      channel->setup();
+    }
+    this->write_byte(MPR121_MHDR, 0x01);
+    this->write_byte(MPR121_NHDR, 0x01);
+    this->write_byte(MPR121_NCLR, 0x0E);
+    this->write_byte(MPR121_FDLR, 0x00);
 
-  // set touch sensitivity for all 12 channels
-  for (auto *channel : this->channels_) {
-    channel->setup();
-  }
-  this->write_byte(MPR121_MHDR, 0x01);
-  this->write_byte(MPR121_NHDR, 0x01);
-  this->write_byte(MPR121_NCLR, 0x0E);
-  this->write_byte(MPR121_FDLR, 0x00);
+    this->write_byte(MPR121_MHDF, 0x01);
+    this->write_byte(MPR121_NHDF, 0x05);
+    this->write_byte(MPR121_NCLF, 0x01);
+    this->write_byte(MPR121_FDLF, 0x00);
 
-  this->write_byte(MPR121_MHDF, 0x01);
-  this->write_byte(MPR121_NHDF, 0x05);
-  this->write_byte(MPR121_NCLF, 0x01);
-  this->write_byte(MPR121_FDLF, 0x00);
+    this->write_byte(MPR121_NHDT, 0x00);
+    this->write_byte(MPR121_NCLT, 0x00);
+    this->write_byte(MPR121_FDLT, 0x00);
 
-  this->write_byte(MPR121_NHDT, 0x00);
-  this->write_byte(MPR121_NCLT, 0x00);
-  this->write_byte(MPR121_FDLT, 0x00);
+    this->write_byte(MPR121_DEBOUNCE, 0);
+    // default, 16uA charge current
+    this->write_byte(MPR121_CONFIG1, 0x10);
+    // 0.5uS encoding, 1ms period
+    this->write_byte(MPR121_CONFIG2, 0x20);
 
-  this->write_byte(MPR121_DEBOUNCE, 0);
-  // default, 16uA charge current
-  this->write_byte(MPR121_CONFIG1, 0x10);
-  // 0.5uS encoding, 1ms period
-  this->write_byte(MPR121_CONFIG2, 0x20);
+    // Write the Electrode Configuration Register
+    // * Highest 2 bits is "Calibration Lock", which we set to a value corresponding to 5 bits.
+    // * The 2 bits below is "Proximity Enable" and are left at 0.
+    // * The 4 least significant bits control how many electrodes are enabled. Electrodes are enabled
+    //   as a range, starting at 0 up to the highest channel index used.
+    this->write_byte(MPR121_ECR, 0x80 | (this->max_touch_channel_ + 1));
 
-  // Write the Electrode Configuration Register
-  // * Highest 2 bits is "Calibration Lock", which we set to a value corresponding to 5 bits.
-  // * The 2 bits below is "Proximity Enable" and are left at 0.
-  // * The 4 least significant bits control how many electrodes are enabled. Electrodes are enabled
-  //   as a range, starting at 0 up to the highest channel index used.
-  this->write_byte(MPR121_ECR, 0x80 | (this->max_touch_channel_ + 1));
-
-  this->flush_gpio_();
+    this->flush_gpio_();
+    this->enable_loop();
+  });
 }
 
 void MPR121Component::set_touch_debounce(uint8_t debounce) {
@@ -72,9 +74,6 @@ void MPR121Component::dump_config() {
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case WRONG_CHIP_STATE:
-      ESP_LOGE(TAG, "MPR121 has wrong default value for CONFIG2?");
       break;
     case NONE:
     default:

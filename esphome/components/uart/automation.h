@@ -14,8 +14,12 @@ template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Pa
     this->data_func_ = func;
     this->static_ = false;
   }
-  void set_data_static(const std::vector<uint8_t> &data) {
-    this->data_static_ = data;
+  void set_data_static(std::vector<uint8_t> &&data) {
+    this->data_static_ = std::move(data);
+    this->static_ = true;
+  }
+  void set_data_static(std::initializer_list<uint8_t> data) {
+    this->data_static_ = std::vector<uint8_t>(data);
     this->static_ = true;
   }
 

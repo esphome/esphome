@@ -1,5 +1,5 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "usb_uart.h"
 #include "esphome/core/log.h"
 #include "esphome/components/uart/uart_debugger.h"
@@ -214,17 +214,30 @@ void USBUartComponent::dump_config() {
   }
 }
 void USBUartComponent::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_.load() || channel->input_started_.load())
+  if (!channel->initialised_.load())
     return;
-  // Note: This function is called from both USB task and main loop, so we cannot
-  // directly check ring buffer space here. Backpressure is handled by the chunk pool:
-  // when exhausted, USB input stops until chunks are freed by the main loop
+  // THREAD CONTEXT: Called from both USB task and main loop threads
+  // - USB task: Immediate restart after successful transfer for continuous data flow
+  // - Main loop: Controlled restart after consuming data (backpressure mechanism)
+  //
+  // This dual-thread access is intentional for performance:
+  // - USB task restarts avoid context switch delays for high-speed data
+  // - Main loop restarts provide flow control when buffers are full
+  //
+  // The underlying transfer_in() uses lock-free atomic allocation from the
+  // TransferRequest pool, making this multi-threaded access safe
+
+  // if already started, don't restart. A spurious failure in compare_exchange_weak
+  // is not a problem, as it will be retried on the next read_array()
+  auto started = false;
+  if (!channel->input_started_.compare_exchange_weak(started, true))
+    return;
   const auto *ep = channel->cdc_dev_.in_ep;
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
     if (!status.success) {
-      ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
+      ESP_LOGE(TAG, "Input transfer failed, status=%s", esp_err_to_name(status.error_code));
       // On failure, don't restart - let next read_array() trigger it
       channel->input_started_.store(false);
       return;
@@ -256,8 +269,9 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     channel->input_started_.store(false);
     this->start_input(channel);
   };
-  channel->input_started_.store(true);
-  this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+  if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
+    channel->input_started_.store(false);
+  }
 }
 
 void USBUartComponent::start_output(USBUartChannel *channel) {
@@ -297,7 +311,8 @@ static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
     if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP %u from %u to 64", ep->bEndpointAddress, ep->wMaxPacketSize);
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to 64", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize);
       ep_mutable->wMaxPacketSize = 64;
     }
   }
@@ -314,7 +329,7 @@ void USBUartTypeCdcAcm::on_connected() {
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
       ESP_LOGE(TAG, "No configuration found for channel %d", channel->index_);
-      this->status_set_warning(LOG_STR("No configuration found for channel"));
+      this->status_set_warning("No configuration found for channel");
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];
@@ -349,11 +364,12 @@ void USBUartTypeCdcAcm::on_disconnected() {
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
     }
     usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number);
-    channel->initialised_.store(false);
-    channel->input_started_.store(false);
-    channel->output_started_.store(false);
+    // Reset the input and output started flags to their initial state to avoid the possibility of spurious restarts
+    channel->input_started_.store(true);
+    channel->output_started_.store(true);
     channel->input_buffer_.clear();
     channel->output_buffer_.clear();
+    channel->initialised_.store(false);
   }
   USBClient::on_disconnected();
 }

@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_pca9554
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 pca9554:
   - id: pca9554_hub
+    i2c_id: i2c_bus
     pin_count: 8
     address: 0x3F
 

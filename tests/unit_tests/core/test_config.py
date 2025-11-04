@@ -261,6 +261,17 @@ def test_device_duplicate_id(
     assert "ID duplicate_device redefined!" in captured.out
 
 
+def test_substitution_with_id(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that a ids coming from substitutions do not cause false positive ID redefinition."""
+    load_config_from_fixture(
+        yaml_file, "id_collision_with_substitution.yaml", FIXTURES_DIR
+    )
+    captured = capsys.readouterr()
+    assert "ID some_switch_id redefined!" not in captured.out
+
+
 def test_add_platform_defines_priority() -> None:
     """Test that _add_platform_defines runs after globals.
 
@@ -515,6 +526,35 @@ def test_include_file_cpp(tmp_path: Path, mock_copy_file_if_changed: Mock) -> No
         mock_copy_file_if_changed.assert_called_once()
         # Should not add include statement for .cpp files
         mock_cg.add_global.assert_not_called()
+
+
+def test_include_file_with_c_header(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """Test include_file wraps header in extern C block when is_c_header is True."""
+    src_file = tmp_path / "c_library.h"
+    src_file.write_text("// C library header")
+
+    CORE.build_path = tmp_path / "build"
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        # Mock RawStatement to capture the text
+        mock_raw_statement = MagicMock()
+        mock_raw_statement.text = ""
+
+        def raw_statement_side_effect(text):
+            mock_raw_statement.text = text
+            return mock_raw_statement
+
+        mock_cg.RawStatement.side_effect = raw_statement_side_effect
+
+        config.include_file(src_file, Path("c_library.h"), is_c_header=True)
+
+        mock_copy_file_if_changed.assert_called_once()
+        mock_cg.add_global.assert_called_once()
+        # Check that include statement is wrapped in extern "C" block
+        assert 'extern "C"' in mock_raw_statement.text
+        assert '#include "c_library.h"' in mock_raw_statement.text
 
 
 def test_get_usable_cpu_count() -> None:

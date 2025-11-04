@@ -17,6 +17,10 @@ namespace api {
 class APIConnection;
 }  // namespace api
 
+namespace web_server {
+struct UrlMatch;
+}  // namespace web_server
+
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -116,6 +120,7 @@ class EntityBase {
 
  protected:
   friend class api::APIConnection;
+  friend struct web_server::UrlMatch;
 
   // Get object_id as StringRef when it's static (for API usage)
   // Returns empty StringRef if object_id is dynamic (needs allocation)

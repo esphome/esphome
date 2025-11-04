@@ -548,7 +548,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #ifdef USE_VOICE_ASSISTANT
     case VoiceAssistantConfigurationRequest::MESSAGE_TYPE: {
       VoiceAssistantConfigurationRequest msg;
-      // Empty message: no decode needed
+      msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_configuration_request: %s", msg.dump().c_str());
 #endif
@@ -608,6 +608,17 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_z_wave_proxy_request: %s", msg.dump().c_str());
 #endif
       this->on_z_wave_proxy_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+    case HomeassistantActionResponse::MESSAGE_TYPE: {
+      HomeassistantActionResponse msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_homeassistant_action_response: %s", msg.dump().c_str());
+#endif
+      this->on_homeassistant_action_response(msg);
       break;
     }
 #endif

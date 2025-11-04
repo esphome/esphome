@@ -1,9 +1,3 @@
-spi:
-  - id: spi_sn74hc595
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-    miso_pin: ${miso_pin}
-
 sn74hc595:
   - id: sn74hc595_hub
     clock_pin: ${clock_pin}

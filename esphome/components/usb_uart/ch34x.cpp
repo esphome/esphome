@@ -1,4 +1,4 @@
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
@@ -72,6 +72,7 @@ void USBUartTypeCH34X::enable_channels() {
     if (channel->index_ >= 2)
       cmd += 0xE;
     this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd, value, (factor << 8) | divisor, callback);
+    this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd + 3, 0x80, 0, callback);
   }
   USBUartTypeCdcAcm::enable_channels();
 }

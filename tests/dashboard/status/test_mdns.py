@@ -8,7 +8,9 @@ import pytest
 import pytest_asyncio
 from zeroconf import AddressResolver, IPVersion
 
+from esphome.dashboard.const import DashboardEvent
 from esphome.dashboard.status.mdns import MDNSStatus
+from esphome.zeroconf import DiscoveredImport
 
 
 @pytest_asyncio.fixture
@@ -166,3 +168,73 @@ async def test_async_setup_failure(mock_dashboard: Mock) -> None:
         result = mdns_status.async_setup()
         assert result is False
         assert mdns_status.aiozc is None
+
+
+@pytest.mark.asyncio
+async def test_on_import_update_device_added(mdns_status: MDNSStatus) -> None:
+    """Test _on_import_update when a device is added."""
+    # Create a DiscoveredImport object
+    discovered = DiscoveredImport(
+        device_name="test_device",
+        friendly_name="Test Device",
+        package_import_url="https://example.com/package",
+        project_name="test_project",
+        project_version="1.0.0",
+        network="wifi",
+    )
+
+    # Call _on_import_update with a device
+    mdns_status._on_import_update("test_device", discovered)
+
+    # Should fire IMPORTABLE_DEVICE_ADDED event
+    mock_dashboard = mdns_status.dashboard
+    mock_dashboard.bus.async_fire.assert_called_once()
+    call_args = mock_dashboard.bus.async_fire.call_args
+    assert call_args[0][0] == DashboardEvent.IMPORTABLE_DEVICE_ADDED
+    assert "device" in call_args[0][1]
+    device_data = call_args[0][1]["device"]
+    assert device_data["name"] == "test_device"
+    assert device_data["friendly_name"] == "Test Device"
+    assert device_data["project_name"] == "test_project"
+    assert device_data["ignored"] is False
+
+
+@pytest.mark.asyncio
+async def test_on_import_update_device_ignored(mdns_status: MDNSStatus) -> None:
+    """Test _on_import_update when a device is ignored."""
+    # Add device to ignored list
+    mdns_status.dashboard.ignored_devices.add("ignored_device")
+
+    # Create a DiscoveredImport object for ignored device
+    discovered = DiscoveredImport(
+        device_name="ignored_device",
+        friendly_name="Ignored Device",
+        package_import_url="https://example.com/package",
+        project_name="test_project",
+        project_version="1.0.0",
+        network="ethernet",
+    )
+
+    # Call _on_import_update with an ignored device
+    mdns_status._on_import_update("ignored_device", discovered)
+
+    # Should fire IMPORTABLE_DEVICE_ADDED event with ignored=True
+    mock_dashboard = mdns_status.dashboard
+    mock_dashboard.bus.async_fire.assert_called_once()
+    call_args = mock_dashboard.bus.async_fire.call_args
+    assert call_args[0][0] == DashboardEvent.IMPORTABLE_DEVICE_ADDED
+    device_data = call_args[0][1]["device"]
+    assert device_data["name"] == "ignored_device"
+    assert device_data["ignored"] is True
+
+
+@pytest.mark.asyncio
+async def test_on_import_update_device_removed(mdns_status: MDNSStatus) -> None:
+    """Test _on_import_update when a device is removed."""
+    # Call _on_import_update with None (device removed)
+    mdns_status._on_import_update("removed_device", None)
+
+    # Should fire IMPORTABLE_DEVICE_REMOVED event
+    mdns_status.dashboard.bus.async_fire.assert_called_once_with(
+        DashboardEvent.IMPORTABLE_DEVICE_REMOVED, {"name": "removed_device"}
+    )

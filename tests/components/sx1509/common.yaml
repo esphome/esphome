@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_sx1509
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sx1509:
   - id: sx1509_hub
+    i2c_id: i2c_bus
     address: 0x3E
     keypad:
       key_rows: 2
