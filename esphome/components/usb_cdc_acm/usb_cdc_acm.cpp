@@ -11,8 +11,7 @@
 #include "tusb.h"
 #include "tusb_cdc_acm.h"
 
-namespace esphome {
-namespace usb_cdc_acm {
+namespace esphome::usb_cdc_acm {
 
 static const char *TAG = "usb_cdc_acm";
 
@@ -268,6 +267,5 @@ USBCDCACMInstance *USBCDCACMComponent::get_interface_by_number(uint8_t itf) {
   return nullptr;
 }
 
-}  // namespace usb_cdc_acm
-}  // namespace esphome
+}  // namespace esphome::usb_cdc_acm
 #endif

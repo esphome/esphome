@@ -8,8 +8,7 @@
 #include "freertos/ringbuf.h"
 #include "tusb_cdc_acm.h"
 
-namespace esphome {
-namespace usb_cdc_acm {
+namespace esphome::usb_cdc_acm {
 
 static const uint8_t MAX_USB_CDC_INSTANCES = 2;
 
@@ -23,8 +22,6 @@ class USBCDCACMComponent;
 /// Represents a single CDC ACM interface instance
 class USBCDCACMInstance {
  public:
-  USBCDCACMInstance() = default;
-
   void set_parent(USBCDCACMComponent *parent) { this->parent_ = parent; }
   void set_interface_number(uint8_t itf) { this->itf_ = static_cast<tinyusb_cdcacm_itf_t>(itf); }
 
@@ -85,6 +82,5 @@ class USBCDCACMComponent : public Component {
 
 extern USBCDCACMComponent *global_usb_cdc_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace usb_cdc_acm
-}  // namespace esphome
+}  // namespace esphome::usb_cdc_acm
 #endif
