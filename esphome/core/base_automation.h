@@ -216,18 +216,46 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
   void (*f_)(Ts...);
 };
 
+/// Simple continuation action that calls play_next_ on a parent action.
+/// Used internally by IfAction, WhileAction, RepeatAction, etc. to chain actions.
+/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
+template<typename... Ts> class ContinuationAction : public Action<Ts...> {
+ public:
+  explicit ContinuationAction(Action<Ts...> *parent) : parent_(parent) {}
+
+  void play(Ts... x) override { this->parent_->play_next_(x...); }
+
+ protected:
+  Action<Ts...> *parent_;
+};
+
+// Forward declaration for WhileLoopContinuation
+template<typename... Ts> class WhileAction;
+
+/// Loop continuation for WhileAction that checks condition and repeats or continues.
+/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
+template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
+ public:
+  explicit WhileLoopContinuation(WhileAction<Ts...> *parent) : parent_(parent) {}
+
+  void play(Ts... x) override;
+
+ protected:
+  WhileAction<Ts...> *parent_;
+};
+
 template<typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
+    this->then_.add_action(new ContinuationAction<Ts...>(this));
   }
 
   void add_else(const std::initializer_list<Action<Ts...> *> &actions) {
     this->else_.add_actions(actions);
-    this->else_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
+    this->else_.add_action(new ContinuationAction<Ts...>(this));
   }
 
   void play_complex(Ts... x) override {
@@ -268,16 +296,10 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
-      if (this->num_running_ > 0 && this->condition_->check(x...)) {
-        // play again
-        this->then_.play(x...);
-      } else {
-        // condition false, play next
-        this->play_next_(x...);
-      }
-    }));
+    this->then_.add_action(new WhileLoopContinuation<Ts...>(this));
   }
+
+  friend class WhileLoopContinuation<Ts...>;
 
   void play_complex(Ts... x) override {
     this->num_running_++;
@@ -304,21 +326,42 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   ActionList<Ts...> then_;
 };
 
+// Implementation of WhileLoopContinuation::play
+template<typename... Ts> void WhileLoopContinuation<Ts...>::play(Ts... x) {
+  if (this->parent_->num_running_ > 0 && this->parent_->condition_->check(x...)) {
+    // play again
+    this->parent_->then_.play(x...);
+  } else {
+    // condition false, play next
+    this->parent_->play_next_(x...);
+  }
+}
+
+// Forward declaration for RepeatLoopContinuation
+template<typename... Ts> class RepeatAction;
+
+/// Loop continuation for RepeatAction that increments iteration and repeats or continues.
+/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
+template<typename... Ts> class RepeatLoopContinuation : public Action<uint32_t, Ts...> {
+ public:
+  explicit RepeatLoopContinuation(RepeatAction<Ts...> *parent) : parent_(parent) {}
+
+  void play(uint32_t iteration, Ts... x) override;
+
+ protected:
+  RepeatAction<Ts...> *parent_;
+};
+
 template<typename... Ts> class RepeatAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new LambdaAction<uint32_t, Ts...>([this](uint32_t iteration, Ts... x) {
-      iteration++;
-      if (iteration >= this->count_.value(x...)) {
-        this->play_next_(x...);
-      } else {
-        this->then_.play(iteration, x...);
-      }
-    }));
+    this->then_.add_action(new RepeatLoopContinuation<Ts...>(this));
   }
+
+  friend class RepeatLoopContinuation<Ts...>;
 
   void play_complex(Ts... x) override {
     this->num_running_++;
@@ -337,6 +380,16 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
  protected:
   ActionList<uint32_t, Ts...> then_;
 };
+
+// Implementation of RepeatLoopContinuation::play
+template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(uint32_t iteration, Ts... x) {
+  iteration++;
+  if (iteration >= this->parent_->count_.value(x...)) {
+    this->parent_->play_next_(x...);
+  } else {
+    this->parent_->then_.play(iteration, x...);
+  }
+}
 
 /** Wait until a condition is true to continue execution.
  *
