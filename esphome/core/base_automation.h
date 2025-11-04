@@ -346,7 +346,7 @@ template<typename... Ts> class RepeatLoopContinuation : public Action<uint32_t, 
  public:
   explicit RepeatLoopContinuation(RepeatAction<Ts...> *parent) : parent_(parent) {}
 
-  void play(uint32_t iteration, const Ts &...x) override;
+  void play(const uint32_t &iteration, const Ts &...x) override;
 
  protected:
   RepeatAction<Ts...> *parent_;
@@ -382,12 +382,12 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 };
 
 // Implementation of RepeatLoopContinuation::play
-template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(uint32_t iteration, const Ts &...x) {
-  iteration++;
-  if (iteration >= this->parent_->count_.value(x...)) {
+template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(const uint32_t &iteration, const Ts &...x) {
+  uint32_t next_iteration = iteration + 1;
+  if (next_iteration >= this->parent_->count_.value(x...)) {
     this->parent_->play_next_(x...);
   } else {
-    this->parent_->then_.play(iteration, x...);
+    this->parent_->then_.play(next_iteration, x...);
   }
 }
 
