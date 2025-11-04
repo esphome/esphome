@@ -15,7 +15,7 @@ CODEOWNERS = ["p1ngb4ck"]
 DEPENDENCIES = ["usb_host", "esp32"]
 AUTO_LOAD = []
 
-CONF_USB_MSC_HOST_ID = "usb_msc_host_id"
+CONF_USB_HOST_ID = "usb_host_id"
 
 require_vfs_dir()
 
@@ -43,7 +43,10 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(USBMscHost),
-            cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema(USBMscDevice)),
+            cv.GenerateID(CONF_USB_HOST_ID): cv.use_id(usb_host.USBHost),  # NEW: Reference to USBHost
+            cv.Optional(CONF_DEVICES): cv.ensure_list(
+                cv.COMPONENT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(USBMscDevice)})
+            ),
         }
     ),
     cv.only_with_esp_idf,
@@ -53,7 +56,14 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     add_idf_component(name="espressif/usb_host_msc", ref="1.1.4")
+
+    # Get USBHost instance for handler registration
+    usb_host_var = await cg.get_variable(config[CONF_USB_HOST_ID])
+
+    # Create USBMscHost
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Register interface-class based handlers
     for device in config.get(CONF_DEVICES) or ():
-        await register_usb_msc_client(device, config[CONF_ID])
+        await register_usb_msc_handler(device, var, usb_host_var)

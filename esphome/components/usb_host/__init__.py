@@ -17,7 +17,7 @@ CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["esp32"]
 usb_host_ns = cg.esphome_ns.namespace("usb_host")
 USBHost = usb_host_ns.class_("USBHost", Component)
-USBClient = usb_host_ns.class_("USBClient", Component)
+USBClient = usb_host_ns.class_("USBClient", Component, cg.Parented.template(USBHost))
 
 CONF_VID = "vid"
 CONF_PID = "pid"
@@ -60,9 +60,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def register_usb_client(config):
+async def register_usb_client(config, parent):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
+    cg.add(var.set_parent(parent))  # NEW: Set USBHost as parent for claiming coordination
     return var
 
 
@@ -82,4 +83,4 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for device in config.get(CONF_DEVICES) or ():
-        await register_usb_client(device)
+        await register_usb_client(device, var)  # NEW: Pass USBHost instance as parent

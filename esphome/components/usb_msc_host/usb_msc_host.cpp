@@ -383,36 +383,69 @@ void USBMscDevice::list_files() {
   }
 }
 
-void USBMscHost::setup() { ESP_LOGCONFIG(TAG, "Registering USB MSC Host Component..."); }
+void USBMscHost::setup() {
+  ESP_LOGCONFIG(TAG, "Registering USB MSC Host Component...");
+  ESP_LOGI(TAG, "USBMscHost setup() called");
+}
 
-void USBMscDevice::setup() { ESP_LOGCONFIG(TAG, "Registering USB MSC Device"); }
+void USBMscDevice::setup() {
+  ESP_LOGCONFIG(TAG, "Registering USB MSC Device (interface-class based handler)");
+  ESP_LOGI(TAG, "USBMscDevice setup() called - will be triggered by interface-class matching");
+}
 
 void USBMscDevice::dump_config() { ESP_LOGCONFIG(TAG, "USB MSC Device:"); }
 
-void USBMscDevice::on_connected() {
-  ESP_LOGD(TAG, "USB MSC Device connected");
-  esp_err_t err = this->parent_->allocate_new_msc_device(this->device_addr_);
+// NEW: Interface-class based matching (uses existing find_msc_interface logic)
+bool USBMscDevice::matches_device(const usb_config_desc_t *config_desc) {
+  const usb_intf_desc_t *msc_intf = find_msc_interface(config_desc);
+  if (msc_intf != nullptr) {
+    ESP_LOGD(TAG, "Device matched: MSC interface found (Class=0x%02X, SubClass=0x%02X, Protocol=0x%02X)",
+             msc_intf->bInterfaceClass, msc_intf->bInterfaceSubClass, msc_intf->bInterfaceProtocol);
+    return true;
+  }
+  ESP_LOGV(TAG, "Device not matched: No MSC interface found");
+  return false;
+}
+
+// NEW: Called when device is matched and claimed by interface-class handler
+void USBMscDevice::on_device_connected(usb_device_handle_t device_handle, uint8_t addr) {
+  this->device_handle_ = device_handle;
+  this->device_addr_ = addr;
+
+  ESP_LOGI(TAG, "USB MSC Device connected via interface-class matching (address=%d)", addr);
+
+  esp_err_t err = this->parent_->allocate_new_msc_device(addr);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to allocate new MSC device: %s", esp_err_to_name(err));
     return;
   }
   ESP_LOGI(TAG, "Allocated memory for new MSC device: %s", esp_err_to_name(err));
-  // 2. Print information about the connected disk
+
+  // Print information about the connected disk
   this->print_device_info();
   this->list_files();
   this->file_operations();
   this->speed_test();
 }
 
-void USBMscDevice::disconnect() {
-  ESP_LOGCONFIG(TAG, "USB MSC Device disconnected");
+// NEW: Called when device is disconnected
+void USBMscDevice::on_device_disconnected(usb_device_handle_t device_handle) {
+  if (this->device_handle_ != device_handle) {
+    return;  // Not our device
+  }
+
+  ESP_LOGI(TAG, "USB MSC Device disconnected (address=%d)", this->device_addr_);
+
   uint8_t slot = this->parent_->find_msc_device_slot(this->device_addr_);
   if (slot == (uint8_t) -1) {
     ESP_LOGE(TAG, "Could not find MSC device slot for disconnected device");
-    return;
+  } else {
+    this->parent_->free_msc_device(slot);
+    ESP_LOGI(TAG, "Freed MSC device resources for slot %d", slot);
   }
-  this->parent_->free_msc_device(slot);
-  ESP_LOGI(TAG, "Freed MSC device resources for slot %d", slot);
+
+  this->device_handle_ = nullptr;
+  this->device_addr_ = 255;
 }
 
 }  // namespace usb_msc_host
