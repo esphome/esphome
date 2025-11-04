@@ -516,6 +516,7 @@ esphome/components/uponor_smatrix/* @kroimon
 esphome/components/usb_cdc_acm/* @kbx81
 esphome/components/usb_host/* @clydebarrow
 esphome/components/usb_uart/* @clydebarrow
+esphome/components/usb_uart/bridge/* @kbx81
 esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
