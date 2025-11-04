@@ -142,7 +142,9 @@ void USBCDCACMInstance::setup() {
 
   esp_err_t result = tusb_cdc_acm_init(&this->acm_cfg_);
   if (result != ESP_OK) {
+    ESP_LOGE(TAG, "tusb_cdc_acm_init failed: %d", result);
     this->parent_->mark_failed();
+    return;
   }
 
   size_t stack_size = 4096;
@@ -157,6 +159,7 @@ void USBCDCACMInstance::setup() {
 
   if (this->usb_tx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create USB TX task for itf %d", this->itf_);
+    this->parent_->mark_failed();
     return;
   }
 }
