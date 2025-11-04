@@ -12,7 +12,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID
 
 CODEOWNERS = ["p1ngb4ck"]
-DEPENDENCIES = ["esp32"]
+DEPENDENCIES = ["usb_host", "esp32"]
 AUTO_LOAD = []
 
 require_vfs_dir()
