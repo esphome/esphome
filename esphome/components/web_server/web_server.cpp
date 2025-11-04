@@ -324,7 +324,7 @@ void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
                 "  Address: %s:%u",
-                network::get_use_address().c_str(), this->base_->get_port());
+                network::get_use_address(), this->base_->get_port());
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
