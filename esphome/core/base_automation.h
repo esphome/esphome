@@ -385,11 +385,8 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
   void loop() override {
-    if (this->num_running_ == 0)
-      return;
-
     // Safe to use cached time - only called from Application::loop()
-    if (!this->process_queue_(App.get_loop_component_start_time())) {
+    if (this->num_running_ > 0 && !this->process_queue_(App.get_loop_component_start_time())) {
       // If queue is now empty, disable loop until next play_complex
       this->disable_loop();
     }
