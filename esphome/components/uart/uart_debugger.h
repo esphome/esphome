@@ -18,7 +18,7 @@ namespace uart {
 /// 'appropriate time' means exactly, is determined by a number of
 /// configurable constraints. E.g. when a given number of bytes is gathered
 /// and/or when no more data has been seen for a given time interval.
-class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>> {
+class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, std::string> {
  public:
   explicit UARTDebugger(UARTComponent *parent);
   void loop() override;
@@ -42,6 +42,45 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+  void reload();
+
+  static std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate,
+                                      uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
+    if (!debug_add_settings)
+      return debug_prefix;
+    std::string res = "|" + std::to_string(baud_rate);
+    res += ":" + std::to_string(data_bits);
+    res += ":" + std::to_string(stop_bits);
+    switch (parity) {
+      case UART_CONFIG_PARITY_NONE:
+        res += ":NONE";
+        break;
+      case UART_CONFIG_PARITY_EVEN:
+        res += ":EVEN";
+        break;
+      case UART_CONFIG_PARITY_ODD:
+        res += ":ODD";
+        break;
+      default:
+        res += ":UNKNOWN";
+        break;
+    }
+    return res + "|" + debug_prefix;
+  }
+#endif
+
+  // debug setting setters
+  void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
+  void set_debug_add_settings(bool debug_add_settings) {
+    this->debug_add_settings_ = debug_add_settings;
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+    if (debug_add_settings)
+      this->final_debug_prefix_ = get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
+                                                   this->data_bits_, this->stop_bits_, this->parity_);
+#endif
+  }
+
  protected:
   UARTDirection for_direction_;
   UARTDirection last_direction_{};
@@ -52,6 +91,16 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   std::vector<uint8_t> after_delimiter_{};
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};
+  std::string debug_prefix_{""};
+  bool debug_add_settings_{false};
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+  std::string final_debug_prefix_{""};
+  uint32_t baud_rate_;
+  uint8_t stop_bits_;
+  uint8_t data_bits_;
+  UARTParityOptions parity_;
+  UARTComponent *parent_;
+#endif
 
   bool is_my_direction_(UARTDirection direction);
   bool is_recursive_();
@@ -82,18 +131,21 @@ class UARTDebug {
  public:
   /// Log the bytes as hex values, separated by the provided separator
   /// character.
-  static void log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
+  static void log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+                      std::string debug_prefix = "");
 
   /// Log the bytes as string values, escaping unprintable characters.
-  static void log_string(UARTDirection direction, std::vector<uint8_t> bytes);
+  static void log_string(UARTDirection direction, std::vector<uint8_t> bytes, std::string debug_prefix = "");
 
   /// Log the bytes as integer values, separated by the provided separator
   /// character.
-  static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
+  static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+                      std::string debug_prefix = "");
 
   /// Log the bytes as '<binary> (<hex>)' values, separated by the provided
   /// separator.
-  static void log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
+  static void log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+                         std::string debug_prefix = "");
 };
 
 }  // namespace uart

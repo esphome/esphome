@@ -163,7 +163,7 @@ void ESP8266UartComponent::write_array(const uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i], this->debug_prefix_, this->debug_add_settings_);
   }
 #endif
 }
@@ -188,7 +188,7 @@ bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i], this->debug_prefix_, this->debug_add_settings_);
   }
 #endif
   return true;

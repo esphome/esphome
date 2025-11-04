@@ -134,12 +134,12 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
     ESP_LOGV(TAG, "Channel not initialised - write ignored");
     return;
   }
-  while (this->output_buffer_.get_free_space() != 0 && len-- != 0) {
-    this->output_buffer_.push(*data++);
+  size_t written = 0;
+  while (this->output_buffer_.get_free_space() != 0 && written < len) {
+    this->output_buffer_.push(data[written++]);
   }
-  len++;
-  if (len > 0) {
-    ESP_LOGE(TAG, "Buffer full - failed to write %d bytes", len);
+  if (written < len) {
+    ESP_LOGE(TAG, "Buffer full - failed to write %d bytes", len - written);
   }
   this->parent_->start_output(this);
 }
@@ -179,9 +179,10 @@ void USBUartComponent::loop() {
     auto *channel = chunk->channel;
 
 #ifdef USE_UART_DEBUGGER
+    std::string debug_prefix = channel->get_debug_prefix();
     if (channel->debug_) {
       uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
-                               ',');  // NOLINT()
+                               ',', debug_prefix);  // NOLINT()
     }
 #endif
 
@@ -198,6 +199,26 @@ void USBUartComponent::loop() {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
   }
 }
+
+#ifdef USE_UART_DEBUGGER
+std::string USBUartChannel::get_debug_prefix() {
+  std::string debug_prefix = "";
+  if (this->debug_add_settings_) {
+    debug_prefix += "|";
+    debug_prefix += std::to_string(this->baud_rate_);
+    debug_prefix += ":";
+    debug_prefix += std::to_string(this->data_bits_);
+    debug_prefix += ":";
+    debug_prefix += PARITY_NAMES[this->parity_];
+    debug_prefix += ":";
+    debug_prefix += STOP_BITS_NAMES[this->stop_bits_];
+    debug_prefix += "|";
+  }
+  debug_prefix += this->debug_prefix_;
+  return debug_prefix;
+}
+#endif
+
 void USBUartComponent::dump_config() {
   USBClient::dump_config();
   for (auto &channel : this->channels_) {
@@ -213,8 +234,9 @@ void USBUartComponent::dump_config() {
                   STOP_BITS_NAMES[channel->stop_bits_], YESNO(channel->debug_), YESNO(channel->dummy_receiver_));
   }
 }
+
 void USBUartComponent::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_.load())
+  if (!channel->initialised_.load() || channel->input_started_.load())
     return;
   // THREAD CONTEXT: Called from both USB task and main loop threads
   // - USB task: Immediate restart after successful transfer for continuous data flow
@@ -223,6 +245,10 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
   // This dual-thread access is intentional for performance:
   // - USB task restarts avoid context switch delays for high-speed data
   // - Main loop restarts provide flow control when buffers are full
+  //
+  // The underlying transfer_in() uses lock-free atomic allocation from the
+  // TransferRequest pool, making this multi-threaded access safe
+
   //
   // The underlying transfer_in() uses lock-free atomic allocation from the
   // TransferRequest pool, making this multi-threaded access safe
@@ -280,11 +306,10 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   // USB callbacks use defer() to ensure this function runs in the correct context.
   if (channel->output_started_.load())
     return;
-  if (channel->output_buffer_.is_empty()) {
+  if (channel->output_buffer_.is_empty())
     return;
-  }
+
   const auto *ep = channel->cdc_dev_.out_ep;
-  // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
     channel->output_started_.store(false);
@@ -294,29 +319,34 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   channel->output_started_.store(true);
   uint8_t data[ep->wMaxPacketSize];
   auto len = channel->output_buffer_.pop(data, ep->wMaxPacketSize);
-  this->transfer_out(ep->bEndpointAddress, callback, data, len);
 #ifdef USE_UART_DEBUGGER
   if (channel->debug_) {
     uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
   }
 #endif
+  this->transfer_out(ep->bEndpointAddress, callback, data, len);
   ESP_LOGV(TAG, "Output %d bytes started", len);
 }
 
 /**
- * Hacky fix for some devices that report incorrect MPS values
+ * Fix for devices that report incorrect MPS values or when running in Full-Speed mode.
+ *
+ * On ESP32-S2/S3: Always limit to 64 bytes (Full-Speed only hardware)
+ * On ESP32-P4: Limit to configured MPS (64 for FS, 512 for HS)
+ *
  * @param ep The endpoint descriptor
  */
 static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
-    if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to 64", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
-               ep->wMaxPacketSize);
-      ep_mutable->wMaxPacketSize = 64;
+    if (ep->wMaxPacketSize > esphome::usb_host::USB_MAX_PACKET_SIZE) {
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize, esphome::usb_host::USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = esphome::usb_host::USB_MAX_PACKET_SIZE;
     }
   }
 }
+
 void USBUartTypeCdcAcm::on_connected() {
   auto cdc_devs = this->parse_descriptors(this->device_handle_);
   if (cdc_devs.empty()) {
@@ -333,8 +363,20 @@ void USBUartTypeCdcAcm::on_connected() {
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];
+
+    // Always apply MPS correction based on configured USB speed
+    // - S2/S3: Always 64 (Full-Speed only)
+    // - P4: 64 (if use_full_speed) or 512 (High-Speed default)
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
+
+    // Allocate transferbuffers as soon as soon as endpoints mps is fix
+    ESP_LOGD(TAG, "Allocating transfer buffers for device %d", this->device_addr_);
+    for (auto &request : this->requests_) {
+      usb_host_transfer_alloc(CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE, 0, &request.transfer);
+      request.client = this;  // Set once, never changes
+    }
+
     channel->initialised_.store(true);
     auto err =
         usb_host_interface_claim(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number, 0);
@@ -386,4 +428,4 @@ void USBUartTypeCdcAcm::enable_channels() {
 
 }  // namespace usb_uart
 }  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32P4

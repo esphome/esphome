@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
 from esphome.components.uart import (
     CONF_DATA_BITS,
     CONF_PARITY,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
 )
+from esphome.core import CORE
 from esphome.cpp_types import Component
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
@@ -41,6 +43,9 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
+# By default, log in hex format when no specific sequence is provided.
+CONF_DEBUG_PREFIX = "debug_prefix"
+CONF_DEBUG_ADD_SETTINGS = "debug_add_uart_settings"
 
 
 class Type:
@@ -54,17 +59,24 @@ class Type:
         self.baud_rate_required = baud_rate_required
 
 
+def get_target_variant():
+    return CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT, "")
+
+
 uart_types = (
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
+    Type("FT23XX", 0x0403, 0x6010, "FT23XX", 4),
+    Type("CH934X", 0x1A86, 0x55D9, "CH934X", 8),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 4),
 )
 
 
-def channel_schema(channels, baud_rate_required):
+def channel_schema(max_channels, baud_rate_required, class_name):
+    available_channels = 7 if "P4" in get_target_variant() else 3
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
@@ -93,10 +105,16 @@ def channel_schema(channels, baud_rate_required):
                             ),
                             cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
+                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
+                            cv.Optional(
+                                CONF_DEBUG_ADD_SETTINGS, default=False
+                            ): cv.boolean,
                         }
                     )
                 ),
-                cv.Length(max=channels),
+                cv.Length(max=max_channels)
+                if class_name == "CH934X" or available_channels >= max_channels
+                else cv.Length(max=available_channels),
             )
         }
     )
@@ -106,7 +124,7 @@ CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                channel_schema(it.max_channels, it.baud_rate_required)
+                channel_schema(it.max_channels, it.baud_rate_required, it.cls)
             )
             for it in uart_types
         },
@@ -128,6 +146,11 @@ async def to_code(config):
             cg.add(chvar.set_baud_rate(channel[CONF_BAUD_RATE]))
             cg.add(chvar.set_dummy_receiver(channel[CONF_DUMMY_RECEIVER]))
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
+            if CONF_DEBUG_PREFIX in channel:
+                cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
+            if channel[CONF_DEBUG_ADD_SETTINGS]:
+                cg.add(chvar.set_debug_add_settings(channel[CONF_DEBUG_ADD_SETTINGS]))
+                cg.add_define("UART_DEBUGGER_ADD_SETTINGS")
             cg.add(var.add_channel(chvar))
             if channel[CONF_DEBUG]:
                 cg.add_define("USE_UART_DEBUGGER")
