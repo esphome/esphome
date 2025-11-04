@@ -11,9 +11,10 @@ st7701s.extend(
     vsync_pin=17,
     pclk_pin=21,
     pclk_frequency="12MHz",
+    pclk_inverted=False,
     pixel_mode="18bit",
-    mirror_x=True,
-    mirror_y=True,
+    mirror_x=False,
+    mirror_y=False,
     data_pins={
         "red": [11, 12, 13, 14, 0],
         "green": [8, 20, 3, 46, 9, 10],
