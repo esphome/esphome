@@ -3,6 +3,8 @@
 #include "usb_host.h"
 #include <cinttypes>
 #include "esphome/core/log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 namespace esphome {
 namespace usb_host {
@@ -61,6 +63,12 @@ void USBHost::loop() {
   if (event_flags != 0) {
     ESP_LOGD(TAG, "Event flags %" PRIu32 "X", event_flags);
   }
+
+  // NEW: Handle coordinator client events for interface-class handlers
+  // Without this, coordinator_event_cb() is never called!
+  if (this->coordinator_handle_ != nullptr) {
+    usb_host_client_handle_events(this->coordinator_handle_, 0);
+  }
 }
 
 // NEW: Device claiming system implementation
@@ -87,7 +95,7 @@ void USBHost::register_device_handler(USBDeviceHandler *handler) {
 void USBHost::try_dispatch_to_handlers(uint8_t address) {
   // Small delay to allow VID/PID clients to claim first
   // VID/PID clients receive events simultaneously and may claim during their loop()
-  delay(10);
+  vTaskDelay(pdMS_TO_TICKS(10));
 
   // Check if already claimed by VID/PID client
   if (this->claimed_devices_.count(address) > 0) {
