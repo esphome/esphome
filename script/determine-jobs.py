@@ -94,6 +94,22 @@ class Platform(StrEnum):
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
 
+# Platform-specific components that can only be built on their respective platforms
+# These components contain platform-specific code and cannot be cross-compiled
+# Regular components (wifi, logger, api, etc.) are cross-platform and not listed here
+PLATFORM_SPECIFIC_COMPONENTS = frozenset(
+    {
+        "esp32",  # ESP32 platform implementation
+        "esp8266",  # ESP8266 platform implementation
+        "rp2040",  # Raspberry Pi Pico / RP2040 platform implementation
+        "bk72xx",  # Beken BK72xx platform implementation (uses LibreTiny)
+        "rtl87xx",  # Realtek RTL87xx platform implementation (uses LibreTiny)
+        "ln882x",  # Winner Micro LN882x platform implementation (uses LibreTiny)
+        "host",  # Host platform (for testing on development machine)
+        "nrf52",  # Nordic nRF52 platform implementation
+    }
+)
+
 # Platform preference order for memory impact analysis
 # This order is used when no platform-specific hints are detected from filenames
 # Priority rationale:
@@ -568,6 +584,20 @@ def detect_memory_impact_config(
         )
         platform = _select_platform_by_count(platform_counts)
 
+    # Filter out platform-specific components that are incompatible with selected platform
+    # Platform components (esp32, esp8266, rp2040, etc.) can only build on their own platform
+    # Other components (wifi, logger, etc.) are cross-platform and can build anywhere
+    compatible_components = [
+        component
+        for component in components_with_tests
+        if component not in PLATFORM_SPECIFIC_COMPONENTS
+        or platform in component_platforms_map.get(component, set())
+    ]
+
+    # If no components are compatible with the selected platform, don't run
+    if not compatible_components:
+        return {"should_run": "false"}
+
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
     print(f"  Changed components: {sorted(changed_component_set)}", file=sys.stderr)
@@ -579,10 +609,11 @@ def detect_memory_impact_config(
     print(f"  Platform hints from filenames: {platform_hints}", file=sys.stderr)
     print(f"  Common platforms: {sorted(common_platforms)}", file=sys.stderr)
     print(f"  Selected platform: {platform}", file=sys.stderr)
+    print(f"  Compatible components: {compatible_components}", file=sys.stderr)
 
     return {
         "should_run": "true",
-        "components": components_with_tests,
+        "components": compatible_components,
         "platform": platform,
         "use_merged_config": "true",
     }

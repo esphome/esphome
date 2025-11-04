@@ -480,6 +480,7 @@ esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @esphome/core
+esphome/components/tinyusb/* @kbx81
 esphome/components/tlc5947/* @rnauber
 esphome/components/tlc5971/* @IJIJI
 esphome/components/tm1621/* @Philippe12
