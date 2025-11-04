@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ROWS
 from esphome.components.key_provider import KeyProvider
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ITEMS, CONF_TEXT, CONF_WIDTH
