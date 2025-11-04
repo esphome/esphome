@@ -7,7 +7,7 @@ from esphome.components.esp32 import (
     only_on_variant,
     require_vfs_dir,
 )
-from esphome.components import usb_host
+from esphome.components.usb_host import CONF_PID, CONF_VID, USBClient, usb_device_schema
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID
 
@@ -22,19 +22,20 @@ require_vfs_dir()
 usb_msc_host_ns = cg.esphome_ns.namespace("usb_msc_host")
 USBMscHost = usb_msc_host_ns.class_("USBMscHost", cg.Component)
 USBMscDevice = usb_msc_host_ns.class_(
-    "USBMscDevice",
-    cg.Component,
-    usb_host.usb_host_ns.class_("USBDeviceHandler"),
-    cg.Parented.template(USBMscHost),
+    "USBMscDevice", USBClient, cg.Parented.template(USBMscHost)
 )
 
 
-async def register_usb_msc_handler(device_config, msc_host, usb_host):
-    # NEW: Interface-class based handler (no VID/PID needed)
-    var = cg.new_Pvariable(device_config[CONF_ID])
-    await cg.register_component(var, device_config)
-    cg.add(var.set_parent(msc_host))  # Set USBMscHost as parent
-    cg.add(usb_host.register_device_handler(var))  # Register as interface-class handler with USBHost
+async def register_usb_msc_client(device_config, parent_id):
+    var = cg.new_Pvariable(
+        device_config[CONF_ID], device_config[CONF_VID], device_config[CONF_PID]
+    )
+    await cg.register_component(
+        var, device_config
+    )  # Register as Component for loop() calls
+    # Set parent by calling the Parented<USBMscHost>::set_parent() method
+    paren = await cg.get_variable(parent_id)
+    cg.add(var.set_parent(paren))
     return var
 
 
