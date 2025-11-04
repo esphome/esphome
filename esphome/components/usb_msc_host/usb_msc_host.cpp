@@ -414,40 +414,33 @@ void USBMscDevice::dump_config() { ESP_LOGCONFIG(TAG, "USB MSC Device:"); }
 
 // Interface-class based matching with optional VID/PID filtering
 bool USBMscDevice::matches_device(const usb_config_desc_t *config_desc) {
+  ESP_LOGD(TAG, "matches_device() called - checking if device is MSC (vid_filter=0x%04X, pid_filter=0x%04X)",
+           this->vid_, this->pid_);
+
   // First check if device has MSC interface
   const usb_intf_desc_t *msc_intf = find_msc_interface(config_desc);
   if (msc_intf == nullptr) {
-    ESP_LOGV(TAG, "Device not matched: No MSC interface found");
+    ESP_LOGD(TAG, "Device not matched: No MSC interface found");
     return false;
   }
 
+  ESP_LOGD(TAG, "MSC interface found: Class=0x%02X, SubClass=0x%02X, Protocol=0x%02X", msc_intf->bInterfaceClass,
+           msc_intf->bInterfaceSubClass, msc_intf->bInterfaceProtocol);
+
   // If both VID and PID are 0x0000 (wildcard), match any MSC device
   if (this->vid_ == 0x0000 && this->pid_ == 0x0000) {
-    ESP_LOGD(
-        TAG,
-        "Device matched: MSC interface found (Class=0x%02X, SubClass=0x%02X, Protocol=0x%02X) with wildcard VID/PID",
-        msc_intf->bInterfaceClass, msc_intf->bInterfaceSubClass, msc_intf->bInterfaceProtocol);
+    ESP_LOGD(TAG, "Device matched: MSC interface with wildcard VID/PID");
     return true;
   }
 
   // VID/PID filtering requested - need to check device descriptor
-  // The config descriptor is preceded by the device descriptor in the descriptor chain
-  // Device descriptor is 18 bytes, so we can get VID/PID from it
-  // Note: This assumes the descriptor layout follows USB spec (device desc at offset -18)
-  const uint8_t *desc_start = (const uint8_t *) config_desc;
-  const usb_device_desc_t *device_desc = (const usb_device_desc_t *) (desc_start - 18);
-
-  bool vid_match = (this->vid_ == 0x0000) || (device_desc->idVendor == this->vid_);
-  bool pid_match = (this->pid_ == 0x0000) || (device_desc->idProduct == this->pid_);
-
-  if (!vid_match || !pid_match) {
-    ESP_LOGV(TAG, "Device not matched: VID/PID filter (want: 0x%04X/0x%04X, got: 0x%04X/0x%04X)", this->vid_,
-             this->pid_, device_desc->idVendor, device_desc->idProduct);
-    return false;
-  }
-
-  ESP_LOGD(TAG, "Device matched: MSC interface + VID/PID filter (0x%04X/0x%04X)", device_desc->idVendor,
-           device_desc->idProduct);
+  // We need to get the device descriptor properly using the device handle
+  // The config_desc alone doesn't contain VID/PID - we need the device descriptor
+  // This is a problem - we don't have access to device_handle here!
+  // For now, we'll accept any MSC device if VID/PID is specified (handler will filter later)
+  ESP_LOGW(TAG,
+           "VID/PID filtering requested but device descriptor not available in matches_device() - accepting MSC device "
+           "for now");
   return true;
 }
 
@@ -455,6 +448,34 @@ bool USBMscDevice::matches_device(const usb_config_desc_t *config_desc) {
 void USBMscDevice::on_device_connected(usb_device_handle_t device_handle, uint8_t addr) {
   ESP_LOGI(TAG, "USB MSC Device connected via interface-class matching (address=%d, mount_path='%s')", addr,
            this->mount_path_.c_str());
+
+  // VID/PID filtering (if specified)
+  if (this->vid_ != 0x0000 || this->pid_ != 0x0000) {
+    // Get device descriptor to check VID/PID
+    const usb_device_desc_t *device_desc;
+    esp_err_t err = usb_host_get_device_descriptor(device_handle, &device_desc);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to get device descriptor for VID/PID check: %s", esp_err_to_name(err));
+      if (this->usb_host_ != nullptr) {
+        this->usb_host_->close_device_handle(device_handle);
+      }
+      return;
+    }
+
+    bool vid_match = (this->vid_ == 0x0000) || (device_desc->idVendor == this->vid_);
+    bool pid_match = (this->pid_ == 0x0000) || (device_desc->idProduct == this->pid_);
+
+    if (!vid_match || !pid_match) {
+      ESP_LOGD(TAG, "Device VID/PID (0x%04X/0x%04X) doesn't match filter (0x%04X/0x%04X) - rejecting",
+               device_desc->idVendor, device_desc->idProduct, this->vid_, this->pid_);
+      if (this->usb_host_ != nullptr) {
+        this->usb_host_->close_device_handle(device_handle);
+      }
+      return;
+    }
+
+    ESP_LOGD(TAG, "Device VID/PID (0x%04X/0x%04X) matches filter", device_desc->idVendor, device_desc->idProduct);
+  }
 
   this->device_addr_ = addr;
 
