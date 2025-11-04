@@ -49,8 +49,8 @@ void HlkFm22xComponent::enroll_face(const std::string &name, HlkFm22xFaceDirecti
 
 void HlkFm22xComponent::scan_face() {
   ESP_LOGI(TAG, "Verify face");
-  static const uint8_t data[] = {0, 0};
-  this->send_command_(HlkFm22xCommand::VERIFY, data, sizeof(data));
+  static const uint8_t DATA[] = {0, 0};
+  this->send_command_(HlkFm22xCommand::VERIFY, DATA, sizeof(DATA));
 }
 
 void HlkFm22xComponent::delete_face(int16_t face_id) {
