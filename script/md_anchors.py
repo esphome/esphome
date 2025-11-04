@@ -32,7 +32,7 @@ def process_markdown_file(file_path):
             continue
 
         # Shortcodes
-        shortcode_match = re.search(r'{{<\s*anchor\s*"([^"]+)"\s*>}}', line)
+        shortcode_match = re.search(r'\{\{<\s*anchor\s+"([^\s>]+)"\s*>}}', line)
         if shortcode_match:
             anchor_id = shortcode_match.group(1)
             # Look ahead for heading

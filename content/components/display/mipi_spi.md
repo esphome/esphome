@@ -74,7 +74,7 @@ using an octal SPI bus, so references here to parallel and octal SPI are equival
 | JC3636W518                           | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
 | JC3636W518V2                         | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
 | LANBON-L8                            | Lanbon | <https://www.lanbon.cn/product/lanbon-l8> |
-| T4-S3-AMOLED                         | Lilygo | <https://www.lilygo.cc/products/t4-s3> |
+| T4-S3                                | Lilygo | <https://www.lilygo.cc/products/t4-s3> |
 | T-EMBED                              | Lilygo | <https://www.lilygo.cc/products/t-embed> |
 | T-DISPLAY                            | Lilygo | <https://www.lilygo.cc/products/t-display> |
 | T-DISPLAY-S3                         | Lilygo | <https://www.lilygo.cc/products/t-display-s3> |
