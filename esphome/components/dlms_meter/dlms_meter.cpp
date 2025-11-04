@@ -82,7 +82,7 @@ void DlmsMeterComponent::loop() {
       uint8_t frame_length = this->receive_buffer_[frame_offset + MBUS_LENGTH1_OFFSET];  // Get length of this frame
 
       // Check if received data is enough for the given frame length
-      if (this->receive_buffer_.size() - frame_offset < frame_length + 3) {
+      if (this->receive_buffer_.size() - frame_offset < frame_length + 3) { // length field inside packet does not account for second start- + checksum- + stop- byte
         ESP_LOGE(TAG, "MBUS: Frame too big for received data");
         this->abort_();
         return;
