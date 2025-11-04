@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(USBMscHost),
-            cv.GenerateID(CONF_USB_HOST_ID): cv.use_id(usb_host.USBHost),  # NEW: Reference to USBHost
+            cv.GenerateID(CONF_USB_HOST_ID): cv.use_id(USBHost),  # NEW: Reference to USBHost
             cv.Optional(CONF_DEVICES): cv.ensure_list(
                 cv.COMPONENT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(USBMscDevice)})
             ),
