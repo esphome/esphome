@@ -33,8 +33,6 @@ class Microphone {
   audio::AudioStreamInfo get_audio_stream_info() { return this->audio_stream_info_; }
 
  protected:
-  std::vector<uint8_t> silence_audio_(std::vector<uint8_t> data);
-
   State state_{STATE_STOPPED};
   bool mute_state_{false};
 

@@ -121,22 +121,29 @@ void MQTTFanComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Fan '%s': ", this->state_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
   if (this->state_->get_traits().supports_direction()) {
-    ESP_LOGCONFIG(TAG, "  Direction State Topic: '%s'", this->get_direction_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Direction Command Topic: '%s'", this->get_direction_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Direction State Topic: '%s'\n"
+                  "  Direction Command Topic: '%s'",
+                  this->get_direction_state_topic().c_str(), this->get_direction_command_topic().c_str());
   }
   if (this->state_->get_traits().supports_oscillation()) {
-    ESP_LOGCONFIG(TAG, "  Oscillation State Topic: '%s'", this->get_oscillation_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Oscillation Command Topic: '%s'", this->get_oscillation_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Oscillation State Topic: '%s'\n"
+                  "  Oscillation Command Topic: '%s'",
+                  this->get_oscillation_state_topic().c_str(), this->get_oscillation_command_topic().c_str());
   }
   if (this->state_->get_traits().supports_speed()) {
-    ESP_LOGCONFIG(TAG, "  Speed Level State Topic: '%s'", this->get_speed_level_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Speed Level Command Topic: '%s'", this->get_speed_level_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Speed Level State Topic: '%s'\n"
+                  "  Speed Level Command Topic: '%s'",
+                  this->get_speed_level_state_topic().c_str(), this->get_speed_level_command_topic().c_str());
   }
 }
 
 bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
 
 void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   if (this->state_->get_traits().supports_direction()) {
     root[MQTT_DIRECTION_COMMAND_TOPIC] = this->get_direction_command_topic();
     root[MQTT_DIRECTION_STATE_TOPIC] = this->get_direction_state_topic();

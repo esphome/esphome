@@ -15,4 +15,3 @@ sensor:
       name: "Loop Time"
     cpu_frequency:
       name: "CPU Frequency"
-

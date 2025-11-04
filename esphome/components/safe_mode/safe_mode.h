@@ -33,12 +33,15 @@ class SafeModeComponent : public Component {
   void write_rtc_(uint32_t val);
   uint32_t read_rtc_();
 
-  bool boot_successful_{false};                   ///< set to true after boot is considered successful
+  // Group all 4-byte aligned members together to avoid padding
   uint32_t safe_mode_boot_is_good_after_{60000};  ///< The amount of time after which the boot is considered successful
   uint32_t safe_mode_enable_time_{60000};         ///< The time safe mode should remain active for
   uint32_t safe_mode_rtc_value_{0};
   uint32_t safe_mode_start_time_{0};  ///< stores when safe mode was enabled
+  // Group 1-byte members together to minimize padding
+  bool boot_successful_{false};  ///< set to true after boot is considered successful
   uint8_t safe_mode_num_attempts_{0};
+  // Larger objects at the end
   ESPPreferenceObject rtc_;
   CallbackManager<void()> safe_mode_callback_{};
 

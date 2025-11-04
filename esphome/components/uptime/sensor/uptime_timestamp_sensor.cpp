@@ -13,7 +13,7 @@ static const char *const TAG = "uptime.sensor";
 
 void UptimeTimestampSensor::setup() {
   this->time_->add_on_time_sync_callback([this]() {
-    if (this->has_state_)
+    if (this->has_state())
       return;  // No need to update the timestamp if it's already set
 
     auto now = this->time_->now();

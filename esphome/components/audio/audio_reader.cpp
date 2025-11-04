@@ -5,6 +5,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
 #include "esp_crt_bundle.h"
@@ -16,13 +17,13 @@ namespace audio {
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
 static const uint32_t CONNECTION_TIMEOUT_MS = 5000;
-
-// The number of times the http read times out with no data before throwing an error
-static const uint32_t ERROR_COUNT_NO_DATA_READ_TIMEOUT = 100;
+static const uint8_t MAX_FETCHING_HEADER_ATTEMPTS = 6;
 
 static const size_t HTTP_STREAM_BUFFER_SIZE = 2048;
 
-static const uint8_t MAX_REDIRECTION = 5;
+static const uint8_t MAX_REDIRECTIONS = 5;
+
+static const char *const TAG = "audio_reader";
 
 // Some common HTTP status codes - borrowed from http_request component accessed 20241224
 enum HttpStatus {
@@ -94,7 +95,7 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
   client_config.url = uri.c_str();
   client_config.cert_pem = nullptr;
   client_config.disable_auto_redirect = false;
-  client_config.max_redirection_count = 10;
+  client_config.max_redirection_count = MAX_REDIRECTIONS;
   client_config.event_handler = http_event_handler;
   client_config.user_data = this;
   client_config.buffer_size = HTTP_STREAM_BUFFER_SIZE;
@@ -116,12 +117,29 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
   esp_err_t err = esp_http_client_open(this->client_, 0);
 
   if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to open URL");
     this->cleanup_connection_();
     return err;
   }
 
   int64_t header_length = esp_http_client_fetch_headers(this->client_);
+  uint8_t reattempt_count = 0;
+  while ((header_length < 0) && (reattempt_count < MAX_FETCHING_HEADER_ATTEMPTS)) {
+    this->cleanup_connection_();
+    if (header_length != -ESP_ERR_HTTP_EAGAIN) {
+      // Serious error, no recovery
+      return ESP_FAIL;
+    } else {
+      // Reconnect from a fresh state to avoid a bug where it never reads the headers even if made available
+      this->client_ = esp_http_client_init(&client_config);
+      esp_http_client_open(this->client_, 0);
+      header_length = esp_http_client_fetch_headers(this->client_);
+      ++reattempt_count;
+    }
+  }
+
   if (header_length < 0) {
+    ESP_LOGE(TAG, "Failed to fetch headers");
     this->cleanup_connection_();
     return ESP_FAIL;
   }
@@ -135,7 +153,7 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
 
   ssize_t redirect_count = 0;
 
-  while ((esp_http_client_set_redirection(this->client_) == ESP_OK) && (redirect_count < MAX_REDIRECTION)) {
+  while ((esp_http_client_set_redirection(this->client_) == ESP_OK) && (redirect_count < MAX_REDIRECTIONS)) {
     err = esp_http_client_open(this->client_, 0);
     if (err != ESP_OK) {
       this->cleanup_connection_();
@@ -267,27 +285,29 @@ AudioReaderState AudioReader::http_read_() {
       return AudioReaderState::FINISHED;
     }
   } else if (this->output_transfer_buffer_->free() > 0) {
-    size_t bytes_to_read = this->output_transfer_buffer_->free();
-    int received_len =
-        esp_http_client_read(this->client_, (char *) this->output_transfer_buffer_->get_buffer_end(), bytes_to_read);
+    int received_len = esp_http_client_read(this->client_, (char *) this->output_transfer_buffer_->get_buffer_end(),
+                                            this->output_transfer_buffer_->free());
 
     if (received_len > 0) {
       this->output_transfer_buffer_->increase_buffer_length(received_len);
       this->last_data_read_ms_ = millis();
-    } else if (received_len < 0) {
+      return AudioReaderState::READING;
+    } else if (received_len <= 0) {
       // HTTP read error
-      this->cleanup_connection_();
-      return AudioReaderState::FAILED;
-    } else {
-      if (bytes_to_read > 0) {
-        // Read timed out
-        if ((millis() - this->last_data_read_ms_) > CONNECTION_TIMEOUT_MS) {
-          this->cleanup_connection_();
-          return AudioReaderState::FAILED;
-        }
-
-        delay(READ_WRITE_TIMEOUT_MS);
+      if (received_len == -1) {
+        // A true connection error occured, no chance at recovery
+        this->cleanup_connection_();
+        return AudioReaderState::FAILED;
       }
+
+      // Read timed out, manually verify if it has been too long since the last successful read
+      if ((millis() - this->last_data_read_ms_) > MAX_FETCHING_HEADER_ATTEMPTS * CONNECTION_TIMEOUT_MS) {
+        ESP_LOGE(TAG, "Timed out");
+        this->cleanup_connection_();
+        return AudioReaderState::FAILED;
+      }
+
+      delay(READ_WRITE_TIMEOUT_MS);
     }
   }
 

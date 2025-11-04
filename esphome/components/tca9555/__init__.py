@@ -53,7 +53,7 @@ TCA9555_PIN_SCHEMA = pins.gpio_base_schema(
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT],
     mode_validator=validate_mode,
-    invertable=True,
+    invertible=True,
 ).extend(
     {
         cv.Required(CONF_TCA9555): cv.use_id(TCA9555Component),

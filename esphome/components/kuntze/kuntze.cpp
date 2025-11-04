@@ -14,7 +14,7 @@ void Kuntze::on_modbus_data(const std::vector<uint8_t> &data) {
   auto get_16bit = [&](int i) -> uint16_t { return (uint16_t(data[i * 2]) << 8) | uint16_t(data[i * 2 + 1]); };
 
   this->waiting_ = false;
-  ESP_LOGV(TAG, "Data: %s", hexencode(data).c_str());
+  ESP_LOGV(TAG, "Data: %s", format_hex_pretty(data).c_str());
 
   float value = (float) get_16bit(0);
   for (int i = 0; i < data[3]; i++)
@@ -77,8 +77,10 @@ void Kuntze::loop() {
 void Kuntze::update() { this->state_ = 1; }
 
 void Kuntze::dump_config() {
-  ESP_LOGCONFIG(TAG, "Kuntze:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "Kuntze:\n"
+                "  Address: 0x%02X",
+                this->address_);
   LOG_SENSOR("", "pH", this->ph_sensor_);
   LOG_SENSOR("", "temperature", this->temperature_sensor_);
   LOG_SENSOR("", "DIS1", this->dis1_sensor_);

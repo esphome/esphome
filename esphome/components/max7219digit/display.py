@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import display, spi
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FLIP_X,
     CONF_ID,
     CONF_INTENSITY,
     CONF_LAMBDA,
@@ -14,7 +15,6 @@ CODEOWNERS = ["@rspaargaren"]
 DEPENDENCIES = ["spi"]
 
 CONF_ROTATE_CHIP = "rotate_chip"
-CONF_FLIP_X = "flip_x"
 CONF_SCROLL_SPEED = "scroll_speed"
 CONF_SCROLL_DWELL = "scroll_dwell"
 CONF_SCROLL_DELAY = "scroll_delay"

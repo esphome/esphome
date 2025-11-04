@@ -2,11 +2,11 @@
 
 #include <cinttypes>
 #include <utility>
-#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
@@ -92,11 +92,11 @@ class DoubleClickTrigger : public Trigger<> {
 
 class MultiClickTrigger : public Trigger<>, public Component {
  public:
-  explicit MultiClickTrigger(BinarySensor *parent, std::vector<MultiClickTriggerEvent> timing)
-      : parent_(parent), timing_(std::move(timing)) {}
+  explicit MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
+      : parent_(parent), timing_(timing) {}
 
   void setup() override {
-    this->last_state_ = this->parent_->state;
+    this->last_state_ = this->parent_->get_state_default(false);
     auto f = std::bind(&MultiClickTrigger::on_state_, this, std::placeholders::_1);
     this->parent_->add_on_state_callback(f);
   }
@@ -115,7 +115,7 @@ class MultiClickTrigger : public Trigger<>, public Component {
   void trigger_();
 
   BinarySensor *parent_;
-  std::vector<MultiClickTriggerEvent> timing_;
+  FixedVector<MultiClickTriggerEvent> timing_;
   uint32_t invalid_cooldown_{1000};
   optional<size_t> at_index_{};
   bool last_state_{false};
@@ -127,6 +127,14 @@ class StateTrigger : public Trigger<bool> {
  public:
   explicit StateTrigger(BinarySensor *parent) {
     parent->add_on_state_callback([this](bool state) { this->trigger(state); });
+  }
+};
+
+class StateChangeTrigger : public Trigger<optional<bool>, optional<bool> > {
+ public:
+  explicit StateChangeTrigger(BinarySensor *parent) {
+    parent->add_full_state_callback(
+        [this](optional<bool> old_state, optional<bool> state) { this->trigger(old_state, state); });
   }
 };
 
@@ -149,6 +157,16 @@ template<typename... Ts> class BinarySensorPublishAction : public Action<Ts...> 
     auto val = this->state_.value(x...);
     this->sensor_->publish_state(val);
   }
+
+ protected:
+  BinarySensor *sensor_;
+};
+
+template<typename... Ts> class BinarySensorInvalidateAction : public Action<Ts...> {
+ public:
+  explicit BinarySensorInvalidateAction(BinarySensor *sensor) : sensor_(sensor) {}
+
+  void play(Ts... x) override { this->sensor_->invalidate_state(); }
 
  protected:
   BinarySensor *sensor_;

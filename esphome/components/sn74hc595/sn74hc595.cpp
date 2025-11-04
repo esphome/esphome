@@ -1,5 +1,6 @@
 #include "sn74hc595.h"
 #include "esphome/core/log.h"
+#include <ranges>
 
 namespace esphome {
 namespace sn74hc595 {
@@ -7,8 +8,6 @@ namespace sn74hc595 {
 static const char *const TAG = "sn74hc595";
 
 void SN74HC595Component::pre_setup_() {
-  ESP_LOGCONFIG(TAG, "Setting up SN74HC595...");
-
   if (this->have_oe_pin_) {  // disable output
     this->oe_pin_->setup();
     this->oe_pin_->digital_write(true);
@@ -56,9 +55,9 @@ void SN74HC595Component::digital_write_(uint16_t pin, bool value) {
 }
 
 void SN74HC595GPIOComponent::write_gpio() {
-  for (auto byte = this->output_bytes_.rbegin(); byte != this->output_bytes_.rend(); byte++) {
+  for (uint8_t &output_byte : std::ranges::reverse_view(this->output_bytes_)) {
     for (int8_t i = 7; i >= 0; i--) {
-      bool bit = (*byte >> i) & 1;
+      bool bit = (output_byte >> i) & 1;
       this->data_pin_->digital_write(bit);
       this->clock_pin_->digital_write(true);
       this->clock_pin_->digital_write(false);
@@ -69,9 +68,9 @@ void SN74HC595GPIOComponent::write_gpio() {
 
 #ifdef USE_SPI
 void SN74HC595SPIComponent::write_gpio() {
-  for (auto byte = this->output_bytes_.rbegin(); byte != this->output_bytes_.rend(); byte++) {
+  for (uint8_t &output_byte : std::ranges::reverse_view(this->output_bytes_)) {
     this->enable();
-    this->transfer_byte(*byte);
+    this->transfer_byte(output_byte);
     this->disable();
   }
   SN74HC595Component::write_gpio();

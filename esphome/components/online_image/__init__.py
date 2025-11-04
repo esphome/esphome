@@ -2,6 +2,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_BYTE_ORDER, CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import (
     CONF_INVERT_ALPHA,
@@ -10,6 +11,7 @@ from esphome.components.image import (
     Image_,
     get_image_type_enum,
     get_transparency_enum,
+    validate_settings,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -24,6 +26,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
 )
+from esphome.core import Lambda
 
 AUTO_LOAD = ["image"]
 DEPENDENCIES = ["display", "http_request"]
@@ -32,6 +35,7 @@ MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
 CONF_PLACEHOLDER = "placeholder"
+CONF_UPDATE = "update"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -124,6 +128,9 @@ ONLINE_IMAGE_SCHEMA = (
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             # Online Image specific options
             cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_REQUEST_HEADERS): cv.All(
+                cv.Schema({cv.string: cv.templatable(cv.string)})
+            ),
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
             cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
@@ -155,6 +162,7 @@ CONFIG_SCHEMA = cv.Schema(
             rp2040_arduino=cv.Version(0, 0, 0),
             host=cv.Version(0, 0, 0),
         ),
+        validate_settings,
     )
 )
 
@@ -162,6 +170,7 @@ SET_URL_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(OnlineImage),
         cv.Required(CONF_URL): cv.templatable(cv.url),
+        cv.Optional(CONF_UPDATE, default=True): cv.templatable(bool),
     }
 )
 
@@ -183,6 +192,9 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
     if CONF_URL in config:
         template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
         cg.add(var.set_url(template_))
+    if CONF_UPDATE in config:
+        template_ = await cg.templatable(config[CONF_UPDATE], args, bool)
+        cg.add(var.set_update(template_))
     return var
 
 
@@ -203,9 +215,17 @@ async def to_code(config):
         get_image_type_enum(config[CONF_TYPE]),
         transparent,
         config[CONF_BUFFER_SIZE],
+        config.get(CONF_BYTE_ORDER) != "LITTLE_ENDIAN",
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
+
+    for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
+        if isinstance(value, Lambda):
+            template_ = await cg.templatable(value, [], cg.std_string)
+            cg.add(var.add_request_header(key, template_))
+        else:
+            cg.add(var.add_request_header(key, value))
 
     if placeholder_id := config.get(CONF_PLACEHOLDER):
         placeholder = await cg.get_variable(placeholder_id)
@@ -213,7 +233,7 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(bool, "cached")], conf)
 
     for conf in config.get(CONF_ON_ERROR, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

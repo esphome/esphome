@@ -1,0 +1,28 @@
+esphome:
+  name: p4-test
+
+esp32:
+  board: esp32-p4-evboard
+  framework:
+    type: esp-idf
+
+psram:
+  speed: 200MHz
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+display:
+  - platform: mipi_dsi
+    model: WAVESHARE-P4-NANO-10.1
+
+i2c:
+  sda: GPIO7
+  scl: GPIO8
+  scan: true
+  frequency: 400kHz
+
+#light:
+  #- platform: mipi_dsi
+    #id: backlight_id

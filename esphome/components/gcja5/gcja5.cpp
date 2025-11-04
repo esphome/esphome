@@ -14,8 +14,6 @@ namespace gcja5 {
 
 static const char *const TAG = "gcja5";
 
-void GCJA5Component::setup() { ESP_LOGCONFIG(TAG, "Setting up gcja5..."); }
-
 void GCJA5Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
@@ -76,16 +74,6 @@ bool GCJA5Component::calculate_checksum_() {
   ESP_LOGVV(TAG, "Checksum packet was (0x%02X), calculated checksum was (0x%02X)", this->rx_message_[30], crc);
 
   return (crc == this->rx_message_[30]);
-}
-
-uint32_t GCJA5Component::get_32_bit_uint_(uint8_t start_index) {
-  return (((uint32_t) this->rx_message_[start_index + 3]) << 24) |
-         (((uint32_t) this->rx_message_[start_index + 2]) << 16) |
-         (((uint32_t) this->rx_message_[start_index + 1]) << 8) | ((uint32_t) this->rx_message_[start_index]);
-}
-
-uint16_t GCJA5Component::get_16_bit_uint_(uint8_t start_index) {
-  return (((uint32_t) this->rx_message_[start_index + 1]) << 8) | ((uint32_t) this->rx_message_[start_index]);
 }
 
 void GCJA5Component::parse_data_() {

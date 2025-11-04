@@ -19,16 +19,15 @@
 #include <sys/cdefs.h>
 #include "esp_log.h"
 #include "esp_eth.h"
-#if ESP_IDF_VERSION_MAJOR >= 5
 #include "esp_eth_phy_802_3.h"
-#else
-#include "eth_phy_regs_struct.h"
-#endif
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
 #include "esp_rom_gpio.h"
 #include "esp_rom_sys.h"
+#include "esp_idf_version.h"
+
+#if defined(USE_ARDUINO) || ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
 
 static const char *TAG = "jl1101";
 #define PHY_CHECK(a, str, goto_tag, ...) \
@@ -174,11 +173,7 @@ static esp_err_t jl1101_reset_hw(esp_eth_phy_t *phy) {
   return ESP_OK;
 }
 
-#if ESP_IDF_VERSION_MAJOR >= 5
 static esp_err_t jl1101_negotiate(esp_eth_phy_t *phy, eth_phy_autoneg_cmd_t cmd, bool *nego_state) {
-#else
-static esp_err_t jl1101_negotiate(esp_eth_phy_t *phy) {
-#endif
   phy_jl1101_t *jl1101 = __containerof(phy, phy_jl1101_t, parent);
   esp_eth_mediator_t *eth = jl1101->eth;
   /* in case any link status has changed, let's assume we're in link down status */
@@ -293,11 +288,7 @@ static esp_err_t jl1101_init(esp_eth_phy_t *phy) {
   esp_eth_mediator_t *eth = jl1101->eth;
   // Detect PHY address
   if (jl1101->addr == ESP_ETH_PHY_ADDR_AUTO) {
-#if ESP_IDF_VERSION_MAJOR >= 5
     PHY_CHECK(esp_eth_phy_802_3_detect_phy_addr(eth, &jl1101->addr) == ESP_OK, "Detect PHY address failed", err);
-#else
-    PHY_CHECK(esp_eth_detect_phy_addr(eth, &jl1101->addr) == ESP_OK, "Detect PHY address failed", err);
-#endif
   }
   /* Power on Ethernet PHY */
   PHY_CHECK(jl1101_pwrctl(phy, true) == ESP_OK, "power control failed", err);
@@ -336,11 +327,7 @@ esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config) {
   jl1101->parent.init = jl1101_init;
   jl1101->parent.deinit = jl1101_deinit;
   jl1101->parent.set_mediator = jl1101_set_mediator;
-#if ESP_IDF_VERSION_MAJOR >= 5
   jl1101->parent.autonego_ctrl = jl1101_negotiate;
-#else
-  jl1101->parent.negotiate = jl1101_negotiate;
-#endif
   jl1101->parent.get_link = jl1101_get_link;
   jl1101->parent.pwrctl = jl1101_pwrctl;
   jl1101->parent.get_addr = jl1101_get_addr;
@@ -352,4 +339,6 @@ esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config) {
 err:
   return NULL;
 }
+
+#endif /* USE_ARDUINO */
 #endif /* USE_ESP32 */

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_DIRECTION,
     CONF_HYSTERESIS,
     CONF_ID,
+    CONF_POWER_MODE,
     CONF_RANGE,
 )
 
@@ -57,7 +58,6 @@ FAST_FILTER = {
 CONF_RAW_ANGLE = "raw_angle"
 CONF_RAW_POSITION = "raw_position"
 CONF_WATCHDOG = "watchdog"
-CONF_POWER_MODE = "power_mode"
 CONF_SLOW_FILTER = "slow_filter"
 CONF_FAST_FILTER = "fast_filter"
 CONF_START_POSITION = "start_position"

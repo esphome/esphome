@@ -57,14 +57,14 @@ def validate_parent_output_config(value):
     platform = value.get(CONF_PLATFORM)
     PWM_GOOD = ["esp8266_pwm", "ledc"]
     PWM_BAD = [
-        "ac_dimmer ",
+        "ac_dimmer",
         "esp32_dac",
-        "slow_pwm",
         "mcp4725",
-        "pca9685",
-        "tlc59208f",
         "my9231",
+        "pca9685",
+        "slow_pwm",
         "sm16716",
+        "tlc59208f",
     ]
 
     if platform in PWM_BAD:

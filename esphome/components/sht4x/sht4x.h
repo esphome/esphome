@@ -17,7 +17,6 @@ enum SHT4XHEATERTIME : uint16_t { SHT4X_HEATERTIME_LONG = 1100, SHT4X_HEATERTIME
 
 class SHT4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;

@@ -20,7 +20,7 @@
 #include <WiFi.h>
 #endif
 
-#if defined(USE_ESP_IDF) && defined(USE_WIFI_WPA2_EAP)
+#if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
 #include <esp_eap_client.h>
 #else
@@ -60,9 +60,10 @@ struct SavedWifiSettings {
 struct SavedWifiFastConnectSettings {
   uint8_t bssid[6];
   uint8_t channel;
+  int8_t ap_index;
 } PACKED;  // NOLINT
 
-enum WiFiComponentState {
+enum WiFiComponentState : uint8_t {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
   /** WiFi is disabled. */
@@ -112,13 +113,21 @@ struct EAPAuth {
   const char *client_cert;
   const char *client_key;
 // used for EAP-TTLS
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   esp_eap_ttls_phase2_types ttls_phase_2;
 #endif
 };
 #endif  // USE_WIFI_WPA2_EAP
 
 using bssid_t = std::array<uint8_t, 6>;
+
+// Use std::vector for RP2040 since scan count is unknown (callback-based)
+// Use FixedVector for other platforms where count is queried first
+#ifdef USE_RP2040
+template<typename T> using wifi_scan_vector_t = std::vector<T>;
+#else
+template<typename T> using wifi_scan_vector_t = FixedVector<T>;
+#endif
 
 class WiFiAP {
  public:
@@ -146,14 +155,14 @@ class WiFiAP {
 
  protected:
   std::string ssid_;
-  optional<bssid_t> bssid_;
   std::string password_;
+  optional<bssid_t> bssid_;
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
-  optional<uint8_t> channel_;
-  float priority_{0};
   optional<ManualIP> manual_ip_;
+  float priority_{0};
+  optional<uint8_t> channel_;
   bool hidden_{false};
 };
 
@@ -161,7 +170,7 @@ class WiFiScanResult {
  public:
   WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth, bool is_hidden);
 
-  bool matches(const WiFiAP &config);
+  bool matches(const WiFiAP &config) const;
 
   bool get_matches() const;
   void set_matches(bool matches);
@@ -177,14 +186,14 @@ class WiFiScanResult {
   bool operator==(const WiFiScanResult &rhs) const;
 
  protected:
-  bool matches_{false};
   bssid_t bssid_;
   std::string ssid_;
+  float priority_{0.0f};
   uint8_t channel_;
   int8_t rssi_;
+  bool matches_{false};
   bool with_auth_;
   bool is_hidden_;
-  float priority_{0.0f};
 };
 
 struct WiFiSTAPriority {
@@ -192,13 +201,13 @@ struct WiFiSTAPriority {
   float priority;
 };
 
-enum WiFiPowerSaveMode {
+enum WiFiPowerSaveMode : uint8_t {
   WIFI_POWER_SAVE_NONE = 0,
   WIFI_POWER_SAVE_LIGHT,
   WIFI_POWER_SAVE_HIGH,
 };
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 struct IDFWiFiEvent;
 #endif
 
@@ -210,6 +219,7 @@ class WiFiComponent : public Component {
 
   void set_sta(const WiFiAP &ap);
   WiFiAP get_sta() { return this->selected_ap_; }
+  void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
@@ -231,7 +241,6 @@ class WiFiComponent : public Component {
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap, bool two);
-  void set_fast_connect(bool fast_connect);
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
 
   void check_connecting_finished();
@@ -256,6 +265,7 @@ class WiFiComponent : public Component {
   void setup() override;
   void start();
   void dump_config() override;
+  void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
   float get_loop_priority() const override;
@@ -273,10 +283,10 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  std::string get_use_address() const;
+  const std::string &get_use_address() const;
   void set_use_address(const std::string &use_address);
 
-  const std::vector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+  const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
   network::IPAddress wifi_soft_ap_ip();
 
@@ -314,6 +324,7 @@ class WiFiComponent : public Component {
   int8_t wifi_rssi();
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
 
   Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
   Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
@@ -321,8 +332,6 @@ class WiFiComponent : public Component {
   int32_t get_wifi_channel();
 
  protected:
-  static std::string format_mac_addr(const uint8_t mac[6]);
-
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
 #endif  // USE_WIFI_AP
@@ -355,8 +364,10 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-  void load_fast_connect_settings_();
+#ifdef USE_WIFI_FAST_CONNECT
+  bool load_fast_connect_settings_();
   void save_fast_connect_settings_();
+#endif
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -368,7 +379,7 @@ class WiFiComponent : public Component {
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
   void wifi_scan_done_callback_();
 #endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 
@@ -383,30 +394,45 @@ class WiFiComponent : public Component {
 #endif
 
   std::string use_address_;
-  std::vector<WiFiAP> sta_;
+  FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
+  wifi_scan_vector_t<WiFiScanResult> scan_result_;
   WiFiAP selected_ap_;
-  bool fast_connect_{false};
-  bool retry_hidden_{false};
-
-  bool has_ap_{false};
   WiFiAP ap_;
-  WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
-  bool handled_connected_state_{false};
+  optional<float> output_power_;
+  ESPPreferenceObject pref_;
+#ifdef USE_WIFI_FAST_CONNECT
+  ESPPreferenceObject fast_connect_pref_;
+#endif
+
+  // Group all 32-bit integers together
   uint32_t action_started_;
-  uint8_t num_retried_{0};
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
   uint32_t ap_timeout_{};
+
+  // Group all 8-bit values together
+  WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
+  uint8_t num_retried_{0};
+#ifdef USE_WIFI_FAST_CONNECT
+  uint8_t ap_index_{0};
+#endif
+#if USE_NETWORK_IPV6
+  uint8_t num_ipv6_addresses_{0};
+#endif /* USE_NETWORK_IPV6 */
+
+  // Group all boolean values together
+#ifdef USE_WIFI_FAST_CONNECT
+  bool trying_loaded_ap_{false};
+#endif
+  bool retry_hidden_{false};
+  bool has_ap_{false};
+  bool handled_connected_state_{false};
   bool error_from_callback_{false};
-  std::vector<WiFiScanResult> scan_result_;
   bool scan_done_{false};
   bool ap_setup_{false};
-  optional<float> output_power_;
   bool passive_scan_{false};
-  ESPPreferenceObject pref_;
-  ESPPreferenceObject fast_connect_pref_;
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
   bool btm_{false};
@@ -414,10 +440,9 @@ class WiFiComponent : public Component {
 #endif
   bool enable_on_boot_;
   bool got_ipv4_address_{false};
-#if USE_NETWORK_IPV6
-  uint8_t num_ipv6_addresses_{0};
-#endif /* USE_NETWORK_IPV6 */
+  bool keep_scan_results_{false};
 
+  // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
   Trigger<> *disconnect_trigger_{new Trigger<>()};
 };
