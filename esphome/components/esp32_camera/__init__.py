@@ -228,7 +228,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_FRAME_BUFFER_LOCATION, default="PSRAM"
             ): validate_fb_location_,
-            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
