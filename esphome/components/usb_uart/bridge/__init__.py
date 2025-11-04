@@ -2,14 +2,13 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart, usb_cdc_acm
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_UART_ID
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["tinyusb", "uart", "usb_cdc_acm"]
 
 CONF_DTR_PIN = "dtr_pin"
 CONF_RTS_PIN = "rts_pin"
-CONF_UART_ID = "uart_id"
 CONF_USB_CDC_ACM_ID = "usb_cdc_acm_id"
 CONF_UART_RX_BUFFER_SIZE = "uart_rx_buffer_size"
 CONF_UART_TX_BUFFER_SIZE = "uart_tx_buffer_size"

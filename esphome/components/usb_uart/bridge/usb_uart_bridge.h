@@ -7,13 +7,6 @@
 #include "freertos/ringbuf.h"
 #include "tusb_cdc_acm.h"
 
-#ifndef USB_UART_BRIDGE_UART_RX_BUFFER_SIZE
-#define USB_UART_BRIDGE_UART_RX_BUFFER_SIZE 256
-#endif
-#ifndef USB_UART_BRIDGE_UART_TX_BUFFER_SIZE
-#define USB_UART_BRIDGE_UART_TX_BUFFER_SIZE 256
-#endif
-
 namespace esphome {
 namespace usb_uart_bridge {
 
