@@ -262,7 +262,33 @@ void USBClient::loop() {
         this->disconnect();
       } else {
         ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
-        if (desc->idVendor == this->vid_ && desc->idProduct == this->pid_ || this->vid_ == 0 && this->pid_ == 0) {
+        bool vid_pid_match = (desc->idVendor == this->vid_ && desc->idProduct == this->pid_);
+        bool is_wildcard = (this->vid_ == 0 && this->pid_ == 0);
+
+        // For wildcard VID/PID, check if device has MSC interface - if so, skip it (let MSC handler claim it)
+        bool skip_for_msc = false;
+        if (is_wildcard) {
+          const usb_config_desc_t *config_desc;
+          err = usb_host_get_active_config_descriptor(this->device_handle_, &config_desc);
+          if (err == ESP_OK) {
+            // Check if device has MSC interface (Class=0x08, SubClass=0x06, Protocol=0x50)
+            size_t offset = 0;
+            const usb_standard_desc_t *next_desc = (const usb_standard_desc_t *) config_desc;
+            while ((next_desc = usb_parse_next_descriptor_of_type(
+                        next_desc, config_desc->wTotalLength, USB_W_VALUE_DT_INTERFACE, (int *) &offset)) != nullptr) {
+              const usb_intf_desc_t *ifc_desc = (const usb_intf_desc_t *) next_desc;
+              if (ifc_desc->bInterfaceClass == USB_CLASS_MASS_STORAGE && ifc_desc->bInterfaceSubClass == 0x06 &&
+                  ifc_desc->bInterfaceProtocol == 0x50) {
+                skip_for_msc = true;
+                ESP_LOGD(TAG, "Device %d has MSC interface, skipping wildcard VID/PID match (let MSC handler claim it)",
+                         this->device_addr_);
+                break;
+              }
+            }
+          }
+        }
+
+        if ((vid_pid_match || is_wildcard) && !skip_for_msc) {
           // NEW: Try to claim device (coordinates with USBHost for interface-class handlers)
           if (this->parent_ != nullptr && !this->parent_->try_claim_device(this->device_addr_)) {
             ESP_LOGD(TAG, "Device %d already claimed by another client", this->device_addr_);
