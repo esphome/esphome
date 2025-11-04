@@ -393,12 +393,6 @@ class WiFiComponent : public Component {
   void wifi_scan_done_callback_();
 #endif
 
- private:
-  // Stores a pointer to a string literal (static storage duration).
-  // ONLY set from Python-generated code with string literals - never dynamic strings.
-  const char *use_address_{""};
-
- protected:
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
@@ -450,6 +444,11 @@ class WiFiComponent : public Component {
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
   Trigger<> *disconnect_trigger_{new Trigger<>()};
+
+ private:
+  // Stores a pointer to a string literal (static storage duration).
+  // ONLY set from Python-generated code with string literals - never dynamic strings.
+  const char *use_address_{""};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
