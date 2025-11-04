@@ -60,23 +60,23 @@ Possible Values found in publicly available docs:
  *
  * This component currently only uses Long Frame.
  */
-static const uint8_t START_BYTE_SINGLE_CHARACTER = 0xE5;
-static const uint8_t START_BYTE_SHORT_FRAME = 0x10;
-static const uint8_t START_BYTE_CONTROL_FRAME = 0x68;
-static const uint8_t START_BYTE_LONG_FRAME = 0x68;
+static constexpr uint8_t START_BYTE_SINGLE_CHARACTER = 0xE5;
+static constexpr uint8_t START_BYTE_SHORT_FRAME = 0x10;
+static constexpr uint8_t START_BYTE_CONTROL_FRAME = 0x68;
+static constexpr uint8_t START_BYTE_LONG_FRAME = 0x68;
 
-static const uint8_t MBUS_HEADER_INTRO_LENGTH = 4;  // Header length for the intro (0x68, length, length, 0x68)
-static const uint8_t MBUS_FULL_HEADER_LENGTH = 9;   // Total header length
-static const uint8_t MBUS_FOOTER_LENGTH = 2;        // Footer after frame
+static constexpr uint8_t MBUS_HEADER_INTRO_LENGTH = 4;  // Header length for the intro (0x68, length, length, 0x68)
+static constexpr uint8_t MBUS_FULL_HEADER_LENGTH = 9;   // Total header length
+static constexpr uint8_t MBUS_FOOTER_LENGTH = 2;        // Footer after frame
 
-static const uint8_t MBUS_MAX_FRAME_LENGTH = 250;  // Maximum size of frame
+static constexpr uint8_t MBUS_MAX_FRAME_LENGTH = 250;  // Maximum size of frame
 
-static const uint8_t MBUS_START1_OFFSET = 0;   // Offset of first start byte
-static const uint8_t MBUS_LENGTH1_OFFSET = 1;  // Offset of first length byte
-static const uint8_t MBUS_LENGTH2_OFFSET = 2;  // Offset of (duplicated) second length byte
-static const uint8_t MBUS_START2_OFFSET = 3;   // Offset of (duplicated) second start byte
+static constexpr uint8_t MBUS_START1_OFFSET = 0;   // Offset of first start byte
+static constexpr uint8_t MBUS_LENGTH1_OFFSET = 1;  // Offset of first length byte
+static constexpr uint8_t MBUS_LENGTH2_OFFSET = 2;  // Offset of (duplicated) second length byte
+static constexpr uint8_t MBUS_START2_OFFSET = 3;   // Offset of (duplicated) second start byte
 
-static const uint8_t STOP_BYTE = 0x16;
+static constexpr uint8_t STOP_BYTE = 0x16;
 
 }  // namespace dlms_meter
 }  // namespace esphome
