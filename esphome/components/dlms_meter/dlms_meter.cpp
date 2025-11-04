@@ -47,15 +47,18 @@ void DlmsMeterComponent::loop() {
     this->log_packet_(this->receive_buffer_);
 
     std::vector<uint8_t> mbus_payload;  // Contains the data of the payload
-    if (!this->parse_mbus_(mbus_payload)) return;
+    if (!this->parse_mbus_(mbus_payload))
+      return;
 
     uint16_t message_length;
     uint8_t systitle_length;
     uint16_t header_offset;
-    if (!this->parse_dlms_(mbus_payload, message_length, systitle_length, header_offset)) return;
+    if (!this->parse_dlms_(mbus_payload, message_length, systitle_length, header_offset))
+      return;
 
     uint8_t plaintext[message_length];
-    if (!this->decrypt_(mbus_payload, message_length, systitle_length, header_offset, plaintext)) return;
+    if (!this->decrypt_(mbus_payload, message_length, systitle_length, header_offset, plaintext))
+      return;
 
     this->decode_obis_(plaintext, message_length);
   }
@@ -105,7 +108,8 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
     }
 
     // Ensure we have full frame (header + payload + checksum + stop byte) before accessing stop byte
-    size_t required_total = frame_length + MBUS_HEADER_INTRO_LENGTH + MBUS_FOOTER_LENGTH;  // payload + header + 2 footer bytes
+    size_t required_total =
+        frame_length + MBUS_HEADER_INTRO_LENGTH + MBUS_FOOTER_LENGTH;  // payload + header + 2 footer bytes
     if (this->receive_buffer_.size() - frame_offset < required_total) {
       ESP_LOGE(TAG, "MBUS: Incomplete frame (need %d, have %d)", (unsigned int) required_total,
                this->receive_buffer_.size() - frame_offset);
@@ -532,11 +536,9 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
     if (plaintext[current_position] == DATA_NOTIFICATION) {  // There is still additional data for this type, skip it
       // on EVN Meters the additional data (no additional Break) is only 3 Bytes + 1 Byte for the "there is data" Byte
       if (this->provider_ == PROVIDER_NETZNOE) {
-        current_position +=
-            4;  // Skip additional data and additional break; this will jump out of bounds on last frame
+        current_position += 4;  // Skip additional data and additional break; this will jump out of bounds on last frame
       } else {
-        current_position +=
-            6;  // Skip additional data and additional break; this will jump out of bounds on last frame
+        current_position += 6;  // Skip additional data and additional break; this will jump out of bounds on last frame
       }
     }
   }
