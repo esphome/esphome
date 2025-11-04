@@ -10,11 +10,11 @@ static const usb_standard_desc_t *next_interface_desc(const usb_standard_desc_t 
 }
 
 static const usb_intf_desc_t *find_msc_interface(const usb_config_desc_t *config_desc) {
-  size_t *offset = new size_t(0);
+  size_t offset = 0;
   size_t total_length = config_desc->wTotalLength;
   const usb_standard_desc_t *next_desc = (const usb_standard_desc_t *) config_desc;
 
-  next_desc = next_interface_desc(next_desc, total_length, offset);
+  next_desc = next_interface_desc(next_desc, total_length, &offset);
 
   while (next_desc) {
     const usb_intf_desc_t *ifc_desc = (const usb_intf_desc_t *) next_desc;
@@ -24,7 +24,7 @@ static const usb_intf_desc_t *find_msc_interface(const usb_config_desc_t *config
       return ifc_desc;
     }
 
-    next_desc = next_interface_desc(next_desc, total_length, offset);
+    next_desc = next_interface_desc(next_desc, total_length, &offset);
   };
   return NULL;
 }
@@ -204,7 +204,6 @@ msc_host_device_handle_t USBMscHost::get_handle_by_address(uint8_t usb_addr) {
  * @param[in] info Pointer to MSC device information structure.
  */
 void USBMscDevice::print_device_info() {
-  msc_host_device_info_t *info = nullptr;
   uint8_t slot = this->parent_->find_msc_device_slot(
       this->find_usb_addr_by_handle(this->parent_->get_handle_by_address(this->device_addr_)));
   if (slot < 0) {
@@ -212,24 +211,27 @@ void USBMscDevice::print_device_info() {
     return;
   }
   msc_host_device_handle_t handle = this->parent_->msc_devices_[slot]->msc_device;
-  esp_err_t err = msc_host_get_device_info(handle, info);
+
+  // Allocate memory for device info structure
+  msc_host_device_info_t info;
+  esp_err_t err = msc_host_get_device_info(handle, &info);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "msc_host_get_device_info failed: %s", esp_err_to_name(err));
     return;
   }
   const size_t megabyte = 1024 * 1024;
-  uint64_t capacity = ((uint64_t) info->sector_size * info->sector_count) / megabyte;
+  uint64_t capacity = ((uint64_t) info.sector_size * info.sector_count) / megabyte;
 
   ESP_LOGI(TAG, "Device info:\n");
   ESP_LOGI(TAG, "\t Capacity: %llu MB\n", capacity);
-  ESP_LOGI(TAG, "\t Sector size: %" PRIu32 "\n", info->sector_size);
-  ESP_LOGI(TAG, "\t Sector count: %" PRIu32 "\n", info->sector_count);
-  ESP_LOGI(TAG, "\t PID: 0x%04X \n", info->idProduct);
-  ESP_LOGI(TAG, "\t VID: 0x%04X \n", info->idVendor);
+  ESP_LOGI(TAG, "\t Sector size: %" PRIu32 "\n", info.sector_size);
+  ESP_LOGI(TAG, "\t Sector count: %" PRIu32 "\n", info.sector_count);
+  ESP_LOGI(TAG, "\t PID: 0x%04X \n", info.idProduct);
+  ESP_LOGI(TAG, "\t VID: 0x%04X \n", info.idVendor);
 #ifndef CONFIG_LIBC_NEWLIB_NANO_FORMAT
-  ESP_LOGI(TAG, "\t iProduct: %S \n", info->iProduct);
-  ESP_LOGI(TAG, "\t iManufacturer: %S \n", info->iManufacturer);
-  ESP_LOGI(TAG, "\t iSerialNumber: %S \n", info->iSerialNumber);
+  ESP_LOGI(TAG, "\t iProduct: %S \n", info.iProduct);
+  ESP_LOGI(TAG, "\t iManufacturer: %S \n", info.iManufacturer);
+  ESP_LOGI(TAG, "\t iSerialNumber: %S \n", info.iSerialNumber);
 #endif
 }
 
