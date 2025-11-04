@@ -79,6 +79,9 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         }
       } else {
         this->node_state = espbt::ClientState::ESTABLISHED;
+        // For non-notify characteristics, trigger an immediate read after service discovery
+        // to avoid peripherals disconnecting due to inactivity
+        this->update();
       }
       break;
     }
