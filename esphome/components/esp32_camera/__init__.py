@@ -155,6 +155,7 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 # frame buffer
 CONF_FRAME_BUFFER_COUNT = "frame_buffer_count"
 CONF_FRAME_BUFFER_LOCATION = "frame_buffer_location"
+CONF_PSRAM_DMA = "psram_dma"
 
 # stream trigger
 CONF_ON_STREAM_START = "on_stream_start"
@@ -239,6 +240,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FRAME_BUFFER_LOCATION, default="PSRAM"): cv.enum(
                 ENUM_FB_LOCATION, upper=True
             ),
+            cv.Optional(CONF_PSRAM_DMA): cv.boolean,
             cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -339,6 +341,10 @@ async def to_code(config):
         cg.add(var.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
     cg.add(var.set_frame_buffer_count(config[CONF_FRAME_BUFFER_COUNT]))
     cg.add(var.set_frame_buffer_location(config[CONF_FRAME_BUFFER_LOCATION]))
+    if CONF_PSRAM_DMA in config:
+        cg.add_build_flag(
+            f"-DCONFIG_CAMERA_PSRAM_DMA={'1' if config[CONF_PSRAM_DMA] else '0'}"
+        )
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
     cg.add_define("USE_CAMERA")
