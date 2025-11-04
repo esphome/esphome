@@ -34,9 +34,7 @@ async def register_usb_msc_handler(device_config, msc_host, usb_host):
     var = cg.new_Pvariable(device_config[CONF_ID])
     await cg.register_component(var, device_config)
     cg.add(var.set_parent(msc_host))  # Set USBMscHost as parent
-    cg.add(
-        usb_host.register_device_handler(var)
-    )  # Register as interface-class handler with USBHost
+    cg.add(usb_host.register_device_handler(var))  # Register as interface-class handler with USBHost
     return var
 
 
