@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components import socket
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -14,7 +13,7 @@ from esphome.const import CONF_DEVICES, CONF_ID
 
 CODEOWNERS = ["p1ngb4ck"]
 DEPENDENCIES = ["usb_host", "esp32"]
-AUTO_LOAD = ["usb_host", "socket"]
+AUTO_LOAD = []
 
 require_vfs_dir()
 
@@ -42,7 +41,6 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     add_idf_component(name="espressif/usb_host_msc", ref="1.1.4")
-    socket.require_wake_loop_threadsafe()
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for device in config.get(CONF_DEVICES) or ():
