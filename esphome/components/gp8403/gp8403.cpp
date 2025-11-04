@@ -23,9 +23,12 @@ const LogString *model_to_string(GP8403Model model) {
 void GP8403Component::setup() { this->write_register(RANGE_REGISTER, (uint8_t *) (&this->voltage_), 1); }
 
 void GP8403Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "GP8403:");
-  ESP_LOGCONFIG(TAG, "  Voltage: %dV", this->voltage_ == GP8403_VOLTAGE_5V ? 5 : 10);
-  ESP_LOGCONFIG(TAG, "  Model: %s", LOG_STR_ARG(model_to_string(this->model_)));
+  ESP_LOGCONFIG(TAG,
+                "GP8403:\n"
+                "  Voltage: %dV\n"
+                "  Model: %s",
+                this->voltage_ == GP8403_VOLTAGE_5V ? 5 : 10,
+                LOG_STR_ARG(model_to_string(this->model_)));
   LOG_I2C_DEVICE(this);
 }
 
