@@ -1,4 +1,4 @@
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_cdc_acm.h"
 #include "esphome/core/log.h"
 
@@ -142,7 +142,7 @@ void USBCDCACMInstance::setup() {
 
   esp_err_t result = tusb_cdc_acm_init(&this->acm_cfg_);
   if (result != ESP_OK) {
-    this->mark_failed();
+    this->parent_->mark_failed();
   }
 
   size_t stack_size = 4096;

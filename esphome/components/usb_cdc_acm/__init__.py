@@ -1,5 +1,11 @@
 import esphome.codegen as cg
+from esphome.components import esp32
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32.const import (
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER
 
@@ -42,18 +48,23 @@ INTERFACE_SCHEMA = cv.Schema(
 )
 
 # Main component schema
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(USBCDCACMComponent),
-        cv.Optional(CONF_USB_RX_BUFFER_SIZE, default=256): cv.uint16_t,
-        cv.Optional(CONF_USB_TX_BUFFER_SIZE, default=256): cv.uint16_t,
-        cv.Required(CONF_INTERFACES): cv.All(
-            cv.ensure_list(INTERFACE_SCHEMA),
-            cv.Length(min=1, max=2),  # At least 1, at most 2 interfaces
-            validate_interfaces,
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(USBCDCACMComponent),
+            cv.Optional(CONF_USB_RX_BUFFER_SIZE, default=256): cv.uint16_t,
+            cv.Optional(CONF_USB_TX_BUFFER_SIZE, default=256): cv.uint16_t,
+            cv.Required(CONF_INTERFACES): cv.All(
+                cv.ensure_list(INTERFACE_SCHEMA),
+                cv.Length(min=1, max=2),  # At least 1, at most 2 interfaces
+                validate_interfaces,
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    esp32.only_on_variant(
+        supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
+    ),
+)
 
 
 async def to_code(config):
