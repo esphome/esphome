@@ -155,6 +155,7 @@
 // IDF-specific feature flags
 #ifdef USE_ESP_IDF
 #define USE_MQTT_IDF_ENQUEUE
+#define ESPHOME_LOOP_TASK_STACK_SIZE 8192
 #endif
 
 // ESP32-specific feature flags
@@ -195,6 +196,7 @@
 #define USE_PSRAM
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_SOCKET_SELECT_SUPPORT
+#define USE_WAKE_LOOP_THREADSAFE
 #define USE_SPEAKER
 #define USE_SPI
 #define USE_VOICE_ASSISTANT

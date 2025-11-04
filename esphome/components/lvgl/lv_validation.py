@@ -1,3 +1,4 @@
+import re
 from typing import TYPE_CHECKING, Any
 
 import esphome.codegen as cg
@@ -246,6 +247,8 @@ def pixels_or_percent_validator(value):
         return ["pixels", "..%"]
     if isinstance(value, str) and value.lower().endswith("px"):
         value = cv.int_(value[:-2])
+    if isinstance(value, str) and re.match(r"^lv_pct\((\d+)\)$", value):
+        return value
     value = cv.Any(cv.int_, cv.percentage)(value)
     if isinstance(value, int):
         return value

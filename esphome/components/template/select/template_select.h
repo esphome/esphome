@@ -4,13 +4,14 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/template_lambda.h"
 
 namespace esphome {
 namespace template_ {
 
 class TemplateSelect : public select::Select, public PollingComponent {
  public:
-  void set_template(optional<std::string> (*f)()) { this->f_ = f; }
+  template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void setup() override;
   void update() override;
@@ -28,7 +29,7 @@ class TemplateSelect : public select::Select, public PollingComponent {
   size_t initial_option_index_{0};
   bool restore_value_ = false;
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
-  optional<optional<std::string> (*)()> f_;
+  TemplateLambda<std::string> f_;
 
   ESPPreferenceObject pref_;
 };

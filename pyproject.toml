@@ -133,7 +133,6 @@ ignore = [
   "PLW1641", # Object does not implement `__hash__` method
   "PLR2004", # Magic value used in comparison, consider replacing {value} with a constant variable
   "PLW2901", # Outer {outer_kind} variable {name} overwritten by inner {inner_kind} target
-  "UP038", # https://github.com/astral-sh/ruff/issues/7871 https://github.com/astral-sh/ruff/pull/16681
 ]
 
 [tool.ruff.lint.isort]

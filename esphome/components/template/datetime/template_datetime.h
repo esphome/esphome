@@ -9,13 +9,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/time.h"
+#include "esphome/core/template_lambda.h"
 
 namespace esphome {
 namespace template_ {
 
 class TemplateDateTime : public datetime::DateTimeEntity, public PollingComponent {
  public:
-  void set_template(optional<ESPTime> (*f)()) { this->f_ = f; }
+  template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void setup() override;
   void update() override;
@@ -35,7 +36,7 @@ class TemplateDateTime : public datetime::DateTimeEntity, public PollingComponen
   ESPTime initial_value_{};
   bool restore_value_{false};
   Trigger<ESPTime> *set_trigger_ = new Trigger<ESPTime>();
-  optional<optional<ESPTime> (*)()> f_;
+  TemplateLambda<ESPTime> f_;
 
   ESPPreferenceObject pref_;
 };

@@ -180,6 +180,7 @@ jobs:
       memory_impact: ${{ steps.determine.outputs.memory-impact }}
       cpp-unit-tests-run-all: ${{ steps.determine.outputs.cpp-unit-tests-run-all }}
       cpp-unit-tests-components: ${{ steps.determine.outputs.cpp-unit-tests-components }}
+      component-test-batches: ${{ steps.determine.outputs.component-test-batches }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -191,6 +192,11 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Restore components graph cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .temp/components_graph.json
+          key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
       - name: Determine which tests to run
         id: determine
         env:
@@ -214,6 +220,13 @@ jobs:
           echo "memory-impact=$(echo "$output" | jq -c '.memory_impact')" >> $GITHUB_OUTPUT
           echo "cpp-unit-tests-run-all=$(echo "$output" | jq -r '.cpp_unit_tests_run_all')" >> $GITHUB_OUTPUT
           echo "cpp-unit-tests-components=$(echo "$output" | jq -c '.cpp_unit_tests_components')" >> $GITHUB_OUTPUT
+          echo "component-test-batches=$(echo "$output" | jq -c '.component_test_batches')" >> $GITHUB_OUTPUT
+      - name: Save components graph cache
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .temp/components_graph.json
+          key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
 
   integration-tests:
     name: Run integration tests
@@ -458,7 +471,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 2
       matrix:
         include:
           - id: clang-tidy
@@ -536,59 +549,18 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
-  test-build-components-splitter:
-    name: Split components for intelligent grouping (40 weighted per batch)
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
-    outputs:
-      matrix: ${{ steps.split.outputs.components }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Split components intelligently based on bus configurations
-        id: split
-        run: |
-          . venv/bin/activate
-
-          # Use intelligent splitter that groups components with same bus configs
-          components='${{ needs.determine-jobs.outputs.changed-components-with-tests }}'
-
-          # Only isolate directly changed components when targeting dev branch
-          # For beta/release branches, group everything for faster CI
-          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
-            directly_changed='[]'
-            echo "Target branch: ${{ github.base_ref }} - grouping all components"
-          else
-            directly_changed='${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}'
-            echo "Target branch: ${{ github.base_ref }} - isolating directly changed components"
-          fi
-
-          echo "Splitting components intelligently..."
-          output=$(python3 script/split_components_for_ci.py --components "$components" --directly-changed "$directly_changed" --batch-size 40 --output github)
-
-          echo "$output" >> $GITHUB_OUTPUT
-
   test-build-components-split:
     name: Test components batch (${{ matrix.components }})
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-      - test-build-components-splitter
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
       matrix:
-        components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
+        components: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
       - name: Show disk space
         run: |
@@ -980,7 +952,6 @@ jobs:
       - clang-tidy-nosplit
       - clang-tidy-split
       - determine-jobs
-      - test-build-components-splitter
       - test-build-components-split
       - pre-commit-ci-lite
       - memory-impact-target-branch

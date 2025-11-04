@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/template_lambda.h"
 #include "esphome/components/valve/valve.h"
 
 namespace esphome {
@@ -17,7 +18,7 @@ class TemplateValve : public valve::Valve, public Component {
  public:
   TemplateValve();
 
-  void set_state_lambda(optional<float> (*f)());
+  template<typename F> void set_state_lambda(F &&f) { this->state_f_.set(std::forward<F>(f)); }
   Trigger<> *get_open_trigger() const;
   Trigger<> *get_close_trigger() const;
   Trigger<> *get_stop_trigger() const;
@@ -42,7 +43,7 @@ class TemplateValve : public valve::Valve, public Component {
   void stop_prev_trigger_();
 
   TemplateValveRestoreMode restore_mode_{VALVE_NO_RESTORE};
-  optional<optional<float> (*)()> state_f_;
+  TemplateLambda<float> state_f_;
   bool assumed_state_{false};
   bool optimistic_{false};
   Trigger<> *open_trigger_;
