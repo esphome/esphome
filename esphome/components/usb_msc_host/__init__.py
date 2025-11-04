@@ -23,7 +23,8 @@ USBMscHost = usb_msc_host_ns.class_("USBMscHost", cg.Component)
 
 async def register_usb_msc_client(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
-    await cg.register_parented(var, config)
+    await cg.register_component(var, config)  # Register as Component for loop() calls
+    await cg.register_parented(var, config)   # Register parent relationship for USBMscHost access
     return var
 
 
