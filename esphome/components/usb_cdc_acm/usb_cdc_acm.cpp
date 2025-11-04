@@ -165,13 +165,13 @@ void USBCDCACMInstance::setup() {
 
 void USBCDCACMInstance::invoke_line_coding_callback(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity,
                                                     uint8_t data_bits) {
-  if (this->line_coding_callback_) {
+  if (this->line_coding_callback_ != nullptr) {
     this->line_coding_callback_(bit_rate, stop_bits, parity, data_bits);
   }
 }
 
 void USBCDCACMInstance::invoke_line_state_callback(bool dtr, bool rts) {
-  if (this->line_state_callback_) {
+  if (this->line_state_callback_ != nullptr) {
     this->line_state_callback_(dtr, rts);
   }
 }
