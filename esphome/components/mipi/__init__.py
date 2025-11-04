@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
+    CONF_DISABLED,
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
@@ -217,6 +218,21 @@ def map_sequence(value):
     return tuple(value)
 
 
+def flatten_sequence(sequence: tuple | list):
+    """
+    Flatten an init sequence into a single list of bytes.
+    :param sequence:  The list of tuples
+    :return: a list of bytes
+    """
+    return sum(
+        tuple(
+            (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
+            for x in sequence
+        ),
+        (),
+    )
+
+
 def delay(ms):
     return DELAY_FLAG, ms
 
@@ -301,6 +317,8 @@ class DriverChip:
         Check if a rotation can be implemented in hardware using the MADCTL register.
         A rotation of 180 is always possible if x and y mirroring are supported, 90 and 270 are possible if the model supports swapping X and Y.
         """
+        if config.get(CONF_TRANSFORM) == CONF_DISABLED:
+            return False
         transforms = self.transforms
         rotation = config.get(CONF_ROTATION, 0)
         if rotation == 0 or not transforms:
@@ -358,28 +376,40 @@ class DriverChip:
                 CONF_SWAP_XY: self.get_default(CONF_SWAP_XY),
             },
         )
-        # fill in defaults if not provided
-        mirror_x = transform.get(CONF_MIRROR_X, self.get_default(CONF_MIRROR_X))
-        mirror_y = transform.get(CONF_MIRROR_Y, self.get_default(CONF_MIRROR_Y))
-        swap_xy = transform.get(CONF_SWAP_XY, self.get_default(CONF_SWAP_XY))
-        transform[CONF_MIRROR_X] = mirror_x
-        transform[CONF_MIRROR_Y] = mirror_y
-        transform[CONF_SWAP_XY] = swap_xy
-
+        if not isinstance(transform, dict):
+            # Presumably disabled
+            return {
+                CONF_MIRROR_X: False,
+                CONF_MIRROR_Y: False,
+                CONF_SWAP_XY: False,
+                CONF_TRANSFORM: False,
+            }
         # Can we use the MADCTL register to set the rotation?
         if can_transform and CONF_TRANSFORM not in config:
             rotation = config[CONF_ROTATION]
             if rotation == 180:
-                transform[CONF_MIRROR_X] = not mirror_x
-                transform[CONF_MIRROR_Y] = not mirror_y
+                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
+                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
             elif rotation == 90:
-                transform[CONF_SWAP_XY] = not swap_xy
-                transform[CONF_MIRROR_X] = not mirror_x
+                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
+                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
             else:
-                transform[CONF_SWAP_XY] = not swap_xy
-                transform[CONF_MIRROR_Y] = not mirror_y
+                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
+                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
             transform[CONF_TRANSFORM] = True
         return transform
+
+    def swap_xy_schema(self):
+        uses_swap = self.get_default(CONF_SWAP_XY, None) != cv.UNDEFINED
+
+        def validator(value):
+            if value:
+                raise cv.Invalid("Axis swapping not supported by this model")
+            return cv.boolean(value)
+
+        if uses_swap:
+            return {cv.Required(CONF_SWAP_XY): cv.boolean}
+        return {cv.Optional(CONF_SWAP_XY, default=False): validator}
 
     def add_madctl(self, sequence: list, config: dict):
         # Add the MADCTL command to the sequence based on the configuration.
@@ -441,13 +471,7 @@ class DriverChip:
 
         # Flatten the sequence into a list of bytes, with the length of each command
         # or the delay flag inserted where needed
-        return sum(
-            tuple(
-                (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
-                for x in sequence
-            ),
-            (),
-        ), madctl
+        return flatten_sequence(sequence), madctl
 
 
 def requires_buffer(config) -> bool:

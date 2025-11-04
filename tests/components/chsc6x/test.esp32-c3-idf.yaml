@@ -7,8 +7,8 @@ display:
     id: ili9xxx_display
     model: GC9A01A
     invert_colors: True
-    cs_pin: 10
-    dc_pin: 6
+    cs_pin: 11
+    dc_pin: 7
     pages:
       - id: page1
         lambda: |-

@@ -10,7 +10,7 @@ display:
     invert_colors: true
     show_test_card: true
     spi_mode: mode0
-    draw_rounding: 8
+    draw_rounding: 4
     use_axis_flips: true
     init_sequence:
       - [0xd0, 1, 2, 3]

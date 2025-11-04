@@ -87,3 +87,99 @@ api:
               - float_arr.size()
               - string_arr[0].c_str()
               - string_arr.size()
+    # Test ContinuationAction (IfAction with then/else branches)
+    - action: test_if_action
+      variables:
+        condition: bool
+        value: int
+      then:
+        - if:
+            condition:
+              lambda: 'return condition;'
+            then:
+              - logger.log:
+                  format: "Condition true, value: %d"
+                  args: ['value']
+            else:
+              - logger.log:
+                  format: "Condition false, value: %d"
+                  args: ['value']
+        - logger.log: "After if/else"
+    # Test nested IfAction (multiple ContinuationAction instances)
+    - action: test_nested_if
+      variables:
+        outer: bool
+        inner: bool
+      then:
+        - if:
+            condition:
+              lambda: 'return outer;'
+            then:
+              - if:
+                  condition:
+                    lambda: 'return inner;'
+                  then:
+                    - logger.log: "Both true"
+                  else:
+                    - logger.log: "Outer true, inner false"
+            else:
+              - logger.log: "Outer false"
+        - logger.log: "After nested if"
+    # Test WhileLoopContinuation (WhileAction)
+    - action: test_while_action
+      variables:
+        max_count: int
+      then:
+        - lambda: 'id(api_continuation_test_counter) = 0;'
+        - while:
+            condition:
+              lambda: 'return id(api_continuation_test_counter) < max_count;'
+            then:
+              - logger.log:
+                  format: "While loop iteration: %d"
+                  args: ['id(api_continuation_test_counter)']
+              - lambda: 'id(api_continuation_test_counter)++;'
+        - logger.log: "After while loop"
+    # Test RepeatLoopContinuation (RepeatAction)
+    - action: test_repeat_action
+      variables:
+        count: int
+      then:
+        - repeat:
+            count: !lambda 'return count;'
+            then:
+              - logger.log:
+                  format: "Repeat iteration: %d"
+                  args: ['iteration']
+        - logger.log: "After repeat"
+    # Test combined continuations (if + while + repeat)
+    - action: test_combined_continuations
+      variables:
+        do_loop: bool
+        loop_count: int
+      then:
+        - if:
+            condition:
+              lambda: 'return do_loop;'
+            then:
+              - repeat:
+                  count: !lambda 'return loop_count;'
+                  then:
+                    - lambda: 'id(api_continuation_test_counter) = iteration;'
+                    - while:
+                        condition:
+                          lambda: 'return id(api_continuation_test_counter) > 0;'
+                        then:
+                          - logger.log:
+                              format: "Combined: repeat=%d, while=%d"
+                              args: ['iteration', 'id(api_continuation_test_counter)']
+                          - lambda: 'id(api_continuation_test_counter)--;'
+            else:
+              - logger.log: "Skipped loops"
+        - logger.log: "After combined test"
+
+globals:
+  - id: api_continuation_test_counter
+    type: int
+    restore_value: false
+    initial_value: '0'

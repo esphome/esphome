@@ -1,23 +1,23 @@
 esphome:
   on_boot:
     then:
-      - tag.set_clean_mode: nfcc_pn7160
-      - tag.set_format_mode: nfcc_pn7160
-      - tag.set_read_mode: nfcc_pn7160
+      - tag.set_clean_mode: nfcc_pn7160_i2c
+      - tag.set_format_mode: nfcc_pn7160_i2c
+      - tag.set_read_mode: nfcc_pn7160_i2c
       - tag.set_write_message:
           message: https://www.home-assistant.io/tag/pulse
           include_android_app_record: false
-      - tag.set_write_mode: nfcc_pn7160
+      - tag.set_write_mode: nfcc_pn7160_i2c
       - tag.set_emulation_message:
           message: https://www.home-assistant.io/tag/pulse
           include_android_app_record: false
-      - tag.emulation_off: nfcc_pn7160
-      - tag.emulation_on: nfcc_pn7160
-      - tag.polling_off: nfcc_pn7160
-      - tag.polling_on: nfcc_pn7160
+      - tag.emulation_off: nfcc_pn7160_i2c
+      - tag.emulation_on: nfcc_pn7160_i2c
+      - tag.polling_off: nfcc_pn7160_i2c
+      - tag.polling_on: nfcc_pn7160_i2c
 
 pn7150_i2c:
-  id: nfcc_pn7160
+  id: nfcc_pn7160_i2c
   i2c_id: i2c_bus
   irq_pin: ${irq_pin}
   ven_pin: ${ven_pin}

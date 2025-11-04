@@ -1,0 +1,115 @@
+esphome:
+  name: test-sliding-window-filters
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Template sensor that we'll use to publish values
+sensor:
+  - platform: template
+    name: "Source Sensor"
+    id: source_sensor
+    accuracy_decimals: 2
+
+  # ACTUAL sliding window filters (window_size != send_every) - use ring buffers
+  # Window of 5, send every 2 values
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Min Sensor"
+    id: sliding_min_sensor
+    filters:
+      - min:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Max Sensor"
+    id: sliding_max_sensor
+    filters:
+      - max:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Median Sensor"
+    id: sliding_median_sensor
+    filters:
+      - median:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Moving Avg Sensor"
+    id: sliding_moving_avg_sensor
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
+
+# Button to trigger publishing test values
+script:
+  - id: publish_values_script
+    then:
+      # Publish 10 values: 1.0, 2.0, ..., 10.0
+      # With window_size=5, send_every=2, send_first_at=1:
+      # - Output at position 1: window=[1], min=1, max=1, median=1, avg=1
+      # - Output at position 3: window=[1,2,3], min=1, max=3, median=2, avg=2
+      # - Output at position 5: window=[1,2,3,4,5], min=1, max=5, median=3, avg=3
+      # - Output at position 7: window=[3,4,5,6,7], min=3, max=7, median=5, avg=5
+      # - Output at position 9: window=[5,6,7,8,9], min=5, max=9, median=7, avg=7
+      - sensor.template.publish:
+          id: source_sensor
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 2.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 3.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 4.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 5.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 6.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 7.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 8.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 9.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 10.0
+
+button:
+  - platform: template
+    name: "Publish Values Button"
+    id: publish_button
+    on_press:
+      - script.execute: publish_values_script

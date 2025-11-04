@@ -99,7 +99,11 @@ const std::string &get_use_address() {
   return wifi::global_wifi_component->get_use_address();
 #endif
 
-#if !defined(USE_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI)
+#ifdef USE_OPENTHREAD
+  return openthread::global_openthread_component->get_use_address();
+#endif
+
+#if !defined(USE_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI) && !defined(USE_OPENTHREAD)
   // Fallback when no network component is defined (e.g., host platform)
   static const std::string empty;
   return empty;

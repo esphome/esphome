@@ -19,3 +19,41 @@ uart:
 
 packet_transport:
   - platform: uart
+
+switch:
+  # Test uart switch with single state (array)
+  - platform: uart
+    name: "UART Switch Single Array"
+    uart_id: uart_uart
+    data: [0x01, 0x02, 0x03]
+  # Test uart switch with single state (string)
+  - platform: uart
+    name: "UART Switch Single String"
+    uart_id: uart_uart
+    data: "ON"
+  # Test uart switch with turn_on/turn_off (arrays)
+  - platform: uart
+    name: "UART Switch Dual Array"
+    uart_id: uart_uart
+    data:
+      turn_on: [0xA0, 0xA1, 0xA2]
+      turn_off: [0xB0, 0xB1, 0xB2]
+  # Test uart switch with turn_on/turn_off (strings)
+  - platform: uart
+    name: "UART Switch Dual String"
+    uart_id: uart_uart
+    data:
+      turn_on: "TURN_ON"
+      turn_off: "TURN_OFF"
+
+button:
+  # Test uart button with array data
+  - platform: uart
+    name: "UART Button Array"
+    uart_id: uart_uart
+    data: [0xFF, 0xEE, 0xDD]
+  # Test uart button with string data
+  - platform: uart
+    name: "UART Button String"
+    uart_id: uart_uart
+    data: "BUTTON_PRESS"

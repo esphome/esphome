@@ -725,7 +725,7 @@ class ListEntitiesFanResponse final : public InfoResponseProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  const std::set<std::string> *supported_preset_modes{};
+  const std::vector<const char *> *supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -790,7 +790,7 @@ class ListEntitiesLightResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_light_response"; }
 #endif
-  const std::set<light::ColorMode> *supported_color_modes{};
+  const light::ColorModeMask *supported_color_modes{};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
@@ -1263,7 +1263,7 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
   StringRef name_ref_{};
   void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   uint32_t key{0};
-  std::vector<ListEntitiesServicesArgument> args{};
+  FixedVector<ListEntitiesServicesArgument> args{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1279,10 +1279,11 @@ class ExecuteServiceArgument final : public ProtoDecodableMessage {
   float float_{0.0f};
   std::string string_{};
   int32_t int_{0};
-  std::vector<bool> bool_array{};
-  std::vector<int32_t> int_array{};
-  std::vector<float> float_array{};
-  std::vector<std::string> string_array{};
+  FixedVector<bool> bool_array{};
+  FixedVector<int32_t> int_array{};
+  FixedVector<float> float_array{};
+  FixedVector<std::string> string_array{};
+  void decode(const uint8_t *buffer, size_t length) override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1300,7 +1301,8 @@ class ExecuteServiceRequest final : public ProtoDecodableMessage {
   const char *message_name() const override { return "execute_service_request"; }
 #endif
   uint32_t key{0};
-  std::vector<ExecuteServiceArgument> args{};
+  FixedVector<ExecuteServiceArgument> args{};
+  void decode(const uint8_t *buffer, size_t length) override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1369,27 +1371,28 @@ class CameraImageRequest final : public ProtoDecodableMessage {
 class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 46;
-  static constexpr uint8_t ESTIMATED_SIZE = 145;
+  static constexpr uint8_t ESTIMATED_SIZE = 150;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_climate_response"; }
 #endif
   bool supports_current_temperature{false};
   bool supports_two_point_target_temperature{false};
-  const std::set<climate::ClimateMode> *supported_modes{};
+  const climate::ClimateModeMask *supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_target_temperature_step{0.0f};
   bool supports_action{false};
-  const std::set<climate::ClimateFanMode> *supported_fan_modes{};
-  const std::set<climate::ClimateSwingMode> *supported_swing_modes{};
-  const std::set<std::string> *supported_custom_fan_modes{};
-  const std::set<climate::ClimatePreset> *supported_presets{};
-  const std::set<std::string> *supported_custom_presets{};
+  const climate::ClimateFanModeMask *supported_fan_modes{};
+  const climate::ClimateSwingModeMask *supported_swing_modes{};
+  const std::vector<const char *> *supported_custom_fan_modes{};
+  const climate::ClimatePresetMask *supported_presets{};
+  const std::vector<const char *> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
   float visual_min_humidity{0.0f};
   float visual_max_humidity{0.0f};
+  uint32_t feature_flags{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1531,7 +1534,7 @@ class ListEntitiesSelectResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_select_response"; }
 #endif
-  const std::vector<std::string> *options{};
+  const FixedVector<const char *> *options{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

@@ -51,12 +51,12 @@ void TextSensor::add_filter(Filter *filter) {
   }
   filter->initialize(this, nullptr);
 }
-void TextSensor::add_filters(const std::vector<Filter *> &filters) {
+void TextSensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }
 }
-void TextSensor::set_filters(const std::vector<Filter *> &filters) {
+void TextSensor::set_filters(std::initializer_list<Filter *> filters) {
   this->clear_filters();
   this->add_filters(filters);
 }

@@ -461,7 +461,9 @@ async def parse_value(value_config, args):
     if isinstance(value, str):
         value = list(value.encode(value_config[CONF_STRING_ENCODING]))
     if isinstance(value, list):
-        return cg.std_vector.template(cg.uint8)(value)
+        # Generate initializer list {1, 2, 3} instead of std::vector<uint8_t>({1, 2, 3})
+        # This calls the set_value(std::initializer_list<uint8_t>) overload
+        return cg.ArrayInitializer(*value)
     val = cg.RawExpression(f"{value_config[CONF_TYPE]}({cg.safe_exp(value)})")
     return ByteBuffer_ns.wrap(val, value_config[CONF_ENDIANNESS])
 

@@ -1,5 +1,6 @@
 display:
   - platform: ssd1327_spi
+    id: ssd1327_spi_display
     model: SSD1327 128x128
     cs_pin: ${cs_pin}
     dc_pin: ${dc_pin}

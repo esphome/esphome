@@ -1,7 +1,7 @@
 display:
   - platform: ssd1306_i2c
     i2c_id: i2c_bus
-    id: ssd1306_display
+    id: ssd1306_i2c_display
     model: SSD1306_128X64
     reset_pin: 19
     pages:
@@ -13,6 +13,6 @@ touchscreen:
   - platform: axs15231
     i2c_id: i2c_bus
     id: axs15231_touchscreen
-    display: ssd1306_display
+    display: ssd1306_i2c_display
     interrupt_pin: 20
     reset_pin: 18

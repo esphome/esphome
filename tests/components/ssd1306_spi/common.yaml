@@ -1,5 +1,6 @@
 display:
   - platform: ssd1306_spi
+    id: ssd1306_spi_display
     model: SSD1306 128x64
     cs_pin: ${cs_pin}
     dc_pin: ${dc_pin}

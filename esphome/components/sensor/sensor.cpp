@@ -107,12 +107,12 @@ void Sensor::add_filter(Filter *filter) {
   }
   filter->initialize(this, nullptr);
 }
-void Sensor::add_filters(const std::vector<Filter *> &filters) {
+void Sensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }
 }
-void Sensor::set_filters(const std::vector<Filter *> &filters) {
+void Sensor::set_filters(std::initializer_list<Filter *> filters) {
   this->clear_filters();
   this->add_filters(filters);
 }
