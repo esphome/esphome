@@ -1130,3 +1130,111 @@ def test_main_core_files_changed_still_detects_components(
     assert "select" in output["changed_components"]
     assert "api" in output["changed_components"]
     assert len(output["changed_components"]) > 0
+
+
+def test_detect_memory_impact_config_filters_incompatible_esp32_on_esp8266(
+    tmp_path: Path,
+) -> None:
+    """Test that ESP32 components are filtered out when ESP8266 platform is selected.
+
+    This test verifies the fix for the issue where ESP32 components were being included
+    when ESP8266 was selected as the platform, causing build failures in PR 10387.
+    """
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # esp32 component only has esp32-idf tests (NOT compatible with esp8266)
+    esp32_dir = tests_dir / "esp32"
+    esp32_dir.mkdir(parents=True)
+    (esp32_dir / "test.esp32-idf.yaml").write_text("test: esp32")
+    (esp32_dir / "test.esp32-s3-idf.yaml").write_text("test: esp32")
+
+    # esp8266 component only has esp8266-ard test (NOT compatible with esp32)
+    esp8266_dir = tests_dir / "esp8266"
+    esp8266_dir.mkdir(parents=True)
+    (esp8266_dir / "test.esp8266-ard.yaml").write_text("test: esp8266")
+
+    # Mock changed_files to return both esp32 and esp8266 component changes
+    # Include esp8266-specific filename to trigger esp8266 platform hint
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "tests/components/esp32/common.yaml",
+            "tests/components/esp8266/test.esp8266-ard.yaml",
+            "esphome/core/helpers_esp8266.h",  # ESP8266-specific file to hint platform
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should run
+    assert result["should_run"] == "true"
+
+    # Platform should be esp8266-ard (due to ESP8266 filename hint)
+    assert result["platform"] == "esp8266-ard"
+
+    # CRITICAL: Only esp8266 component should be included, not esp32
+    # This prevents trying to build ESP32 components on ESP8266 platform
+    assert result["components"] == ["esp8266"], (
+        "When esp8266-ard platform is selected, only esp8266 component should be included, "
+        "not esp32. This prevents trying to build ESP32 components on ESP8266 platform."
+    )
+
+    assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_filters_incompatible_esp8266_on_esp32(
+    tmp_path: Path,
+) -> None:
+    """Test that ESP8266 components are filtered out when ESP32 platform is selected.
+
+    This is the inverse of the ESP8266 test - ensures filtering works both ways.
+    """
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # esp32 component only has esp32-idf tests (NOT compatible with esp8266)
+    esp32_dir = tests_dir / "esp32"
+    esp32_dir.mkdir(parents=True)
+    (esp32_dir / "test.esp32-idf.yaml").write_text("test: esp32")
+    (esp32_dir / "test.esp32-s3-idf.yaml").write_text("test: esp32")
+
+    # esp8266 component only has esp8266-ard test (NOT compatible with esp32)
+    esp8266_dir = tests_dir / "esp8266"
+    esp8266_dir.mkdir(parents=True)
+    (esp8266_dir / "test.esp8266-ard.yaml").write_text("test: esp8266")
+
+    # Mock changed_files to return both esp32 and esp8266 component changes
+    # Include MORE esp32-specific filenames to ensure esp32-idf wins the hint count
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "tests/components/esp32/common.yaml",
+            "tests/components/esp8266/test.esp8266-ard.yaml",
+            "esphome/components/wifi/wifi_component_esp_idf.cpp",  # ESP-IDF hint
+            "esphome/components/ethernet/ethernet_esp32.cpp",  # ESP32 hint
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should run
+    assert result["should_run"] == "true"
+
+    # Platform should be esp32-idf (due to more ESP32-IDF hints)
+    assert result["platform"] == "esp32-idf"
+
+    # CRITICAL: Only esp32 component should be included, not esp8266
+    # This prevents trying to build ESP8266 components on ESP32 platform
+    assert result["components"] == ["esp32"], (
+        "When esp32-idf platform is selected, only esp32 component should be included, "
+        "not esp8266. This prevents trying to build ESP8266 components on ESP32 platform."
+    )
+
+    assert result["use_merged_config"] == "true"
