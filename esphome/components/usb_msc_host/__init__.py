@@ -7,7 +7,8 @@ from esphome.components.esp32 import (
     only_on_variant,
     require_vfs_dir,
 )
-from esphome.components.usb_host import CONF_PID, CONF_VID, usb_device_schema
+from esphome.components import usb_host
+from esphome.components.usb_host import CONF_PID, CONF_VID, USBClient, usb_device_schema
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID
 
@@ -21,6 +22,7 @@ require_vfs_dir()
 
 usb_msc_host_ns = cg.esphome_ns.namespace("usb_msc_host")
 USBMscHost = usb_msc_host_ns.class_("USBMscHost", cg.Component)
+USBMscDevice = usb_msc_host_ns.class_("USBMscDevice", USBClient, cg.Parented.template(USBMscHost))
 
 
 async def register_usb_msc_client(device_config, parent_id):
@@ -36,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(USBMscHost),
-            cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
+            cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema(USBMscDevice)),
         }
     ),
     cv.only_with_esp_idf,
