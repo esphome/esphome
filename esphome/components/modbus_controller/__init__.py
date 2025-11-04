@@ -6,6 +6,7 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_ENABLED,
     CONF_ID,
     CONF_LAMBDA,
     CONF_NAME,
@@ -20,7 +21,6 @@ from .const import (
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
-    CONF_ENABLED,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
