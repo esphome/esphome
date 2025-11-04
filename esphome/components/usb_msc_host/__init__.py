@@ -15,16 +15,20 @@ CODEOWNERS = ["p1ngb4ck"]
 DEPENDENCIES = ["usb_host", "esp32"]
 AUTO_LOAD = []
 
+CONF_USB_MSC_HOST_ID = "usb_msc_host_id"
+
 require_vfs_dir()
 
 usb_msc_host_ns = cg.esphome_ns.namespace("usb_msc_host")
 USBMscHost = usb_msc_host_ns.class_("USBMscHost", cg.Component)
 
 
-async def register_usb_msc_client(device_config, parent):
+async def register_usb_msc_client(device_config, parent_id):
     var = cg.new_Pvariable(device_config[CONF_ID], device_config[CONF_VID], device_config[CONF_PID])
     await cg.register_component(var, device_config)  # Register as Component for loop() calls
-    cg.add(var.set_parent(parent))  # Manually set parent relationship
+    # Set parent by calling the Parented<USBMscHost>::set_parent() method
+    paren = await cg.get_variable(parent_id)
+    cg.add(var.set_parent(paren))
     return var
 
 
@@ -45,4 +49,4 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for device in config.get(CONF_DEVICES) or ():
-        await register_usb_msc_client(device, var)
+        await register_usb_msc_client(device, config[CONF_ID])
