@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include <concepts>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -27,11 +29,20 @@ template<typename T, typename... X> class TemplatableValue {
  public:
   TemplatableValue() : type_(NONE) {}
 
-  template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0> TemplatableValue(F value) : type_(VALUE) {
+  template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
     new (&this->value_) T(std::move(value));
   }
 
-  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0> TemplatableValue(F f) : type_(LAMBDA) {
+  // For stateless lambdas (convertible to function pointer): use function pointer
+  template<typename F>
+  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, T (*)(X...)>
+      : type_(STATELESS_LAMBDA) {
+    this->stateless_f_ = f;  // Implicit conversion to function pointer
+  }
+
+  // For stateful lambdas (not convertible to function pointer): use std::function
+  template<typename F>
+  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) : type_(LAMBDA) {
     this->f_ = new std::function<T(X...)>(std::move(f));
   }
 
@@ -41,6 +52,8 @@ template<typename T, typename... X> class TemplatableValue {
       new (&this->value_) T(other.value_);
     } else if (type_ == LAMBDA) {
       this->f_ = new std::function<T(X...)>(*other.f_);
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
     }
   }
 
@@ -51,6 +64,8 @@ template<typename T, typename... X> class TemplatableValue {
     } else if (type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
     }
     other.type_ = NONE;
   }
@@ -78,16 +93,23 @@ template<typename T, typename... X> class TemplatableValue {
     } else if (type_ == LAMBDA) {
       delete this->f_;
     }
+    // STATELESS_LAMBDA/NONE: no cleanup needed (function pointer or empty, not heap-allocated)
   }
 
   bool has_value() { return this->type_ != NONE; }
 
   T value(X... x) {
-    if (this->type_ == LAMBDA) {
-      return (*this->f_)(x...);
+    switch (this->type_) {
+      case STATELESS_LAMBDA:
+        return this->stateless_f_(x...);  // Direct function pointer call
+      case LAMBDA:
+        return (*this->f_)(x...);  // std::function call
+      case VALUE:
+        return this->value_;
+      case NONE:
+      default:
+        return T{};
     }
-    // return value also when none
-    return this->type_ == VALUE ? this->value_ : T{};
   }
 
   optional<T> optional_value(X... x) {
@@ -109,11 +131,13 @@ template<typename T, typename... X> class TemplatableValue {
     NONE,
     VALUE,
     LAMBDA,
+    STATELESS_LAMBDA,
   } type_;
 
   union {
     T value_;
     std::function<T(X...)> *f_;
+    T (*stateless_f_)(X...);
   };
 };
 

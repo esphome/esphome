@@ -323,6 +323,8 @@ void Nextion::loop() {
       this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
     }
 
+    this->set_auto_wake_on_touch(this->connection_state_.auto_wake_on_touch_);
+
     this->connection_state_.ignore_is_setup_ = false;
   }
 

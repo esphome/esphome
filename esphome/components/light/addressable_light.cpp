@@ -61,6 +61,10 @@ void AddressableLightTransformer::start() {
   this->target_color_ *= to_uint8_scale(end_values.get_brightness() * end_values.get_state());
 }
 
+inline constexpr uint8_t subtract_scaled_difference(uint8_t a, uint8_t b, int32_t scale) {
+  return uint8_t(int32_t(a) - (((int32_t(a) - int32_t(b)) * scale) / 256));
+}
+
 optional<LightColorValues> AddressableLightTransformer::apply() {
   float smoothed_progress = LightTransformer::smoothed_progress(this->get_progress_());
 
@@ -74,37 +78,36 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // all LEDs, we use the current state of each LED as the start.
 
   // We can't use a direct lerp smoothing here though - that would require creating a copy of the original
-  // state of each LED at the start of the transition.
-  // Instead, we "fake" the look of the LERP by using an exponential average over time and using
-  // dynamically-calculated alpha values to match the look.
+  // state of each LED at the start of the transition. Instead, we "fake" the look of lerp by calculating
+  // the delta between the current state and the target state, assuming that the delta represents the rest
+  // of the transition that was to be applied as of the previous transition step, and scaling the delta for
+  // what should be left after the current transition step. In this manner, the delta decays to zero as the
+  // transition progresses.
+  //
+  // Here's an example of how the algorithm progresses in discrete steps:
+  //
+  // At time = 0.00, 0% complete, 100% remaining, 100% will remain after this step, so the scale is 100% / 100% = 100%.
+  // At time = 0.10, 0% complete, 100% remaining, 90% will remain after this step, so the scale is 90% / 100% = 90%.
+  // At time = 0.20, 10% complete, 90% remaining, 80% will remain after this step, so the scale is 80% / 90% = 88.9%.
+  // At time = 0.50, 20% complete, 80% remaining, 50% will remain after this step, so the scale is 50% / 80% = 62.5%.
+  // At time = 0.90, 50% complete, 50% remaining, 10% will remain after this step, so the scale is 10% / 50% = 20%.
+  // At time = 0.91, 90% complete, 10% remaining, 9% will remain after this step, so the scale is 9% / 10% = 90%.
+  // At time = 1.00, 91% complete, 9% remaining, 0% will remain after this step, so the scale is 0% / 9% = 0%.
+  //
+  // Because the color values are quantized to 8 bit resolution after each step, the transition may appear
+  // non-linear when applying small deltas.
 
-  float denom = (1.0f - smoothed_progress);
-  float alpha = denom == 0.0f ? 1.0f : (smoothed_progress - this->last_transition_progress_) / denom;
-
-  // We need to use a low-resolution alpha here which makes the transition set in only after ~half of the length
-  // We solve this by accumulating the fractional part of the alpha over time.
-  float alpha255 = alpha * 255.0f;
-  float alpha255int = floorf(alpha255);
-  float alpha255remainder = alpha255 - alpha255int;
-
-  this->accumulated_alpha_ += alpha255remainder;
-  float alpha_add = floorf(this->accumulated_alpha_);
-  this->accumulated_alpha_ -= alpha_add;
-
-  alpha255 += alpha_add;
-  alpha255 = clamp(alpha255, 0.0f, 255.0f);
-  auto alpha8 = static_cast<uint8_t>(alpha255);
-
-  if (alpha8 != 0) {
-    uint8_t inv_alpha8 = 255 - alpha8;
-    Color add = this->target_color_ * alpha8;
-
-    for (auto led : this->light_)
-      led.set(add + led.get() * inv_alpha8);
+  if (smoothed_progress > this->last_transition_progress_ && this->last_transition_progress_ < 1.f) {
+    int32_t scale = int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
+    for (auto led : this->light_) {
+      led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
+                   subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
+                   subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
+                   subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+    }
+    this->last_transition_progress_ = smoothed_progress;
+    this->light_.schedule_show();
   }
-
-  this->last_transition_progress_ = smoothed_progress;
-  this->light_.schedule_show();
 
   return {};
 }

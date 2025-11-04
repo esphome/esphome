@@ -446,7 +446,7 @@ async def uart_write_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        cg.add(var.set_data_static(data))
+        cg.add(var.set_data_static(cg.ArrayInitializer(*data)))
     return var
 
 

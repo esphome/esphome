@@ -162,6 +162,11 @@ class ESP32BLE : public Component {
   void advertising_init_();
 #endif
 
+  // BLE uses the core wake_loop_threadsafe() mechanism to wake the main event loop
+  // from BLE tasks. This enables low-latency (~12μs) event processing instead of
+  // waiting for select() timeout (0-16ms). The wake socket is shared with other
+  // components that need this functionality.
+
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
 

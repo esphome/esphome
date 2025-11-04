@@ -178,12 +178,9 @@ void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore
 void LightState::set_initial_state(const LightStateRTCState &initial_state) { this->initial_state_ = initial_state; }
 bool LightState::supports_effects() { return !this->effects_.empty(); }
 const FixedVector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
-void LightState::add_effects(const std::vector<LightEffect *> &effects) {
+void LightState::add_effects(const std::initializer_list<LightEffect *> &effects) {
   // Called once from Python codegen during setup with all effects from YAML config
-  this->effects_.init(effects.size());
-  for (auto *effect : effects) {
-    this->effects_.push_back(effect);
-  }
+  this->effects_ = effects;
 }
 
 void LightState::current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }

@@ -1,8 +1,9 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ROWS
 from esphome.components.key_provider import KeyProvider
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ITEMS, CONF_ROWS, CONF_TEXT, CONF_WIDTH
+from esphome.const import CONF_ID, CONF_ITEMS, CONF_TEXT, CONF_WIDTH
 from esphome.cpp_generator import MockObj
 
 from ..automation import action_to_code

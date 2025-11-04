@@ -304,9 +304,13 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
+    if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
+        ext = "tar.xz"
+    else:
+        ext = "zip"
     if release:
-        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.zip"
-    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.zip"
+        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.{ext}"
+    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.{ext}"
 
 
 def _is_framework_url(source: str) -> str:
@@ -355,6 +359,7 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "1"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "1"),
+    cv.Version(5, 4, 3): cv.Version(55, 3, 32),
     cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 0): cv.Version(54, 3, 21, "2"),
@@ -553,6 +558,7 @@ CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
 CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
 CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
+CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_select() or require_vfs_dir()
@@ -649,6 +655,9 @@ FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
+                    cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
+                        min=8192, max=32768
+                    ),
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -877,6 +886,11 @@ async def to_code(config):
     for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
         os.environ.pop(clean_var, None)
 
+    # Set the location of the IDF component manager cache
+    os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
+        CORE.relative_internal_path(".espressif")
+    )
+
     add_extra_script(
         "post",
         "post_build.py",
@@ -915,6 +929,10 @@ async def to_code(config):
             cg.RawExpression(
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
+        )
+        add_idf_sdkconfig_option(
+            "CONFIG_ARDUINO_LOOP_STACK_SIZE",
+            conf[CONF_ADVANCED][CONF_LOOP_TASK_STACK_SIZE],
         )
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
@@ -1060,6 +1078,10 @@ async def to_code(config):
             "Using experimental features in ESP-IDF may result in unexpected failures."
         )
         add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
+
+    cg.add_define(
+        "ESPHOME_LOOP_TASK_STACK_SIZE", advanced.get(CONF_LOOP_TASK_STACK_SIZE)
+    )
 
     cg.add_define(
         "USE_ESP_IDF_VERSION_CODE",
