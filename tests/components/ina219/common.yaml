@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_ina219
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: ina219
+    i2c_id: i2c_bus
     address: 0x40
     shunt_resistance: 0.1 ohm
     current:

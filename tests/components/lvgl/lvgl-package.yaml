@@ -78,7 +78,7 @@ lvgl:
     - id: date_style
       text_font: roboto10
       align: center
-      text_color: color_id2
+      text_color: !lambda return color_id2;
       bg_opa: cover
       radius: 4
       pad_all: 2
@@ -113,9 +113,10 @@ lvgl:
       title: Messagebox
       bg_color: 0xffff
       widgets:
-        - label:
-            text: Hello Msgbox
-            id: msgbox_label
+        # Test single widget without list
+        label:
+          text: Hello Msgbox
+          id: msgbox_label
       body:
         text: This is a sample messagebox
         bg_color: 0x808080
@@ -170,6 +171,12 @@ lvgl:
               lvgl.page.is_showing: page1
             then:
               logger.log: "Yes, page1 showing"
+        - if:
+            condition:
+              lvgl.is_idle:
+                timeout: !lambda return 5000;
+            then:
+              logger.log: LVGL is idle
       on_unload:
         - logger.log: page unloaded
         - lvgl.widget.focus: mark
@@ -251,8 +258,31 @@ lvgl:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
             align: bottom_mid
+        - label:
+            id: setup_lambda_label
+            # Test lambda in widget property during setup (LvContext)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              char buf[32];
+              snprintf(buf, sizeof(buf), "Setup: %d", 42);
+              return std::string(buf);
+            align: top_mid
             text_font: space16
-        - obj:
+        - label:
+            id: chip_info_label
+            # Test complex setup lambda (real-world pattern)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              // Test conditional compilation and string formatting
+              char buf[64];
+              #ifdef USE_ESP_IDF
+              snprintf(buf, sizeof(buf), "IDF: v%d.%d", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR);
+              #else
+              snprintf(buf, sizeof(buf), "Arduino");
+              #endif
+              return std::string(buf);
+            align: top_left
+        - container:
             align: center
             arc_opa: COVER
             arc_color: 0xFF0000
@@ -385,6 +415,7 @@ lvgl:
               - buttons:
                   - id: button_e
         - button:
+            layout: 2x1
             id: button_button
             width: 20%
             height: 10%
@@ -401,8 +432,13 @@ lvgl:
             checked:
               bg_color: 0x000000
             widgets:
-              - label:
-                  text: Button
+              # Test parse a dict instead of list
+              label:
+                text: Button
+                align: bottom_right
+              image:
+                src: cat_image
+                align: top_left
             on_click:
               - lvgl.widget.focus: spin_up
               - lvgl.widget.focus: next
@@ -510,6 +546,7 @@ lvgl:
                       - logger.log: "tile 1 is now showing"
             tiles:
               - id: tile_1
+                layout: vertical
                 row: 0
                 column: 0
                 dir: ALL
@@ -525,6 +562,7 @@ lvgl:
                       bg_color: 0x000000
 
     - id: page2
+      layout: vertical
       widgets:
         - canvas:
             id: canvas_id
@@ -640,7 +678,9 @@ lvgl:
             on_click:
               lvgl.qrcode.update:
                 id: lv_qr
-                text: homeassistant.io
+                text:
+                  format: "A string with a number %d"
+                  args: ['(int)(random_uint32() % 1000)']
 
         - slider:
             min_value: 0
@@ -676,7 +716,7 @@ lvgl:
             width: 120
             range_from: -10
             range_to: 1000
-            step: 5.0
+            selected_digit: 2
             rollover: false
             digits: 6
             decimal_places: 2
@@ -715,6 +755,20 @@ lvgl:
                 arc_color: 0xFFFF00
               focused:
                 arc_color: 0x808080
+        - arc:
+            align: center
+            id: lv_arc_1
+            value: !lambda return 75;
+            min_value: !lambda return 50;
+            max_value: !lambda return 60;
+            arc_color: 0xFF0000
+            indicator:
+              arc_width: !lambda return 20;
+              arc_color: 0xF000FF
+              pressed:
+                arc_color: 0xFFFF00
+              focused:
+                arc_color: 0x808080
         - bar:
             id: bar_id
             align: top_mid
@@ -722,12 +776,15 @@ lvgl:
             value: 30
             max_value: 100
             min_value: 10
+            start_value: 20
             mode: range
             on_click:
               then:
                 - lvgl.bar.update:
                     id: bar_id
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    start_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    mode: range
                 - logger.log:
                     format: "bar value %f"
                     args: [x]
@@ -781,6 +838,13 @@ lvgl:
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
         - tabview:
             id: tabview_id
+            tab_style:
+              border_color: 0x00FF00
+              border_width: 6
+              items:
+                text_color: 0x0000FF
+            content_style:
+              scrollable: false
             width: 100%
             height: 80%
             position: top
@@ -821,9 +885,7 @@ lvgl:
                       styles: bdr_style
                       grid_cell_x_align: center
                       grid_cell_y_align: stretch
-                      grid_cell_row_pos: 0
-                      grid_cell_column_pos: 1
-                      grid_cell_column_span: 1
+                      grid_cell_column_span: 2
                       text: "Grid cell 0/1"
                   - label:
                       grid_cell_x_align: end
@@ -903,21 +965,27 @@ lvgl:
                       text_color: 0xFFFFFF
                       scales:
                         - ticks:
-                            width: 1
+                            width: !lambda return 1;
                             count: 61
-                            length: 20
+                            length: 20%
                             color: 0xFFFFFF
                           range_from: 0
                           range_to: 60
                           angle_range: 360
-                          rotation: 270
+                          rotation: !lambda return 2700;
                           indicators:
+                            - tick_style:
+                                start_value: 0
+                                end_value: 60
+                                color_start: 0x0000bd
+                                color_end: 0xbd0000
+                                width: !lambda return 1;
                             - line:
                                 opa: 50%
                                 id: minute_hand
                                 color: 0xFF0000
-                                r_mod: -1
-                                width: 3
+                                r_mod: !lambda return -1;
+                                width: !lambda return 3;
                         -
                           angle_range: 330
                           rotation: 300
@@ -946,6 +1014,7 @@ lvgl:
                                 r_mod: -20
                                 opa: 0%
     - id: page3
+      layout: horizontal
       widgets:
         - keyboard:
             id: lv_keyboard

@@ -1,17 +1,12 @@
-spi:
-  - id: spi_ens160
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-    miso_pin: ${miso_pin}
-
 sensor:
   - platform: ens160_spi
-    spi_id: spi_ens160
     cs_pin: ${cs_pin}
     eco2:
+      id: ens160_spi_eco2
       name: "ENS160 eCO2"
     tvoc:
+      id: ens160_spi_tvoc
       name: "ENS160 Total Volatile Organic Compounds"
     aqi:
+      id: ens160_spi_aqi
       name: "ENS160 Air Quality Index"
-

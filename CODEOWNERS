@@ -9,6 +9,7 @@
 pyproject.toml @esphome/core
 esphome/*.py @esphome/core
 esphome/core/* @esphome/core
+.github/** @esphome/core
 
 # Integrations
 esphome/components/a01nyub/* @MrSuicideParrot
@@ -28,7 +29,7 @@ esphome/components/aic3204/* @kbx81
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
-esphome/components/airthings_wave_plus/* @jeromelaban
+esphome/components/airthings_wave_plus/* @jeromelaban @precurse
 esphome/components/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am2315c/* @swoboda1337
@@ -39,11 +40,11 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/apds9306/* @aodrenah
-esphome/components/api/* @OttoWinter
+esphome/components/api/* @esphome/core
 esphome/components/as5600/* @ammmze
 esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
-esphome/components/async_tcp/* @OttoWinter
+esphome/components/async_tcp/* @esphome/core
 esphome/components/at581x/* @X-Ryl669
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/atm90e26/* @danieltwagner
@@ -61,14 +62,16 @@ esphome/components/bedjet/fan/* @jhansche
 esphome/components/bedjet/sensor/* @javawizard @jhansche
 esphome/components/beken_spi_led_strip/* @Mat931
 esphome/components/bh1750/* @OttoWinter
+esphome/components/bh1900nux/* @B48D81EFCC
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/bk72xx/* @kuba2k2
 esphome/components/bl0906/* @athom-tech @jesserockz @tarontop
 esphome/components/bl0939/* @ziceva
-esphome/components/bl0940/* @tobias-
+esphome/components/bl0940/* @dan-s-github @tobias-
 esphome/components/bl0942/* @dbuezas @dwmw2
 esphome/components/ble_client/* @buxtronix @clydebarrow
-esphome/components/bluetooth_proxy/* @jesserockz
+esphome/components/ble_nus/* @tomaszduda23
+esphome/components/bluetooth_proxy/* @bdraco @jesserockz
 esphome/components/bme280_base/* @esphome/core
 esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
@@ -87,15 +90,18 @@ esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
+esphome/components/camera/* @bdraco @DT-art1
+esphome/components/camera_encoder/* @DT-art1
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
-esphome/components/captive_portal/* @OttoWinter
+esphome/components/captive_portal/* @esphome/core
 esphome/components/ccs811/* @habbie
 esphome/components/cd74hc4067/* @asoehlke
 esphome/components/ch422g/* @clydebarrow @jesterret
 esphome/components/chsc6x/* @kkosik20
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
+esphome/components/cm1106/* @andrewjswan
 esphome/components/color_temperature/* @jesserockz
 esphome/components/combination/* @Cat-Ion @kahrendt
 esphome/components/const/* @esphome/core
@@ -115,7 +121,7 @@ esphome/components/dallas_temp/* @ssieb
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
 esphome/components/datetime/* @jesserockz @rfdarter
-esphome/components/debug/* @OttoWinter
+esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
@@ -123,6 +129,7 @@ esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
+esphome/components/ds2484/* @mrk-its
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M
@@ -134,36 +141,44 @@ esphome/components/ens160_base/* @latonita @vincentscode
 esphome/components/ens160_i2c/* @latonita
 esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
+esphome/components/epaper_spi/* @esphome/core
 esphome/components/es7210/* @kahrendt
 esphome/components/es7243e/* @kbx81
 esphome/components/es8156/* @kbx81
 esphome/components/es8311/* @kahrendt @kroimon
+esphome/components/es8388/* @P4uLT
 esphome/components/esp32/* @esphome/core
-esphome/components/esp32_ble/* @Rapsssito @jesserockz
-esphome/components/esp32_ble_client/* @jesserockz
-esphome/components/esp32_ble_server/* @Rapsssito @clydebarrow @jesserockz
+esphome/components/esp32_ble/* @bdraco @jesserockz @Rapsssito
+esphome/components/esp32_ble_client/* @bdraco @jesserockz
+esphome/components/esp32_ble_server/* @clydebarrow @jesserockz @Rapsssito
+esphome/components/esp32_ble_tracker/* @bdraco
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
+esphome/components/esp32_hosted/* @swoboda1337
+esphome/components/esp32_hosted/update/* @swoboda1337
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
+esphome/components/esp_ldo/* @clydebarrow
+esphome/components/espnow/* @jesserockz
+esphome/components/espnow/packet_transport/* @EasilyBoredEngineer
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
-esphome/components/event_emitter/* @Rapsssito
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
 esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
-esphome/components/fingerprint_grow/* @OnFreund @alexborro @loongyh
+esphome/components/fingerprint_grow/* @alexborro @loongyh @OnFreund
 esphome/components/font/* @clydebarrow @esphome/core
 esphome/components/fs3000/* @kahrendt
 esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
 esphome/components/gdk101/* @Szewcson
+esphome/components/gl_r01_i2c/* @pkejval
 esphome/components/globals/* @esphome/core
 esphome/components/gp2y1010au0f/* @zry98
 esphome/components/gp8403/* @jesserockz @sebydocky
@@ -187,12 +202,13 @@ esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
 esphome/components/hbridge/switch/* @dwmw2
+esphome/components/hdc2010/* @optimusprimespace @ssieb
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
 esphome/components/hmac_md5/* @dwmw2
-esphome/components/homeassistant/* @OttoWinter @esphome/core
+esphome/components/homeassistant/* @esphome/core @OttoWinter
 esphome/components/homeassistant/number/* @landonr
 esphome/components/homeassistant/switch/* @Links2004
 esphome/components/honeywell_hih_i2c/* @Benichou34
@@ -217,35 +233,41 @@ esphome/components/iaqcore/* @yozik04
 esphome/components/ili9xxx/* @clydebarrow @nielsnl68
 esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
-esphome/components/ina226/* @Sergio303 @latonita
+esphome/components/ina226/* @latonita @Sergio303
 esphome/components/ina260/* @mreditor97
 esphome/components/ina2xx_base/* @latonita
 esphome/components/ina2xx_i2c/* @latonita
 esphome/components/ina2xx_spi/* @latonita
 esphome/components/inkbird_ibsth1_mini/* @fkirill
-esphome/components/inkplate6/* @jesserockz
+esphome/components/inkplate/* @jesserockz @JosipKuci
 esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/jsn_sr04t/* @Mafus1
-esphome/components/json/* @OttoWinter
+esphome/components/json/* @esphome/core
 esphome/components/kamstrup_kmp/* @cfeenstra1024
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
 esphome/components/kuntze/* @ssieb
+esphome/components/lc709203f/* @ilikecake
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @regevbr @sebcaps
+esphome/components/ld2412/* @Rihan9
 esphome/components/ld2420/* @descipher
 esphome/components/ld2450/* @hareeshmu
+esphome/components/ld24xx/* @kbx81
 esphome/components/ledc/* @OttoWinter
 esphome/components/libretiny/* @kuba2k2
 esphome/components/libretiny_pwm/* @kuba2k2
 esphome/components/light/* @esphome/core
 esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
+esphome/components/lm75b/* @beormund
+esphome/components/ln882x/* @lamauny
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/logger/select/* @clydebarrow
+esphome/components/lps22/* @nagisa
 esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr501/* @latonita
 esphome/components/ltr_als_ps/* @latonita
@@ -261,8 +283,8 @@ esphome/components/max7219digit/* @rspaargaren
 esphome/components/max9611/* @mckaymatthew
 esphome/components/mcp23008/* @jesserockz
 esphome/components/mcp23017/* @jesserockz
-esphome/components/mcp23s08/* @SenexCrenshaw @jesserockz
-esphome/components/mcp23s17/* @SenexCrenshaw @jesserockz
+esphome/components/mcp23s08/* @jesserockz @SenexCrenshaw
+esphome/components/mcp23s17/* @jesserockz @SenexCrenshaw
 esphome/components/mcp23x08_base/* @jesserockz
 esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
@@ -282,6 +304,8 @@ esphome/components/microphone/* @jesserockz @kahrendt
 esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
+esphome/components/mipi_dsi/* @clydebarrow
+esphome/components/mipi_rgb/* @clydebarrow
 esphome/components/mipi_spi/* @clydebarrow
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/mixer/speaker/* @kahrendt
@@ -314,17 +338,21 @@ esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/npi19/* @bakerkj
+esphome/components/nrf52/* @tomaszduda23
 esphome/components/number/* @esphome/core
 esphome/components/one_wire/* @ssieb
 esphome/components/online_image/* @clydebarrow @guillempages
 esphome/components/opentherm/* @olegtarasov
+esphome/components/openthread/* @mrene
+esphome/components/opt3001/* @ccutrer
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/packet_transport/* @clydebarrow
 esphome/components/pca6416a/* @Mat931
-esphome/components/pca9554/* @clydebarrow @hwstar
+esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman
+esphome/components/pi4ioe5v6408/* @jesserockz
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
@@ -332,9 +360,9 @@ esphome/components/pm2005/* @andrewjswan
 esphome/components/pmsa003i/* @sjtrny
 esphome/components/pmsx003/* @ximex
 esphome/components/pmwcs3/* @SeByDocKy
-esphome/components/pn532/* @OttoWinter @jesserockz
-esphome/components/pn532_i2c/* @OttoWinter @jesserockz
-esphome/components/pn532_spi/* @OttoWinter @jesserockz
+esphome/components/pn532/* @jesserockz @OttoWinter
+esphome/components/pn532_i2c/* @jesserockz @OttoWinter
+esphome/components/pn532_spi/* @jesserockz @OttoWinter
 esphome/components/pn7150/* @jesserockz @kbx81
 esphome/components/pn7150_i2c/* @jesserockz @kbx81
 esphome/components/pn7160/* @jesserockz @kbx81
@@ -343,7 +371,7 @@ esphome/components/pn7160_spi/* @jesserockz @kbx81
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
-esphome/components/pulse_meter/* @TrentHouliston @cstaahl @stevebaxter
+esphome/components/pulse_meter/* @cstaahl @stevebaxter @TrentHouliston
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
 esphome/components/qmp6988/* @andrewpc
@@ -365,6 +393,7 @@ esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet
+esphome/components/runtime_stats/* @bdraco
 esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
 esphome/components/script/* @esphome/core
@@ -383,7 +412,8 @@ esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/sfa30/* @ghsensdev
 esphome/components/sgp40/* @SenexCrenshaw
-esphome/components/sgp4x/* @SenexCrenshaw @martgras
+esphome/components/sgp4x/* @martgras @SenexCrenshaw
+esphome/components/sha256/* @esphome/core
 esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht3xd/* @mrtoy-me
 esphome/components/sht4x/* @sjtrny
@@ -405,6 +435,7 @@ esphome/components/speaker/media_player/* @kahrendt @synesthesiam
 esphome/components/spi/* @clydebarrow @esphome/core
 esphome/components/spi_device/* @clydebarrow
 esphome/components/spi_led_strip/* @clydebarrow
+esphome/components/split_buffer/* @jesserockz
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
 esphome/components/ssd1322_base/* @kbx81
@@ -431,6 +462,8 @@ esphome/components/sun/* @OttoWinter
 esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/switch/binary_sensor/* @ssieb
+esphome/components/sx126x/* @swoboda1337
+esphome/components/sx127x/* @swoboda1337
 esphome/components/syslog/* @clydebarrow
 esphome/components/t6615/* @tylermenezes
 esphome/components/tc74/* @sethgirvan
@@ -446,13 +479,14 @@ esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
-esphome/components/time/* @OttoWinter
+esphome/components/time/* @esphome/core
+esphome/components/tinyusb/* @kbx81
 esphome/components/tlc5947/* @rnauber
 esphome/components/tlc5971/* @IJIJI
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
-esphome/components/tm1651/* @freekode
+esphome/components/tm1651/* @mrtoy-me
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
@@ -478,16 +512,19 @@ esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/update/* @jesserockz
 esphome/components/uponor_smatrix/* @kroimon
+esphome/components/usb_host/* @clydebarrow
+esphome/components/usb_uart/* @clydebarrow
 esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
-esphome/components/voice_assistant/* @jesserockz
+esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
 esphome/components/waveshare_epaper/* @clydebarrow
-esphome/components/web_server_base/* @OttoWinter
+esphome/components/web_server/ota/* @esphome/core
+esphome/components/web_server_base/* @esphome/core
 esphome/components/web_server_idf/* @dentra
 esphome/components/weikai/* @DrCoolZic
 esphome/components/weikai_i2c/* @DrCoolZic
@@ -505,6 +542,7 @@ esphome/components/wk2204_spi/* @DrCoolZic
 esphome/components/wk2212_i2c/* @DrCoolZic
 esphome/components/wk2212_spi/* @DrCoolZic
 esphome/components/wl_134/* @hobbypunk90
+esphome/components/wts01/* @alepee
 esphome/components/x9c/* @EtienneMD
 esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_hhccjcy10/* @fariouche
@@ -513,8 +551,11 @@ esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
+esphome/components/xiaomi_xmwsdj04mmc/* @medusalix
 esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/xxtea/* @clydebarrow
+esphome/components/zephyr/* @tomaszduda23
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zio_ultrasonic/* @kahrendt
+esphome/components/zwave_proxy/* @kbx81

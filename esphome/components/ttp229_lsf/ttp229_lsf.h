@@ -23,7 +23,6 @@ class TTP229LSFComponent : public Component, public i2c::I2CDevice {
   void register_channel(TTP229Channel *channel) { this->channels_.push_back(channel); }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void loop() override;
 
  protected:

@@ -4,12 +4,15 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "light_call.h"
 #include "light_color_values.h"
 #include "light_effect.h"
 #include "light_traits.h"
 #include "light_transformer.h"
 
+#include "esphome/core/helpers.h"
+#include <strings.h>
 #include <vector>
 
 namespace esphome {
@@ -17,7 +20,7 @@ namespace light {
 
 class LightOutput;
 
-enum LightRestoreMode {
+enum LightRestoreMode : uint8_t {
   LIGHT_RESTORE_DEFAULT_OFF,
   LIGHT_RESTORE_DEFAULT_ON,
   LIGHT_ALWAYS_OFF,
@@ -31,9 +34,7 @@ enum LightRestoreMode {
 struct LightStateRTCState {
   LightStateRTCState(ColorMode color_mode, bool state, float brightness, float color_brightness, float red, float green,
                      float blue, float white, float color_temp, float cold_white, float warm_white)
-      : color_mode(color_mode),
-        state(state),
-        brightness(brightness),
+      : brightness(brightness),
         color_brightness(color_brightness),
         red(red),
         green(green),
@@ -41,10 +42,12 @@ struct LightStateRTCState {
         white(white),
         color_temp(color_temp),
         cold_white(cold_white),
-        warm_white(warm_white) {}
+        warm_white(warm_white),
+        effect(0),
+        color_mode(color_mode),
+        state(state) {}
   LightStateRTCState() = default;
-  ColorMode color_mode{ColorMode::UNKNOWN};
-  bool state{false};
+  // Group 4-byte aligned members first
   float brightness{1.0f};
   float color_brightness{1.0f};
   float red{1.0f};
@@ -55,6 +58,9 @@ struct LightStateRTCState {
   float cold_white{1.0f};
   float warm_white{1.0f};
   uint32_t effect{0};
+  // Group smaller members at the end
+  ColorMode color_mode{ColorMode::UNKNOWN};
+  bool state{false};
 };
 
 /** This class represents the communication layer between the front-end MQTT layer and the
@@ -113,6 +119,8 @@ class LightState : public EntityBase, public Component {
 
   /// Return the name of the current effect, or if no effect is active "None".
   std::string get_effect_name();
+  /// Return the name of the current effect as StringRef (for API usage)
+  StringRef get_effect_name_ref();
 
   /**
    * This lets front-end components subscribe to light change events. This callback is called once
@@ -152,10 +160,48 @@ class LightState : public EntityBase, public Component {
   bool supports_effects();
 
   /// Get all effects for this light state.
-  const std::vector<LightEffect *> &get_effects() const;
+  const FixedVector<LightEffect *> &get_effects() const;
 
   /// Add effects for this light state.
-  void add_effects(const std::vector<LightEffect *> &effects);
+  void add_effects(const std::initializer_list<LightEffect *> &effects);
+
+  /// Get the total number of effects available for this light.
+  size_t get_effect_count() const { return this->effects_.size(); }
+
+  /// Get the currently active effect index (0 = no effect, 1+ = effect index).
+  uint32_t get_current_effect_index() const { return this->active_effect_index_; }
+
+  /// Get effect index by name. Returns 0 if effect not found.
+  uint32_t get_effect_index(const std::string &effect_name) const {
+    if (strcasecmp(effect_name.c_str(), "none") == 0) {
+      return 0;
+    }
+    for (size_t i = 0; i < this->effects_.size(); i++) {
+      if (strcasecmp(effect_name.c_str(), this->effects_[i]->get_name()) == 0) {
+        return i + 1;  // Effects are 1-indexed in active_effect_index_
+      }
+    }
+    return 0;  // Effect not found
+  }
+
+  /// Get effect by index. Returns nullptr if index is invalid.
+  LightEffect *get_effect_by_index(uint32_t index) const {
+    if (index == 0 || index > this->effects_.size()) {
+      return nullptr;
+    }
+    return this->effects_[index - 1];  // Effects are 1-indexed in active_effect_index_
+  }
+
+  /// Get effect name by index. Returns "None" for index 0, empty string for invalid index.
+  std::string get_effect_name_by_index(uint32_t index) const {
+    if (index == 0) {
+      return "None";
+    }
+    if (index > this->effects_.size()) {
+      return "";  // Invalid index
+    }
+    return this->effects_[index - 1]->get_name();
+  }
 
   /// The result of all the current_values_as_* methods have gamma correction applied.
   void current_values_as_binary(bool *binary);
@@ -212,15 +258,24 @@ class LightState : public EntityBase, public Component {
 
   /// Store the output to allow effects to have more access.
   LightOutput *output_;
-  /// Value for storing the index of the currently active effect. 0 if no effect is active
-  uint32_t active_effect_index_{};
   /// The currently active transformer for this light (transition/flash).
   std::unique_ptr<LightTransformer> transformer_{nullptr};
-  /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
-
+  /// List of effects for this light.
+  FixedVector<LightEffect *> effects_;
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
+  /// Value for storing the index of the currently active effect. 0 if no effect is active
+  uint32_t active_effect_index_{};
+  /// Default transition length for all transitions in ms.
+  uint32_t default_transition_length_{};
+  /// Transition length to use for flash transitions.
+  uint32_t flash_transition_length_{};
+  /// Gamma correction factor for the light.
+  float gamma_correct_{};
+  /// Whether the light value should be written in the next cycle.
+  bool next_write_{true};
+  // for effects, true if a transformer (transition) is active.
+  bool is_transformer_active_ = false;
 
   /** Callback to call when new values for the frontend are available.
    *
@@ -236,21 +291,11 @@ class LightState : public EntityBase, public Component {
    */
   CallbackManager<void()> target_state_reached_callback_{};
 
-  /// Default transition length for all transitions in ms.
-  uint32_t default_transition_length_{};
-  /// Transition length to use for flash transitions.
-  uint32_t flash_transition_length_{};
-  /// Gamma correction factor for the light.
-  float gamma_correct_{};
-  /// Restore mode of the light.
-  LightRestoreMode restore_mode_;
   /// Initial state of the light.
   optional<LightStateRTCState> initial_state_{};
-  /// List of effects for this light.
-  std::vector<LightEffect *> effects_;
 
-  // for effects, true if a transformer (transition) is active.
-  bool is_transformer_active_ = false;
+  /// Restore mode of the light.
+  LightRestoreMode restore_mode_;
 };
 
 }  // namespace light

@@ -1,12 +1,12 @@
 from importlib import resources
 import logging
-from typing import Optional
 
 import tzlocal
 
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
@@ -26,11 +26,11 @@ from esphome.const import (
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace("time")
@@ -40,7 +40,7 @@ SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Co
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 
-def _load_tzdata(iana_key: str) -> Optional[bytes]:
+def _load_tzdata(iana_key: str) -> bytes | None:
     # From https://tzdata.readthedocs.io/en/latest/#examples
     try:
         package_loc, resource = iana_key.rsplit("/", 1)
@@ -236,7 +236,7 @@ def validate_time_at(value):
 
 def validate_cron_keys(value):
     if CONF_CRON in value:
-        for key in value.keys():
+        for key in value:
             if key in CRON_KEYS:
                 raise cv.Invalid(f"Cannot use option {key} when cron: is specified.")
         if CONF_AT in value:
@@ -246,7 +246,7 @@ def validate_cron_keys(value):
         value.update(cron_)
         return value
     if CONF_AT in value:
-        for key in value.keys():
+        for key in value:
             if key in CRON_KEYS:
                 raise cv.Invalid(f"Cannot use option {key} when at: is specified.")
         at_ = value[CONF_AT]
@@ -269,7 +269,19 @@ def validate_tz(value: str) -> str:
 
 TIME_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_TIMEZONE, default=detect_tz): validate_tz,
+        cv.SplitDefault(
+            CONF_TIMEZONE,
+            esp8266=detect_tz,
+            esp32=detect_tz,
+            rp2040=detect_tz,
+            bk72xx=detect_tz,
+            rtl87xx=detect_tz,
+            ln882x=detect_tz,
+            host=detect_tz,
+        ): cv.All(
+            cv.only_with_framework(["arduino", "esp-idf", "host"]),
+            validate_tz,
+        ),
         cv.Optional(CONF_ON_TIME): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CronTrigger),
@@ -294,7 +306,9 @@ TIME_SCHEMA = cv.Schema(
 
 
 async def setup_time_core_(time_var, config):
-    cg.add(time_var.set_timezone(config[CONF_TIMEZONE]))
+    if timezone := config.get(CONF_TIMEZONE):
+        cg.add(time_var.set_timezone(timezone))
+        cg.add_define("USE_TIME_TIMEZONE")
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
@@ -326,8 +340,10 @@ async def register_time(time_var, config):
     await setup_time_core_(time_var, config)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("POSIX_CLOCK", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 

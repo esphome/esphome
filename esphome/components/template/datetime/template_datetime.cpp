@@ -19,8 +19,8 @@ void TemplateDateTime::setup() {
     state = this->initial_value_;
   } else {
     datetime::DateTimeEntityRestoreState temp;
-    this->pref_ = global_preferences->make_preference<datetime::DateTimeEntityRestoreState>(194434090U ^
-                                                                                            this->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<datetime::DateTimeEntityRestoreState>(
+        194434090U ^ this->get_preference_hash());
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;
@@ -43,17 +43,16 @@ void TemplateDateTime::update() {
   if (!this->f_.has_value())
     return;
 
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  this->year_ = val->year;
-  this->month_ = val->month;
-  this->day_ = val->day_of_month;
-  this->hour_ = val->hour;
-  this->minute_ = val->minute;
-  this->second_ = val->second;
-  this->publish_state();
+  auto val = this->f_();
+  if (val.has_value()) {
+    this->year_ = val->year;
+    this->month_ = val->month;
+    this->day_ = val->day_of_month;
+    this->hour_ = val->hour;
+    this->minute_ = val->minute;
+    this->second_ = val->second;
+    this->publish_state();
+  }
 }
 
 void TemplateDateTime::control(const datetime::DateTimeCall &call) {

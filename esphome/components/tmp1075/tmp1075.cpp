@@ -32,7 +32,7 @@ void TMP1075Sensor::update() {
   uint16_t regvalue;
   if (!read_byte_16(REG_TEMP, &regvalue)) {
     ESP_LOGW(TAG, "'%s' - unable to read temperature register", this->name_.c_str());
-    this->status_set_warning("can't read");
+    this->status_set_warning(LOG_STR("can't read"));
     return;
   }
   this->status_clear_warning();
@@ -44,17 +44,20 @@ void TMP1075Sensor::update() {
 void TMP1075Sensor::dump_config() {
   LOG_SENSOR("", "TMP1075 Sensor", this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Communication with TMP1075 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  ESP_LOGCONFIG(TAG, "  limit low  : %.4f °C", alert_limit_low_);
-  ESP_LOGCONFIG(TAG, "  limit high : %.4f °C", alert_limit_high_);
-  ESP_LOGCONFIG(TAG, "  oneshot    : %d", config_.fields.oneshot);
-  ESP_LOGCONFIG(TAG, "  rate       : %d", config_.fields.rate);
-  ESP_LOGCONFIG(TAG, "  fault_count: %d", config_.fields.faults);
-  ESP_LOGCONFIG(TAG, "  polarity   : %d", config_.fields.polarity);
-  ESP_LOGCONFIG(TAG, "  alert_mode : %d", config_.fields.alert_mode);
-  ESP_LOGCONFIG(TAG, "  shutdown   : %d", config_.fields.shutdown);
+  ESP_LOGCONFIG(TAG,
+                "  limit low  : %.4f °C\n"
+                "  limit high : %.4f °C\n"
+                "  oneshot    : %d\n"
+                "  rate       : %d\n"
+                "  fault_count: %d\n"
+                "  polarity   : %d\n"
+                "  alert_mode : %d\n"
+                "  shutdown   : %d",
+                alert_limit_low_, alert_limit_high_, config_.fields.oneshot, config_.fields.rate, config_.fields.faults,
+                config_.fields.polarity, config_.fields.alert_mode, config_.fields.shutdown);
 }
 
 void TMP1075Sensor::set_fault_count(const int faults) {

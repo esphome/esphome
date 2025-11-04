@@ -14,15 +14,22 @@ static const char *const TAG = "ble_text_sensor";
 
 static const std::string EMPTY = "";
 
-void BLETextSensor::loop() {}
+void BLETextSensor::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE callbacks so loop isn't needed
+  this->disable_loop();
+}
 
 void BLETextSensor::dump_config() {
   LOG_TEXT_SENSOR("", "BLE Text Sensor", this);
-  ESP_LOGCONFIG(TAG, "  MAC address        : %s", this->parent()->address_str().c_str());
-  ESP_LOGCONFIG(TAG, "  Service UUID       : %s", this->service_uuid_.to_string().c_str());
-  ESP_LOGCONFIG(TAG, "  Characteristic UUID: %s", this->char_uuid_.to_string().c_str());
-  ESP_LOGCONFIG(TAG, "  Descriptor UUID    : %s", this->descr_uuid_.to_string().c_str());
-  ESP_LOGCONFIG(TAG, "  Notifications      : %s", YESNO(this->notify_));
+  ESP_LOGCONFIG(TAG,
+                "  MAC address        : %s\n"
+                "  Service UUID       : %s\n"
+                "  Characteristic UUID: %s\n"
+                "  Descriptor UUID    : %s\n"
+                "  Notifications      : %s",
+                this->parent()->address_str().c_str(), this->service_uuid_.to_string().c_str(),
+                this->char_uuid_.to_string().c_str(), this->descr_uuid_.to_string().c_str(), YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -72,6 +79,9 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         }
       } else {
         this->node_state = espbt::ClientState::ESTABLISHED;
+        // For non-notify characteristics, trigger an immediate read after service discovery
+        // to avoid peripherals disconnecting due to inactivity
+        this->update();
       }
       break;
     }

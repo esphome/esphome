@@ -317,7 +317,8 @@ class SPIBus {
 
   SPIBus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) : clk_pin_(clk), sdo_pin_(sdo), sdi_pin_(sdi) {}
 
-  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) {
+  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                    bool release_device, bool write_only) {
     return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   }
 
@@ -334,7 +335,7 @@ class SPIClient;
 class SPIComponent : public Component {
  public:
   SPIDelegate *register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
-                               GPIOPin *cs_pin);
+                               GPIOPin *cs_pin, bool release_device, bool write_only);
   void unregister_device(SPIClient *device);
 
   void set_clk(GPIOPin *clk) { this->clk_pin_ = clk; }
@@ -390,7 +391,8 @@ class SPIClient {
 
   virtual void spi_setup() {
     esph_log_d("spi_device", "mode %u, data_rate %ukHz", (unsigned) this->mode_, (unsigned) (this->data_rate_ / 1000));
-    this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_);
+    this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_,
+                                                     this->release_device_, this->write_only_);
   }
 
   virtual void spi_teardown() {
@@ -399,6 +401,8 @@ class SPIClient {
   }
 
   bool spi_is_ready() { return this->delegate_->is_ready(); }
+  void set_release_device(bool release) { this->release_device_ = release; }
+  void set_write_only(bool write_only) { this->write_only_ = write_only; }
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
@@ -406,6 +410,8 @@ class SPIClient {
   uint32_t data_rate_{1000000};
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};
+  bool release_device_{false};
+  bool write_only_{false};
   SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
 };
 

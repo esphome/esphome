@@ -28,6 +28,8 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_OPTIMISTIC,
+    CONF_PERIOD,
     CONF_QUANTILE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
@@ -41,10 +43,13 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CONDUCTIVITY,
@@ -56,6 +61,7 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
     DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
@@ -70,6 +76,7 @@ from esphome.const import (
     DEVICE_CLASS_OZONE,
     DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM4,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_POWER,
@@ -77,12 +84,14 @@ from esphome.const import (
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SOUND_PRESSURE,
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE_DELTA,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
@@ -92,20 +101,24 @@ from esphome.const import (
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CONDUCTIVITY,
@@ -117,6 +130,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
     DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
@@ -133,17 +147,20 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
+    DEVICE_CLASS_PM4,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SOUND_PRESSURE,
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE_DELTA,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
@@ -153,11 +170,11 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 ]
 
 _LOGGER = logging.getLogger(__name__)
-
 sensor_ns = cg.esphome_ns.namespace("sensor")
 StateClasses = sensor_ns.enum("StateClass")
 STATE_CLASSES = {
@@ -236,15 +253,23 @@ MaxFilter = sensor_ns.class_("MaxFilter", Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_(
     "SlidingWindowMovingAverageFilter", Filter
 )
+StreamingMinFilter = sensor_ns.class_("StreamingMinFilter", Filter)
+StreamingMaxFilter = sensor_ns.class_("StreamingMaxFilter", Filter)
+StreamingMovingAverageFilter = sensor_ns.class_("StreamingMovingAverageFilter", Filter)
 ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
 ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Component)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
-FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", Filter)
+ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
+FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", ValueListFilter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
+ThrottleWithPriorityFilter = sensor_ns.class_(
+    "ThrottleWithPriorityFilter", ValueListFilter
+)
 TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
@@ -309,6 +334,8 @@ _SENSOR_SCHEMA = (
     )
 )
 
+_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
+
 
 def sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
@@ -319,6 +346,7 @@ def sensor_schema(
     device_class: str = cv.UNDEFINED,
     state_class: str = cv.UNDEFINED,
     entity_category: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
@@ -333,16 +361,12 @@ def sensor_schema(
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_STATE_CLASS, state_class, validate_state_class),
         (CONF_ENTITY_CATEGORY, entity_category, sensor_entity_category),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
     return _SENSOR_SCHEMA.extend(schema)
-
-
-# Remove before 2025.11.0
-SENSOR_SCHEMA = sensor_schema()
-SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("sensor"))
 
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
@@ -432,14 +456,21 @@ async def skip_initial_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
+@FILTER_REGISTRY.register("min", Filter, MIN_SCHEMA)
 async def min_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_WINDOW_SIZE],
-        config[CONF_SEND_EVERY],
-        config[CONF_SEND_FIRST_AT],
-    )
+    window_size: int = config[CONF_WINDOW_SIZE]
+    send_every: int = config[CONF_SEND_EVERY]
+    send_first_at: int = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    # Saves 99.98% memory for large windows (e.g., 20KB → 4 bytes for window_size=5000)
+    if window_size == send_every:
+        # Use streaming filter - O(1) memory instead of O(n)
+        rhs = StreamingMinFilter.new(window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs, StreamingMinFilter)
+    # Use sliding window filter - maintains ring buffer
+    rhs = MinFilter.new(window_size, send_every, send_first_at)
+    return cg.Pvariable(filter_id, rhs, MinFilter)
 
 
 MAX_SCHEMA = cv.All(
@@ -454,14 +485,18 @@ MAX_SCHEMA = cv.All(
 )
 
 
-@FILTER_REGISTRY.register("max", MaxFilter, MAX_SCHEMA)
+@FILTER_REGISTRY.register("max", Filter, MAX_SCHEMA)
 async def max_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_WINDOW_SIZE],
-        config[CONF_SEND_EVERY],
-        config[CONF_SEND_FIRST_AT],
-    )
+    window_size: int = config[CONF_WINDOW_SIZE]
+    send_every: int = config[CONF_SEND_EVERY]
+    send_first_at: int = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    if window_size == send_every:
+        rhs = StreamingMaxFilter.new(window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs, StreamingMaxFilter)
+    rhs = MaxFilter.new(window_size, send_every, send_first_at)
+    return cg.Pvariable(filter_id, rhs, MaxFilter)
 
 
 SLIDING_AVERAGE_SCHEMA = cv.All(
@@ -478,16 +513,20 @@ SLIDING_AVERAGE_SCHEMA = cv.All(
 
 @FILTER_REGISTRY.register(
     "sliding_window_moving_average",
-    SlidingWindowMovingAverageFilter,
+    Filter,
     SLIDING_AVERAGE_SCHEMA,
 )
 async def sliding_window_moving_average_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_WINDOW_SIZE],
-        config[CONF_SEND_EVERY],
-        config[CONF_SEND_FIRST_AT],
-    )
+    window_size: int = config[CONF_WINDOW_SIZE]
+    send_every: int = config[CONF_SEND_EVERY]
+    send_first_at: int = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    if window_size == send_every:
+        rhs = StreamingMovingAverageFilter.new(window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs, StreamingMovingAverageFilter)
+    rhs = SlidingWindowMovingAverageFilter.new(window_size, send_every, send_first_at)
+    return cg.Pvariable(filter_id, rhs, SlidingWindowMovingAverageFilter)
 
 
 EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
@@ -530,7 +569,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(float, "x")], return_type=cg.optional.template(float)
     )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 DELTA_SCHEMA = cv.Schema(
@@ -580,10 +619,52 @@ async def throttle_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
+THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default="nan"): cv.Any(
+            cv.templatable(cv.float_), [cv.templatable(cv.float_)]
+        ),
+    },
+    key=CONF_TIMEOUT,
+)
+
+
 @FILTER_REGISTRY.register(
-    "heartbeat", HeartbeatFilter, cv.positive_time_period_milliseconds
+    "throttle_with_priority",
+    ThrottleWithPriorityFilter,
+    THROTTLE_WITH_PRIORITY_SCHEMA,
+)
+async def throttle_with_priority_filter_to_code(config, filter_id):
+    if not isinstance(config[CONF_VALUE], list):
+        config[CONF_VALUE] = [config[CONF_VALUE]]
+    template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
+
+
+HEARTBEAT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PERIOD): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+    }
+)
+
+
+@FILTER_REGISTRY.register(
+    "heartbeat",
+    HeartbeatFilter,
+    cv.Any(
+        cv.positive_time_period_milliseconds,
+        HEARTBEAT_SCHEMA,
+    ),
 )
 async def heartbeat_filter_to_code(config, filter_id):
+    if isinstance(config, dict):
+        var = cg.new_Pvariable(filter_id, config[CONF_PERIOD])
+        await cg.register_component(var, {})
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+        return var
+
     var = cg.new_Pvariable(filter_id, config)
     await cg.register_component(var, {})
     return var
@@ -592,7 +673,9 @@ async def heartbeat_filter_to_code(config, filter_id):
 TIMEOUT_SCHEMA = cv.maybe_simple_value(
     {
         cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_VALUE, default="nan"): cv.templatable(cv.float_),
+        cv.Optional(CONF_VALUE, default="nan"): cv.Any(
+            "last", cv.templatable(cv.float_)
+        ),
     },
     key=CONF_TIMEOUT,
 )
@@ -600,8 +683,11 @@ TIMEOUT_SCHEMA = cv.maybe_simple_value(
 
 @FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
 async def timeout_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config[CONF_VALUE], [], float)
-    var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
+    if config[CONF_VALUE] == "last":
+        var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
+    else:
+        template_ = await cg.templatable(config[CONF_VALUE], [], float)
+        var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
     await cg.register_component(var, {})
     return var
 
@@ -778,7 +864,7 @@ async def build_filters(config):
 
 
 async def setup_sensor_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "sensor")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
@@ -788,7 +874,9 @@ async def setup_sensor_core_(var, config):
         cg.add(var.set_unit_of_measurement(unit_of_measurement))
     if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
         cg.add(var.set_accuracy_decimals(accuracy_decimals))
-    cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
+    # Only set force_update if True (default is False)
+    if config[CONF_FORCE_UPDATE]:
+        cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
@@ -830,6 +918,7 @@ async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_sensor(var))
+    CORE.register_platform_component("sensor", var)
     await setup_sensor_core_(var, config)
 
 
@@ -1097,7 +1186,6 @@ def _lstsq(a, b):
     return _mat_dot(_mat_dot(x, a_t), b)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_SENSOR")
     cg.add_global(sensor_ns.using)

@@ -13,8 +13,6 @@ class INA260Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void set_bus_voltage_sensor(sensor::Sensor *bus_voltage_sensor) { this->bus_voltage_sensor_ = bus_voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
   void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }

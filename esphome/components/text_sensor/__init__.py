@@ -20,9 +20,9 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 DEVICE_CLASSES = [
@@ -57,6 +57,7 @@ validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 # Filters
 Filter = text_sensor_ns.class_("Filter")
 LambdaFilter = text_sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = text_sensor_ns.class_("StatelessLambdaFilter", Filter)
 ToUpperFilter = text_sensor_ns.class_("ToUpperFilter", Filter)
 ToLowerFilter = text_sensor_ns.class_("ToLowerFilter", Filter)
 AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
@@ -70,7 +71,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(cg.std_string, "x")], return_type=cg.optional.template(cg.std_string)
     )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 @FILTER_REGISTRY.register("to_upper", ToUpperFilter, {})
@@ -110,17 +111,28 @@ def validate_mapping(value):
     "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
 )
 async def substitute_filter_to_code(config, filter_id):
-    from_strings = [conf[CONF_FROM] for conf in config]
-    to_strings = [conf[CONF_TO] for conf in config]
-    return cg.new_Pvariable(filter_id, from_strings, to_strings)
+    substitutions = [
+        cg.StructInitializer(
+            cg.MockObj("Substitution", "esphome::text_sensor::"),
+            ("from", conf[CONF_FROM]),
+            ("to", conf[CONF_TO]),
+        )
+        for conf in config
+    ]
+    return cg.new_Pvariable(filter_id, substitutions)
 
 
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
 async def map_filter_to_code(config, filter_id):
-    map_ = cg.std_ns.class_("map").template(cg.std_string, cg.std_string)
-    return cg.new_Pvariable(
-        filter_id, map_([(item[CONF_FROM], item[CONF_TO]) for item in config])
-    )
+    mappings = [
+        cg.StructInitializer(
+            cg.MockObj("Substitution", "esphome::text_sensor::"),
+            ("from", conf[CONF_FROM]),
+            ("to", conf[CONF_TO]),
+        )
+        for conf in config
+    ]
+    return cg.new_Pvariable(filter_id, mappings)
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
@@ -153,12 +165,16 @@ _TEXT_SENSOR_SCHEMA = (
 )
 
 
+_TEXT_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("text_sensor"))
+
+
 def text_sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
     device_class: str = cv.UNDEFINED,
     entity_category: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
@@ -169,6 +185,7 @@ def text_sensor_schema(
         (CONF_ICON, icon, cv.icon),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
@@ -176,17 +193,12 @@ def text_sensor_schema(
     return _TEXT_SENSOR_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-TEXT_SENSOR_SCHEMA = text_sensor_schema()
-TEXT_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("text_sensor"))
-
-
 async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
 async def setup_text_sensor_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "text_sensor")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
@@ -215,6 +227,7 @@ async def register_text_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_text_sensor(var))
+    CORE.register_platform_component("text_sensor", var)
     await setup_text_sensor_core_(var, config)
 
 
@@ -224,9 +237,8 @@ async def new_text_sensor(config, *args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_TEXT_SENSOR")
     cg.add_global(text_sensor_ns.using)
 
 

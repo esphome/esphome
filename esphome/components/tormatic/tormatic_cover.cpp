@@ -34,8 +34,10 @@ void Tormatic::dump_config() {
   LOG_COVER("", "Tormatic Cover", this);
   this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_NONE, 8);
 
-  ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
+  ESP_LOGCONFIG(TAG,
+                "  Open Duration: %.1fs\n"
+                "  Close Duration: %.1fs",
+                this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
 
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -249,7 +251,7 @@ void Tormatic::stop_at_target_() {
 // Read a GateStatus from the unit. The unit only sends messages in response to
 // status requests or commands, so a message needs to be sent first.
 optional<GateStatus> Tormatic::read_gate_status_() {
-  if (this->available() < sizeof(MessageHeader)) {
+  if (this->available() < static_cast<int>(sizeof(MessageHeader))) {
     return {};
   }
 

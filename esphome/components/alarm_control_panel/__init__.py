@@ -13,9 +13,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@grahambrown11", "@hwstar"]
 IS_PLATFORM_COMPONENT = True
@@ -149,6 +149,9 @@ _ALARM_CONTROL_PANEL_SCHEMA = (
 )
 
 
+_ALARM_CONTROL_PANEL_SCHEMA.add_extra(entity_duplicate_validator("alarm_control_panel"))
+
+
 def alarm_control_panel_schema(
     class_: MockObjClass,
     *,
@@ -169,12 +172,6 @@ def alarm_control_panel_schema(
     return _ALARM_CONTROL_PANEL_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-ALARM_CONTROL_PANEL_SCHEMA = alarm_control_panel_schema(AlarmControlPanel)
-ALARM_CONTROL_PANEL_SCHEMA.add_extra(
-    cv.deprecated_schema_constant("alarm_control_panel")
-)
-
 ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(AlarmControlPanel),
@@ -190,7 +187,7 @@ ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
 
 
 async def setup_alarm_control_panel_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "alarm_control_panel")
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
@@ -235,6 +232,7 @@ async def register_alarm_control_panel(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_alarm_control_panel(var))
+    CORE.register_platform_component("alarm_control_panel", var)
     await setup_alarm_control_panel_core_(var, config)
 
 
@@ -297,8 +295,7 @@ async def alarm_action_disarm_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_pending_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -306,8 +303,7 @@ async def alarm_action_pending_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -315,8 +311,7 @@ async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_chime_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -329,8 +324,7 @@ async def alarm_action_chime_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_ready_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition(
@@ -345,7 +339,6 @@ async def alarm_control_panel_is_armed_to_code(
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(alarm_control_panel_ns.using)
-    cg.add_define("USE_ALARM_CONTROL_PANEL")

@@ -32,17 +32,21 @@ void MQTTJSONLightComponent::setup() {
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}
 
 bool MQTTJSONLightComponent::publish_state_() {
-  return this->publish_json(this->get_state_topic_(),
-                            [this](JsonObject root) { LightJSONSchema::dump_json(*this->state_, root); });
+  return this->publish_json(this->get_state_topic_(), [this](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+    LightJSONSchema::dump_json(*this->state_, root);
+  });
 }
 LightState *MQTTJSONLightComponent::get_state() const { return this->state_; }
 
 void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   root["schema"] = "json";
   auto traits = this->state_->get_traits();
 
   root[MQTT_COLOR_MODE] = true;
-  JsonArray color_modes = root.createNestedArray("supported_color_modes");
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  JsonArray color_modes = root["supported_color_modes"].to<JsonArray>();
   if (traits.supports_color_mode(ColorMode::ON_OFF))
     color_modes.add("onoff");
   if (traits.supports_color_mode(ColorMode::BRIGHTNESS))
@@ -65,9 +69,15 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
     root["brightness"] = true;
 
+  if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
+      traits.supports_color_mode(ColorMode::COLD_WARM_WHITE)) {
+    root[MQTT_MIN_MIREDS] = traits.get_min_mireds();
+    root[MQTT_MAX_MIREDS] = traits.get_max_mireds();
+  }
+
   if (this->state_->supports_effects()) {
     root["effect"] = true;
-    JsonArray effect_list = root.createNestedArray(MQTT_EFFECT_LIST);
+    JsonArray effect_list = root[MQTT_EFFECT_LIST].to<JsonArray>();
     for (auto *effect : this->state_->get_effects())
       effect_list.add(effect->get_name());
     effect_list.add("None");

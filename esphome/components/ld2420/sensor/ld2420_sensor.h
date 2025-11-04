@@ -27,7 +27,7 @@ class LD2420Sensor : public LD2420Listener, public Component, sensor::Sensor {
 
  protected:
   sensor::Sensor *distance_sensor_{nullptr};
-  std::vector<sensor::Sensor *> energy_sensors_ = std::vector<sensor::Sensor *>(LD2420_TOTAL_GATES);
+  std::vector<sensor::Sensor *> energy_sensors_ = std::vector<sensor::Sensor *>(TOTAL_GATES);
 };
 
 }  // namespace ld2420

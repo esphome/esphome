@@ -11,7 +11,9 @@ FROM base-source-${BUILD_TYPE} AS base
 
 RUN git config --system --add safe.directory "*"
 
-RUN pip install uv==0.6.14
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN pip install --no-cache-dir -U pip uv==0.6.14
 
 COPY requirements.txt /
 

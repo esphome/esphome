@@ -1,5 +1,6 @@
 #include "select.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome {
 namespace select {
@@ -10,7 +11,7 @@ void Select::publish_state(const std::string &state) {
   auto index = this->index_of(state);
   const auto *name = this->get_name().c_str();
   if (index.has_value()) {
-    this->has_state_ = true;
+    this->set_has_state(true);
     this->state = state;
     ESP_LOGD(TAG, "'%s': Sending state %s (index %zu)", name, state.c_str(), index.value());
     this->state_callback_.call(state, index.value());
@@ -28,17 +29,18 @@ bool Select::has_option(const std::string &option) const { return this->index_of
 bool Select::has_index(size_t index) const { return index < this->size(); }
 
 size_t Select::size() const {
-  auto options = traits.get_options();
+  const auto &options = traits.get_options();
   return options.size();
 }
 
 optional<size_t> Select::index_of(const std::string &option) const {
-  auto options = traits.get_options();
-  auto it = std::find(options.begin(), options.end(), option);
-  if (it == options.end()) {
-    return {};
+  const auto &options = traits.get_options();
+  for (size_t i = 0; i < options.size(); i++) {
+    if (strcmp(options[i], option.c_str()) == 0) {
+      return i;
+    }
   }
-  return std::distance(options.begin(), it);
+  return {};
 }
 
 optional<size_t> Select::active_index() const {
@@ -51,12 +53,14 @@ optional<size_t> Select::active_index() const {
 
 optional<std::string> Select::at(size_t index) const {
   if (this->has_index(index)) {
-    auto options = traits.get_options();
-    return options.at(index);
+    const auto &options = traits.get_options();
+    return std::string(options.at(index));
   } else {
     return {};
   }
 }
+
+const char *Select::option_at(size_t index) const { return traits.get_options().at(index); }
 
 }  // namespace select
 }  // namespace esphome

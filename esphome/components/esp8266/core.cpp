@@ -58,8 +58,8 @@ extern "C" void resetPins() {  // NOLINT
 
 #ifdef USE_ESP8266_EARLY_PIN_INIT
   for (int i = 0; i < 16; i++) {
-    uint8_t mode = ESPHOME_ESP8266_GPIO_INITIAL_MODE[i];
-    uint8_t level = ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[i];
+    uint8_t mode = progmem_read_byte(&ESPHOME_ESP8266_GPIO_INITIAL_MODE[i]);
+    uint8_t level = progmem_read_byte(&ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[i]);
     if (mode != 255)
       pinMode(i, mode);  // NOLINT
     if (level != 255)

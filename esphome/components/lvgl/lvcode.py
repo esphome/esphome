@@ -1,5 +1,4 @@
 import abc
-from typing import Union
 
 from esphome import codegen as cg
 from esphome.config import Config
@@ -75,7 +74,7 @@ class CodeContext(abc.ABC):
     code_context = None
 
     @abc.abstractmethod
-    def add(self, expression: Union[Expression, Statement]):
+    def add(self, expression: Expression | Statement):
         pass
 
     @staticmethod
@@ -89,13 +88,13 @@ class CodeContext(abc.ABC):
         CodeContext.append(RawStatement("}"))
 
     @staticmethod
-    def append(expression: Union[Expression, Statement]):
+    def append(expression: Expression | Statement):
         if CodeContext.code_context is not None:
             CodeContext.code_context.add(expression)
         return expression
 
     def __init__(self):
-        self.previous: Union[CodeContext | None] = None
+        self.previous: CodeContext | None = None
         self.indent_level = 0
 
     async def __aenter__(self):
@@ -121,7 +120,7 @@ class MainContext(CodeContext):
     Code generation into the main() function
     """
 
-    def add(self, expression: Union[Expression, Statement]):
+    def add(self, expression: Expression | Statement):
         return cg.add(self.indented_statement(expression))
 
 
@@ -144,7 +143,7 @@ class LambdaContext(CodeContext):
         self.capture = capture
         self.where = where
 
-    def add(self, expression: Union[Expression, Statement]):
+    def add(self, expression: Expression | Statement):
         self.code_list.append(self.indented_statement(expression))
         return expression
 
@@ -165,6 +164,9 @@ class LambdaContext(CodeContext):
             code_text.append(text)
         return code_text
 
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
+        return self.parameters
+
     async def __aenter__(self):
         await super().__aenter__()
         add_line_marks(self.where)
@@ -179,16 +181,20 @@ class LvContext(LambdaContext):
 
     added_lambda_count = 0
 
-    def __init__(self, args=None):
-        self.args = args or LVGL_COMP_ARG
-        super().__init__(parameters=self.args)
+    def __init__(self):
+        super().__init__(parameters=LVGL_COMP_ARG)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await super().__aexit__(exc_type, exc_val, exc_tb)
 
-    def add(self, expression: Union[Expression, Statement]):
+    def add(self, expression: Expression | Statement):
         cg.add(expression)
         return expression
+
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
+        # When generating automations, we don't want the `lv_component` parameter to be passed
+        # to the lambda.
+        return []
 
     def __call__(self, *args):
         return self.add(*args)
@@ -293,6 +299,7 @@ class LvExpr(MockLv):
 
 # Top level mock for generic lv_ calls to be recorded
 lv = MockLv("lv_")
+LV = MockLv("LV_")
 # Just generate an expression
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
@@ -303,7 +310,7 @@ lvgl_static = MockObj("LvglComponent", "::")
 
 
 # equivalent to cg.add() for the current code context
-def lv_add(expression: Union[Expression, Statement]):
+def lv_add(expression: Expression | Statement):
     return CodeContext.append(expression)
 
 
@@ -321,7 +328,7 @@ def lv_assign(target, expression):
     lv_add(AssignmentExpression("", "", target, expression))
 
 
-def lv_Pvariable(type, name):
+def lv_Pvariable(type, name) -> MockObj:
     """
     Create but do not initialise a pointer variable
     :param type: Type of the variable target
@@ -337,7 +344,7 @@ def lv_Pvariable(type, name):
     return var
 
 
-def lv_variable(type, name):
+def lv_variable(type, name) -> MockObj:
     """
     Create but do not initialise a variable
     :param type: Type of the variable target

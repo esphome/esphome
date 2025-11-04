@@ -1,8 +1,0 @@
-substitutions:
-  client_tx_pin: GPIO12
-  client_rx_pin: GPIO14
-  server_tx_pin: GPIO16
-  server_rx_pin: GPIO17
-  flow_control_pin: GPIO13
-
-<<: !include common.yaml

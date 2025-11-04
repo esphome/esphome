@@ -8,3 +8,10 @@ logger:
 
 host:
   mac_address: "62:23:45:AF:B3:DD"
+
+esphome:
+  on_boot:
+    - lambda: |-
+        static const uint8_t my_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+        if (!mac_address_is_valid(my_addr))
+          ESP_LOGD("test", "Invalid mac address %X", my_addr[0]); // etc.

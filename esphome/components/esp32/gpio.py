@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -26,8 +27,10 @@ from .const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     esp32_ns,
@@ -35,8 +38,10 @@ from .const import (
 from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
 from .gpio_esp32_c2 import esp32_c2_validate_gpio_pin, esp32_c2_validate_supports
 from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
+from .gpio_esp32_c5 import esp32_c5_validate_gpio_pin, esp32_c5_validate_supports
 from .gpio_esp32_c6 import esp32_c6_validate_gpio_pin, esp32_c6_validate_supports
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
+from .gpio_esp32_p4 import esp32_p4_validate_gpio_pin, esp32_p4_validate_supports
 from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
 from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
 
@@ -97,6 +102,10 @@ _esp32_validations = {
         pin_validation=esp32_c3_validate_gpio_pin,
         usage_validation=esp32_c3_validate_supports,
     ),
+    VARIANT_ESP32C5: ESP32ValidationFunctions(
+        pin_validation=esp32_c5_validate_gpio_pin,
+        usage_validation=esp32_c5_validate_supports,
+    ),
     VARIANT_ESP32C6: ESP32ValidationFunctions(
         pin_validation=esp32_c6_validate_gpio_pin,
         usage_validation=esp32_c6_validate_supports,
@@ -104,6 +113,10 @@ _esp32_validations = {
     VARIANT_ESP32H2: ESP32ValidationFunctions(
         pin_validation=esp32_h2_validate_gpio_pin,
         usage_validation=esp32_h2_validate_supports,
+    ),
+    VARIANT_ESP32P4: ESP32ValidationFunctions(
+        pin_validation=esp32_p4_validate_gpio_pin,
+        usage_validation=esp32_p4_validate_supports,
     ),
     VARIANT_ESP32S2: ESP32ValidationFunctions(
         pin_validation=esp32_s2_validate_gpio_pin,
@@ -174,8 +187,7 @@ def validate_supports(value):
             "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
 
-    value = _esp32_validations[variant].usage_validation(value)
-    return value
+    return _esp32_validations[variant].usage_validation(value)
 
 
 # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-reference/peripherals/gpio.html#_CPPv416gpio_drive_cap_t
@@ -211,7 +223,10 @@ async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    # Only set if true to avoid bloating setup() function
+    # (inverted bit in pin_flags_ bitfield is zero-initialized to false)
+    if config[CONF_INVERTED]:
+        cg.add(var.set_inverted(True))
     if CONF_DRIVE_STRENGTH in config:
         cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))

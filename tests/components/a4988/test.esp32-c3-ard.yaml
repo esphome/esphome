@@ -1,6 +1,0 @@
-substitutions:
-  step_pin: GPIO2
-  dir_pin: GPIO3
-  sleep_pin: GPIO5
-
-<<: !include common.yaml

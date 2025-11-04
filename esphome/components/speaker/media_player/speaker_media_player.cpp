@@ -48,8 +48,6 @@ static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 static const UBaseType_t MEDIA_PIPELINE_TASK_PRIORITY = 1;
 static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
 
-static const float FIRST_BOOT_DEFAULT_VOLUME = 0.5f;
-
 static const char *const TAG = "speaker_media_player";
 
 void SpeakerMediaPlayer::setup() {
@@ -57,14 +55,14 @@ void SpeakerMediaPlayer::setup() {
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaCallCommand));
 
-  this->pref_ = global_preferences->make_preference<VolumeRestoreState>(this->get_object_id_hash());
+  this->pref_ = global_preferences->make_preference<VolumeRestoreState>(this->get_preference_hash());
 
   VolumeRestoreState volume_restore_state;
   if (this->pref_.load(&volume_restore_state)) {
     this->set_volume_(volume_restore_state.volume);
     this->set_mute_state_(volume_restore_state.is_muted);
   } else {
-    this->set_volume_(FIRST_BOOT_DEFAULT_VOLUME);
+    this->set_volume_(this->volume_initial_);
     this->set_mute_state_(false);
   }
 

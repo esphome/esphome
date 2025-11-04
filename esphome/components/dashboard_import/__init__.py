@@ -2,7 +2,6 @@ import base64
 from pathlib import Path
 import re
 import secrets
-from typing import Optional
 
 import requests
 from ruamel.yaml import YAML
@@ -84,7 +83,7 @@ async def to_code(config):
 def import_config(
     path: str,
     name: str,
-    friendly_name: Optional[str],
+    friendly_name: str | None,
     project_name: str,
     import_url: str,
     network: str = CONF_WIFI,

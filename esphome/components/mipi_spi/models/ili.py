@@ -1,8 +1,4 @@
-from esphome.components.spi import TYPE_OCTAL
-
-from .. import MODE_RGB
-from . import DriverChip, delay
-from .commands import (
+from esphome.components.mipi import (
     ADJCTL3,
     CSCON,
     DFUNCTR,
@@ -18,6 +14,7 @@ from .commands import (
     IFCTR,
     IFMODE,
     INVCTR,
+    MODE_RGB,
     NORON,
     PWCTR1,
     PWCTR2,
@@ -32,7 +29,10 @@ from .commands import (
     VMCTR1,
     VMCTR2,
     VSCRSADD,
+    DriverChip,
+    delay,
 )
+from esphome.components.spi import TYPE_OCTAL
 
 DriverChip(
     "M5CORE",

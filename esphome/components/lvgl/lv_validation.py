@@ -1,4 +1,5 @@
-from typing import Union
+import re
+from typing import TYPE_CHECKING, Any
 
 import esphome.codegen as cg
 from esphome.components import image
@@ -19,6 +20,7 @@ from esphome.cpp_generator import MockObj
 from esphome.cpp_types import ESPTime, int32, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import Expression, SafeExpType
 
 from . import types as ty
 from .defines import (
@@ -245,6 +247,8 @@ def pixels_or_percent_validator(value):
         return ["pixels", "..%"]
     if isinstance(value, str) and value.lower().endswith("px"):
         value = cv.int_(value[:-2])
+    if isinstance(value, str) and re.match(r"^lv_pct\((\d+)\)$", value):
+        return value
     value = cv.Any(cv.int_, cv.percentage)(value)
     if isinstance(value, int):
         return value
@@ -273,8 +277,7 @@ padding = LValidator(padding_validator, int32, retmapper=literal)
 
 
 def zoom_validator(value):
-    value = cv.float_range(0.1, 10.0)(value)
-    return value
+    return cv.float_range(0.1, 10.0)(value)
 
 
 def zoom_retmapper(value):
@@ -290,10 +293,14 @@ def angle(value):
     :param value: The input in the range 0..360
     :return: An angle in 1/10 degree units.
     """
-    return int(cv.float_range(0.0, 360.0)(cv.angle(value)) * 10)
+    return cv.float_range(0.0, 360.0)(cv.angle(value))
 
 
-lv_angle = LValidator(angle, uint32)
+# Validator for angles in LVGL expressed in 1/10 degree units.
+lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10))
+
+# Validator for angles in LVGL expressed in whole degrees
+lv_angle_degrees = LValidator(angle, uint32, retmapper=int)
 
 
 @schema_extractor("one_of")
@@ -361,7 +368,7 @@ lv_image_list = LValidator(
 lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)
 
 
-def lv_pct(value: Union[int, float]):
+def lv_pct(value: int | float):
     if isinstance(value, float):
         value = int(value * 100)
     return literal(f"lv_pct({value})")
@@ -387,11 +394,23 @@ class TextValidator(LValidator):
             return value
         return super().__call__(value)
 
-    async def process(self, value, args=()):
+    async def process(
+        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+    ) -> Expression:
+        # Local import to avoid circular import at module level
+
+        from .lvcode import CodeContext, LambdaContext
+
+        if TYPE_CHECKING:
+            # CodeContext does not have get_automation_parameters
+            # so we need to assert the type here
+            assert isinstance(CodeContext.code_context, LambdaContext)
+        args = args or CodeContext.code_context.get_automation_parameters()
+
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
-                args = [str(x) for x in value[CONF_ARGS]]
-                arg_expr = cg.RawExpression(",".join(args))
+                str_args = [str(x) for x in value[CONF_ARGS]]
+                arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(format_str)
                 return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
             if time_format := value.get(CONF_TIME_FORMAT):

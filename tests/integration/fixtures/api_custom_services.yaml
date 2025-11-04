@@ -1,0 +1,24 @@
+esphome:
+  name: api-custom-services-test
+host:
+
+# This is required for CustomAPIDevice to work
+api:
+  custom_services: true
+  # Also test that YAML services still work
+  actions:
+    - action: test_yaml_service
+      then:
+        - logger.log: "YAML service called"
+
+logger:
+  level: DEBUG
+
+# External component that uses CustomAPIDevice
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [custom_api_device_component]
+
+custom_api_device_component:

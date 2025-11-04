@@ -1,8 +1,6 @@
 @echo off
 
-if defined DEVCONTAINER goto :install
 if defined VIRTUAL_ENV goto :install
-if defined ESPHOME_NO_VENV goto :install
 
 echo Starting the Virtual Environment
 python -m venv venv
@@ -20,8 +18,6 @@ pip3 install setuptools wheel
 pip3 install -e ".[dev,test]" --config-settings editable_mode=compat
 
 pre-commit install
-
-python script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
 
 echo .
 echo .
