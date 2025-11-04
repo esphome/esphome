@@ -25,10 +25,6 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-#include <lwip/sockets.h>
-#endif
-
 namespace esphome::esp32_ble {
 
 // Maximum size of the BLE event queue
