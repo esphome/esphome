@@ -14,7 +14,7 @@ from esphome.const import CONF_DEVICES, CONF_ID
 
 CODEOWNERS = ["p1ngb4ck"]
 DEPENDENCIES = ["usb_host", "esp32"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["usb_host", "socket"]
 
 require_vfs_dir()
 
