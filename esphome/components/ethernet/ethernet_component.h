@@ -88,8 +88,8 @@ class EthernetComponent : public Component {
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
-  const std::string &get_use_address() const;
-  void set_use_address(const std::string &use_address);
+  const char *get_use_address() const;
+  void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
   std::string get_eth_mac_address_pretty();
   eth_duplex_t get_duplex_mode();
@@ -114,7 +114,7 @@ class EthernetComponent : public Component {
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 
-  std::string use_address_;
+  const char *use_address_{""};
 #ifdef USE_ETHERNET_SPI
   uint8_t clk_pin_;
   uint8_t miso_pin_;
