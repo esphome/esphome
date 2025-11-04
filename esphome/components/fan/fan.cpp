@@ -17,6 +17,27 @@ const LogString *fan_direction_to_string(FanDirection direction) {
   }
 }
 
+FanCall &FanCall::set_preset_mode(const std::string &preset_mode) { return this->set_preset_mode(preset_mode.c_str()); }
+
+FanCall &FanCall::set_preset_mode(const char *preset_mode) {
+  if (preset_mode == nullptr || strlen(preset_mode) == 0) {
+    this->preset_mode_ = nullptr;
+    return *this;
+  }
+
+  // Find and validate pointer from traits immediately
+  auto traits = this->parent_.get_traits();
+  const char *validated_mode = traits.find_preset_mode(preset_mode);
+  if (validated_mode != nullptr) {
+    this->preset_mode_ = validated_mode;  // Store pointer from traits
+  } else {
+    // Preset mode not found in traits - log warning and don't set
+    ESP_LOGW(TAG, "%s: Preset mode '%s' not supported", this->parent_.get_name().c_str(), preset_mode);
+    this->preset_mode_ = nullptr;
+  }
+  return *this;
+}
+
 void FanCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting:", this->parent_.get_name().c_str());
   this->validate_();
@@ -32,8 +53,8 @@ void FanCall::perform() {
   if (this->direction_.has_value()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
   }
-  if (!this->preset_mode_.empty()) {
-    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode_.c_str());
+  if (this->has_preset_mode()) {
+    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode_);
   }
   this->parent_.control(*this);
 }
@@ -46,30 +67,15 @@ void FanCall::validate_() {
 
     // https://developers.home-assistant.io/docs/core/entity/fan/#preset-modes
     // "Manually setting a speed must disable any set preset mode"
-    this->preset_mode_.clear();
-  }
-
-  if (!this->preset_mode_.empty()) {
-    const auto &preset_modes = traits.supported_preset_modes();
-    bool found = false;
-    for (const auto &mode : preset_modes) {
-      if (strcmp(mode, this->preset_mode_.c_str()) == 0) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      ESP_LOGW(TAG, "%s: Preset mode '%s' not supported", this->parent_.get_name().c_str(), this->preset_mode_.c_str());
-      this->preset_mode_.clear();
-    }
+    this->preset_mode_ = nullptr;
   }
 
   // when turning on...
   if (!this->parent_.state && this->binary_state_.has_value() &&
       *this->binary_state_
       // ..,and no preset mode will be active...
-      && this->preset_mode_.empty() &&
-      this->parent_.preset_mode.empty()
+      && !this->has_preset_mode() &&
+      this->parent_.get_preset_mode() == nullptr
       // ...and neither current nor new speed is available...
       && traits.supports_speed() && this->parent_.speed == 0 && !this->speed_.has_value()) {
     // ...set speed to 100%
@@ -117,12 +123,13 @@ void FanRestoreState::apply(Fan &fan) {
 
   auto traits = fan.get_traits();
   if (traits.supports_preset_modes()) {
-    // Use stored preset index to get preset name
+    // Use stored preset index to get preset name from traits
     const auto &preset_modes = traits.supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      fan.preset_mode = preset_modes[this->preset_mode];
+      fan.set_preset_mode_(preset_modes[this->preset_mode]);
     }
   }
+
   fan.publish_state();
 }
 
@@ -130,6 +137,29 @@ FanCall Fan::turn_on() { return this->make_call().set_state(true); }
 FanCall Fan::turn_off() { return this->make_call().set_state(false); }
 FanCall Fan::toggle() { return this->make_call().set_state(!this->state); }
 FanCall Fan::make_call() { return FanCall(*this); }
+
+const char *Fan::find_preset_mode_(const char *preset_mode) { return this->get_traits().find_preset_mode(preset_mode); }
+
+bool Fan::set_preset_mode_(const char *preset_mode) {
+  if (preset_mode == nullptr) {
+    // Treat nullptr as clearing the preset mode
+    if (this->preset_mode_ == nullptr) {
+      return false;  // No change
+    }
+    this->clear_preset_mode_();
+    return true;
+  }
+  const char *validated = this->find_preset_mode_(preset_mode);
+  if (validated == nullptr || this->preset_mode_ == validated) {
+    return false;  // Preset mode not supported or no change
+  }
+  this->preset_mode_ = validated;
+  return true;
+}
+
+bool Fan::set_preset_mode_(const std::string &preset_mode) { return this->set_preset_mode_(preset_mode.c_str()); }
+
+void Fan::clear_preset_mode_() { this->preset_mode_ = nullptr; }
 
 void Fan::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 void Fan::publish_state() {
@@ -146,8 +176,9 @@ void Fan::publish_state() {
   if (traits.supports_direction()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
   }
-  if (traits.supports_preset_modes() && !this->preset_mode.empty()) {
-    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode.c_str());
+  const char *preset = this->get_preset_mode();
+  if (preset != nullptr) {
+    ESP_LOGD(TAG, "  Preset Mode: %s", preset);
   }
   this->state_callback_.call();
   this->save_state_();
@@ -199,16 +230,15 @@ void Fan::save_state_() {
   state.speed = this->speed;
   state.direction = this->direction;
 
-  if (traits.supports_preset_modes() && !this->preset_mode.empty()) {
+  const char *preset = this->get_preset_mode();
+  if (preset != nullptr) {
     const auto &preset_modes = traits.supported_preset_modes();
-    // Store index of current preset mode
-    size_t i = 0;
-    for (const auto &mode : preset_modes) {
-      if (strcmp(mode, this->preset_mode.c_str()) == 0) {
+    // Find index of current preset mode (pointer comparison is safe since preset is from traits)
+    for (size_t i = 0; i < preset_modes.size(); i++) {
+      if (preset_modes[i] == preset) {
         state.preset_mode = i;
         break;
       }
-      i++;
     }
   }
 

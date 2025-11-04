@@ -254,9 +254,9 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
 
 // set_use_address() is guaranteed to be called during component setup by Python code generation,
 // so use_address_ will always be valid when get_use_address() is called - no fallback needed.
-const std::string &OpenThreadComponent::get_use_address() const { return this->use_address_; }
+const char *OpenThreadComponent::get_use_address() const { return this->use_address_; }
 
-void OpenThreadComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+void OpenThreadComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 }  // namespace openthread
 }  // namespace esphome

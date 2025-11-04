@@ -220,6 +220,7 @@ template<typename... Ts> class Action {
 
  protected:
   friend ActionList<Ts...>;
+  template<typename... Us> friend class ContinuationAction;
 
   virtual void play(Ts... x) = 0;
   void play_next_(Ts... x) {

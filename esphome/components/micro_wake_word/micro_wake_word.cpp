@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP_IDF
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -426,6 +427,12 @@ void MicroWakeWord::process_probabilities_() {
         if (vad_state.detected) {
 #endif
           xQueueSend(this->detection_queue_, &wake_word_state, portMAX_DELAY);
+
+          // Wake main loop immediately to process wake word detection
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+          App.wake_loop_threadsafe();
+#endif
+
           model->reset_probabilities();
 #ifdef USE_MICRO_WAKE_WORD_VAD
         } else {
