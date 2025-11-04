@@ -98,22 +98,28 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
 
   TEMPLATABLE_VALUE(uint32_t, time);
 
-  void loop() override { this->check_internal(); }
-  float get_setup_priority() const override { return setup_priority::DATA; }
-  bool check_internal() {
-    bool cond = this->condition_->check();
-    if (!cond)
-      this->last_inactive_ = millis();
-    return cond;
+  void loop() override {
+    // Safe to use cached time - only called from Application::loop()
+    this->check_internal(App.get_loop_component_start_time());
   }
 
+  float get_setup_priority() const override { return setup_priority::DATA; }
+
   bool check(Ts... x) override {
-    if (!this->check_internal())
+    auto now = millis();
+    if (!this->check_internal(now))
       return false;
-    return millis() - this->last_inactive_ >= this->time_.value(x...);
+    return now - this->last_inactive_ >= this->time_.value(x...);
   }
 
  protected:
+  bool check_internal(uint32_t now) {
+    bool cond = this->condition_->check();
+    if (!cond)
+      this->last_inactive_ = now;
+    return cond;
+  }
+
   Condition<> *condition_;
   uint32_t last_inactive_{0};
 };
