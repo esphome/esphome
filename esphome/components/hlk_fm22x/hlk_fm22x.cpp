@@ -1,6 +1,7 @@
 #include "hlk_fm22x.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include <array>
 #include <cinttypes>
 
 namespace esphome::hlk_fm22x {
@@ -36,26 +37,26 @@ void HlkFm22xComponent::enroll_face(const std::string &name, HlkFm22xFaceDirecti
     return;
   }
   ESP_LOGI(TAG, "Starting enrollment for %s", name.c_str());
-  std::vector<uint8_t> data;
-  data.reserve(35);
-  data.push_back(0);  // admin
-  std::copy(name.begin(), name.end(), std::back_inserter(data));
-  data.insert(data.end(), 32 - name.length(), 0);
-  data.push_back((uint8_t) direction);
-  data.push_back(10);  // timeout
-  this->send_command_(HlkFm22xCommand::ENROLL, data);
+  std::array<uint8_t, 35> data{};
+  data[0] = 0;  // admin
+  std::copy(name.begin(), name.end(), data.begin() + 1);
+  // Remaining bytes are already zero-initialized
+  data[33] = (uint8_t) direction;
+  data[34] = 10;  // timeout
+  this->send_command_(HlkFm22xCommand::ENROLL, data.data(), data.size());
   this->set_enrolling_(true);
 }
 
 void HlkFm22xComponent::scan_face() {
   ESP_LOGI(TAG, "Verify face");
-  this->send_command_(HlkFm22xCommand::VERIFY, {0, 0});
+  static const uint8_t data[] = {0, 0};
+  this->send_command_(HlkFm22xCommand::VERIFY, data, sizeof(data));
 }
 
 void HlkFm22xComponent::delete_face(int16_t face_id) {
   ESP_LOGI(TAG, "Deleting face in slot %d", face_id);
-  std::vector<uint8_t> data{(uint8_t) (face_id >> 8), (uint8_t) (face_id & 0xFF)};
-  this->send_command_(HlkFm22xCommand::DELETE_FACE, data);
+  const uint8_t data[] = {(uint8_t) (face_id >> 8), (uint8_t) (face_id & 0xFF)};
+  this->send_command_(HlkFm22xCommand::DELETE_FACE, data, sizeof(data));
 }
 
 void HlkFm22xComponent::delete_all_faces() {
@@ -76,9 +77,8 @@ void HlkFm22xComponent::reset() {
   this->send_command_(HlkFm22xCommand::RESET);
 }
 
-void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const std::vector<uint8_t> &data) {
+void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const uint8_t *data, size_t size) {
   ESP_LOGV(TAG, "Send command: 0x%.2X", command);
-  ESP_LOGV(TAG, "Data: %s", format_hex_pretty(data).c_str());
   if (this->active_command_ != HlkFm22xCommand::NONE) {
     ESP_LOGW(TAG, "Command 0x%.2X already active", this->active_command_);
     return;
@@ -90,7 +90,7 @@ void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const std::vector
   this->write((uint8_t) (START_CODE >> 8));
   this->write((uint8_t) (START_CODE & 0xFF));
   this->write((uint8_t) command);
-  uint16_t data_size = data.size();
+  uint16_t data_size = size;
   this->write((uint8_t) (data_size >> 8));
   this->write((uint8_t) (data_size & 0xFF));
 
@@ -98,9 +98,9 @@ void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const std::vector
   checksum ^= (uint8_t) command;
   checksum ^= (data_size >> 8);
   checksum ^= (data_size & 0xFF);
-  for (auto byte : data) {
-    this->write(byte);
-    checksum ^= byte;
+  for (size_t i = 0; i < size; i++) {
+    this->write(data[i]);
+    checksum ^= data[i];
   }
 
   this->write(checksum);

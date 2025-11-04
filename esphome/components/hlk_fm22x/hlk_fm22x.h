@@ -116,7 +116,7 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
 
  protected:
   void get_face_count_();
-  void send_command_(HlkFm22xCommand command, const std::vector<uint8_t> &data = {});
+  void send_command_(HlkFm22xCommand command, const uint8_t *data = nullptr, size_t size = 0);
   void recv_command_();
   void handle_note_(const std::vector<uint8_t> &data);
   void handle_reply_(const std::vector<uint8_t> &data);
