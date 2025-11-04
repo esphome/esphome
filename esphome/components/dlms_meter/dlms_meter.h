@@ -97,6 +97,13 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   DLMS_METER_TEXT_SENSOR_LIST(SUB_TEXT_SENSOR, )
 
  protected:
+  bool parse_mbus_(std::vector<uint8_t> &mbus_payload);
+  bool parse_dlms_(const std::vector<uint8_t> &mbus_payload, uint16_t &message_length, uint8_t &systitle_length,
+                   uint16_t &header_offset);
+  bool decrypt_(const std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
+                uint16_t header_offset, uint8_t *plaintext);
+  void decode_obis_(uint8_t *plaintext, uint16_t message_length);
+
   std::vector<uint8_t> receive_buffer_;  // Stores the packet currently being received
   uint32_t last_read_ = 0;               // Timestamp when data was last read
   uint32_t read_timeout_ = 1000;         // Time to wait after last byte before considering data complete
