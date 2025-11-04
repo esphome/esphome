@@ -86,12 +86,17 @@ esp_err_t USBMscHost::allocate_new_msc_device(uint8_t new_dev_address) {
     ESP_LOGW(TAG, "No free slots for new MSC device (max %d)", MAX_MSC_DEVICES);
     return ESP_ERR_NOT_FOUND;
   }
+
+  ESP_LOGI(TAG, "Allocating slot %d for device address %d", slot, new_dev_address);
+
   // void *slotbuffer = calloc(1, sizeof(msc_dev_entry_t));
   this->msc_devices_[slot] = (msc_dev_entry_t *) calloc(1, sizeof(msc_dev_entry_t));
   if (this->msc_devices_[slot] == NULL) {
     ESP_LOGE(TAG, "Failed to allocate memory for new MSC device entry");
     return ESP_ERR_NO_MEM;
   }
+
+  ESP_LOGI(TAG, "Memory allocated, calling msc_host_install_device...");
 
   esp_err_t err = msc_host_install_device(new_dev_address, &this->msc_devices_[slot]->msc_device);
   if (err != ESP_OK) {
@@ -101,7 +106,11 @@ esp_err_t USBMscHost::allocate_new_msc_device(uint8_t new_dev_address) {
     return err;
   }
 
+  ESP_LOGI(TAG, "msc_host_install_device succeeded");
+
   this->msc_devices_[slot]->usb_addr = new_dev_address;
+
+  ESP_LOGI(TAG, "Stored USB address, proceeding with VFS registration...");
 
   const esp_vfs_fat_mount_config_t mount_config = {
       .format_if_mount_failed = false,
