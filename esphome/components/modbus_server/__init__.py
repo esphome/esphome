@@ -189,4 +189,4 @@ async def to_code(config):
 async def register_modbus_device(var, config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
-    return await modbus.register_modbus_device(var, config)
+    return await modbus.register_modbus_device(var, config, True)

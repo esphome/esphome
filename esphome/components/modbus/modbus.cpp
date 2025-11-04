@@ -49,7 +49,7 @@ void ModbusClient::loop() {
     ESP_LOGW(TAG, "Stop waiting for response from %d %dms after last send",
              this->waiting_for_response_.value().frame[0], millis() - this->last_send_);
     if (this->waiting_for_response_.value().device)
-      this->waiting_for_response_.value().device->on_modbus_timeout();
+      this->waiting_for_response_.value().device->on_modbus_no_response();
     this->waiting_for_response_.reset();
   }
 
@@ -144,10 +144,13 @@ void ModbusServer::parse_modbus_byte_(uint8_t byte) {
   }
 }
 
-// TODO: Limit rx_buffer_ size to max modbus frame size (256 bytes)?
 // TODO: Clean up the function - it's quite long and has some repeated code paths.
 bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
+  if (at >= MAX_FRAME_SIZE) {
+    ESP_LOGW(TAG, "RX buffer exceeded max frame size of %d bytes", MAX_FRAME_SIZE);
+    return false;
+  }
   this->rx_buffer_.push_back(byte);
 
   const uint8_t *raw = &this->rx_buffer_[0];
@@ -235,6 +238,10 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
 
 bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
   size_t at = this->rx_buffer_.size();
+  if (at >= MAX_FRAME_SIZE) {
+    ESP_LOGW(TAG, "RX buffer exceeded max frame size of %d bytes", MAX_FRAME_SIZE);
+    return false;
+  }
   if (byte.has_value())
     this->rx_buffer_.push_back(byte.value());
   else if (at > 0)
@@ -352,7 +359,7 @@ void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t functio
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
                millis() - this->last_send_);
       // Invalidate the waiting device so it won't process this response.
-      this->waiting_for_response_.value().device->on_modbus_timeout();
+      this->waiting_for_response_.value().device->on_modbus_no_response();
       this->waiting_for_response_.value().device = nullptr;
       return;
     }
@@ -581,6 +588,22 @@ void ModbusClient::send_raw(ModbusClientDevice *device, const std::vector<uint8_
     this->tx_buffer_.push_back({device, frame});
   } else {
     ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty(frame).c_str());
+  }
+}
+
+void ModbusClient::clear_tx_queue_for_address(uint8_t address) {
+  // Remove any pending commands for this address from the tx buffer
+  auto &tx_buffer = this->tx_buffer_;
+  tx_buffer.erase(std::remove_if(tx_buffer.begin(), tx_buffer.end(),
+                                 [this, address](const ModbusDeviceCommand &cmd) { return cmd.frame[0] == address; }),
+                  tx_buffer.end());
+
+  if (this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
+    if (this->waiting_for_response_.value().frame[0] == address) {
+      ESP_LOGV(TAG, "Clearing waiting for response for address %d", address);
+      this->waiting_for_response_.value().device =
+          nullptr;  // Invalidate the waiting device so it won't process a response.
+    }
   }
 }
 
