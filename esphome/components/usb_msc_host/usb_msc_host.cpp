@@ -396,6 +396,24 @@ void USBMscDevice::list_files() {
 void USBMscHost::setup() {
   ESP_LOGCONFIG(TAG, "Registering USB MSC Host Component...");
   ESP_LOGI(TAG, "USBMscHost setup() called");
+
+  // Initialize MSC host driver (class driver layer, NOT the USB host stack)
+  // The USB host stack is already initialized by usb_host component
+  const msc_host_driver_config_t msc_config = {
+      .create_backround_task = true,
+      .task_priority = 5,
+      .stack_size = 4096,
+      .callback = nullptr,
+  };
+
+  esp_err_t err = msc_host_install(&msc_config);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to initialize MSC host driver: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
+  ESP_LOGI(TAG, "MSC host driver initialized successfully");
 }
 
 void USBMscDevice::setup() {
