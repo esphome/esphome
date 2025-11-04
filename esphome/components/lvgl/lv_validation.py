@@ -420,7 +420,9 @@ class TextValidator(LValidator):
                 format_str = cpp_string_escape(format_str)
                 sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
                 if nanval := value.get(CONF_IF_NAN):
-                    return literal(f'(isnan({arg_expr}) ? "{nanval}" : {sprintf_str})')
+                    return literal(
+                        f'(std::isfinite({arg_expr}) ? {sprintf_str} : "{nanval}")'
+                    )
                 return literal(sprintf_str)
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
