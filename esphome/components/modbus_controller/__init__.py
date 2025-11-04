@@ -3,10 +3,10 @@ import binascii
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import modbus
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
-    CONF_ENABLED,
     CONF_ID,
     CONF_LAMBDA,
     CONF_NAME,
