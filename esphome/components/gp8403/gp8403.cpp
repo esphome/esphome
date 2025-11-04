@@ -27,8 +27,7 @@ void GP8403Component::dump_config() {
                 "GP8403:\n"
                 "  Voltage: %dV\n"
                 "  Model: %s",
-                this->voltage_ == GP8403_VOLTAGE_5V ? 5 : 10,
-                LOG_STR_ARG(model_to_string(this->model_)));
+                this->voltage_ == GP8403_VOLTAGE_5V ? 5 : 10, LOG_STR_ARG(model_to_string(this->model_)));
   LOG_I2C_DEVICE(this);
 }
 
