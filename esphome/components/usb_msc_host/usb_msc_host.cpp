@@ -383,9 +383,16 @@ void USBMscDevice::list_files() {
   }
 }
 
-void USBMscHost::setup() { ESP_LOGCONFIG(TAG, "Registering USB MSC Host Component..."); }
+void USBMscHost::setup() {
+  ESP_LOGCONFIG(TAG, "Registering USB MSC Host Component...");
+  ESP_LOGI(TAG, "USBMscHost setup() called");
+}
 
-void USBMscDevice::setup() { ESP_LOGCONFIG(TAG, "Registering USB MSC Device"); }
+void USBMscDevice::setup() {
+  ESP_LOGCONFIG(TAG, "Registering USB MSC Device with VID=%04X PID=%04X", this->vid_, this->pid_);
+  ESP_LOGI(TAG, "USBMscDevice setup() called, calling parent USBClient::setup()");
+  usb_host::USBClient::setup();  // Call parent setup to register with USB stack
+}
 
 void USBMscDevice::dump_config() { ESP_LOGCONFIG(TAG, "USB MSC Device:"); }
 
