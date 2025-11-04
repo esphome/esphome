@@ -403,8 +403,10 @@ TransferRequest *USBClient::get_trq_() {
 void USBClient::disconnect() {
   this->on_disconnected();
 
-  // NEW: Release device claim
-  if (this->parent_ != nullptr && this->device_addr_ != -1) {
+  // NEW: Release device claim - but only if we actually claimed it (state == CONNECTED)
+  // If we opened the device but didn't claim it (e.g., wildcard skipped MSC device),
+  // don't release it - the interface-class handler may have claimed it instead
+  if (this->parent_ != nullptr && this->device_addr_ != -1 && this->state_ == USB_CLIENT_CONNECTED) {
     this->parent_->release_device(this->device_addr_);
   }
 
