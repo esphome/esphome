@@ -60,7 +60,7 @@ class USBMscHost : public Component {
   void free_all_msc_devices(void);
   void free_msc_device(int slot);
   int8_t find_free_slot(void);
-  esp_err_t allocate_new_msc_device(uint8_t new_dev_address);
+  esp_err_t allocate_new_msc_device(uint8_t new_dev_address, const std::string &mount_path);
   int8_t find_msc_device_slot(uint8_t usb_addr);
   msc_host_device_handle_t get_handle_by_address(uint8_t usb_addr);
 
@@ -77,6 +77,9 @@ class USBMscDevice : public Component, public usb_host::USBDeviceHandler, public
   void dump_config() override;
 
   void set_usb_host(usb_host::USBHost *usb_host) { this->usb_host_ = usb_host; }
+  void set_mount_path(const std::string &mount_path) { this->mount_path_ = mount_path; }
+  void set_vid(uint16_t vid) { this->vid_ = vid; }
+  void set_pid(uint16_t pid) { this->pid_ = pid; }
 
   // USBDeviceHandler Interface implementation
   bool matches_device(const usb_config_desc_t *config_desc) override;
@@ -94,6 +97,10 @@ class USBMscDevice : public Component, public usb_host::USBDeviceHandler, public
   usb_device_handle_t device_handle_{nullptr};
   uint8_t device_addr_{255};
   usb_host::USBHost *usb_host_{nullptr};
+  std::string mount_path_;
+  uint16_t vid_{0x0000};  // 0x0000 = wildcard, match any VID
+  uint16_t pid_{0x0000};  // 0x0000 = wildcard, match any PID
+  int8_t slot_{-1};       // Track which slot this device is using
 };
 
 }  // namespace usb_msc_host

@@ -72,6 +72,7 @@ int8_t USBMscHost::find_msc_device_slot(uint8_t usb_addr) {
  * If any step fails, the function ensures proper cleanup of allocated resources before returning an error.
  *
  * @param[in] new_dev_address    USB device address
+ * @param[in] mount_path         VFS mount path for this device
  *
  * @return
  *         - ESP_OK on success.
@@ -79,14 +80,15 @@ int8_t USBMscHost::find_msc_device_slot(uint8_t usb_addr) {
  *         - ESP_ERR_NO_MEM if memory allocation fails.
  *         - Other esp_err_t codes if device installation or VFS registration fails.
  */
-esp_err_t USBMscHost::allocate_new_msc_device(uint8_t new_dev_address) {
+esp_err_t USBMscHost::allocate_new_msc_device(uint8_t new_dev_address, const std::string &mount_path) {
   int slot = this->find_free_slot();
   if (slot < 0) {
     ESP_LOGW(TAG, "No free slots for new MSC device (max %d)", MAX_MSC_DEVICES);
     return ESP_ERR_NOT_FOUND;
   }
 
-  ESP_LOGI(TAG, "Allocating slot %d for device address %d", slot, new_dev_address);
+  ESP_LOGI(TAG, "Allocating slot %d for device address %d with mount path '%s'", slot, new_dev_address,
+           mount_path.c_str());
 
   // void *slotbuffer = calloc(1, sizeof(msc_dev_entry_t));
   this->msc_devices_[slot] = (msc_dev_entry_t *) calloc(1, sizeof(msc_dev_entry_t));
@@ -116,9 +118,6 @@ esp_err_t USBMscHost::allocate_new_msc_device(uint8_t new_dev_address) {
       .max_files = 5,
       .allocation_unit_size = 1024,
   };
-
-  char mount_path[16];
-  snprintf(mount_path, sizeof(mount_path), "%s", MNT_PATH);
 
   err = msc_host_vfs_register(this->msc_devices_[slot]->msc_device, mount_path, &mount_config,
                               &this->msc_devices_[slot]->vfs_handle);
@@ -247,31 +246,27 @@ void USBMscDevice::print_device_info() {
  * @brief Perform basic file operations on the mounted USB storage device.
  *
  * This function demonstrates basic file I/O operations:
- *  - Create a directory `/usb<slot>/esp` if it does not exist.
+ *  - Create a directory `<mount_path>/esp` if it does not exist.
  *  - Create a file `test.txt` in the directory with sample content if it does not exist.
  *  - Read the content of the `test.txt` file and print it to the console.
- *
- * @param[in] slot Index of the mounted USB device (0 to MAX_MSC_DEVICES-1).
  */
 void USBMscDevice::file_operations() {
-  char directory[32];
-  char file_path[32];
-  snprintf(directory, sizeof(directory), "%s/esp", MNT_PATH);
-  snprintf(file_path, sizeof(file_path), "%s/esp/test.txt", MNT_PATH);
+  std::string directory = this->mount_path_ + "/esp";
+  std::string file_path = this->mount_path_ + "/esp/test.txt";
 
-  // Create /usb<slot>/esp directory
+  // Create <mount_path>/esp directory
   struct stat s = {0};
-  bool directory_exists = stat(directory, &s) == 0;
+  bool directory_exists = stat(directory.c_str(), &s) == 0;
   if (!directory_exists) {
-    if (mkdir(directory, 0775) != 0) {
+    if (mkdir(directory.c_str(), 0775) != 0) {
       ESP_LOGE(TAG, "mkdir failed with errno: %s", strerror(errno));
     }
   }
 
-  // Create /usb<slot>/esp/test.txt file, if it doesn't exist
-  if (stat(file_path, &s) != 0) {
+  // Create <mount_path>/esp/test.txt file, if it doesn't exist
+  if (stat(file_path.c_str(), &s) != 0) {
     ESP_LOGI(TAG, "Creating file");
-    FILE *f = fopen(file_path, "w");
+    FILE *f = fopen(file_path.c_str(), "w");
     if (f == NULL) {
       ESP_LOGE(TAG, "Failed to open file for writing");
       return;
@@ -283,7 +278,7 @@ void USBMscDevice::file_operations() {
   // Read back the file
   FILE *f;
   ESP_LOGI(TAG, "Reading file");
-  f = fopen(file_path, "r");
+  f = fopen(file_path.c_str(), "r");
   if (f == NULL) {
     ESP_LOGE(TAG, "Failed to open file for reading");
     return;
@@ -296,7 +291,7 @@ void USBMscDevice::file_operations() {
   if (pos) {
     *pos = '\0';
   }
-  ESP_LOGI(TAG, "Read from file '%s': '%s'", file_path, line);
+  ESP_LOGI(TAG, "Read from file '%s': '%s'", file_path.c_str(), line);
 }
 
 /**
@@ -307,16 +302,13 @@ void USBMscDevice::file_operations() {
  *  - A read speed test by reading the same number of 4KB blocks from the file.
  *
  * The results (in MiB/s) are printed to the console.
- *
- * @param[in] slot Index of the mounted USB device (0 to MAX_MSC_DEVICES-1).
  */
 void USBMscDevice::speed_test() {
 #define ITERATIONS 256  // 256 * 4kb = 1MB
   int64_t test_start, test_end;
-  char test_file[32];
-  snprintf(test_file, sizeof(test_file), "%s/esp/dummy", MNT_PATH);
+  std::string test_file = this->mount_path_ + "/esp/dummy";
 
-  FILE *f = fopen(test_file, "wb+");
+  FILE *f = fopen(test_file.c_str(), "wb+");
   if (f == NULL) {
     ESP_LOGE(TAG, "Failed to open file for writing");
     return;
@@ -328,7 +320,7 @@ void USBMscDevice::speed_test() {
   void *data = malloc(BUFFER_SIZE);
   assert(data);
 
-  ESP_LOGI(TAG, "Writing to file %s", test_file);
+  ESP_LOGI(TAG, "Writing to file %s", test_file.c_str());
   test_start = esp_timer_get_time();
   for (int i = 0; i < ITERATIONS; i++) {
     if (fwrite(data, BUFFER_SIZE, 1, f) == 0) {
@@ -342,7 +334,7 @@ void USBMscDevice::speed_test() {
   ESP_LOGI(TAG, "Write speed %1.2f MiB/s", (BUFFER_SIZE * ITERATIONS) / (float) (test_end - test_start));
   rewind(f);
 
-  ESP_LOGI(TAG, "Reading from file %s", test_file);
+  ESP_LOGI(TAG, "Reading from file %s", test_file.c_str());
   test_start = esp_timer_get_time();
   for (int i = 0; i < ITERATIONS; i++) {
     if (0 == fread(data, BUFFER_SIZE, 1, f)) {
@@ -360,37 +352,27 @@ void USBMscDevice::speed_test() {
 }
 
 /**
- * @brief List contents of the root directories of all mounted USB storage devices.
+ * @brief List contents of the root directory of this mounted USB storage device.
  *
- * This function iterates over all mounted MSC devices and lists the contents
- * of their root directories. It is intended for debugging and demonstration purposes.
- *
- * For each connected and mounted device, the function attempts to open the root directory
- * `/usb<slot>` and print the names of all files and directories contained within.
+ * This function lists the contents of the root directory for this specific device.
+ * It is intended for debugging and demonstration purposes.
  *
  * If opening the directory fails, an error is logged.
  */
 void USBMscDevice::list_files() {
-  ESP_LOGI(TAG, "ls command output for device:");
-  for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (this->parent_->msc_devices_[i] != NULL) {
-      char mount_path[16];
-      snprintf(mount_path, sizeof(mount_path), "%s%d", MNT_PATH, i);
+  ESP_LOGI(TAG, "Listing contents of '%s'", this->mount_path_.c_str());
 
-      ESP_LOGI(TAG, "Listing contents of %s", mount_path);
-      struct dirent *d;
-      DIR *dh = opendir(mount_path);
-      if (!dh) {
-        ESP_LOGE(TAG, "Failed to open directory: %s", mount_path);
-        continue;
-      }
-
-      while ((d = readdir(dh)) != NULL) {
-        ESP_LOGI("%s/%s\n", mount_path, d->d_name);
-      }
-      closedir(dh);
-    }
+  struct dirent *d;
+  DIR *dh = opendir(this->mount_path_.c_str());
+  if (!dh) {
+    ESP_LOGE(TAG, "Failed to open directory: %s", this->mount_path_.c_str());
+    return;
   }
+
+  while ((d = readdir(dh)) != NULL) {
+    ESP_LOGI(TAG, "  %s/%s", this->mount_path_.c_str(), d->d_name);
+  }
+  closedir(dh);
 }
 
 // Dummy callback for msc_host_install - we don't use MSC library's event system
@@ -430,21 +412,49 @@ void USBMscDevice::setup() {
 
 void USBMscDevice::dump_config() { ESP_LOGCONFIG(TAG, "USB MSC Device:"); }
 
-// NEW: Interface-class based matching (uses existing find_msc_interface logic)
+// Interface-class based matching with optional VID/PID filtering
 bool USBMscDevice::matches_device(const usb_config_desc_t *config_desc) {
+  // First check if device has MSC interface
   const usb_intf_desc_t *msc_intf = find_msc_interface(config_desc);
-  if (msc_intf != nullptr) {
-    ESP_LOGD(TAG, "Device matched: MSC interface found (Class=0x%02X, SubClass=0x%02X, Protocol=0x%02X)",
-             msc_intf->bInterfaceClass, msc_intf->bInterfaceSubClass, msc_intf->bInterfaceProtocol);
+  if (msc_intf == nullptr) {
+    ESP_LOGV(TAG, "Device not matched: No MSC interface found");
+    return false;
+  }
+
+  // If both VID and PID are 0x0000 (wildcard), match any MSC device
+  if (this->vid_ == 0x0000 && this->pid_ == 0x0000) {
+    ESP_LOGD(
+        TAG,
+        "Device matched: MSC interface found (Class=0x%02X, SubClass=0x%02X, Protocol=0x%02X) with wildcard VID/PID",
+        msc_intf->bInterfaceClass, msc_intf->bInterfaceSubClass, msc_intf->bInterfaceProtocol);
     return true;
   }
-  ESP_LOGV(TAG, "Device not matched: No MSC interface found");
-  return false;
+
+  // VID/PID filtering requested - need to check device descriptor
+  // The config descriptor is preceded by the device descriptor in the descriptor chain
+  // Device descriptor is 18 bytes, so we can get VID/PID from it
+  // Note: This assumes the descriptor layout follows USB spec (device desc at offset -18)
+  const uint8_t *desc_start = (const uint8_t *) config_desc;
+  const usb_device_desc_t *device_desc = (const usb_device_desc_t *) (desc_start - 18);
+
+  bool vid_match = (this->vid_ == 0x0000) || (device_desc->idVendor == this->vid_);
+  bool pid_match = (this->pid_ == 0x0000) || (device_desc->idProduct == this->pid_);
+
+  if (!vid_match || !pid_match) {
+    ESP_LOGV(TAG, "Device not matched: VID/PID filter (want: 0x%04X/0x%04X, got: 0x%04X/0x%04X)", this->vid_,
+             this->pid_, device_desc->idVendor, device_desc->idProduct);
+    return false;
+  }
+
+  ESP_LOGD(TAG, "Device matched: MSC interface + VID/PID filter (0x%04X/0x%04X)", device_desc->idVendor,
+           device_desc->idProduct);
+  return true;
 }
 
-// NEW: Called when device is matched and claimed by interface-class handler
+// Called when device is matched and claimed by interface-class handler
 void USBMscDevice::on_device_connected(usb_device_handle_t device_handle, uint8_t addr) {
-  ESP_LOGI(TAG, "USB MSC Device connected via interface-class matching (address=%d)", addr);
+  ESP_LOGI(TAG, "USB MSC Device connected via interface-class matching (address=%d, mount_path='%s')", addr,
+           this->mount_path_.c_str());
 
   this->device_addr_ = addr;
 
@@ -457,12 +467,20 @@ void USBMscDevice::on_device_connected(usb_device_handle_t device_handle, uint8_
   }
 
   // Now call msc_host_install_device() which will open the device with its own client handle
-  esp_err_t err = this->parent_->allocate_new_msc_device(addr);
+  esp_err_t err = this->parent_->allocate_new_msc_device(addr, this->mount_path_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to allocate new MSC device: %s", esp_err_to_name(err));
     return;
   }
-  ESP_LOGI(TAG, "Allocated memory for new MSC device: %s", esp_err_to_name(err));
+
+  // Find the slot that was just allocated for this device
+  this->slot_ = this->parent_->find_msc_device_slot(addr);
+  if (this->slot_ < 0) {
+    ESP_LOGE(TAG, "Failed to find slot for newly allocated device!");
+    return;
+  }
+
+  ESP_LOGI(TAG, "Successfully allocated MSC device to slot %d", this->slot_);
 
   // Print information about the connected disk
   this->print_device_info();

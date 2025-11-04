@@ -16,6 +16,9 @@ DEPENDENCIES = ["usb_host", "esp32"]
 AUTO_LOAD = []
 
 CONF_USB_HOST_ID = "usb_host_id"
+CONF_MOUNT_PATH = "mount_path"
+CONF_VID = "vid"
+CONF_PID = "pid"
 
 require_vfs_dir()
 
@@ -30,31 +33,42 @@ USBMscDevice = usb_msc_host_ns.class_(
 
 
 async def register_usb_msc_handler(device_config, msc_host, usb_host):
-    # NEW: Interface-class based handler (no VID/PID needed)
+    # Interface-class based handler with optional VID/PID filtering
     var = cg.new_Pvariable(device_config[CONF_ID])
     await cg.register_component(var, device_config)
     cg.add(var.set_parent(msc_host))  # Set USBMscHost as parent
     cg.add(
         var.set_usb_host(usb_host)
     )  # Set USBHost reference for closing device handles
+
+    # Set mount path
+    cg.add(var.set_mount_path(device_config[CONF_MOUNT_PATH]))
+
+    # Set VID/PID (0x0000 means wildcard - match any)
+    cg.add(var.set_vid(device_config[CONF_VID]))
+    cg.add(var.set_pid(device_config[CONF_PID]))
+
     cg.add(
         usb_host.register_device_handler(var)
     )  # Register as interface-class handler with USBHost
     return var
 
 
+DEVICE_SCHEMA = cv.COMPONENT_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(USBMscDevice),
+        cv.Required(CONF_MOUNT_PATH): cv.string,
+        cv.Optional(CONF_VID, default=0x0000): cv.hex_uint16_t,
+        cv.Optional(CONF_PID, default=0x0000): cv.hex_uint16_t,
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(USBMscHost),
-            cv.GenerateID(CONF_USB_HOST_ID): cv.use_id(
-                USBHost
-            ),  # NEW: Reference to USBHost
-            cv.Optional(CONF_DEVICES): cv.ensure_list(
-                cv.COMPONENT_SCHEMA.extend(
-                    {cv.GenerateID(): cv.declare_id(USBMscDevice)}
-                )
-            ),
+            cv.GenerateID(CONF_USB_HOST_ID): cv.use_id(USBHost),
+            cv.Optional(CONF_DEVICES): cv.ensure_list(DEVICE_SCHEMA),
         }
     ),
     cv.only_with_esp_idf,
