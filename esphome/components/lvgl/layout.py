@@ -122,7 +122,7 @@ class FlexLayout(Layout):
 
     def get_layout_schemas(self, config: dict) -> tuple:
         layout = config.get(CONF_LAYOUT)
-        if not isinstance(layout, dict) or layout.get(CONF_TYPE) != TYPE_FLEX:
+        if not isinstance(layout, dict) or layout.get(CONF_TYPE).lower() != TYPE_FLEX:
             return None, {}
         child_schema = FLEX_OBJ_SCHEMA
         if grow := layout.get(CONF_FLEX_GROW):
@@ -161,6 +161,8 @@ class DirectionalLayout(FlexLayout):
         return self.direction
 
     def get_layout_schemas(self, config: dict) -> tuple:
+        if not isinstance(config.get(CONF_LAYOUT), str):
+            return None, {}
         if config.get(CONF_LAYOUT, "").lower() != self.direction:
             return None, {}
         return cv.one_of(self.direction, lower=True), flex_hv_schema(self.direction)
@@ -206,7 +208,7 @@ class GridLayout(Layout):
             # Not a valid grid layout string
             return None, {}
 
-        if not isinstance(layout, dict) or layout.get(CONF_TYPE) != TYPE_GRID:
+        if not isinstance(layout, dict) or layout.get(CONF_TYPE).lower() != TYPE_GRID:
             return None, {}
         return (
             {
@@ -259,7 +261,7 @@ class GridLayout(Layout):
                 )
         # should be guaranteed to be a dict at this point
         assert isinstance(layout, dict)
-        assert layout.get(CONF_TYPE) == TYPE_GRID
+        assert layout.get(CONF_TYPE).lower() == TYPE_GRID
         rows = len(layout[CONF_GRID_ROWS])
         columns = len(layout[CONF_GRID_COLUMNS])
         used_cells = [[None] * columns for _ in range(rows)]
