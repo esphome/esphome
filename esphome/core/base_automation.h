@@ -100,20 +100,20 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
 
   void loop() override {
     // Safe to use cached time - only called from Application::loop()
-    this->check_internal(App.get_loop_component_start_time());
+    this->check_internal_(App.get_loop_component_start_time());
   }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   bool check(Ts... x) override {
     auto now = millis();
-    if (!this->check_internal(now))
+    if (!this->check_internal_(now))
       return false;
     return now - this->last_inactive_ >= this->time_.value(x...);
   }
 
  protected:
-  bool check_internal(uint32_t now) {
+  bool check_internal_(uint32_t now) {
     bool cond = this->condition_->check();
     if (!cond)
       this->last_inactive_ = now;
