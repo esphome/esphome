@@ -1,0 +1,8 @@
+bridge:
+  platform: usb_uart
+  uart_id: uart_0
+  usb_cdc_acm_id: cdc_acm_1
+  dtr_pin: 40
+  rts_pin: 41
+
+<<: !include bridge-common.yaml
