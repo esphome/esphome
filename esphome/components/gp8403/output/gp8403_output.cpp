@@ -14,7 +14,7 @@ void GP8403Output::dump_config() {
                 this->channel_);
 }
 
-void GP8403Output::write_state(float state) { this->parent_->write_value(state, this->channel_); }
+void GP8403Output::write_state(float state) { this->parent_->write_state(state, this->channel_); }
 
 }  // namespace gp8403
 }  // namespace esphome

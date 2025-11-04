@@ -24,7 +24,7 @@ class GP8403Component : public Component, public i2c::I2CDevice {
   void set_model(GP8403Model model) { this->model_ = model; }
   void set_voltage(gp8403::GP8403Voltage voltage) { this->voltage_ = voltage; }
 
-  void write_value(float value, uint8_t channel);
+  void write_state(float state, uint8_t channel);
 
  protected:
   GP8403Voltage voltage_;

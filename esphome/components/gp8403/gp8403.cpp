@@ -31,14 +31,14 @@ void GP8403Component::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-void GP8403Component::write_value(float value, uint8_t channel) {
+void GP8403Component::write_state(float state, uint8_t channel) {
   uint16_t val = 0;
   switch (this->model_) {
     case GP8403Model::GP8403:
-      val = ((uint16_t) (4095 * value)) << 4;
+      val = ((uint16_t) (4095 * state)) << 4;
       break;
     case GP8403Model::GP8413:
-      val = ((uint16_t) (32767 * value)) << 1;
+      val = ((uint16_t) (32767 * state)) << 1;
       break;
     default:
       ESP_LOGE(TAG, "Unknown model %s", LOG_STR_ARG(model_to_string(this->model_)));
