@@ -30,7 +30,7 @@ namespace esphome {
 namespace usb_msc_host {
 
 static constexpr char *const MNT_PATH = "/usb";
-static constexpr uint8_t BUFFER_SIZE = 4096;
+static constexpr uint16_t BUFFER_SIZE = 4096;
 static constexpr uint8_t MAX_MSC_DEVICES = CONFIG_FATFS_VOLUME_COUNT;
 
 /**
