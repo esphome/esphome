@@ -1,1 +1,4 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/8266-ard.yaml
+
 <<: !include common-netznoe.yaml

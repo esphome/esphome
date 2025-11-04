@@ -1,1 +1,4 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-c3-idf.yaml
+
 <<: !include common-generic.yaml
