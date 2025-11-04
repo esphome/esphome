@@ -1,10 +1,9 @@
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "tinyusb_component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tinyusb {
+namespace esphome::tinyusb {
 
 static const char *TAG = "tinyusb";
 
@@ -12,19 +11,21 @@ void TinyUSB::setup() {
   // Use the device's MAC address as its serial number if no serial number is defined
   if (this->string_descriptor_[SERIAL_NUMBER] == nullptr) {
     static char mac_addr_buf[13];
-    auto mac_addr_str = get_mac_address();
-    memccpy(mac_addr_buf, mac_addr_str.c_str(), 0, sizeof(mac_addr_buf));
+    get_mac_address_into_buffer(mac_addr_buf);
     this->string_descriptor_[SERIAL_NUMBER] = mac_addr_buf;
   }
 
   this->tusb_cfg_ = {
       .descriptor = &this->usb_descriptor_,
       .string_descriptor = this->string_descriptor_,
-      .string_descriptor_count = 6,
+      .string_descriptor_count = SIZE,
       .external_phy = false,
   };
 
-  ESP_ERROR_CHECK(tinyusb_driver_install(&this->tusb_cfg_));
+  esp_err_t result = tinyusb_driver_install(&this->tusb_cfg_);
+  if (result != ESP_OK) {
+    this->mark_failed();
+  }
 }
 
 void TinyUSB::dump_config() {
@@ -39,6 +40,5 @@ void TinyUSB::dump_config() {
                 this->string_descriptor_[PRODUCT], this->string_descriptor_[SERIAL_NUMBER]);
 }
 
-}  // namespace tinyusb
-}  // namespace esphome
+}  // namespace esphome::tinyusb
 #endif

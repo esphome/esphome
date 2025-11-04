@@ -1,7 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome.components.esp32.const import VARIANT_ESP32S2, VARIANT_ESP32S3
+from esphome.components.esp32.const import (
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
@@ -31,7 +35,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     esp32.only_on_variant(
-        supported=[VARIANT_ESP32S2, VARIANT_ESP32S3],
+        supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
     ),
 )
 

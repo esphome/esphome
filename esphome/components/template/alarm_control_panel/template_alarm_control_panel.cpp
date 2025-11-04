@@ -42,23 +42,21 @@ static const LogString *sensor_type_to_string(AlarmSensorType type) {
 #endif
 
 void TemplateAlarmControlPanel::dump_config() {
-  ESP_LOGCONFIG(TAG, "TemplateAlarmControlPanel:");
   ESP_LOGCONFIG(TAG,
+                "TemplateAlarmControlPanel:\n"
                 "  Current State: %s\n"
-                "  Number of Codes: %u",
-                LOG_STR_ARG(alarm_control_panel_state_to_string(this->current_state_)), this->codes_.size());
-  if (!this->codes_.empty())
-    ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", YESNO(this->requires_code_to_arm_));
-  ESP_LOGCONFIG(TAG, "  Arming Away Time: %" PRIu32 "s", (this->arming_away_time_ / 1000));
-  if (this->arming_home_time_ != 0)
-    ESP_LOGCONFIG(TAG, "  Arming Home Time: %" PRIu32 "s", (this->arming_home_time_ / 1000));
-  if (this->arming_night_time_ != 0)
-    ESP_LOGCONFIG(TAG, "  Arming Night Time: %" PRIu32 "s", (this->arming_night_time_ / 1000));
-  ESP_LOGCONFIG(TAG,
+                "  Number of Codes: %u\n"
+                "  Requires Code To Arm: %s\n"
+                "  Arming Away Time: %" PRIu32 "s\n"
+                "  Arming Home Time: %" PRIu32 "s\n"
+                "  Arming Night Time: %" PRIu32 "s\n"
                 "  Pending Time: %" PRIu32 "s\n"
                 "  Trigger Time: %" PRIu32 "s\n"
                 "  Supported Features: %" PRIu32,
-                (this->pending_time_ / 1000), (this->trigger_time_ / 1000), this->get_supported_features());
+                LOG_STR_ARG(alarm_control_panel_state_to_string(this->current_state_)), this->codes_.size(),
+                YESNO(!this->codes_.empty() && this->requires_code_to_arm_), (this->arming_away_time_ / 1000),
+                (this->arming_home_time_ / 1000), (this->arming_night_time_ / 1000), (this->pending_time_ / 1000),
+                (this->trigger_time_ / 1000), this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
   for (auto const &[sensor, info] : this->sensor_map_) {
     ESP_LOGCONFIG(TAG,
