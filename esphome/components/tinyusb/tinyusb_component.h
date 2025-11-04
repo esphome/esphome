@@ -1,12 +1,11 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/component.h"
 
 #include "tinyusb.h"
 #include "tusb.h"
 
-namespace esphome {
-namespace tinyusb {
+namespace esphome::tinyusb {
 
 enum USBDStringDescriptor : uint8_t {
   LANGUAGE_ID = 0,
@@ -69,6 +68,5 @@ class TinyUSB : public Component {
   };
 };
 
-}  // namespace tinyusb
-}  // namespace esphome
+}  // namespace esphome::tinyusb
 #endif
