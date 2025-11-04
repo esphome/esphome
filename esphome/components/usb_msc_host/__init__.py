@@ -7,7 +7,7 @@ from esphome.components.esp32 import (
     only_on_variant,
     require_vfs_dir,
 )
-from esphome.components import usb_host
+from esphome.components.usb_host import USBHost, usb_host_ns
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID
 
@@ -24,7 +24,7 @@ USBMscHost = usb_msc_host_ns.class_("USBMscHost", cg.Component)
 USBMscDevice = usb_msc_host_ns.class_(
     "USBMscDevice",
     cg.Component,
-    usb_host.usb_host_ns.class_("USBDeviceHandler"),
+    usb_host_ns.class_("USBDeviceHandler"),
     cg.Parented.template(USBMscHost),
 )
 
