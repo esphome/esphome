@@ -26,13 +26,11 @@ def validate_interfaces(config):
     for item in config:
         if item[CONF_NUMBER] > len(config) - 1:
             raise cv.Invalid(
-                f"{CONF_NUMBER} must be less than the number of configured USB CDC ACM components"
+                f"{CONF_NUMBER} must be less than the number of configured {CONF_INTERFACES}"
             )
         int_set.add(item[CONF_NUMBER])
     if len(int_set) != len(config):
-        raise cv.Invalid(
-            f"{CONF_NUMBER} must be unique across all USB CDC ACM {CONF_INTERFACES}"
-        )
+        raise cv.Invalid(f"{CONF_NUMBER} must be unique across all {CONF_INTERFACES}")
 
     return config
 
