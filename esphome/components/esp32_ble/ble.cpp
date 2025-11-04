@@ -27,10 +27,6 @@ extern "C" {
 #include <esp32-hal-bt.h>
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-#include <lwip/sockets.h>
-#endif
-
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
