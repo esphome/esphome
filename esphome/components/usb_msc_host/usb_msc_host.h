@@ -29,7 +29,7 @@
 namespace esphome {
 namespace usb_msc_host {
 
-static constexpr char *const MNT_PATH = "/usb";
+static constexpr const char *MNT_PATH = "/usb";
 static constexpr uint16_t BUFFER_SIZE = 4096;
 static constexpr uint8_t MAX_MSC_DEVICES = CONFIG_FATFS_VOLUME_COUNT;
 
@@ -45,7 +45,7 @@ typedef struct {
   msc_host_vfs_handle_t vfs_handle;    /*!< VFS handle assigned to the MSC device */
 } msc_dev_entry_t;
 
-static constexpr char *const TAG = "usb_msc_host";
+static constexpr const char *TAG = "usb_msc_host";
 static constexpr uint8_t SCSI_COMMAND_SET = 0x06;
 static constexpr uint8_t BULK_ONLY_TRANSFER = 0x50;
 
