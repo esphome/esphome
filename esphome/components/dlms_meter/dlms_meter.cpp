@@ -56,6 +56,13 @@ void DlmsMeterComponent::loop() {
     while (frame_offset < this->receive_buffer_.size()) {
       ESP_LOGV(TAG, "MBUS: Parsing frame");
 
+      // Ensure enough bytes remain for the minimal intro header before accessing indices
+      if (this->receive_buffer_.size() - frame_offset < MBUS_HEADER_INTRO_LENGTH) {
+        ESP_LOGE(TAG, "MBUS: Not enough data for frame header (need %d, have %d)", MBUS_HEADER_INTRO_LENGTH, (this->receive_buffer_.size() - frame_offset));
+        this->abort_();
+        return;
+      }
+
       // Check start bytes
       if (this->receive_buffer_[frame_offset + MBUS_START1_OFFSET] != START_BYTE_LONG_FRAME ||
           this->receive_buffer_[frame_offset + MBUS_START2_OFFSET] != START_BYTE_LONG_FRAME) {
