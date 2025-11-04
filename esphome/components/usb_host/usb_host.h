@@ -5,6 +5,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include <vector>
+#include <set>
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -42,6 +43,20 @@ static const char *const TAG = "usb_host";
 // Forward declarations
 struct TransferRequest;
 class USBClient;
+class USBHost;
+
+// NEW: Interface for class-based device handlers (e.g., MSC, HID)
+// Operates in parallel to VID/PID-based USBClient system
+class USBDeviceHandler {
+ public:
+  virtual ~USBDeviceHandler() = default;
+  // Check if this handler supports the device based on interface descriptors
+  virtual bool matches_device(const usb_config_desc_t *config_desc) = 0;
+  // Called when device is matched and claimed by this handler
+  virtual void on_device_connected(usb_device_handle_t device_handle, uint8_t addr) = 0;
+  // Called when device is disconnected
+  virtual void on_device_disconnected(usb_device_handle_t device_handle) = 0;
+};
 
 // constants for setup packet type
 static const uint8_t USB_RECIP_DEVICE = 0;
@@ -131,7 +146,7 @@ enum ClientState {
   USB_CLIENT_GET_INFO,
   USB_CLIENT_CONNECTED,
 };
-class USBClient : public Component {
+class USBClient : public Component, public Parented<USBHost> {
   friend class USBHost;
 
  public:
@@ -190,8 +205,21 @@ class USBHost : public Component {
   void loop() override;
   void setup() override;
 
+  // NEW: Device claiming system for coordination between VID/PID clients and interface-class handlers
+  bool try_claim_device(uint8_t address);
+  void release_device(uint8_t address);
+
+  // NEW: Register interface-class based handlers (e.g., MSC, HID)
+  void register_device_handler(USBDeviceHandler *handler);
+
+  // NEW: Try to dispatch device to interface-class handlers (called when not claimed by VID/PID)
+  void try_dispatch_to_handlers(uint8_t address);
+
  protected:
-  std::vector<USBClient *> clients_{};
+  std::vector<USBClient *> clients_{};                    // EXISTING: VID/PID based clients
+  std::vector<USBDeviceHandler *> handlers_{};           // NEW: Interface-class based handlers
+  std::set<uint8_t> claimed_devices_{};                  // NEW: Track devices claimed by VID/PID clients
+  usb_host_client_handle_t coordinator_handle_{};        // NEW: Handle for handler dispatch
 };
 
 }  // namespace usb_host

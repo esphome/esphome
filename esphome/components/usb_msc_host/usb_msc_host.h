@@ -67,14 +67,21 @@ class USBMscHost : public Component {
   msc_dev_entry_t *msc_devices_[MAX_MSC_DEVICES] = {NULL};
 };
 
-class USBMscDevice : public usb_host::USBClient, public Parented<USBMscHost> {
+class USBMscDevice : public Component, public usb_host::USBDeviceHandler, public Parented<USBMscHost> {
   friend class USBHost;
   friend class USBMscHost;
 
  public:
-  USBMscDevice(uint16_t vid, uint16_t pid) : usb_host::USBClient(vid, pid) {}
+  USBMscDevice() = default;
   void setup() override;
   void dump_config() override;
+
+  // USBDeviceHandler Interface implementation
+  bool matches_device(const usb_config_desc_t *config_desc) override;
+  void on_device_connected(usb_device_handle_t device_handle, uint8_t addr) override;
+  void on_device_disconnected(usb_device_handle_t device_handle) override;
+
+  // MSC-specific operations
   void list_files();
   void speed_test();
   void file_operations();
@@ -82,8 +89,8 @@ class USBMscDevice : public usb_host::USBClient, public Parented<USBMscHost> {
   uint8_t find_usb_addr_by_handle(msc_host_device_handle_t handle);
 
  protected:
-  void disconnect() override;
-  void on_connected() override;
+  usb_device_handle_t device_handle_{nullptr};
+  uint8_t device_addr_{255};
 };
 
 }  // namespace usb_msc_host

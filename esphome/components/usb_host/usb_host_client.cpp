@@ -263,6 +263,13 @@ void USBClient::loop() {
       } else {
         ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
         if (desc->idVendor == this->vid_ && desc->idProduct == this->pid_ || this->vid_ == 0 && this->pid_ == 0) {
+          // NEW: Try to claim device (coordinates with USBHost for interface-class handlers)
+          if (this->parent_ != nullptr && !this->parent_->try_claim_device(this->device_addr_)) {
+            ESP_LOGD(TAG, "Device %d already claimed by another client", this->device_addr_);
+            this->disconnect();
+            break;
+          }
+
           usb_device_info_t dev_info;
           err = usb_host_device_info(this->device_handle_, &dev_info);
           if (err != ESP_OK) {
@@ -369,6 +376,12 @@ TransferRequest *USBClient::get_trq_() {
 
 void USBClient::disconnect() {
   this->on_disconnected();
+
+  // NEW: Release device claim
+  if (this->parent_ != nullptr && this->device_addr_ != -1) {
+    this->parent_->release_device(this->device_addr_);
+  }
+
   auto err = usb_host_device_close(this->handle_, this->device_handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Device close failed: %s", esp_err_to_name(err));
