@@ -4,6 +4,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import camera, i2c
 from esphome.components.esp32 import add_idf_component
+from esphome.components.psram import DOMAIN as psram_domain
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
@@ -25,9 +26,8 @@ import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["esp32"]
-
-AUTO_LOAD = ["camera", "psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
@@ -144,6 +144,14 @@ CONF_FRAME_BUFFER_LOCATION = "frame_buffer_location"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
+
+def validate_fb_location_(value):
+    validator = cv.enum(ENUM_FB_LOCATION, upper=True)
+    if value.lower() == psram_domain:
+        validator = cv.All(validator, cv.requires_component(psram_domain))
+    return validator(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
         {
@@ -217,8 +225,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.framerate, cv.Range(min=0, max=1)
             ),
             cv.Optional(CONF_FRAME_BUFFER_COUNT, default=1): cv.int_range(min=1, max=2),
-            cv.Optional(CONF_FRAME_BUFFER_LOCATION, default="PSRAM"): cv.enum(
-                ENUM_FB_LOCATION, upper=True
+            cv.Optional(
+                CONF_FRAME_BUFFER_LOCATION, default="PSRAM"
+            ): validate_fb_location_,
             ),
         }
     )

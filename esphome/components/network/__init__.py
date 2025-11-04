@@ -55,6 +55,7 @@ CONFIG_SCHEMA = cv.Schema(
             esp32=False,
             rp2040=False,
             bk72xx=False,
+            host=False,
         ): cv.All(
             cv.boolean,
             cv.Any(
@@ -64,6 +65,7 @@ CONFIG_SCHEMA = cv.Schema(
                     esp8266_arduino=cv.Version(0, 0, 0),
                     rp2040_arduino=cv.Version(0, 0, 0),
                     bk72xx_arduino=cv.Version(1, 7, 0),
+                    host=cv.Version(0, 0, 0),
                 ),
                 cv.boolean_false,
             ),
