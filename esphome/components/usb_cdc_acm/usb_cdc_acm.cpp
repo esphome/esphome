@@ -140,7 +140,10 @@ void USBCDCACMInstance::setup() {
       .callback_line_coding_changed = &tinyusb_cdc_line_coding_changed_callback,
   };
 
-  ESP_ERROR_CHECK(tusb_cdc_acm_init(&this->acm_cfg_));
+  esp_err_t result = tusb_cdc_acm_init(&this->acm_cfg_);
+  if (result != ESP_OK) {
+    this->mark_failed();
+  }
 
   size_t stack_size = 4096;
   if (esp_log_level_get(TAG) > ESP_LOG_DEBUG) {
