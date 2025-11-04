@@ -19,9 +19,7 @@ void DlmsMeterComponent::dump_config() {
                 "read_timeout: %u\n"
                 "decryption_key_length: %d\n"
                 "Decryption key: (actual key only logged when log-level is VERY_VERBOSE)",
-                this->provider_,
-                this->read_timeout_,
-                this->decryption_key_length_);
+                this->provider_, this->read_timeout_, this->decryption_key_length_);
 
   // Verbose level prints decryption key!
   ESP_LOGVV(TAG, "decryption_key: %s",
