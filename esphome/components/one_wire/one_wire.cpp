@@ -23,7 +23,7 @@ bool OneWireDevice::check_address_or_index_() {
     return true;
   auto devices = this->bus_->get_devices();
 
-  if (this->index_ != 255) {
+  if (this->index_ != INDEX_NOT_SET) {
     if (this->index_ >= devices.size()) {
       ESP_LOGE(TAG, "Index %d out of range, only %d devices found", this->index_, devices.size());
       return false;

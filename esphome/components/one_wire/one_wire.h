@@ -27,8 +27,10 @@ class OneWireDevice {
   const std::string &get_address_name();
 
  protected:
+  static constexpr uint8_t INDEX_NOT_SET = 255;
+
   uint64_t address_{0};
-  uint8_t index_{255};
+  uint8_t index_{INDEX_NOT_SET};
   OneWireBus *bus_{nullptr};  ///< pointer to OneWireBus instance
   std::string address_name_;
 
