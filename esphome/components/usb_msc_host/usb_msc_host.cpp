@@ -55,7 +55,7 @@ int8_t USBMscHost::find_free_slot(void) {
 
 int8_t USBMscHost::find_msc_device_slot(uint8_t usb_addr) {
   for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (this->msc_devices_[i]->usb_addr == usb_addr) {
+    if (this->msc_devices_[i] != nullptr && this->msc_devices_[i]->usb_addr == usb_addr) {
       ESP_LOGI(TAG, "Found MSC device slot at index %d", i);
       return i;
     }
@@ -204,8 +204,8 @@ msc_host_device_handle_t USBMscHost::get_handle_by_address(uint8_t usb_addr) {
  * @param[in] info Pointer to MSC device information structure.
  */
 void USBMscDevice::print_device_info() {
-  uint8_t slot = this->parent_->find_msc_device_slot(
-      this->find_usb_addr_by_handle(this->parent_->get_handle_by_address(this->device_addr_)));
+  // Find the slot by USB address
+  int8_t slot = this->parent_->find_msc_device_slot(this->device_addr_);
   if (slot < 0) {
     ESP_LOGE(TAG, "Device slot not found for printing device info");
     return;
