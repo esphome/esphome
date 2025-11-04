@@ -61,8 +61,8 @@ class USBMscHost : public Component {
   void free_msc_device(int slot);
   int8_t find_free_slot(void);
   esp_err_t allocate_new_msc_device(uint8_t new_dev_address);
-  int8_t find_msc_device_slot(usb_device_handle_t device_handle);
-  msc_host_device_handle_t get_handle_by_address(usb_device_handle_t handle);
+  int8_t find_msc_device_slot(uint8_t usb_addr);
+  msc_host_device_handle_t get_handle_by_address(uint8_t usb_addr);
 
   msc_dev_entry_t *msc_devices_[MAX_MSC_DEVICES] = {NULL};
 };

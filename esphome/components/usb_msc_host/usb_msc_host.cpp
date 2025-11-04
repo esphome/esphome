@@ -53,9 +53,9 @@ int8_t USBMscHost::find_free_slot(void) {
   return -1;
 }
 
-int8_t USBMscHost::find_msc_device_slot(usb_device_handle_t device_handle) {
+int8_t USBMscHost::find_msc_device_slot(uint8_t usb_addr) {
   for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (this->msc_devices_[i]->usb_addr == reinterpret_cast<uint8_t>(device_handle)) {
+    if (this->msc_devices_[i]->usb_addr == usb_addr) {
       ESP_LOGI(TAG, "Found MSC device slot at index %d", i);
       return i;
     }
@@ -186,9 +186,9 @@ uint8_t USBMscDevice::find_usb_addr_by_handle(msc_host_device_handle_t handle) {
  * @param usb_device_handle_t handle
  * @return msc_host_device_handle_t, or nullptr if not found.
  */
-msc_host_device_handle_t USBMscHost::get_handle_by_address(usb_device_handle_t handle) {
+msc_host_device_handle_t USBMscHost::get_handle_by_address(uint8_t usb_addr) {
   for (uint8_t i = 0; i < MAX_MSC_DEVICES; i++) {
-    if (this->msc_devices_[i] && this->msc_devices_[i]->usb_addr == reinterpret_cast<uint8_t>(handle)) {
+    if (this->msc_devices_[i] && this->msc_devices_[i]->usb_addr == usb_addr) {
       return this->msc_devices_[i]->msc_device;
     }
   }
@@ -205,7 +205,8 @@ msc_host_device_handle_t USBMscHost::get_handle_by_address(usb_device_handle_t h
  */
 void USBMscDevice::print_device_info() {
   msc_host_device_info_t *info = nullptr;
-  uint8_t slot = this->parent_->find_msc_device_slot(this->device_handle_);
+  uint8_t slot = this->parent_->find_msc_device_slot(
+      this->find_usb_addr_by_handle(this->parent_->get_handle_by_address(this->device_addr_)));
   if (slot < 0) {
     ESP_LOGE(TAG, "Device slot not found for printing device info");
     return;
@@ -405,7 +406,7 @@ void USBMscDevice::on_connected() {
 
 void USBMscDevice::disconnect() {
   ESP_LOGCONFIG(TAG, "USB MSC Device disconnected");
-  uint8_t slot = this->parent_->find_msc_device_slot(this->device_handle_);
+  uint8_t slot = this->parent_->find_msc_device_slot(this->device_addr_);
   if (slot == (uint8_t) -1) {
     ESP_LOGE(TAG, "Could not find MSC device slot for disconnected device");
     return;
