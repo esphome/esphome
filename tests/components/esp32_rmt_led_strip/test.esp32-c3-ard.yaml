@@ -1,6 +1,0 @@
-substitutions:
-  pin1: GPIO3
-  pin2: GPIO4
-
-packages:
-  common: !include common.yaml

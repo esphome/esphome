@@ -1,3 +1,6 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
+
 <<: !include common.yaml
 
 network:

@@ -355,8 +355,8 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(10, this->icon_ref_);
 #endif
   buffer.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
-  for (const auto &it : *this->supported_preset_modes) {
-    buffer.encode_string(12, it, true);
+  for (const char *it : *this->supported_preset_modes) {
+    buffer.encode_string(12, it, strlen(it), true);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(13, this->device_id);
@@ -376,8 +376,8 @@ void ListEntitiesFanResponse::calculate_size(ProtoSize &size) const {
 #endif
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
   if (!this->supported_preset_modes->empty()) {
-    for (const auto &it : *this->supported_preset_modes) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->supported_preset_modes) {
+      size.add_length_force(1, strlen(it));
     }
   }
 #ifdef USE_DEVICES
@@ -884,6 +884,15 @@ void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_message(4, it, true);
   }
   buffer.encode_bool(5, this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  buffer.encode_uint32(6, this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  buffer.encode_bool(7, this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  buffer.encode_string(8, this->response_template);
+#endif
 }
 void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->service_ref_.size());
@@ -891,6 +900,48 @@ void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_repeated_message(1, this->data_template);
   size.add_repeated_message(1, this->variables);
   size.add_bool(1, this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  size.add_uint32(1, this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  size.add_bool(1, this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  size.add_length(1, this->response_template.size());
+#endif
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+bool HomeassistantActionResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->call_id = value.as_uint32();
+      break;
+    case 2:
+      this->success = value.as_bool();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3:
+      this->error_message = value.as_string();
+      break;
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+    case 4: {
+      // Use raw data directly to avoid allocation
+      this->response_data = value.data();
+      this->response_data_len = value.size();
+      break;
+    }
+#endif
+    default:
+      return false;
+  }
+  return true;
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -1013,6 +1064,17 @@ bool ExecuteServiceArgument::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
+  uint32_t count_bool_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 6);
+  this->bool_array.init(count_bool_array);
+  uint32_t count_int_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 7);
+  this->int_array.init(count_int_array);
+  uint32_t count_float_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 8);
+  this->float_array.init(count_float_array);
+  uint32_t count_string_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 9);
+  this->string_array.init(count_string_array);
+  ProtoDecodableMessage::decode(buffer, length);
+}
 bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2:
@@ -1033,6 +1095,11 @@ bool ExecuteServiceRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
   return true;
+}
+void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
+  uint32_t count_args = ProtoDecodableMessage::count_repeated_field(buffer, length, 2);
+  this->args.init(count_args);
+  ProtoDecodableMessage::decode(buffer, length);
 }
 #endif
 #ifdef USE_CAMERA
@@ -1112,14 +1179,14 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   for (const auto &it : *this->supported_swing_modes) {
     buffer.encode_uint32(14, static_cast<uint32_t>(it), true);
   }
-  for (const auto &it : *this->supported_custom_fan_modes) {
-    buffer.encode_string(15, it, true);
+  for (const char *it : *this->supported_custom_fan_modes) {
+    buffer.encode_string(15, it, strlen(it), true);
   }
   for (const auto &it : *this->supported_presets) {
     buffer.encode_uint32(16, static_cast<uint32_t>(it), true);
   }
-  for (const auto &it : *this->supported_custom_presets) {
-    buffer.encode_string(17, it, true);
+  for (const char *it : *this->supported_custom_presets) {
+    buffer.encode_string(17, it, strlen(it), true);
   }
   buffer.encode_bool(18, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -1134,6 +1201,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_DEVICES
   buffer.encode_uint32(26, this->device_id);
 #endif
+  buffer.encode_uint32(27, this->feature_flags);
 }
 void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id_ref_.size());
@@ -1161,8 +1229,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
     }
   }
   if (!this->supported_custom_fan_modes->empty()) {
-    for (const auto &it : *this->supported_custom_fan_modes) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->supported_custom_fan_modes) {
+      size.add_length_force(1, strlen(it));
     }
   }
   if (!this->supported_presets->empty()) {
@@ -1171,8 +1239,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
     }
   }
   if (!this->supported_custom_presets->empty()) {
-    for (const auto &it : *this->supported_custom_presets) {
-      size.add_length_force(2, it.size());
+    for (const char *it : *this->supported_custom_presets) {
+      size.add_length_force(2, strlen(it));
     }
   }
   size.add_bool(2, this->disabled_by_default);
@@ -1188,6 +1256,7 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_DEVICES
   size.add_uint32(2, this->device_id);
 #endif
+  size.add_uint32(2, this->feature_flags);
 }
 void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
@@ -1406,8 +1475,8 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon_ref_);
 #endif
-  for (const auto &it : *this->options) {
-    buffer.encode_string(6, it, true);
+  for (const char *it : *this->options) {
+    buffer.encode_string(6, it, strlen(it), true);
   }
   buffer.encode_bool(7, this->disabled_by_default);
   buffer.encode_uint32(8, static_cast<uint32_t>(this->entity_category));
@@ -1423,8 +1492,8 @@ void ListEntitiesSelectResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->icon_ref_.size());
 #endif
   if (!this->options->empty()) {
-    for (const auto &it : *this->options) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->options) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->disabled_by_default);

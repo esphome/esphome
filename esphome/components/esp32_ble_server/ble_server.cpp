@@ -10,7 +10,9 @@
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#endif
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
 
@@ -147,20 +149,28 @@ BLEService *BLEServer::get_service(ESPBTUUID uuid, uint8_t inst_id) {
   return nullptr;
 }
 
+void BLEServer::dispatch_callbacks_(CallbackType type, uint16_t conn_id) {
+  for (auto &entry : this->callbacks_) {
+    if (entry.type == type) {
+      entry.callback(conn_id);
+    }
+  }
+}
+
 void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                     esp_ble_gatts_cb_param_t *param) {
   switch (event) {
     case ESP_GATTS_CONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client connected");
       this->add_client_(param->connect.conn_id);
-      this->emit_(BLEServerEvt::EmptyEvt::ON_CONNECT, param->connect.conn_id);
+      this->dispatch_callbacks_(CallbackType::ON_CONNECT, param->connect.conn_id);
       break;
     }
     case ESP_GATTS_DISCONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client disconnected");
       this->remove_client_(param->disconnect.conn_id);
       this->parent_->advertising_start();
-      this->emit_(BLEServerEvt::EmptyEvt::ON_DISCONNECT, param->disconnect.conn_id);
+      this->dispatch_callbacks_(CallbackType::ON_DISCONNECT, param->disconnect.conn_id);
       break;
     }
     case ESP_GATTS_REG_EVT: {
@@ -177,9 +187,38 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
   }
 }
 
+int8_t BLEServer::find_client_index_(uint16_t conn_id) const {
+  for (uint8_t i = 0; i < this->client_count_; i++) {
+    if (this->clients_[i] == conn_id)
+      return i;
+  }
+  return -1;
+}
+
+void BLEServer::add_client_(uint16_t conn_id) {
+  // Check if already in list
+  if (this->find_client_index_(conn_id) >= 0)
+    return;
+  // Add if there's space
+  if (this->client_count_ < USE_ESP32_BLE_MAX_CONNECTIONS) {
+    this->clients_[this->client_count_++] = conn_id;
+  } else {
+    // This should never happen since max clients is known at compile time
+    ESP_LOGE(TAG, "Client array full");
+  }
+}
+
+void BLEServer::remove_client_(uint16_t conn_id) {
+  int8_t index = this->find_client_index_(conn_id);
+  if (index >= 0) {
+    // Replace with last element and decrement count (client order not preserved)
+    this->clients_[index] = this->clients_[--this->client_count_];
+  }
+}
+
 void BLEServer::ble_before_disabled_event_handler() {
   // Delete all clients
-  this->clients_.clear();
+  this->client_count_ = 0;
   // Delete all services
   for (auto &entry : this->services_) {
     entry.service->do_delete();

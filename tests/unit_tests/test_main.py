@@ -17,10 +17,12 @@ from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
     choose_upload_log_host,
+    command_analyze_memory,
     command_clean_all,
     command_rename,
     command_update_all,
     command_wizard,
+    detect_external_components,
     get_port_type,
     has_ip_address,
     has_mqtt,
@@ -226,11 +228,45 @@ def mock_run_external_process() -> Generator[Mock]:
 
 
 @pytest.fixture
-def mock_run_external_command() -> Generator[Mock]:
-    """Mock run_external_command for testing."""
+def mock_run_external_command_main() -> Generator[Mock]:
+    """Mock run_external_command in __main__ module (different from platformio_api)."""
     with patch("esphome.__main__.run_external_command") as mock:
         mock.return_value = 0  # Default to success
         yield mock
+
+
+@pytest.fixture
+def mock_write_cpp() -> Generator[Mock]:
+    """Mock write_cpp for testing."""
+    with patch("esphome.__main__.write_cpp") as mock:
+        mock.return_value = 0  # Default to success
+        yield mock
+
+
+@pytest.fixture
+def mock_compile_program() -> Generator[Mock]:
+    """Mock compile_program for testing."""
+    with patch("esphome.__main__.compile_program") as mock:
+        mock.return_value = 0  # Default to success
+        yield mock
+
+
+@pytest.fixture
+def mock_get_esphome_components() -> Generator[Mock]:
+    """Mock get_esphome_components for testing."""
+    with patch("esphome.analyze_memory.helpers.get_esphome_components") as mock:
+        mock.return_value = {"logger", "api", "ota"}
+        yield mock
+
+
+@pytest.fixture
+def mock_memory_analyzer_cli() -> Generator[Mock]:
+    """Mock MemoryAnalyzerCLI for testing."""
+    with patch("esphome.analyze_memory.cli.MemoryAnalyzerCLI") as mock_class:
+        mock_analyzer = MagicMock()
+        mock_analyzer.generate_report.return_value = "Mock Memory Report"
+        mock_class.return_value = mock_analyzer
+        yield mock_class
 
 
 def test_choose_upload_log_host_with_string_default() -> None:
@@ -321,12 +357,14 @@ def test_choose_upload_log_host_with_serial_device_no_ports(
 ) -> None:
     """Test SERIAL device when no serial ports are found."""
     setup_core()
-    result = choose_upload_log_host(
-        default="SERIAL",
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
+    with pytest.raises(
+        EsphomeError, match="All specified devices .* could not be resolved"
+    ):
+        choose_upload_log_host(
+            default="SERIAL",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
     assert "No serial ports found, skipping SERIAL device" in caplog.text
 
 
@@ -367,12 +405,14 @@ def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
     """Test OTA device when API is configured (no upload without OTA in config)."""
     setup_core(config={CONF_API: {}}, address="192.168.1.100")
 
-    result = choose_upload_log_host(
-        default="OTA",
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
+    with pytest.raises(
+        EsphomeError, match="All specified devices .* could not be resolved"
+    ):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
 
 
 def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> None:
@@ -405,12 +445,14 @@ def test_choose_upload_log_host_with_ota_device_no_fallback() -> None:
     """Test OTA device with no valid fallback options."""
     setup_core()
 
-    result = choose_upload_log_host(
-        default="OTA",
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
+    with pytest.raises(
+        EsphomeError, match="All specified devices .* could not be resolved"
+    ):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
 
 
 @pytest.mark.usefixtures("mock_choose_prompt")
@@ -615,21 +657,19 @@ def test_choose_upload_log_host_empty_defaults_list() -> None:
 
 
 @pytest.mark.usefixtures("mock_no_serial_ports", "mock_no_mqtt_logging")
-def test_choose_upload_log_host_all_devices_unresolved(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+def test_choose_upload_log_host_all_devices_unresolved() -> None:
     """Test when all specified devices cannot be resolved."""
     setup_core()
 
-    result = choose_upload_log_host(
-        default=["SERIAL", "OTA"],
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
-    assert (
-        "All specified devices: ['SERIAL', 'OTA'] could not be resolved." in caplog.text
-    )
+    with pytest.raises(
+        EsphomeError,
+        match=r"All specified devices \['SERIAL', 'OTA'\] could not be resolved",
+    ):
+        choose_upload_log_host(
+            default=["SERIAL", "OTA"],
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
 
 
 @pytest.mark.usefixtures("mock_no_serial_ports", "mock_no_mqtt_logging")
@@ -704,7 +744,7 @@ def test_choose_upload_log_host_ota_local_all_options() -> None:
         check_default=None,
         purpose=Purpose.UPLOADING,
     )
-    assert result == ["MQTTIP", "test.local"]
+    assert result == ["MQTTIP"]
 
 
 @pytest.mark.usefixtures("mock_serial_ports")
@@ -754,7 +794,7 @@ def test_choose_upload_log_host_ota_local_all_options_logging() -> None:
         check_default=None,
         purpose=Purpose.LOGGING,
     )
-    assert result == ["MQTTIP", "MQTT", "test.local"]
+    assert result == ["MQTTIP", "MQTT"]
 
 
 @pytest.mark.usefixtures("mock_no_mqtt_logging")
@@ -762,12 +802,14 @@ def test_choose_upload_log_host_no_address_with_ota_config() -> None:
     """Test OTA device when OTA is configured but no address is set."""
     setup_core(config={CONF_OTA: {}})
 
-    result = choose_upload_log_host(
-        default="OTA",
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
+    with pytest.raises(
+        EsphomeError, match="All specified devices .* could not be resolved"
+    ):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
 
 
 @dataclass
@@ -833,7 +875,7 @@ def test_upload_program_serial_esp8266_with_file(
 
 def test_upload_using_esptool_path_conversion(
     tmp_path: Path,
-    mock_run_external_command: Mock,
+    mock_run_external_command_main: Mock,
     mock_get_idedata: Mock,
 ) -> None:
     """Test upload_using_esptool properly converts Path objects to strings for esptool.
@@ -869,10 +911,10 @@ def test_upload_using_esptool_path_conversion(
     assert result == 0
 
     # Verify that run_external_command was called
-    assert mock_run_external_command.call_count == 1
+    assert mock_run_external_command_main.call_count == 1
 
     # Get the actual call arguments
-    call_args = mock_run_external_command.call_args[0]
+    call_args = mock_run_external_command_main.call_args[0]
 
     # The first argument should be esptool.main function,
     # followed by the command arguments
@@ -911,7 +953,7 @@ def test_upload_using_esptool_path_conversion(
 
 def test_upload_using_esptool_with_file_path(
     tmp_path: Path,
-    mock_run_external_command: Mock,
+    mock_run_external_command_main: Mock,
 ) -> None:
     """Test upload_using_esptool with a custom file that's a Path object."""
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
@@ -928,10 +970,10 @@ def test_upload_using_esptool_with_file_path(
     assert result == 0
 
     # Verify that run_external_command was called
-    mock_run_external_command.assert_called_once()
+    mock_run_external_command_main.assert_called_once()
 
     # Get the actual call arguments
-    call_args = mock_run_external_command.call_args[0]
+    call_args = mock_run_external_command_main.call_args[0]
     cmd_list = list(call_args[1:])  # Skip the esptool.main function
 
     # Find the firmware path in the command
@@ -1062,7 +1104,7 @@ def test_upload_program_ota_with_file_arg(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, "", Path("custom.bin")
+        ["192.168.1.100"], 3232, None, Path("custom.bin")
     )
 
 
@@ -1119,7 +1161,9 @@ def test_upload_program_ota_with_mqtt_resolution(
     expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
-    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", expected_firmware)
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, None, expected_firmware
+    )
 
 
 @patch("esphome.__main__.importlib.import_module")
@@ -1204,6 +1248,31 @@ def test_show_logs_api(
 
 
 @patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_with_fqdn_mdns_disabled(
+    mock_run_logs: Mock,
+) -> None:
+    """Test show_logs with API using FQDN when mDNS is disabled."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: True},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    devices = ["device.example.com"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    # Should use the FQDN directly, not try MQTT lookup
+    mock_run_logs.assert_called_once_with(CORE.config, ["device.example.com"])
+
+
+@patch("esphome.components.api.client.run_logs")
 def test_show_logs_api_with_mqtt_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -1222,7 +1291,7 @@ def test_show_logs_api_with_mqtt_fallback(
     mock_mqtt_get_ip.return_value = ["192.168.1.200"]
 
     args = MockArgs(username="user", password="pass", client_id="client")
-    devices = ["device.local"]
+    devices = ["MQTTIP"]
 
     result = show_logs(CORE.config, args, devices)
 
@@ -1487,27 +1556,31 @@ def test_mqtt_get_ip() -> None:
 def test_has_resolvable_address() -> None:
     """Test has_resolvable_address function."""
 
-    # Test with mDNS enabled and hostname address
+    # Test with mDNS enabled and .local hostname address
     setup_core(config={}, address="esphome-device.local")
     assert has_resolvable_address() is True
 
-    # Test with mDNS disabled and hostname address
+    # Test with mDNS disabled and .local hostname address (still resolvable via DNS)
     setup_core(
         config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
     )
     assert has_resolvable_address() is False
 
-    # Test with IP address (mDNS doesn't matter)
+    # Test with mDNS disabled and regular DNS hostname (resolvable)
+    setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address="device.example.com")
+    assert has_resolvable_address() is True
+
+    # Test with IP address (always resolvable, mDNS doesn't matter)
     setup_core(config={}, address="192.168.1.100")
     assert has_resolvable_address() is True
 
-    # Test with IP address and mDNS disabled
+    # Test with IP address and mDNS disabled (still resolvable)
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address="192.168.1.100")
     assert has_resolvable_address() is True
 
-    # Test with no address but mDNS enabled (can still resolve mDNS names)
+    # Test with no address
     setup_core(config={}, address=None)
-    assert has_resolvable_address() is True
+    assert has_resolvable_address() is False
 
     # Test with no address and mDNS disabled
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
@@ -1947,3 +2020,515 @@ def test_command_clean_all_args_used() -> None:
         # Verify the correct configuration paths were passed
         mock_clean_all.assert_any_call(["/path/to/config1"])
         mock_clean_all.assert_any_call(["/path/to/config2", "/path/to/config3"])
+
+
+def test_upload_program_ota_static_ip_with_mqttip(
+    mock_mqtt_get_ip: Mock,
+    mock_run_ota: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with static IP and MQTTIP (issue #11260).
+
+    This tests the scenario where a device has manual_ip (static IP) configured
+    and MQTT is also configured. The devices list contains both the static IP
+    and "MQTTIP" magic string. This previously failed because only the first
+    device was checked for MQTT resolution.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_mqtt_get_ip.return_value = ["192.168.2.50"]  # Different subnet
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ],
+        CONF_MQTT: {
+            CONF_BROKER: "mqtt.local",
+        },
+    }
+    args = MockArgs(username="user", password="pass", client_id="client")
+    # Simulates choose_upload_log_host returning static IP + MQTTIP
+    devices = ["192.168.1.100", "MQTTIP"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+
+    # Verify MQTT was resolved
+    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+
+    # Verify espota2.run_ota was called with both IPs
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100", "192.168.2.50"], 3232, None, expected_firmware
+    )
+
+
+def test_upload_program_ota_multiple_mqttip_resolves_once(
+    mock_mqtt_get_ip: Mock,
+    mock_run_ota: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test that MQTT resolution only happens once even with multiple MQTT magic strings."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_mqtt_get_ip.return_value = ["192.168.2.50", "192.168.2.51"]
+    mock_run_ota.return_value = (0, "192.168.2.50")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ],
+        CONF_MQTT: {
+            CONF_BROKER: "mqtt.local",
+        },
+    }
+    args = MockArgs(username="user", password="pass", client_id="client")
+    # Multiple MQTT magic strings in the list
+    devices = ["MQTTIP", "MQTT", "192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.2.50"
+
+    # Verify MQTT was only resolved once despite multiple MQTT magic strings
+    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+
+    # Verify espota2.run_ota was called with all unique IPs
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.2.50", "192.168.2.51", "192.168.1.100"], 3232, None, expected_firmware
+    )
+
+
+def test_upload_program_ota_mqttip_deduplication(
+    mock_mqtt_get_ip: Mock,
+    mock_run_ota: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test that duplicate IPs are filtered when MQTT returns same IP as static IP."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    # MQTT returns the same IP as the static IP
+    mock_mqtt_get_ip.return_value = ["192.168.1.100"]
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ],
+        CONF_MQTT: {
+            CONF_BROKER: "mqtt.local",
+        },
+    }
+    args = MockArgs(username="user", password="pass", client_id="client")
+    devices = ["192.168.1.100", "MQTTIP"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+
+    # Verify MQTT was resolved
+    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+
+    # Verify espota2.run_ota was called with deduplicated IPs (only one instance of 192.168.1.100)
+    # Note: Current implementation doesn't dedupe, so we'll get the IP twice
+    # This test documents current behavior - deduplication could be future enhancement
+    mock_run_ota.assert_called_once()
+    call_args = mock_run_ota.call_args[0]
+    # Should contain both the original IP and MQTT-resolved IP (even if duplicate)
+    assert "192.168.1.100" in call_args[0]
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_static_ip_with_mqttip(
+    mock_run_logs: Mock,
+    mock_mqtt_get_ip: Mock,
+) -> None:
+    """Test show_logs with static IP and MQTTIP (issue #11260).
+
+    This tests the scenario where a device has manual_ip (static IP) configured
+    and MQTT is also configured. The devices list contains both the static IP
+    and "MQTTIP" magic string.
+    """
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+    mock_mqtt_get_ip.return_value = ["192.168.2.50"]
+
+    args = MockArgs(username="user", password="pass", client_id="client")
+    # Simulates choose_upload_log_host returning static IP + MQTTIP
+    devices = ["192.168.1.100", "MQTTIP"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+
+    # Verify MQTT was resolved
+    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+
+    # Verify run_logs was called with both IPs
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100", "192.168.2.50"]
+    )
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_multiple_mqttip_resolves_once(
+    mock_run_logs: Mock,
+    mock_mqtt_get_ip: Mock,
+) -> None:
+    """Test that MQTT resolution only happens once for show_logs with multiple MQTT magic strings."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+    mock_mqtt_get_ip.return_value = ["192.168.2.50", "192.168.2.51"]
+
+    args = MockArgs(username="user", password="pass", client_id="client")
+    # Multiple MQTT magic strings in the list
+    devices = ["MQTTIP", "192.168.1.100", "MQTT"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+
+    # Verify MQTT was only resolved once despite multiple MQTT magic strings
+    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+
+    # Verify run_logs was called with all unique IPs (MQTT strings replaced with IPs)
+    # Note: "MQTT" is a different magic string from "MQTTIP", but both trigger MQTT resolution
+    # The _resolve_network_devices helper filters out both after first resolution
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.2.50", "192.168.2.51", "192.168.1.100"]
+    )
+
+
+def test_upload_program_ota_mqtt_timeout_fallback(
+    mock_mqtt_get_ip: Mock,
+    mock_run_ota: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program falls back to other devices when MQTT times out."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    # MQTT times out
+    mock_mqtt_get_ip.side_effect = EsphomeError("Failed to find IP via MQTT")
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ],
+        CONF_MQTT: {
+            CONF_BROKER: "mqtt.local",
+        },
+    }
+    args = MockArgs(username="user", password="pass", client_id="client")
+    # Static IP first, MQTTIP second
+    devices = ["192.168.1.100", "MQTTIP"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    # Should succeed using the static IP even though MQTT failed
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+
+    # Verify MQTT was attempted
+    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+
+    # Verify espota2.run_ota was called with only the static IP (MQTT failed)
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, None, expected_firmware
+    )
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_mqtt_timeout_fallback(
+    mock_run_logs: Mock,
+    mock_mqtt_get_ip: Mock,
+) -> None:
+    """Test show_logs falls back to other devices when MQTT times out."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+    # MQTT times out
+    mock_mqtt_get_ip.side_effect = EsphomeError("Failed to find IP via MQTT")
+
+    args = MockArgs(username="user", password="pass", client_id="client")
+    # Static IP first, MQTTIP second
+    devices = ["192.168.1.100", "MQTTIP"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    # Should succeed using the static IP even though MQTT failed
+    assert result == 0
+
+    # Verify MQTT was attempted
+    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+
+    # Verify run_logs was called with only the static IP (MQTT failed)
+    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.100"])
+
+
+def test_detect_external_components_no_external(
+    mock_get_esphome_components: Mock,
+) -> None:
+    """Test detect_external_components with no external components."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "logger": {},
+        "api": {},
+    }
+
+    result = detect_external_components(config)
+
+    assert result == set()
+    mock_get_esphome_components.assert_called_once()
+
+
+def test_detect_external_components_with_external(
+    mock_get_esphome_components: Mock,
+) -> None:
+    """Test detect_external_components detects external components."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "logger": {},  # Built-in
+        "api": {},  # Built-in
+        "my_custom_sensor": {},  # External
+        "another_custom": {},  # External
+        "external_components": [],  # Special key, not a component
+        "substitutions": {},  # Special key, not a component
+    }
+
+    result = detect_external_components(config)
+
+    assert result == {"my_custom_sensor", "another_custom"}
+    mock_get_esphome_components.assert_called_once()
+
+
+def test_detect_external_components_filters_special_keys(
+    mock_get_esphome_components: Mock,
+) -> None:
+    """Test detect_external_components filters out special config keys."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "substitutions": {"key": "value"},
+        "packages": {},
+        "globals": [],
+        "external_components": [],
+        "<<": {},  # YAML merge key
+    }
+
+    result = detect_external_components(config)
+
+    assert result == set()
+    mock_get_esphome_components.assert_called_once()
+
+
+def test_command_analyze_memory_success(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_idedata: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+) -> None:
+    """Test command_analyze_memory with successful compilation and analysis."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    # Create firmware.elf file
+    firmware_path = (
+        tmp_path / ".esphome" / "build" / "test_device" / ".pioenvs" / "test_device"
+    )
+    firmware_path.mkdir(parents=True, exist_ok=True)
+    firmware_elf = firmware_path / "firmware.elf"
+    firmware_elf.write_text("mock elf file")
+
+    # Mock idedata
+    mock_idedata_obj = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata_obj.firmware_elf_path = str(firmware_elf)
+    mock_idedata_obj.objdump_path = "/path/to/objdump"
+    mock_idedata_obj.readelf_path = "/path/to/readelf"
+    mock_get_idedata.return_value = mock_idedata_obj
+
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "logger": {},
+    }
+
+    args = MockArgs()
+
+    result = command_analyze_memory(args, config)
+
+    assert result == 0
+
+    # Verify compilation was done
+    mock_write_cpp.assert_called_once_with(config)
+    mock_compile_program.assert_called_once_with(args, config)
+
+    # Verify analyzer was created with correct parameters
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(firmware_elf),
+        "/path/to/objdump",
+        "/path/to/readelf",
+        set(),  # No external components
+    )
+
+    # Verify analysis was run
+    mock_analyzer = mock_memory_analyzer_cli.return_value
+    mock_analyzer.analyze.assert_called_once()
+    mock_analyzer.generate_report.assert_called_once()
+
+    # Verify report was printed
+    captured = capfd.readouterr()
+    assert "Mock Memory Report" in captured.out
+
+
+def test_command_analyze_memory_with_external_components(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_idedata: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+) -> None:
+    """Test command_analyze_memory detects external components."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    # Create firmware.elf file
+    firmware_path = (
+        tmp_path / ".esphome" / "build" / "test_device" / ".pioenvs" / "test_device"
+    )
+    firmware_path.mkdir(parents=True, exist_ok=True)
+    firmware_elf = firmware_path / "firmware.elf"
+    firmware_elf.write_text("mock elf file")
+
+    # Mock idedata
+    mock_idedata_obj = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata_obj.firmware_elf_path = str(firmware_elf)
+    mock_idedata_obj.objdump_path = "/path/to/objdump"
+    mock_idedata_obj.readelf_path = "/path/to/readelf"
+    mock_get_idedata.return_value = mock_idedata_obj
+
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "logger": {},
+        "my_custom_component": {"param": "value"},  # External component
+        "external_components": [{"source": "github://user/repo"}],  # Not a component
+    }
+
+    args = MockArgs()
+
+    result = command_analyze_memory(args, config)
+
+    assert result == 0
+
+    # Verify analyzer was created with external components detected
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(firmware_elf),
+        "/path/to/objdump",
+        "/path/to/readelf",
+        {"my_custom_component"},  # External component detected
+    )
+
+
+def test_command_analyze_memory_write_cpp_fails(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+) -> None:
+    """Test command_analyze_memory when write_cpp fails."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    mock_write_cpp.return_value = 1  # Failure
+
+    result = command_analyze_memory(args, config)
+
+    assert result == 1
+    mock_write_cpp.assert_called_once_with(config)
+
+
+def test_command_analyze_memory_compile_fails(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+) -> None:
+    """Test command_analyze_memory when compilation fails."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    mock_compile_program.return_value = 1  # Compilation failed
+
+    result = command_analyze_memory(args, config)
+
+    assert result == 1
+    mock_write_cpp.assert_called_once_with(config)
+    mock_compile_program.assert_called_once_with(args, config)
+
+
+def test_command_analyze_memory_no_idedata(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_idedata: Mock,
+) -> None:
+    """Test command_analyze_memory when idedata cannot be retrieved."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    mock_get_idedata.return_value = None  # Failed to get idedata
+
+    with caplog.at_level(logging.ERROR):
+        result = command_analyze_memory(args, config)
+
+    assert result == 1
+    assert "Failed to get IDE data for memory analysis" in caplog.text

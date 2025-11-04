@@ -611,6 +611,17 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+    case HomeassistantActionResponse::MESSAGE_TYPE: {
+      HomeassistantActionResponse msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_homeassistant_action_response: %s", msg.dump().c_str());
+#endif
+      this->on_homeassistant_action_response(msg);
+      break;
+    }
+#endif
     default:
       break;
   }

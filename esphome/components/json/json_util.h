@@ -50,8 +50,13 @@ std::string build_json(const json_build_t &f);
 
 /// Parse a JSON string and run the provided json parse function if it's valid.
 bool parse_json(const std::string &data, const json_parse_t &f);
+
 /// Parse a JSON string and return the root JsonDocument (or an unbound object on error)
-JsonDocument parse_json(const std::string &data);
+JsonDocument parse_json(const uint8_t *data, size_t len);
+/// Parse a JSON string and return the root JsonDocument (or an unbound object on error)
+inline JsonDocument parse_json(const std::string &data) {
+  return parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size());
+}
 
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
