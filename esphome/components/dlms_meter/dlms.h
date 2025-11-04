@@ -83,6 +83,7 @@ static constexpr uint8_t TIMESTAMP_DATETIME = 0x0C;
 
 static constexpr uint8_t NETZ_NOE_MAGIC_BYTE = 0x81;  // Magic length byte used by Netz NOE
 static constexpr uint8_t NETZ_NOE_EXPECTED_MESSAGE_LENGTH = 0xF8;
+static constexpr uint8_t NETZ_NOE_EXPECTED_SECURITY_CONTROL_BYTE = 0x20;
 
 }  // namespace dlms_meter
 }  // namespace esphome
