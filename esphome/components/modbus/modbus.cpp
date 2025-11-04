@@ -48,6 +48,8 @@ void ModbusClient::loop() {
       (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_for_response_.value().frame[0])) {
     ESP_LOGW(TAG, "Stop waiting for response from %d %dms after last send",
              this->waiting_for_response_.value().frame[0], millis() - this->last_send_);
+    if (this->waiting_for_response_.value().device)
+      this->waiting_for_response_.value().device->on_modbus_timeout();
     this->waiting_for_response_.reset();
   }
 
@@ -350,6 +352,7 @@ void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t functio
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
                millis() - this->last_send_);
       // Invalidate the waiting device so it won't process this response.
+      this->waiting_for_response_.value().device->on_modbus_timeout();
       this->waiting_for_response_.value().device = nullptr;
       return;
     }
@@ -455,7 +458,7 @@ void ModbusClient::send_next_frame_() {
 
   this->send_frame_(command.frame);
 
-  this->waiting_for_response_ = command;
+  this->waiting_for_response_ = std::move(command);
 
   this->tx_buffer_.pop_front();
 
