@@ -346,7 +346,7 @@ def append_layout_schema(schema, config: dict):
         )
     if isinstance(layout, dict) and not isinstance(layout.get(CONF_TYPE), str):
         raise cv.Invalid(
-            "Invalid layout type; must be a strng ('flex' or 'grid')",
+            "Invalid layout type; must be a string ('flex' or 'grid')",
             [CONF_LAYOUT, CONF_TYPE],
         )
 
