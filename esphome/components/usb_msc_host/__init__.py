@@ -21,10 +21,10 @@ usb_msc_host_ns = cg.esphome_ns.namespace("usb_msc_host")
 USBMscHost = usb_msc_host_ns.class_("USBMscHost", cg.Component)
 
 
-async def register_usb_msc_client(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
-    await cg.register_component(var, config)  # Register as Component for loop() calls
-    await cg.register_parented(var, config)   # Register parent relationship for USBMscHost access
+async def register_usb_msc_client(device_config, parent):
+    var = cg.new_Pvariable(device_config[CONF_ID], device_config[CONF_VID], device_config[CONF_PID])
+    await cg.register_component(var, device_config)  # Register as Component for loop() calls
+    cg.add(var.set_parent(parent))  # Manually set parent relationship
     return var
 
 
@@ -45,4 +45,4 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for device in config.get(CONF_DEVICES) or ():
-        await register_usb_msc_client(device)
+        await register_usb_msc_client(device, var)
