@@ -3,9 +3,11 @@ gp8403:
     i2c_id: i2c_bus
     voltage: 5V
   - id: gp8403_10v
+    i2c_id: i2c_bus
     model: GP8403
     voltage: 10V
   - id: gp8413
+    i2c_id: i2c_bus
     model: GP8413
     voltage: 10V
 
