@@ -98,7 +98,7 @@ struct RegisterRange {
 class ModbusCommandItem : public modbus::ModbusClientDevice {
  public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
-  ModbusController *modbusdevice{nullptr};
+  ModbusController *controller{nullptr};
   /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
@@ -119,7 +119,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// factory methods
   /** Create modbus read command
    *  Function code 02-04
-   * @param modbusdevice pointer to the device to execute the command
+   * @param controller pointer to the controller
    * @param function_code modbus function code for the read command
    * @param start_address modbus address of the first register to read
    * @param register_count number of registers to read
@@ -127,79 +127,79 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @return ModbusCommandItem with the prepared command
    */
   static ModbusCommandItem create_read_command(
-      ModbusController *modbusdevice, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
+      ModbusController *controller, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler);
   /** Create modbus read command
    *  Function code 02-04
-   * @param modbusdevice pointer to the device to execute the command
+   * @param controller pointer to the controller
    * @param function_code modbus function code for the read command
    * @param start_address modbus address of the first register to read
    * @param register_count number of registers to read
    * @return ModbusCommandItem with the prepared command
    */
-  static ModbusCommandItem create_read_command(ModbusController *modbusdevice, ModbusRegisterType register_type,
+  static ModbusCommandItem create_read_command(ModbusController *controller, ModbusRegisterType register_type,
                                                uint16_t start_address, uint16_t register_count);
   /** Create modbus read command
    *  Function code 02-04
-   * @param modbusdevice pointer to the device to execute the command
+   * @param controller pointer to the controller
    * @param function_code modbus function code for the read command
    * @param start_address modbus address of the first register to read
    * @param register_count number of registers to read
    * @param handler function called when the response is received
    * @return ModbusCommandItem with the prepared command
    */
-  static ModbusCommandItem create_write_multiple_command(ModbusController *modbusdevice, uint16_t start_address,
+  static ModbusCommandItem create_write_multiple_command(ModbusController *controller, uint16_t start_address,
                                                          uint16_t register_count, const std::vector<uint16_t> &values);
   /** Create modbus write multiple registers command
    *  Function 16 (10hex) Write Multiple Registers
-   * @param modbusdevice pointer to the device to execute the command
+   * @param controller pointer to the controller
    * @param start_address modbus address of the first register to read
    * @param register_count number of registers to read
    * @param value uint16_t single register value to write
    * @return ModbusCommandItem with the prepared command
    */
-  static ModbusCommandItem create_write_single_command(ModbusController *modbusdevice, uint16_t start_address,
+  static ModbusCommandItem create_write_single_command(ModbusController *controller, uint16_t start_address,
                                                        uint16_t value);
   /** Create modbus write single registers command
    *  Function 05 (05hex) Write Single Coil
-   * @param modbusdevice pointer to the device to execute the command
+   * @param controller pointer to the controller
    * @param start_address modbus address of the first register to read
    * @param value uint16_t data to be written to the registers
    * @return ModbusCommandItem with the prepared command
    */
-  static ModbusCommandItem create_write_single_coil(ModbusController *modbusdevice, uint16_t address, bool value);
+  static ModbusCommandItem create_write_single_coil(ModbusController *controller, uint16_t address, bool value);
 
   /** Create modbus write multiple registers command
    *  Function 15 (0Fhex) Write Multiple Coils
-   * @param modbusdevice pointer to the device to execute the command
+   * @param controller pointer to the controller
    * @param start_address modbus address of the first register to read
    * @param value bool vector of values to be written to the registers
    * @return ModbusCommandItem with the prepared command
    */
-  static ModbusCommandItem create_write_multiple_coils(ModbusController *modbusdevice, uint16_t start_address,
+  static ModbusCommandItem create_write_multiple_coils(ModbusController *controller, uint16_t start_address,
                                                        const std::vector<bool> &values);
   /** Create custom modbus command
-   * @param modbusdevice pointer to the device to execute the command
+   * @param controller pointer to the controller
    * @param values byte vector of data to be sent to the device. The complete payload must be provided with the
    * exception of the crc codes
    * @param handler function called when the response is received. Default is just logging a response
    * @return ModbusCommandItem with the prepared command
    */
   static ModbusCommandItem create_custom_command(
-      ModbusController *modbusdevice, const std::vector<uint8_t> &values,
+      ModbusController *controller, const std::vector<uint8_t> &values,
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
 
   /** Create custom modbus command
-   * @param modbusdevice pointer to the device to execute the command
+   * @param controller pointer to the controller
    * @param values word vector of data to be sent to the device. The complete payload must be provided with the
    * exception of the crc codes
    * @param handler function called when the response is received. Default is just logging a response
    * @return ModbusCommandItem with the prepared command
    */
   static ModbusCommandItem create_custom_command(
-      ModbusController *modbusdevice, const std::vector<uint16_t> &values,
+      ModbusController *controller, const std::vector<uint16_t> &values,
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
 

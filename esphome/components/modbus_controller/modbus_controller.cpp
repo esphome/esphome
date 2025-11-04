@@ -41,19 +41,19 @@ void ModbusController::set_online(bool online, const ModbusCommandItem &command)
 
 // Queue incoming response
 void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
-  this->modbusdevice->set_online(true, *this);
+  this->controller->set_online(true, *this);
   this->unresponded_send_count_ = 0;  // reset send count on success
   this->on_data_func(this->register_type, this->register_address, data);
 }
 
 // Modbus error message is a legit response from the device. Consider the device online.
 void ModbusCommandItem::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
-  this->modbusdevice->set_online(true, *this);
+  this->controller->set_online(true, *this);
   this->unresponded_send_count_ = 0;  // reset send count on success
 }
 
 void ModbusCommandItem::on_modbus_no_response() {
-  if (this->should_retry(this->modbusdevice->max_cmd_retries_))
+  if (this->should_retry(this->controller->max_cmd_retries_))
     this->send();
 }
 
@@ -272,13 +272,13 @@ void ModbusController::dump_sensors_() {
 }
 
 ModbusCommandItem ModbusCommandItem::create_read_command(
-    ModbusController *modbusdevice, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
+    ModbusController *controller, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
     std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd;
-  cmd.modbusdevice = modbusdevice;
-  cmd.set_parent(modbusdevice->parent_);
-  cmd.set_address(modbusdevice->address_);
+  cmd.controller = controller;
+  cmd.set_parent(controller->parent_);
+  cmd.set_address(controller->address_);
   cmd.register_type = register_type;
   cmd.function_code = modbus_register_read_function(register_type);
   cmd.register_address = start_address;
@@ -287,38 +287,37 @@ ModbusCommandItem ModbusCommandItem::create_read_command(
   return cmd;
 }
 
-ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *modbusdevice,
-                                                         ModbusRegisterType register_type, uint16_t start_address,
-                                                         uint16_t register_count) {
+ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *controller, ModbusRegisterType register_type,
+                                                         uint16_t start_address, uint16_t register_count) {
   ModbusCommandItem cmd;
-  cmd.modbusdevice = modbusdevice;
-  cmd.set_parent(modbusdevice->parent_);
-  cmd.set_address(modbusdevice->address_);
+  cmd.controller = controller;
+  cmd.set_parent(controller->parent_);
+  cmd.set_address(controller->address_);
   cmd.register_type = register_type;
   cmd.function_code = modbus_register_read_function(register_type);
   cmd.register_address = start_address;
   cmd.register_count = register_count;
-  cmd.on_data_func = [modbusdevice](ModbusRegisterType register_type, uint16_t start_address,
-                                    const std::vector<uint8_t> &data) {
-    modbusdevice->on_register_data(register_type, start_address, data);
+  cmd.on_data_func = [controller](ModbusRegisterType register_type, uint16_t start_address,
+                                  const std::vector<uint8_t> &data) {
+    controller->on_register_data(register_type, start_address, data);
   };
   return cmd;
 }
 
-ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusController *modbusdevice,
-                                                                   uint16_t start_address, uint16_t register_count,
+ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusController *controller, uint16_t start_address,
+                                                                   uint16_t register_count,
                                                                    const std::vector<uint16_t> &values) {
   ModbusCommandItem cmd;
-  cmd.modbusdevice = modbusdevice;
-  cmd.set_parent(modbusdevice->parent_);
-  cmd.set_address(modbusdevice->address_);
+  cmd.controller = controller;
+  cmd.set_parent(controller->parent_);
+  cmd.set_address(controller->address_);
   cmd.register_type = ModbusRegisterType::HOLDING;
   cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
   cmd.register_address = start_address;
   cmd.register_count = register_count;
-  cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
-                                         const std::vector<uint8_t> &data) {
-    modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
+  cmd.on_data_func = [controller, cmd](ModbusRegisterType register_type, uint16_t start_address,
+                                       const std::vector<uint8_t> &data) {
+    controller->on_write_register_response(cmd.register_type, start_address, data);
   };
   for (auto v : values) {
     auto decoded_value = decode_value(v);
@@ -328,38 +327,38 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
   return cmd;
 }
 
-ModbusCommandItem ModbusCommandItem::create_write_single_coil(ModbusController *modbusdevice, uint16_t address,
+ModbusCommandItem ModbusCommandItem::create_write_single_coil(ModbusController *controller, uint16_t address,
                                                               bool value) {
   ModbusCommandItem cmd;
-  cmd.modbusdevice = modbusdevice;
-  cmd.set_parent(modbusdevice->parent_);
-  cmd.set_address(modbusdevice->address_);
+  cmd.controller = controller;
+  cmd.set_parent(controller->parent_);
+  cmd.set_address(controller->address_);
   cmd.register_type = ModbusRegisterType::COIL;
   cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_COIL;
   cmd.register_address = address;
   cmd.register_count = 1;
-  cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
-                                         const std::vector<uint8_t> &data) {
-    modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
+  cmd.on_data_func = [controller, cmd](ModbusRegisterType register_type, uint16_t start_address,
+                                       const std::vector<uint8_t> &data) {
+    controller->on_write_register_response(cmd.register_type, start_address, data);
   };
   cmd.payload.push_back(value ? 0xFF : 0);
   cmd.payload.push_back(0);
   return cmd;
 }
 
-ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusController *modbusdevice, uint16_t start_address,
+ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusController *controller, uint16_t start_address,
                                                                  const std::vector<bool> &values) {
   ModbusCommandItem cmd;
-  cmd.modbusdevice = modbusdevice;
-  cmd.set_parent(modbusdevice->parent_);
-  cmd.set_address(modbusdevice->address_);
+  cmd.controller = controller;
+  cmd.set_parent(controller->parent_);
+  cmd.set_address(controller->address_);
   cmd.register_type = ModbusRegisterType::COIL;
   cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_COILS;
   cmd.register_address = start_address;
   cmd.register_count = values.size();
-  cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
-                                         const std::vector<uint8_t> &data) {
-    modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
+  cmd.on_data_func = [controller, cmd](ModbusRegisterType register_type, uint16_t start_address,
+                                       const std::vector<uint8_t> &data) {
+    controller->on_write_register_response(cmd.register_type, start_address, data);
   };
 
   uint8_t bitmask = 0;
@@ -381,19 +380,19 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
   return cmd;
 }
 
-ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusController *modbusdevice, uint16_t start_address,
+ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusController *controller, uint16_t start_address,
                                                                  uint16_t value) {
   ModbusCommandItem cmd;
-  cmd.modbusdevice = modbusdevice;
-  cmd.set_parent(modbusdevice->parent_);
-  cmd.set_address(modbusdevice->address_);
+  cmd.controller = controller;
+  cmd.set_parent(controller->parent_);
+  cmd.set_address(controller->address_);
   cmd.register_type = ModbusRegisterType::HOLDING;
   cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_REGISTER;
   cmd.register_address = start_address;
   cmd.register_count = 1;  // not used here anyways
-  cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
-                                         const std::vector<uint8_t> &data) {
-    modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
+  cmd.on_data_func = [controller, cmd](ModbusRegisterType register_type, uint16_t start_address,
+                                       const std::vector<uint8_t> &data) {
+    controller->on_write_register_response(cmd.register_type, start_address, data);
   };
 
   auto decoded_value = decode_value(value);
@@ -403,13 +402,13 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
 }
 
 ModbusCommandItem ModbusCommandItem::create_custom_command(
-    ModbusController *modbusdevice, const std::vector<uint8_t> &values,
+    ModbusController *controller, const std::vector<uint8_t> &values,
     std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd;
-  cmd.set_parent(modbusdevice->parent_);
-  cmd.set_address(modbusdevice->address_);
-  cmd.modbusdevice = modbusdevice;
+  cmd.set_parent(controller->parent_);
+  cmd.set_address(controller->address_);
+  cmd.controller = controller;
   cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
     cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
@@ -424,13 +423,13 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 }
 
 ModbusCommandItem ModbusCommandItem::create_custom_command(
-    ModbusController *modbusdevice, const std::vector<uint16_t> &values,
+    ModbusController *controller, const std::vector<uint16_t> &values,
     std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd = {};
-  cmd.modbusdevice = modbusdevice;
-  cmd.set_parent(modbusdevice->parent_);
-  cmd.set_address(modbusdevice->address_);
+  cmd.controller = controller;
+  cmd.set_parent(controller->parent_);
+  cmd.set_address(controller->address_);
   cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
     cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
