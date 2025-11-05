@@ -25,10 +25,6 @@ constexpr UBaseType_t USB_HOST_TASK_PRIORITY = 8;
 constexpr uint32_t USB_HOST_TASK_STACK_SIZE = 4096;
 constexpr uint32_t EVENT_QUEUE_LENGTH = 64;
 constexpr TickType_t HOST_EVENT_TIMEOUT_TICKS = pdMS_TO_TICKS(100);
-
-static uint32_t s_write_ok_count = 0;
-static uint32_t s_write_timeout_count = 0;
-static uint32_t s_write_error_count = 0;
 }  // namespace
 
 void USBAudioComponent::set_microphone_params(uint8_t channels, uint16_t bits, uint32_t sample_rate) {

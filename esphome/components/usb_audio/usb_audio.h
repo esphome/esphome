@@ -146,6 +146,11 @@ class USBAudioComponent : public Component {
   bool speaker_mute_supported_{true};
   bool speaker_volume_warned_{false};
   bool speaker_mute_warned_{false};
+
+ private:
+  uint32_t s_write_ok_count = 0;
+  uint32_t s_write_timeout_count = 0;
+  uint32_t s_write_error_count = 0;
 };
 
 }  // namespace usb_audio
