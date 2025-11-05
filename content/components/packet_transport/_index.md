@@ -282,7 +282,7 @@ binary_sensor:
 
 - {{< docref "/components/binary_sensor/packet_transport" >}}
 - {{< docref "/components/sensor/packet_transport" >}}
-- [Automation](#automation)
+- {{< docref "/automations" >}}
 - {{< apiref "packet_transport/packet_transport.h" "packet_transport/packet_transport.h" >}}
 
 [^f1]: As known in 2025.02.
