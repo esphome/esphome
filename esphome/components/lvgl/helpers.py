@@ -23,29 +23,34 @@ lv_fonts_used = set()
 esphome_fonts_used = set()
 lvgl_components_required = set()
 
-
-f_cfmt = r"""
+# noqa
+f_regex = re.compile(
+    r"""
     (                                  # start of capture group 1
     %                                  # literal "%"
-    (?:[-+0 #]{0,5})                   # optional flags
+    [-+0 #]{0,5}                   # optional flags
     (?:\d+|\*)?                        # width
     (?:\.(?:\d+|\*))?                  # precision
     (?:h|l|ll|w|I|I32|I64)?            # size
     f                                  # type
     )
-    """  # noqa
-f_regex = re.compile(f_cfmt, flags=re.VERBOSE)
-cfmt = r"""
+    """,
+    flags=re.VERBOSE,
+)
+# noqa
+c_regex = re.compile(
+    r"""
     (                                  # start of capture group 1
     %                                  # literal "%"
-    (?:[-+0 #]{0,5})                   # optional flags
+    [-+0 #]{0,5}                   # optional flags
     (?:\d+|\*)?                        # width
     (?:\.(?:\d+|\*))?                  # precision
     (?:h|l|ll|w|I|I32|I64)?            # size
     [cCdiouxXeEfgGaAnpsSZ]             # type
     )
-    """  # noqa
-c_regex = re.compile(cfmt, flags=re.VERBOSE)
+    """,
+    flags=re.VERBOSE,
+)
 
 
 def validate_printf(value):
@@ -56,9 +61,7 @@ def validate_printf(value):
             f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
         )
 
-    if value.get(CONF_IF_NAN) and (
-        len(matches) != 1 or not f_regex.match(format_string)
-    ):
+    if value.get(CONF_IF_NAN) and len(f_regex.findall(format_string)) != 1:
         raise cv.Invalid(
             "Use of 'if_nan' requires a single valid printf-pattern of type %f"
         )
