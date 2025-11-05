@@ -94,6 +94,7 @@ so if you use any other configuration you will not get log messages over the on-
 | ESP32-P4 | TX: 37, RX: 38 | N/A | TX: 10, RX: 11 | N/A | N/A | 24/25 |
 | ESP32-S2 | TX: 43, RX: 44 | N/A | TX: 17, RX: 18 | N/A | 19/20 | N/A |
 | ESP32-S3 | TX: 43, RX: 44 | N/A | TX: 17, RX: 18 | Undefined | 19/20 | 19/20 |
+| NRF52    | pins varies by board | N/A | pins varies by board | Undefined | D+/D- | N/A |
 
 *Undefined* means that the logger component cannot use this harware UART at this time.
 
@@ -116,7 +117,8 @@ the original ESP32 or ESP8266) continue to use USB-to-serial bridge ICs for comm
 | ESP32-P4 | `USB_SERIAL_JTAG` |
 | ESP32-S2 | `USB_CDC`         |
 | ESP32-S3 | `USB_SERIAL_JTAG` |
-| RP2040 | `USB_CDC` |
+| RP2040   | `USB_CDC` |
+| NRF52    | `USB_CDC` |
 
 {{< anchor "logger-log_levels" >}}
 
