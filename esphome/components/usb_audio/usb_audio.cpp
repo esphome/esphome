@@ -3,9 +3,9 @@
 #if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
 #include <algorithm>
+#include <cinttypes>
 #include <cmath>
 #include <cstdint>
-#include <inttypes.h>
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -19,7 +19,7 @@ namespace esphome {
 namespace usb_audio {
 
 namespace {
-static const char *const TAG = "usb_audio";
+const char *const TAG = "usb_audio";
 
 constexpr UBaseType_t USB_HOST_TASK_PRIORITY = 8;
 constexpr uint32_t USB_HOST_TASK_STACK_SIZE = 4096;
