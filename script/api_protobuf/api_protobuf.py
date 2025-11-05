@@ -1162,7 +1162,11 @@ class SInt64Type(TypeInfo):
 
 
 def _generate_array_dump_content(
-    ti, field_name: str, name: str, is_bool: bool = False
+    ti,
+    field_name: str,
+    name: str,
+    is_bool: bool = False,
+    is_const_char_ptr: bool = False,
 ) -> str:
     """Generate dump content for array types (repeated or fixed array).
 
@@ -1170,7 +1174,10 @@ def _generate_array_dump_content(
     """
     o = f"for (const auto {'' if is_bool else '&'}it : {field_name}) {{\n"
     # Check if underlying type can use dump_field
-    if ti.can_use_dump_field():
+    if is_const_char_ptr:
+        # Special case for const char* - use it directly
+        o += f'  dump_field(out, "{name}", it, 4);\n'
+    elif ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
         # std::vector<bool> iterators return proxy objects, need explicit cast
         value_expr = "static_cast<bool>(it)" if is_bool else ti.dump_field_value("it")
@@ -1415,7 +1422,13 @@ class RepeatedTypeInfo(TypeInfo):
         super().__init__(field)
         # Check if this is a pointer field by looking for container_pointer option
         self._container_type = get_field_opt(field, pb.container_pointer, "")
-        self._use_pointer = bool(self._container_type)
+        # Check for non-template container pointer
+        self._container_no_template = get_field_opt(
+            field, pb.container_pointer_no_template, ""
+        )
+        self._use_pointer = bool(self._container_type) or bool(
+            self._container_no_template
+        )
         # Check if this should use FixedVector instead of std::vector
         self._use_fixed_vector = get_field_opt(field, pb.fixed_vector, False)
 
@@ -1434,12 +1447,18 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def cpp_type(self) -> str:
+        if self._container_no_template:
+            # Non-template container: use type as-is without appending template parameters
+            return f"const {self._container_no_template}*"
         if self._use_pointer and self._container_type:
             # For pointer fields, use the specified container type
-            # If the container type already includes the element type (e.g., std::set<climate::ClimateMode>)
-            # use it as-is, otherwise append the element type
+            # Two cases:
+            # 1. "std::set<climate::ClimateMode>" - Full type with template params, use as-is
+            # 2. "std::set" - No <>, append the element type
             if "<" in self._container_type and ">" in self._container_type:
+                # Has template parameters specified, use as-is
                 return f"const {self._container_type}*"
+            # No <> at all, append element type
             return f"const {self._container_type}<{self._ti.cpp_type}>*"
         if self._use_fixed_vector:
             return f"FixedVector<{self._ti.cpp_type}>"
@@ -1521,11 +1540,16 @@ class RepeatedTypeInfo(TypeInfo):
     def encode_content(self) -> str:
         if self._use_pointer:
             # For pointer fields, just dereference (pointer should never be null in our use case)
-            o = f"for (const auto &it : *this->{self.field_name}) {{\n"
-            if isinstance(self._ti, EnumType):
-                o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
+            # Special handling for const char* elements (when container_no_template contains "const char")
+            if "const char" in self._container_no_template:
+                o = f"for (const char *it : *this->{self.field_name}) {{\n"
+                o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
             else:
-                o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+                o = f"for (const auto &it : *this->{self.field_name}) {{\n"
+                if isinstance(self._ti, EnumType):
+                    o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
+                else:
+                    o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
             o += "}"
             return o
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
@@ -1538,10 +1562,18 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def dump_content(self) -> str:
+        # Check if this is const char* elements
+        is_const_char_ptr = (
+            self._use_pointer and "const char" in self._container_no_template
+        )
         if self._use_pointer:
             # For pointer fields, dereference and use the existing helper
             return _generate_array_dump_content(
-                self._ti, f"*this->{self.field_name}", self.name, is_bool=False
+                self._ti,
+                f"*this->{self.field_name}",
+                self.name,
+                is_bool=False,
+                is_const_char_ptr=is_const_char_ptr,
             )
         return _generate_array_dump_content(
             self._ti, f"this->{self.field_name}", self.name, is_bool=self._ti_is_bool
@@ -1576,9 +1608,15 @@ class RepeatedTypeInfo(TypeInfo):
             o += f"  size.add_precalculated_size({size_expr} * {bytes_per_element});\n"
         else:
             # Other types need the actual value
-            auto_ref = "" if self._ti_is_bool else "&"
-            o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
-            o += f"    {self._ti.get_size_calculation('it', True)}\n"
+            # Special handling for const char* elements
+            if self._use_pointer and "const char" in self._container_no_template:
+                field_id_size = self.calculate_field_id_size()
+                o += f"  for (const char *it : {container_ref}) {{\n"
+                o += f"    size.add_length_force({field_id_size}, strlen(it));\n"
+            else:
+                auto_ref = "" if self._ti_is_bool else "&"
+                o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
+                o += f"    {self._ti.get_size_calculation('it', True)}\n"
             o += "  }\n"
 
         o += "}"
@@ -2527,6 +2565,12 @@ static void dump_field(std::string &out, const char *field_name, const std::stri
 static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   append_quoted_string(out, value);
+  out.append("\\n");
+}
+
+static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
   out.append("\\n");
 }
 

@@ -3,7 +3,7 @@ from esphome.components import esp32
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@jesserockz", "@kahrendt"]
+CODEOWNERS = ["@ab-tools"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["audio"]
 MULTI_CONF = False

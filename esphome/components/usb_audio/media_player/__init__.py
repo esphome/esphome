@@ -20,7 +20,7 @@ from esphome.core import HexInt
 
 from .. import CONF_USB_AUDIO_ID, USBAudioComponent, usb_audio_ns
 
-CODEOWNERS = ["@kahrendt"]
+CODEOWNERS = ["@ab-tools"]
 DEPENDENCIES = ["usb_audio", "speaker"]
 CONFLICTS_WITH = ["speaker.media_player"]
 

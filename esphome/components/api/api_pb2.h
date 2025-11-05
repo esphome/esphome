@@ -725,7 +725,7 @@ class ListEntitiesFanResponse final : public InfoResponseProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  const std::set<std::string> *supported_preset_modes{};
+  const std::vector<const char *> *supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -790,7 +790,7 @@ class ListEntitiesLightResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_light_response"; }
 #endif
-  const std::set<light::ColorMode> *supported_color_modes{};
+  const light::ColorModeMask *supported_color_modes{};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
@@ -1377,16 +1377,16 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
 #endif
   bool supports_current_temperature{false};
   bool supports_two_point_target_temperature{false};
-  const std::set<climate::ClimateMode> *supported_modes{};
+  const climate::ClimateModeMask *supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_target_temperature_step{0.0f};
   bool supports_action{false};
-  const std::set<climate::ClimateFanMode> *supported_fan_modes{};
-  const std::set<climate::ClimateSwingMode> *supported_swing_modes{};
-  const std::set<std::string> *supported_custom_fan_modes{};
-  const std::set<climate::ClimatePreset> *supported_presets{};
-  const std::set<std::string> *supported_custom_presets{};
+  const climate::ClimateFanModeMask *supported_fan_modes{};
+  const climate::ClimateSwingModeMask *supported_swing_modes{};
+  const std::vector<const char *> *supported_custom_fan_modes{};
+  const climate::ClimatePresetMask *supported_presets{};
+  const std::vector<const char *> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
@@ -1534,7 +1534,7 @@ class ListEntitiesSelectResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_select_response"; }
 #endif
-  const std::vector<std::string> *options{};
+  const FixedVector<const char *> *options{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

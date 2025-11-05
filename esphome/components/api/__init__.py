@@ -71,10 +71,12 @@ SERVICE_ARG_NATIVE_TYPES = {
     "int": cg.int32,
     "float": float,
     "string": cg.std_string,
-    "bool[]": cg.std_vector.template(bool),
-    "int[]": cg.std_vector.template(cg.int32),
-    "float[]": cg.std_vector.template(float),
-    "string[]": cg.std_vector.template(cg.std_string),
+    "bool[]": cg.FixedVector.template(bool).operator("const").operator("ref"),
+    "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
+    "float[]": cg.FixedVector.template(float).operator("const").operator("ref"),
+    "string[]": cg.FixedVector.template(cg.std_string)
+    .operator("const")
+    .operator("ref"),
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
@@ -155,6 +157,17 @@ def _validate_api_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def _consume_api_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for API component."""
+    from esphome.components import socket
+
+    # API needs 1 listening socket + typically 3 concurrent client connections
+    # (not max_connections, which is the upper limit rarely reached)
+    sockets_needed = 1 + 3
+    socket.consume_sockets(sockets_needed, "api")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -222,6 +235,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _validate_api_config,
+    _consume_api_sockets,
 )
 
 
@@ -246,6 +260,10 @@ async def to_code(config):
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
         cg.add_define("USE_API_SERVICES")
 
+    # Set USE_API_CUSTOM_SERVICES if external components need dynamic service registration
+    if config[CONF_CUSTOM_SERVICES]:
+        cg.add_define("USE_API_CUSTOM_SERVICES")
+
     if config[CONF_HOMEASSISTANT_SERVICES]:
         cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
 
@@ -253,6 +271,8 @@ async def to_code(config):
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
+        # Collect all triggers first, then register all at once with initializer_list
+        triggers: list[cg.Pvariable] = []
         for conf in actions:
             template_args = []
             func_args = []
@@ -266,8 +286,10 @@ async def to_code(config):
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
             )
-            cg.add(var.register_user_service(trigger))
+            triggers.append(trigger)
             await automation.build_automation(trigger, func_args, conf)
+        # Register all services at once - single allocation, no reallocations
+        cg.add(var.initialize_user_services(triggers))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")

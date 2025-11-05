@@ -1,9 +1,11 @@
 import glob
 import logging
 from pathlib import Path
+from typing import Any
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
+from esphome.config import resolve_extend_remove
 from esphome.config_helpers import merge_config
 from esphome.const import CONF_PACKAGES, CONF_SUBSTITUTIONS
 from esphome.core import CORE
@@ -59,6 +61,29 @@ def write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml_util.dump(data), encoding="utf-8")
 
 
+def verify_database(value: Any, path: str = "") -> str | None:
+    if isinstance(value, list):
+        for i, v in enumerate(value):
+            result = verify_database(v, f"{path}[{i}]")
+            if result is not None:
+                return result
+        return None
+    if isinstance(value, dict):
+        for k, v in value.items():
+            key_result = verify_database(k, f"{path}/{k}")
+            if key_result is not None:
+                return key_result
+            value_result = verify_database(v, f"{path}/{k}")
+            if value_result is not None:
+                return value_result
+        return None
+    if isinstance(value, str):
+        if not isinstance(value, yaml_util.ESPHomeDataBase):
+            return f"{path}: {value!r} is not ESPHomeDataBase"
+        return None
+    return None
+
+
 def test_substitutions_fixtures(fixture_path):
     base_dir = fixture_path / "substitutions"
     sources = sorted(glob.glob(str(base_dir / "*.input.yaml")))
@@ -80,6 +105,11 @@ def test_substitutions_fixtures(fixture_path):
                 config = do_packages_pass(config)
 
             substitutions.do_substitution_pass(config, None)
+
+            resolve_extend_remove(config)
+            verify_database_result = verify_database(config)
+            if verify_database_result is not None:
+                raise AssertionError(verify_database_result)
 
             # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
             if expected_path.is_file():

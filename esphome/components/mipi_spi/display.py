@@ -131,19 +131,6 @@ def denominator(config):
         ) from StopIteration
 
 
-def swap_xy_schema(model):
-    uses_swap = model.get_default(CONF_SWAP_XY, None) != cv.UNDEFINED
-
-    def validator(value):
-        if value:
-            raise cv.Invalid("Axis swapping not supported by this model")
-        return cv.boolean(value)
-
-    if uses_swap:
-        return {cv.Required(CONF_SWAP_XY): cv.boolean}
-    return {cv.Optional(CONF_SWAP_XY, default=False): validator}
-
-
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
     bus_mode = config[CONF_BUS_MODE]
@@ -152,7 +139,7 @@ def model_schema(config):
             {
                 cv.Required(CONF_MIRROR_X): cv.boolean,
                 cv.Required(CONF_MIRROR_Y): cv.boolean,
-                **swap_xy_schema(model),
+                **model.swap_xy_schema(),
             }
         ),
         cv.one_of(CONF_DISABLED, lower=True),
