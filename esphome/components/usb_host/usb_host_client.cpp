@@ -192,12 +192,6 @@ void USBClient::setup() {
     this->mark_failed();
     return;
   }
-  // Pre-allocate USB transfer buffers for all slots at startup
-  // This avoids any dynamic allocation during runtime
-  for (auto &request : this->requests_) {
-    usb_host_transfer_alloc(64, 0, &request.transfer);
-    request.client = this;  // Set once, never changes
-  }
 
   // Create and start USB task
   xTaskCreate(usb_task_fn, "usb_task",
