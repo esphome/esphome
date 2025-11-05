@@ -289,7 +289,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
-    cg.add_define("USE_OPENTHREAD")
+    # USE_OPENTHREAD is already defined via build flag at line 196
     # Apply platform-specific configuration
     if CORE.is_esp32:
         # ESP32 specific configuration
