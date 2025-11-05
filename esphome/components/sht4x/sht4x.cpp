@@ -65,7 +65,7 @@ void SHT4XComponent::update() {
   // Send command
   if (!this->write_command(MEASURECOMMANDS[this->precision_])) {
     // Warning will be printed only if warning status is not set yet
-    this->status_set_warning("Failed to send measurement command");
+    this->status_set_warning(LOG_STR("Failed to send measurement command"));
     return;
   }
 

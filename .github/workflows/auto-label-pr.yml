@@ -22,17 +22,17 @@ jobs:
     if: github.event.action != 'labeled' || github.event.sender.type != 'Bot'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Generate a token
         id: generate-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2
         with:
           app-id: ${{ secrets.ESPHOME_GITHUB_APP_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
 
       - name: Auto Label PR
-        uses: actions/github-script@v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
@@ -53,6 +53,7 @@ jobs:
               'new-target-platform',
               'merging-to-release',
               'merging-to-beta',
+              'chained-pr',
               'core',
               'small-pr',
               'dashboard',
@@ -105,7 +106,9 @@ jobs:
 
             // Calculate data from PR files
             const changedFiles = prFiles.map(file => file.filename);
-            const totalChanges = prFiles.reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
+            const totalAdditions = prFiles.reduce((sum, file) => sum + (file.additions || 0), 0);
+            const totalDeletions = prFiles.reduce((sum, file) => sum + (file.deletions || 0), 0);
+            const totalChanges = totalAdditions + totalDeletions;
 
             console.log('Current labels:', currentLabels.join(', '));
             console.log('Changed files:', changedFiles.length);
@@ -138,6 +141,8 @@ jobs:
                 labels.add('merging-to-release');
               } else if (baseRef === 'beta') {
                 labels.add('merging-to-beta');
+              } else if (baseRef !== 'dev') {
+                labels.add('chained-pr');
               }
 
               return labels;
@@ -231,15 +236,20 @@ jobs:
             // Strategy: PR size detection
             async function detectPRSize() {
               const labels = new Set();
-              const testChanges = prFiles
-                .filter(file => file.filename.startsWith('tests/'))
-                .reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
-
-              const nonTestChanges = totalChanges - testChanges;
 
               if (totalChanges <= SMALL_PR_THRESHOLD) {
                 labels.add('small-pr');
+                return labels;
               }
+
+              const testAdditions = prFiles
+                .filter(file => file.filename.startsWith('tests/'))
+                .reduce((sum, file) => sum + (file.additions || 0), 0);
+              const testDeletions = prFiles
+                .filter(file => file.filename.startsWith('tests/'))
+                .reduce((sum, file) => sum + (file.deletions || 0), 0);
+
+              const nonTestChanges = (totalAdditions - testAdditions) - (totalDeletions - testDeletions);
 
               // Don't add too-big if mega-pr label is already present
               if (nonTestChanges > TOO_BIG_THRESHOLD && !isMegaPR) {
@@ -375,7 +385,7 @@ jobs:
               const labels = new Set();
 
               // Check for missing tests
-              if ((allLabels.has('new-component') || allLabels.has('new-platform')) && !allLabels.has('has-tests')) {
+              if ((allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature')) && !allLabels.has('has-tests')) {
                 labels.add('needs-tests');
               }
 
@@ -406,26 +416,29 @@ jobs:
             }
 
             // Generate review messages
-            function generateReviewMessages(finalLabels) {
+            function generateReviewMessages(finalLabels, originalLabelCount) {
               const messages = [];
               const prAuthor = context.payload.pull_request.user.login;
 
               // Too big message
               if (finalLabels.includes('too-big')) {
-                const testChanges = prFiles
+                const testAdditions = prFiles
                   .filter(file => file.filename.startsWith('tests/'))
-                  .reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
-                const nonTestChanges = totalChanges - testChanges;
+                  .reduce((sum, file) => sum + (file.additions || 0), 0);
+                const testDeletions = prFiles
+                  .filter(file => file.filename.startsWith('tests/'))
+                  .reduce((sum, file) => sum + (file.deletions || 0), 0);
+                const nonTestChanges = (totalAdditions - testAdditions) - (totalDeletions - testDeletions);
 
-                const tooManyLabels = finalLabels.length > MAX_LABELS;
+                const tooManyLabels = originalLabelCount > MAX_LABELS;
                 const tooManyChanges = nonTestChanges > TOO_BIG_THRESHOLD;
 
                 let message = `${TOO_BIG_MARKER}\n### 📦 Pull Request Size\n\n`;
 
                 if (tooManyLabels && tooManyChanges) {
-                  message += `This PR is too large with ${nonTestChanges} line changes (excluding tests) and affects ${finalLabels.length} different components/areas.`;
+                  message += `This PR is too large with ${nonTestChanges} line changes (excluding tests) and affects ${originalLabelCount} different components/areas.`;
                 } else if (tooManyLabels) {
-                  message += `This PR affects ${finalLabels.length} different components/areas.`;
+                  message += `This PR affects ${originalLabelCount} different components/areas.`;
                 } else {
                   message += `This PR is too large with ${nonTestChanges} line changes (excluding tests).`;
                 }
@@ -453,8 +466,8 @@ jobs:
             }
 
             // Handle reviews
-            async function handleReviews(finalLabels) {
-              const reviewMessages = generateReviewMessages(finalLabels);
+            async function handleReviews(finalLabels, originalLabelCount) {
+              const reviewMessages = generateReviewMessages(finalLabels, originalLabelCount);
               const hasReviewableLabels = finalLabels.some(label =>
                 ['too-big', 'needs-codeowners'].includes(label)
               );
@@ -518,8 +531,8 @@ jobs:
             const apiData = await fetchApiData();
             const baseRef = context.payload.pull_request.base.ref;
 
-            // Early exit for non-dev branches
-            if (baseRef !== 'dev') {
+            // Early exit for release and beta branches only
+            if (baseRef === 'release' || baseRef === 'beta') {
               const branchLabels = await detectMergeBranch();
               const finalLabels = Array.from(branchLabels);
 
@@ -614,6 +627,7 @@ jobs:
 
             // Handle too many labels (only for non-mega PRs)
             const tooManyLabels = finalLabels.length > MAX_LABELS;
+            const originalLabelCount = finalLabels.length;
 
             if (tooManyLabels && !isMegaPR && !finalLabels.includes('too-big')) {
               finalLabels = ['too-big'];
@@ -622,7 +636,7 @@ jobs:
             console.log('Computed labels:', finalLabels.join(', '));
 
             // Handle reviews
-            await handleReviews(finalLabels);
+            await handleReviews(finalLabels, originalLabelCount);
 
             // Apply labels
             if (finalLabels.length > 0) {

@@ -184,7 +184,7 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 void LD2450Component::setup() {
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
-    this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_preference_hash());
     this->set_presence_timeout();
   }
 #endif
@@ -199,9 +199,8 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LD2450:\n"
                 "  Firmware version: %s\n"
-                "  MAC address: %s\n"
-                "  Throttle: %u ms",
-                version.c_str(), mac_str.c_str(), this->throttle_);
+                "  MAC address: %s",
+                version.c_str(), mac_str.c_str());
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
   LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
@@ -381,7 +380,7 @@ void LD2450Component::read_all_info() {
   this->set_config_mode_(false);
 #ifdef USE_SELECT
   const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
-  if (this->baud_rate_select_ != nullptr && this->baud_rate_select_->state != baud_rate) {
+  if (this->baud_rate_select_ != nullptr && strcmp(this->baud_rate_select_->current_option(), baud_rate.c_str()) != 0) {
     this->baud_rate_select_->publish_state(baud_rate);
   }
   this->publish_zone_type();
@@ -431,11 +430,6 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
 //  [AA FF 03 00] [0E 03 B1 86 10 00 40 01] [00 00 00 00 00 00 00 00] [00 00 00 00 00 00 00 00] [55 CC]
 //   Header       Target 1                  Target 2                  Target 3                  End
 void LD2450Component::handle_periodic_data_() {
-  // Early throttle check - moved before any processing to save CPU cycles
-  if (App.get_loop_component_start_time() - this->last_periodic_millis_ < this->throttle_) {
-    return;
-  }
-
   if (this->buffer_pos_ < 29) {  // header (4 bytes) + 8 x 3 target data + footer (2 bytes)
     ESP_LOGE(TAG, "Invalid length");
     return;
@@ -446,8 +440,6 @@ void LD2450Component::handle_periodic_data_() {
     ESP_LOGE(TAG, "Invalid header/footer");
     return;
   }
-  // Save the timestamp after validating the frame so, if invalid, we'll take the next frame immediately
-  this->last_periodic_millis_ = App.get_loop_component_start_time();
 
   int16_t target_count = 0;
   int16_t still_target_count = 0;
@@ -643,7 +635,7 @@ bool LD2450Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->state.c_str());
+        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->current_option());
       }
 #endif
       break;
@@ -724,7 +716,7 @@ bool LD2450Component::handle_ack_data_() {
       this->publish_zone_type();
 #ifdef USE_SELECT
       if (this->zone_type_select_ != nullptr) {
-        ESP_LOGV(TAG, "Change zone type to: %s", this->zone_type_select_->state.c_str());
+        ESP_LOGV(TAG, "Change zone type to: %s", this->zone_type_select_->current_option());
       }
 #endif
       if (this->buffer_data_[10] == 0x00) {
@@ -798,7 +790,7 @@ void LD2450Component::set_bluetooth(bool enable) {
 }
 
 // Set Baud rate
-void LD2450Component::set_baud_rate(const std::string &state) {
+void LD2450Component::set_baud_rate(const char *state) {
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
@@ -806,8 +798,8 @@ void LD2450Component::set_baud_rate(const std::string &state) {
 }
 
 // Set Zone Type - one of: Disabled, Detection, Filter
-void LD2450Component::set_zone_type(const std::string &state) {
-  ESP_LOGV(TAG, "Set zone type: %s", state.c_str());
+void LD2450Component::set_zone_type(const char *state) {
+  ESP_LOGV(TAG, "Set zone type: %s", state);
   uint8_t zone_type = find_uint8(ZONE_TYPE_BY_STR, state);
   this->zone_type_ = zone_type;
   this->send_set_zone_command_();

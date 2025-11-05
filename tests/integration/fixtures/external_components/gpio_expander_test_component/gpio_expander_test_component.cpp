@@ -27,11 +27,13 @@ void GPIOExpanderTestComponent::setup() {
 
 bool GPIOExpanderTestComponent::digital_read_hw(uint8_t pin) {
   ESP_LOGD(TAG, "digital_read_hw pin=%d", pin);
+  // Return true to indicate successful read operation
   return true;
 }
 
 bool GPIOExpanderTestComponent::digital_read_cache(uint8_t pin) {
   ESP_LOGD(TAG, "digital_read_cache pin=%d", pin);
+  // Return the pin state (always HIGH for testing)
   return true;
 }
 

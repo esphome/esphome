@@ -26,7 +26,7 @@ template<typename... Ts> class SensorPublishAction : public Action<Ts...> {
   SensorPublishAction(Sensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(float, state)
 
-  void play(Ts... x) override { this->sensor_->publish_state(this->state_.value(x...)); }
+  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
 
  protected:
   Sensor *sensor_;
@@ -40,7 +40,7 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   template<typename V> void set_max(V max) { this->max_ = max; }
 
   void setup() override {
-    this->rtc_ = global_preferences->make_preference<bool>(this->parent_->get_object_id_hash());
+    this->rtc_ = global_preferences->make_preference<bool>(this->parent_->get_preference_hash());
     bool initial_state;
     if (this->rtc_.load(&initial_state)) {
       this->previous_in_range_ = initial_state;
@@ -90,7 +90,7 @@ template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> 
 
   void set_min(float min) { this->min_ = min; }
   void set_max(float max) { this->max_ = max; }
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     const float state = this->parent_->state;
     if (std::isnan(this->min_)) {
       return state <= this->max_;

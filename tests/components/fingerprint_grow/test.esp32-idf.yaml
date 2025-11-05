@@ -3,4 +3,7 @@ substitutions:
   rx_pin: GPIO14
   sensing_pin: GPIO15
 
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
 <<: !include common.yaml

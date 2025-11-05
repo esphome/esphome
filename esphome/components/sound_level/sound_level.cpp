@@ -56,7 +56,7 @@ void SoundLevelComponent::loop() {
     }
   } else {
     if (!this->status_has_warning()) {
-      this->status_set_warning("Microphone isn't running, can't compute statistics");
+      this->status_set_warning(LOG_STR("Microphone isn't running, can't compute statistics"));
 
       // Deallocate buffers, if necessary
       this->stop_();

@@ -30,6 +30,14 @@ extend google.protobuf.FieldOptions {
     optional bool no_zero_copy = 50008 [default=false];
     optional bool fixed_array_skip_zero = 50009 [default=false];
     optional string fixed_array_size_define = 50010;
+    optional string fixed_array_with_length_define = 50011;
+
+    // pointer_to_buffer: Use pointer instead of array for fixed-size byte fields
+    // When set, the field will be declared as a pointer (const uint8_t *data)
+    // instead of an array (uint8_t data[N]). This allows zero-copy on decode
+    // by pointing directly to the protobuf buffer. The buffer must remain valid
+    // until the message is processed (which is guaranteed for stack-allocated messages).
+    optional bool pointer_to_buffer = 50012 [default=false];
 
     // container_pointer: Zero-copy optimization for repeated fields.
     //
@@ -56,4 +64,20 @@ extend google.protobuf.FieldOptions {
     // This is typically done through methods returning const T& or special accessor
     // methods like get_options() or supported_modes_for_api_().
     optional string container_pointer = 50001;
+
+    // fixed_vector: Use FixedVector instead of std::vector for repeated fields
+    // When set, the repeated field will use FixedVector<T> which requires calling
+    // init(size) before adding elements. This eliminates std::vector template overhead
+    // and is ideal when the exact size is known before populating the array.
+    optional bool fixed_vector = 50013 [default=false];
+
+    // container_pointer_no_template: Use a non-template container type for repeated fields
+    // Similar to container_pointer, but for containers that don't take template parameters.
+    // The container type is used as-is without appending element type.
+    // The container must have:
+    // - begin() and end() methods returning iterators
+    // - empty() method
+    // Example: [(container_pointer_no_template) = "light::ColorModeMask"]
+    //   generates: const light::ColorModeMask *supported_color_modes{};
+    optional string container_pointer_no_template = 50014;
 }

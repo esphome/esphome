@@ -67,7 +67,6 @@ class Widget:
         self.type = wtype
         self.config = config
         self.scale = 1.0
-        self.step = 1.0
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
         if wtype.is_compound():
@@ -340,7 +339,10 @@ async def set_obj_properties(w: Widget, config):
         if layout_type == TYPE_FLEX:
             lv_obj.set_flex_flow(w.obj, literal(layout[CONF_FLEX_FLOW]))
             main = literal(layout[CONF_FLEX_ALIGN_MAIN])
-            cross = literal(layout[CONF_FLEX_ALIGN_CROSS])
+            cross = layout[CONF_FLEX_ALIGN_CROSS]
+            if cross == "LV_FLEX_ALIGN_STRETCH":
+                cross = "LV_FLEX_ALIGN_CENTER"
+            cross = literal(cross)
             track = literal(layout[CONF_FLEX_ALIGN_TRACK])
             lv_obj.set_flex_align(w.obj, main, cross, track)
     parts = collect_parts(config)
@@ -439,7 +441,7 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     :return:
     """
     spec: WidgetType = WIDGET_TYPES[w_type]
-    creator = spec.obj_creator(parent, w_cnfig)
+    creator = await spec.obj_creator(parent, w_cnfig)
     add_lv_use(spec.name)
     add_lv_use(*spec.get_uses())
     wid = w_cnfig[CONF_ID]
@@ -447,9 +449,11 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     if spec.is_compound():
         var = cg.new_Pvariable(wid)
         lv_add(var.set_obj(creator))
+        spec.on_create(var.obj, w_cnfig)
     else:
         var = lv_Pvariable(lv_obj_t, wid)
         lv_assign(var, creator)
+        spec.on_create(var, w_cnfig)
 
     w = Widget.create(wid, var, spec, w_cnfig)
     if theme := theme_widget_map.get(w_type):

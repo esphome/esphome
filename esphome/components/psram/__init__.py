@@ -1,4 +1,5 @@
 import logging
+import textwrap
 
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -16,6 +17,7 @@ from esphome.components.esp32.const import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
+    CONF_DISABLED,
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_MODE,
@@ -61,6 +63,13 @@ SPIRAM_SPEEDS = {
 }
 
 
+def supported() -> bool:
+    if not CORE.is_esp32:
+        return False
+    variant = get_esp32_variant()
+    return variant in SPIRAM_MODES
+
+
 def validate_psram_mode(config):
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if config[CONF_SPEED] == "120MHZ":
@@ -94,14 +103,26 @@ def get_config_schema(config):
     variant = get_esp32_variant()
     speeds = [f"{s}MHZ" for s in SPIRAM_SPEEDS.get(variant, [])]
     if not speeds:
-        return cv.Invalid("PSRAM is not supported on this chip")
+        raise cv.Invalid("PSRAM is not supported on this chip")
     modes = SPIRAM_MODES[variant]
+    if CONF_MODE not in config and len(modes) != 1:
+        raise (
+            cv.Invalid(
+                textwrap.dedent(
+                    f"""
+                        {variant} requires PSRAM mode selection; one of {", ".join(modes)}
+                        Selection of the wrong mode for the board will cause a runtime failure to initialise PSRAM
+                    """
+                )
+            )
+        )
     return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),
             cv.Optional(CONF_MODE, default=modes[0]): cv.one_of(*modes, lower=True),
             cv.Optional(CONF_ENABLE_ECC, default=False): cv.boolean,
             cv.Optional(CONF_SPEED, default=speeds[0]): cv.one_of(*speeds, upper=True),
+            cv.Optional(CONF_DISABLED, default=False): cv.boolean,
         }
     )(config)
 
@@ -112,38 +133,37 @@ FINAL_VALIDATE_SCHEMA = validate_psram_mode
 
 
 async def to_code(config):
+    if config[CONF_DISABLED]:
+        return
     if CORE.using_arduino:
         cg.add_build_flag("-DBOARD_HAS_PSRAM")
         if config[CONF_MODE] == TYPE_OCTAL:
             cg.add_platformio_option("board_build.arduino.memory_type", "qio_opi")
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option(
-            f"CONFIG_{get_esp32_variant().upper()}_SPIRAM_SUPPORT", True
-        )
-        add_idf_sdkconfig_option("CONFIG_SOC_SPIRAM_SUPPORTED", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
+    add_idf_sdkconfig_option(
+        f"CONFIG_{get_esp32_variant().upper()}_SPIRAM_SUPPORT", True
+    )
+    add_idf_sdkconfig_option("CONFIG_SOC_SPIRAM_SUPPORTED", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
 
-        add_idf_sdkconfig_option(
-            f"CONFIG_SPIRAM_MODE_{SDK_MODES[config[CONF_MODE]]}", True
-        )
+    add_idf_sdkconfig_option(f"CONFIG_SPIRAM_MODE_{SDK_MODES[config[CONF_MODE]]}", True)
 
-        # Remove MHz suffix, convert to int
-        speed = int(config[CONF_SPEED][:-3])
-        add_idf_sdkconfig_option(f"CONFIG_SPIRAM_SPEED_{speed}M", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_SPEED", speed)
-        if config[CONF_MODE] == TYPE_OCTAL and speed == 120:
-            add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
-            add_idf_sdkconfig_option("CONFIG_BOOTLOADER_FLASH_DC_AWARE", True)
-            if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 4, 0):
-                add_idf_sdkconfig_option(
-                    "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True
-                )
-        if config[CONF_ENABLE_ECC]:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_ECC_ENABLE", True)
+    # Remove MHz suffix, convert to int
+    speed = int(config[CONF_SPEED][:-3])
+    add_idf_sdkconfig_option(f"CONFIG_SPIRAM_SPEED_{speed}M", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_SPEED", speed)
+    if config[CONF_MODE] == TYPE_OCTAL and speed == 120:
+        add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_FLASH_DC_AWARE", True)
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 4, 0):
+            add_idf_sdkconfig_option(
+                "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True
+            )
+    if config[CONF_ENABLE_ECC]:
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_ECC_ENABLE", True)
 
     cg.add_define("USE_PSRAM")
 

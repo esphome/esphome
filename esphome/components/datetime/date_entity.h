@@ -16,8 +16,8 @@ namespace datetime {
 #define LOG_DATETIME_DATE(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+    if (!(obj)->get_icon_ref().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
     } \
   }
 
@@ -101,7 +101,7 @@ template<typename... Ts> class DateSetAction : public Action<Ts...>, public Pare
  public:
   TEMPLATABLE_VALUE(ESPTime, date)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
 
     if (this->date_.has_value()) {

@@ -110,14 +110,13 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
   void set_presence_timeout();
-  void set_throttle(uint16_t value) { this->throttle_ = value; }
   void read_all_info();
   void query_zone_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_multi_target(bool enable);
-  void set_baud_rate(const std::string &state);
-  void set_zone_type(const std::string &state);
+  void set_baud_rate(const char *state);
+  void set_zone_type(const char *state);
   void publish_zone_type();
   void factory_reset();
 #ifdef USE_TEXT_SENSOR
@@ -161,11 +160,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool get_timeout_status_(uint32_t check_millis);
   uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
 
-  uint32_t last_periodic_millis_ = 0;
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
-  uint16_t throttle_ = 0;
   uint16_t timeout_ = 5;
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};

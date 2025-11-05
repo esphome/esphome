@@ -8,6 +8,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -44,6 +45,9 @@
 #define PACKED __attribute__((packed))
 
 namespace esphome {
+
+// Forward declaration to avoid circular dependency with string_ref.h
+class StringRef;
 
 /// @name STL backports
 ///@{
@@ -82,6 +86,16 @@ template<typename T> constexpr T byteswap(T n) {
   return m;
 }
 template<> constexpr uint8_t byteswap(uint8_t n) { return n; }
+#ifdef USE_LIBRETINY
+// LibreTiny's Beken framework redefines __builtin_bswap functions as non-constexpr
+template<> inline uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> inline uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> inline uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> inline int8_t byteswap(int8_t n) { return n; }
+template<> inline int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> inline int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> inline int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+#else
 template<> constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
 template<> constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
 template<> constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
@@ -89,6 +103,7 @@ template<> constexpr int8_t byteswap(int8_t n) { return n; }
 template<> constexpr int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
 template<> constexpr int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
 template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+#endif
 
 ///@}
 
@@ -116,6 +131,16 @@ template<typename T, size_t N> class StaticVector {
     }
   }
 
+  // Return reference to next element and increment count (with bounds checking)
+  T &emplace_next() {
+    if (count_ >= N) {
+      // Should never happen with proper size calculation
+      // Return reference to last element to avoid crash
+      return data_[N - 1];
+    }
+    return data_[count_++];
+  }
+
   size_t size() const { return count_; }
   bool empty() const { return count_ == 0; }
 
@@ -135,6 +160,183 @@ template<typename T, size_t N> class StaticVector {
   const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
 };
 
+/// Fixed-capacity vector - allocates once at runtime, never reallocates
+/// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
+/// when size is known at initialization but not at compile time
+template<typename T> class FixedVector {
+ private:
+  T *data_{nullptr};
+  size_t size_{0};
+  size_t capacity_{0};
+
+  // Helper to destroy all elements without freeing memory
+  void destroy_elements_() {
+    // Only call destructors for non-trivially destructible types
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      for (size_t i = 0; i < size_; i++) {
+        data_[i].~T();
+      }
+    }
+  }
+
+  // Helper to destroy elements and free memory
+  void cleanup_() {
+    if (data_ != nullptr) {
+      destroy_elements_();
+      // Free raw memory
+      ::operator delete(data_);
+    }
+  }
+
+  // Helper to reset pointers after cleanup
+  void reset_() {
+    data_ = nullptr;
+    capacity_ = 0;
+    size_ = 0;
+  }
+
+  // Helper to assign from initializer list (shared by constructor and assignment operator)
+  void assign_from_initializer_list_(std::initializer_list<T> init_list) {
+    init(init_list.size());
+    size_t idx = 0;
+    for (const auto &item : init_list) {
+      new (data_ + idx) T(item);
+      ++idx;
+    }
+    size_ = init_list.size();
+  }
+
+ public:
+  FixedVector() = default;
+
+  /// Constructor from initializer list - allocates exact size needed
+  /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
+  FixedVector(std::initializer_list<T> init_list) { assign_from_initializer_list_(init_list); }
+
+  ~FixedVector() { cleanup_(); }
+
+  // Disable copy operations (avoid accidental expensive copies)
+  FixedVector(const FixedVector &) = delete;
+  FixedVector &operator=(const FixedVector &) = delete;
+
+  // Enable move semantics (allows use in move-only containers like std::vector)
+  FixedVector(FixedVector &&other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
+    other.reset_();
+  }
+
+  FixedVector &operator=(FixedVector &&other) noexcept {
+    if (this != &other) {
+      // Delete our current data
+      cleanup_();
+      // Take ownership of other's data
+      data_ = other.data_;
+      size_ = other.size_;
+      capacity_ = other.capacity_;
+      // Leave other in valid empty state
+      other.reset_();
+    }
+    return *this;
+  }
+
+  /// Assignment from initializer list - avoids temporary and move overhead
+  /// This enables: FixedVector<int> v; v = {1, 2, 3};
+  FixedVector &operator=(std::initializer_list<T> init_list) {
+    cleanup_();
+    reset_();
+    assign_from_initializer_list_(init_list);
+    return *this;
+  }
+
+  // Allocate capacity - can be called multiple times to reinit
+  // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
+  // Direct assignment via operator[] does NOT update the size counter.
+  void init(size_t n) {
+    cleanup_();
+    reset_();
+    if (n > 0) {
+      // Allocate raw memory without calling constructors
+      // sizeof(T) is correct here for any type T (value types, pointers, etc.)
+      // NOLINTNEXTLINE(bugprone-sizeof-expression)
+      data_ = static_cast<T *>(::operator new(n * sizeof(T)));
+      capacity_ = n;
+    }
+  }
+
+  // Clear the vector (destroy all elements, reset size to 0, keep capacity)
+  void clear() {
+    destroy_elements_();
+    size_ = 0;
+  }
+
+  // Shrink capacity to fit current size (frees all memory)
+  void shrink_to_fit() {
+    cleanup_();
+    reset_();
+  }
+
+  /// Add element without bounds checking
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Silently ignores pushes beyond capacity (no exception or assertion)
+  void push_back(const T &value) {
+    if (size_ < capacity_) {
+      // Use placement new to construct the object in pre-allocated memory
+      new (&data_[size_]) T(value);
+      size_++;
+    }
+  }
+
+  /// Add element by move without bounds checking
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Silently ignores pushes beyond capacity (no exception or assertion)
+  void push_back(T &&value) {
+    if (size_ < capacity_) {
+      // Use placement new to move-construct the object in pre-allocated memory
+      new (&data_[size_]) T(std::move(value));
+      size_++;
+    }
+  }
+
+  /// Emplace element without bounds checking - constructs in-place with arguments
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Returns reference to the newly constructed element
+  /// NOTE: Caller MUST ensure size_ < capacity_ before calling
+  template<typename... Args> T &emplace_back(Args &&...args) {
+    // Use placement new to construct the object in pre-allocated memory
+    new (&data_[size_]) T(std::forward<Args>(args)...);
+    size_++;
+    return data_[size_ - 1];
+  }
+
+  /// Access first element (no bounds checking - matches std::vector behavior)
+  /// Caller must ensure vector is not empty (size() > 0)
+  T &front() { return data_[0]; }
+  const T &front() const { return data_[0]; }
+
+  /// Access last element (no bounds checking - matches std::vector behavior)
+  /// Caller must ensure vector is not empty (size() > 0)
+  T &back() { return data_[size_ - 1]; }
+  const T &back() const { return data_[size_ - 1]; }
+
+  size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
+
+  /// Access element without bounds checking (matches std::vector behavior)
+  /// Caller must ensure index is valid (i < size())
+  T &operator[](size_t i) { return data_[i]; }
+  const T &operator[](size_t i) const { return data_[i]; }
+
+  /// Access element with bounds checking (matches std::vector behavior)
+  /// Note: No exception thrown on out of bounds - caller must ensure index is valid
+  T &at(size_t i) { return data_[i]; }
+  const T &at(size_t i) const { return data_[i]; }
+
+  // Iterator support for range-based for loops
+  T *begin() { return data_; }
+  T *end() { return data_ + size_; }
+  const T *begin() const { return data_; }
+  const T *end() const { return data_ + size_; }
+};
+
 ///@}
 
 /// @name Mathematics
@@ -145,8 +347,8 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 
-/// Calculate a CRC-8 checksum of \p data with size \p len using the CRC-8-Dallas/Maxim polynomial.
-uint8_t crc8(const uint8_t *data, uint8_t len);
+/// Calculate a CRC-8 checksum of \p data with size \p len.
+uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
@@ -155,7 +357,8 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t p
                  bool refout = false);
 
 /// Calculate a FNV-1 hash of \p str.
-uint32_t fnv1_hash(const std::string &str);
+uint32_t fnv1_hash(const char *str);
+inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
@@ -281,6 +484,16 @@ std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, 
 /// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
+/// Concatenate a name with a separator and suffix using an efficient stack-based approach.
+/// This avoids multiple heap allocations during string construction.
+/// Maximum name length supported is 120 characters for friendly names.
+/// @param name The base name string
+/// @param sep The separator character (e.g., '-', ' ', or '.')
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return The concatenated string: name + sep + suffix
+std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len);
+
 ///@}
 
 /// @name Parsing & formatting
@@ -377,6 +590,35 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 /// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const std::string &str) {
   return parse_hex<T>(str.c_str(), str.length());
+}
+
+/// Convert a nibble (0-15) to lowercase hex char
+inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+
+/// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
+/// This always uses uppercase (A-F) for pretty/human-readable output
+inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
+
+/// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase)
+inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
+  for (size_t i = 0; i < 6; i++) {
+    uint8_t byte = mac[i];
+    output[i * 3] = format_hex_pretty_char(byte >> 4);
+    output[i * 3 + 1] = format_hex_pretty_char(byte & 0x0F);
+    if (i < 5)
+      output[i * 3 + 2] = ':';
+  }
+  output[17] = '\0';
+}
+
+/// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
+inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
+  for (size_t i = 0; i < 6; i++) {
+    uint8_t byte = mac[i];
+    output[i * 2] = format_hex_char(byte >> 4);
+    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
+  }
+  output[12] = '\0';
 }
 
 /// Format the six-byte array \p mac into a MAC address.
@@ -559,6 +801,8 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+/// Create a string from a value, an accuracy in decimals, and a unit of measurement.
+std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement);
 
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
@@ -786,6 +1030,10 @@ std::string get_mac_address();
 /// Get the device MAC address as a string, in colon-separated uppercase hex notation.
 std::string get_mac_address_pretty();
 
+/// Get the device MAC address into the given buffer, in lowercase hex notation.
+/// Assumes buffer length is 13 (12 digits for hexadecimal representation followed by null terminator).
+void get_mac_address_into_buffer(std::span<char, 13> buf);
+
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
@@ -936,20 +1184,6 @@ template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0> T id(T va
  * This function is not called from lambdas, the code generator replaces calls to it with the appropriate variable.
  */
 template<typename T, enable_if_t<std::is_pointer<T *>::value, int> = 0> T &id(T *value) { return *value; }
-
-///@}
-
-/// @name Deprecated functions
-///@{
-
-ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
-inline std::string hexencode(const uint8_t *data, uint32_t len) { return format_hex_pretty(data, len); }
-
-template<typename T>
-ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
-std::string hexencode(const T &data) {
-  return hexencode(data.data(), data.size());
-}
 
 ///@}
 

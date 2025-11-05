@@ -93,14 +93,13 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void set_gate_move_sensor(uint8_t gate, sensor::Sensor *s);
   void set_gate_still_sensor(uint8_t gate, sensor::Sensor *s);
 #endif
-  void set_throttle(uint16_t value) { this->throttle_ = value; };
   void set_bluetooth_password(const std::string &password);
   void set_engineering_mode(bool enable);
   void read_all_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
-  void set_distance_resolution(const std::string &state);
-  void set_baud_rate(const std::string &state);
+  void set_distance_resolution(const char *state);
+  void set_baud_rate(const char *state);
   void factory_reset();
 
  protected:
@@ -116,8 +115,6 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void query_light_control_();
   void restart_();
 
-  uint32_t last_periodic_millis_ = 0;
-  uint16_t throttle_ = 0;
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
   uint8_t out_pin_level_ = 0;
