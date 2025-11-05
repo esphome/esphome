@@ -37,6 +37,7 @@ EPaperBase = epaper_spi_ns.class_(
 
 EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
 EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
+EPaperInkplate2 = epaper_spi_ns.class_("EPaperInkplate2", EPaperBase)
 
 
 # Import all models dynamically from the models package
