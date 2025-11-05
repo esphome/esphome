@@ -71,10 +71,17 @@ This document provides essential context for AI models interacting with this pro
                this->current_option_ = nullptr;  // Reset to prevent dangling pointer
              }
              void set_selected_option(const std::string *option) {
-               // Validate that option points to an entry in options_
-               if (std::find(this->options_.begin(), this->options_.end(), *option) != this->options_.end()) {
-                 this->current_option_ = option;
+               // Validate that option points to an entry in options_ by checking address range
+               if (option == nullptr) {
+                 return;
                }
+               for (const auto &opt : this->options_) {
+                 if (&opt == option) {
+                   this->current_option_ = option;
+                   return;
+                 }
+               }
+               // Invalid pointer - doesn't point to an element in options_
              }
             private:
              std::vector<std::string> options_;
