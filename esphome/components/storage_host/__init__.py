@@ -159,11 +159,13 @@ async def setup_storage_image_component(config, parent_storage):
     if hasattr(CORE, "data") and "usb_msc_devices" in CORE.data:
         for usb_device in CORE.data["usb_msc_devices"]:
             # Register callback: when USB device is mounted, try to load this image
-            # Only register if the file path starts with the mount path of this USB device
+            # The lambda captures 'var' (the StorageImage instance) and calls on_mount_ready
             cg.add(
                 usb_device.add_mount_ready_callback(
-                    cg.RawExpression(
-                        f"[this]({cg.std_string} mount_path) {{ this->on_mount_ready(mount_path); }}"
+                    cg.LambdaExpression(
+                        f"[{var}](const std::string &mount_path) {{ {var}->on_mount_ready(mount_path); }}",
+                        [(cg.std_string, "mount_path")],
+                        return_type=cg.void,
                     )
                 )
             )
@@ -176,10 +178,13 @@ async def setup_storage_image_component(config, parent_storage):
     if hasattr(CORE, "data") and "sd_mmc_devices" in CORE.data:
         for sd_device in CORE.data["sd_mmc_devices"]:
             # Register callback: when SD card is mounted, try to load this image
+            # The lambda captures 'var' (the StorageImage instance) and calls on_mount_ready
             cg.add(
                 sd_device.add_mount_ready_callback(
-                    cg.RawExpression(
-                        f"[this]({cg.std_string} mount_path) {{ this->on_mount_ready(mount_path); }}"
+                    cg.LambdaExpression(
+                        f"[{var}](const std::string &mount_path) {{ {var}->on_mount_ready(mount_path); }}",
+                        [(cg.std_string, "mount_path")],
+                        return_type=cg.void,
                     )
                 )
             )
