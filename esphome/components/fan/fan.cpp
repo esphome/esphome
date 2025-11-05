@@ -231,7 +231,7 @@ void Fan::save_state_() {
   state.direction = this->direction;
 
   const char *preset = this->get_preset_mode();
-  if (traits.supports_preset_modes() && preset != nullptr) {
+  if (preset != nullptr) {
     const auto &preset_modes = traits.supported_preset_modes();
     // Find index of current preset mode (pointer comparison is safe since preset is from traits)
     for (size_t i = 0; i < preset_modes.size(); i++) {
