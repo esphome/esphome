@@ -1,14 +1,5 @@
-uart:
-  - id: ld2450_uart
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 256000
-    parity: NONE
-    stop_bits: 1
-
 ld2450:
   - id: ld2450_radar
-    uart_id: ld2450_uart
 
 button:
   - platform: ld2450

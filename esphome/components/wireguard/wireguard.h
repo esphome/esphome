@@ -148,25 +148,25 @@ std::string mask_key(const std::string &key);
 /// Condition to check if remote peer is online.
 template<typename... Ts> class WireguardPeerOnlineCondition : public Condition<Ts...>, public Parented<Wireguard> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_peer_up(); }
+  bool check(const Ts &...x) override { return this->parent_->is_peer_up(); }
 };
 
 /// Condition to check if Wireguard component is enabled.
 template<typename... Ts> class WireguardEnabledCondition : public Condition<Ts...>, public Parented<Wireguard> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_enabled(); }
+  bool check(const Ts &...x) override { return this->parent_->is_enabled(); }
 };
 
 /// Action to enable Wireguard component.
 template<typename... Ts> class WireguardEnableAction : public Action<Ts...>, public Parented<Wireguard> {
  public:
-  void play(Ts... x) override { this->parent_->enable(); }
+  void play(const Ts &...x) override { this->parent_->enable(); }
 };
 
 /// Action to disable Wireguard component.
 template<typename... Ts> class WireguardDisableAction : public Action<Ts...>, public Parented<Wireguard> {
  public:
-  void play(Ts... x) override { this->parent_->disable(); }
+  void play(const Ts &...x) override { this->parent_->disable(); }
 };
 
 }  // namespace wireguard

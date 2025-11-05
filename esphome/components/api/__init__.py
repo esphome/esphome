@@ -9,6 +9,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
     CONF_ACTIONS,
+    CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
     CONF_EVENT,
@@ -17,29 +18,49 @@ from esphome.const import (
     CONF_MAX_CONNECTIONS,
     CONF_ON_CLIENT_CONNECTED,
     CONF_ON_CLIENT_DISCONNECTED,
+    CONF_ON_ERROR,
+    CONF_ON_SUCCESS,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
+    CONF_RESPONSE_TEMPLATE,
     CONF_SERVICE,
     CONF_SERVICES,
     CONF_TAG,
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "api"
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@esphome/core"]
+
+
+def AUTO_LOAD(config: ConfigType) -> list[str]:
+    """Conditionally auto-load json only when capture_response is used."""
+    base = ["socket"]
+
+    # Check if any homeassistant.action/homeassistant.service has capture_response: true
+    # This flag is set during config validation in _validate_response_config
+    if not config or CORE.data.get(DOMAIN, {}).get(CONF_CAPTURE_RESPONSE, False):
+        return base + ["json"]
+
+    return base
+
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
+)
+ActionResponse = api_ns.class_("ActionResponse")
+HomeAssistantActionResponseTrigger = api_ns.class_(
+    "HomeAssistantActionResponseTrigger", automation.Trigger
 )
 APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 
@@ -50,10 +71,12 @@ SERVICE_ARG_NATIVE_TYPES = {
     "int": cg.int32,
     "float": float,
     "string": cg.std_string,
-    "bool[]": cg.std_vector.template(bool),
-    "int[]": cg.std_vector.template(cg.int32),
-    "float[]": cg.std_vector.template(float),
-    "string[]": cg.std_vector.template(cg.std_string),
+    "bool[]": cg.FixedVector.template(bool).operator("const").operator("ref"),
+    "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
+    "float[]": cg.FixedVector.template(float).operator("const").operator("ref"),
+    "string[]": cg.FixedVector.template(cg.std_string)
+    .operator("const")
+    .operator("ref"),
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
@@ -134,6 +157,17 @@ def _validate_api_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def _consume_api_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for API component."""
+    from esphome.components import socket
+
+    # API needs 1 listening socket + typically 3 concurrent client connections
+    # (not max_connections, which is the upper limit rarely reached)
+    sockets_needed = 1 + 3
+    socket.consume_sockets(sockets_needed, "api")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -201,6 +235,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _validate_api_config,
+    _consume_api_sockets,
 )
 
 
@@ -225,6 +260,10 @@ async def to_code(config):
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
         cg.add_define("USE_API_SERVICES")
 
+    # Set USE_API_CUSTOM_SERVICES if external components need dynamic service registration
+    if config[CONF_CUSTOM_SERVICES]:
+        cg.add_define("USE_API_CUSTOM_SERVICES")
+
     if config[CONF_HOMEASSISTANT_SERVICES]:
         cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
 
@@ -232,6 +271,8 @@ async def to_code(config):
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
+        # Collect all triggers first, then register all at once with initializer_list
+        triggers: list[cg.Pvariable] = []
         for conf in actions:
             template_args = []
             func_args = []
@@ -245,8 +286,10 @@ async def to_code(config):
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
             )
-            cg.add(var.register_user_service(trigger))
+            triggers.append(trigger)
             await automation.build_automation(trigger, func_args, conf)
+        # Register all services at once - single allocation, no reallocations
+        cg.add(var.initialize_user_services(triggers))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
@@ -288,6 +331,29 @@ async def to_code(config):
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
 
 
+def _validate_response_config(config: ConfigType) -> ConfigType:
+    # Validate dependencies:
+    # - response_template requires capture_response: true
+    # - capture_response: true requires on_success
+    if CONF_RESPONSE_TEMPLATE in config and not config[CONF_CAPTURE_RESPONSE]:
+        raise cv.Invalid(
+            f"`{CONF_RESPONSE_TEMPLATE}` requires `{CONF_CAPTURE_RESPONSE}: true` to be set.",
+            path=[CONF_RESPONSE_TEMPLATE],
+        )
+
+    if config[CONF_CAPTURE_RESPONSE] and CONF_ON_SUCCESS not in config:
+        raise cv.Invalid(
+            f"`{CONF_CAPTURE_RESPONSE}: true` requires `{CONF_ON_SUCCESS}` to be set.",
+            path=[CONF_CAPTURE_RESPONSE],
+        )
+
+    # Track if any action uses capture_response for AUTO_LOAD
+    if config[CONF_CAPTURE_RESPONSE]:
+        CORE.data.setdefault(DOMAIN, {})[CONF_CAPTURE_RESPONSE] = True
+
+    return config
+
+
 HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -303,10 +369,15 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
             cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
                 {cv.string: cv.returning_lambda}
             ),
+            cv.Optional(CONF_RESPONSE_TEMPLATE): cv.templatable(cv.string),
+            cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
+            cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         }
     ),
     cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
     cv.rename_key(CONF_SERVICE, CONF_ACTION),
+    _validate_response_config,
 )
 
 
@@ -320,21 +391,67 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
 )
-async def homeassistant_service_to_code(config, action_id, template_arg, args):
+async def homeassistant_service_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
     templ = await cg.templatable(config[CONF_ACTION], args, None)
     cg.add(var.set_service(templ))
+
+    # Initialize FixedVectors with exact sizes from config
+    cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_data(key, templ))
+
+    cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_data_template(key, templ))
+
+    cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(key, templ))
+
+    if on_error := config.get(CONF_ON_ERROR):
+        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
+        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES_ERRORS")
+        cg.add(var.set_wants_status())
+        await automation.build_automation(
+            var.get_error_trigger(),
+            [(cg.std_string, "error"), *args],
+            on_error,
+        )
+
+    if on_success := config.get(CONF_ON_SUCCESS):
+        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
+        cg.add(var.set_wants_status())
+        if config[CONF_CAPTURE_RESPONSE]:
+            cg.add(var.set_wants_response())
+            cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON")
+            await automation.build_automation(
+                var.get_success_trigger_with_response(),
+                [(cg.JsonObjectConst, "response"), *args],
+                on_success,
+            )
+
+            if response_template := config.get(CONF_RESPONSE_TEMPLATE):
+                templ = await cg.templatable(response_template, args, cg.std_string)
+                cg.add(var.set_response_template(templ))
+
+        else:
+            await automation.build_automation(
+                var.get_success_trigger(),
+                args,
+                on_success,
+            )
+
     return var
 
 
@@ -370,15 +487,23 @@ async def homeassistant_event_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     templ = await cg.templatable(config[CONF_EVENT], args, None)
     cg.add(var.set_service(templ))
+
+    # Initialize FixedVectors with exact sizes from config
+    cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_data(key, templ))
+
+    cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_data_template(key, templ))
+
+    cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(key, templ))
+
     return var
 
 
@@ -401,6 +526,8 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     cg.add(var.set_service("esphome.tag_scanned"))
+    # Initialize FixedVector with exact size (1 data field)
+    cg.add(var.init_data(1))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
     cg.add(var.add_data("tag_id", templ))
     return var

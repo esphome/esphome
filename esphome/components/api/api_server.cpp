@@ -9,12 +9,16 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+#include "homeassistant_service.h"
+#endif
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
 
 #include <algorithm>
+#include <utility>
 
 namespace esphome::api {
 
@@ -220,7 +224,7 @@ void APIServer::dump_config() {
                 "  Address: %s:%u\n"
                 "  Listen backlog: %u\n"
                 "  Max connections: %u",
-                network::get_use_address().c_str(), this->port_, this->listen_backlog_, this->max_connections_);
+                network::get_use_address(), this->port_, this->listen_backlog_, this->max_connections_);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {
@@ -400,7 +404,38 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
     client->send_homeassistant_action(call);
   }
 }
-#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void APIServer::register_action_response_callback(uint32_t call_id, ActionResponseCallback callback) {
+  this->action_response_callbacks_.push_back({call_id, std::move(callback)});
+}
+
+void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message) {
+  for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
+    if (it->call_id == call_id) {
+      auto callback = std::move(it->callback);
+      this->action_response_callbacks_.erase(it);
+      ActionResponse response(success, error_message);
+      callback(response);
+      return;
+    }
+  }
+}
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
+                                       const uint8_t *response_data, size_t response_data_len) {
+  for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
+    if (it->call_id == call_id) {
+      auto callback = std::move(it->callback);
+      this->action_response_callbacks_.erase(it);
+      ActionResponse response(success, error_message, response_data, response_data_len);
+      callback(response);
+      return;
+    }
+  }
+}
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#endif  // USE_API_HOMEASSISTANT_SERVICES
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
@@ -433,6 +468,31 @@ uint16_t APIServer::get_port() const { return this->port_; }
 void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 
 #ifdef USE_API_NOISE
+bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg,
+                                  const LogString *fail_log_msg, const psk_t &active_psk, bool make_active) {
+  if (!this->noise_pref_.save(&new_psk)) {
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(fail_log_msg));
+    return false;
+  }
+  // ensure it's written immediately
+  if (!global_preferences->sync()) {
+    ESP_LOGW(TAG, "Failed to sync preferences");
+    return false;
+  }
+  ESP_LOGD(TAG, "%s", LOG_STR_ARG(save_log_msg));
+  if (make_active) {
+    this->set_timeout(100, [this, active_psk]() {
+      ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
+      this->set_noise_psk(active_psk);
+      for (auto &c : this->clients_) {
+        DisconnectRequest req;
+        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
+      }
+    });
+  }
+  return true;
+}
+
 bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
 #ifdef USE_API_NOISE_PSK_FROM_YAML
   // When PSK is set from YAML, this function should never be called
@@ -447,27 +507,21 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   }
 
   SavedNoisePsk new_saved_psk{psk};
-  if (!this->noise_pref_.save(&new_saved_psk)) {
-    ESP_LOGW(TAG, "Failed to save Noise PSK");
-    return false;
-  }
-  // ensure it's written immediately
-  if (!global_preferences->sync()) {
-    ESP_LOGW(TAG, "Failed to sync preferences");
-    return false;
-  }
-  ESP_LOGD(TAG, "Noise PSK saved");
-  if (make_active) {
-    this->set_timeout(100, [this, psk]() {
-      ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
-      this->set_noise_psk(psk);
-      for (auto &c : this->clients_) {
-        DisconnectRequest req;
-        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
-      }
-    });
-  }
-  return true;
+  return this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"), psk,
+                                 make_active);
+#endif
+}
+bool APIServer::clear_noise_psk(bool make_active) {
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // When PSK is set from YAML, this function should never be called
+  // but if it is, reject the change
+  ESP_LOGW(TAG, "Key set in YAML");
+  return false;
+#else
+  SavedNoisePsk empty_psk{};
+  psk_t empty{};
+  return this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"), empty,
+                                 make_active);
 #endif
 }
 #endif

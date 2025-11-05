@@ -1,14 +1,8 @@
-spi:
-  - id: spi_waveshare_epaper
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-
 display:
   # 1.54 inch displays
   - platform: waveshare_epaper
     id: epd_1_54
     model: 1.54in
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -28,7 +22,6 @@ display:
   - platform: waveshare_epaper
     id: epd_1_54v2
     model: 1.54inv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -48,7 +41,6 @@ display:
   - platform: waveshare_epaper
     id: epd_1_54v2b
     model: 1.54inv2-b
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -67,7 +59,6 @@ display:
   - platform: waveshare_epaper
     id: epd_1_54m09
     model: 1.54in-m5coreink-m09
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -87,7 +78,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_13
     model: 2.13in
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -107,7 +97,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_13v2
     model: 2.13inv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -127,7 +116,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_13ttgo
     model: 2.13in-ttgo
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -147,7 +135,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_13ttgo_b1
     model: 2.13in-ttgo-b1
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -167,7 +154,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_13ttgo_b73
     model: 2.13in-ttgo-b73
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -187,7 +173,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_13ttgo_b74
     model: 2.13in-ttgo-b74
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -207,7 +192,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_13dke
     model: 2.13in-ttgo-dke
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -227,7 +211,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_13v3
     model: 2.13inv3
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -248,7 +231,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_70
     model: 2.70in
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -267,7 +249,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_70b
     model: 2.70in-b
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -286,7 +267,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_70bv2
     model: 2.70in-bv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -305,7 +285,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_70v2
     model: 2.70inv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -325,7 +304,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_90
     model: 2.90in
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -346,7 +324,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_90v2
     model: 2.90inv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -367,7 +344,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_90b
     model: 2.90in-b
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -386,7 +362,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_90bv3
     model: 2.90in-bv3
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -405,7 +380,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_90v2r2
     model: 2.90inv2-r2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -425,7 +399,6 @@ display:
   - platform: waveshare_epaper
     id: epd_2_90dke
     model: 2.90in-dke
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -446,7 +419,6 @@ display:
   - platform: waveshare_epaper
     id: epd_gdew029t5
     model: gdew029t5
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -466,7 +438,6 @@ display:
   - platform: waveshare_epaper
     id: epd_gdew042t81
     model: gdey042t81
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -487,7 +458,6 @@ display:
   - platform: waveshare_epaper
     id: epd_4_20
     model: 4.20in
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -506,7 +476,6 @@ display:
   - platform: waveshare_epaper
     id: epd_4_20bv2
     model: 4.20in-bv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -525,7 +494,6 @@ display:
   - platform: waveshare_epaper
     id: epd_4_20in_bv2_bwr
     model: 4.20in-bv2-bwr
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -545,7 +513,6 @@ display:
   - platform: waveshare_epaper
     id: epd_5_65
     model: 5.65in-f
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -565,7 +532,6 @@ display:
   - platform: waveshare_epaper
     id: epd_5_83
     model: 5.83in
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -584,7 +550,6 @@ display:
   - platform: waveshare_epaper
     id: epd_5_83v2
     model: 5.83inv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -604,7 +569,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50
     model: 7.50in
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -623,7 +587,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50bv2
     model: 7.50in-bv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -642,7 +605,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50bv3
     model: 7.50in-bv3
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -661,7 +623,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50bv3_bwr
     model: 7.50in-bv3-bwr
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -680,7 +641,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50bc
     model: 7.50in-bc
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -699,7 +659,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50v2
     model: 7.50inv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -718,7 +677,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50v2alt
     model: 7.50inv2alt
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -737,7 +695,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50inv2p
     model: 7.50inv2p
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -757,7 +714,6 @@ display:
   - platform: waveshare_epaper
     id: epd_7_50hdb
     model: 7.50in-hd-b
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -777,7 +733,6 @@ display:
   - platform: waveshare_epaper
     id: epd_13_3k
     model: 13.3in-k
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -795,7 +750,6 @@ display:
 
   - platform: waveshare_epaper
     model: 2.90in-d
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -814,7 +768,6 @@ display:
 
   - platform: waveshare_epaper
     model: 2.90in
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -834,7 +787,6 @@ display:
 
   - platform: waveshare_epaper
     model: 2.90inv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -853,7 +805,6 @@ display:
 
   - platform: waveshare_epaper
     model: 2.70in-b
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
@@ -871,7 +822,6 @@ display:
 
   - platform: waveshare_epaper
     model: 2.70in-bv2
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}

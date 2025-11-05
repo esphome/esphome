@@ -19,7 +19,7 @@ template<typename... Ts> class PlayAction : public Action<Ts...>, public Parente
     this->static_ = true;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->static_) {
       this->parent_->play(this->data_static_);
     } else {
@@ -36,14 +36,14 @@ template<typename... Ts> class PlayAction : public Action<Ts...>, public Parente
 
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<Speaker> {
   TEMPLATABLE_VALUE(float, volume)
-  void play(Ts... x) override { this->parent_->set_volume(this->volume_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->set_volume(this->volume_.value(x...)); }
 };
 
 template<typename... Ts> class MuteOnAction : public Action<Ts...> {
  public:
   explicit MuteOnAction(Speaker *speaker) : speaker_(speaker) {}
 
-  void play(Ts... x) override { this->speaker_->set_mute_state(true); }
+  void play(const Ts &...x) override { this->speaker_->set_mute_state(true); }
 
  protected:
   Speaker *speaker_;
@@ -53,7 +53,7 @@ template<typename... Ts> class MuteOffAction : public Action<Ts...> {
  public:
   explicit MuteOffAction(Speaker *speaker) : speaker_(speaker) {}
 
-  void play(Ts... x) override { this->speaker_->set_mute_state(false); }
+  void play(const Ts &...x) override { this->speaker_->set_mute_state(false); }
 
  protected:
   Speaker *speaker_;
@@ -61,22 +61,22 @@ template<typename... Ts> class MuteOffAction : public Action<Ts...> {
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<Speaker> {
  public:
-  void play(Ts... x) override { this->parent_->stop(); }
+  void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
 template<typename... Ts> class FinishAction : public Action<Ts...>, public Parented<Speaker> {
  public:
-  void play(Ts... x) override { this->parent_->finish(); }
+  void play(const Ts &...x) override { this->parent_->finish(); }
 };
 
 template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<Speaker> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_running(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running(); }
 };
 
 template<typename... Ts> class IsStoppedCondition : public Condition<Ts...>, public Parented<Speaker> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_stopped(); }
+  bool check(const Ts &...x) override { return this->parent_->is_stopped(); }
 };
 
 }  // namespace speaker

@@ -38,7 +38,7 @@ static constexpr uint8_t MADCTL_BGR = 0x08;    // Bit 3 Blue-Green-Red pixel ord
 static constexpr uint8_t MADCTL_XFLIP = 0x02;  // Mirror the display horizontally
 static constexpr uint8_t MADCTL_YFLIP = 0x01;  // Mirror the display vertically
 
-static const uint8_t DELAY_FLAG = 0xFF;
+static constexpr uint8_t DELAY_FLAG = 0xFF;
 // store a 16 bit value in a buffer, big endian.
 static inline void put16_be(uint8_t *buf, uint16_t value) {
   buf[0] = value >> 8;
@@ -79,7 +79,7 @@ class MipiSpi : public display::Display,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
  public:
-  MipiSpi() {}
+  MipiSpi() = default;
   void update() override { this->stop_poller(); }
   void draw_pixel_at(int x, int y, Color color) override {}
   void set_model(const char *model) { this->model_ = model; }
@@ -99,7 +99,6 @@ class MipiSpi : public display::Display,
   int get_width_internal() override { return WIDTH; }
   int get_height_internal() override { return HEIGHT; }
   void set_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequence_ = sequence; }
-  void set_draw_rounding(unsigned rounding) { this->draw_rounding_ = rounding; }
 
   // reset the display, and write the init sequence
   void setup() override {
@@ -326,6 +325,7 @@ class MipiSpi : public display::Display,
 
   /**
    * Writes a buffer to the display.
+   * @param ptr The pointer to the pixel data
    * @param w Width of each line in bytes
    * @param h Height of the buffer in rows
    * @param pad Padding in bytes after each line
@@ -424,7 +424,6 @@ class MipiSpi : public display::Display,
 
   // other properties set by configuration
   bool invert_colors_{};
-  unsigned draw_rounding_{2};
   optional<uint8_t> brightness_{};
   const char *model_{"Unknown"};
   std::vector<uint8_t> init_sequence_{};
@@ -444,12 +443,20 @@ class MipiSpi : public display::Display,
  * @tparam OFFSET_WIDTH The x-offset of the display in pixels
  * @tparam OFFSET_HEIGHT The y-offset of the display in pixels
  * @tparam FRACTION The fraction of the display size to use for the buffer (e.g. 4 means a 1/4 buffer).
+ * @tparam ROUNDING The alignment requirement for drawing operations (e.g. 2 means that x coordinates must be even)
  */
 template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMode DISPLAYPIXEL, BusType BUS_TYPE,
-         int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, display::DisplayRotation ROTATION, int FRACTION>
+         uint16_t WIDTH, uint16_t HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, display::DisplayRotation ROTATION,
+         int FRACTION, unsigned ROUNDING>
 class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT,
                                      OFFSET_WIDTH, OFFSET_HEIGHT> {
  public:
+  // these values define the buffer size needed to write in accordance with the chip pixel alignment
+  // requirements. If the required rounding does not divide the width and height, we round up to the next multiple and
+  // ignore the extra columns and rows when drawing, but use them to write to the display.
+  static constexpr unsigned BUFFER_WIDTH = (WIDTH + ROUNDING - 1) / ROUNDING * ROUNDING;
+  static constexpr unsigned BUFFER_HEIGHT = (HEIGHT + ROUNDING - 1) / ROUNDING * ROUNDING;
+
   MipiSpiBuffer() { this->rotation_ = ROTATION; }
 
   void dump_config() override {
@@ -461,15 +468,15 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
                     "  Buffer fraction: 1/%d\n"
                     "  Buffer bytes: %zu\n"
                     "  Draw rounding: %u",
-                    this->rotation_, BUFFERPIXEL * 8, FRACTION, sizeof(BUFFERTYPE) * WIDTH * HEIGHT / FRACTION,
-                    this->draw_rounding_);
+                    this->rotation_, BUFFERPIXEL * 8, FRACTION,
+                    sizeof(BUFFERTYPE) * BUFFER_WIDTH * BUFFER_HEIGHT / FRACTION, ROUNDING);
   }
 
   void setup() override {
     MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH,
             OFFSET_HEIGHT>::setup();
     RAMAllocator<BUFFERTYPE> allocator{};
-    this->buffer_ = allocator.allocate(WIDTH * HEIGHT / FRACTION);
+    this->buffer_ = allocator.allocate(BUFFER_WIDTH * BUFFER_HEIGHT / FRACTION);
     if (this->buffer_ == nullptr) {
       this->mark_failed("Buffer allocation failed");
     }
@@ -508,15 +515,14 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
       esph_log_v(TAG, "x_low %d, y_low %d, x_high %d, y_high %d", this->x_low_, this->y_low_, this->x_high_,
                  this->y_high_);
       // Some chips require that the drawing window be aligned on certain boundaries
-      auto dr = this->draw_rounding_;
-      this->x_low_ = this->x_low_ / dr * dr;
-      this->y_low_ = this->y_low_ / dr * dr;
-      this->x_high_ = (this->x_high_ + dr) / dr * dr - 1;
-      this->y_high_ = (this->y_high_ + dr) / dr * dr - 1;
+      this->x_low_ = this->x_low_ / ROUNDING * ROUNDING;
+      this->y_low_ = this->y_low_ / ROUNDING * ROUNDING;
+      this->x_high_ = (this->x_high_ + ROUNDING) / ROUNDING * ROUNDING - 1;
+      this->y_high_ = (this->y_high_ + ROUNDING) / ROUNDING * ROUNDING - 1;
       int w = this->x_high_ - this->x_low_ + 1;
       int h = this->y_high_ - this->y_low_ + 1;
       this->write_to_display_(this->x_low_, this->y_low_, w, h, this->buffer_, this->x_low_,
-                              this->y_low_ - this->start_line_, WIDTH - w);
+                              this->y_low_ - this->start_line_, BUFFER_WIDTH - w);
       // invalidate watermarks
       this->x_low_ = WIDTH;
       this->y_low_ = HEIGHT;
@@ -536,10 +542,10 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
   void draw_pixel_at(int x, int y, Color color) override {
     if (!this->get_clipping().inside(x, y))
       return;
-    rotate_coordinates_(x, y);
+    rotate_coordinates(x, y);
     if (x < 0 || x >= WIDTH || y < this->start_line_ || y >= this->end_line_)
       return;
-    this->buffer_[(y - this->start_line_) * WIDTH + x] = convert_color_(color);
+    this->buffer_[(y - this->start_line_) * BUFFER_WIDTH + x] = convert_color(color);
     if (x < this->x_low_) {
       this->x_low_ = x;
     }
@@ -560,7 +566,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     this->y_low_ = this->start_line_;
     this->x_high_ = WIDTH - 1;
     this->y_high_ = this->end_line_ - 1;
-    std::fill_n(this->buffer_, HEIGHT * WIDTH / FRACTION, convert_color_(color));
+    std::fill_n(this->buffer_, HEIGHT * BUFFER_WIDTH / FRACTION, convert_color(color));
   }
 
   int get_width() override {
@@ -577,7 +583,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
  protected:
   // Rotate the coordinates to match the display orientation.
-  void rotate_coordinates_(int &x, int &y) const {
+  static void rotate_coordinates(int &x, int &y) {
     if constexpr (ROTATION == display::DISPLAY_ROTATION_180_DEGREES) {
       x = WIDTH - x - 1;
       y = HEIGHT - y - 1;
@@ -593,7 +599,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
   }
 
   // Convert a color to the buffer pixel format.
-  BUFFERTYPE convert_color_(Color &color) const {
+  static BUFFERTYPE convert_color(const Color &color) {
     if constexpr (BUFFERPIXEL == PIXEL_MODE_8) {
       return (color.red & 0xE0) | (color.g & 0xE0) >> 3 | color.b >> 6;
     } else if constexpr (BUFFERPIXEL == PIXEL_MODE_16) {

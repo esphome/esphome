@@ -16,6 +16,7 @@
 #include "user_services.h"
 #endif
 
+#include <map>
 #include <vector>
 
 namespace esphome::api {
@@ -52,6 +53,7 @@ class APIServer : public Component, public Controller {
 
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
+  bool clear_noise_psk(bool make_active = true);
   void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(psk); }
   std::shared_ptr<APINoiseContext> get_noise_ctx() { return noise_ctx_; }
 #endif  // USE_API_NOISE
@@ -111,9 +113,25 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call);
 
-#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  // Action response handling
+  using ActionResponseCallback = std::function<void(const class ActionResponse &)>;
+  void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
+  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
+                              const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_API_SERVICES
+  void initialize_user_services(std::initializer_list<UserServiceDescriptor *> services) {
+    this->user_services_.assign(services);
+  }
+#ifdef USE_API_CUSTOM_SERVICES
+  // Only compile push_back method when custom_services: true (external components)
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
+#endif
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
@@ -163,6 +181,10 @@ class APIServer : public Component, public Controller {
 
  protected:
   void schedule_reboot_timeout_();
+#ifdef USE_API_NOISE
+  bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
+                         const psk_t &active_psk, bool make_active);
+#endif  // USE_API_NOISE
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
@@ -187,6 +209,13 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
 #endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  struct PendingActionResponse {
+    uint32_t call_id;
+    ActionResponseCallback callback;
+  };
+  std::vector<PendingActionResponse> action_response_callbacks_;
+#endif
 
   // Group smaller types together
   uint16_t port_{6053};
@@ -208,7 +237,7 @@ extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-cons
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override { return global_api_server->is_connected(); }
+  bool check(const Ts &...x) override { return global_api_server->is_connected(); }
 };
 
 }  // namespace esphome::api
