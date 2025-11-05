@@ -577,8 +577,8 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
   decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
 
   // Calculate buffer sizes with alignment
-  size_t input_size = jpeg_data.size();
-  size_t output_size = decoded_width * decoded_height * (this->format_ == ImageFormat::RGB565 ? 2 : 3);
+  uint32_t input_size = jpeg_data.size();
+  uint32_t output_size = decoded_width * decoded_height * (this->format_ == ImageFormat::RGB565 ? 2 : 3);
 
   // Allocate aligned buffers (hardware requires 16-byte alignment)
   uint8_t *aligned_input = (uint8_t *) heap_caps_aligned_alloc(16, input_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
