@@ -1,6 +1,7 @@
 #pragma once
 
 #include <list>
+#include <forward_list>
 #include <map>
 #include <memory>
 #include <set>
