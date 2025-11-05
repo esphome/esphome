@@ -789,10 +789,10 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
   bool copy_success = true;
   bool read_error = false;
 
-  // Stall detection: check destination file size every 5 seconds
+  // Stall detection: check if copy loop is progressing
   uint32_t last_check_time = millis();
-  size_t last_check_size = 0;
-  uint32_t last_growth_time = millis();
+  size_t last_check_copied = 0;
+  uint32_t last_progress_time = millis();
 
   ESP_LOGI(TAG, "Starting file copy: %s -> %s (size: %lld bytes)", src_path.c_str(), dst_path.c_str(),
            (long long) file_size);
@@ -811,27 +811,20 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
       update_operation_progress(operation_id, total_copied);
     }
 
-    // Stall detection: check every 5 seconds
+    // Stall detection: check every 5 seconds if bytes copied is increasing
     uint32_t now = millis();
     if (now - last_check_time >= 5000) {
-      // Flush to ensure file size is current
-      fflush(dst);
-
-      // Check destination file size
-      struct stat dst_stat;
-      if (stat(dst_path.c_str(), &dst_stat) == 0) {
-        if (dst_stat.st_size > (off_t) last_check_size) {
-          // File is growing - reset stall timer
-          last_growth_time = now;
-          last_check_size = dst_stat.st_size;
-          ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
-                   (total_copied * 100.0) / file_size);
-        } else if (now - last_growth_time >= 15000) {
-          // No growth for 15 seconds - stalled!
-          ESP_LOGE(TAG, "File copy stalled (no progress for 15s at %zu bytes)", total_copied);
-          copy_success = false;
-          break;
-        }
+      if (total_copied > last_check_copied) {
+        // Copy is progressing - reset stall timer
+        last_progress_time = now;
+        last_check_copied = total_copied;
+        ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
+                 (total_copied * 100.0) / file_size);
+      } else if (now - last_progress_time >= 15000) {
+        // No progress for 15 seconds - stalled!
+        ESP_LOGE(TAG, "File copy stalled (no progress for 15s at %zu bytes)", total_copied);
+        copy_success = false;
+        break;
       }
       last_check_time = now;
     }
