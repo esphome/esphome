@@ -64,23 +64,26 @@ void BH1745Component::setup() {
   this->write_bytes_16((uint8_t) Bh1745Registers::TL_LSB, th_low, 1);
   this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG) = 0x00;
 
+  this->disable_loop();
+
   this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() {
     this->configure_measurement_time_();
     this->state_ = State::INITIAL_SETUP_COMPLETED;
+    this->enable_loop();
   });
 }
 
 void BH1745Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BH1745:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with BH1745 failed!");
-  }
   LOG_UPDATE_INTERVAL(this);
 
-  ESP_LOGCONFIG(TAG, "  Gain: %dx", get_adc_gain(this->adc_gain_));
-  ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_measurement_time_ms(this->measurement_time_));
-  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %dx\n"
+                "  Integration time: %d ms\n"
+                "  Glass attenuation factor: %f",
+                get_adc_gain(this->adc_gain_), get_measurement_time_ms(this->measurement_time_),
+                this->glass_attenuation_factor_);
 
   LOG_SENSOR("  ", "Red Counts", this->red_counts_sensor_);
   LOG_SENSOR("  ", "Green Counts", this->green_counts_sensor_);
@@ -89,7 +92,7 @@ void BH1745Component::dump_config() {
 }
 
 void BH1745Component::update() {
-  if (this->is_ready() && this->state_ == State::IDLE) {
+  if (this->state_ == State::IDLE) {
     ESP_LOGV(TAG, "Initiating new data collection");
 
     this->state_ = State::MEASUREMENT_IN_PROGRESS;
@@ -106,54 +109,51 @@ void BH1745Component::update() {
 
     this->reg((uint8_t) Bh1745Registers::MODE_CONTROL2) = mode_ctrl2.raw;
 
-    this->set_timeout(get_measurement_time_ms(this->measurement_time_),
-                      [this]() { this->state_ = State::WAITING_FOR_DATA; });
+    this->set_timeout(get_measurement_time_ms(this->measurement_time_), [this]() {
+      this->state_ = State::WAITING_FOR_DATA;
+      this->enable_loop();
+    });
   }
 }
 
 void BH1745Component::loop() {
-  if (this->is_ready()) {
-    switch (this->state_) {
-      case State::NOT_INITIALIZED:
-        break;
+  switch (this->state_) {
+    case State::INITIAL_SETUP_COMPLETED:
+      this->state_ = State::DELAYED_SETUP;
+      this->configure_gain_();
+      this->reg((uint8_t) Bh1745Registers::MODE_CONTROL3) = 0x02;
+      this->disable_loop();
+      this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() { this->state_ = State::IDLE; });
+      break;
 
-      case State::INITIAL_SETUP_COMPLETED:
-        this->state_ = State::DELAYED_SETUP;
-        this->configure_gain_();
-        this->reg((uint8_t) Bh1745Registers::MODE_CONTROL3) = 0x02;
-        this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() { this->state_ = State::IDLE; });
-        break;
-
-      case State::DELAYED_SETUP:
-      case State::IDLE:
-      case State::MEASUREMENT_IN_PROGRESS:
-        break;
-
-      case State::WAITING_FOR_DATA:
-        if (this->is_data_ready_(this->readings_)) {
-          this->read_data_(this->readings_);
-          this->state_ = State::DATA_COLLECTED;
-          return;
-        } else if (this->readings_.tries > BH1745_MAX_TRIES) {
-          ESP_LOGW(TAG, "Can't get data after several tries. Aborting.");
-          this->status_set_warning();
-          this->state_ = State::IDLE;
-          return;
-        } else {
-          this->readings_.tries++;
-        }
-        break;
-
-      case State::DATA_COLLECTED:
-        this->status_clear_warning();
-        this->publish_data_();
+    case State::WAITING_FOR_DATA:
+      if (this->is_data_ready_(this->readings_)) {
+        this->read_data_(this->readings_);
+        this->state_ = State::DATA_COLLECTED;
+        return;
+      } else if (this->readings_.tries > BH1745_MAX_TRIES) {
+        ESP_LOGW(TAG, "Can't get data after several tries. Aborting.");
+        this->status_set_warning();
         this->state_ = State::IDLE;
-        break;
+        this->disable_loop();
+        return;
+      } else {
+        this->readings_.tries++;
+      }
+      break;
 
-      default:
-        // wrong state
-        break;
-    }
+    case State::DATA_COLLECTED:
+      this->status_clear_warning();
+      this->publish_data_();
+      this->state_ = State::IDLE;
+      [[fallthrough]];
+    case State::NOT_INITIALIZED:
+    case State::DELAYED_SETUP:
+    case State::IDLE:
+    case State::MEASUREMENT_IN_PROGRESS:
+    default:
+      this->disable_loop();
+      break;
   }
 }
 
