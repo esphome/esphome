@@ -6,7 +6,7 @@ from esphome.components.uart import (
     CONF_STOP_BITS,
     UARTComponent,
 )
-from esphome.components.usb_host import register_usb_client, usb_device_schema, usb_host_ns
+from esphome.components.usb_host import register_usb_client, usb_device_schema, USBClient
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -23,7 +23,6 @@ AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
-USBClient = usb_host_ns.class_("USBClient")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", USBClient)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 
