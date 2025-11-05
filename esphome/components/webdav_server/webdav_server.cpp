@@ -52,11 +52,11 @@ bool WebDAVServer::start_server() {
   config.ctrl_port = this->port_ + 1000;
   config.max_uri_handlers = 20;
   config.stack_size = 8192;
-  config.recv_wait_timeout = 60;
-  config.send_wait_timeout = 60;
+  config.recv_wait_timeout = 7200;  // 2 hours - stall detection handles actual failures
+  config.send_wait_timeout = 7200;  // 2 hours - stall detection handles actual failures
   config.lru_purge_enable = true;
   config.max_resp_headers = 32;
-  config.max_open_sockets = 3;  // Reduced from 7 to 3 for synchronous operation mode
+  config.max_open_sockets = 3;  // 3 concurrent clients for synchronous operation mode
   config.uri_match_fn = httpd_uri_match_wildcard;  // CRITICAL: Enable wildcard URI matching for "/*" patterns
 
   esp_err_t ret = httpd_start(&this->server_, &config);
@@ -767,7 +767,7 @@ void WebDAVServer::cleanup_old_operations() {
                           this->operations_.end());
 }
 
-// Helper function: Perform file copy operation (used by both sync and async paths)
+// Helper function: Perform file copy operation with stall detection
 bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
                                      const std::string &operation_id) {
   FILE *src = fopen(src_path.c_str(), "rb");
@@ -789,6 +789,11 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
   bool copy_success = true;
   bool read_error = false;
 
+  // Stall detection: check destination file size every 5 seconds
+  uint32_t last_check_time = millis();
+  size_t last_check_size = 0;
+  uint32_t last_growth_time = millis();
+
   ESP_LOGI(TAG, "Starting file copy: %s -> %s (size: %lld bytes)", src_path.c_str(), dst_path.c_str(),
            (long long) file_size);
 
@@ -806,10 +811,29 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
       update_operation_progress(operation_id, total_copied);
     }
 
-    // Log progress for large files
-    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0) {
-      ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
-               (total_copied * 100.0) / file_size);
+    // Stall detection: check every 5 seconds
+    uint32_t now = millis();
+    if (now - last_check_time >= 5000) {
+      // Flush to ensure file size is current
+      fflush(dst);
+
+      // Check destination file size
+      struct stat dst_stat;
+      if (stat(dst_path.c_str(), &dst_stat) == 0) {
+        if (dst_stat.st_size > (off_t) last_check_size) {
+          // File is growing - reset stall timer
+          last_growth_time = now;
+          last_check_size = dst_stat.st_size;
+          ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
+                   (total_copied * 100.0) / file_size);
+        } else if (now - last_growth_time >= 15000) {
+          // No growth for 15 seconds - stalled!
+          ESP_LOGE(TAG, "File copy stalled (no progress for 15s at %zu bytes)", total_copied);
+          copy_success = false;
+          break;
+        }
+      }
+      last_check_time = now;
     }
   }
 
