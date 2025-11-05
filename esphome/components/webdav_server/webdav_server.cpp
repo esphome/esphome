@@ -121,6 +121,13 @@ bool WebDAVServer::start_server() {
       .user_ctx = this,
   };
 
+  httpd_uri_t status_handler = {
+      .uri = "/status",
+      .method = HTTP_GET,
+      .handler = WebDAVServer::handle_status,
+      .user_ctx = this,
+  };
+
   esp_err_t err;
 
   err = httpd_register_uri_handler(this->server_, &options_handler);
@@ -186,6 +193,14 @@ bool WebDAVServer::start_server() {
     return false;
   }
   ESP_LOGD(TAG, "Registered COPY handler");
+
+  err = httpd_register_uri_handler(this->server_, &status_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register STATUS handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered STATUS handler");
 
   ESP_LOGI(TAG, "All handlers registered successfully");
   return true;
@@ -966,7 +981,7 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
 
       // Return operation ID to client for status tracking
       std::string response =
-          "{\"operation_id\":\"" + op_id + "\",\"status_url\":\"" + server->url_prefix_ + "/status/" + op_id + "\"}";
+          "{\"operation_id\":\"" + op_id + "\",\"status_url\":\"" + server->url_prefix_ + "/status?op_id=" + op_id + "\"}";
 
       httpd_resp_set_type(req, "application/json");
       httpd_resp_set_status(req, "202 Accepted");
@@ -1029,15 +1044,28 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
   }
 
 #ifdef USE_ESP32
+  // Create operation tracking
+  std::string op_id = server->create_operation_id();
+  OperationState op_state{
+      op_id, "copy", filepath, dest_filepath, src_stat.st_size, 0, OperationStatus::IN_PROGRESS, esphome::millis(), ""};
+  server->operations_.push_back(op_state);
+  server->cleanup_old_operations();
+
   // Spawn async task for file copy
-  auto *task_params = new CopyTaskParams{server, filepath, dest_filepath, src_stat.st_size};
+  auto *task_params = new CopyTaskParams{server, op_id, filepath, dest_filepath, src_stat.st_size};
 
   BaseType_t task_created = xTaskCreate(WebDAVServer::copy_task, "webdav_copy", 8192, task_params, 1, nullptr);
 
   if (task_created == pdPASS) {
-    ESP_LOGI(TAG, "Copy task created, responding to client");
+    ESP_LOGI(TAG, "Copy task created [%s], responding to client", op_id.c_str());
+
+    // Return operation ID to client for status tracking
+    std::string response =
+        "{\"operation_id\":\"" + op_id + "\",\"status_url\":\"" + server->url_prefix_ + "/status?op_id=" + op_id + "\"}";
+
+    httpd_resp_set_type(req, "application/json");
     httpd_resp_set_status(req, "202 Accepted");
-    httpd_resp_send(req, "Copy operation started in background", -1);
+    httpd_resp_send(req, response.c_str(), response.length());
   } else {
     ESP_LOGE(TAG, "Failed to create copy task");
     delete task_params;
@@ -1052,6 +1080,84 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
   }
 #endif
+
+  return ESP_OK;
+}
+
+esp_err_t WebDAVServer::handle_status(httpd_req_t *req) {
+  auto *server = static_cast<WebDAVServer *>(req->user_ctx);
+
+  // Extract operation_id from query parameter
+  char query_buf[128];
+  if (httpd_req_get_url_query_str(req, query_buf, sizeof(query_buf)) != ESP_OK) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing query parameters");
+    return ESP_OK;
+  }
+
+  // Parse op_id from query string
+  char op_id_buf[64];
+  if (httpd_query_key_value(query_buf, "op_id", op_id_buf, sizeof(op_id_buf)) != ESP_OK) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing op_id parameter");
+    return ESP_OK;
+  }
+
+  std::string op_id = op_id_buf;
+  ESP_LOGD(TAG, "Status request for operation: %s", op_id.c_str());
+
+  // Get operation status
+  OperationState *op_state = server->get_operation_status(op_id);
+  if (op_state == nullptr) {
+    ESP_LOGW(TAG, "Operation not found: %s", op_id.c_str());
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Operation not found");
+    return ESP_OK;
+  }
+
+  // Build JSON response
+  std::string status_str;
+  switch (op_state->status) {
+    case OperationStatus::IN_PROGRESS:
+      status_str = "in_progress";
+      break;
+    case OperationStatus::COMPLETED:
+      status_str = "completed";
+      break;
+    case OperationStatus::FAILED:
+      status_str = "failed";
+      break;
+  }
+
+  // Calculate progress percentage
+  int progress_percent = 0;
+  if (op_state->file_size > 0) {
+    progress_percent = (int) ((op_state->bytes_processed * 100) / op_state->file_size);
+  }
+
+  // Calculate elapsed time
+  uint32_t elapsed_ms = millis() - op_state->start_time;
+
+  // Build JSON response
+  std::string json = "{";
+  json += "\"operation_id\":\"" + op_state->operation_id + "\",";
+  json += "\"operation_type\":\"" + op_state->operation_type + "\",";
+  json += "\"status\":\"" + status_str + "\",";
+  json += "\"src_path\":\"" + op_state->src_path + "\",";
+  json += "\"dst_path\":\"" + op_state->dst_path + "\",";
+  json += "\"file_size\":" + std::to_string(op_state->file_size) + ",";
+  json += "\"bytes_processed\":" + std::to_string(op_state->bytes_processed) + ",";
+  json += "\"progress_percent\":" + std::to_string(progress_percent) + ",";
+  json += "\"elapsed_ms\":" + std::to_string(elapsed_ms);
+
+  if (!op_state->error_message.empty()) {
+    json += ",\"error\":\"" + op_state->error_message + "\"";
+  }
+
+  json += "}";
+
+  ESP_LOGD(TAG, "Status response: %s", json.c_str());
+
+  // Send JSON response
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_send(req, json.c_str(), json.length());
 
   return ESP_OK;
 }
