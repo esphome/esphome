@@ -201,8 +201,8 @@ std::string WebDAVServer::uri_to_filepath(const std::string &uri) {
   // Handle empty path (root access)
   if (relative_path.empty()) {
     std::string root = this->root_path_;
-    // Remove trailing slash for root
-    if (!root.empty() && root.back() == '/') {
+    // Remove trailing slash for root, UNLESS root is exactly "/"
+    if (!root.empty() && root.back() == '/' && root.length() > 1) {
       root = root.substr(0, root.length() - 1);
     }
     ESP_LOGD(TAG, "Root access: %s", root.c_str());
