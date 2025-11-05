@@ -46,6 +46,7 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   root[MQTT_STEP] = traits.get_step();
   const auto unit_of_measurement = this->number_->traits.get_unit_of_measurement_ref();
   if (!unit_of_measurement.empty())
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
   switch (this->number_->traits.get_mode()) {
     case NUMBER_MODE_AUTO:
@@ -59,6 +60,7 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   }
   const auto device_class = this->number_->traits.get_device_class_ref();
   if (!device_class.empty())
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[MQTT_DEVICE_CLASS] = device_class;
 
   config.command_topic = true;

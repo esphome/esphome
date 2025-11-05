@@ -91,6 +91,7 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_ENABLED_BY_DEFAULT] = false;
         const auto icon_ref = this->get_icon_ref_();
         if (!icon_ref.empty())
+          // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
           root[MQTT_ICON] = icon_ref;
 
         const auto entity_category = this->get_entity()->get_entity_category();
