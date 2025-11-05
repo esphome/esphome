@@ -193,6 +193,11 @@ void APIConnection::loop() {
       if (!this->deferred_batch_.empty()) {
         this->process_batch_();
       }
+      // Release excess capacity from initial entity flood
+      // deferred_batch_ grew up to MAX_INITIAL_PER_BATCH (24) items, now shrink to free up to ~384 bytes
+      this->deferred_batch_.items.shrink_to_fit();
+      // shared_write_buffer_ grew up to ~1.5KB during initial state, now shrink to free up to ~1.4KB
+      this->parent_->get_shared_buffer_ref().shrink_to_fit();
       // Now that everything is sent, enable immediate sending for future state changes
       this->flags_.should_try_send_immediately = true;
     }
