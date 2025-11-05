@@ -651,11 +651,18 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
 
   // Decode with timing
   uint32_t decode_start = millis();
+  ESP_LOGD(TAG, "Calling jpeg_decoder_process: decoder=%p, cfg=%p, in=%p, in_size=%u, out=%p, out_size=%u",
+           this->hw_decoder_, &decode_cfg, aligned_input, input_size, aligned_output, output_size);
+  ESP_LOGD(TAG, "Decode config: output_format=%d, rgb_order=%d", decode_cfg.output_format, decode_cfg.rgb_order);
+
   ret = jpeg_decoder_process(this->hw_decoder_, &decode_cfg, aligned_input, input_size, aligned_output, output_size,
                              &output_size);
 
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Hardware JPEG decode failed: %s", esp_err_to_name(ret));
+    ESP_LOGE(TAG, "Hardware JPEG decode failed: %s (decoder=%p, in_size=%u, out_size=%u)", esp_err_to_name(ret),
+             this->hw_decoder_, input_size, output_size);
+    ESP_LOGE(TAG, "Mount platform: %s, Current file: %s", this->current_mount_platform_.c_str(),
+             this->file_path_.c_str());
     free(aligned_input);
     free(aligned_output);
     return false;

@@ -1059,6 +1059,9 @@ static void fix_mps(const usb_ep_desc_t *ep) {
  * Called when USB device is connected
  */
 void USBUartTypeCH934X::on_connected() {
+  ESP_LOGI(TAG, "CH934X on_connected() called for device %d (VID=%04X, PID=%04X)", this->device_addr_, this->vid_,
+           this->pid_);
+
   usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
@@ -1066,6 +1069,7 @@ void USBUartTypeCH934X::on_connected() {
   };
 
   if (!this->parse_descriptors(this->device_handle_)) {
+    ESP_LOGE(TAG, "CH934X parse_descriptors failed for device %d", this->device_addr_);
     this->status_set_error("No UART-Serial-Hub device found");
     this->disconnect();
     return;

@@ -290,11 +290,16 @@ void USBClient::loop() {
 
         if ((vid_pid_match || is_wildcard) && !skip_for_msc) {
           // NEW: Try to claim device (coordinates with USBHost for interface-class handlers)
+          ESP_LOGD(TAG, "Attempting to claim device %d (VID=%04X, PID=%04X, parent=%p)", this->device_addr_, this->vid_,
+                   this->pid_, (void *) this->parent_);
           if (this->parent_ != nullptr && !this->parent_->try_claim_device(this->device_addr_)) {
-            ESP_LOGD(TAG, "Device %d already claimed by another client", this->device_addr_);
+            ESP_LOGD(TAG, "Device %d already claimed by another client (VID=%04X, PID=%04X)", this->device_addr_,
+                     this->vid_, this->pid_);
             this->disconnect();
             break;
           }
+          ESP_LOGD(TAG, "Device %d successfully claimed (VID=%04X, PID=%04X)", this->device_addr_, this->vid_,
+                   this->pid_);
 
           usb_device_info_t dev_info;
           err = usb_host_device_info(this->device_handle_, &dev_info);
