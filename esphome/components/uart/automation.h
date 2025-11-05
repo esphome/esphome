@@ -23,7 +23,7 @@ template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Pa
     this->static_ = true;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->static_) {
       this->parent_->write_array(this->data_static_);
     } else {

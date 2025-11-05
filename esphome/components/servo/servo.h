@@ -57,7 +57,7 @@ template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
   ServoWriteAction(Servo *servo) : servo_(servo) {}
   TEMPLATABLE_VALUE(float, value)
 
-  void play(Ts... x) override { this->servo_->write(this->value_.value(x...)); }
+  void play(const Ts &...x) override { this->servo_->write(this->value_.value(x...)); }
 
  protected:
   Servo *servo_;
@@ -67,7 +67,7 @@ template<typename... Ts> class ServoDetachAction : public Action<Ts...> {
  public:
   ServoDetachAction(Servo *servo) : servo_(servo) {}
 
-  void play(Ts... x) override { this->servo_->detach(); }
+  void play(const Ts &...x) override { this->servo_->detach(); }
 
  protected:
   Servo *servo_;
