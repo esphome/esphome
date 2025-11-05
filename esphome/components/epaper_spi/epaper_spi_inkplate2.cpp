@@ -17,17 +17,6 @@ void EPaperInkplate2::power_off() {
   this->command(0x50);
   this->data(0xF7);
   this->command(0x02);
-
-  // Wait for power off to complete
-  ESP_LOGV(TAG, "Waiting for power off...");
-  uint32_t start = millis();
-  while (!this->is_idle_()) {
-    if (millis() - start > 1000) {
-      ESP_LOGW(TAG, "Timeout waiting for power off");
-      break;
-    }
-  }
-  ESP_LOGV(TAG, "Power off completed after %u ms", (unsigned) (millis() - start));
 }
 
 void EPaperInkplate2::refresh_screen() {
