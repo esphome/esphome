@@ -193,6 +193,10 @@ class USBUartComponent : public usb_host::USBClient {
 
   void add_channel(USBUartChannel *channel) { this->channels_.push_back(channel); }
 
+  // Make on_connected public so derived classes can override it properly
+  // This fixes the virtual dispatch chain from protected (USBClient) to public overrides
+  void on_connected() override {}
+
   virtual void start_input(USBUartChannel *channel);
   virtual void start_output(USBUartChannel *channel);
 
