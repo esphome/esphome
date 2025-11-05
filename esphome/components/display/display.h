@@ -176,7 +176,117 @@ class Display;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
 
-using display_writer_t = std::function<void(Display &)>;
+/** Optimized display writer that uses function pointers for stateless lambdas.
+ *
+ * Similar to TemplatableValue but specialized for display writer callbacks.
+ * Saves ~8 bytes per stateless lambda on 32-bit platforms (16 bytes std::function → ~8 bytes discriminator+pointer).
+ *
+ * Supports both:
+ * - Stateless lambdas (from YAML) → function pointer (4 bytes)
+ * - Stateful lambdas/std::function (from C++ code) → std::function* (heap allocated)
+ *
+ * @tparam T The display type (e.g., Display, Nextion, GPIOLCDDisplay)
+ */
+template<typename T> class DisplayWriter {
+ public:
+  DisplayWriter() : type_(NONE) {}
+
+  // For stateless lambdas (convertible to function pointer): use function pointer (4 bytes)
+  template<typename F>
+  DisplayWriter(F f) requires std::invocable<F, T &> && std::convertible_to<F, void (*)(T &)>
+      : type_(STATELESS_LAMBDA) {
+    this->stateless_f_ = f;  // Implicit conversion to function pointer
+  }
+
+  // For stateful lambdas and std::function (not convertible to function pointer): use std::function* (heap allocated)
+  // This handles backwards compatibility with external components
+  template<typename F>
+  DisplayWriter(F f) requires std::invocable<F, T &> &&(!std::convertible_to<F, void (*)(T &)>) : type_(LAMBDA) {
+    this->f_ = new std::function<void(T &)>(std::move(f));
+  }
+
+  // Copy constructor
+  DisplayWriter(const DisplayWriter &other) : type_(other.type_) {
+    if (type_ == LAMBDA) {
+      this->f_ = new std::function<void(T &)>(*other.f_);
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
+    }
+  }
+
+  // Move constructor
+  DisplayWriter(DisplayWriter &&other) noexcept : type_(other.type_) {
+    if (type_ == LAMBDA) {
+      this->f_ = other.f_;
+      other.f_ = nullptr;
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
+    }
+    other.type_ = NONE;
+  }
+
+  // Assignment operators
+  DisplayWriter &operator=(const DisplayWriter &other) {
+    if (this != &other) {
+      this->~DisplayWriter();
+      new (this) DisplayWriter(other);
+    }
+    return *this;
+  }
+
+  DisplayWriter &operator=(DisplayWriter &&other) noexcept {
+    if (this != &other) {
+      this->~DisplayWriter();
+      new (this) DisplayWriter(std::move(other));
+    }
+    return *this;
+  }
+
+  ~DisplayWriter() {
+    if (type_ == LAMBDA) {
+      delete this->f_;
+    }
+    // STATELESS_LAMBDA/NONE: no cleanup needed (function pointer or empty)
+  }
+
+  bool has_value() const { return this->type_ != NONE; }
+
+  void call(T &display) const {
+    switch (this->type_) {
+      case STATELESS_LAMBDA:
+        this->stateless_f_(display);  // Direct function pointer call
+        break;
+      case LAMBDA:
+        (*this->f_)(display);  // std::function call
+        break;
+      case NONE:
+      default:
+        break;
+    }
+  }
+
+  // Operator() for convenience
+  void operator()(T &display) const { this->call(display); }
+
+  // Operator* for backwards compatibility with (*writer_)(*this) pattern
+  DisplayWriter &operator*() { return *this; }
+  const DisplayWriter &operator*() const { return *this; }
+
+ protected:
+  enum : uint8_t {
+    NONE,
+    LAMBDA,
+    STATELESS_LAMBDA,
+  } type_;
+
+  union {
+    std::function<void(T &)> *f_;
+    void (*stateless_f_)(T &);
+  };
+};
+
+// Type alias for Display writer - uses optimized DisplayWriter instead of std::function
+using display_writer_t = DisplayWriter<Display>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -678,7 +788,7 @@ class Display : public PollingComponent {
   void sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3);
 
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
-  optional<display_writer_t> writer_{};
+  display_writer_t writer_{};
   DisplayPage *page_{nullptr};
   DisplayPage *previous_page_{nullptr};
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;

@@ -191,7 +191,7 @@ lvgl:
           args: ['lv_event_code_name_for(event->code).c_str()']
       skip: true
       layout:
-        type: flex
+        type: Flex
         pad_row: 4
         pad_column: 4px
         flex_align_main: center
@@ -863,7 +863,7 @@ lvgl:
                 width: 100%
                 pad_all: 8
                 layout:
-                  type: grid
+                  type: GRid
                   grid_row_align: end
                   grid_rows: [25px, fr(1), content]
                   grid_columns: [40, fr(1), fr(1)]
@@ -1014,7 +1014,7 @@ lvgl:
                                 r_mod: -20
                                 opa: 0%
     - id: page3
-      layout: horizontal
+      layout: Horizontal
       widgets:
         - keyboard:
             id: lv_keyboard
