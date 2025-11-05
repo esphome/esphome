@@ -7,6 +7,11 @@
 #include <memory>
 #include <esp_http_server.h>
 
+#ifdef USE_ESP32
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#endif
+
 // Forward declaration
 namespace esphome {
 namespace storage_host {
@@ -18,6 +23,41 @@ namespace esphome {
 namespace webdav_server {
 
 static const char *const TAG = "webdav_server";
+
+// Forward declaration
+class WebDAVServer;
+
+// Operation status tracking
+enum class OperationStatus { IN_PROGRESS, COMPLETED, FAILED };
+
+struct OperationState {
+  std::string operation_id;
+  std::string operation_type;  // "copy" or "move"
+  std::string src_path;
+  std::string dst_path;
+  off_t file_size;
+  size_t bytes_processed;
+  OperationStatus status;
+  uint32_t start_time;  // millis()
+  std::string error_message;
+};
+
+// Task parameter structures for async operations
+struct CopyTaskParams {
+  WebDAVServer *server;
+  std::string operation_id;
+  std::string src_path;
+  std::string dst_path;
+  off_t file_size;
+};
+
+struct MoveTaskParams {
+  WebDAVServer *server;
+  std::string operation_id;
+  std::string src_path;
+  std::string dst_path;
+  off_t file_size;
+};
 
 // Architecture-specific buffer sizes
 #if defined(USE_ESP32_VARIANT_ESP32P4)
@@ -86,6 +126,7 @@ class WebDAVServer : public Component {
   esphome::FixedVector<std::string> list_dir(const std::string &path);
 
   // HTTP handlers (static, called via context)
+  static esp_err_t handle_options(httpd_req_t *req);
   static esp_err_t handle_get(httpd_req_t *req);
   static esp_err_t handle_put(httpd_req_t *req);
   static esp_err_t handle_delete(httpd_req_t *req);
@@ -93,6 +134,31 @@ class WebDAVServer : public Component {
   static esp_err_t handle_mkcol(httpd_req_t *req);
   static esp_err_t handle_move(httpd_req_t *req);
   static esp_err_t handle_copy(httpd_req_t *req);
+  static esp_err_t handle_status(httpd_req_t *req);  // Status endpoint
+
+  // Async task functions (FreeRTOS tasks)
+#ifdef USE_ESP32
+  static void copy_task(void *params);
+  static void move_task(void *params);
+#endif
+
+  // Helper for performing synchronous file operations
+  bool perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                         const std::string &operation_id = "");
+  bool perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                         const std::string &operation_id = "");
+
+  // Operation tracking
+  std::string create_operation_id();
+  void update_operation_status(const std::string &op_id, OperationStatus status, const std::string &error = "");
+  void update_operation_progress(const std::string &op_id, size_t bytes_processed);
+  OperationState *get_operation_status(const std::string &op_id);
+  void cleanup_old_operations();
+
+ private:
+  // Operation tracking map (operation_id -> state)
+  std::vector<OperationState> operations_;
+  uint32_t next_operation_id_{1};
 };
 
 }  // namespace webdav_server

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <ctime>
 #include <cstring>
+#include <cerrno>
 
 namespace esphome {
 namespace webdav_server {
@@ -64,6 +65,13 @@ bool WebDAVServer::start_server() {
   }
 
   // Register HTTP handlers
+  httpd_uri_t options_handler = {
+      .uri = "/*",
+      .method = HTTP_OPTIONS,
+      .handler = WebDAVServer::handle_options,
+      .user_ctx = this,
+  };
+
   httpd_uri_t get_handler = {
       .uri = "/*",
       .method = HTTP_GET,
@@ -114,6 +122,14 @@ bool WebDAVServer::start_server() {
   };
 
   esp_err_t err;
+
+  err = httpd_register_uri_handler(this->server_, &options_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register OPTIONS handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered OPTIONS handler");
 
   err = httpd_register_uri_handler(this->server_, &get_handler);
   if (err != ESP_OK) {
@@ -408,6 +424,22 @@ esphome::FixedVector<std::string> WebDAVServer::list_dir(const std::string &path
   return files;
 }
 
+esp_err_t WebDAVServer::handle_options(httpd_req_t *req) {
+  ESP_LOGD(TAG, "OPTIONS request for: %s", req->uri);
+
+  // Set WebDAV capability headers
+  httpd_resp_set_hdr(req, "DAV", "1, 2");
+  httpd_resp_set_hdr(req, "Allow", "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, PROPPATCH, MKCOL, COPY, MOVE");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods",
+                     "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, PROPPATCH, MKCOL, COPY, MOVE");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Authorization, Depth, Content-Type, Destination, Overwrite");
+  httpd_resp_set_hdr(req, "MS-Author-Via", "DAV");
+
+  httpd_resp_send(req, nullptr, 0);
+  return ESP_OK;
+}
+
 esp_err_t WebDAVServer::handle_get(httpd_req_t *req) {
   auto *server = static_cast<WebDAVServer *>(req->user_ctx);
 
@@ -669,6 +701,202 @@ esp_err_t WebDAVServer::handle_mkcol(httpd_req_t *req) {
   return ESP_OK;
 }
 
+// Operation tracking functions
+std::string WebDAVServer::create_operation_id() {
+  std::string op_id = "op_" + std::to_string(this->next_operation_id_++);
+  return op_id;
+}
+
+void WebDAVServer::update_operation_status(const std::string &op_id, OperationStatus status, const std::string &error) {
+  for (auto &op : this->operations_) {
+    if (op.operation_id == op_id) {
+      op.status = status;
+      if (!error.empty()) {
+        op.error_message = error;
+      }
+      ESP_LOGD(TAG, "Operation %s status updated to %d", op_id.c_str(), static_cast<int>(status));
+      return;
+    }
+  }
+}
+
+void WebDAVServer::update_operation_progress(const std::string &op_id, size_t bytes_processed) {
+  for (auto &op : this->operations_) {
+    if (op.operation_id == op_id) {
+      op.bytes_processed = bytes_processed;
+      return;
+    }
+  }
+}
+
+OperationState *WebDAVServer::get_operation_status(const std::string &op_id) {
+  for (auto &op : this->operations_) {
+    if (op.operation_id == op_id) {
+      return &op;
+    }
+  }
+  return nullptr;
+}
+
+void WebDAVServer::cleanup_old_operations() {
+  uint32_t now = millis();
+  // Remove operations older than 5 minutes
+  this->operations_.erase(std::remove_if(this->operations_.begin(), this->operations_.end(),
+                                         [now](const OperationState &op) {
+                                           return op.status != OperationStatus::IN_PROGRESS &&
+                                                  (now - op.start_time) > 300000;
+                                         }),
+                          this->operations_.end());
+}
+
+// Helper function: Perform file copy operation (used by both sync and async paths)
+bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                                     const std::string &operation_id) {
+  FILE *src = fopen(src_path.c_str(), "rb");
+  if (!src) {
+    ESP_LOGE(TAG, "Failed to open source file: %s (errno: %d, %s)", src_path.c_str(), errno, strerror(errno));
+    return false;
+  }
+
+  FILE *dst = fopen(dst_path.c_str(), "wb");
+  if (!dst) {
+    ESP_LOGE(TAG, "Failed to open destination file: %s (errno: %d, %s)", dst_path.c_str(), errno, strerror(errno));
+    fclose(src);
+    return false;
+  }
+
+  auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
+  size_t bytes_read;
+  size_t total_copied = 0;
+  bool copy_success = true;
+  bool read_error = false;
+
+  ESP_LOGI(TAG, "Starting file copy: %s -> %s (size: %lld bytes)", src_path.c_str(), dst_path.c_str(),
+           (long long) file_size);
+
+  while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, src)) > 0) {
+    size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
+    if (bytes_written != bytes_read) {
+      ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d, %s)", total_copied, errno, strerror(errno));
+      copy_success = false;
+      break;
+    }
+    total_copied += bytes_written;
+
+    // Update operation progress if tracking
+    if (!operation_id.empty()) {
+      update_operation_progress(operation_id, total_copied);
+    }
+
+    // Log progress for large files
+    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0) {
+      ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
+               (total_copied * 100.0) / file_size);
+    }
+  }
+
+  // Check for read errors
+  if (ferror(src)) {
+    ESP_LOGE(TAG, "Read error at offset %zu (errno: %d, %s)", total_copied, errno, strerror(errno));
+    read_error = true;
+    copy_success = false;
+  }
+
+  // Flush and close files
+  if (fflush(dst) != 0) {
+    ESP_LOGE(TAG, "Flush failed (errno: %d, %s)", errno, strerror(errno));
+    copy_success = false;
+  }
+
+  int close_src_result = fclose(src);
+  int close_dst_result = fclose(dst);
+
+  if (close_src_result != 0) {
+    ESP_LOGE(TAG, "Failed to close source file (errno: %d, %s)", errno, strerror(errno));
+  }
+  if (close_dst_result != 0) {
+    ESP_LOGE(TAG, "Failed to close destination file (errno: %d, %s)", errno, strerror(errno));
+    copy_success = false;
+  }
+
+  if (copy_success && !read_error && total_copied == static_cast<size_t>(file_size)) {
+    ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
+    return true;
+  } else {
+    ESP_LOGE(TAG, "File copy failed: %s to %s (copied %zu of %lld bytes, read_error=%d)", src_path.c_str(),
+             dst_path.c_str(), total_copied, (long long) file_size, read_error);
+    // Clean up partial file
+    if (remove(dst_path.c_str()) != 0) {
+      ESP_LOGE(TAG, "Failed to remove partial destination file (errno: %d, %s)", errno, strerror(errno));
+    }
+    return false;
+  }
+}
+
+// Helper function: Perform file move operation (copy + delete source)
+bool WebDAVServer::perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                                     const std::string &operation_id) {
+  if (perform_file_copy(src_path, dst_path, file_size, operation_id)) {
+    if (remove(src_path.c_str()) == 0) {
+      ESP_LOGI(TAG, "File move completed successfully");
+      return true;
+    } else {
+      ESP_LOGE(TAG, "Failed to delete source after copy: %s (errno: %d, %s)", src_path.c_str(), errno, strerror(errno));
+      // File was copied but source remains
+      return true;  // Still consider it success since copy worked
+    }
+  }
+  return false;
+}
+
+#ifdef USE_ESP32
+// FreeRTOS task: Async file copy
+void WebDAVServer::copy_task(void *params) {
+  auto *task_params = static_cast<CopyTaskParams *>(params);
+
+  ESP_LOGI(TAG, "Async copy task started [%s]: %s -> %s", task_params->operation_id.c_str(),
+           task_params->src_path.c_str(), task_params->dst_path.c_str());
+
+  // Perform the copy operation
+  bool success = task_params->server->perform_file_copy(task_params->src_path, task_params->dst_path,
+                                                        task_params->file_size, task_params->operation_id);
+
+  // Update final status
+  task_params->server->update_operation_status(task_params->operation_id,
+                                               success ? OperationStatus::COMPLETED : OperationStatus::FAILED,
+                                               success ? "" : "Copy operation failed");
+
+  // Clean up
+  delete task_params;
+
+  // Delete this task
+  vTaskDelete(nullptr);
+}
+
+// FreeRTOS task: Async file move
+void WebDAVServer::move_task(void *params) {
+  auto *task_params = static_cast<MoveTaskParams *>(params);
+
+  ESP_LOGI(TAG, "Async move task started [%s]: %s -> %s", task_params->operation_id.c_str(),
+           task_params->src_path.c_str(), task_params->dst_path.c_str());
+
+  // Perform the move operation
+  bool success = task_params->server->perform_file_move(task_params->src_path, task_params->dst_path,
+                                                        task_params->file_size, task_params->operation_id);
+
+  // Update final status
+  task_params->server->update_operation_status(task_params->operation_id,
+                                               success ? OperationStatus::COMPLETED : OperationStatus::FAILED,
+                                               success ? "" : "Move operation failed");
+
+  // Clean up
+  delete task_params;
+
+  // Delete this task
+  vTaskDelete(nullptr);
+}
+#endif
+
 esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
   auto *server = static_cast<WebDAVServer *>(req->user_ctx);
 
@@ -696,7 +924,12 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
   }
 
   // Try atomic rename first (works within same filesystem)
-  if (rename(filepath.c_str(), dest_filepath.c_str()) == 0) {
+  int rename_result = rename(filepath.c_str(), dest_filepath.c_str());
+  int rename_errno = errno;  // Save errno immediately
+
+  ESP_LOGD(TAG, "rename() result: %d, errno: %d (%s)", rename_result, rename_errno, strerror(rename_errno));
+
+  if (rename_result == 0) {
     ESP_LOGI(TAG, "Move completed (atomic rename)");
     httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource moved", -1);
@@ -704,7 +937,8 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
   }
 
   // If rename fails with EXDEV (cross-device), fall back to copy+delete
-  if (errno == EXDEV) {
+  ESP_LOGI(TAG, "rename() failed with errno=%d (EXDEV=%d)", rename_errno, EXDEV);
+  if (rename_errno == EXDEV) {
     ESP_LOGI(TAG, "Cross-mount move detected, using copy+delete fallback");
 
     if (S_ISDIR(src_stat.st_mode)) {
@@ -713,65 +947,49 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
       return ESP_OK;
     }
 
-    // Chunked copy for cross-mount move
-    FILE *src = fopen(filepath.c_str(), "rb");
-    if (!src) {
-      ESP_LOGE(TAG, "Failed to open source: %s (errno: %d)", filepath.c_str(), errno);
-      httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot open source");
-      return ESP_OK;
-    }
+#ifdef USE_ESP32
+    // Create operation tracking
+    std::string op_id = server->create_operation_id();
+    OperationState op_state{
+        op_id, "move", filepath, dest_filepath, src_stat.st_size, 0, OperationStatus::IN_PROGRESS, esphome::millis(),
+        ""};
+    server->operations_.push_back(op_state);
+    server->cleanup_old_operations();
 
-    FILE *dst = fopen(dest_filepath.c_str(), "wb");
-    if (!dst) {
-      ESP_LOGE(TAG, "Failed to create destination: %s (errno: %d)", dest_filepath.c_str(), errno);
-      fclose(src);
-      httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot create destination");
-      return ESP_OK;
-    }
+    // Spawn async task for cross-mount move
+    auto *task_params = new MoveTaskParams{server, op_id, filepath, dest_filepath, src_stat.st_size};
 
-    // Copy in chunks
-    auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
-    size_t bytes_read;
-    size_t total_copied = 0;
-    bool copy_success = true;
+    BaseType_t task_created = xTaskCreate(WebDAVServer::move_task, "webdav_move", 8192, task_params, 1, nullptr);
 
-    ESP_LOGI(TAG, "Starting cross-mount move: %s -> %s (size: %lld bytes)", filepath.c_str(), dest_filepath.c_str(),
-             (long long) src_stat.st_size);
+    if (task_created == pdPASS) {
+      ESP_LOGI(TAG, "Cross-mount move task created [%s], responding to client", op_id.c_str());
 
-    while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, src)) > 0) {
-      size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
-      if (bytes_written != bytes_read) {
-        ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d)", total_copied, errno);
-        copy_success = false;
-        break;
-      }
-      total_copied += bytes_written;
-    }
+      // Return operation ID to client for status tracking
+      std::string response =
+          "{\"operation_id\":\"" + op_id + "\",\"status_url\":\"" + server->url_prefix_ + "/status/" + op_id + "\"}";
 
-    fclose(src);
-    fclose(dst);
-
-    if (copy_success && total_copied == static_cast<size_t>(src_stat.st_size)) {
-      // Copy successful, now delete source
-      if (remove(filepath.c_str()) == 0) {
-        ESP_LOGI(TAG, "Cross-mount move completed: %zu bytes", total_copied);
-        httpd_resp_set_status(req, "201 Created");
-        httpd_resp_send(req, "Resource moved", -1);
-      } else {
-        ESP_LOGE(TAG, "Failed to delete source after copy: %s (errno: %d)", filepath.c_str(), errno);
-        // Source still exists, but destination was created - partial success
-        httpd_resp_set_status(req, "201 Created");
-        httpd_resp_send(req, "Resource copied (source deletion failed)", -1);
-      }
+      httpd_resp_set_type(req, "application/json");
+      httpd_resp_set_status(req, "202 Accepted");
+      httpd_resp_send(req, response.c_str(), response.length());
     } else {
-      ESP_LOGE(TAG, "Cross-mount move failed: copied %zu of %lld bytes", total_copied, (long long) src_stat.st_size);
-      // Clean up partial destination
-      remove(dest_filepath.c_str());
+      ESP_LOGE(TAG, "Failed to create move task");
+      server->update_operation_status(op_id, OperationStatus::FAILED, "Failed to create task");
+      delete task_params;
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start move operation");
+    }
+#else
+    // Non-ESP32: Perform synchronous move
+    if (server->perform_file_move(filepath, dest_filepath, src_stat.st_size)) {
+      httpd_resp_set_status(req, "201 Created");
+      httpd_resp_send(req, "Resource moved", -1);
+    } else {
       httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Move failed");
     }
+#endif
   } else {
     // Other rename error
-    ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d)", filepath.c_str(), dest_filepath.c_str(), errno);
+    ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d, %s)", filepath.c_str(), dest_filepath.c_str(), rename_errno,
+             strerror(rename_errno));
     httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot move resource");
   }
 
@@ -810,61 +1028,30 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  // Chunked file copy - memory-efficient for large files
-  FILE *src = fopen(filepath.c_str(), "rb");
-  if (!src) {
-    ESP_LOGE(TAG, "Failed to open source file: %s (errno: %d)", filepath.c_str(), errno);
-    httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot open source");
-    return ESP_OK;
+#ifdef USE_ESP32
+  // Spawn async task for file copy
+  auto *task_params = new CopyTaskParams{server, filepath, dest_filepath, src_stat.st_size};
+
+  BaseType_t task_created = xTaskCreate(WebDAVServer::copy_task, "webdav_copy", 8192, task_params, 1, nullptr);
+
+  if (task_created == pdPASS) {
+    ESP_LOGI(TAG, "Copy task created, responding to client");
+    httpd_resp_set_status(req, "202 Accepted");
+    httpd_resp_send(req, "Copy operation started in background", -1);
+  } else {
+    ESP_LOGE(TAG, "Failed to create copy task");
+    delete task_params;
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start copy operation");
   }
-
-  FILE *dst = fopen(dest_filepath.c_str(), "wb");
-  if (!dst) {
-    ESP_LOGE(TAG, "Failed to open destination file: %s (errno: %d)", dest_filepath.c_str(), errno);
-    fclose(src);
-    httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot create destination");
-    return ESP_OK;
-  }
-
-  // Use architecture-specific buffer for chunked copy
-  auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
-  size_t bytes_read;
-  size_t total_copied = 0;
-  bool copy_success = true;
-
-  ESP_LOGI(TAG, "Starting chunked copy: %s -> %s (size: %lld bytes)", filepath.c_str(), dest_filepath.c_str(),
-           (long long) src_stat.st_size);
-
-  while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, src)) > 0) {
-    size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
-    if (bytes_written != bytes_read) {
-      ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d)", total_copied, errno);
-      copy_success = false;
-      break;
-    }
-    total_copied += bytes_written;
-
-    // Log progress for large files (every 1MB or architecture-specific chunk)
-    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0) {
-      ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) src_stat.st_size,
-               (total_copied * 100.0) / src_stat.st_size);
-    }
-  }
-
-  fclose(src);
-  fclose(dst);
-
-  if (copy_success && total_copied == static_cast<size_t>(src_stat.st_size)) {
-    ESP_LOGI(TAG, "Copy completed: %zu bytes", total_copied);
+#else
+  // Non-ESP32: Perform synchronous copy
+  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size)) {
     httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource copied", -1);
   } else {
-    ESP_LOGE(TAG, "Copy failed: %s to %s (copied %zu of %lld bytes)", filepath.c_str(), dest_filepath.c_str(),
-             total_copied, (long long) src_stat.st_size);
-    // Clean up partial file
-    remove(dest_filepath.c_str());
     httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
   }
+#endif
 
   return ESP_OK;
 }
