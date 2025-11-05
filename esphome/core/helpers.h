@@ -248,6 +248,8 @@ template<typename T> class FixedVector {
   }
 
   // Allocate capacity - can be called multiple times to reinit
+  // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
+  // Direct assignment via operator[] does NOT update the size counter.
   void init(size_t n) {
     cleanup_();
     reset_();
