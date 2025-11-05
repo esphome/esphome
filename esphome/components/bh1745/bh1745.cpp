@@ -1,7 +1,7 @@
 #include "bh1745.h"
-#include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include <cmath>
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace bh1745 {
@@ -156,8 +156,6 @@ void BH1745Component::loop() {
     }
   }
 }
-
-float BH1745Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void BH1745Component::switch_led(bool on_off) {
   // shall we require somehow that its a pimoroni board?

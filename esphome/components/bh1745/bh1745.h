@@ -1,9 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/switch/switch.h"
-#include "esphome/components/i2c/i2c.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace bh1745 {
@@ -89,7 +89,6 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
   void loop() override;
-  float get_setup_priority() const override;
 
   void set_measurement_time(MeasurementTime measurement_time) { this->measurement_time_ = measurement_time; };
   void set_adc_gain(AdcGain adc_gain) { this->adc_gain_ = adc_gain; };
