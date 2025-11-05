@@ -89,8 +89,9 @@ bool MQTTComponent::send_discovery_() {
 
         if (this->is_disabled_by_default())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
-        if (!this->get_icon().empty())
-          root[MQTT_ICON] = this->get_icon();
+        const auto icon_ref = this->get_icon_ref();
+        if (!icon_ref.empty())
+          root[MQTT_ICON] = icon_ref;
 
         const auto entity_category = this->get_entity()->get_entity_category();
         switch (entity_category) {
@@ -269,7 +270,7 @@ bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connec
 
 // Pull these properties from EntityBase if not overridden
 std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
-std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
+StringRef MQTTComponent::get_icon_ref() const { return this->get_entity()->get_icon_ref(); }
 bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() {
   if (this->has_custom_state_topic_) {
