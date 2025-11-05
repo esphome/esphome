@@ -1,0 +1,204 @@
+dependencies:
+  espressif/eppp_link:
+    component_hash: 41f6519edda527ec6a0553c872ebaf8fc6d3812523c9d4c8d1660ad21c720abe
+    dependencies:
+    - name: espressif/esp_serial_slave_link
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^1.1.0
+    - name: idf
+      require: private
+      version: '>=5.2'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.1.3
+  espressif/esp-nn:
+    component_hash: f4633a02f05fef53b80de65ade1f733ebdef637e4c8b8be4eb11f5e27f6d9f3e
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.1.2
+  espressif/esp-tflite-micro:
+    component_hash: 78502e833b227ec15b917222ed046df1a46f2e5d3593d2a77a162012fa9a1aa0
+    dependencies:
+    - name: espressif/esp-nn
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^1.1.0
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.3.3~1
+  espressif/esp32-camera:
+    component_hash: cb1c945f3d2ed1de3c8ddf76d38278a12a52a79fbe3437f60652f8279464ab0a
+    dependencies:
+    - name: espressif/esp_jpeg
+      registry_url: https://components.espressif.com
+      require: public
+      version: ^1.3.0
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.1.1
+  espressif/esp_hosted:
+    component_hash: 66b48cdc7f5a515c175fec253b40d4432ed3678c0a6323b1482131d8cd184d98
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.6.1
+  espressif/esp_jpeg:
+    component_hash: defb83669293cbf86d0fa86b475ba5517aceed04ed70db435388c151ab37b5d7
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.3.1
+  espressif/esp_serial_slave_link:
+    component_hash: 7cd3bae703cc6136b578ef521b2f9df3171d029775a3558f0efdb200a3b04f57
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.1.1~1
+  espressif/esp_tinyusb:
+    component_hash: 96d232ced7afe1976119b62f7fbf1944a2a78b36228ff6f7b9318394ac1153cc
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    - name: espressif/tinyusb
+      registry_url: https://components.espressif.com
+      require: public
+      version: '>=0.14.2'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.7.6~1
+  espressif/esp_wifi_remote:
+    component_hash: b47955c63b9472f7a2e97484d0e78782d31800a03d882654954ae59d2a6ced53
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.3'
+    - name: espressif/esp_hosted
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: target in [esp32h2, esp32p4]
+      version: '>=0.0.6'
+    - name: espressif/wifi_remote_over_eppp
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=0.1'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.1.5
+  espressif/lan867x:
+    component_hash: 651c9d6e3d96acb08bd5066144b12a12e94df0a6241127a0538d8680689de2c4
+    dependencies:
+    - name: espressif/lan86xx_common
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32p4
+    version: 2.0.0
+  espressif/lan86xx_common:
+    component_hash: 6dcb1be9f43ae940979bd628fa5bee278949b66c545e1fe2321e486102e81026
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.0
+  espressif/mdns:
+    component_hash: 3ec0af5f6bce310512e90f482388d21cc7c0e99668172d2f895356165fc6f7c5
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.8.2
+  espressif/tinyusb:
+    component_hash: aec03a6402b66695719fa1121b7d9eee8031922df5c8a3f4b54a51874f65bbd6
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    - esp32h4
+    version: 0.18.0~5
+  espressif/wifi_remote_over_eppp:
+    component_hash: 25f08971c3f85316515a2e15f57a67efecd75d040a45dc143f1010627d750654
+    dependencies:
+    - name: espressif/eppp_link
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=0.1'
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.2.1
+  idf:
+    source:
+      type: idf
+    version: 5.5.1
+  zorxx/multipart-parser:
+    component_hash: a80b98bbdd530829b5a4df54cd8332a265ef4d310392562cf37d4cac548c5fd2
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.1
+direct_dependencies:
+- espressif/eppp_link
+- espressif/esp-tflite-micro
+- espressif/esp32-camera
+- espressif/esp_hosted
+- espressif/esp_tinyusb
+- espressif/esp_wifi_remote
+- espressif/lan867x
+- espressif/mdns
+- zorxx/multipart-parser
+manifest_hash: 5d74293d56f337a482e8b8abad0f1a6ac819e3f50733bbf12515a5cb9254eeb1
+target: esp32p4
+version: 2.0.0
