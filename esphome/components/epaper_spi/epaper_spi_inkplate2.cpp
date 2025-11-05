@@ -26,7 +26,6 @@ void EPaperInkplate2::power_off() {
       ESP_LOGW(TAG, "Timeout waiting for power off");
       break;
     }
-    delay(10);
   }
   ESP_LOGV(TAG, "Power off completed after %u ms", (unsigned) (millis() - start));
 }
@@ -34,9 +33,6 @@ void EPaperInkplate2::power_off() {
 void EPaperInkplate2::refresh_screen() {
   ESP_LOGV(TAG, "Refresh screen");
   this->command(0x12);
-
-  // Arduino library adds a small delay here
-  delayMicroseconds(500);
 }
 
 void EPaperInkplate2::deep_sleep() {
