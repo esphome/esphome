@@ -9,6 +9,7 @@ namespace esphome {
 namespace webdav_server {
 
 void WebDAVServer::setup() {
+  ESP_LOGE(TAG, "=== WEBDAV SETUP CALLED === port=%d, root=%s", this->port_, this->root_path_.c_str());
   ESP_LOGI(TAG, "Starting WebDAV Server on port %d with prefix: %s", this->port_, this->url_prefix_.c_str());
   ESP_LOGI(TAG, "Root path: %s", this->root_path_.c_str());
 
