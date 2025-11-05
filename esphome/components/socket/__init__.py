@@ -72,6 +72,9 @@ async def to_code(config):
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
         cg.add_define("USE_SOCKET_SELECT_SUPPORT")
+    elif impl == IMPLEMENTATION_ZEPHYR_SOCKETS:
+        cg.add_define("USE_SOCKET_IMPL_ZEPHYR_SOCKETS")
+        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
