@@ -100,8 +100,14 @@ async def to_code(config):
 
     # Add hardware JPEG decoder support for ESP32-P4
     if "P4" in get_esp32_variant():
-        # add_idf_component("esp_jpeg", ref="1.0.0")
+        # ESP32-P4 has built-in JPEG decoder in ESP-IDF 5.3+
+        # The driver is built-in via esp_driver_jpeg component (no need to add_idf_component)
+        # We just need to define USE_HARDWARE_JPEG_DECODER and link against it
         cg.add_define("USE_HARDWARE_JPEG_DECODER")
+
+        # Add library dependency for linking
+        cg.add_library("esp_driver_jpeg", None)
+
         _LOGGER.info("Hardware JPEG decoder enabled for ESP32-P4")
 
     # JPEGDEC library can be added via include_libs in YAML config

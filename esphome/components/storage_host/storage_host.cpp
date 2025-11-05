@@ -362,6 +362,15 @@ void StorageImage::unload_image() {
   this->image_width_ = 0;
   this->image_height_ = 0;
 
+  // Cleanup hardware JPEG decoder if it exists
+#ifdef USE_HARDWARE_JPEG_DECODER
+  if (this->hw_decoder_ != nullptr) {
+    jpeg_del_decoder_engine(this->hw_decoder_);
+    this->hw_decoder_ = nullptr;
+    ESP_LOGD(TAG, "Hardware JPEG decoder engine released");
+  }
+#endif
+
   // Réinitialiser aussi les propriétés de la classe de base
   this->width_ = 0;
   this->height_ = 0;
@@ -531,6 +540,12 @@ bool StorageImage::decode_image(const std::vector<uint8_t> &data) {
 bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
   ESP_LOGI(TAG, "Using hardware JPEG decoder (ESP32-P4)");
 
+  // Safety check: Minimum JPEG data size
+  if (jpeg_data.size() < 100) {
+    ESP_LOGE(TAG, "JPEG data too small: %u bytes", jpeg_data.size());
+    return false;
+  }
+
   // Get image info first
   jpeg_decode_picture_info_t pic_info;
   esp_err_t ret = jpeg_decoder_get_info(jpeg_data.data(), jpeg_data.size(), &pic_info);
@@ -541,15 +556,26 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
 
   ESP_LOGI(TAG, "JPEG original dimensions: %dx%d", pic_info.width, pic_info.height);
 
-  // Validate dimensions
-  if (pic_info.width <= 0 || pic_info.height <= 0 || pic_info.width > 2048 || pic_info.height > 2048) {
-    ESP_LOGE(TAG, "Invalid JPEG dimensions: %dx%d", pic_info.width, pic_info.height);
+  // Validate dimensions with safety limits
+  if (pic_info.width <= 0 || pic_info.height <= 0 || pic_info.width > 1920 || pic_info.height > 1080) {
+    ESP_LOGE(TAG, "Invalid JPEG dimensions: %dx%d (max 1920x1080)", pic_info.width, pic_info.height);
     return false;
   }
 
   // Hardware decoder decodes to full size first
   int decoded_width = pic_info.width;
   int decoded_height = pic_info.height;
+
+  // Check if we have enough memory before allocating
+  size_t required_memory =
+      jpeg_data.size() + (decoded_width * decoded_height * (this->format_ == ImageFormat::RGB565 ? 2 : 3));
+  size_t free_heap = heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  ESP_LOGI(TAG, "Required memory: %u bytes, Free PSRAM: %u bytes", required_memory, free_heap);
+
+  if (free_heap < required_memory + 100000) {  // Keep 100KB safety margin
+    ESP_LOGE(TAG, "Not enough memory for hardware decode (need %u, have %u)", required_memory, free_heap);
+    return false;
+  }
 
   // Initialize decoder engine if not already done
   if (this->hw_decoder_ == nullptr) {
@@ -562,6 +588,7 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
       ESP_LOGE(TAG, "Failed to create JPEG decoder engine: %s", esp_err_to_name(ret));
       return false;
     }
+    ESP_LOGI(TAG, "Hardware JPEG decoder engine initialized");
   }
 
   // Configure decode parameters
@@ -633,6 +660,11 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
 
     // Perform simple nearest-neighbor resize
     for (int dst_y = 0; dst_y < this->resize_height_; dst_y++) {
+      // Yield every 10 rows to prevent watchdog timeout
+      if (dst_y % 10 == 0) {
+        yield();
+      }
+
       for (int dst_x = 0; dst_x < this->resize_width_; dst_x++) {
         // Map destination coordinates to source
         float src_x = (float) dst_x * decoded_width / this->resize_width_;
