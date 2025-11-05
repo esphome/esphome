@@ -18,9 +18,9 @@ CONF_STORAGE_HOST_ID = "storage_host_id"
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WebDAVServer),
-        cv.GenerateID(CONF_STORAGE_HOST_ID): cv.use_id(
+        cv.Required(CONF_STORAGE_HOST_ID): cv.use_id(
             storage_host.StorageHost
-        ),  # Reference to storage_host
+        ),  # Reference to storage_host (REQUIRED)
         cv.Optional(CONF_ROOT_PATH, default="/"): cv.string,
         cv.Optional(CONF_URL_PREFIX, default="/webdav"): cv.string,
         cv.Optional(CONF_PORT, default=8081): cv.port,
