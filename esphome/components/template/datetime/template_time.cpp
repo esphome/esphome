@@ -40,14 +40,13 @@ void TemplateTime::update() {
   if (!this->f_.has_value())
     return;
 
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  this->hour_ = val->hour;
-  this->minute_ = val->minute;
-  this->second_ = val->second;
-  this->publish_state();
+  auto val = this->f_();
+  if (val.has_value()) {
+    this->hour_ = val->hour;
+    this->minute_ = val->minute;
+    this->second_ = val->second;
+    this->publish_state();
+  }
 }
 
 void TemplateTime::control(const datetime::TimeCall &call) {

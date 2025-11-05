@@ -1,7 +1,7 @@
 import re
 
 from esphome import automation
-from esphome.automation import LambdaAction
+from esphome.automation import LambdaAction, StatelessLambdaAction
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import (
@@ -173,14 +173,34 @@ def uart_selection(value):
     raise NotImplementedError
 
 
-def validate_local_no_higher_than_global(value):
-    global_level = LOG_LEVEL_SEVERITY.index(value[CONF_LEVEL])
-    for tag, level in value.get(CONF_LOGS, {}).items():
-        if LOG_LEVEL_SEVERITY.index(level) > global_level:
-            raise cv.Invalid(
-                f"The configured log level for {tag} ({level}) must be no more severe than the global log level {value[CONF_LEVEL]}."
+def validate_local_no_higher_than_global(config):
+    global_level = config[CONF_LEVEL]
+    global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
+    errs = []
+    for tag, level in config.get(CONF_LOGS, {}).items():
+        if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+            errs.append(
+                cv.Invalid(
+                    f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
+                    [CONF_LOGS, tag],
+                )
             )
-    return value
+    if errs:
+        raise cv.MultipleInvalid(errs)
+    return config
+
+
+def validate_initial_no_higher_than_global(config):
+    if initial_level := config.get(CONF_INITIAL_LEVEL):
+        global_level = config[CONF_LEVEL]
+        if LOG_LEVEL_SEVERITY.index(initial_level) > LOG_LEVEL_SEVERITY.index(
+            global_level
+        ):
+            raise cv.Invalid(
+                f"The initial log level ({initial_level}) must not be less severe than the global log level ({global_level})",
+                [CONF_INITIAL_LEVEL],
+            )
+    return config
 
 
 Logger = logger_ns.class_("Logger", cg.Component)
@@ -263,6 +283,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
+    validate_initial_no_higher_than_global,
 )
 
 
@@ -430,7 +451,9 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
 
 
 @automation.register_action(
@@ -455,7 +478,9 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
         text = str(cg.statement(logger.set_log_level(level)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

@@ -12,5 +12,8 @@ esphome:
             - logger.log: "Failed to connect to WiFi!"
 
 wifi:
-  ssid: MySSID
-  password: password1
+  networks:
+    - ssid: MySSID
+      password: password1
+    - ssid: MySSID2
+      password: password2

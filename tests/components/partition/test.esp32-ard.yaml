@@ -1,5 +1,0 @@
-substitutions:
-  light_platform: esp32_rmt_led_strip
-  pin: GPIO2
-
-<<: !include common-ard.yaml

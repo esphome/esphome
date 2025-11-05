@@ -689,14 +689,11 @@ void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 
-std::string EthernetComponent::get_use_address() const {
-  if (this->use_address_.empty()) {
-    return App.get_name() + ".local";
-  }
-  return this->use_address_;
-}
+// set_use_address() is guaranteed to be called during component setup by Python code generation,
+// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
+const char *EthernetComponent::get_use_address() const { return this->use_address_; }
 
-void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+void EthernetComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   esp_err_t err;

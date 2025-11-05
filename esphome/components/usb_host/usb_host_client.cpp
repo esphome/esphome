@@ -3,6 +3,7 @@
 #include "usb_host.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
 #include <cinttypes>
@@ -174,6 +175,11 @@ static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *
 
   // Push to lock-free queue (always succeeds since pool size == queue size)
   client->event_queue.push(event);
+
+  // Wake main loop immediately to process USB event instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 void USBClient::setup() {
   usb_host_client_config_t config{.is_synchronous = false,
@@ -188,9 +194,9 @@ void USBClient::setup() {
   }
   // Pre-allocate USB transfer buffers for all slots at startup
   // This avoids any dynamic allocation during runtime
-  for (size_t i = 0; i < MAX_REQUESTS; i++) {
-    usb_host_transfer_alloc(64, 0, &this->requests_[i].transfer);
-    this->requests_[i].client = this;  // Set once, never changes
+  for (auto &request : this->requests_) {
+    usb_host_transfer_alloc(64, 0, &request.transfer);
+    request.client = this;  // Set once, never changes
   }
 
   // Create and start USB task
@@ -210,8 +216,7 @@ void USBClient::usb_task_fn(void *arg) {
   auto *client = static_cast<USBClient *>(arg);
   client->usb_task_loop();
 }
-
-void USBClient::usb_task_loop() {
+void USBClient::usb_task_loop() const {
   while (true) {
     usb_host_client_handle_events(this->handle_, portMAX_DELAY);
   }
@@ -228,12 +233,6 @@ void USBClient::loop() {
       case EVENT_DEVICE_GONE:
         this->on_removed(event->data.device_gone.handle);
         break;
-      case EVENT_TRANSFER_COMPLETE:
-      case EVENT_CONTROL_COMPLETE: {
-        auto *trq = event->data.transfer.trq;
-        this->release_trq(trq);
-        break;
-      }
     }
     // Return event to pool for reuse
     this->event_pool.release(event);
@@ -313,25 +312,6 @@ void USBClient::on_removed(usb_device_handle_t handle) {
   }
 }
 
-// Helper to queue transfer cleanup to main loop
-static void queue_transfer_cleanup(TransferRequest *trq, EventType type) {
-  auto *client = trq->client;
-
-  // Allocate event from pool
-  UsbEvent *event = client->event_pool.allocate();
-  if (event == nullptr) {
-    // No events available - increment counter for periodic logging
-    client->event_queue.increment_dropped_count();
-    return;
-  }
-
-  event->type = type;
-  event->data.transfer.trq = trq;
-
-  // Push to lock-free queue (always succeeds since pool size == queue size)
-  client->event_queue.push(event);
-}
-
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void control_callback(const usb_transfer_t *xfer) {
   auto *trq = static_cast<TransferRequest *>(xfer->context);
@@ -346,8 +326,9 @@ static void control_callback(const usb_transfer_t *xfer) {
     trq->callback(trq->status);
   }
 
-  // Queue cleanup to main loop
-  queue_transfer_cleanup(trq, EVENT_CONTROL_COMPLETE);
+  // Release transfer slot immediately in USB task
+  // The release_trq() uses thread-safe atomic operations
+  trq->client->release_trq(trq);
 }
 
 // THREAD CONTEXT: Called from both USB task and main loop threads (multi-consumer)
@@ -358,22 +339,23 @@ static void control_callback(const usb_transfer_t *xfer) {
 // This multi-threaded access is intentional for performance - USB task can
 // immediately restart transfers without waiting for main loop scheduling.
 TransferRequest *USBClient::get_trq_() {
-  uint16_t mask = this->trq_in_use_.load(std::memory_order_relaxed);
+  trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_acquire);
 
   // Find first available slot (bit = 0) and try to claim it atomically
   // We use a while loop to allow retrying the same slot after CAS failure
-  size_t i = 0;
-  while (i != MAX_REQUESTS) {
-    if (mask & (1U << i)) {
-      // Slot is in use, move to next slot
-      i++;
-      continue;
+  for (;;) {
+    if (mask == ALL_REQUESTS_IN_USE) {
+      ESP_LOGE(TAG, "All %zu transfer slots in use", MAX_REQUESTS);
+      return nullptr;
     }
+    // find the least significant zero bit
+    trq_bitmask_t lsb = ~mask & (mask + 1);
 
     // Slot i appears available, try to claim it atomically
-    uint16_t desired = mask | (1U << i);  // Set bit i to mark as in-use
+    trq_bitmask_t desired = mask | lsb;
 
-    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order_acquire, std::memory_order_relaxed)) {
+    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order::acquire)) {
+      auto i = __builtin_ctz(lsb);  // count trailing zeroes
       // Successfully claimed slot i - prepare the TransferRequest
       auto *trq = &this->requests_[i];
       trq->transfer->context = trq;
@@ -382,13 +364,9 @@ TransferRequest *USBClient::get_trq_() {
     }
     // CAS failed - another thread modified the bitmask
     // mask was already updated by compare_exchange_weak with the current value
-    // No need to reload - the CAS already did that for us
-    i = 0;
   }
-
-  ESP_LOGE(TAG, "All %d transfer slots in use", MAX_REQUESTS);
-  return nullptr;
 }
+
 void USBClient::disconnect() {
   this->on_disconnected();
   auto err = usb_host_device_close(this->handle_, this->device_handle_);
@@ -452,8 +430,11 @@ static void transfer_callback(usb_transfer_t *xfer) {
     trq->callback(trq->status);
   }
 
-  // Queue cleanup to main loop
-  queue_transfer_cleanup(trq, EVENT_TRANSFER_COMPLETE);
+  // Release transfer slot AFTER callback completes to prevent slot exhaustion
+  // This is critical for high-throughput transfers (e.g., USB UART at 115200 baud)
+  // The callback has finished accessing xfer->data_buffer, so it's safe to release
+  // The release_trq() uses thread-safe atomic operations
+  trq->client->release_trq(trq);
 }
 /**
  * Performs a transfer input operation.
@@ -467,11 +448,11 @@ static void transfer_callback(usb_transfer_t *xfer) {
  *
  * @throws None.
  */
-void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
+bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
-    return;
+    return false;
   }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
@@ -481,7 +462,9 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
+    return false;
   }
+  return true;
 }
 
 /**
@@ -497,11 +480,11 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
  *
  * @throws None.
  */
-void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
+bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
-    return;
+    return false;
   }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
@@ -512,7 +495,9 @@ void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
+    return false;
   }
+  return true;
 }
 void USBClient::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -521,12 +506,12 @@ void USBClient::dump_config() {
                 "  Product id %04X",
                 this->vid_, this->pid_);
 }
-// THREAD CONTEXT: Only called from main loop thread (single producer for deallocation)
-// - Via event processing when handling EVENT_TRANSFER_COMPLETE/EVENT_CONTROL_COMPLETE
-// - Directly when transfer submission fails
+// THREAD CONTEXT: Called from both USB task and main loop threads
+// - USB task: Immediately after transfer callback completes
+// - Main loop: When transfer submission fails
 //
 // THREAD SAFETY: Lock-free using atomic AND to clear bit
-// Single-producer pattern makes this simpler than allocation
+// Thread-safe atomic operation allows multithreaded deallocation
 void USBClient::release_trq(TransferRequest *trq) {
   if (trq == nullptr)
     return;
@@ -538,10 +523,10 @@ void USBClient::release_trq(TransferRequest *trq) {
     return;
   }
 
-  // Atomically clear bit i to mark slot as available
+  // Atomically clear the bit to mark slot as available
   // fetch_and with inverted bitmask clears the bit atomically
-  uint16_t bit = 1U << index;
-  this->trq_in_use_.fetch_and(static_cast<uint16_t>(~bit), std::memory_order_release);
+  trq_bitmask_t mask = ~(static_cast<trq_bitmask_t>(1) << index);
+  this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
 }  // namespace usb_host

@@ -1,9 +1,3 @@
-spi:
-  id: quad_spi
-  clk_pin: 15
-  type: quad
-  data_pins: [14, 10, 16, 12]
-
 display:
   - platform: qspi_dbi
     model: RM690B0

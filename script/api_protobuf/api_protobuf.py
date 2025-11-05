@@ -11,6 +11,7 @@ from typing import Any
 
 import aioesphomeapi.api_options_pb2 as pb
 import google.protobuf.descriptor_pb2 as descriptor
+from google.protobuf.descriptor_pb2 import FieldDescriptorProto
 
 
 class WireType(IntEnum):
@@ -148,7 +149,7 @@ class TypeInfo(ABC):
     @property
     def repeated(self) -> bool:
         """Check if the field is repeated."""
-        return self._field.label == 3
+        return self._field.label == FieldDescriptorProto.LABEL_REPEATED
 
     @property
     def wire_type(self) -> WireType:
@@ -337,7 +338,7 @@ def create_field_type_info(
     needs_encode: bool = True,
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
-    if field.label == 3:  # repeated
+    if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this repeated field has fixed_array_with_length_define option
         if (
             fixed_size := get_field_opt(field, pb.fixed_array_with_length_define)
@@ -1161,7 +1162,11 @@ class SInt64Type(TypeInfo):
 
 
 def _generate_array_dump_content(
-    ti, field_name: str, name: str, is_bool: bool = False
+    ti,
+    field_name: str,
+    name: str,
+    is_bool: bool = False,
+    is_const_char_ptr: bool = False,
 ) -> str:
     """Generate dump content for array types (repeated or fixed array).
 
@@ -1169,7 +1174,10 @@ def _generate_array_dump_content(
     """
     o = f"for (const auto {'' if is_bool else '&'}it : {field_name}) {{\n"
     # Check if underlying type can use dump_field
-    if ti.can_use_dump_field():
+    if is_const_char_ptr:
+        # Special case for const char* - use it directly
+        o += f'  dump_field(out, "{name}", it, 4);\n'
+    elif ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
         # std::vector<bool> iterators return proxy objects, need explicit cast
         value_expr = "static_cast<bool>(it)" if is_bool else ti.dump_field_value("it")
@@ -1414,7 +1422,15 @@ class RepeatedTypeInfo(TypeInfo):
         super().__init__(field)
         # Check if this is a pointer field by looking for container_pointer option
         self._container_type = get_field_opt(field, pb.container_pointer, "")
-        self._use_pointer = bool(self._container_type)
+        # Check for non-template container pointer
+        self._container_no_template = get_field_opt(
+            field, pb.container_pointer_no_template, ""
+        )
+        self._use_pointer = bool(self._container_type) or bool(
+            self._container_no_template
+        )
+        # Check if this should use FixedVector instead of std::vector
+        self._use_fixed_vector = get_field_opt(field, pb.fixed_vector, False)
 
         # For repeated fields, we need to get the base type info
         # but we can't call create_field_type_info as it would cause recursion
@@ -1431,13 +1447,21 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def cpp_type(self) -> str:
+        if self._container_no_template:
+            # Non-template container: use type as-is without appending template parameters
+            return f"const {self._container_no_template}*"
         if self._use_pointer and self._container_type:
             # For pointer fields, use the specified container type
-            # If the container type already includes the element type (e.g., std::set<climate::ClimateMode>)
-            # use it as-is, otherwise append the element type
+            # Two cases:
+            # 1. "std::set<climate::ClimateMode>" - Full type with template params, use as-is
+            # 2. "std::set" - No <>, append the element type
             if "<" in self._container_type and ">" in self._container_type:
+                # Has template parameters specified, use as-is
                 return f"const {self._container_type}*"
+            # No <> at all, append element type
             return f"const {self._container_type}<{self._ti.cpp_type}>*"
+        if self._use_fixed_vector:
+            return f"FixedVector<{self._ti.cpp_type}>"
         return f"std::vector<{self._ti.cpp_type}>"
 
     @property
@@ -1516,11 +1540,16 @@ class RepeatedTypeInfo(TypeInfo):
     def encode_content(self) -> str:
         if self._use_pointer:
             # For pointer fields, just dereference (pointer should never be null in our use case)
-            o = f"for (const auto &it : *this->{self.field_name}) {{\n"
-            if isinstance(self._ti, EnumType):
-                o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
+            # Special handling for const char* elements (when container_no_template contains "const char")
+            if "const char" in self._container_no_template:
+                o = f"for (const char *it : *this->{self.field_name}) {{\n"
+                o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
             else:
-                o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+                o = f"for (const auto &it : *this->{self.field_name}) {{\n"
+                if isinstance(self._ti, EnumType):
+                    o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
+                else:
+                    o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
             o += "}"
             return o
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
@@ -1533,10 +1562,18 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def dump_content(self) -> str:
+        # Check if this is const char* elements
+        is_const_char_ptr = (
+            self._use_pointer and "const char" in self._container_no_template
+        )
         if self._use_pointer:
             # For pointer fields, dereference and use the existing helper
             return _generate_array_dump_content(
-                self._ti, f"*this->{self.field_name}", self.name, is_bool=False
+                self._ti,
+                f"*this->{self.field_name}",
+                self.name,
+                is_bool=False,
+                is_const_char_ptr=is_const_char_ptr,
             )
         return _generate_array_dump_content(
             self._ti, f"this->{self.field_name}", self.name, is_bool=self._ti_is_bool
@@ -1571,9 +1608,15 @@ class RepeatedTypeInfo(TypeInfo):
             o += f"  size.add_precalculated_size({size_expr} * {bytes_per_element});\n"
         else:
             # Other types need the actual value
-            auto_ref = "" if self._ti_is_bool else "&"
-            o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
-            o += f"    {self._ti.get_size_calculation('it', True)}\n"
+            # Special handling for const char* elements
+            if self._use_pointer and "const char" in self._container_no_template:
+                field_id_size = self.calculate_field_id_size()
+                o += f"  for (const char *it : {container_ref}) {{\n"
+                o += f"    size.add_length_force({field_id_size}, strlen(it));\n"
+            else:
+                auto_ref = "" if self._ti_is_bool else "&"
+                o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
+                o += f"    {self._ti.get_size_calculation('it', True)}\n"
             o += "  }\n"
 
         o += "}"
@@ -1875,6 +1918,9 @@ def build_message_type(
         )
         public_content.append("#endif")
 
+    # Collect fixed_vector fields for custom decode generation
+    fixed_vector_fields = []
+
     for field in desc.field:
         # Skip deprecated fields completely
         if field.options.deprecated:
@@ -1883,7 +1929,7 @@ def build_message_type(
         # Validate that fixed_array_size is only used in encode-only messages
         if (
             needs_decode
-            and field.label == 3
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
             and get_field_opt(field, pb.fixed_array_size) is not None
         ):
             raise ValueError(
@@ -1896,7 +1942,7 @@ def build_message_type(
         # Validate that fixed_array_with_length_define is only used in encode-only messages
         if (
             needs_decode
-            and field.label == 3
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
             and get_field_opt(field, pb.fixed_array_with_length_define) is not None
         ):
             raise ValueError(
@@ -1905,6 +1951,14 @@ def build_message_type(
                 f"Fixed arrays with length are only supported for SOURCE_SERVER (encode-only) messages "
                 f"since we cannot trust or control the number of items received from clients."
             )
+
+        # Collect fixed_vector repeated fields for custom decode generation
+        if (
+            needs_decode
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
+            and get_field_opt(field, pb.fixed_vector, False)
+        ):
+            fixed_vector_fields.append((field.name, field.number))
 
         ti = create_field_type_info(field, needs_decode, needs_encode)
 
@@ -2013,6 +2067,22 @@ def build_message_type(
         cpp += o
         prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
         protected_content.insert(0, prot)
+
+    # Generate custom decode() override for messages with FixedVector fields
+    if fixed_vector_fields:
+        # Generate the decode() implementation in cpp
+        o = f"void {desc.name}::decode(const uint8_t *buffer, size_t length) {{\n"
+        # Count and init each FixedVector field
+        for field_name, field_number in fixed_vector_fields:
+            o += f"  uint32_t count_{field_name} = ProtoDecodableMessage::count_repeated_field(buffer, length, {field_number});\n"
+            o += f"  this->{field_name}.init(count_{field_name});\n"
+        # Call parent decode to populate the fields
+        o += "  ProtoDecodableMessage::decode(buffer, length);\n"
+        o += "}\n"
+        cpp += o
+        # Generate the decode() declaration in header (public method)
+        prot = "void decode(const uint8_t *buffer, size_t length) override;"
+        public_content.append(prot)
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
@@ -2495,6 +2565,12 @@ static void dump_field(std::string &out, const char *field_name, const std::stri
 static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   append_quoted_string(out, value);
+  out.append("\\n");
+}
+
+static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
   out.append("\\n");
 }
 

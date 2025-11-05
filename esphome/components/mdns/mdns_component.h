@@ -27,7 +27,7 @@ struct MDNSString;
 
 struct MDNSTXTRecord {
   const MDNSString *key;
-  TemplatableValue<std::string> value;
+  const MDNSString *value;
 };
 
 struct MDNSService {
@@ -38,7 +38,7 @@ struct MDNSService {
   // as defined in RFC6763 Section 7, like "_tcp" or "_udp"
   const MDNSString *proto;
   TemplatableValue<uint16_t> port;
-  std::vector<MDNSTXTRecord> txt_records;
+  FixedVector<MDNSTXTRecord> txt_records;
 };
 
 class MDNSComponent : public Component {
@@ -55,14 +55,28 @@ class MDNSComponent : public Component {
   void add_extra_service(MDNSService service) { this->services_.emplace_next() = std::move(service); }
 #endif
 
+#ifdef USE_MDNS_STORE_SERVICES
   const StaticVector<MDNSService, MDNS_SERVICE_COUNT> &get_services() const { return this->services_; }
+#endif
 
   void on_shutdown() override;
 
+  /// Add a dynamic TXT value and return pointer to it for use in MDNSTXTRecord
+  const char *add_dynamic_txt_value(const std::string &value) {
+    this->dynamic_txt_values_.push_back(value);
+    return this->dynamic_txt_values_[this->dynamic_txt_values_.size() - 1].c_str();
+  }
+
+  /// Storage for runtime-generated TXT values (MAC address, user lambdas)
+  /// Pre-sized at compile time via MDNS_DYNAMIC_TXT_COUNT to avoid heap allocations.
+  /// Static/compile-time values (version, board, etc.) are stored directly in flash and don't use this.
+  StaticVector<std::string, MDNS_DYNAMIC_TXT_COUNT> dynamic_txt_values_;
+
  protected:
+#ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
-  std::string hostname_;
-  void compile_records_();
+#endif
+  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services);
 };
 
 }  // namespace mdns
