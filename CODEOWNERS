@@ -156,6 +156,7 @@ esphome/components/esp32_ble_tracker/* @bdraco
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_hosted/* @swoboda1337
+esphome/components/esp32_hosted/update/* @swoboda1337
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
@@ -181,7 +182,7 @@ esphome/components/gdk101/* @Szewcson
 esphome/components/gl_r01_i2c/* @pkejval
 esphome/components/globals/* @esphome/core
 esphome/components/gp2y1010au0f/* @zry98
-esphome/components/gp8403/* @jesserockz
+esphome/components/gp8403/* @jesserockz @sebydocky
 esphome/components/gpio/* @esphome/core
 esphome/components/gpio/one_wire/* @ssieb
 esphome/components/gps/* @coogle @ximex
@@ -480,6 +481,7 @@ esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @esphome/core
+esphome/components/tinyusb/* @kbx81
 esphome/components/tlc5947/* @rnauber
 esphome/components/tlc5971/* @IJIJI
 esphome/components/tm1621/* @Philippe12

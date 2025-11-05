@@ -9,7 +9,7 @@ namespace sx127x {
 
 template<typename... Ts> class RunImageCalAction : public Action<Ts...>, public Parented<SX127x> {
  public:
-  void play(Ts... x) override { this->parent_->run_image_cal(); }
+  void play(const Ts &...x) override { this->parent_->run_image_cal(); }
 };
 
 template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<SX127x> {
@@ -24,7 +24,7 @@ template<typename... Ts> class SendPacketAction : public Action<Ts...>, public P
     this->static_ = true;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->static_) {
       this->parent_->transmit_packet(this->data_static_);
     } else {
@@ -40,22 +40,22 @@ template<typename... Ts> class SendPacketAction : public Action<Ts...>, public P
 
 template<typename... Ts> class SetModeTxAction : public Action<Ts...>, public Parented<SX127x> {
  public:
-  void play(Ts... x) override { this->parent_->set_mode_tx(); }
+  void play(const Ts &...x) override { this->parent_->set_mode_tx(); }
 };
 
 template<typename... Ts> class SetModeRxAction : public Action<Ts...>, public Parented<SX127x> {
  public:
-  void play(Ts... x) override { this->parent_->set_mode_rx(); }
+  void play(const Ts &...x) override { this->parent_->set_mode_rx(); }
 };
 
 template<typename... Ts> class SetModeSleepAction : public Action<Ts...>, public Parented<SX127x> {
  public:
-  void play(Ts... x) override { this->parent_->set_mode_sleep(); }
+  void play(const Ts &...x) override { this->parent_->set_mode_sleep(); }
 };
 
 template<typename... Ts> class SetModeStandbyAction : public Action<Ts...>, public Parented<SX127x> {
  public:
-  void play(Ts... x) override { this->parent_->set_mode_standby(); }
+  void play(const Ts &...x) override { this->parent_->set_mode_standby(); }
 };
 
 }  // namespace sx127x

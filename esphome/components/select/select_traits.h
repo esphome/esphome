@@ -1,18 +1,19 @@
 #pragma once
 
-#include <vector>
-#include <string>
+#include "esphome/core/helpers.h"
+#include <initializer_list>
 
 namespace esphome {
 namespace select {
 
 class SelectTraits {
  public:
-  void set_options(std::vector<std::string> options);
-  const std::vector<std::string> &get_options() const;
+  void set_options(const std::initializer_list<const char *> &options);
+  void set_options(const FixedVector<const char *> &options);
+  const FixedVector<const char *> &get_options() const;
 
  protected:
-  std::vector<std::string> options_;
+  FixedVector<const char *> options_;
 };
 
 }  // namespace select

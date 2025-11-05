@@ -33,19 +33,13 @@ Message Format:
 class ABBWelcomeData {
  public:
   // Make default
-  ABBWelcomeData() {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
-    this->data_[0] = 0x55;
-    this->data_[1] = 0xff;
-  }
+  ABBWelcomeData() : data_{0x55, 0xff} {}
   // Make from initializer_list
-  ABBWelcomeData(std::initializer_list<uint8_t> data) {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
+  ABBWelcomeData(std::initializer_list<uint8_t> data) : data_{} {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Make from vector
-  ABBWelcomeData(const std::vector<uint8_t> &data) {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
+  ABBWelcomeData(const std::vector<uint8_t> &data) : data_{} {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Default copy constructor

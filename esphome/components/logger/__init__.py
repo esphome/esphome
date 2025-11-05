@@ -173,14 +173,34 @@ def uart_selection(value):
     raise NotImplementedError
 
 
-def validate_local_no_higher_than_global(value):
-    global_level = LOG_LEVEL_SEVERITY.index(value[CONF_LEVEL])
-    for tag, level in value.get(CONF_LOGS, {}).items():
-        if LOG_LEVEL_SEVERITY.index(level) > global_level:
-            raise cv.Invalid(
-                f"The configured log level for {tag} ({level}) must be no more severe than the global log level {value[CONF_LEVEL]}."
+def validate_local_no_higher_than_global(config):
+    global_level = config[CONF_LEVEL]
+    global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
+    errs = []
+    for tag, level in config.get(CONF_LOGS, {}).items():
+        if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+            errs.append(
+                cv.Invalid(
+                    f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
+                    [CONF_LOGS, tag],
+                )
             )
-    return value
+    if errs:
+        raise cv.MultipleInvalid(errs)
+    return config
+
+
+def validate_initial_no_higher_than_global(config):
+    if initial_level := config.get(CONF_INITIAL_LEVEL):
+        global_level = config[CONF_LEVEL]
+        if LOG_LEVEL_SEVERITY.index(initial_level) > LOG_LEVEL_SEVERITY.index(
+            global_level
+        ):
+            raise cv.Invalid(
+                f"The initial log level ({initial_level}) must not be less severe than the global log level ({global_level})",
+                [CONF_INITIAL_LEVEL],
+            )
+    return config
 
 
 Logger = logger_ns.class_("Logger", cg.Component)
@@ -263,6 +283,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
+    validate_initial_no_higher_than_global,
 )
 
 
