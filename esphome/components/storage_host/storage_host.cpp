@@ -674,7 +674,7 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
     }
 
     // Copy decoded data to image buffer
-    size_t copy_size = std::min(output_size, this->image_buffer_.size());
+    size_t copy_size = std::min((size_t) output_size, this->image_buffer_.size());
     memcpy(this->image_buffer_.data(), aligned_output, copy_size);
   }
 
