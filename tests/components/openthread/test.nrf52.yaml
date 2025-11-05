@@ -5,7 +5,6 @@ esphome:
   name: nrf52-ot
 
 api:
-  max_send_queue: 10 # Maximum queued messages per connection before disconnect
 
 logger:
   level: DEBUG
