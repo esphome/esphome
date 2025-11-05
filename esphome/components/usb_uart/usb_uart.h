@@ -253,7 +253,9 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
 
 class USBUartTypeCH934X : public USBUartComponent {
  public:
-  USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
+  USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {
+    ESP_LOGI("usb_uart", "=== CH934X CONSTRUCTOR CALLED! VID=%04X PID=%04X ===", vid, pid);
+  }
 
   // Overridden methods from USBUartComponent
   void start_input(USBUartChannel *channel) override;
