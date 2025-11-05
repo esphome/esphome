@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#if defined(USE_OPENTHREAD) && defined(USE_ZEPHYR_OPENTHREAD)
+#if defined(USE_OPENTHREAD) && defined(USE_ZEPHYR)
 #include "openthread.h"
 
 #include <openthread/instance.h>
