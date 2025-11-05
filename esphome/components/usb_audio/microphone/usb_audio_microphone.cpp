@@ -161,23 +161,21 @@ void USBAudioMicrophone::enqueue_frame_(const uint8_t *data, size_t length) {
   if (!this->enabled_channels_.empty()) {
     const size_t bytes_per_sample = static_cast<size_t>(this->bits_per_sample_) / 8U;
     const size_t channel_stride = static_cast<size_t>(this->channels_) * bytes_per_sample;
-    static bool logged_invalid_frame = false;
-    static bool logged_invalid_channel = false;
 
     if (bytes_per_sample == 0 || channel_stride == 0 || (length % channel_stride) != 0) {
-      if (!logged_invalid_frame) {
+      if (!this->logged_invalid_frame_) {
         ESP_LOGW(TAG_MIC, "Unable to apply channel selection: unexpected frame size (%u bytes)",
                  static_cast<unsigned int>(length));
-        logged_invalid_frame = true;
+        this->logged_invalid_frame_ = true;
       }
     } else {
       std::vector<bool> enabled_map(this->channels_, false);
       for (uint8_t enabled_channel : this->enabled_channels_) {
         if (enabled_channel < this->channels_) {
           enabled_map[enabled_channel] = true;
-        } else if (!logged_invalid_channel) {
+        } else if (!this->logged_invalid_channel_) {
           ESP_LOGW(TAG_MIC, "Enabled channel index %u exceeds available source channels", enabled_channel);
-          logged_invalid_channel = true;
+          this->logged_invalid_channel_ = true;
         }
       }
 

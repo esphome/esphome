@@ -358,20 +358,6 @@ esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, u
     err = ESP_ERR_TIMEOUT;
   }
 
-  if (err == ESP_OK) {
-    if ((++s_write_ok_count % 10) == 0) {
-      ESP_LOGI(TAG, "USB speaker write ok (count=%u, bytes=%u)", s_write_ok_count, (unsigned) length);
-    }
-  } else if (err == ESP_ERR_TIMEOUT) {
-    if ((++s_write_timeout_count % 10) == 0) {
-      ESP_LOGW(TAG, "USB speaker write timeout (count=%u)", s_write_timeout_count);
-    }
-  } else {
-    if ((++s_write_error_count % 3) == 0) {
-      ESP_LOGW(TAG, "USB speaker write error %s (count=%u)", esp_err_to_name(err), s_write_error_count);
-    }
-  }
-
   return err;
 }
 

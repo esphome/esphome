@@ -59,6 +59,10 @@ class USBAudioMicrophone : public microphone::Microphone, public Component, publ
   static constexpr size_t MIC_TASK_STACK_SIZE = 4096;
   static constexpr UBaseType_t MIC_TASK_PRIORITY = 18;
   static constexpr size_t MAX_QUEUED_FRAMES = 8;
+
+ private:
+  bool logged_invalid_frame_ = false;
+  bool logged_invalid_channel_ = false;
 };
 
 }  // namespace usb_audio
