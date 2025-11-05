@@ -22,7 +22,7 @@ template<typename... Ts> class FollowMeAction : public MideaActionBase<Ts...> {
   TEMPLATABLE_VALUE(bool, use_fahrenheit)
   TEMPLATABLE_VALUE(bool, beeper)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->do_follow_me(this->temperature_.value(x...), this->use_fahrenheit_.value(x...),
                                 this->beeper_.value(x...));
   }
@@ -30,37 +30,37 @@ template<typename... Ts> class FollowMeAction : public MideaActionBase<Ts...> {
 
 template<typename... Ts> class SwingStepAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_swing_step(); }
+  void play(const Ts &...x) override { this->parent_->do_swing_step(); }
 };
 
 template<typename... Ts> class DisplayToggleAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_display_toggle(); }
+  void play(const Ts &...x) override { this->parent_->do_display_toggle(); }
 };
 
 template<typename... Ts> class BeeperOnAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_beeper_on(); }
+  void play(const Ts &...x) override { this->parent_->do_beeper_on(); }
 };
 
 template<typename... Ts> class BeeperOffAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_beeper_off(); }
+  void play(const Ts &...x) override { this->parent_->do_beeper_off(); }
 };
 
 template<typename... Ts> class PowerOnAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_power_on(); }
+  void play(const Ts &...x) override { this->parent_->do_power_on(); }
 };
 
 template<typename... Ts> class PowerOffAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_power_off(); }
+  void play(const Ts &...x) override { this->parent_->do_power_off(); }
 };
 
 template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_power_toggle(); }
+  void play(const Ts &...x) override { this->parent_->do_power_toggle(); }
 };
 
 }  // namespace ac

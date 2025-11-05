@@ -571,9 +571,11 @@ class TestEsphomeCore:
         assert target.address == "4.3.2.1"
 
     def test_address__openthread(self, target):
-        target.name = "test-device"
         target.config = {}
-        target.config[const.CONF_OPENTHREAD] = {}
+        target.config[const.CONF_OPENTHREAD] = {
+            const.CONF_USE_ADDRESS: "test-device.local"
+        }
+        target.name = "test-device"
 
         assert target.address == "test-device.local"
 

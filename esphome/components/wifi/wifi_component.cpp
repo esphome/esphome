@@ -273,8 +273,8 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 }
 // set_use_address() is guaranteed to be called during component setup by Python code generation,
 // so use_address_ will always be valid when get_use_address() is called - no fallback needed.
-const std::string &WiFiComponent::get_use_address() const { return this->use_address_; }
-void WiFiComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+const char *WiFiComponent::get_use_address() const { return this->use_address_; }
+void WiFiComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 #ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
@@ -330,9 +330,11 @@ float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
 
+void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();
+  this->init_sta(1);
   this->add_sta(ap);
 }
 void WiFiComponent::clear_sta() { this->sta_.clear(); }

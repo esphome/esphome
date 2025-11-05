@@ -114,7 +114,7 @@ jobs:
       matrix:
         python-version:
           - "3.11"
-          - "3.14"
+          - "3.13"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -123,9 +123,9 @@ jobs:
           # Minimize CI resource usage
           # by only running the Python version
           # version used for docker images on Windows and macOS
-          - python-version: "3.14"
+          - python-version: "3.13"
             os: windows-latest
-          - python-version: "3.14"
+          - python-version: "3.13"
             os: macOS-latest
     runs-on: ${{ matrix.os }}
     needs:
@@ -178,6 +178,9 @@ jobs:
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
       changed-cpp-file-count: ${{ steps.determine.outputs.changed-cpp-file-count }}
       memory_impact: ${{ steps.determine.outputs.memory-impact }}
+      cpp-unit-tests-run-all: ${{ steps.determine.outputs.cpp-unit-tests-run-all }}
+      cpp-unit-tests-components: ${{ steps.determine.outputs.cpp-unit-tests-components }}
+      component-test-batches: ${{ steps.determine.outputs.component-test-batches }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -189,6 +192,11 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Restore components graph cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .temp/components_graph.json
+          key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
       - name: Determine which tests to run
         id: determine
         env:
@@ -210,6 +218,15 @@ jobs:
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
           echo "changed-cpp-file-count=$(echo "$output" | jq -r '.changed_cpp_file_count')" >> $GITHUB_OUTPUT
           echo "memory-impact=$(echo "$output" | jq -c '.memory_impact')" >> $GITHUB_OUTPUT
+          echo "cpp-unit-tests-run-all=$(echo "$output" | jq -r '.cpp_unit_tests_run_all')" >> $GITHUB_OUTPUT
+          echo "cpp-unit-tests-components=$(echo "$output" | jq -c '.cpp_unit_tests_components')" >> $GITHUB_OUTPUT
+          echo "component-test-batches=$(echo "$output" | jq -c '.component_test_batches')" >> $GITHUB_OUTPUT
+      - name: Save components graph cache
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .temp/components_graph.json
+          key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
 
   integration-tests:
     name: Run integration tests
@@ -246,6 +263,33 @@ jobs:
         run: |
           . venv/bin/activate
           pytest -vv --no-cov --tb=native -n auto tests/integration/
+
+  cpp-unit-tests:
+    name: Run C++ unit tests
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && (needs.determine-jobs.outputs.cpp-unit-tests-run-all == 'true' || needs.determine-jobs.outputs.cpp-unit-tests-components != '[]')
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Run cpp_unit_test.py
+        run: |
+          . venv/bin/activate
+          if [ "${{ needs.determine-jobs.outputs.cpp-unit-tests-run-all }}" = "true" ]; then
+            script/cpp_unit_test.py --all
+          else
+            ARGS=$(echo '${{ needs.determine-jobs.outputs.cpp-unit-tests-components }}' | jq -r '.[] | @sh' | xargs)
+            script/cpp_unit_test.py $ARGS
+          fi
 
   clang-tidy-single:
     name: ${{ matrix.name }}
@@ -427,7 +471,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 2
       matrix:
         include:
           - id: clang-tidy
@@ -505,59 +549,18 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
-  test-build-components-splitter:
-    name: Split components for intelligent grouping (40 weighted per batch)
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
-    outputs:
-      matrix: ${{ steps.split.outputs.components }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Split components intelligently based on bus configurations
-        id: split
-        run: |
-          . venv/bin/activate
-
-          # Use intelligent splitter that groups components with same bus configs
-          components='${{ needs.determine-jobs.outputs.changed-components-with-tests }}'
-
-          # Only isolate directly changed components when targeting dev branch
-          # For beta/release branches, group everything for faster CI
-          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
-            directly_changed='[]'
-            echo "Target branch: ${{ github.base_ref }} - grouping all components"
-          else
-            directly_changed='${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}'
-            echo "Target branch: ${{ github.base_ref }} - isolating directly changed components"
-          fi
-
-          echo "Splitting components intelligently..."
-          output=$(python3 script/split_components_for_ci.py --components "$components" --directly-changed "$directly_changed" --batch-size 40 --output github)
-
-          echo "$output" >> $GITHUB_OUTPUT
-
   test-build-components-split:
     name: Test components batch (${{ matrix.components }})
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-      - test-build-components-splitter
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
       matrix:
-        components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
+        components: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
       - name: Show disk space
         run: |
@@ -818,7 +821,7 @@ jobs:
           fi
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: memory-analysis-target
           path: memory-analysis-target.json
@@ -882,7 +885,7 @@ jobs:
             --platform "$platform"
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: memory-analysis-pr
           path: memory-analysis-pr.json
@@ -912,13 +915,13 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Download target analysis JSON
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: memory-analysis-target
           path: ./memory-analysis
         continue-on-error: true
       - name: Download PR analysis JSON
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: memory-analysis-pr
           path: ./memory-analysis
@@ -949,7 +952,6 @@ jobs:
       - clang-tidy-nosplit
       - clang-tidy-split
       - determine-jobs
-      - test-build-components-splitter
       - test-build-components-split
       - pre-commit-ci-lite
       - memory-impact-target-branch

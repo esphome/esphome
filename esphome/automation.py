@@ -15,8 +15,13 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.core import ID, Lambda
+from esphome.cpp_generator import (
+    LambdaExpression,
+    MockObj,
+    MockObjClass,
+    TemplateArgsType,
+)
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.util import Registry
@@ -87,6 +92,7 @@ def validate_potentially_or_condition(value):
 
 DelayAction = cg.esphome_ns.class_("DelayAction", Action, cg.Component)
 LambdaAction = cg.esphome_ns.class_("LambdaAction", Action)
+StatelessLambdaAction = cg.esphome_ns.class_("StatelessLambdaAction", Action)
 IfAction = cg.esphome_ns.class_("IfAction", Action)
 WhileAction = cg.esphome_ns.class_("WhileAction", Action)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
@@ -97,7 +103,38 @@ ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
 
 LambdaCondition = cg.esphome_ns.class_("LambdaCondition", Condition)
+StatelessLambdaCondition = cg.esphome_ns.class_("StatelessLambdaCondition", Condition)
 ForCondition = cg.esphome_ns.class_("ForCondition", Condition, cg.Component)
+
+
+def new_lambda_pvariable(
+    id_obj: ID,
+    lambda_expr: LambdaExpression,
+    stateless_class: MockObjClass,
+    template_arg: cg.TemplateArguments | None = None,
+) -> MockObj:
+    """Create Pvariable for lambda, using stateless class if applicable.
+
+    Combines ID selection and Pvariable creation in one call. For stateless
+    lambdas (empty capture), uses function pointer instead of std::function.
+
+    Args:
+        id_obj: The ID object (action_id, condition_id, or filter_id)
+        lambda_expr: The lambda expression object
+        stateless_class: The stateless class to use for stateless lambdas
+        template_arg: Optional template arguments (for actions/conditions)
+
+    Returns:
+        The created Pvariable
+    """
+    # For stateless lambdas, use function pointer instead of std::function
+    if lambda_expr.capture == "":
+        id_obj = id_obj.copy()
+        id_obj.type = stateless_class
+
+    if template_arg is not None:
+        return cg.new_Pvariable(id_obj, template_arg, lambda_expr)
+    return cg.new_Pvariable(id_obj, lambda_expr)
 
 
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
@@ -145,7 +182,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
             value = cv.Schema([extra_validators])(value)
         if single:
             if len(value) != 1:
-                raise cv.Invalid("Cannot have more than 1 automation for templates")
+                raise cv.Invalid("This trigger allows only a single automation")
             return value[0]
         return value
 
@@ -240,7 +277,9 @@ async def lambda_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=bool)
-    return cg.new_Pvariable(condition_id, template_arg, lambda_)
+    return new_lambda_pvariable(
+        condition_id, lambda_, StatelessLambdaCondition, template_arg
+    )
 
 
 @register_condition(
@@ -269,6 +308,30 @@ async def for_condition_to_code(
     templ = await cg.templatable(config[CONF_TIME], args, cg.uint32)
     cg.add(var.set_time(templ))
     return var
+
+
+@register_condition(
+    "component.is_idle",
+    LambdaCondition,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(cg.Component),
+        }
+    ),
+)
+async def component_is_idle_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    comp = await cg.get_variable(config[CONF_ID])
+    lambda_ = await cg.process_lambda(
+        Lambda(f"return {comp}->is_idle();"), args, return_type=bool
+    )
+    return new_lambda_pvariable(
+        condition_id, lambda_, StatelessLambdaCondition, template_arg
+    )
 
 
 @register_action(
@@ -406,7 +469,7 @@ async def lambda_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=cg.void)
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
+    return new_lambda_pvariable(action_id, lambda_, StatelessLambdaAction, template_arg)
 
 
 @register_action(

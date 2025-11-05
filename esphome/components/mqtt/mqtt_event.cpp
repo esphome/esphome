@@ -21,8 +21,12 @@ void MQTTEventComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   for (const auto &event_type : this->event_->get_event_types())
     event_types.add(event_type);
 
-  if (!this->event_->get_device_class().empty())
-    root[MQTT_DEVICE_CLASS] = this->event_->get_device_class();
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  const auto device_class = this->event_->get_device_class_ref();
+  if (!device_class.empty()) {
+    root[MQTT_DEVICE_CLASS] = device_class;
+  }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
   config.command_topic = false;
 }

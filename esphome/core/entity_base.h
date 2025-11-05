@@ -17,6 +17,10 @@ namespace api {
 class APIConnection;
 }  // namespace api
 
+namespace web_server {
+struct UrlMatch;
+}  // namespace web_server
+
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -57,7 +61,9 @@ class EntityBase {
   }
 
   // Get/set this entity's icon
-  std::string get_icon() const;
+  [[deprecated("Use get_icon_ref() instead for better performance (avoids string copy). Will stop working in ESPHome "
+               "2026.5.0")]] std::string
+  get_icon() const;
   void set_icon(const char *icon);
   StringRef get_icon_ref() const {
     static constexpr auto EMPTY_STRING = StringRef::from_lit("");
@@ -116,6 +122,7 @@ class EntityBase {
 
  protected:
   friend class api::APIConnection;
+  friend struct web_server::UrlMatch;
 
   // Get object_id as StringRef when it's static (for API usage)
   // Returns empty StringRef if object_id is dynamic (needs allocation)
@@ -153,7 +160,9 @@ class EntityBase {
 class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
  public:
   /// Get the device class, using the manual override if set.
-  std::string get_device_class();
+  [[deprecated("Use get_device_class_ref() instead for better performance (avoids string copy). Will stop working in "
+               "ESPHome 2026.5.0")]] std::string
+  get_device_class();
   /// Manually set the device class.
   void set_device_class(const char *device_class);
   /// Get the device class as StringRef
@@ -169,7 +178,9 @@ class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
 class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
  public:
   /// Get the unit of measurement, using the manual override if set.
-  std::string get_unit_of_measurement();
+  [[deprecated("Use get_unit_of_measurement_ref() instead for better performance (avoids string copy). Will stop "
+               "working in ESPHome 2026.5.0")]] std::string
+  get_unit_of_measurement();
   /// Manually set the unit of measurement.
   void set_unit_of_measurement(const char *unit_of_measurement);
   /// Get the unit of measurement as StringRef

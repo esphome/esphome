@@ -48,8 +48,15 @@ struct UrlMatch {
     return domain && domain_len == strlen(str) && memcmp(domain, str, domain_len) == 0;
   }
 
-  bool id_equals(const std::string &str) const {
-    return id && id_len == str.length() && memcmp(id, str.c_str(), id_len) == 0;
+  bool id_equals_entity(EntityBase *entity) const {
+    // Zero-copy comparison using StringRef
+    StringRef static_ref = entity->get_object_id_ref_for_api_();
+    if (!static_ref.empty()) {
+      return id && id_len == static_ref.size() && memcmp(id, static_ref.c_str(), id_len) == 0;
+    }
+    // Fallback to allocation (rare)
+    const auto &obj_id = entity->get_object_id();
+    return id && id_len == obj_id.length() && memcmp(id, obj_id.c_str(), id_len) == 0;
   }
 
   bool method_equals(const char *str) const {
@@ -141,7 +148,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
 
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
  protected:
-  void on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source);
+  void on_client_connect_(DeferredUpdateEventSource *source);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
@@ -403,7 +410,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   static std::string select_state_json_generator(WebServer *web_server, void *source);
   static std::string select_all_json_generator(WebServer *web_server, void *source);
   /// Dump the select state with its value as a JSON string.
-  std::string select_json(select::Select *obj, const std::string &value, JsonDetail start_config);
+  std::string select_json(select::Select *obj, const char *value, JsonDetail start_config);
 #endif
 
 #ifdef USE_CLIMATE

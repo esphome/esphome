@@ -29,7 +29,7 @@ template<typename... Ts> class TextSensorStateCondition : public Condition<Ts...
 
   TEMPLATABLE_VALUE(std::string, state)
 
-  bool check(Ts... x) override { return this->parent_->state == this->state_.value(x...); }
+  bool check(const Ts &...x) override { return this->parent_->state == this->state_.value(x...); }
 
  protected:
   TextSensor *parent_;
@@ -40,7 +40,7 @@ template<typename... Ts> class TextSensorPublishAction : public Action<Ts...> {
   TextSensorPublishAction(TextSensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(std::string, state)
 
-  void play(Ts... x) override { this->sensor_->publish_state(this->state_.value(x...)); }
+  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
 
  protected:
   TextSensor *sensor_;
