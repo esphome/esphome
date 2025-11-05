@@ -939,28 +939,28 @@ lvgl:
     pages:
       - id: room_page
         widgets:
-          - obj: # a properly placed coontainer object for all these controls
+          - obj: # a properly placed container object for all these controls
               align: CENTER
               width: 240
               height: 256
               x: 4
               y: 4
               pad_all: 3
-              pad_row: 6
-              pad_column: 8
               bg_opa: TRANSP
               border_opa: TRANSP
               layout: # enable the FLEX layout for the children widgets
                 type: FLEX
                 flex_flow: COLUMN_WRAP # the order of the widgets starts top left
                 flex_align_cross: CENTER # they sould be centered
+                pad_row: 6
+                pad_column: 8
               widgets:
                 - label:
                     text: "East"
                 - button:
                     id: but_cov_up_east
                     width: 70 # choose the button dimensions so
-                    height: 68 # they fill the columns nincely as they flow
+                    height: 68 # they fill the columns nicely as they flow
                     widgets:
                       - label:
                           id: cov_up_east
@@ -1065,19 +1065,19 @@ lvgl:
     pages:
       - id: room_page
         widgets:
-          - obj: # a properly placed coontainer object for all these controls
+          - obj: # a properly placed container object for all these controls
               align: CENTER
               width: 240
               height: 256
               pad_all: 6
-              pad_row: 6
-              pad_column: 8
               bg_opa: TRANSP
               border_opa: TRANSP
               layout: # enable the GRID layout for the children widgets
                 type: GRID # split the rows and the columns proportionally
                 grid_columns: [FR(1), FR(1), FR(1)] # equal
                 grid_rows: [FR(10), FR(30), FR(30), FR(30)] # like percents
+                pad_row: 6
+                pad_column: 8
               widgets:
                 - label:
                     text: "East"
