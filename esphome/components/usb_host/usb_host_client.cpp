@@ -270,6 +270,8 @@ void USBClient::loop() {
         // Skip if device is CH934X/CH9344/CH348 (let specific CH934X driver claim it)
         bool skip_for_specific_driver = false;
         if (is_wildcard) {
+          ESP_LOGD(TAG, "Wildcard client checking device %d: VID=%04X, PID=%04X", this->device_addr_, desc->idVendor,
+                   desc->idProduct);
           // Check VID/PID for known multi-UART chips that should use specific drivers
           if ((desc->idVendor == 0x1A86 && desc->idProduct == 0x55D9) ||  // CH934X
               (desc->idVendor == 0x1A86 && desc->idProduct == 0xE018) ||  // CH9344
@@ -277,6 +279,9 @@ void USBClient::loop() {
             skip_for_specific_driver = true;
             ESP_LOGD(TAG, "Device %d is CH934X/CH9344/CH34X (VID=%04X, PID=%04X), skipping wildcard VID/PID match",
                      this->device_addr_, desc->idVendor, desc->idProduct);
+          } else {
+            ESP_LOGD(TAG, "Device %d (VID=%04X, PID=%04X) not in skip list, checking for MSC...", this->device_addr_,
+                     desc->idVendor, desc->idProduct);
           }
 
           // Check for MSC interface

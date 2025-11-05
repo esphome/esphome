@@ -671,6 +671,19 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
   uint32_t decode_time = millis() - decode_start;
   ESP_LOGI(TAG, "Hardware decode completed in %u ms, output size: %u bytes", decode_time, output_size);
 
+  // Byte-swap RGB565 for correct endianness
+  // Hardware decoder outputs in one endianness, but display may expect the other
+  if (this->format_ == ImageFormat::RGB565) {
+    ESP_LOGI(TAG, "Byte-swapping RGB565 data for correct endianness (mount: %s)",
+             this->current_mount_platform_.c_str());
+    uint16_t *pixels = (uint16_t *) aligned_output;
+    size_t pixel_count = output_size / 2;
+    for (size_t i = 0; i < pixel_count; i++) {
+      // Swap bytes: 0xAABB -> 0xBBAA
+      pixels[i] = (pixels[i] << 8) | (pixels[i] >> 8);
+    }
+  }
+
   // Now handle resize if needed (Option 1: Software resize after hardware decode)
   bool needs_resize = (this->resize_width_ > 0 && this->resize_height_ > 0 &&
                        (this->resize_width_ != decoded_width || this->resize_height_ != decoded_height));
