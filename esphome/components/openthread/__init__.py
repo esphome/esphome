@@ -183,7 +183,7 @@ def set_zephyr_config_options(config):
 
         # NETWORKKEY
         if network_key := config.get(CONF_NETWORK_KEY):
-            zephyr_add_prj_conf("OPENTHREAD_NETWORK_MASTERKEY", f'"{network_key:032x}"')
+            zephyr_add_prj_conf("OPENTHREAD_NETWORKKEY", f'"{network_key:032x}"')
 
         # OPENTHREAD_XPANID expects a 16-character hex string
         if (ext_pan_id := config.get(CONF_EXT_PAN_ID)) is not None:
