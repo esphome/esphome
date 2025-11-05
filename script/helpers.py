@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import cache
+import hashlib
 import json
 import os
 import os.path
@@ -51,6 +52,10 @@ BASE_BUS_COMPONENTS = {
     "remote_transmitter",
     "remote_receiver",
 }
+
+# Cache version for components graph
+# Increment this when the cache format or graph building logic changes
+COMPONENTS_GRAPH_CACHE_VERSION = 1
 
 
 def parse_list_components_output(output: str) -> list[str]:
@@ -756,20 +761,71 @@ def resolve_auto_load(
     return auto_load()
 
 
+@cache
+def get_components_graph_cache_key() -> str:
+    """Generate cache key based on all component Python file hashes.
+
+    Uses git ls-files with sha1 hashes to generate a stable cache key that works
+    across different machines and CI runs. This is faster and more reliable than
+    reading file contents or using modification times.
+
+    Returns:
+        SHA256 hex string uniquely identifying the current component state
+    """
+
+    # Use git ls-files -s to get sha1 hashes of all component Python files
+    # Format: <mode> <sha1> <stage> <path>
+    # This is fast and works consistently across CI and local dev
+    # We hash all .py files because AUTO_LOAD, DEPENDENCIES, etc. can be defined
+    # in any Python file, not just __init__.py
+    cmd = ["git", "ls-files", "-s", "esphome/components/**/*.py"]
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, check=True, cwd=root_path, close_fds=False
+    )
+
+    # Hash the git output (includes file paths and their sha1 hashes)
+    # This changes only when component Python files actually change
+    hasher = hashlib.sha256()
+    hasher.update(result.stdout.encode())
+
+    return hasher.hexdigest()
+
+
 def create_components_graph() -> dict[str, list[str]]:
-    """Create a graph of component dependencies.
+    """Create a graph of component dependencies (cached).
+
+    This function is expensive (5-6 seconds) because it imports all ESPHome components
+    to extract their DEPENDENCIES and AUTO_LOAD metadata. The result is cached based
+    on component file modification times, so unchanged components don't trigger a rebuild.
 
     Returns:
         Dictionary mapping parent components to their children (dependencies)
     """
-    from pathlib import Path
+    # Check cache first - use fixed filename since GitHub Actions cache doesn't support wildcards
+    cache_file = Path(temp_folder) / "components_graph.json"
+
+    if cache_file.exists():
+        try:
+            cached_data = json.loads(cache_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            # Cache file corrupted or unreadable, rebuild
+            pass
+        else:
+            # Verify cache version matches
+            if cached_data.get("_version") == COMPONENTS_GRAPH_CACHE_VERSION:
+                # Verify cache is for current component state
+                cache_key = get_components_graph_cache_key()
+                if cached_data.get("_cache_key") == cache_key:
+                    return cached_data.get("graph", {})
+                # Cache key mismatch - stale cache, rebuild
+            # Cache version mismatch - incompatible format, rebuild
 
     from esphome import const
     from esphome.core import CORE
     from esphome.loader import ComponentManifest, get_component, get_platform
 
     # The root directory of the repo
-    root = Path(__file__).parent.parent
+    root = Path(root_path)
     components_dir = root / ESPHOME_COMPONENTS_PATH
     # Fake some directory so that get_component works
     CORE.config_path = root
@@ -845,6 +901,15 @@ def create_components_graph() -> dict[str, list[str]]:
                     add_item_to_components_graph(components_graph, item, name)
             # restore config
             CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
+
+    # Save to cache with version and cache key for validation
+    cache_data = {
+        "_version": COMPONENTS_GRAPH_CACHE_VERSION,
+        "_cache_key": get_components_graph_cache_key(),
+        "graph": components_graph,
+    }
+    cache_file.parent.mkdir(exist_ok=True)
+    cache_file.write_text(json.dumps(cache_data))
 
     return components_graph
 

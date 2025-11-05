@@ -60,12 +60,12 @@ class SoundLevelComponent : public Component {
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<SoundLevelComponent> {
  public:
-  void play(Ts... x) override { this->parent_->start(); }
+  void play(const Ts &...x) override { this->parent_->start(); }
 };
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<SoundLevelComponent> {
  public:
-  void play(Ts... x) override { this->parent_->stop(); }
+  void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
 }  // namespace sound_level

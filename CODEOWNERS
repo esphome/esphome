@@ -181,7 +181,7 @@ esphome/components/gdk101/* @Szewcson
 esphome/components/gl_r01_i2c/* @pkejval
 esphome/components/globals/* @esphome/core
 esphome/components/gp2y1010au0f/* @zry98
-esphome/components/gp8403/* @jesserockz
+esphome/components/gp8403/* @jesserockz @sebydocky
 esphome/components/gpio/* @esphome/core
 esphome/components/gpio/one_wire/* @ssieb
 esphome/components/gps/* @coogle @ximex
