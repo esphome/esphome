@@ -40,7 +40,6 @@ inkplate2 = Inkplate2Model(
     "inkplate2",
     width=104,
     height=212,
-    data_rate="1MHz",
     # Default GPIO pins for Inkplate 2 hardware
     reset_pin=19,
     dc_pin=33,
