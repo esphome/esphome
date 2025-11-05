@@ -1,22 +1,27 @@
+import hashlib
 from pathlib import Path
 
-from esphome import automation
+from esphome import automation, external_files
 import esphome.codegen as cg
 from esphome.components import audio, esp32, media_player, psram
 import esphome.components.speaker.media_player as speaker_mp
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_FILE,
     CONF_FILES,
     CONF_FORMAT,
     CONF_ID,
     CONF_NUM_CHANNELS,
+    CONF_PATH,
     CONF_RAW_DATA_ID,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
     CONF_TASK_STACK_IN_PSRAM,
+    CONF_TYPE,
+    CONF_URL,
 )
-from esphome.core import HexInt
+from esphome.core import CORE, HexInt
 
 from .. import CONF_USB_AUDIO_ID, USBAudioComponent, usb_audio_ns
 
@@ -37,6 +42,95 @@ USBAudioMediaPlayer = usb_audio_ns.class_(
     SpeakerMediaPlayerBase,
     cg.Parented.template(USBAudioComponent),
 )
+
+
+def _validate_distinct_pipeline_speakers(config):
+    announcement_config = config.get(speaker_mp.CONF_ANNOUNCEMENT_PIPELINE)
+    media_config = config.get(speaker_mp.CONF_MEDIA_PIPELINE)
+    if (
+        announcement_config
+        and media_config
+        and announcement_config[CONF_SPEAKER] == media_config[CONF_SPEAKER]
+    ):
+        raise cv.Invalid(
+            "The announcement and media pipelines cannot use the same speaker. Use the `mixer` speaker component to create two source speakers."
+        )
+
+    return config
+
+
+def _build_supported_format_struct(pipeline, pipeline_type):
+    args = [media_player.MediaPlayerSupportedFormat]
+
+    fmt = pipeline[CONF_FORMAT]
+    if fmt == "FLAC":
+        args.append(("format", "flac"))
+    elif fmt == "MP3":
+        args.append(("format", "mp3"))
+    elif fmt == "WAV":
+        args.append(("format", "wav"))
+
+    args.append(("sample_rate", pipeline[CONF_SAMPLE_RATE]))
+    args.append(("num_channels", pipeline[CONF_NUM_CHANNELS]))
+
+    if pipeline_type == "MEDIA":
+        args.append(
+            (
+                "purpose",
+                media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["default"],
+            )
+        )
+    elif pipeline_type == "ANNOUNCEMENT":
+        args.append(
+            (
+                "purpose",
+                media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["announcement"],
+            )
+        )
+
+    if fmt != "MP3":
+        args.append(("sample_bytes", 2))
+
+    return cg.StructInitializer(*args)
+
+
+def _compute_web_media_file_path(conf_file):
+    url = conf_file[CONF_URL]
+    digest = hashlib.new("sha256")
+    digest.update(url.encode())
+    key = digest.hexdigest()[:8]
+    base_dir = external_files.compute_local_file_dir(speaker_mp.DOMAIN)
+    return base_dir / key
+
+
+def _resolve_media_file_path(conf_file):
+    file_source = conf_file[CONF_TYPE]
+    if file_source == speaker_mp.TYPE_LOCAL:
+        return CORE.relative_config_path(conf_file[CONF_PATH])
+    if file_source == speaker_mp.TYPE_WEB:
+        return _compute_web_media_file_path(conf_file)
+    raise cv.Invalid("Unsupported file source")
+
+
+def _read_audio_file_and_type(file_config):
+    path = _resolve_media_file_path(file_config[CONF_FILE])
+    with open(path, "rb") as f:
+        data = f.read()
+
+    import puremagic
+
+    file_type: str = puremagic.from_string(data)
+    file_type = file_type.removeprefix(".")
+
+    media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
+    if file_type in ("wav",):
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["WAV"]
+    elif file_type in ("mp3", "mpeg", "mpga"):
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
+    elif file_type in ("flac",):
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]
+
+    return data, media_file_type
 
 
 CONFIG_SCHEMA = cv.All(
@@ -71,7 +165,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_with_esp_idf,
-    speaker_mp._validate_repeated_speaker,
+    _validate_distinct_pipeline_speakers,
 )
 
 
@@ -135,7 +229,7 @@ async def to_code(config):
     if announcement_pipeline_config[CONF_FORMAT] != "NONE":
         cg.add(
             var.set_announcement_format(
-                speaker_mp._get_supported_format_struct(
+                _build_supported_format_struct(
                     announcement_pipeline_config, "ANNOUNCEMENT"
                 )
             )
@@ -155,9 +249,7 @@ async def to_code(config):
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(
-                    speaker_mp._get_supported_format_struct(
-                        media_pipeline_config, "MEDIA"
-                    )
+                    _build_supported_format_struct(media_pipeline_config, "MEDIA")
                 )
             )
 
@@ -171,7 +263,7 @@ async def to_code(config):
         )
 
     for file_config in config.get(CONF_FILES, []):
-        data, media_file_type = speaker_mp._read_audio_file_and_type(file_config)
+        data, media_file_type = _read_audio_file_and_type(file_config)
 
         rhs = [HexInt(x) for x in data]
         prog_arr = cg.progmem_array(file_config[CONF_RAW_DATA_ID], rhs)
