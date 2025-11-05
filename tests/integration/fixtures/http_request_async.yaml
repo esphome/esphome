@@ -1,0 +1,33 @@
+esphome:
+  name: http-request-async
+  includes:
+    - "<format>"
+
+host:
+
+http_request:
+
+api:
+  actions:
+    # Service that tests int lambda functionality
+    - action: send_http_request
+      variables:
+        port: int
+      then:
+        # Log the input to verify service was called
+        - logger.log:
+            format: "Service called with port: %d"
+            args: [port]
+
+        - http_request.post:
+            url: !lambda return std::format("http://127.0.0.1:{}/foo", port);
+            capture_response: true
+            max_response_buffer_size: 6kB
+            on_response:
+
+              then:
+                - lambda: |-
+                    ESP_LOGE("http_request.post", "got response %s", body.c_str());
+
+logger:
+  level: DEBUG
