@@ -14,7 +14,7 @@ USBAudioComponent = usb_audio_ns.class_("USBAudioComponent", cg.Component)
 CONF_CONNECT_TIMEOUT = "connect_timeout"
 CONF_USB_AUDIO = "usb_audio"
 CONF_USB_AUDIO_ID = "usb_audio_id"
-CONF_MIC_BUFFER_SIZE = "microphone_buffer_size"
+CONF_MICROPHONE_BUFFER_SIZE = "microphone_buffer_size"
 CONF_SPEAKER_BUFFER_SIZE = "speaker_buffer_size"
 CONF_DEFAULT_BUFFER_SIZE = 6400
 
@@ -33,7 +33,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_CONNECT_TIMEOUT, default="5000ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(
-                CONF_MIC_BUFFER_SIZE, default=CONF_DEFAULT_BUFFER_SIZE
+                CONF_MICROPHONE_BUFFER_SIZE, default=CONF_DEFAULT_BUFFER_SIZE
             ): cv.positive_int,
             cv.Optional(
                 CONF_SPEAKER_BUFFER_SIZE, default=CONF_DEFAULT_BUFFER_SIZE
@@ -67,7 +67,7 @@ async def to_code(config):
     cg.add(var.set_connect_timeout(connect_timeout))
     cg.add(
         var.set_microphone_buffer_size(
-            _ensure_buffer_size(config[CONF_MIC_BUFFER_SIZE])
+            _ensure_buffer_size(config[CONF_MICROPHONE_BUFFER_SIZE])
         )
     )
     cg.add(

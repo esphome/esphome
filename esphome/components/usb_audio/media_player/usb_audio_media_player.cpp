@@ -2,7 +2,7 @@
 
 #if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
-#include "esphome/components/usb_audio/usb_audio.h"
+#include "../usb_audio.h"
 
 #include "esphome/core/log.h"
 
