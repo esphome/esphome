@@ -624,15 +624,9 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
     return false;
   }
 
-  // Determine RGB order based on mount platform
-  // SD MMC works correctly with BGR, but USB MSC seems to need RGB
-  if (this->current_mount_platform_ == "usb_msc") {
-    decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
-    ESP_LOGI(TAG, "Using RGB pixel order for USB MSC storage");
-  } else {
-    decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
-    ESP_LOGI(TAG, "Using BGR pixel order for %s storage", this->current_mount_platform_.c_str());
-  }
+  // Use BGR order - this matches what most ESP32 displays expect
+  decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
+  ESP_LOGI(TAG, "Using BGR pixel order for hardware decoder");
 
   // Calculate buffer sizes with alignment
   uint32_t input_size = jpeg_data.size();
@@ -713,10 +707,11 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
         int src_offset = (src_y_int * decoded_width + src_x_int) * (this->format_ == ImageFormat::RGB565 ? 2 : 3);
         int dst_offset = (dst_y * this->resize_width_ + dst_x) * (this->format_ == ImageFormat::RGB565 ? 2 : 3);
 
-        // Copy pixel data
+        // Copy pixel data with byte swap for RGB565 (endianness fix)
         if (this->format_ == ImageFormat::RGB565) {
-          this->image_buffer_[dst_offset] = aligned_output[src_offset];
-          this->image_buffer_[dst_offset + 1] = aligned_output[src_offset + 1];
+          // Swap bytes for RGB565 to fix endianness
+          this->image_buffer_[dst_offset] = aligned_output[src_offset + 1];
+          this->image_buffer_[dst_offset + 1] = aligned_output[src_offset];
         } else {  // RGB888
           this->image_buffer_[dst_offset] = aligned_output[src_offset];
           this->image_buffer_[dst_offset + 1] = aligned_output[src_offset + 1];
@@ -736,9 +731,18 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
       return false;
     }
 
-    // Copy decoded data to image buffer
+    // Copy decoded data to image buffer with byte swap for RGB565
     size_t copy_size = std::min((size_t) output_size, this->image_buffer_.size());
-    memcpy(this->image_buffer_.data(), aligned_output, copy_size);
+    if (this->format_ == ImageFormat::RGB565) {
+      // Swap bytes for RGB565 to fix endianness
+      for (size_t i = 0; i < copy_size; i += 2) {
+        this->image_buffer_[i] = aligned_output[i + 1];
+        this->image_buffer_[i + 1] = aligned_output[i];
+      }
+    } else {
+      // RGB888 - direct copy
+      memcpy(this->image_buffer_.data(), aligned_output, copy_size);
+    }
   }
 
   // Free aligned buffers
