@@ -65,4 +65,9 @@ Configuration variables:
 
 - **id** (**Required**, [ID](#config-id)): The ID of the update entity.
 
+## Update Platforms
+
+- {{< docref "update/http_request/" >}}
+- {{< docref "update/esp32_hosted/" >}}
+
 ## See Also
