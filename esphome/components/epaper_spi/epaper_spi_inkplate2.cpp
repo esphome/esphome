@@ -14,9 +14,9 @@ void EPaperInkplate2::power_on() {
 
 void EPaperInkplate2::power_off() {
   ESP_LOGD(TAG, "Power off");
-  this->command(0x50);
+  this->command(0x50);  // VCOM and data interval setting
   this->data(0xF7);
-  this->command(0x02);
+  this->command(0x02);  // Power  EPD off
 }
 
 void EPaperInkplate2::refresh_screen() {
@@ -26,7 +26,7 @@ void EPaperInkplate2::refresh_screen() {
 
 void EPaperInkplate2::deep_sleep() {
   ESP_LOGD(TAG, "Deep sleep");
-  this->command(0x07);
+  this->command(0x07);  // Put EPD in deep sleep
   this->data(0xA5);
 }
 
