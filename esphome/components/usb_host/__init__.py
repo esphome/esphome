@@ -63,7 +63,9 @@ CONFIG_SCHEMA = cv.All(
 async def register_usb_client(config, parent):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
-    cg.add(var.set_parent(parent))  # NEW: Set USBHost as parent for claiming coordination
+    cg.add(
+        var.set_parent(parent)
+    )  # NEW: Set USBHost as parent for claiming coordination
     return var
 
 
@@ -82,5 +84,13 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Store USBHost instance in CORE.data for components loaded via AUTO_LOAD (like usb_uart)
+    from esphome.core import CORE
+
+    if not hasattr(CORE, "data"):
+        CORE.data = {}
+    CORE.data["usb_host_instance"] = var
+
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_client(device, var)  # NEW: Pass USBHost instance as parent

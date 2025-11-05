@@ -524,11 +524,186 @@ bool StorageImage::decode_image(const std::vector<uint8_t> &data) {
 }
 
 // =====================================================
+// Hardware JPEG Decoder Implementation (ESP32-P4)
+// =====================================================
+
+#ifdef USE_HARDWARE_JPEG_DECODER
+bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
+  ESP_LOGI(TAG, "Using hardware JPEG decoder (ESP32-P4)");
+
+  // Get image info first
+  jpeg_decode_picture_info_t pic_info;
+  esp_err_t ret = jpeg_decoder_get_info(jpeg_data.data(), jpeg_data.size(), &pic_info);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to get JPEG info: %s", esp_err_to_name(ret));
+    return false;
+  }
+
+  ESP_LOGI(TAG, "JPEG original dimensions: %dx%d", pic_info.width, pic_info.height);
+
+  // Validate dimensions
+  if (pic_info.width <= 0 || pic_info.height <= 0 || pic_info.width > 2048 || pic_info.height > 2048) {
+    ESP_LOGE(TAG, "Invalid JPEG dimensions: %dx%d", pic_info.width, pic_info.height);
+    return false;
+  }
+
+  // Hardware decoder decodes to full size first
+  int decoded_width = pic_info.width;
+  int decoded_height = pic_info.height;
+
+  // Initialize decoder engine if not already done
+  if (this->hw_decoder_ == nullptr) {
+    jpeg_decode_engine_cfg_t eng_cfg = {
+        .intr_priority = 0,
+        .timeout_ms = 200,
+    };
+    ret = jpeg_new_decoder_engine(&eng_cfg, &this->hw_decoder_);
+    if (ret != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to create JPEG decoder engine: %s", esp_err_to_name(ret));
+      return false;
+    }
+  }
+
+  // Configure decode parameters
+  jpeg_decode_cfg_t decode_cfg = {};
+  if (this->format_ == ImageFormat::RGB565) {
+    decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
+  } else if (this->format_ == ImageFormat::RGB888) {
+    decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB888;
+  } else {
+    ESP_LOGE(TAG, "Unsupported format for hardware decoder (only RGB565 and RGB888 supported)");
+    return false;
+  }
+  decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
+
+  // Calculate buffer sizes with alignment
+  size_t input_size = jpeg_data.size();
+  size_t output_size = decoded_width * decoded_height * (this->format_ == ImageFormat::RGB565 ? 2 : 3);
+
+  // Allocate aligned buffers (hardware requires 16-byte alignment)
+  uint8_t *aligned_input = (uint8_t *) heap_caps_aligned_alloc(16, input_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!aligned_input) {
+    ESP_LOGE(TAG, "Failed to allocate aligned input buffer (%u bytes)", input_size);
+    return false;
+  }
+
+  uint8_t *aligned_output = (uint8_t *) heap_caps_aligned_alloc(16, output_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!aligned_output) {
+    ESP_LOGE(TAG, "Failed to allocate aligned output buffer (%u bytes)", output_size);
+    free(aligned_input);
+    return false;
+  }
+
+  // Copy input data to aligned buffer
+  memcpy(aligned_input, jpeg_data.data(), input_size);
+
+  // Decode with timing
+  uint32_t decode_start = millis();
+  ret = jpeg_decoder_process(this->hw_decoder_, &decode_cfg, aligned_input, input_size, aligned_output, output_size,
+                             &output_size);
+
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "Hardware JPEG decode failed: %s", esp_err_to_name(ret));
+    free(aligned_input);
+    free(aligned_output);
+    return false;
+  }
+
+  uint32_t decode_time = millis() - decode_start;
+  ESP_LOGI(TAG, "Hardware decode completed in %u ms, output size: %u bytes", decode_time, output_size);
+
+  // Now handle resize if needed (Option 1: Software resize after hardware decode)
+  bool needs_resize = (this->resize_width_ > 0 && this->resize_height_ > 0 &&
+                       (this->resize_width_ != decoded_width || this->resize_height_ != decoded_height));
+
+  if (needs_resize) {
+    ESP_LOGI(TAG, "Resizing from %dx%d to %dx%d using software", decoded_width, decoded_height, this->resize_width_,
+             this->resize_height_);
+
+    // Set final dimensions to resize target
+    this->image_width_ = this->resize_width_;
+    this->image_height_ = this->resize_height_;
+
+    // Allocate final buffer
+    if (!this->allocate_image_buffer()) {
+      free(aligned_input);
+      free(aligned_output);
+      return false;
+    }
+
+    // Perform simple nearest-neighbor resize
+    for (int dst_y = 0; dst_y < this->resize_height_; dst_y++) {
+      for (int dst_x = 0; dst_x < this->resize_width_; dst_x++) {
+        // Map destination coordinates to source
+        float src_x = (float) dst_x * decoded_width / this->resize_width_;
+        float src_y = (float) dst_y * decoded_height / this->resize_height_;
+
+        int src_x_int = (int) src_x;
+        int src_y_int = (int) src_y;
+
+        // Clamp to source bounds
+        if (src_x_int >= decoded_width)
+          src_x_int = decoded_width - 1;
+        if (src_y_int >= decoded_height)
+          src_y_int = decoded_height - 1;
+
+        int src_offset = (src_y_int * decoded_width + src_x_int) * (this->format_ == ImageFormat::RGB565 ? 2 : 3);
+        int dst_offset = (dst_y * this->resize_width_ + dst_x) * (this->format_ == ImageFormat::RGB565 ? 2 : 3);
+
+        // Copy pixel data
+        if (this->format_ == ImageFormat::RGB565) {
+          this->image_buffer_[dst_offset] = aligned_output[src_offset];
+          this->image_buffer_[dst_offset + 1] = aligned_output[src_offset + 1];
+        } else {  // RGB888
+          this->image_buffer_[dst_offset] = aligned_output[src_offset];
+          this->image_buffer_[dst_offset + 1] = aligned_output[src_offset + 1];
+          this->image_buffer_[dst_offset + 2] = aligned_output[src_offset + 2];
+        }
+      }
+    }
+  } else {
+    // No resize needed, use decoded size
+    this->image_width_ = decoded_width;
+    this->image_height_ = decoded_height;
+
+    // Allocate buffer for final image
+    if (!this->allocate_image_buffer()) {
+      free(aligned_input);
+      free(aligned_output);
+      return false;
+    }
+
+    // Copy decoded data to image buffer
+    size_t copy_size = std::min(output_size, this->image_buffer_.size());
+    memcpy(this->image_buffer_.data(), aligned_output, copy_size);
+  }
+
+  // Free aligned buffers
+  free(aligned_input);
+  free(aligned_output);
+
+  ESP_LOGI(TAG, "Hardware JPEG decode successful, final size: %dx%d", this->image_width_, this->image_height_);
+  return true;
+}
+#endif  // USE_HARDWARE_JPEG_DECODER
+
+// =====================================================
 // JPEG Decoder Implementation (ESPHome style)
 // =====================================================
 
 bool StorageImage::decode_jpeg_image(const std::vector<uint8_t> &jpeg_data) {
-  ESP_LOGD(TAG, "Using JPEGDEC decoder");
+#ifdef USE_HARDWARE_JPEG_DECODER
+  // Try hardware decoder first if enabled
+  if (this->use_hardware_decoder_) {
+    ESP_LOGD(TAG, "Attempting hardware JPEG decode...");
+    if (this->decode_jpeg_hardware(jpeg_data)) {
+      return true;
+    }
+    ESP_LOGW(TAG, "Hardware decode failed, falling back to software decoder");
+  }
+#endif
+
+  ESP_LOGD(TAG, "Using JPEGDEC software decoder");
 
   // Set current component for callback
   current_storage_image = this;

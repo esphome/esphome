@@ -134,8 +134,14 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config):
+    # Get the USBHost instance from CORE.data
+    # It should have been stored by the usb_host component's to_code()
+    usb_host_var = CORE.data.get("usb_host_instance")
+    if usb_host_var is None:
+        raise cv.Invalid("usb_uart requires a usb_host component to be configured")
+
     for device in config:
-        var = await register_usb_client(device)
+        var = await register_usb_client(device, usb_host_var)
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
