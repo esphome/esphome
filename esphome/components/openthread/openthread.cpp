@@ -24,6 +24,21 @@
 
 static const char *const TAG = "openthread";
 
+// strdup is not available on all platforms (e.g., Zephyr with newlib-nano)
+// Provide a simple implementation
+#ifndef USE_ESP_IDF
+static char *strdup(const char *str) {
+  if (str == nullptr)
+    return nullptr;
+  size_t len = strlen(str) + 1;
+  char *dup = (char *) malloc(len);
+  if (dup != nullptr) {
+    memcpy(dup, str, len);
+  }
+  return dup;
+}
+#endif
+
 namespace esphome {
 namespace openthread {
 
