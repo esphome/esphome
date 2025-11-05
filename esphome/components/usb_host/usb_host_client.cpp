@@ -345,7 +345,10 @@ void USBClient::loop() {
           if (err == ESP_OK)
             usb_client_print_config_descriptor(config_desc, nullptr);
 #endif
+          ESP_LOGD(TAG, "Calling on_connected() for device %d (VID=%04X, PID=%04X)", this->device_addr_, this->vid_,
+                   this->pid_);
           this->on_connected();
+          ESP_LOGD(TAG, "on_connected() returned for device %d", this->device_addr_);
         } else {
           ESP_LOGD(TAG, "Not our device, closing");
           this->disconnect();
