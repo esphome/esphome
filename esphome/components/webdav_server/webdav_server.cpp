@@ -1,6 +1,7 @@
 #include "webdav_server.h"
 #include "esphome/components/storage_host/storage_host.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
