@@ -52,11 +52,11 @@ bool WebDAVServer::start_server() {
   config.ctrl_port = this->port_ + 1000;
   config.max_uri_handlers = 20;
   config.stack_size = 8192;
-  config.recv_wait_timeout = 7200;  // 2 hours - stall detection handles actual failures
-  config.send_wait_timeout = 7200;  // 2 hours - stall detection handles actual failures
+  config.recv_wait_timeout = 60;
+  config.send_wait_timeout = 60;
   config.lru_purge_enable = true;
   config.max_resp_headers = 32;
-  config.max_open_sockets = 3;  // 3 concurrent clients for synchronous operation mode
+  config.max_open_sockets = 7;
   config.uri_match_fn = httpd_uri_match_wildcard;  // CRITICAL: Enable wildcard URI matching for "/*" patterns
 
   esp_err_t ret = httpd_start(&this->server_, &config);
@@ -767,7 +767,7 @@ void WebDAVServer::cleanup_old_operations() {
                           this->operations_.end());
 }
 
-// Helper function: Perform file copy operation with stall detection
+// Helper function: Perform file copy operation (used by both sync and async paths)
 bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
                                      const std::string &operation_id) {
   FILE *src = fopen(src_path.c_str(), "rb");
@@ -789,11 +789,6 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
   bool copy_success = true;
   bool read_error = false;
 
-  // Stall detection: check if copy loop is progressing
-  uint32_t last_check_time = millis();
-  size_t last_check_copied = 0;
-  uint32_t last_progress_time = millis();
-
   ESP_LOGI(TAG, "Starting file copy: %s -> %s (size: %lld bytes)", src_path.c_str(), dst_path.c_str(),
            (long long) file_size);
 
@@ -811,22 +806,10 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
       update_operation_progress(operation_id, total_copied);
     }
 
-    // Stall detection: check every 5 seconds if bytes copied is increasing
-    uint32_t now = millis();
-    if (now - last_check_time >= 5000) {
-      if (total_copied > last_check_copied) {
-        // Copy is progressing - reset stall timer
-        last_progress_time = now;
-        last_check_copied = total_copied;
-        ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
-                 (total_copied * 100.0) / file_size);
-      } else if (now - last_progress_time >= 15000) {
-        // No progress for 15 seconds - stalled!
-        ESP_LOGE(TAG, "File copy stalled (no progress for 15s at %zu bytes)", total_copied);
-        copy_success = false;
-        break;
-      }
-      last_check_time = now;
+    // Log progress for large files
+    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0) {
+      ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
+               (total_copied * 100.0) / file_size);
     }
   }
 
@@ -971,10 +954,10 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  // If rename fails with EXDEV (cross-device), fall back to synchronous copy+delete
+  // If rename fails with EXDEV (cross-device), fall back to copy+delete
   ESP_LOGI(TAG, "rename() failed with errno=%d (EXDEV=%d)", rename_errno, EXDEV);
   if (rename_errno == EXDEV) {
-    ESP_LOGI(TAG, "Cross-mount move detected, using synchronous copy+delete fallback");
+    ESP_LOGI(TAG, "Cross-mount move detected, using copy+delete fallback");
 
     if (S_ISDIR(src_stat.st_mode)) {
       ESP_LOGE(TAG, "Cross-mount directory move not supported: %s", filepath.c_str());
@@ -982,18 +965,45 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
       return ESP_OK;
     }
 
-    // Perform synchronous cross-mount move (blocks this client until complete)
-    ESP_LOGI(TAG, "Starting synchronous cross-mount move: %s -> %s (%zu bytes)", filepath.c_str(), dest_filepath.c_str(),
-             (size_t) src_stat.st_size);
+#ifdef USE_ESP32
+    // Create operation tracking
+    std::string op_id = server->create_operation_id();
+    OperationState op_state{
+        op_id, "move", filepath, dest_filepath, src_stat.st_size, 0, OperationStatus::IN_PROGRESS, esphome::millis(),
+        ""};
+    server->operations_.push_back(op_state);
+    server->cleanup_old_operations();
 
+    // Spawn async task for cross-mount move
+    auto *task_params = new MoveTaskParams{server, op_id, filepath, dest_filepath, src_stat.st_size};
+
+    BaseType_t task_created = xTaskCreate(WebDAVServer::move_task, "webdav_move", 8192, task_params, 1, nullptr);
+
+    if (task_created == pdPASS) {
+      ESP_LOGI(TAG, "Cross-mount move task created [%s], responding to client", op_id.c_str());
+
+      // Return operation ID to client for status tracking
+      std::string response =
+          "{\"operation_id\":\"" + op_id + "\",\"status_url\":\"" + server->url_prefix_ + "/status?op_id=" + op_id + "\"}";
+
+      httpd_resp_set_type(req, "application/json");
+      httpd_resp_set_status(req, "202 Accepted");
+      httpd_resp_send(req, response.c_str(), response.length());
+    } else {
+      ESP_LOGE(TAG, "Failed to create move task");
+      server->update_operation_status(op_id, OperationStatus::FAILED, "Failed to create task");
+      delete task_params;
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start move operation");
+    }
+#else
+    // Non-ESP32: Perform synchronous move
     if (server->perform_file_move(filepath, dest_filepath, src_stat.st_size)) {
-      ESP_LOGI(TAG, "Cross-mount move completed successfully");
       httpd_resp_set_status(req, "201 Created");
       httpd_resp_send(req, "Resource moved", -1);
     } else {
-      ESP_LOGE(TAG, "Cross-mount move failed");
       httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Move failed");
     }
+#endif
   } else {
     // Other rename error
     ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d, %s)", filepath.c_str(), dest_filepath.c_str(), rename_errno,
@@ -1036,18 +1046,43 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  // Perform synchronous copy (blocks this client until complete)
-  ESP_LOGI(TAG, "Starting synchronous copy: %s -> %s (%zu bytes)", filepath.c_str(), dest_filepath.c_str(),
-           (size_t) src_stat.st_size);
+#ifdef USE_ESP32
+  // Create operation tracking
+  std::string op_id = server->create_operation_id();
+  OperationState op_state{
+      op_id, "copy", filepath, dest_filepath, src_stat.st_size, 0, OperationStatus::IN_PROGRESS, esphome::millis(), ""};
+  server->operations_.push_back(op_state);
+  server->cleanup_old_operations();
 
+  // Spawn async task for file copy
+  auto *task_params = new CopyTaskParams{server, op_id, filepath, dest_filepath, src_stat.st_size};
+
+  BaseType_t task_created = xTaskCreate(WebDAVServer::copy_task, "webdav_copy", 8192, task_params, 1, nullptr);
+
+  if (task_created == pdPASS) {
+    ESP_LOGI(TAG, "Copy task created [%s], responding to client", op_id.c_str());
+
+    // Return operation ID to client for status tracking
+    std::string response =
+        "{\"operation_id\":\"" + op_id + "\",\"status_url\":\"" + server->url_prefix_ + "/status?op_id=" + op_id + "\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_status(req, "202 Accepted");
+    httpd_resp_send(req, response.c_str(), response.length());
+  } else {
+    ESP_LOGE(TAG, "Failed to create copy task");
+    delete task_params;
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start copy operation");
+  }
+#else
+  // Non-ESP32: Perform synchronous copy
   if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size)) {
-    ESP_LOGI(TAG, "Copy completed successfully");
     httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource copied", -1);
   } else {
-    ESP_LOGE(TAG, "Copy failed");
     httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
   }
+#endif
 
   return ESP_OK;
 }
