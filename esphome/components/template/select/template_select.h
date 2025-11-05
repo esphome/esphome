@@ -9,7 +9,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateSelect : public select::Select, public PollingComponent {
+class TemplateSelect final : public select::Select, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
