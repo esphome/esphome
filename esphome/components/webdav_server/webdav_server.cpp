@@ -9,6 +9,7 @@ namespace esphome {
 namespace webdav_server {
 
 void WebDAVServer::setup() {
+  ESP_LOGE(TAG, "=== WEBDAV SETUP CALLED === port=%d, root=%s", this->port_, this->root_path_.c_str());
   ESP_LOGI(TAG, "Starting WebDAV Server on port %d with prefix: %s", this->port_, this->url_prefix_.c_str());
   ESP_LOGI(TAG, "Root path: %s", this->root_path_.c_str());
 
@@ -33,9 +34,24 @@ void WebDAVServer::dump_config() {
 }
 
 bool WebDAVServer::start_server() {
+  // Stop existing server if running
+  if (this->server_ != nullptr) {
+    ESP_LOGW(TAG, "Server already running, stopping it first");
+    httpd_stop(this->server_);
+    this->server_ = nullptr;
+  }
+
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
+  config.ctrl_port = this->port_ + 1000;
   config.max_uri_handlers = 20;
+  config.stack_size = 8192;
+  config.recv_wait_timeout = 60;
+  config.send_wait_timeout = 60;
+  config.lru_purge_enable = true;
+  config.max_resp_headers = 32;
+  config.max_open_sockets = 7;
+  config.uri_match_fn = httpd_uri_match_wildcard;  // CRITICAL: Enable wildcard URI matching for "/*" patterns
 
   esp_err_t ret = httpd_start(&this->server_, &config);
   if (ret != ESP_OK) {
