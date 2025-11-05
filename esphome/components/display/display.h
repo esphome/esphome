@@ -819,7 +819,7 @@ template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(DisplayPage *, page)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto *page = this->page_.value(x...);
     if (page != nullptr) {
       page->show();
@@ -831,7 +831,7 @@ template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> 
  public:
   DisplayPageShowNextAction(Display *buffer) : buffer_(buffer) {}
 
-  void play(Ts... x) override { this->buffer_->show_next_page(); }
+  void play(const Ts &...x) override { this->buffer_->show_next_page(); }
 
   Display *buffer_;
 };
@@ -840,7 +840,7 @@ template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> 
  public:
   DisplayPageShowPrevAction(Display *buffer) : buffer_(buffer) {}
 
-  void play(Ts... x) override { this->buffer_->show_prev_page(); }
+  void play(const Ts &...x) override { this->buffer_->show_prev_page(); }
 
   Display *buffer_;
 };
@@ -850,7 +850,7 @@ template<typename... Ts> class DisplayIsDisplayingPageCondition : public Conditi
   DisplayIsDisplayingPageCondition(Display *parent) : parent_(parent) {}
 
   void set_page(DisplayPage *page) { this->page_ = page; }
-  bool check(Ts... x) override { return this->parent_->get_active_page() == this->page_; }
+  bool check(const Ts &...x) override { return this->parent_->get_active_page() == this->page_; }
 
  protected:
   Display *parent_;

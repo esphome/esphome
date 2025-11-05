@@ -59,8 +59,8 @@ class LVGLSelect : public select::Select, public Component {
     const auto &opts = this->widget_->get_options();
     FixedVector<const char *> opt_ptrs;
     opt_ptrs.init(opts.size());
-    for (size_t i = 0; i < opts.size(); i++) {
-      opt_ptrs[i] = opts[i].c_str();
+    for (const auto &opt : opts) {
+      opt_ptrs.push_back(opt.c_str());
     }
     this->traits.set_options(opt_ptrs);
   }

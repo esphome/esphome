@@ -123,9 +123,9 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
     this->has_simple_value_ = true;
   }
 
-  void play(Ts... x) override {}
+  void play(const Ts &...x) override {}
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     this->var_ = std::make_tuple(x...);
     auto value = this->has_simple_value_ ? this->value_.simple : this->value_.template_func(x...);
@@ -229,7 +229,7 @@ template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...
  public:
   BLEClientPasskeyReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     uint32_t passkey;
     if (has_simple_value_) {
       passkey = this->value_.simple;
@@ -266,7 +266,7 @@ template<typename... Ts> class BLEClientNumericComparisonReplyAction : public Ac
  public:
   BLEClientNumericComparisonReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     esp_bd_addr_t remote_bda;
     memcpy(remote_bda, parent_->get_remote_bda(), sizeof(esp_bd_addr_t));
     if (has_simple_value_) {
@@ -299,7 +299,7 @@ template<typename... Ts> class BLEClientRemoveBondAction : public Action<Ts...> 
  public:
   BLEClientRemoveBondAction(BLEClient *ble_client) { parent_ = ble_client; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     esp_bd_addr_t remote_bda;
     memcpy(remote_bda, parent_->get_remote_bda(), sizeof(esp_bd_addr_t));
     esp_ble_remove_bond_device(remote_bda);
@@ -334,9 +334,9 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
   }
 
   // not used since we override play_complex_
-  void play(Ts... x) override {}
+  void play(const Ts &...x) override {}
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     // it makes no sense to have multiple instances of this running at the same time.
     // this would occur only if the same automation was re-triggered while still
     // running. So just cancel the second chain if this is detected.
@@ -379,9 +379,9 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
   }
 
   // not used since we override play_complex_
-  void play(Ts... x) override {}
+  void play(const Ts &...x) override {}
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     if (this->node_state == espbt::ClientState::IDLE) {
       this->play_next_(x...);
