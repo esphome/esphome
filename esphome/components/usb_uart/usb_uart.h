@@ -193,10 +193,6 @@ class USBUartComponent : public usb_host::USBClient {
 
   void add_channel(USBUartChannel *channel) { this->channels_.push_back(channel); }
 
-  // Make on_connected public so derived classes can override it properly
-  // This fixes the virtual dispatch chain from protected (USBClient) to public overrides
-  void on_connected() override {}
-
   virtual void start_input(USBUartChannel *channel);
   virtual void start_output(USBUartChannel *channel);
 
@@ -206,6 +202,10 @@ class USBUartComponent : public usb_host::USBClient {
   EventPool<UsbDataChunk, USB_DATA_QUEUE_SIZE> chunk_pool_;
 
  protected:
+  // Re-declare on_connected as protected to maintain virtual dispatch chain
+  // Called from USBClient::loop() (protected context), overridden by derived classes
+  void on_connected() override {}
+
   std::vector<USBUartChannel *> channels_{};
 };
 
@@ -261,18 +261,18 @@ class USBUartTypeCH934X : public USBUartComponent {
     ESP_LOGI("usb_uart", "=== CH934X CONSTRUCTOR CALLED! VID=%04X PID=%04X ===", vid, pid);
   }
 
-  // Overridden methods from USBUartComponent
-  void start_input(USBUartChannel *channel) override;
-  void start_output(USBUartChannel *channel) override;
-  bool parse_descriptors(usb_device_handle_t dev_hdl);
-  void enable_channels();
-
   // ESPHome component loop - handles RX queue processing and TX multiplexing
   void loop() override;
 
+  void start_input(USBUartChannel *channel) override;
+  void start_output(USBUartChannel *channel) override;
+
  protected:
+  // Virtual method overrides - keep protected like in USBUartTypeCdcAcm for consistency
   void on_connected() override;
   void on_disconnected() override;
+  bool parse_descriptors(usb_device_handle_t dev_hdl);
+  void enable_channels();
   // Device-level configuration
   void configure_device_();
   void configure_channels_after_detection_();  // Called via defer after chip detection
