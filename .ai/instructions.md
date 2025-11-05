@@ -51,7 +51,67 @@ This document provides essential context for AI models interacting with this pro
 
 *   **Naming Conventions:**
     *   **Python:** Follows PEP 8. Use clear, descriptive names following snake_case.
-    *   **C++:** Follows the Google C++ Style Guide.
+    *   **C++:** Follows the Google C++ Style Guide with these specifics (following clang-tidy conventions):
+        - Function, method, and variable names: `lower_snake_case`
+        - Class/struct/enum names: `UpperCamelCase`
+        - Top-level constants (global/namespace scope): `UPPER_SNAKE_CASE`
+        - Function-local constants: `lower_snake_case`
+        - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
+        - Favor descriptive names over abbreviations
+
+*   **C++ Field Visibility:**
+    *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
+    *   **Use `private` for safety-critical cases:** Use `private` visibility when direct field access could introduce bugs or violate invariants:
+        1. **Pointer lifetime issues:** When setters validate pointers against known lists to prevent dangling references.
+           ```cpp
+           class SelectComponent {
+            public:
+             void set_options(const std::vector<std::string> &options) {
+               this->options_ = options;
+               this->current_option_ = nullptr;  // Reset to prevent dangling pointer
+             }
+             void set_selected_option(const std::string *option) {
+               // Validate that option points to an entry in options_
+               if (std::find(this->options_.begin(), this->options_.end(), *option) != this->options_.end()) {
+                 this->current_option_ = option;
+               }
+             }
+            private:
+             std::vector<std::string> options_;
+             const std::string *current_option_{nullptr};  // Must point to entry in options_
+           };
+           ```
+        2. **Invariant coupling:** When multiple fields must remain synchronized to prevent buffer overflows or data corruption.
+           ```cpp
+           class Buffer {
+            public:
+             void resize(size_t new_size) {
+               auto new_data = std::make_unique<uint8_t[]>(new_size);
+               if (this->data_) {
+                 std::memcpy(new_data.get(), this->data_.get(), std::min(this->size_, new_size));
+               }
+               this->data_ = std::move(new_data);
+               this->size_ = new_size;  // Must stay in sync with data_
+             }
+            private:
+             std::unique_ptr<uint8_t[]> data_;
+             size_t size_{0};  // Must match allocated size of data_
+           };
+           ```
+        3. **Resource management:** When setters perform cleanup or registration operations that derived classes might skip.
+    *   **Provide `protected` accessor methods:** When derived classes need controlled access to `private` members.
+
+*   **C++ Preprocessor Directives:**
+    *   **Avoid `#define` for constants:** Using `#define` for constants is discouraged and should be replaced with `const` variables or enums.
+    *   **Use `#define` only for:**
+        - Conditional compilation (`#ifdef`, `#ifndef`)
+        - Compile-time sizes calculated during Python code generation (e.g., configuring `std::array` or `StaticVector` dimensions via `cg.add_define()`)
+
+*   **C++ Additional Conventions:**
+    *   **Member access:** Prefix all class member access with `this->` (e.g., `this->value_` not `value_`)
+    *   **Indentation:** Use spaces (two per indentation level), not tabs
+    *   **Type aliases:** Prefer `using type_t = int;` over `typedef int type_t;`
+    *   **Line length:** Wrap lines at no more than 120 characters
 
 *   **Component Structure:**
     *   **Standard Files:**
