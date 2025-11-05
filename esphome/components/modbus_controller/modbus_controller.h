@@ -91,7 +91,6 @@ struct RegisterRange {
   uint8_t register_count;
   uint16_t skip_updates;                            // the config value
   SensorSet sensors;                                // all sensors of this range
-  uint16_t skip_updates_counter;                    // the running value
   std::unique_ptr<ModbusCommandItem> command_item;  // the command item for this range
 };
 
@@ -244,7 +243,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
   /// Check if the command should be retried based on the max_retries parameter
-  bool should_retry() { return this->cmd_non_responses_ <= this->max_cmd_retries_; };
+  bool can_send() { return this->cmd_non_responses_ <= this->max_cmd_retries_; };
 
  protected:
   friend ModbusCommandItem;
@@ -260,6 +259,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   SensorSet sensorset_;
   /// Continuous range of modbus registers
   std::vector<RegisterRange> register_ranges_{};
+  /// count updates to enable skipping
+  uint16_t update_counter_{0};
+  /// count updates to enable skipping
+  uint16_t module_offline_at_{0};
   /// if module didn't respond the last command
   bool module_offline_{false};
   /// how many updates to skip if module is offline

@@ -13,29 +13,19 @@ void ModbusController::set_online(bool online, const ModbusCommandItem &command)
   if (online && this->module_offline_) {
     ESP_LOGW(TAG, "Modbus device=%d back online", this->address_);
 
-    if (this->offline_skip_updates_ > 0) {
-      // Restore skip_updates_counter to restore commands updates
-      for (auto &r : this->register_ranges_) {
-        r.skip_updates_counter = 0;
-      }
-    }
     // Restore module online state
     this->module_offline_ = false;
     this->online_callback_.call((int) command.function_code, command.register_address);
-  } else if (!online && !this->module_offline_) {
-    ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
 
+  } else if (!online) {
     this->clear_tx_queue(false);
 
-    if (this->offline_skip_updates_ > 0) {
-      // Update skip_updates_counter to stop flooding channel with timeouts
-      for (auto &r : this->register_ranges_) {
-        r.skip_updates_counter = this->offline_skip_updates_;
-      }
+    if (!this->module_offline_) {
+      ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
+      this->module_offline_ = true;
+      this->module_offline_at_ = this->update_counter_;
+      this->offline_callback_.call((int) command.function_code, command.register_address);
     }
-
-    this->module_offline_ = true;
-    this->offline_callback_.call((int) command.function_code, command.register_address);
   }
 }
 
@@ -54,7 +44,7 @@ void ModbusCommandItem::on_modbus_error(uint8_t function_code, uint8_t exception
 
 void ModbusCommandItem::on_modbus_no_response() {
   this->controller->cmd_non_responses_++;
-  if (this->controller->should_retry())
+  if (this->controller->can_send())
     this->send();
   else
     this->controller->set_online(false, *this);
@@ -86,26 +76,35 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::update_range_(RegisterRange &r) {
-  ESP_LOGV(TAG, "Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,
-           r.skip_updates_counter);
-  if (r.skip_updates_counter == 0) {
-    if (r.command_item.get() != nullptr) {
-      r.command_item->send();
-    }
-    r.skip_updates_counter = r.skip_updates;  // reset counter to config value
-  } else {
-    r.skip_updates_counter--;
+  if (this->update_counter_ % (r.skip_updates + 1) != 0) {
+    ESP_LOGVV(TAG, "Skipping update for range 0x%X", r.start_address);
+    return;
+  }
+
+  ESP_LOGV(TAG, "Range : %X Size: %x (%d)", r.start_address, r.register_count, (int) r.register_type);
+  if (r.command_item.get() != nullptr) {
+    r.command_item->send();
   }
 }
-//
-// Queue the modbus requests to be send.
-// Once we get a response to the command it is removed from the queue and the next command is send
-//
+
 void ModbusController::update() {
-  for (auto &r : this->register_ranges_) {
-    ESP_LOGVV(TAG, "Updating range 0x%X", r.start_address);
-    update_range_(r);
+  if (this->module_offline_) {
+    if ((this->update_counter_ + 1 - this->module_offline_at_) % (this->offline_skip_updates_ + 1) != 0) {
+      ESP_LOGV(TAG, "Module offline - skipping update");
+    } else {  // time to try again
+      ESP_LOGV(TAG, "Module offline - resuming updates");
+      this->cmd_non_responses_ = 0;  // reset non-responsive send count after offline_skip_updates
+    }
   }
+
+  if (this->can_send()) {
+    for (auto &r : this->register_ranges_) {
+      ESP_LOGVV(TAG, "Updating range 0x%X", r.start_address);
+      update_range_(r);
+    }
+  }
+
+  this->update_counter_++;
 }
 
 // walk through the sensors and determine the register ranges to read
@@ -136,7 +135,6 @@ size_t ModbusController::create_register_ranges_() {
       r.register_type = curr->register_type;
       r.sensors.insert(curr);
       r.skip_updates = curr->skip_updates;
-      r.skip_updates_counter = 0;
       buffer_offset = curr->get_register_size();
 
       ESP_LOGV(TAG, "Started new range");
