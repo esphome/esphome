@@ -7,10 +7,10 @@
 #include <cstdint>
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/optional.h"
 #include "esphome/components/image/image.h"
 #include "esphome/components/display/display.h"
-#include <map>
 
 // Image decoder configuration for ESP-IDF
 #ifdef ESP_IDF_VERSION
@@ -42,6 +42,15 @@ enum class ImageFormat { RGB565, RGB888, RGBA };
 
 enum class SdByteOrder { LITTLE_ENDIAN_SD, BIG_ENDIAN_SD };
 
+// Mount point entry - lightweight alternative to std::map
+struct MountEntry {
+  std::string path;
+  std::string platform;
+};
+
+// Maximum number of mount points (SD, USB, internal, etc.)
+static constexpr size_t MAX_MOUNT_POINTS = 8;
+
 // =====================================================
 // StorageHost - Main Storage Class
 // =====================================================
@@ -62,11 +71,11 @@ class StorageHost : public Component {
 
   // Mount management
   void register_mount(const std::string &path, const std::string &platform);
-  const std::map<std::string, std::string> &get_mounts() const { return this->mounts_; }
+  const esphome::StaticVector<MountEntry, MAX_MOUNT_POINTS> &get_mounts() const { return this->mounts_; }
   std::string find_mount_for_path(const std::string &path);
 
  private:
-  std::map<std::string, std::string> mounts_;
+  esphome::StaticVector<MountEntry, MAX_MOUNT_POINTS> mounts_;
 };
 
 // =====================================================

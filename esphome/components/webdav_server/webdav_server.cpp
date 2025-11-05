@@ -283,87 +283,120 @@ std::string WebDAVServer::extract_path_from_url(const std::string &url) {
   return url;
 }
 
-std::string WebDAVServer::generate_prop_xml(const std::string &href, bool is_directory, time_t modified,
-                                            size_t size) {
+std::string WebDAVServer::generate_prop_xml(const std::string &href, bool is_directory, time_t modified, size_t size) {
   char time_buf[50];
   struct tm *gmt = gmtime(&modified);
   strftime(time_buf, sizeof(time_buf), "%a, %d %b %Y %H:%M:%S GMT", gmt);
 
-  std::string display_name = href;
-  if (href.back() == '/') {
-    display_name = href.substr(0, href.length() - 1);
+  // Extract display name efficiently
+  std::string_view href_view(href);
+  if (!href_view.empty() && href_view.back() == '/') {
+    href_view.remove_suffix(1);
   }
-  size_t last_slash = display_name.find_last_of('/');
-  if (last_slash != std::string::npos) {
-    display_name = display_name.substr(last_slash + 1);
-  }
+  size_t last_slash = href_view.find_last_of('/');
+  std::string_view display_name = (last_slash != std::string_view::npos) ? href_view.substr(last_slash + 1) : href_view;
   if (display_name.empty() && href == "/") {
     display_name = "Root";
   }
 
-  std::string xml = "  <D:response>\n";
-  xml += "    <D:href>" + href + "</D:href>\n";
-  xml += "    <D:propstat>\n";
-  xml += "      <D:prop>\n";
-  xml += "        <D:resourcetype>";
+  // Pre-allocate string with estimated size to reduce allocations
+  std::string xml;
+  xml.reserve(512);  // Typical XML response is 300-500 bytes
+
+  xml.append("  <D:response>\n    <D:href>");
+  xml.append(href);
+  xml.append("</D:href>\n    <D:propstat>\n      <D:prop>\n        <D:resourcetype>");
   if (is_directory) {
-    xml += "<D:collection/>";
+    xml.append("<D:collection/>");
   }
-  xml += "</D:resourcetype>\n";
-  xml += "        <D:getlastmodified>" + std::string(time_buf) + "</D:getlastmodified>\n";
-  xml += "        <D:creationdate>" + std::string(time_buf) + "</D:creationdate>\n";
-  xml += "        <D:displayname>" + display_name + "</D:displayname>\n";
+  xml.append("</D:resourcetype>\n        <D:getlastmodified>");
+  xml.append(time_buf);
+  xml.append("</D:getlastmodified>\n        <D:creationdate>");
+  xml.append(time_buf);
+  xml.append("</D:creationdate>\n        <D:displayname>");
+  xml.append(display_name);
+  xml.append("</D:displayname>\n");
 
   if (!is_directory) {
-    xml += "        <D:getcontentlength>" + std::to_string(size) + "</D:getcontentlength>\n";
+    xml.append("        <D:getcontentlength>");
+    xml.append(std::to_string(size));
+    xml.append("</D:getcontentlength>\n");
 
-    std::string content_type = "application/octet-stream";
-    size_t dot_pos = href.find_last_of(".");
-    if (dot_pos != std::string::npos) {
-      std::string ext = href.substr(dot_pos + 1);
-      std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+    // Determine content type efficiently using string_view
+    const char *content_type = "application/octet-stream";
+    size_t dot_pos = href.find_last_of('.');
+    if (dot_pos != std::string::npos && dot_pos + 1 < href.length()) {
+      std::string_view ext_view(&href[dot_pos + 1]);
 
-      if (ext == "txt")
-        content_type = "text/plain";
-      else if (ext == "html" || ext == "htm")
-        content_type = "text/html";
-      else if (ext == "css")
-        content_type = "text/css";
-      else if (ext == "js")
-        content_type = "application/javascript";
-      else if (ext == "jpg" || ext == "jpeg")
-        content_type = "image/jpeg";
-      else if (ext == "png")
-        content_type = "image/png";
-      else if (ext == "gif")
-        content_type = "image/gif";
-      else if (ext == "mp3")
-        content_type = "audio/mpeg";
-      else if (ext == "mp4")
-        content_type = "video/mp4";
-      else if (ext == "pdf")
-        content_type = "application/pdf";
-      else if (ext == "flac")
-        content_type = "audio/flac";
+      // Fast case-insensitive comparison using first character
+      char first_lower = std::tolower(static_cast<unsigned char>(ext_view[0]));
+
+      if (first_lower == 't') {
+        if (ext_view == "txt" || ext_view == "TXT")
+          content_type = "text/plain";
+      } else if (first_lower == 'h') {
+        if (ext_view == "html" || ext_view == "HTML" || ext_view == "htm" || ext_view == "HTM")
+          content_type = "text/html";
+      } else if (first_lower == 'c') {
+        if (ext_view == "css" || ext_view == "CSS")
+          content_type = "text/css";
+      } else if (first_lower == 'j') {
+        if (ext_view == "js" || ext_view == "JS")
+          content_type = "application/javascript";
+        else if (ext_view == "jpg" || ext_view == "JPG" || ext_view == "jpeg" || ext_view == "JPEG")
+          content_type = "image/jpeg";
+      } else if (first_lower == 'p') {
+        if (ext_view == "png" || ext_view == "PNG")
+          content_type = "image/png";
+        else if (ext_view == "pdf" || ext_view == "PDF")
+          content_type = "application/pdf";
+      } else if (first_lower == 'g') {
+        if (ext_view == "gif" || ext_view == "GIF")
+          content_type = "image/gif";
+      } else if (first_lower == 'm') {
+        if (ext_view == "mp3" || ext_view == "MP3")
+          content_type = "audio/mpeg";
+        else if (ext_view == "mp4" || ext_view == "MP4")
+          content_type = "video/mp4";
+      } else if (first_lower == 'f') {
+        if (ext_view == "flac" || ext_view == "FLAC")
+          content_type = "audio/flac";
+      }
     }
 
-    xml += "        <D:getcontenttype>" + content_type + "</D:getcontenttype>\n";
+    xml.append("        <D:getcontenttype>");
+    xml.append(content_type);
+    xml.append("</D:getcontenttype>\n");
   }
 
-  xml += "      </D:prop>\n";
-  xml += "      <D:status>HTTP/1.1 200 OK</D:status>\n";
-  xml += "    </D:propstat>\n";
-  xml += "  </D:response>\n";
+  xml.append("      </D:prop>\n      <D:status>HTTP/1.1 200 OK</D:status>\n    </D:propstat>\n  </D:response>\n");
 
   return xml;
 }
 
-std::vector<std::string> WebDAVServer::list_dir(const std::string &path) {
-  std::vector<std::string> files;
+esphome::FixedVector<std::string> WebDAVServer::list_dir(const std::string &path) {
+  esphome::FixedVector<std::string> files;
   DIR *dir = opendir(path.c_str());
   if (dir != nullptr) {
+    // Count entries first to allocate once
+    size_t count = 0;
     struct dirent *entry;
     while ((entry = readdir(dir)) != nullptr) {
+      if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+        count++;
+        if (count >= MAX_DIR_ENTRIES) {
+          ESP_LOGW(TAG, "Directory %s has more than %zu entries, truncating", path.c_str(), MAX_DIR_ENTRIES);
+          break;
+        }
+      }
+    }
+
+    // Allocate exact size needed (single allocation)
+    files.init(count);
+
+    // Rewind and fill
+    rewinddir(dir);
+    while ((entry = readdir(dir)) != nullptr && files.size() < count) {
       if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
         files.push_back(entry->d_name);
       }
@@ -420,9 +453,10 @@ esp_err_t WebDAVServer::handle_get(httpd_req_t *req) {
     httpd_resp_set_type(req, "application/octet-stream");
     httpd_resp_set_hdr(req, "Content-Disposition", ("attachment; filename=\"" + std::string(req->uri) + "\"").c_str());
 
-    char buffer[4096];
-    while (file.read(buffer, sizeof(buffer))) {
-      httpd_resp_send_chunk(req, buffer, file.gcount());
+    // Use architecture-specific buffer size
+    auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
+    while (file.read(buffer.get(), FILE_BUFFER_SIZE)) {
+      httpd_resp_send_chunk(req, buffer.get(), file.gcount());
     }
     httpd_resp_send_chunk(req, nullptr, 0);
 
@@ -444,10 +478,11 @@ esp_err_t WebDAVServer::handle_put(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  char buffer[4096];
+  // Use architecture-specific buffer size
+  auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
   int received;
-  while ((received = httpd_req_recv(req, buffer, sizeof(buffer))) > 0) {
-    file.write(buffer, received);
+  while ((received = httpd_req_recv(req, buffer.get(), FILE_BUFFER_SIZE)) > 0) {
+    file.write(buffer.get(), received);
   }
   file.close();
 
@@ -516,7 +551,7 @@ esp_err_t WebDAVServer::handle_propfind(httpd_req_t *req) {
   std::string depth_header = "0";
 
   // Read Depth header
-  char depth_value[10] = {0};
+  char depth_value[DEPTH_BUFFER_SIZE] = {0};
   if (httpd_req_get_hdr_value_str(req, "Depth", depth_value, sizeof(depth_value)) == ESP_OK) {
     depth_header = depth_value;
     ESP_LOGI(TAG, "Depth header: %s", depth_header.c_str());
@@ -548,9 +583,9 @@ esp_err_t WebDAVServer::handle_propfind(httpd_req_t *req) {
       ESP_LOGI(TAG, "Found %d mount points", mounts.size());
 
       for (const auto &mount : mounts) {
-        // mount.first = mount_path (e.g., "/usb0")
-        // mount.second = platform (e.g., "usb_msc")
-        std::string mount_path = mount.first;
+        // mount.path = mount_path (e.g., "/usb0")
+        // mount.platform = platform (e.g., "usb_msc")
+        std::string mount_path = mount.path;
         std::string mount_name = mount_path;
 
         // Remove leading slash for href construction
@@ -568,7 +603,7 @@ esp_err_t WebDAVServer::handle_propfind(httpd_req_t *req) {
           href += '/';
         }
 
-        ESP_LOGI(TAG, "Adding mount point %s (%s) to PROPFIND response", href.c_str(), mount.second.c_str());
+        ESP_LOGI(TAG, "Adding mount point %s (%s) to PROPFIND response", href.c_str(), mount.platform.c_str());
         response += server->generate_prop_xml(href, true, st.st_mtime, 0);
       }
     } else {
@@ -640,7 +675,7 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
   std::string filepath = server->uri_to_filepath(req->uri);
   ESP_LOGD(TAG, "MOVE request for: %s", filepath.c_str());
 
-  char dest_buf[512];
+  char dest_buf[DEST_BUFFER_SIZE];
   if (httpd_req_get_hdr_value_str(req, "Destination", dest_buf, sizeof(dest_buf)) != ESP_OK) {
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Destination header required");
     return ESP_OK;
@@ -652,10 +687,90 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
 
   ESP_LOGD(TAG, "MOVE destination: %s", dest_filepath.c_str());
 
+  // Check if source exists
+  struct stat src_stat;
+  if (stat(filepath.c_str(), &src_stat) != 0) {
+    ESP_LOGE(TAG, "Source not found: %s", filepath.c_str());
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Source not found");
+    return ESP_OK;
+  }
+
+  // Try atomic rename first (works within same filesystem)
   if (rename(filepath.c_str(), dest_filepath.c_str()) == 0) {
+    ESP_LOGI(TAG, "Move completed (atomic rename)");
     httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource moved", -1);
+    return ESP_OK;
+  }
+
+  // If rename fails with EXDEV (cross-device), fall back to copy+delete
+  if (errno == EXDEV) {
+    ESP_LOGI(TAG, "Cross-mount move detected, using copy+delete fallback");
+
+    if (S_ISDIR(src_stat.st_mode)) {
+      ESP_LOGE(TAG, "Cross-mount directory move not supported: %s", filepath.c_str());
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Cross-mount directory move not supported");
+      return ESP_OK;
+    }
+
+    // Chunked copy for cross-mount move
+    FILE *src = fopen(filepath.c_str(), "rb");
+    if (!src) {
+      ESP_LOGE(TAG, "Failed to open source: %s (errno: %d)", filepath.c_str(), errno);
+      httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot open source");
+      return ESP_OK;
+    }
+
+    FILE *dst = fopen(dest_filepath.c_str(), "wb");
+    if (!dst) {
+      ESP_LOGE(TAG, "Failed to create destination: %s (errno: %d)", dest_filepath.c_str(), errno);
+      fclose(src);
+      httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot create destination");
+      return ESP_OK;
+    }
+
+    // Copy in chunks
+    auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
+    size_t bytes_read;
+    size_t total_copied = 0;
+    bool copy_success = true;
+
+    ESP_LOGI(TAG, "Starting cross-mount move: %s -> %s (size: %lld bytes)", filepath.c_str(), dest_filepath.c_str(),
+             (long long) src_stat.st_size);
+
+    while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, src)) > 0) {
+      size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
+      if (bytes_written != bytes_read) {
+        ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d)", total_copied, errno);
+        copy_success = false;
+        break;
+      }
+      total_copied += bytes_written;
+    }
+
+    fclose(src);
+    fclose(dst);
+
+    if (copy_success && total_copied == static_cast<size_t>(src_stat.st_size)) {
+      // Copy successful, now delete source
+      if (remove(filepath.c_str()) == 0) {
+        ESP_LOGI(TAG, "Cross-mount move completed: %zu bytes", total_copied);
+        httpd_resp_set_status(req, "201 Created");
+        httpd_resp_send(req, "Resource moved", -1);
+      } else {
+        ESP_LOGE(TAG, "Failed to delete source after copy: %s (errno: %d)", filepath.c_str(), errno);
+        // Source still exists, but destination was created - partial success
+        httpd_resp_set_status(req, "201 Created");
+        httpd_resp_send(req, "Resource copied (source deletion failed)", -1);
+      }
+    } else {
+      ESP_LOGE(TAG, "Cross-mount move failed: copied %zu of %lld bytes", total_copied, (long long) src_stat.st_size);
+      // Clean up partial destination
+      remove(dest_filepath.c_str());
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Move failed");
+    }
   } else {
+    // Other rename error
     ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d)", filepath.c_str(), dest_filepath.c_str(), errno);
     httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot move resource");
   }
@@ -669,7 +784,7 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
   std::string filepath = server->uri_to_filepath(req->uri);
   ESP_LOGD(TAG, "COPY request for: %s", filepath.c_str());
 
-  char dest_buf[512];
+  char dest_buf[DEST_BUFFER_SIZE];
   if (httpd_req_get_hdr_value_str(req, "Destination", dest_buf, sizeof(dest_buf)) != ESP_OK) {
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Destination header required");
     return ESP_OK;
@@ -681,19 +796,74 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
 
   ESP_LOGD(TAG, "COPY destination: %s", dest_filepath.c_str());
 
-  // Simple file copy
-  std::ifstream src(filepath, std::ios::binary);
-  std::ofstream dst(dest_filepath, std::ios::binary);
+  // Check if source exists and is a file
+  struct stat src_stat;
+  if (stat(filepath.c_str(), &src_stat) != 0) {
+    ESP_LOGE(TAG, "Source file not found: %s", filepath.c_str());
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Source not found");
+    return ESP_OK;
+  }
 
-  if (src.is_open() && dst.is_open()) {
-    dst << src.rdbuf();
-    src.close();
-    dst.close();
+  if (S_ISDIR(src_stat.st_mode)) {
+    ESP_LOGE(TAG, "Directory copy not supported: %s", filepath.c_str());
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Directory copy not supported");
+    return ESP_OK;
+  }
+
+  // Chunked file copy - memory-efficient for large files
+  FILE *src = fopen(filepath.c_str(), "rb");
+  if (!src) {
+    ESP_LOGE(TAG, "Failed to open source file: %s (errno: %d)", filepath.c_str(), errno);
+    httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot open source");
+    return ESP_OK;
+  }
+
+  FILE *dst = fopen(dest_filepath.c_str(), "wb");
+  if (!dst) {
+    ESP_LOGE(TAG, "Failed to open destination file: %s (errno: %d)", dest_filepath.c_str(), errno);
+    fclose(src);
+    httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot create destination");
+    return ESP_OK;
+  }
+
+  // Use architecture-specific buffer for chunked copy
+  auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
+  size_t bytes_read;
+  size_t total_copied = 0;
+  bool copy_success = true;
+
+  ESP_LOGI(TAG, "Starting chunked copy: %s -> %s (size: %lld bytes)", filepath.c_str(), dest_filepath.c_str(),
+           (long long) src_stat.st_size);
+
+  while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, src)) > 0) {
+    size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
+    if (bytes_written != bytes_read) {
+      ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d)", total_copied, errno);
+      copy_success = false;
+      break;
+    }
+    total_copied += bytes_written;
+
+    // Log progress for large files (every 1MB or architecture-specific chunk)
+    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0) {
+      ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) src_stat.st_size,
+               (total_copied * 100.0) / src_stat.st_size);
+    }
+  }
+
+  fclose(src);
+  fclose(dst);
+
+  if (copy_success && total_copied == static_cast<size_t>(src_stat.st_size)) {
+    ESP_LOGI(TAG, "Copy completed: %zu bytes", total_copied);
     httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource copied", -1);
   } else {
-    ESP_LOGE(TAG, "Failed to copy %s to %s (errno: %d)", filepath.c_str(), dest_filepath.c_str(), errno);
-    httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot copy resource");
+    ESP_LOGE(TAG, "Copy failed: %s to %s (copied %zu of %lld bytes)", filepath.c_str(), dest_filepath.c_str(),
+             total_copied, (long long) src_stat.st_size);
+    // Clean up partial file
+    remove(dest_filepath.c_str());
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
   }
 
   return ESP_OK;

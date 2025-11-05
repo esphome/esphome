@@ -35,7 +35,7 @@ void StorageHost::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Storage Host Component...");
   ESP_LOGCONFIG(TAG, "  Mounts configured: %zu", this->mounts_.size());
   for (const auto &mount : this->mounts_) {
-    ESP_LOGCONFIG(TAG, "    - %s (platform: %s)", mount.first.c_str(), mount.second.c_str());
+    ESP_LOGCONFIG(TAG, "    - %s (platform: %s)", mount.path.c_str(), mount.platform.c_str());
   }
 }
 
@@ -47,12 +47,12 @@ void StorageHost::dump_config() {
   ESP_LOGCONFIG(TAG, "Storage Host Component:");
   ESP_LOGCONFIG(TAG, "  Mounts: %zu", this->mounts_.size());
   for (const auto &mount : this->mounts_) {
-    ESP_LOGCONFIG(TAG, "    - %s (platform: %s)", mount.first.c_str(), mount.second.c_str());
+    ESP_LOGCONFIG(TAG, "    - %s (platform: %s)", mount.path.c_str(), mount.platform.c_str());
   }
 }
 
 void StorageHost::register_mount(const std::string &path, const std::string &platform) {
-  this->mounts_[path] = platform;
+  this->mounts_.push_back({path, platform});
   ESP_LOGD(TAG, "Registered mount: %s (platform: %s)", path.c_str(), platform.c_str());
 }
 
@@ -62,10 +62,10 @@ std::string StorageHost::find_mount_for_path(const std::string &path) {
   size_t best_length = 0;
 
   for (const auto &mount : this->mounts_) {
-    if (path.compare(0, mount.first.length(), mount.first) == 0) {
-      if (mount.first.length() > best_length) {
-        best_mount = mount.first;
-        best_length = mount.first.length();
+    if (path.compare(0, mount.path.length(), mount.path) == 0) {
+      if (mount.path.length() > best_length) {
+        best_mount = mount.path;
+        best_length = mount.path.length();
       }
     }
   }
@@ -298,7 +298,7 @@ bool StorageImage::load_image_from_path(const std::string &path) {
       ESP_LOGW(TAG, "File path does not match any configured mount: %s", path.c_str());
       ESP_LOGW(TAG, "Configured mounts:");
       for (const auto &mount : this->storage_host_->get_mounts()) {
-        ESP_LOGW(TAG, "  - %s", mount.first.c_str());
+        ESP_LOGW(TAG, "  - %s", mount.path.c_str());
       }
       return false;
     }
@@ -306,21 +306,25 @@ bool StorageImage::load_image_from_path(const std::string &path) {
 
     // Get platform for this mount
     const auto &mounts = this->storage_host_->get_mounts();
-    auto mount_iter = mounts.find(detected_mount);
-    if (mount_iter != mounts.end()) {
-      mount_platform = mount_iter->second;
-      ESP_LOGI(TAG, "Mount platform: %s", mount_platform.c_str());
-      // Store platform for use in decoder
-      this->current_mount_platform_ = mount_platform;
+    for (const auto &mount : mounts) {
+      if (mount.path == detected_mount) {
+        mount_platform = mount.platform;
+        ESP_LOGI(TAG, "Mount platform: %s", mount_platform.c_str());
+        // Store platform for use in decoder
+        this->current_mount_platform_ = mount_platform;
+        break;
+      }
     }
   } else {
     // Use explicitly specified mount source
     const auto &mounts = this->storage_host_->get_mounts();
-    auto mount_iter = mounts.find(this->mount_source_);
-    if (mount_iter != mounts.end()) {
-      mount_platform = mount_iter->second;
-      ESP_LOGI(TAG, "Mount platform (explicit): %s", mount_platform.c_str());
-      this->current_mount_platform_ = mount_platform;
+    for (const auto &mount : mounts) {
+      if (mount.path == this->mount_source_) {
+        mount_platform = mount.platform;
+        ESP_LOGI(TAG, "Mount platform (explicit): %s", mount_platform.c_str());
+        this->current_mount_platform_ = mount_platform;
+        break;
+      }
     }
   }
 

@@ -1,9 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <string>
-#include <vector>
-#include <map>
+#include <string_view>
+#include <memory>
 #include <esp_http_server.h>
 
 // Forward declaration
@@ -17,6 +18,24 @@ namespace esphome {
 namespace webdav_server {
 
 static const char *const TAG = "webdav_server";
+
+// Architecture-specific buffer sizes
+#if defined(USE_ESP32_VARIANT_ESP32P4)
+static constexpr size_t FILE_BUFFER_SIZE = 16384;  // 16KB for P4
+static constexpr size_t DEST_BUFFER_SIZE = 2048;
+static constexpr size_t DEPTH_BUFFER_SIZE = 40;
+static constexpr size_t MAX_DIR_ENTRIES = 512;
+#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+static constexpr size_t FILE_BUFFER_SIZE = 8192;  // 8KB for S2/S3
+static constexpr size_t DEST_BUFFER_SIZE = 1024;
+static constexpr size_t DEPTH_BUFFER_SIZE = 20;
+static constexpr size_t MAX_DIR_ENTRIES = 512;
+#else
+static constexpr size_t FILE_BUFFER_SIZE = 4096;  // 4KB default
+static constexpr size_t DEST_BUFFER_SIZE = 512;
+static constexpr size_t DEPTH_BUFFER_SIZE = 10;
+static constexpr size_t MAX_DIR_ENTRIES = 256;
+#endif
 
 class WebDAVServer : public Component {
  public:
@@ -64,7 +83,7 @@ class WebDAVServer : public Component {
   std::string url_decode(const std::string &src);
   std::string extract_path_from_url(const std::string &url);
   std::string generate_prop_xml(const std::string &href, bool is_directory, time_t modified, size_t size);
-  std::vector<std::string> list_dir(const std::string &path);
+  esphome::FixedVector<std::string> list_dir(const std::string &path);
 
   // HTTP handlers (static, called via context)
   static esp_err_t handle_get(httpd_req_t *req);
