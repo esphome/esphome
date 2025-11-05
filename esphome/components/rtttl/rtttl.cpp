@@ -35,7 +35,9 @@ void Rtttl::dump_config() {
 
 void Rtttl::play(std::string rtttl) {
   if (this->state_ != State::STATE_STOPPED && this->state_ != State::STATE_STOPPING) {
-    ESP_LOGW(TAG, "Already playing: %.*s", (int) this->rtttl_.find(':'), this->rtttl_.c_str());
+    size_t pos = this->rtttl_.find(':');
+    size_t len = (pos != std::string::npos) ? pos : this->rtttl_.length();
+    ESP_LOGW(TAG, "Already playing: %.*s", (int) len, this->rtttl_.c_str());
     return;
   }
 
