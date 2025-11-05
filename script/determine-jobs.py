@@ -94,6 +94,7 @@ class Platform(StrEnum):
 # Memory impact analysis constants
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
+MEMORY_IMPACT_MAX_COMPONENTS = 40  # Max components before results become nonsensical
 
 # Platform-specific components that can only be built on their respective platforms
 # These components contain platform-specific code and cannot be cross-compiled
@@ -553,6 +554,17 @@ def detect_memory_impact_config(
 
     # If no components have tests, don't run memory impact
     if not components_with_tests:
+        return {"should_run": "false"}
+
+    # Skip memory impact analysis if too many components changed
+    # Building 40+ components at once produces nonsensical memory impact results
+    # This typically happens with large refactorings or batch updates
+    if len(components_with_tests) > MEMORY_IMPACT_MAX_COMPONENTS:
+        print(
+            f"Memory impact: Skipping analysis for {len(components_with_tests)} components "
+            f"(limit is {MEMORY_IMPACT_MAX_COMPONENTS}, would give nonsensical results)",
+            file=sys.stderr,
+        )
         return {"should_run": "false"}
 
     # Find common platforms supported by ALL components
