@@ -191,7 +191,6 @@ def set_zephyr_config_options(config):
 
     # Add build flags - ensure proper spacing between flags
     cg.add_build_flag("-DUSE_OPENTHREAD")
-    cg.add_build_flag("-DUSE_ZEPHYR_OPENTHREAD")
     cg.add_build_flag("-DUSE_IPV6")
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.add_build_flag("-DUSE_ZEPHYR_NETWORKING")
