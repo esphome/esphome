@@ -338,20 +338,31 @@ def check_replaceme(value):
         )
 
 
-def _get_item_id(item):
+def _get_item_id(item: Any) -> str | Extend | Remove | None:
+    """Attempts to get a list item's ID"""
     if not isinstance(item, dict):
-        return None
+        return None  # not a dict, can't have ID
+    # 1.- Check regular case:
+    # - id: my_id
     item_id = item.get(CONF_ID)
     if item_id is None and len(item) == 1:
+        # 2.- Check single-key dict case:
+        # - obj:
+        #     id: my_id
         item = next(iter(item.values()))
         if isinstance(item, dict):
             item_id = item.get(CONF_ID)
     if isinstance(item_id, Extend):
+        # Remove instances of Extend so they don't overwrite the original item when merging:
         del item[CONF_ID]
     return item_id
 
 
-def _build_list_index(lst):
+def _build_list_index(
+    lst: list[Any],
+) -> tuple[
+    OrderedDict[str | Extend | Remove, Any], list[tuple[int, str, Any]], set[str]
+]:
     index = OrderedDict()
     extensions, removals = [], set()
     for pos, item in enumerate(lst):
@@ -372,7 +383,7 @@ def _build_list_index(lst):
     return index, extensions, removals
 
 
-def resolve_extend_remove(value, is_key=None):
+def resolve_extend_remove(value: Any, is_key: bool = None):
     if isinstance(value, ESPLiteralValue):
         return  # do not check inside literal blocks
     if isinstance(value, list):
