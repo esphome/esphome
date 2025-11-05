@@ -420,6 +420,7 @@ class TextValidator(LValidator):
                 format_str = cpp_string_escape(format_str)
                 sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
                 if nanval := value.get(CONF_IF_NAN):
+                    nanval = cpp_string_escape(nanval)
                     return literal(
                         f'(std::isfinite({arg_expr}) ? {sprintf_str} : "{nanval}")'
                     )
