@@ -237,7 +237,7 @@ extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-cons
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override { return global_api_server->is_connected(); }
+  bool check(const Ts &...x) override { return global_api_server->is_connected(); }
 };
 
 }  // namespace esphome::api

@@ -1,4 +1,5 @@
 import re
+import textwrap
 
 import esphome.config_validation as cv
 from esphome.const import CONF_HEIGHT, CONF_TYPE, CONF_WIDTH
@@ -122,7 +123,7 @@ class FlexLayout(Layout):
 
     def get_layout_schemas(self, config: dict) -> tuple:
         layout = config.get(CONF_LAYOUT)
-        if not isinstance(layout, dict) or layout.get(CONF_TYPE) != TYPE_FLEX:
+        if not isinstance(layout, dict) or layout.get(CONF_TYPE).lower() != TYPE_FLEX:
             return None, {}
         child_schema = FLEX_OBJ_SCHEMA
         if grow := layout.get(CONF_FLEX_GROW):
@@ -161,6 +162,8 @@ class DirectionalLayout(FlexLayout):
         return self.direction
 
     def get_layout_schemas(self, config: dict) -> tuple:
+        if not isinstance(config.get(CONF_LAYOUT), str):
+            return None, {}
         if config.get(CONF_LAYOUT, "").lower() != self.direction:
             return None, {}
         return cv.one_of(self.direction, lower=True), flex_hv_schema(self.direction)
@@ -206,7 +209,7 @@ class GridLayout(Layout):
             # Not a valid grid layout string
             return None, {}
 
-        if not isinstance(layout, dict) or layout.get(CONF_TYPE) != TYPE_GRID:
+        if not isinstance(layout, dict) or layout.get(CONF_TYPE).lower() != TYPE_GRID:
             return None, {}
         return (
             {
@@ -259,7 +262,7 @@ class GridLayout(Layout):
                 )
         # should be guaranteed to be a dict at this point
         assert isinstance(layout, dict)
-        assert layout.get(CONF_TYPE) == TYPE_GRID
+        assert layout.get(CONF_TYPE).lower() == TYPE_GRID
         rows = len(layout[CONF_GRID_ROWS])
         columns = len(layout[CONF_GRID_COLUMNS])
         used_cells = [[None] * columns for _ in range(rows)]
@@ -335,6 +338,17 @@ def append_layout_schema(schema, config: dict):
     if CONF_LAYOUT not in config:
         # If no layout is specified, return the schema as is
         return schema.extend({cv.Optional(CONF_WIDGETS): any_widget_schema()})
+    layout = config[CONF_LAYOUT]
+    # Sanity check the layout to avoid redundant checks in each type
+    if not isinstance(layout, str) and not isinstance(layout, dict):
+        raise cv.Invalid(
+            "The 'layout' option must be a string or a dictionary", [CONF_LAYOUT]
+        )
+    if isinstance(layout, dict) and not isinstance(layout.get(CONF_TYPE), str):
+        raise cv.Invalid(
+            "Invalid layout type; must be a string ('flex' or 'grid')",
+            [CONF_LAYOUT, CONF_TYPE],
+        )
 
     for layout_class in LAYOUT_CLASSES:
         layout_schema, child_schema = layout_class.get_layout_schemas(config)
@@ -348,10 +362,17 @@ def append_layout_schema(schema, config: dict):
             layout_schema.add_extra(layout_class.validate)
             return layout_schema.extend(schema)
 
-    # If no layout class matched, return a default schema
-    return cv.Schema(
-        {
-            cv.Optional(CONF_LAYOUT): cv.one_of(*LAYOUT_CHOICES, lower=True),
-            cv.Optional(CONF_WIDGETS): any_widget_schema(),
-        }
+    if isinstance(layout, dict):
+        raise cv.Invalid(
+            "Invalid layout type; must be 'flex' or 'grid'", [CONF_LAYOUT, CONF_TYPE]
+        )
+    raise cv.Invalid(
+        textwrap.dedent(
+            """
+                Invalid 'layout' value
+                layout choices are 'horizontal', 'vertical', '<rows>x<cols>',
+                or a dictionary with a 'type' key
+            """
+        ),
+        [CONF_LAYOUT],
     )

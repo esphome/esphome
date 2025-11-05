@@ -20,7 +20,7 @@ template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Par
     this->static_ = true;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->static_) {
       this->parent_->send_packet(this->data_static_);
     } else {

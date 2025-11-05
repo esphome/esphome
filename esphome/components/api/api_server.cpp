@@ -224,7 +224,7 @@ void APIServer::dump_config() {
                 "  Address: %s:%u\n"
                 "  Listen backlog: %u\n"
                 "  Max connections: %u",
-                network::get_use_address().c_str(), this->port_, this->listen_backlog_, this->max_connections_);
+                network::get_use_address(), this->port_, this->listen_backlog_, this->max_connections_);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {
