@@ -383,7 +383,7 @@ def _build_list_index(
     return index, extensions, removals
 
 
-def resolve_extend_remove(value: Any, is_key: bool = None):
+def resolve_extend_remove(value: Any, is_key: bool = False) -> None:
     if isinstance(value, ESPLiteralValue):
         return  # do not check inside literal blocks
     if isinstance(value, list):
