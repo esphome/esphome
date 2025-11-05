@@ -93,14 +93,65 @@ bool WebDAVServer::start_server() {
       .user_ctx = this,
   };
 
-  httpd_register_uri_handler(this->server_, &get_handler);
-  httpd_register_uri_handler(this->server_, &put_handler);
-  httpd_register_uri_handler(this->server_, &delete_handler);
-  httpd_register_uri_handler(this->server_, &propfind_handler);
-  httpd_register_uri_handler(this->server_, &mkcol_handler);
-  httpd_register_uri_handler(this->server_, &move_handler);
-  httpd_register_uri_handler(this->server_, &copy_handler);
+  esp_err_t err;
 
+  err = httpd_register_uri_handler(this->server_, &get_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register GET handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered GET handler");
+
+  err = httpd_register_uri_handler(this->server_, &put_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register PUT handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered PUT handler");
+
+  err = httpd_register_uri_handler(this->server_, &delete_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register DELETE handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered DELETE handler");
+
+  err = httpd_register_uri_handler(this->server_, &propfind_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register PROPFIND handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered PROPFIND handler");
+
+  err = httpd_register_uri_handler(this->server_, &mkcol_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register MKCOL handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered MKCOL handler");
+
+  err = httpd_register_uri_handler(this->server_, &move_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register MOVE handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered MOVE handler");
+
+  err = httpd_register_uri_handler(this->server_, &copy_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register COPY handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered COPY handler");
+
+  ESP_LOGI(TAG, "All handlers registered successfully");
   return true;
 }
 
