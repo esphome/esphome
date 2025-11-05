@@ -52,6 +52,10 @@ def _ensure_buffer_size(value: int) -> int:
 
 
 async def to_code(config):
+    # External IDF component dependency:
+    # Using espressif/usb_host_uac version 1.3.1 (minimum required).
+    # If updating, ensure compatibility with ESPHome and supported ESP32 variants.
+    # See: https://components.espressif.com/components/espressif/usb_host_uac
     esp32.add_idf_component(name="espressif/usb_host_uac", ref="1.3.1")
 
     var = cg.new_Pvariable(config[CONF_ID])
