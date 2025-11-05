@@ -117,6 +117,9 @@ class StorageImage : public Component, public image::Image {
   // Debug info
   std::string get_debug_info() const;
 
+  // Mount ready callback (public so lambdas can access it)
+  void on_mount_ready(const std::string &mount_path);
+
  protected:
   // Image state
   std::string file_path_;
@@ -139,9 +142,6 @@ class StorageImage : public Component, public image::Image {
   uint32_t retry_max_attempts_{30};   // Max 30 attempts (60 seconds total)
   uint32_t retry_count_{0};           // Current retry count
   uint32_t last_retry_time_{0};       // Timestamp of last retry attempt
-
-  // NEW: Event-based loading helper
-  void on_mount_ready(const std::string &mount_path);
 
  private:
   // Image processing
