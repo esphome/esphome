@@ -24,6 +24,12 @@
 #include <JPEGDEC.h>
 #endif
 
+// Hardware JPEG decoder for ESP32-P4
+#ifdef USE_HARDWARE_JPEG_DECODER
+#include "driver/jpeg_decode.h"
+#include "driver/jpeg_types.h"
+#endif
+
 namespace esphome {
 namespace storage_host {
 
@@ -90,6 +96,7 @@ class StorageImage : public Component, public image::Image {
   void set_retry_enabled(bool enabled) { this->retry_enabled_ = enabled; }
   void set_retry_interval(uint32_t interval_ms) { this->retry_interval_ms_ = interval_ms; }
   void set_retry_max_attempts(uint32_t max_attempts) { this->retry_max_attempts_ = max_attempts; }
+  void set_use_hardware_decoder(bool use_hw) { this->use_hardware_decoder_ = use_hw; }
 
   // Loading/unloading
   bool load_image();
@@ -173,6 +180,14 @@ class StorageImage : public Component, public image::Image {
   JPEGDEC *jpeg_decoder_{nullptr};
   bool jpeg_decode_pixel(int x, int y, uint8_t r, uint8_t g, uint8_t b);
 #endif
+
+  // Hardware JPEG decoder (ESP32-P4)
+#ifdef USE_HARDWARE_JPEG_DECODER
+  bool decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data);
+  jpeg_decoder_handle_t hw_decoder_{nullptr};
+#endif
+
+  bool use_hardware_decoder_{true};  // Prefer HW decoder if available
 
   // Drawing helpers
   void draw_pixels_directly(int x, int y, display::Display *display, Color color_on, Color color_off);

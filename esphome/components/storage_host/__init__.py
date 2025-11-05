@@ -36,6 +36,7 @@ CONF_BYTE_ORDER = "byte_order"
 CONF_RETRY_ENABLED = "retry_enabled"
 CONF_RETRY_INTERVAL = "retry_interval"
 CONF_RETRY_MAX_ATTEMPTS = "retry_max_attempts"
+CONF_USE_HARDWARE_DECODER = "use_hardware_decoder"
 
 PLATFORM_SD_DIRECT = "sd_direct"
 PLATFORM_USB_MSC = "usb_msc"
@@ -74,6 +75,8 @@ STORAGE_IMAGE_SCHEMA = cv.Schema(
             CONF_RETRY_INTERVAL, default="2s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_RETRY_MAX_ATTEMPTS, default=30): cv.int_range(min=1, max=100),
+        # Hardware JPEG decoder (ESP32-P4 only)
+        cv.Optional(CONF_USE_HARDWARE_DECODER, default=True): cv.boolean,
     }
 )
 
@@ -89,10 +92,19 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    from esphome.components.esp32 import add_idf_component, get_esp32_variant
+    from esphome.components.esp32.const import VARIANT_ESP32P4
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     cg.add_define("USE_STORAGE_HOST")
+
+    # Add hardware JPEG decoder support for ESP32-P4
+    if get_esp32_variant() == VARIANT_ESP32P4:
+        add_idf_component("esp_driver_jpeg")
+        cg.add_define("USE_HARDWARE_JPEG_DECODER")
+        _LOGGER.info("Hardware JPEG decoder enabled for ESP32-P4")
 
     # JPEGDEC library can be added via include_libs in YAML config
 
@@ -151,6 +163,9 @@ async def setup_storage_image_component(config, parent_storage):
     cg.add(var.set_retry_enabled(config[CONF_RETRY_ENABLED]))
     cg.add(var.set_retry_interval(config[CONF_RETRY_INTERVAL]))
     cg.add(var.set_retry_max_attempts(config[CONF_RETRY_MAX_ATTEMPTS]))
+
+    # Hardware decoder configuration
+    cg.add(var.set_use_hardware_decoder(config[CONF_USE_HARDWARE_DECODER]))
 
     # NEW: Event-based loading (Ansatz 3)
     # Register callback with USB MSC devices if available
