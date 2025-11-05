@@ -204,7 +204,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       timeout_retry_count = 0;
       ESP_LOGV(TAG_SPK, "Chunk write ok chunk=%u total_written=%u", (unsigned) chunk, (unsigned) total_written);
 
-      const size_t frames_written = bytes_per_frame > 0 ? (chunk / bytes_per_frame) : 0;
+      const size_t frames_written = chunk / bytes_per_frame;
       if (frames_written > 0) {
         const int64_t timestamp_us = esp_timer_get_time();
         this->audio_output_callback_(static_cast<uint32_t>(frames_written), timestamp_us);
