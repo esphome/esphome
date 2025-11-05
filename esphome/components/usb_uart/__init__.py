@@ -6,7 +6,11 @@ from esphome.components.uart import (
     CONF_STOP_BITS,
     UARTComponent,
 )
-from esphome.components.usb_host import register_usb_client, usb_device_schema, USBClient
+from esphome.components.usb_host import (
+    USBClient,
+    register_usb_client,
+    usb_device_schema,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -17,7 +21,6 @@ from esphome.const import (
     CONF_ID,
 )
 from esphome.core import CORE
-from esphome.cpp_types import Component
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -70,7 +73,7 @@ uart_types = (
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
-    # Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
+    Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
     Type("CP210X", 0x10C4, 0xEA60, "CP210X", 4),
 )
 
