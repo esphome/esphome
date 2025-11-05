@@ -5,7 +5,6 @@
 #if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 extern "C" {
@@ -112,9 +111,9 @@ class USBAudioComponent : public Component {
   bool apply_speaker_mute_();
   bool is_ready_(const AudioEndpointConfig &config) const { return config.configured && config.buffer_size > 0; }
 
-  static void driver_event_stub_(uint8_t addr, uint8_t iface_num, const uac_host_driver_event_t event, void *user_data);
-  static void device_event_stub_(uac_host_device_handle_t handle, const uac_host_device_event_t event, void *user_data);
-  static void usb_host_task_stub_(void *param);
+  static void driver_event_stub(uint8_t addr, uint8_t iface_num, uac_host_driver_event_t event, void *user_data);
+  static void device_event_stub(uac_host_device_handle_t handle, uac_host_device_event_t event, void *user_data);
+  static void usb_host_task_stub(void *param);
   void usb_host_task_();
 
   QueueHandle_t event_queue_{nullptr};

@@ -37,7 +37,7 @@ class USBAudioMicrophone : public microphone::Microphone, public Component, publ
   void add_enabled_channel(uint8_t channel) { this->enabled_channels_.push_back(channel); }
 
  protected:
-  static void mic_task_(void *param);
+  static void mic_task(void *param);
   void mic_task_loop_();
   void enqueue_frame_(const uint8_t *data, size_t length);
   uint8_t get_effective_channel_count_() const;

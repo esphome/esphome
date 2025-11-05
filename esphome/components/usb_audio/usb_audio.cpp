@@ -80,7 +80,7 @@ void USBAudioComponent::setup() {
       .task_priority = USB_HOST_TASK_PRIORITY,
       .stack_size = USB_HOST_TASK_STACK_SIZE,
       .core_id = 0,
-      .callback = &USBAudioComponent::driver_event_stub_,
+      .callback = &USBAudioComponent::driver_event_stub,
       .callback_arg = this,
   };
 
@@ -100,7 +100,7 @@ void USBAudioComponent::setup() {
 
   this->host_task_running_ = true;
   BaseType_t created =
-      xTaskCreatePinnedToCore(&USBAudioComponent::usb_host_task_stub_, "usb_audio_host", USB_HOST_TASK_STACK_SIZE, this,
+      xTaskCreatePinnedToCore(&USBAudioComponent::usb_host_task_stub, "usb_audio_host", USB_HOST_TASK_STACK_SIZE, this,
                               USB_HOST_TASK_PRIORITY, &this->usb_host_task_handle_, 0);
   if (created != pdPASS) {
     ESP_LOGE(TAG, "Failed to create USB host event task");
@@ -440,7 +440,7 @@ bool USBAudioComponent::open_stream_(const USBAudioEvent &event) {
       .iface_num = event.driver.iface_num,
       .buffer_size = cfg.buffer_size,
       .buffer_threshold = std::max<uint32_t>(cfg.buffer_size / 4, 1U),
-      .callback = &USBAudioComponent::device_event_stub_,
+      .callback = &USBAudioComponent::device_event_stub,
       .callback_arg = this,
   };
 
@@ -747,8 +747,8 @@ void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
   this->device_connected_ = (this->speaker_handle_ != nullptr) || (this->microphone_handle_ != nullptr);
 }
 
-void USBAudioComponent::driver_event_stub_(uint8_t addr, uint8_t iface_num, const uac_host_driver_event_t event,
-                                           void *user_data) {
+void USBAudioComponent::driver_event_stub(uint8_t addr, uint8_t iface_num, const uac_host_driver_event_t event,
+                                          void *user_data) {
   auto *self = static_cast<USBAudioComponent *>(user_data);
   if (self == nullptr || self->event_queue_ == nullptr) {
     return;
@@ -776,8 +776,8 @@ void USBAudioComponent::driver_event_stub_(uint8_t addr, uint8_t iface_num, cons
   }
 }
 
-void USBAudioComponent::device_event_stub_(uac_host_device_handle_t handle, const uac_host_device_event_t event,
-                                           void *user_data) {
+void USBAudioComponent::device_event_stub(uac_host_device_handle_t handle, const uac_host_device_event_t event,
+                                          void *user_data) {
   auto *self = static_cast<USBAudioComponent *>(user_data);
   if (self == nullptr || self->event_queue_ == nullptr) {
     return;
@@ -797,7 +797,7 @@ void USBAudioComponent::device_event_stub_(uac_host_device_handle_t handle, cons
   }
 }
 
-void USBAudioComponent::usb_host_task_stub_(void *param) {
+void USBAudioComponent::usb_host_task_stub(void *param) {
   auto *self = static_cast<USBAudioComponent *>(param);
   if (self != nullptr) {
     self->usb_host_task_();

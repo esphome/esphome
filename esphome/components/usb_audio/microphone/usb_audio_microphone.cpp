@@ -65,7 +65,7 @@ void USBAudioMicrophone::start() {
 
   if (this->task_handle_ == nullptr) {
     this->running_ = true;
-    BaseType_t created = xTaskCreate(&USBAudioMicrophone::mic_task_, "usb_mic", MIC_TASK_STACK_SIZE, this,
+    BaseType_t created = xTaskCreate(&USBAudioMicrophone::mic_task, "usb_mic", MIC_TASK_STACK_SIZE, this,
                                      MIC_TASK_PRIORITY, &this->task_handle_);
     if (created != pdPASS) {
       ESP_LOGE(TAG_MIC, "Failed to create microphone task");
@@ -116,7 +116,7 @@ void USBAudioMicrophone::loop() {
   }
 }
 
-void USBAudioMicrophone::mic_task_(void *param) {
+void USBAudioMicrophone::mic_task(void *param) {
   auto *self = static_cast<USBAudioMicrophone *>(param);
   if (self == nullptr) {
     vTaskDelete(nullptr);
