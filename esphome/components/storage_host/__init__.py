@@ -4,6 +4,8 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import image
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32P4
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TYPE
 
@@ -92,9 +94,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    from esphome.components.esp32 import add_idf_component, get_esp32_variant
-    from esphome.components.esp32.const import VARIANT_ESP32P4
-
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -102,7 +101,7 @@ async def to_code(config):
 
     # Add hardware JPEG decoder support for ESP32-P4
     if get_esp32_variant() == VARIANT_ESP32P4:
-        add_idf_component("esp_driver_jpeg")
+        # add_idf_component("esp_jpeg", ref="1.0.0")
         cg.add_define("USE_HARDWARE_JPEG_DECODER")
         _LOGGER.info("Hardware JPEG decoder enabled for ESP32-P4")
 
