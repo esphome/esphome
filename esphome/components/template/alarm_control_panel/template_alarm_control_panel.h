@@ -49,7 +49,7 @@ struct SensorInfo {
   uint8_t store_index;
 };
 
-class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel, public Component {
+class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControlPanel, public Component {
  public:
   TemplateAlarmControlPanel();
   void dump_config() override;
