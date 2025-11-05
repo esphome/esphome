@@ -265,6 +265,24 @@ std::string WebDAVServer::url_decode(const std::string &src) {
   return result;
 }
 
+std::string WebDAVServer::extract_path_from_url(const std::string &url) {
+  // Check if it's a full URL (starts with http:// or https://)
+  if (url.find("http://") == 0 || url.find("https://") == 0) {
+    // Find the third slash (after protocol://host:port/)
+    size_t first_slash = url.find("//");
+    if (first_slash != std::string::npos) {
+      size_t path_start = url.find('/', first_slash + 2);
+      if (path_start != std::string::npos) {
+        std::string path = url.substr(path_start);
+        ESP_LOGD(TAG, "Extracted path from URL: %s -> %s", url.c_str(), path.c_str());
+        return path;
+      }
+    }
+  }
+  // Not a URL or parsing failed - return as-is
+  return url;
+}
+
 std::string WebDAVServer::generate_prop_xml(const std::string &href, bool is_directory, time_t modified,
                                             size_t size) {
   char time_buf[50];
@@ -620,6 +638,7 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
   auto *server = static_cast<WebDAVServer *>(req->user_ctx);
 
   std::string filepath = server->uri_to_filepath(req->uri);
+  ESP_LOGD(TAG, "MOVE request for: %s", filepath.c_str());
 
   char dest_buf[512];
   if (httpd_req_get_hdr_value_str(req, "Destination", dest_buf, sizeof(dest_buf)) != ESP_OK) {
@@ -627,11 +646,17 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  std::string dest_filepath = server->uri_to_filepath(dest_buf);
+  // Extract path from full URL if needed
+  std::string dest_path = server->extract_path_from_url(dest_buf);
+  std::string dest_filepath = server->uri_to_filepath(dest_path);
+
+  ESP_LOGD(TAG, "MOVE destination: %s", dest_filepath.c_str());
 
   if (rename(filepath.c_str(), dest_filepath.c_str()) == 0) {
+    httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource moved", -1);
   } else {
+    ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d)", filepath.c_str(), dest_filepath.c_str(), errno);
     httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot move resource");
   }
 
@@ -642,6 +667,7 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
   auto *server = static_cast<WebDAVServer *>(req->user_ctx);
 
   std::string filepath = server->uri_to_filepath(req->uri);
+  ESP_LOGD(TAG, "COPY request for: %s", filepath.c_str());
 
   char dest_buf[512];
   if (httpd_req_get_hdr_value_str(req, "Destination", dest_buf, sizeof(dest_buf)) != ESP_OK) {
@@ -649,7 +675,11 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  std::string dest_filepath = server->uri_to_filepath(dest_buf);
+  // Extract path from full URL if needed
+  std::string dest_path = server->extract_path_from_url(dest_buf);
+  std::string dest_filepath = server->uri_to_filepath(dest_path);
+
+  ESP_LOGD(TAG, "COPY destination: %s", dest_filepath.c_str());
 
   // Simple file copy
   std::ifstream src(filepath, std::ios::binary);
@@ -659,8 +689,10 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     dst << src.rdbuf();
     src.close();
     dst.close();
+    httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource copied", -1);
   } else {
+    ESP_LOGE(TAG, "Failed to copy %s to %s (errno: %d)", filepath.c_str(), dest_filepath.c_str(), errno);
     httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot copy resource");
   }
 

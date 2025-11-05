@@ -62,6 +62,7 @@ class WebDAVServer : public Component {
   bool authenticate(const std::string &auth_header);
   std::string uri_to_filepath(const std::string &uri);
   std::string url_decode(const std::string &src);
+  std::string extract_path_from_url(const std::string &url);
   std::string generate_prop_xml(const std::string &href, bool is_directory, time_t modified, size_t size);
   std::vector<std::string> list_dir(const std::string &path);
 
