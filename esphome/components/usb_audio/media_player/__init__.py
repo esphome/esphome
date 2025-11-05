@@ -25,7 +25,7 @@ CONFLICTS_WITH = ["speaker.media_player"]
 
 
 def AUTO_LOAD(config):
-    return speaker_mp.AUTO_LOAD(config)
+    return speaker_mp.AUTO_LOAD
 
 
 SpeakerMediaPlayerBase = speaker_mp.SpeakerMediaPlayer
