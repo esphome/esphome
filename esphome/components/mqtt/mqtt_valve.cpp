@@ -49,9 +49,9 @@ void MQTTValveComponent::dump_config() {
   }
 }
 void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   const auto device_class = this->valve_->get_device_class_ref();
   if (!device_class.empty()) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[MQTT_DEVICE_CLASS] = device_class;
   }
 
