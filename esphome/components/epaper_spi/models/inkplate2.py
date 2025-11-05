@@ -16,20 +16,20 @@ class Inkplate2Model(EpaperModel):
             (0x04,),  # Power on - MUST BE FIRST
             # After power on, state machine waits for busy pin before continuing
             (
-                0x00,
-                0x0F,
-                0x89,
-            ),  # Panel setting: LUT from OTP, temp sensor
+                0x00,  # Enter panel setting
+                0x0F,  # LUT from OTP 128x296
+                0x89,  # Temperature sensor, boost and other related timing settings
+            ),
             (
-                0x61,
+                0x61,  # Enter panel resolution setting
                 width,
                 height >> 8,
                 height & 0xFF,
-            ),  # Resolution setting
+            ),
             (
-                0x50,
-                0x77,
-            ),  # VCOM and data interval setting
+                0x50,  # VCOM and data interval setting
+                0x77,  # WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+            ),
         )
 
     def get_default(self, key, fallback: Any = False) -> Any:
