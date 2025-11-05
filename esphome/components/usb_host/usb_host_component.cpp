@@ -141,6 +141,31 @@ void USBHost::close_device_handle(usb_device_handle_t device_handle) {
   }
 }
 
+void USBHost::add_device_to_whitelist(uint16_t vid, uint16_t pid) {
+  this->device_whitelist_.push_back(std::make_pair(vid, pid));
+  ESP_LOGD(TAG, "Added device to whitelist: VID=0x%04X, PID=0x%04X", vid, pid);
+}
+
+bool USBHost::is_device_whitelisted(uint16_t vid, uint16_t pid) const {
+  // Empty whitelist means all devices allowed
+  if (this->device_whitelist_.empty()) {
+    return true;
+  }
+
+  // Check if device is in whitelist
+  for (const auto &device : this->device_whitelist_) {
+    if (device.first == vid && device.second == pid) {
+      return true;
+    }
+    // Wildcard (0, 0) matches all devices
+    if (device.first == 0 && device.second == 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 }  // namespace usb_host
 }  // namespace esphome
 

@@ -218,11 +218,16 @@ class USBHost : public Component {
   // NEW: Close a device handle (for handlers that need to re-open with different client)
   void close_device_handle(usb_device_handle_t device_handle);
 
+  // Device whitelist management
+  void add_device_to_whitelist(uint16_t vid, uint16_t pid);
+  bool is_device_whitelisted(uint16_t vid, uint16_t pid) const;
+
  protected:
   std::vector<USBClient *> clients_{};             // EXISTING: VID/PID based clients
   std::vector<USBDeviceHandler *> handlers_{};     // NEW: Interface-class based handlers
   std::set<uint8_t> claimed_devices_{};            // NEW: Track devices claimed by VID/PID clients
   usb_host_client_handle_t coordinator_handle_{};  // NEW: Handle for handler dispatch
+  std::vector<std::pair<uint16_t, uint16_t>> device_whitelist_{};  // Whitelist of allowed devices (VID, PID)
 };
 
 }  // namespace usb_host
