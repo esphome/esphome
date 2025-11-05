@@ -62,30 +62,35 @@ This document provides essential context for AI models interacting with this pro
 *   **C++ Field Visibility:**
     *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
     *   **Use `private` for safety-critical cases:** Use `private` visibility when direct field access could introduce bugs or violate invariants:
-        1. **Pointer lifetime issues:** When setters validate pointers against known lists to prevent dangling references.
+        1. **Pointer lifetime issues:** When setters validate and store pointers from known lists to prevent dangling references.
            ```cpp
-           class SelectComponent {
-            public:
-             void set_options(const std::vector<std::string> &options) {
-               this->options_ = options;
-               this->current_option_ = nullptr;  // Reset to prevent dangling pointer
+           // Helper to find matching string in vector and return its pointer
+           inline const char *vector_find(const std::vector<const char *> &vec, const char *value) {
+             for (const char *item : vec) {
+               if (strcmp(item, value) == 0)
+                 return item;
              }
-             void set_selected_option(const std::string *option) {
-               // Validate that option points to an entry in options_ by checking address range
-               if (option == nullptr) {
-                 return;
+             return nullptr;
+           }
+
+           class ClimateDevice {
+            public:
+             void set_custom_fan_modes(std::initializer_list<const char *> modes) {
+               this->custom_fan_modes_ = modes;
+               this->active_custom_fan_mode_ = nullptr;  // Reset when modes change
+             }
+             bool set_custom_fan_mode(const char *mode) {
+               // Find mode in supported list and store that pointer (not the input pointer)
+               const char *validated_mode = vector_find(this->custom_fan_modes_, mode);
+               if (validated_mode != nullptr) {
+                 this->active_custom_fan_mode_ = validated_mode;
+                 return true;
                }
-               for (const auto &opt : this->options_) {
-                 if (&opt == option) {
-                   this->current_option_ = option;
-                   return;
-                 }
-               }
-               // Invalid pointer - doesn't point to an element in options_
+               return false;
              }
             private:
-             std::vector<std::string> options_;
-             const std::string *current_option_{nullptr};  // Must point to entry in options_
+             std::vector<const char *> custom_fan_modes_;  // Pointers to string literals in flash
+             const char *active_custom_fan_mode_{nullptr};  // Must point to entry in custom_fan_modes_
            };
            ```
         2. **Invariant coupling:** When multiple fields must remain synchronized to prevent buffer overflows or data corruption.
