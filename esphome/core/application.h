@@ -47,6 +47,7 @@
 #ifdef USE_WAKE_LOOP_THREADSAFE
 #include <lwip/sockets.h>
 #endif
+#endif  // USE_SOCKET_IMPL_ZEPHYR_SOCKETS
 #endif  // USE_SOCKET_SELECT_SUPPORT
 
 #ifdef USE_BINARY_SENSOR
