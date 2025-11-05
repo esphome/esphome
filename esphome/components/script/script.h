@@ -215,7 +215,7 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
 
   template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
 
-  void play(Ts... x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
+  void play(const Ts &...x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
 
  protected:
   // NOTE:
@@ -249,7 +249,7 @@ template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> 
  public:
   ScriptStopAction(C *script) : script_(script) {}
 
-  void play(Ts... x) override { this->script_->stop(); }
+  void play(const Ts &...x) override { this->script_->stop(); }
 
  protected:
   C *script_;
@@ -259,7 +259,7 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  public:
   explicit IsRunningCondition(C *parent) : parent_(parent) {}
 
-  bool check(Ts... x) override { return this->parent_->is_running(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running(); }
 
  protected:
   C *parent_;
@@ -281,7 +281,7 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     this->disable_loop();
   }
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     // Check if we can continue immediately.
     if (!this->script_->is_running()) {
@@ -312,7 +312,7 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     this->disable_loop();
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
   void stop() override {

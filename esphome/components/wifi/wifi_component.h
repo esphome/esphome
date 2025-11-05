@@ -283,8 +283,8 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  const std::string &get_use_address() const;
-  void set_use_address(const std::string &use_address);
+  const char *get_use_address() const;
+  void set_use_address(const char *use_address);
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
@@ -393,7 +393,6 @@ class WiFiComponent : public Component {
   void wifi_scan_done_callback_();
 #endif
 
-  std::string use_address_;
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
@@ -445,28 +444,33 @@ class WiFiComponent : public Component {
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
   Trigger<> *disconnect_trigger_{new Trigger<>()};
+
+ private:
+  // Stores a pointer to a string literal (static storage duration).
+  // ONLY set from Python-generated code with string literals - never dynamic strings.
+  const char *use_address_{""};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override { return global_wifi_component->is_connected(); }
+  bool check(const Ts &...x) override { return global_wifi_component->is_connected(); }
 };
 
 template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override { return !global_wifi_component->is_disabled(); }
+  bool check(const Ts &...x) override { return !global_wifi_component->is_disabled(); }
 };
 
 template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
  public:
-  void play(Ts... x) override { global_wifi_component->enable(); }
+  void play(const Ts &...x) override { global_wifi_component->enable(); }
 };
 
 template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
  public:
-  void play(Ts... x) override { global_wifi_component->disable(); }
+  void play(const Ts &...x) override { global_wifi_component->disable(); }
 };
 
 template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, public Component {
@@ -476,7 +480,7 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
   TEMPLATABLE_VALUE(bool, save)
   TEMPLATABLE_VALUE(uint32_t, connection_timeout)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto ssid = this->ssid_.value(x...);
     auto password = this->password_.value(x...);
     // Avoid multiple calls

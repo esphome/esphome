@@ -92,5 +92,6 @@ async def to_code(config: ConfigType) -> None:
         CORE.data = {}
     CORE.data["usb_host_instance"] = var
 
+    # Add devices to whitelist (specialized components will register typed objects)
     for device in config.get(CONF_DEVICES) or ():
-        await register_usb_client(device, var)  # NEW: Pass USBHost instance as parent
+        cg.add(var.add_device_to_whitelist(device[CONF_VID], device[CONF_PID]))
