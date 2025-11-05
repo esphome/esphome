@@ -1,5 +1,6 @@
 #include "socket.h"
-#if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+#if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || \
+    defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_ZEPHYR_SOCKETS)
 #include <cerrno>
 #include <cstring>
 #include <string>
@@ -61,9 +62,18 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::stri
     server->sin6_family = AF_INET6;
     server->sin6_port = htons(port);
 
+#ifdef USE_SOCKET_IMPL_ZEPHYR_SOCKETS
+    // Zephyr uses standard POSIX inet_pton
+    if (inet_pton(AF_INET6, ip_address.c_str(), &server->sin6_addr) <= 0) {
+      errno = EINVAL;
+      return 0;
+    }
+#else
+    // lwIP-specific implementation
     ip6_addr_t ip6;
     inet6_aton(ip_address.c_str(), &ip6);
     memcpy(server->sin6_addr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
+#endif
     return sizeof(sockaddr_in6);
   }
 #endif /* USE_NETWORK_IPV6 */
@@ -74,7 +84,15 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::stri
   auto *server = reinterpret_cast<sockaddr_in *>(addr);
   memset(server, 0, sizeof(sockaddr_in));
   server->sin_family = AF_INET;
+#ifdef USE_SOCKET_IMPL_ZEPHYR_SOCKETS
+  // Zephyr uses standard POSIX inet_pton
+  if (inet_pton(AF_INET, ip_address.c_str(), &server->sin_addr) <= 0) {
+    errno = EINVAL;
+    return 0;
+  }
+#else
   server->sin_addr.s_addr = inet_addr(ip_address.c_str());
+#endif
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
 }

@@ -198,4 +198,25 @@ using socklen_t = uint32_t;
 // with method names in the implementation. The implementation will use
 // the zsock_ prefixed functions directly.
 
+// Undefine Zephyr log level macros that conflict with ESPHome API enums
+// These will be redefined if needed by Zephyr components
+#ifdef LOG_LEVEL_NONE
+#undef LOG_LEVEL_NONE
+#endif
+#ifdef LOG_LEVEL_ERROR
+#undef LOG_LEVEL_ERROR
+#endif
+#ifdef LOG_LEVEL_WARN
+#undef LOG_LEVEL_WARN
+#endif
+#ifdef LOG_LEVEL_INFO
+#undef LOG_LEVEL_INFO
+#endif
+#ifdef LOG_LEVEL_DEBUG
+#undef LOG_LEVEL_DEBUG
+#endif
+#ifdef LOG_LEVEL_VERBOSE
+#undef LOG_LEVEL_VERBOSE
+#endif
+
 #endif  // USE_SOCKET_IMPL_ZEPHYR_SOCKETS

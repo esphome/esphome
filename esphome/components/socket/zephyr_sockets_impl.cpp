@@ -50,9 +50,6 @@ static const int O_NONBLOCK = 0x4000;
 namespace esphome {
 namespace socket {
 
-// Add Socket destructor implementation
-Socket::~Socket() {}
-
 std::string format_sockaddr(const struct sockaddr_storage &storage) {
   char buf[INET6_ADDRSTRLEN];
 
@@ -71,13 +68,14 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
 
 class ZephyrSocketImpl : public Socket {
  public:
-  ZephyrSocketImpl(int fd) : fd_(fd) {
+  ZephyrSocketImpl(int fd, bool loop_monitored = false) : fd_(fd) {
+    loop_monitored_ = loop_monitored;
     // Get the socket type
     int type;
     socklen_t len = sizeof(type);
     if (zsock_getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &len) == 0) {
       socket_type_ = type;
-      ESP_LOGD("socket", "Socket fd=%d has type %d", fd_, socket_type_);
+      ESP_LOGD("socket", "Socket fd=%d has type %d, loop_monitored=%d", fd_, socket_type_, loop_monitored_);
     } else {
       ESP_LOGW("socket", "Failed to get socket type for fd=%d, errno: %d (%s)", fd_, errno, strerror(errno));
     }
@@ -259,12 +257,12 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   return std::unique_ptr<Socket>{new ZephyrSocketImpl(ret)};
 }
 
-// Implement socket_ip for Zephyr
-std::unique_ptr<Socket> socket_ip(int type, int protocol) {
+// OpenThread-specific socket creation - only used when USE_ZEPHYR_OPENTHREAD is defined
+#ifdef USE_ZEPHYR_OPENTHREAD
+static std::unique_ptr<Socket> socket_ip_openthread(int type, int protocol) {
   std::unique_ptr<Socket> ret = nullptr;
   int sock_fd = -1;
 
-#ifdef USE_ZEPHYR_OPENTHREAD
   // Check if OpenThread is active
   bool openthread_active =
       openthread::global_openthread_component != nullptr && openthread::global_openthread_component->is_connected();
@@ -286,7 +284,6 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
     return nullptr;
 #endif
   }
-#endif
 
 #if defined(CONFIG_NET_IPV6)
   // Try IPv6 first if not enforced by OpenThread
@@ -323,9 +320,11 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
   ESP_LOGE("socket", "Failed to create any socket");
   return nullptr;
 }
+#endif  // USE_ZEPHYR_OPENTHREAD
 
-// Update the set_sockaddr function to use DNS resolution for hostnames
-socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
+// Zephyr-specific set_sockaddr with DNS resolution - only used when needed
+#if 0  // Disabled - using generic implementation from socket.cpp
+socklen_t set_sockaddr_zephyr_dns(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
   // Check if this is an IPv6 address (contains ':')
   bool is_ipv6 = ip_address.find(':') != std::string::npos;
 
@@ -428,15 +427,18 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::stri
     return sizeof(struct sockaddr_in);
   }
 }
+#endif  // Disabled set_sockaddr_zephyr_dns
 
-// Implement set_sockaddr_any for Zephyr
-socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port) {
-  struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in *>(addr);
-  memset(addr_in, 0, sizeof(*addr_in));
-  addr_in->sin_family = AF_INET;
-  addr_in->sin_port = htons(port);
-  addr_in->sin_addr.s_addr = INADDR_ANY;
-  return sizeof(*addr_in);
+// set_sockaddr_any is implemented in socket.cpp for all platforms including Zephyr
+// No Zephyr-specific override needed
+
+std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol) {
+  int sock_fd = zsock_socket(domain, type, protocol);
+  if (sock_fd < 0) {
+    ESP_LOGE("socket", "Failed to create socket, errno: %d (%s)", errno, strerror(errno));
+    return nullptr;
+  }
+  return std::unique_ptr<Socket>{new ZephyrSocketImpl(sock_fd, true)};
 }
 
 }  // namespace socket
