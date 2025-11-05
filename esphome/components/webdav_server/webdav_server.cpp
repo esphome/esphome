@@ -982,16 +982,30 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
       return ESP_OK;
     }
 
-    // Perform synchronous cross-mount move (blocks this client until complete)
-    ESP_LOGI(TAG, "Starting synchronous cross-mount move: %s -> %s (%zu bytes)", filepath.c_str(), dest_filepath.c_str(),
+    // Perform cross-mount move using simple copy+delete
+    ESP_LOGI(TAG, "Starting cross-mount move: %s -> %s (%zu bytes)", filepath.c_str(), dest_filepath.c_str(),
              (size_t) src_stat.st_size);
 
-    if (server->perform_file_move(filepath, dest_filepath, src_stat.st_size)) {
-      ESP_LOGI(TAG, "Cross-mount move completed successfully");
-      httpd_resp_set_status(req, "201 Created");
-      httpd_resp_send(req, "Resource moved", -1);
+    std::ifstream src(filepath, std::ios::binary);
+    std::ofstream dst(dest_filepath, std::ios::binary);
+
+    if (src.is_open() && dst.is_open()) {
+      dst << src.rdbuf();
+      src.close();
+      dst.close();
+
+      // Delete source after successful copy
+      if (remove(filepath.c_str()) == 0) {
+        ESP_LOGI(TAG, "Cross-mount move completed successfully");
+        httpd_resp_set_status(req, "201 Created");
+        httpd_resp_send(req, "Resource moved", -1);
+      } else {
+        ESP_LOGE(TAG, "Failed to delete source after copy: %s (errno: %d)", filepath.c_str(), errno);
+        httpd_resp_set_status(req, "201 Created");
+        httpd_resp_send(req, "Resource copied but source remains", -1);
+      }
     } else {
-      ESP_LOGE(TAG, "Cross-mount move failed");
+      ESP_LOGE(TAG, "Failed to copy %s to %s (errno: %d)", filepath.c_str(), dest_filepath.c_str(), errno);
       httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Move failed");
     }
   } else {
@@ -1022,31 +1036,19 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
 
   ESP_LOGD(TAG, "COPY destination: %s", dest_filepath.c_str());
 
-  // Check if source exists and is a file
-  struct stat src_stat;
-  if (stat(filepath.c_str(), &src_stat) != 0) {
-    ESP_LOGE(TAG, "Source file not found: %s", filepath.c_str());
-    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Source not found");
-    return ESP_OK;
-  }
+  // Simple file copy using stream rdbuf() - fast and efficient
+  std::ifstream src(filepath, std::ios::binary);
+  std::ofstream dst(dest_filepath, std::ios::binary);
 
-  if (S_ISDIR(src_stat.st_mode)) {
-    ESP_LOGE(TAG, "Directory copy not supported: %s", filepath.c_str());
-    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Directory copy not supported");
-    return ESP_OK;
-  }
-
-  // Perform synchronous copy (blocks this client until complete)
-  ESP_LOGI(TAG, "Starting synchronous copy: %s -> %s (%zu bytes)", filepath.c_str(), dest_filepath.c_str(),
-           (size_t) src_stat.st_size);
-
-  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size)) {
-    ESP_LOGI(TAG, "Copy completed successfully");
+  if (src.is_open() && dst.is_open()) {
+    dst << src.rdbuf();
+    src.close();
+    dst.close();
     httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource copied", -1);
   } else {
-    ESP_LOGE(TAG, "Copy failed");
-    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
+    ESP_LOGE(TAG, "Failed to copy %s to %s (errno: %d)", filepath.c_str(), dest_filepath.c_str(), errno);
+    httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot copy resource");
   }
 
   return ESP_OK;
