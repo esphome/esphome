@@ -190,6 +190,11 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
   TEMPLATABLE_VALUE(bool, capture_response)
 #endif
 
+  void setup() override {
+    // Start with loop disabled - only enable when there's work to do
+    this->disable_loop();
+  }
+
   void add_request_header(const char *key, TemplatableValue<const char *, Ts...> value) {
     this->request_headers_.insert({key, value});
   }
