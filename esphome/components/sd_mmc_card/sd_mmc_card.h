@@ -4,6 +4,7 @@
 #include "esphome/core/gpio.h"
 #include <string>
 #include <vector>
+#include <functional>
 #include <cstdint>
 
 namespace esphome {
@@ -28,6 +29,9 @@ struct FileInfo {
 
 enum MemoryUnits : short { Byte = 0, KiloByte = 1, MegaByte = 2, GigaByte = 3, TeraByte = 4, PetaByte = 5 };
 
+// Forward declaration for mount callback
+using mount_ready_callback_t = std::function<void(const std::string &mount_path)>;
+
 class SdMmc : public Component {
  public:
   void setup() override;
@@ -45,6 +49,7 @@ class SdMmc : public Component {
   void set_mode_1bit(bool mode_1bit) { this->mode_1bit_ = mode_1bit; }
   void set_power_ctrl_pin(uint8_t pin) { this->power_ctrl_pin_ = pin; }
   void set_slot(uint8_t slot) { this->slot_ = slot; }
+  void set_mount_path(const std::string &path) { this->mount_path_ = path; }
 
   // File operations
   bool write_file(const std::string &path, const std::string &data);
@@ -67,6 +72,16 @@ class SdMmc : public Component {
   uint64_t get_total_bytes() const { return this->total_bytes_; }
   uint64_t get_used_bytes() const { return this->used_bytes_; }
 
+  // NEW: Public mount/unmount methods for external control
+  bool mount_card();
+  void unmount_card();
+
+  // NEW: Mount notification system for storage consumers
+  void add_mount_ready_callback(const mount_ready_callback_t &callback) {
+    this->mount_ready_callbacks_.push_back(callback);
+  }
+  const std::string &get_mount_path() const { return this->mount_path_; }
+
  private:
   // Pin configuration
   uint8_t clk_pin_{0};
@@ -85,9 +100,11 @@ class SdMmc : public Component {
   uint64_t total_bytes_{0};
   uint64_t used_bytes_{0};
 
-  // Mount management
-  bool mount_card();
-  void unmount_card();
+  // NEW: Mount configuration and callbacks
+  std::string mount_path_{"/sdcard"};                          // Default mount path
+  std::vector<mount_ready_callback_t> mount_ready_callbacks_;  // Callbacks to notify when mount is ready
+
+  // Mount management (internal)
   bool update_card_info();
 };
 

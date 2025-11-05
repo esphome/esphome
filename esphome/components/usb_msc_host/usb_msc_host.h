@@ -25,6 +25,8 @@
 #include <string.h>
 #include <sys/param.h>
 #include <sys/queue.h>
+#include <functional>
+#include <vector>
 
 namespace esphome {
 namespace usb_msc_host {
@@ -67,6 +69,9 @@ class USBMscHost : public Component {
   msc_dev_entry_t *msc_devices_[MAX_MSC_DEVICES] = {NULL};
 };
 
+// Forward declaration for mount callback
+using mount_ready_callback_t = std::function<void(const std::string &mount_path)>;
+
 class USBMscDevice : public Component, public usb_host::USBDeviceHandler, public Parented<USBMscHost> {
   friend class USBHost;
   friend class USBMscHost;
@@ -93,14 +98,28 @@ class USBMscDevice : public Component, public usb_host::USBDeviceHandler, public
   void print_device_info();
   uint8_t find_usb_addr_by_handle(msc_host_device_handle_t handle);
 
+  // NEW: Mount notification system for storage consumers
+  void add_mount_ready_callback(const mount_ready_callback_t &callback) {
+    this->mount_ready_callbacks_.push_back(callback);
+  }
+  const std::string &get_mount_path() const { return this->mount_path_; }
+  bool is_mounted() const { return this->slot_ >= 0; }
+
+  // NEW: Public mount/unmount methods for external control
+  // Note: mount() is triggered automatically by on_device_connected()
+  // These methods allow manual control if needed
+  bool remount_device();
+  void unmount_device();
+
  protected:
   usb_device_handle_t device_handle_{nullptr};
   uint8_t device_addr_{255};
   usb_host::USBHost *usb_host_{nullptr};
   std::string mount_path_;
-  uint16_t vid_{0x0000};  // 0x0000 = wildcard, match any VID
-  uint16_t pid_{0x0000};  // 0x0000 = wildcard, match any PID
-  int8_t slot_{-1};       // Track which slot this device is using
+  uint16_t vid_{0x0000};                                       // 0x0000 = wildcard, match any VID
+  uint16_t pid_{0x0000};                                       // 0x0000 = wildcard, match any PID
+  int8_t slot_{-1};                                            // Track which slot this device is using
+  std::vector<mount_ready_callback_t> mount_ready_callbacks_;  // NEW: Callbacks to notify when mount is ready
 };
 
 }  // namespace usb_msc_host

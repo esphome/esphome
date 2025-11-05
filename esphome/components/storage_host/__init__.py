@@ -33,6 +33,9 @@ CONF_AUTO_LOAD = "auto_load"
 CONF_MOUNT_SOURCE = "mount_source"
 CONF_RESIZE = "resize"
 CONF_BYTE_ORDER = "byte_order"
+CONF_RETRY_ENABLED = "retry_enabled"
+CONF_RETRY_INTERVAL = "retry_interval"
+CONF_RETRY_MAX_ATTEMPTS = "retry_max_attempts"
 
 PLATFORM_SD_DIRECT = "sd_direct"
 PLATFORM_USB_MSC = "usb_msc"
@@ -65,6 +68,12 @@ STORAGE_IMAGE_SCHEMA = cv.Schema(
         cv.Optional(CONF_BYTE_ORDER, default="little_endian"): cv.one_of(
             "little_endian", "big_endian"
         ),
+        # NEW: Retry mechanism configuration (Ansatz 2)
+        cv.Optional(CONF_RETRY_ENABLED, default=True): cv.boolean,
+        cv.Optional(
+            CONF_RETRY_INTERVAL, default="2s"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_RETRY_MAX_ATTEMPTS, default=30): cv.int_range(min=1, max=100),
     }
 )
 
@@ -109,7 +118,8 @@ async def setup_storage_image_component(config, parent_storage):
     cg.add(var.set_storage_host(parent_storage))
 
     # Set file path
-    cg.add(var.set_file_path(config[CONF_FILE]))
+    file_path = config[CONF_FILE]
+    cg.add(var.set_file_path(file_path))
 
     # Get string values from config - pass as strings directly
     format_str = config[CONF_FORMAT]
@@ -134,7 +144,48 @@ async def setup_storage_image_component(config, parent_storage):
                     cg.add(var.set_resize(width, height))
                 except ValueError:
                     _LOGGER.error(
-                        f"Invalid resize format: {resize_str}. Use WIDTHxHEIGHT"
+                        "Invalid resize format: %s. Use WIDTHxHEIGHT", resize_str
                     )
+
+    # NEW: Configure retry mechanism (Ansatz 2)
+    cg.add(var.set_retry_enabled(config[CONF_RETRY_ENABLED]))
+    cg.add(var.set_retry_interval(config[CONF_RETRY_INTERVAL]))
+    cg.add(var.set_retry_max_attempts(config[CONF_RETRY_MAX_ATTEMPTS]))
+
+    # NEW: Event-based loading (Ansatz 3)
+    # Register callback with USB MSC devices if available
+    from esphome.core import CORE
+
+    if hasattr(CORE, "data") and "usb_msc_devices" in CORE.data:
+        for usb_device in CORE.data["usb_msc_devices"]:
+            # Register callback: when USB device is mounted, try to load this image
+            # Only register if the file path starts with the mount path of this USB device
+            cg.add(
+                usb_device.add_mount_ready_callback(
+                    cg.RawExpression(
+                        f"[this]({cg.std_string} mount_path) {{ this->on_mount_ready(mount_path); }}"
+                    )
+                )
+            )
+            _LOGGER.info(
+                "Registered mount ready callback for image '%s' with USB MSC device",
+                file_path,
+            )
+
+    # Register callback with SD MMC devices if available
+    if hasattr(CORE, "data") and "sd_mmc_devices" in CORE.data:
+        for sd_device in CORE.data["sd_mmc_devices"]:
+            # Register callback: when SD card is mounted, try to load this image
+            cg.add(
+                sd_device.add_mount_ready_callback(
+                    cg.RawExpression(
+                        f"[this]({cg.std_string} mount_path) {{ this->on_mount_ready(mount_path); }}"
+                    )
+                )
+            )
+            _LOGGER.info(
+                "Registered mount ready callback for image '%s' with SD MMC device",
+                file_path,
+            )
 
     return var

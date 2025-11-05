@@ -87,6 +87,9 @@ class StorageImage : public Component, public image::Image {
     this->resize_width_ = width;
     this->resize_height_ = height;
   }
+  void set_retry_enabled(bool enabled) { this->retry_enabled_ = enabled; }
+  void set_retry_interval(uint32_t interval_ms) { this->retry_interval_ms_ = interval_ms; }
+  void set_retry_max_attempts(uint32_t max_attempts) { this->retry_max_attempts_ = max_attempts; }
 
   // Loading/unloading
   bool load_image();
@@ -129,6 +132,16 @@ class StorageImage : public Component, public image::Image {
   int resize_width_{0};
   int resize_height_{0};
   ImageFormat format_{ImageFormat::RGB565};
+
+  // NEW: Retry mechanism (Ansatz 2)
+  bool retry_enabled_{true};          // Enable retry by default
+  uint32_t retry_interval_ms_{2000};  // Retry every 2 seconds
+  uint32_t retry_max_attempts_{30};   // Max 30 attempts (60 seconds total)
+  uint32_t retry_count_{0};           // Current retry count
+  uint32_t last_retry_time_{0};       // Timestamp of last retry attempt
+
+  // NEW: Event-based loading helper
+  void on_mount_ready(const std::string &mount_path);
 
  private:
   // Image processing

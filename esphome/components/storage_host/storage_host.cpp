@@ -162,6 +162,11 @@ void StorageImage::setup() {
   ESP_LOGCONFIG(TAG, "  Format: %s", this->format_to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Auto load: %s", this->auto_load_ ? "YES" : "NO");
   ESP_LOGCONFIG(TAG, "  Storage host: %s", this->storage_host_ ? "configured" : "not configured");
+  ESP_LOGCONFIG(TAG, "  Retry enabled: %s", this->retry_enabled_ ? "YES" : "NO");
+  if (this->retry_enabled_) {
+    ESP_LOGCONFIG(TAG, "  Retry interval: %u ms", this->retry_interval_ms_);
+    ESP_LOGCONFIG(TAG, "  Retry max attempts: %u", this->retry_max_attempts_);
+  }
   ESP_LOGCONFIG(TAG, "  Decoders: JPEG available");
 
   // Auto-load image if enabled
@@ -176,21 +181,50 @@ void StorageImage::setup() {
       return;
     }
 
-    // Wait a bit for storage to be ready
-    ESP_LOGI(TAG, "Waiting for storage to be ready...");
-    delay(500);
-
-    ESP_LOGI(TAG, "Auto-loading image from: %s", this->file_path_.c_str());
+    ESP_LOGI(TAG, "Attempting to auto-load image from: %s", this->file_path_.c_str());
     if (this->load_image()) {
       ESP_LOGI(TAG, "Image auto-loaded successfully!");
+      this->retry_count_ = 0;  // Reset retry counter on success
     } else {
-      ESP_LOGW(TAG, "Failed to auto-load image");
+      if (this->retry_enabled_) {
+        ESP_LOGI(TAG, "Initial load failed, retry mechanism enabled (will retry every %u ms)",
+                 this->retry_interval_ms_);
+        this->last_retry_time_ = millis();
+      } else {
+        ESP_LOGW(TAG, "Failed to auto-load image (retry disabled)");
+      }
     }
   }
 }
 
 void StorageImage::loop() {
-  // Nothing to do in loop
+  // NEW: Retry mechanism (Ansatz 2)
+  // If image is not loaded and retry is enabled, periodically try to load it
+  if (!this->image_loaded_ && this->retry_enabled_ && this->auto_load_) {
+    uint32_t now = millis();
+
+    // Check if enough time has passed since last retry
+    if (now - this->last_retry_time_ >= this->retry_interval_ms_) {
+      // Check if we haven't exceeded max attempts
+      if (this->retry_count_ < this->retry_max_attempts_) {
+        this->retry_count_++;
+        this->last_retry_time_ = now;
+
+        ESP_LOGD(TAG, "Retry attempt %u/%u to load image from: %s", this->retry_count_, this->retry_max_attempts_,
+                 this->file_path_.c_str());
+
+        if (this->load_image()) {
+          ESP_LOGI(TAG, "Image loaded successfully on retry attempt %u!", this->retry_count_);
+          this->retry_count_ = 0;  // Reset counter on success
+        }
+      } else if (this->retry_count_ == this->retry_max_attempts_) {
+        // Log once when max attempts reached
+        ESP_LOGW(TAG, "Max retry attempts (%u) reached for image: %s", this->retry_max_attempts_,
+                 this->file_path_.c_str());
+        this->retry_count_++;  // Increment to prevent repeated logging
+      }
+    }
+  }
 }
 
 void StorageImage::dump_config() {
@@ -827,6 +861,32 @@ bool StorageImage::extract_jpeg_dimensions(const std::vector<uint8_t> &data, int
     }
   }
   return false;
+}
+
+// NEW: Event-based loading (Ansatz 3)
+// Called when a USB mount becomes ready
+void StorageImage::on_mount_ready(const std::string &mount_path) {
+  // Check if this mount is relevant for our image
+  if (this->file_path_.empty()) {
+    return;
+  }
+
+  // Check if file path starts with this mount path
+  if (this->file_path_.compare(0, mount_path.length(), mount_path) != 0) {
+    ESP_LOGD(TAG, "Mount '%s' not relevant for image '%s'", mount_path.c_str(), this->file_path_.c_str());
+    return;
+  }
+
+  ESP_LOGI(TAG, "Mount '%s' is now ready, attempting to load image from: %s", mount_path.c_str(),
+           this->file_path_.c_str());
+
+  // Attempt to load the image
+  if (this->load_image()) {
+    ESP_LOGI(TAG, "Image loaded successfully after mount ready event!");
+    this->retry_count_ = 0;  // Reset retry counter on success
+  } else {
+    ESP_LOGW(TAG, "Failed to load image even after mount ready event");
+  }
 }
 
 }  // namespace storage_host

@@ -508,6 +508,13 @@ void USBMscDevice::on_device_connected(usb_device_handle_t device_handle, uint8_
   this->list_files();
   this->file_operations();
   this->speed_test();
+
+  // NEW: Notify all registered callbacks that mount is ready
+  ESP_LOGI(TAG, "Notifying %zu mount ready callbacks for '%s'", this->mount_ready_callbacks_.size(),
+           this->mount_path_.c_str());
+  for (const auto &callback : this->mount_ready_callbacks_) {
+    callback(this->mount_path_);
+  }
 }
 
 // NEW: Called when device is disconnected
@@ -528,6 +535,54 @@ void USBMscDevice::on_device_disconnected(usb_device_handle_t device_handle) {
 
   this->device_handle_ = nullptr;
   this->device_addr_ = 255;
+}
+
+// NEW: Public mount/unmount methods
+bool USBMscDevice::remount_device() {
+  if (this->device_addr_ == 255) {
+    ESP_LOGW(TAG, "No device connected, cannot remount");
+    return false;
+  }
+
+  // Unmount first if already mounted
+  if (this->slot_ >= 0) {
+    this->unmount_device();
+  }
+
+  // Re-allocate and mount
+  esp_err_t err = this->parent_->allocate_new_msc_device(this->device_addr_, this->mount_path_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to remount MSC device: %s", esp_err_to_name(err));
+    return false;
+  }
+
+  // Find the slot that was just allocated
+  this->slot_ = this->parent_->find_msc_device_slot(this->device_addr_);
+  if (this->slot_ < 0) {
+    ESP_LOGE(TAG, "Failed to find slot for remounted device!");
+    return false;
+  }
+
+  ESP_LOGI(TAG, "Device remounted successfully to '%s'", this->mount_path_.c_str());
+
+  // Notify callbacks
+  for (const auto &callback : this->mount_ready_callbacks_) {
+    callback(this->mount_path_);
+  }
+
+  return true;
+}
+
+void USBMscDevice::unmount_device() {
+  if (this->slot_ < 0) {
+    ESP_LOGD(TAG, "Device not mounted, nothing to unmount");
+    return;
+  }
+
+  ESP_LOGI(TAG, "Unmounting MSC device from slot %d (mount path: '%s')", this->slot_, this->mount_path_.c_str());
+  this->parent_->free_msc_device(this->slot_);
+  this->slot_ = -1;
+  ESP_LOGI(TAG, "Device unmounted successfully");
 }
 
 }  // namespace usb_msc_host

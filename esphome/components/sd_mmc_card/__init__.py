@@ -65,3 +65,13 @@ async def to_code(config):
 
     if CONF_POWER_CTRL_PIN in config:
         cg.add(var.set_power_ctrl_pin(config[CONF_POWER_CTRL_PIN]))
+
+    # Store device reference in CORE.data for storage_host to access
+    # This allows storage_host to register callbacks with SD MMC card
+    from esphome.core import CORE
+
+    if not hasattr(CORE, "data"):
+        CORE.data = {}
+    if "sd_mmc_devices" not in CORE.data:
+        CORE.data["sd_mmc_devices"] = []
+    CORE.data["sd_mmc_devices"].append(var)

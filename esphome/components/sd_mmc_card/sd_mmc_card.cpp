@@ -85,7 +85,7 @@ bool SdMmc::mount_card() {
   }
 
   // Mount filesystem with retry logic
-  const char *mount_point = "/sdcard";
+  const char *mount_point = this->mount_path_.c_str();
   const esp_vfs_fat_mount_config_t mount_config = {
       .format_if_mount_failed = false,
       .max_files = 16,
@@ -98,10 +98,10 @@ bool SdMmc::mount_card() {
   // Attempt to mount with retries
   ret = ESP_FAIL;
   for (int attempt = 1; attempt <= 3; attempt++) {
-    ESP_LOGI(TAG, "Mounting SD card on slot %d (attempt %d/3)...", this->slot_, attempt);
+    ESP_LOGI(TAG, "Mounting SD card on slot %d to '%s' (attempt %d/3)...", this->slot_, mount_point, attempt);
     ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);
     if (ret == ESP_OK) {
-      ESP_LOGI(TAG, "SD card mounted successfully on slot %d!", this->slot_);
+      ESP_LOGI(TAG, "SD card mounted successfully on slot %d to '%s'!", this->slot_, mount_point);
       break;
     }
     ESP_LOGW(TAG, "Mount attempt %d failed: %s", attempt, esp_err_to_name(ret));
@@ -109,7 +109,7 @@ bool SdMmc::mount_card() {
   }
 
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to mount filesystem: %s", esp_err_to_name(ret));
+    ESP_LOGE(TAG, "Failed to mount filesystem to '%s': %s", mount_point, esp_err_to_name(ret));
     free(card);
     card = nullptr;
     return false;
@@ -134,15 +134,24 @@ bool SdMmc::mount_card() {
   this->update_card_info();
 
   ESP_LOGI(TAG, "SD/MMC card mounted successfully at %s", mount_point);
+
+  // NEW: Notify all registered callbacks that mount is ready
+  ESP_LOGI(TAG, "Notifying %zu mount ready callbacks for '%s'", this->mount_ready_callbacks_.size(), mount_point);
+  for (const auto &callback : this->mount_ready_callbacks_) {
+    callback(this->mount_path_);
+  }
+
   return true;
 }
 
 void SdMmc::unmount_card() {
   if (this->is_mounted_ && card != nullptr) {
-    esp_vfs_fat_sdcard_unmount("/sdcard", card);
+    ESP_LOGI(TAG, "Unmounting SD/MMC card from '%s'", this->mount_path_.c_str());
+    esp_vfs_fat_sdcard_unmount(this->mount_path_.c_str(), card);
     free(card);
     card = nullptr;
     this->is_mounted_ = false;
+    ESP_LOGI(TAG, "SD/MMC card unmounted successfully");
   }
 }
 
@@ -167,7 +176,7 @@ bool SdMmc::write_file(const std::string &path, const std::string &data) {
     return false;
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
   std::ofstream file(full_path, std::ios::binary);
 
   if (!file.is_open()) {
@@ -188,7 +197,7 @@ bool SdMmc::append_file(const std::string &path, const std::string &data) {
     return false;
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
   std::ofstream file(full_path, std::ios::binary | std::ios::app);
 
   if (!file.is_open()) {
@@ -209,7 +218,7 @@ std::string SdMmc::read_file(const std::string &path) {
     return "";
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
   std::ifstream file(full_path, std::ios::binary);
 
   if (!file.is_open()) {
@@ -230,7 +239,7 @@ bool SdMmc::delete_file(const std::string &path) {
     return false;
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
 
   if (remove(full_path.c_str()) == 0) {
     ESP_LOGD(TAG, "Deleted file: %s", full_path.c_str());
@@ -247,7 +256,7 @@ bool SdMmc::create_directory(const std::string &path) {
     return false;
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
 
   if (mkdir(full_path.c_str(), 0755) == 0) {
     ESP_LOGD(TAG, "Created directory: %s", full_path.c_str());
@@ -264,7 +273,7 @@ bool SdMmc::remove_directory(const std::string &path) {
     return false;
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
 
   if (rmdir(full_path.c_str()) == 0) {
     ESP_LOGD(TAG, "Removed directory: %s", full_path.c_str());
@@ -280,7 +289,7 @@ bool SdMmc::is_directory(const std::string &path) {
     return false;
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
   struct stat path_stat;
 
   if (stat(full_path.c_str(), &path_stat) != 0) {
@@ -295,7 +304,7 @@ uint32_t SdMmc::file_size(const std::string &path) {
     return 0;
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
   struct stat path_stat;
 
   if (stat(full_path.c_str(), &path_stat) != 0) {
@@ -313,7 +322,7 @@ std::vector<FileInfo> SdMmc::list_directory(const std::string &path) {
     return files;
   }
 
-  std::string full_path = "/sdcard/" + path;
+  std::string full_path = this->mount_path_ + "/" + path;
   DIR *dir = opendir(full_path.c_str());
 
   if (dir == nullptr) {
