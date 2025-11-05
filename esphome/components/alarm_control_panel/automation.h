@@ -89,7 +89,7 @@ template<typename... Ts> class ArmAwayAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->alarm_control_panel_->make_call();
     auto code = this->code_.optional_value(x...);
     if (code.has_value()) {
@@ -109,7 +109,7 @@ template<typename... Ts> class ArmHomeAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->alarm_control_panel_->make_call();
     auto code = this->code_.optional_value(x...);
     if (code.has_value()) {
@@ -129,7 +129,7 @@ template<typename... Ts> class ArmNightAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->alarm_control_panel_->make_call();
     auto code = this->code_.optional_value(x...);
     if (code.has_value()) {
@@ -149,7 +149,7 @@ template<typename... Ts> class DisarmAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(Ts... x) override { this->alarm_control_panel_->disarm(this->code_.optional_value(x...)); }
+  void play(const Ts &...x) override { this->alarm_control_panel_->disarm(this->code_.optional_value(x...)); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -159,7 +159,7 @@ template<typename... Ts> class PendingAction : public Action<Ts...> {
  public:
   explicit PendingAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
 
-  void play(Ts... x) override { this->alarm_control_panel_->make_call().pending().perform(); }
+  void play(const Ts &...x) override { this->alarm_control_panel_->make_call().pending().perform(); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -169,7 +169,7 @@ template<typename... Ts> class TriggeredAction : public Action<Ts...> {
  public:
   explicit TriggeredAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
 
-  void play(Ts... x) override { this->alarm_control_panel_->make_call().triggered().perform(); }
+  void play(const Ts &...x) override { this->alarm_control_panel_->make_call().triggered().perform(); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -178,7 +178,7 @@ template<typename... Ts> class TriggeredAction : public Action<Ts...> {
 template<typename... Ts> class AlarmControlPanelCondition : public Condition<Ts...> {
  public:
   AlarmControlPanelCondition(AlarmControlPanel *parent) : parent_(parent) {}
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     return this->parent_->is_state_armed(this->parent_->get_state()) ||
            this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_TRIGGERED;
   }

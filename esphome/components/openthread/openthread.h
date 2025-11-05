@@ -34,8 +34,8 @@ class OpenThreadComponent : public Component {
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
-  const std::string &get_use_address() const;
-  void set_use_address(const std::string &use_address);
+  const char *get_use_address() const;
+  void set_use_address(const char *use_address);
 #if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period = poll_period; }
 #endif
@@ -45,7 +45,11 @@ class OpenThreadComponent : public Component {
   bool teardown_started_{false};
   bool teardown_complete_{false};
   std::function<void()> factory_reset_external_callback_;
-  std::string use_address_;
+
+ private:
+  // Stores a pointer to a string literal (static storage duration).
+  // ONLY set from Python-generated code with string literals - never dynamic strings.
+  const char *use_address_{""};
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period{0};
 #endif
