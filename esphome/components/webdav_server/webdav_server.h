@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include <string>
+#include <vector>
 #include <map>
 #include <esp_http_server.h>
 
@@ -60,6 +61,9 @@ class WebDAVServer : public Component {
   void stop_server();
   bool authenticate(const std::string &auth_header);
   std::string uri_to_filepath(const std::string &uri);
+  std::string url_decode(const std::string &src);
+  std::string generate_prop_xml(const std::string &href, bool is_directory, time_t modified, size_t size);
+  std::vector<std::string> list_dir(const std::string &path);
 
   // HTTP handlers (static, called via context)
   static esp_err_t handle_get(httpd_req_t *req);

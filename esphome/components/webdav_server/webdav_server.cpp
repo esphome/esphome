@@ -4,6 +4,9 @@
 #include <sstream>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <algorithm>
+#include <ctime>
+#include <cstring>
 
 namespace esphome {
 namespace webdav_server {
@@ -179,16 +182,31 @@ void WebDAVServer::stop_server() {
 }
 
 std::string WebDAVServer::uri_to_filepath(const std::string &uri) {
-  // Remove URL prefix from URI to get relative path
-  std::string relative_path = uri;
+  // Decode URL first
+  std::string decoded_uri = url_decode(uri);
+  ESP_LOGD(TAG, "URI: %s -> Decoded: %s", uri.c_str(), decoded_uri.c_str());
 
-  if (uri.find(this->url_prefix_) == 0) {
-    relative_path = uri.substr(this->url_prefix_.length());
+  // Remove URL prefix from URI to get relative path
+  std::string relative_path = decoded_uri;
+
+  if (decoded_uri.find(this->url_prefix_) == 0) {
+    relative_path = decoded_uri.substr(this->url_prefix_.length());
   }
 
   // Remove leading slash if present
   if (!relative_path.empty() && relative_path[0] == '/') {
     relative_path = relative_path.substr(1);
+  }
+
+  // Handle empty path (root access)
+  if (relative_path.empty()) {
+    std::string root = this->root_path_;
+    // Remove trailing slash for root
+    if (!root.empty() && root.back() == '/') {
+      root = root.substr(0, root.length() - 1);
+    }
+    ESP_LOGD(TAG, "Root access: %s", root.c_str());
+    return root;
   }
 
   // Construct full path
@@ -197,6 +215,8 @@ std::string WebDAVServer::uri_to_filepath(const std::string &uri) {
     full_path += "/";
   }
   full_path += relative_path;
+
+  ESP_LOGD(TAG, "Mapped URI %s to path %s", uri.c_str(), full_path.c_str());
 
   return full_path;
 }
@@ -218,6 +238,127 @@ bool WebDAVServer::authenticate(const std::string &auth_header) {
   }
 
   return false;
+}
+
+std::string WebDAVServer::url_decode(const std::string &src) {
+  std::string result;
+  result.reserve(src.length());
+
+  const char *str = src.c_str();
+  int i = 0;
+  char ch;
+  int j;
+
+  while (str[i]) {
+    if (str[i] == '%' && str[i + 1] && str[i + 2]) {
+      if (sscanf(str + i + 1, "%2x", &j) == 1) {
+        ch = static_cast<char>(j);
+        result += ch;
+        i += 3;
+      } else {
+        result += str[i++];
+      }
+    } else if (str[i] == '+') {
+      result += ' ';
+      i++;
+    } else {
+      result += str[i++];
+    }
+  }
+
+  return result;
+}
+
+std::string WebDAVServer::generate_prop_xml(const std::string &href, bool is_directory, time_t modified,
+                                            size_t size) {
+  char time_buf[50];
+  struct tm *gmt = gmtime(&modified);
+  strftime(time_buf, sizeof(time_buf), "%a, %d %b %Y %H:%M:%S GMT", gmt);
+
+  std::string display_name = href;
+  if (href.back() == '/') {
+    display_name = href.substr(0, href.length() - 1);
+  }
+  size_t last_slash = display_name.find_last_of('/');
+  if (last_slash != std::string::npos) {
+    display_name = display_name.substr(last_slash + 1);
+  }
+  if (display_name.empty() && href == "/") {
+    display_name = "Root";
+  }
+
+  std::string xml = "  <D:response>\n";
+  xml += "    <D:href>" + href + "</D:href>\n";
+  xml += "    <D:propstat>\n";
+  xml += "      <D:prop>\n";
+  xml += "        <D:resourcetype>";
+  if (is_directory) {
+    xml += "<D:collection/>";
+  }
+  xml += "</D:resourcetype>\n";
+  xml += "        <D:getlastmodified>" + std::string(time_buf) + "</D:getlastmodified>\n";
+  xml += "        <D:creationdate>" + std::string(time_buf) + "</D:creationdate>\n";
+  xml += "        <D:displayname>" + display_name + "</D:displayname>\n";
+
+  if (!is_directory) {
+    xml += "        <D:getcontentlength>" + std::to_string(size) + "</D:getcontentlength>\n";
+
+    std::string content_type = "application/octet-stream";
+    size_t dot_pos = href.find_last_of(".");
+    if (dot_pos != std::string::npos) {
+      std::string ext = href.substr(dot_pos + 1);
+      std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+
+      if (ext == "txt")
+        content_type = "text/plain";
+      else if (ext == "html" || ext == "htm")
+        content_type = "text/html";
+      else if (ext == "css")
+        content_type = "text/css";
+      else if (ext == "js")
+        content_type = "application/javascript";
+      else if (ext == "jpg" || ext == "jpeg")
+        content_type = "image/jpeg";
+      else if (ext == "png")
+        content_type = "image/png";
+      else if (ext == "gif")
+        content_type = "image/gif";
+      else if (ext == "mp3")
+        content_type = "audio/mpeg";
+      else if (ext == "mp4")
+        content_type = "video/mp4";
+      else if (ext == "pdf")
+        content_type = "application/pdf";
+      else if (ext == "flac")
+        content_type = "audio/flac";
+    }
+
+    xml += "        <D:getcontenttype>" + content_type + "</D:getcontenttype>\n";
+  }
+
+  xml += "      </D:prop>\n";
+  xml += "      <D:status>HTTP/1.1 200 OK</D:status>\n";
+  xml += "    </D:propstat>\n";
+  xml += "  </D:response>\n";
+
+  return xml;
+}
+
+std::vector<std::string> WebDAVServer::list_dir(const std::string &path) {
+  std::vector<std::string> files;
+  DIR *dir = opendir(path.c_str());
+  if (dir != nullptr) {
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != nullptr) {
+      if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+        files.push_back(entry->d_name);
+      }
+    }
+    closedir(dir);
+  } else {
+    ESP_LOGE(TAG, "Cannot open directory: %s (errno: %d)", path.c_str(), errno);
+  }
+  return files;
 }
 
 esp_err_t WebDAVServer::handle_get(httpd_req_t *req) {
@@ -319,36 +460,101 @@ esp_err_t WebDAVServer::handle_propfind(httpd_req_t *req) {
   auto *server = static_cast<WebDAVServer *>(req->user_ctx);
 
   std::string filepath = server->uri_to_filepath(req->uri);
-  ESP_LOGD(TAG, "PROPFIND request for: %s", filepath.c_str());
+  ESP_LOGI(TAG, "PROPFIND on %s (URI: %s)", filepath.c_str(), req->uri);
 
-  struct stat file_stat;
-  if (stat(filepath.c_str(), &file_stat) != 0) {
-    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not found");
-    return ESP_OK;
+  struct stat st;
+  if (stat(filepath.c_str(), &st) != 0) {
+    ESP_LOGE(TAG, "Path not found: %s (errno: %d)", filepath.c_str(), errno);
+    return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not Found");
   }
 
-  // Build WebDAV propfind response
-  std::string response = "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
-  response += "<D:multistatus xmlns:D=\"DAV:\">";
-  response += "<D:response>";
-  response += "<D:href>" + std::string(req->uri) + "</D:href>";
-  response += "<D:propstat>";
-  response += "<D:prop>";
-  response += "<D:resourcetype>";
-  if (S_ISDIR(file_stat.st_mode)) {
-    response += "<D:collection/>";
+  // Log directory contents for debugging
+  if (S_ISDIR(st.st_mode)) {
+    DIR *dir = opendir(filepath.c_str());
+    if (dir) {
+      ESP_LOGI(TAG, "Directory contents of %s:", filepath.c_str());
+      struct dirent *entry;
+      while ((entry = readdir(dir)) != nullptr) {
+        if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+          ESP_LOGI(TAG, "  - %s", entry->d_name);
+        }
+      }
+      closedir(dir);
+    }
   }
-  response += "</D:resourcetype>";
-  response += "<D:getcontentlength>" + std::to_string(file_stat.st_size) + "</D:getcontentlength>";
-  response += "</D:prop>";
-  response += "<D:status>HTTP/1.1 200 OK</D:status>";
-  response += "</D:propstat>";
-  response += "</D:response>";
+
+  bool is_directory = S_ISDIR(st.st_mode);
+  std::string depth_header = "0";
+
+  // Read Depth header
+  char depth_value[10] = {0};
+  if (httpd_req_get_hdr_value_str(req, "Depth", depth_value, sizeof(depth_value)) == ESP_OK) {
+    depth_header = depth_value;
+    ESP_LOGI(TAG, "Depth header: %s", depth_header.c_str());
+  }
+
+  // Build XML response
+  std::string response = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+  response += "<D:multistatus xmlns:D=\"DAV:\">\n";
+
+  // Format URI for response
+  std::string uri_path = req->uri;
+  if (uri_path.empty() || uri_path == "/") {
+    uri_path = "/";
+  }
+  if (is_directory && uri_path.back() != '/') {
+    uri_path += '/';
+  }
+
+  ESP_LOGI(TAG, "Formatted URI for response: %s", uri_path.c_str());
+
+  // Add properties for requested resource
+  response += server->generate_prop_xml(uri_path, is_directory, st.st_mtime, st.st_size);
+
+  // If directory and depth > 0, list contents
+  if (is_directory && (depth_header == "1" || depth_header == "infinity")) {
+    auto files = server->list_dir(filepath);
+    ESP_LOGI(TAG, "Found %d files/folders in %s", files.size(), filepath.c_str());
+
+    for (const auto &file_name : files) {
+      std::string file_path = filepath;
+      if (file_path.back() != '/') {
+        file_path += '/';
+      }
+      file_path += file_name;
+
+      struct stat file_stat;
+      if (stat(file_path.c_str(), &file_stat) == 0) {
+        bool is_file_dir = S_ISDIR(file_stat.st_mode);
+        std::string href = uri_path;
+        if (href.back() != '/') {
+          href += '/';
+        }
+        href += file_name;
+        if (is_file_dir) {
+          href += '/';
+        }
+
+        ESP_LOGI(TAG, "Adding %s to PROPFIND response (is_dir: %d)", href.c_str(), is_file_dir);
+        response += server->generate_prop_xml(href, is_file_dir, file_stat.st_mtime, file_stat.st_size);
+      } else {
+        ESP_LOGE(TAG, "Cannot stat %s (errno: %d)", file_path.c_str(), errno);
+      }
+    }
+  }
+
   response += "</D:multistatus>";
 
-  httpd_resp_set_type(req, "application/xml");
-  httpd_resp_send(req, response.c_str(), response.length());
+  // Set response headers
+  httpd_resp_set_type(req, "application/xml; charset=utf-8");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, HEAD, PUT, OPTIONS, DELETE, PROPFIND");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Authorization, Depth, Content-Type");
+  httpd_resp_set_status(req, "207 Multi-Status");
 
+  ESP_LOGD(TAG, "XML response: %s", response.c_str());
+
+  httpd_resp_send(req, response.c_str(), response.length());
   return ESP_OK;
 }
 
