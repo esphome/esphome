@@ -291,6 +291,7 @@ bool StorageImage::load_image_from_path(const std::string &path) {
   this->unload_image();
 
   // Auto-detect mount from file path (if not explicitly specified)
+  std::string mount_platform;
   if (this->mount_source_.empty()) {
     std::string detected_mount = this->storage_host_->find_mount_for_path(path);
     if (detected_mount.empty()) {
@@ -302,6 +303,25 @@ bool StorageImage::load_image_from_path(const std::string &path) {
       return false;
     }
     ESP_LOGD(TAG, "Auto-detected mount for path: %s -> %s", path.c_str(), detected_mount.c_str());
+
+    // Get platform for this mount
+    const auto &mounts = this->storage_host_->get_mounts();
+    auto mount_iter = mounts.find(detected_mount);
+    if (mount_iter != mounts.end()) {
+      mount_platform = mount_iter->second;
+      ESP_LOGI(TAG, "Mount platform: %s", mount_platform.c_str());
+      // Store platform for use in decoder
+      this->current_mount_platform_ = mount_platform;
+    }
+  } else {
+    // Use explicitly specified mount source
+    const auto &mounts = this->storage_host_->get_mounts();
+    auto mount_iter = mounts.find(this->mount_source_);
+    if (mount_iter != mounts.end()) {
+      mount_platform = mount_iter->second;
+      ESP_LOGI(TAG, "Mount platform (explicit): %s", mount_platform.c_str());
+      this->current_mount_platform_ = mount_platform;
+    }
   }
 
   // Check file existence
@@ -595,13 +615,17 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
   jpeg_decode_cfg_t decode_cfg = {};
   if (this->format_ == ImageFormat::RGB565) {
     decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
+    ESP_LOGD(TAG, "Using RGB565 output format");
   } else if (this->format_ == ImageFormat::RGB888) {
     decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB888;
+    ESP_LOGD(TAG, "Using RGB888 output format");
   } else {
     ESP_LOGE(TAG, "Unsupported format for hardware decoder (only RGB565 and RGB888 supported)");
     return false;
   }
-  decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
+  // Try BGR order first - ESP32 displays often use BGR
+  decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
+  ESP_LOGD(TAG, "Using BGR pixel order for hardware decoder");
 
   // Calculate buffer sizes with alignment
   uint32_t input_size = jpeg_data.size();

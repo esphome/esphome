@@ -131,6 +131,7 @@ class StorageImage : public Component, public image::Image {
   // Image state
   std::string file_path_;
   std::string mount_source_;
+  std::string current_mount_platform_;  // Platform detected during load (usb_msc, sd_mmc, etc.)
   StorageHost *storage_host_{nullptr};
   std::vector<uint8_t> image_buffer_;
   bool image_loaded_{false};
