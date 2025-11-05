@@ -5,6 +5,7 @@ from esphome.cpp_generator import MockObj
 from ..defines import CONF_CONTAINER, CONF_MAIN, CONF_OBJ, CONF_SCROLLBAR
 from ..lv_validation import size
 from ..lvcode import lv
+from ..schemas import register_lvgl_widget
 from ..types import WidgetType, lv_obj_t
 
 CONTAINER_SCHEMA = cv.Schema(
@@ -37,3 +38,9 @@ class ContainerType(WidgetType):
 
 
 container_spec = ContainerType()
+
+
+@register_lvgl_widget(container_spec)
+async def container_to_code(w, config):
+    """Code generation for checkbox widget - registered via decorator"""
+    return await container_spec.to_code(w, config)
