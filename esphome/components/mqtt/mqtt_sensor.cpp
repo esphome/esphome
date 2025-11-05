@@ -51,9 +51,10 @@ void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   }
 
   const auto unit_of_measurement = this->sensor_->get_unit_of_measurement_ref();
-  if (!unit_of_measurement.empty())
+  if (!unit_of_measurement.empty()) {
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
+  }
 
   if (this->get_expire_after() > 0)
     root[MQTT_EXPIRE_AFTER] = this->get_expire_after() / 1000;
