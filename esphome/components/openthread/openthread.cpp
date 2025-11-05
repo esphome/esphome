@@ -1,11 +1,13 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
+
+#ifdef USE_ESP_IDF
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 #include "esp_openthread.h"
 #endif
-
 #include <freertos/portmacro.h>
+#endif
 
 #include <openthread/cli.h>
 #include <openthread/instance.h>
@@ -13,6 +15,7 @@
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
 
+#include <cstdlib>
 #include <cstring>
 
 #include "esphome/core/application.h"
@@ -223,14 +226,21 @@ bool OpenThreadComponent::teardown() {
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
     global_openthread_component = nullptr;
+#ifdef USE_ESP_IDF
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
     ESP_LOGD(TAG, "Exit main loop ");
     int error = esp_openthread_mainloop_exit();
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
       this->teardown_complete_ = true;
+    } else {
+      this->teardown_complete_ = true;
     }
 #else
+    this->teardown_complete_ = true;
+#endif
+#else
+    // Non-ESP platforms
     this->teardown_complete_ = true;
 #endif
   }
