@@ -92,20 +92,27 @@ class Select : public EntityBase {
 
   size_t active_index_{0};
 
+  /** Set the value of the select by index, this is an optional virtual method.
+   *
+   * IMPORTANT: At least ONE of the two control() methods must be overridden by derived classes.
+   * Overriding this index-based version is PREFERRED as it avoids string conversions.
+   *
+   * This method is called by the SelectCall when the index is already known.
+   * Default implementation converts to string and calls control(const std::string&).
+   *
+   * @param index The index as validated by the SelectCall.
+   */
+  virtual void control(size_t index) { this->control(this->option_at(index)); }
+
   /** Set the value of the select, this is a virtual method that each select integration can implement.
    *
-   * This method is called by control(size_t) when not overridden, or directly by external code.
-   * Integrations can either:
-   * 1. Override this method to handle string-based control (traditional approach)
-   * 2. Override control(size_t) instead to work with indices directly (recommended)
+   * IMPORTANT: At least ONE of the two control() methods must be overridden by derived classes.
+   * Overriding control(size_t) is PREFERRED as it avoids string conversions.
    *
+   * This method is called by control(size_t) when not overridden, or directly by external code.
    * Default implementation converts to index and calls control(size_t).
    *
-   * Delegation chain:
-   * - SelectCall::perform() → control(size_t) → [if not overridden] → control(string)
-   * - External code → control(string) → publish_state(string) → publish_state(size_t)
-   *
-   * @param value The value as validated by the SelectCall.
+   * @param value The value as validated by the caller.
    */
   virtual void control(const std::string &value) {
     auto index = this->index_of(value);

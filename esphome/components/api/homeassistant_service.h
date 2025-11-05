@@ -133,7 +133,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   Trigger<std::string, Ts...> *get_error_trigger() const { return this->error_trigger_; }
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     HomeassistantActionRequest resp;
     std::string service_value = this->service_.value(x...);
     resp.set_service(StringRef(service_value));

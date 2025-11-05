@@ -35,7 +35,7 @@ void Select::publish_state(size_t index) {
   this->state_callback_.call(std::string(option), index);
 }
 
-const char *Select::current_option() const { return this->option_at(this->active_index_); }
+const char *Select::current_option() const { return this->has_state() ? this->option_at(this->active_index_) : ""; }
 
 void Select::add_on_state_callback(std::function<void(std::string, size_t)> &&callback) {
   this->state_callback_.add(std::move(callback));
