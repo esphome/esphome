@@ -265,30 +265,46 @@ void USBClient::loop() {
         bool vid_pid_match = (desc->idVendor == this->vid_ && desc->idProduct == this->pid_);
         bool is_wildcard = (this->vid_ == 0 && this->pid_ == 0);
 
-        // For wildcard VID/PID, check if device has MSC interface - if so, skip it (let MSC handler claim it)
-        bool skip_for_msc = false;
+        // For wildcard VID/PID, check if device should be skipped for specific handlers
+        // Skip if device has MSC interface (let MSC handler claim it)
+        // Skip if device is CH934X/CH9344/CH348 (let specific CH934X driver claim it)
+        bool skip_for_specific_driver = false;
         if (is_wildcard) {
-          const usb_config_desc_t *config_desc;
-          err = usb_host_get_active_config_descriptor(this->device_handle_, &config_desc);
-          if (err == ESP_OK) {
-            // Check if device has MSC interface (Class=0x08, SubClass=0x06, Protocol=0x50)
-            size_t offset = 0;
-            const usb_standard_desc_t *next_desc = (const usb_standard_desc_t *) config_desc;
-            while ((next_desc = usb_parse_next_descriptor_of_type(
-                        next_desc, config_desc->wTotalLength, USB_W_VALUE_DT_INTERFACE, (int *) &offset)) != nullptr) {
-              const usb_intf_desc_t *ifc_desc = (const usb_intf_desc_t *) next_desc;
-              if (ifc_desc->bInterfaceClass == USB_CLASS_MASS_STORAGE && ifc_desc->bInterfaceSubClass == 0x06 &&
-                  ifc_desc->bInterfaceProtocol == 0x50) {
-                skip_for_msc = true;
-                ESP_LOGD(TAG, "Device %d has MSC interface, skipping wildcard VID/PID match (let MSC handler claim it)",
-                         this->device_addr_);
-                break;
+          // Check VID/PID for known multi-UART chips that should use specific drivers
+          if ((desc->idVendor == 0x1A86 && desc->idProduct == 0x55D9) ||  // CH934X
+              (desc->idVendor == 0x1A86 && desc->idProduct == 0xE018) ||  // CH9344
+              (desc->idVendor == 0x1A86 && desc->idProduct == 0x55D5)) {  // CH34X
+            skip_for_specific_driver = true;
+            ESP_LOGD(TAG, "Device %d is CH934X/CH9344/CH34X (VID=%04X, PID=%04X), skipping wildcard VID/PID match",
+                     this->device_addr_, desc->idVendor, desc->idProduct);
+          }
+
+          // Check for MSC interface
+          if (!skip_for_specific_driver) {
+            const usb_config_desc_t *config_desc;
+            err = usb_host_get_active_config_descriptor(this->device_handle_, &config_desc);
+            if (err == ESP_OK) {
+              // Check if device has MSC interface (Class=0x08, SubClass=0x06, Protocol=0x50)
+              size_t offset = 0;
+              const usb_standard_desc_t *next_desc = (const usb_standard_desc_t *) config_desc;
+              while ((next_desc = usb_parse_next_descriptor_of_type(next_desc, config_desc->wTotalLength,
+                                                                    USB_W_VALUE_DT_INTERFACE, (int *) &offset)) !=
+                     nullptr) {
+                const usb_intf_desc_t *ifc_desc = (const usb_intf_desc_t *) next_desc;
+                if (ifc_desc->bInterfaceClass == USB_CLASS_MASS_STORAGE && ifc_desc->bInterfaceSubClass == 0x06 &&
+                    ifc_desc->bInterfaceProtocol == 0x50) {
+                  skip_for_specific_driver = true;
+                  ESP_LOGD(TAG,
+                           "Device %d has MSC interface, skipping wildcard VID/PID match (let MSC handler claim it)",
+                           this->device_addr_);
+                  break;
+                }
               }
             }
           }
         }
 
-        if ((vid_pid_match || is_wildcard) && !skip_for_msc) {
+        if ((vid_pid_match || is_wildcard) && !skip_for_specific_driver) {
           // NEW: Try to claim device (coordinates with USBHost for interface-class handlers)
           ESP_LOGD(TAG, "Attempting to claim device %d (VID=%04X, PID=%04X, parent=%p)", this->device_addr_, this->vid_,
                    this->pid_, (void *) this->parent_);
