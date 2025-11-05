@@ -16,8 +16,9 @@ using namespace esphome::text_sensor;
 MQTTTextSensor::MQTTTextSensor(TextSensor *sensor) : sensor_(sensor) {}
 void MQTTTextSensor::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  if (!this->sensor_->get_device_class().empty()) {
-    root[MQTT_DEVICE_CLASS] = this->sensor_->get_device_class();
+  const auto device_class = this->sensor_->get_device_class_ref();
+  if (!device_class.empty()) {
+    root[MQTT_DEVICE_CLASS] = device_class;
   }
   config.command_topic = false;
 }
