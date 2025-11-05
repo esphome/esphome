@@ -44,7 +44,8 @@ sensor:
 
 - **update_interval** (*Optional*, [Time](#config-time)): The interval to check the sensor. Defaults to `60s`.
 
-- **model** (*Optional*): Possible values are HTU21D, SI7021, SHT21. Defaults to HTU21D.
+- **model** (*Optional*): Possible values are HTU21D, SI7021, SHT21. Some boards may be mislabeled. If you
+  encounter I2C errors, try using HTU21D. Defaults to HTU21D.
 
 The heater may be enabled to help correct the reading; see the datasheet for more information.
 
