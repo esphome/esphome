@@ -564,7 +564,12 @@ bool Application::is_socket_ready(int fd) const {
   if (fd < 0 || fd >= FD_SETSIZE)
     return false;
 
+#ifdef USE_SOCKET_IMPL_ZEPHYR_SOCKETS
+  // Zephyr's FD_ISSET doesn't accept const pointer
+  return FD_ISSET(fd, const_cast<fd_set *>(&this->read_fds_));
+#else
   return FD_ISSET(fd, &this->read_fds_);
+#endif
 }
 #endif
 
