@@ -12,6 +12,7 @@ For example if the filter were configured with a value of 2 and the last value p
 only values greater than or equal to 12 or less than or equal to 8 would be passed through.
 
 ```yaml
+# Example configuration entry
 filters:
   - delta: 2.0
 ```
@@ -23,6 +24,7 @@ However, if the last value passed through was 100 only values greater than or eq
 equal to 80 would be passed through.
 
 ```yaml
+# Example configuration entry
 filters:
   - delta: 20%
 ```

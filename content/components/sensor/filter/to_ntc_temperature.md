@@ -19,6 +19,7 @@ temperatures) and note the resistance values at these temperatures.
 Then enter these values in the calibration parameter:
 
 ```yaml
+# Example configuration entry
 - platform: template
   id: to_ntc_temperature_sensor1
   unit_of_measurement: "°C"
@@ -37,6 +38,7 @@ The filter determines coefficients for the `Steinhart-Hart`_ equation from the s
 pairs of values which can also be specified directly as an alternative.
 
 ```yaml
+# Example configuration entry
 - platform: template
   id: to_ntc_temperature_sensor2
   unit_of_measurement: "°C"

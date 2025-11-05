@@ -13,11 +13,9 @@ Configuration variables:
 
 ```yaml
 # Example configuration entry
-- platform: wifi_signal
-  # ...
-  filters:
-    - clamp:
-        min_value: 10
-        max_value: 75
-        ignore_out_of_range: true
+filters:
+  - clamp:
+      min_value: 10
+      max_value: 75
+      ignore_out_of_range: true
 ```

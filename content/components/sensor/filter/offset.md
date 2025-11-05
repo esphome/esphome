@@ -7,10 +7,7 @@ Adds a value to each sensor value. The value may be a constant or a lambda retur
 
 ```yaml
 # Example configuration entry
-- platform: adc
-  # ...
-  filters:
-    - offset: 2.0
-    - multiply: 1.2
-    - offset: !lambda return id(some_sensor).state;
+filters:
+  - offset: 2.0
+  - offset: !lambda return id(some_sensor).state;
 ```
