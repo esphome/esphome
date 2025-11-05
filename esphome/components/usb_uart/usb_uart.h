@@ -256,8 +256,6 @@ class USBUartTypeCH934X : public USBUartComponent {
   USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
 
   // Overridden methods from USBUartComponent
-  void on_connected() override;
-  void on_disconnected() override;
   void start_input(USBUartChannel *channel) override;
   void start_output(USBUartChannel *channel) override;
   bool parse_descriptors(usb_device_handle_t dev_hdl);
@@ -267,6 +265,8 @@ class USBUartTypeCH934X : public USBUartComponent {
   void loop() override;
 
  protected:
+  void on_connected() override;
+  void on_disconnected() override;
   // Device-level configuration
   void configure_device_();
   void configure_channels_after_detection_();  // Called via defer after chip detection
