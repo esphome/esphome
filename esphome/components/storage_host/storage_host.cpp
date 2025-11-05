@@ -615,17 +615,24 @@ bool StorageImage::decode_jpeg_hardware(const std::vector<uint8_t> &jpeg_data) {
   jpeg_decode_cfg_t decode_cfg = {};
   if (this->format_ == ImageFormat::RGB565) {
     decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
-    ESP_LOGD(TAG, "Using RGB565 output format");
+    ESP_LOGI(TAG, "Using RGB565 output format");
   } else if (this->format_ == ImageFormat::RGB888) {
     decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB888;
-    ESP_LOGD(TAG, "Using RGB888 output format");
+    ESP_LOGI(TAG, "Using RGB888 output format");
   } else {
     ESP_LOGE(TAG, "Unsupported format for hardware decoder (only RGB565 and RGB888 supported)");
     return false;
   }
-  // Try BGR order first - ESP32 displays often use BGR
-  decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
-  ESP_LOGD(TAG, "Using BGR pixel order for hardware decoder");
+
+  // Determine RGB order based on mount platform
+  // SD MMC works correctly with BGR, but USB MSC seems to need RGB
+  if (this->current_mount_platform_ == "usb_msc") {
+    decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
+    ESP_LOGI(TAG, "Using RGB pixel order for USB MSC storage");
+  } else {
+    decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
+    ESP_LOGI(TAG, "Using BGR pixel order for %s storage", this->current_mount_platform_.c_str());
+  }
 
   // Calculate buffer sizes with alignment
   uint32_t input_size = jpeg_data.size();
