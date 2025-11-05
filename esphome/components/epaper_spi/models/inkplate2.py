@@ -1,3 +1,6 @@
+# Reference implementation:
+# https://github.com/SolderedElectronics/Inkplate-Arduino-library
+
 from typing import Any
 
 from . import EpaperModel
@@ -9,12 +12,8 @@ class Inkplate2Model(EpaperModel):
 
     def get_init_sequence(self, config: dict):
         width, height = self.get_dimensions(config)
-        # Inkplate 2 init sequence
-        # Must power on FIRST (0x04), wait for busy, then configure
         # State machine will wait for busy after this sequence before data transfer
         return (
-            (0x04,),  # Power on - MUST BE FIRST
-            # After power on, state machine waits for busy pin before continuing
             (
                 0x00,  # Enter panel setting
                 0x0F,  # LUT from OTP 128x296

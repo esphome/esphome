@@ -1,3 +1,6 @@
+// Reference implementation:
+// https://github.com/SolderedElectronics/Inkplate-Arduino-library
+
 #include "epaper_spi_inkplate2.h"
 #include "esphome/core/log.h"
 
@@ -7,9 +10,8 @@ static constexpr const char *const TAG = "epaper_spi.inkplate2";
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
 
 void EPaperInkplate2::power_on() {
-  // Power on already handled by init sequence
-  // State machine waits for busy after init, so display is ready
-  ESP_LOGV(TAG, "Display ready");
+  ESP_LOGD(TAG, "Power on");
+  this->command(0x04);
 }
 
 void EPaperInkplate2::power_off() {
