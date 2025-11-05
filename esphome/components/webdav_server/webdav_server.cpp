@@ -1,4 +1,5 @@
 #include "webdav_server.h"
+#include "esphome/components/storage_host/storage_host.h"
 #include "esphome/core/log.h"
 #include <fstream>
 #include <sstream>
@@ -457,28 +458,43 @@ esp_err_t WebDAVServer::handle_propfind(httpd_req_t *req) {
   std::string filepath = server->uri_to_filepath(req->uri);
   ESP_LOGI(TAG, "PROPFIND on %s (URI: %s)", filepath.c_str(), req->uri);
 
+  // Special handling for virtual root "/" when root_path is "/"
+  bool is_virtual_root = (server->root_path_ == "/" && filepath == "/");
+  bool is_directory = false;
   struct stat st;
-  if (stat(filepath.c_str(), &st) != 0) {
-    ESP_LOGE(TAG, "Path not found: %s (errno: %d)", filepath.c_str(), errno);
-    return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not Found");
-  }
 
-  // Log directory contents for debugging
-  if (S_ISDIR(st.st_mode)) {
-    DIR *dir = opendir(filepath.c_str());
-    if (dir) {
-      ESP_LOGI(TAG, "Directory contents of %s:", filepath.c_str());
-      struct dirent *entry;
-      while ((entry = readdir(dir)) != nullptr) {
-        if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
-          ESP_LOGI(TAG, "  - %s", entry->d_name);
-        }
-      }
-      closedir(dir);
+  if (is_virtual_root) {
+    // Virtual root - list mount points from storage_host
+    ESP_LOGI(TAG, "Virtual root access - listing mount points from storage_host");
+    is_directory = true;
+    // Set dummy stat data for root directory
+    st.st_mode = S_IFDIR | 0755;
+    st.st_mtime = time(nullptr);
+    st.st_size = 0;
+  } else {
+    // Regular file/directory access
+    if (stat(filepath.c_str(), &st) != 0) {
+      ESP_LOGE(TAG, "Path not found: %s (errno: %d)", filepath.c_str(), errno);
+      return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not Found");
     }
-  }
 
-  bool is_directory = S_ISDIR(st.st_mode);
+    // Log directory contents for debugging
+    if (S_ISDIR(st.st_mode)) {
+      DIR *dir = opendir(filepath.c_str());
+      if (dir) {
+        ESP_LOGI(TAG, "Directory contents of %s:", filepath.c_str());
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != nullptr) {
+          if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+            ESP_LOGI(TAG, "  - %s", entry->d_name);
+          }
+        }
+        closedir(dir);
+      }
+    }
+
+    is_directory = S_ISDIR(st.st_mode);
+  }
   std::string depth_header = "0";
 
   // Read Depth header
@@ -508,32 +524,64 @@ esp_err_t WebDAVServer::handle_propfind(httpd_req_t *req) {
 
   // If directory and depth > 0, list contents
   if (is_directory && (depth_header == "1" || depth_header == "infinity")) {
-    auto files = server->list_dir(filepath);
-    ESP_LOGI(TAG, "Found %d files/folders in %s", files.size(), filepath.c_str());
+    if (is_virtual_root) {
+      // Virtual root - list mount points from storage_host
+      const auto &mounts = server->storage_host_->get_mounts();
+      ESP_LOGI(TAG, "Found %d mount points", mounts.size());
 
-    for (const auto &file_name : files) {
-      std::string file_path = filepath;
-      if (file_path.back() != '/') {
-        file_path += '/';
-      }
-      file_path += file_name;
+      for (const auto &mount : mounts) {
+        // mount.first = mount_path (e.g., "/usb0")
+        // mount.second = platform (e.g., "usb_msc")
+        std::string mount_path = mount.first;
+        std::string mount_name = mount_path;
 
-      struct stat file_stat;
-      if (stat(file_path.c_str(), &file_stat) == 0) {
-        bool is_file_dir = S_ISDIR(file_stat.st_mode);
+        // Remove leading slash for href construction
+        if (!mount_name.empty() && mount_name.front() == '/') {
+          mount_name = mount_name.substr(1);
+        }
+
+        // Build href
         std::string href = uri_path;
-        if (href.back() != '/') {
+        if (!href.empty() && href.back() != '/') {
           href += '/';
         }
-        href += file_name;
-        if (is_file_dir) {
+        href += mount_name;
+        if (!href.empty() && href.back() != '/') {
           href += '/';
         }
 
-        ESP_LOGI(TAG, "Adding %s to PROPFIND response (is_dir: %d)", href.c_str(), is_file_dir);
-        response += server->generate_prop_xml(href, is_file_dir, file_stat.st_mtime, file_stat.st_size);
-      } else {
-        ESP_LOGE(TAG, "Cannot stat %s (errno: %d)", file_path.c_str(), errno);
+        ESP_LOGI(TAG, "Adding mount point %s (%s) to PROPFIND response", href.c_str(), mount.second.c_str());
+        response += server->generate_prop_xml(href, true, st.st_mtime, 0);
+      }
+    } else {
+      // Regular directory listing
+      auto files = server->list_dir(filepath);
+      ESP_LOGI(TAG, "Found %d files/folders in %s", files.size(), filepath.c_str());
+
+      for (const auto &file_name : files) {
+        std::string file_path = filepath;
+        if (file_path.back() != '/') {
+          file_path += '/';
+        }
+        file_path += file_name;
+
+        struct stat file_stat;
+        if (stat(file_path.c_str(), &file_stat) == 0) {
+          bool is_file_dir = S_ISDIR(file_stat.st_mode);
+          std::string href = uri_path;
+          if (href.back() != '/') {
+            href += '/';
+          }
+          href += file_name;
+          if (is_file_dir) {
+            href += '/';
+          }
+
+          ESP_LOGI(TAG, "Adding %s to PROPFIND response (is_dir: %d)", href.c_str(), is_file_dir);
+          response += server->generate_prop_xml(href, is_file_dir, file_stat.st_mtime, file_stat.st_size);
+        } else {
+          ESP_LOGE(TAG, "Cannot stat %s (errno: %d)", file_path.c_str(), errno);
+        }
       }
     }
   }
