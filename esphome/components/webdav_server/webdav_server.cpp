@@ -131,6 +131,16 @@ bool WebDAVServer::start_server() {
 
   esp_err_t err;
 
+  // Register specific routes BEFORE wildcard routes!
+  // Status endpoint must be registered before GET wildcard
+  err = httpd_register_uri_handler(this->server_, &status_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register STATUS handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered STATUS handler");
+
   err = httpd_register_uri_handler(this->server_, &options_handler);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to register OPTIONS handler: %s", esp_err_to_name(err));
@@ -194,14 +204,6 @@ bool WebDAVServer::start_server() {
     return false;
   }
   ESP_LOGD(TAG, "Registered COPY handler");
-
-  err = httpd_register_uri_handler(this->server_, &status_handler);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to register STATUS handler: %s", esp_err_to_name(err));
-    httpd_stop(this->server_);
-    return false;
-  }
-  ESP_LOGD(TAG, "Registered STATUS handler");
 
   ESP_LOGI(TAG, "All handlers registered successfully");
   return true;
