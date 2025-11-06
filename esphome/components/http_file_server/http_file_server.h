@@ -172,7 +172,12 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   void handle_api_rename(AsyncWebServerRequest *request);
   void handle_api_mkdir(AsyncWebServerRequest *request);
   void handle_api_exists(AsyncWebServerRequest *request);
+  void handle_api_dirinfo(AsyncWebServerRequest *request);
   void handle_api_progress(AsyncWebServerRequest *request);
+
+  // Directory helpers
+  void count_directory_contents(const std::string &path, int &file_count, int &dir_count);
+  bool recursive_delete_directory(const std::string &path);
 
   // JSON parsing helper
   struct ApiRequest {
