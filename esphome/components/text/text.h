@@ -12,7 +12,7 @@ namespace text {
 #define LOG_TEXT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    (obj)->log_icon(TAG, prefix); \
+    log_entity_icon(TAG, prefix, (obj)); \
   }
 
 /** Base-class for all text inputs.

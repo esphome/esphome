@@ -18,8 +18,8 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
                   LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
                   obj->get_unit_of_measurement_ref().c_str(), prefix, obj->get_accuracy_decimals());
 
-    obj->log_device_class(tag, prefix);
-    obj->log_icon(tag, prefix);
+    log_entity_device_class(tag, prefix, obj);
+    log_entity_icon(tag, prefix, obj);
 
     if (obj->get_force_update()) {
       ESP_LOGV(tag, "%s  Force Update: YES", prefix);
