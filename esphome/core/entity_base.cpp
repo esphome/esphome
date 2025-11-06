@@ -103,21 +103,19 @@ void EntityBase_UnitOfMeasurement::set_unit_of_measurement(const char *unit_of_m
 // Helper functions for logging entity attributes
 void log_entity_icon(const char *tag, const char *prefix, const EntityBase *obj) {
 #ifdef USE_ENTITY_ICON
-  if (!obj->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
+  auto icon_ref = obj->get_icon_ref();
+  if (!icon_ref.empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, icon_ref.c_str());
   }
 #endif
 }
 
 void log_entity_icon_and_device_class(const char *tag, const char *prefix, const EntityBase *icon_obj,
                                       const EntityBase_DeviceClass *device_class_obj) {
-#ifdef USE_ENTITY_ICON
-  if (!icon_obj->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, icon_obj->get_icon_ref().c_str());
-  }
-#endif
-  if (!device_class_obj->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, device_class_obj->get_device_class_ref().c_str());
+  log_entity_icon(tag, prefix, icon_obj);
+  auto device_class_ref = device_class_obj->get_device_class_ref();
+  if (!device_class_ref.empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, device_class_ref.c_str());
   }
 }
 
