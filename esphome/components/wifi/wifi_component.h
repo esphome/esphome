@@ -353,10 +353,6 @@ class WiFiComponent : public Component {
     }
   }
 
-  // SYNCHRONIZATION HELPER: Find which sta_[i] matches scan_result_[0] and set selected_sta_index_
-  // Returns true if match found, false otherwise (scan done path)
-  bool sync_selected_sta_to_best_scan_result_();
-
 #ifdef USE_WIFI_FAST_CONNECT
   // Reset state for next fast connect AP attempt
   // Clears old scan data so the new AP is tried with config only (SSID without specific BSSID/channel)

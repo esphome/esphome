@@ -377,25 +377,6 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   return params;
 }
 
-bool WiFiComponent::sync_selected_sta_to_best_scan_result_() {
-  if (this->scan_result_.empty())
-    return false;
-
-  const WiFiScanResult &scan_res = this->scan_result_[0];
-  if (!scan_res.get_matches())
-    return false;
-
-  for (size_t i = 0; i < this->sta_.size(); i++) {
-    if (scan_res.matches(this->sta_[i])) {
-      // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
-      // No overflow check needed - YAML validation prevents >127 networks
-      this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
-      return true;
-    }
-  }
-  return false;
-}
-
 WiFiAP WiFiComponent::get_sta() const {
   const WiFiAP *config = this->get_selected_sta_();
   return config ? *config : WiFiAP{};
@@ -699,7 +680,25 @@ void WiFiComponent::check_scanning_finished() {
   // After sorting, scan_result_[0] contains the best network. Now find which sta_[i] config
   // matches that network and record it in selected_sta_index_. This keeps the two indices
   // synchronized so build_wifi_ap_from_selected_() can safely use both to build connection parameters.
-  if (!this->sync_selected_sta_to_best_scan_result_()) {
+  const WiFiScanResult &scan_res = this->scan_result_[0];
+  if (!scan_res.get_matches()) {
+    ESP_LOGW(TAG, "No matching network found");
+    this->retry_connect();
+    return;
+  }
+
+  bool found_match = false;
+  for (size_t i = 0; i < this->sta_.size(); i++) {
+    if (scan_res.matches(this->sta_[i])) {
+      // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
+      // No overflow check needed - YAML validation prevents >127 networks
+      this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
+      found_match = true;
+      break;
+    }
+  }
+
+  if (!found_match) {
     ESP_LOGW(TAG, "No matching network found");
     this->retry_connect();
     return;
