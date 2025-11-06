@@ -1,0 +1,59 @@
+esphome:
+  name: test-user-services-union
+  friendly_name: Test User Services Union Storage
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: "test"
+  password: "password"
+
+api:
+  actions:
+    # Test service with no arguments
+    - action: test_no_args
+      then:
+        - logger.log: "No args service called"
+
+    # Test service with one argument
+    - action: test_one_arg
+      variables:
+        value: int
+      then:
+        - logger.log:
+            format: "One arg service: %d"
+            args: [value]
+
+    # Test service with multiple arguments of different types
+    - action: test_multi_args
+      variables:
+        int_val: int
+        float_val: float
+        str_val: string
+        bool_val: bool
+      then:
+        - logger.log:
+            format: "Multi args: %d, %.2f, %s, %d"
+            args: [int_val, float_val, str_val.c_str(), bool_val]
+
+    # Test service with max typical arguments
+    - action: test_many_args
+      variables:
+        arg1: int
+        arg2: int
+        arg3: int
+        arg4: string
+        arg5: float
+      then:
+        - logger.log: "Many args service called"
+
+binary_sensor:
+  - platform: template
+    name: "Test Binary Sensor"
+    id: test_sensor
