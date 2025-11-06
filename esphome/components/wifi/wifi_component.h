@@ -220,7 +220,7 @@ class WiFiComponent : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   // Note: This copies the 88-byte WiFiAP. Only used by WiFiConfigureAction for state save/restore.
-  WiFiAP get_sta();
+  WiFiAP get_sta() const;
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
   void clear_sta();
