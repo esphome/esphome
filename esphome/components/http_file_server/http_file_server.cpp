@@ -984,6 +984,66 @@ function create_directory() {
     .catch(error => alert('Error: ' + error));
 }
 
+function mount_device(mount_point) {
+  if (!confirm('Mount device at ' + mount_point + '?')) return;
+
+  fetch(API_BASE + '/api/mount', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'mount_point=' + encodeURIComponent(mount_point)
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Device mounted successfully!');
+        location.reload();
+      } else {
+        alert('Mount failed: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+}
+
+function unmount_device(mount_point) {
+  if (!confirm('Unmount device at ' + mount_point + '?')) return;
+
+  fetch(API_BASE + '/api/unmount', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'mount_point=' + encodeURIComponent(mount_point)
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Device unmounted successfully!');
+        location.reload();
+      } else {
+        alert('Unmount failed: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+}
+
+function remount_device(mount_point) {
+  if (!confirm('Remount device at ' + mount_point + '?')) return;
+
+  fetch(API_BASE + '/api/mount', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'mount_point=' + encodeURIComponent(mount_point)
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Device remounted successfully!');
+        location.reload();
+      } else {
+        alert('Remount failed: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+}
+
 function handleUpload(event) {
   event.preventDefault();
 
@@ -1068,7 +1128,13 @@ std::string HttpFileServer::generate_file_row(const FileInfo &info, const std::s
   std::string file_uri = Path::join(uri_prefix, relative_path);
 
   if (info.is_directory) {
-    row += "<a href=\"" + file_uri + "\" class=\"folder\">" + info.name + "</a>";
+    if (info.is_mount_point && !info.mounted) {
+      // Unmounted mount point - show as disabled (not clickable)
+      row += "<span class=\"folder unmounted\" style=\"color: #999; cursor: not-allowed;\">" + info.name + " (unmounted)</span>";
+    } else {
+      // Normal directory or mounted mount point
+      row += "<a href=\"" + file_uri + "\" class=\"folder\">" + info.name + "</a>";
+    }
   } else {
     row += info.name;
   }
@@ -1076,7 +1142,11 @@ std::string HttpFileServer::generate_file_row(const FileInfo &info, const std::s
   row += "</td><td>";
 
   if (info.is_directory) {
-    row += "Folder";
+    if (info.is_mount_point && !info.mounted) {
+      row += "<span style=\"color: #999;\">Mount Point</span>";
+    } else {
+      row += "Folder";
+    }
   } else {
     row += "<span class=\"file-type\">" + Path::file_type(info.name) + "</span>";
   }
@@ -1120,9 +1190,17 @@ std::string HttpFileServer::generate_file_row(const FileInfo &info, const std::s
       if (this->deletion_enabled_) {
         row += "<button class=\"delete\" onclick=\"delete_directory('" + file_uri + "')\">Delete</button>";
       }
+    } else {
+      // Mount point actions
+      if (info.mounted) {
+        // Show Remount and Unmount for mounted devices
+        row += "<button onclick=\"remount_device('" + info.path + "')\">Remount</button>";
+        row += "<button onclick=\"unmount_device('" + info.path + "')\">Unmount</button>";
+      } else {
+        // Show only Mount for unmounted devices
+        row += "<button onclick=\"mount_device('" + info.path + "')\">Mount</button>";
+      }
     }
-    // TODO: Add Mount/Unmount buttons for mount points
-    // This requires integration with usb_msc_host and sd_mmc_card automation actions
   }
 
   row += "</div></td></tr>";
@@ -1179,6 +1257,7 @@ void HttpFileServer::handle_directory_listing(AsyncWebServerRequest *request, co
       info.path = mount.path;
       info.is_directory = true;
       info.is_mount_point = true;
+      info.mounted = this->is_mount_point_mounted(mount.path);  // Check mount status
       info.size = 0;
       info.modified = 0;
 
@@ -1452,6 +1531,32 @@ bool HttpFileServer::recursive_delete_directory(const std::string &path) {
   }
 
   return success;
+}
+
+// Mount status helper
+bool HttpFileServer::is_mount_point_mounted(const std::string &mount_path) {
+  // Check USB MSC devices
+#ifdef USE_USB_MSC_HOST
+  for (void *dev_ptr : this->usb_msc_devices_) {
+    auto *device = static_cast<usb_msc_host::USBMscDevice *>(dev_ptr);
+    if (device->get_mount_path() == mount_path) {
+      return device->is_mounted();
+    }
+  }
+#endif
+
+  // Check SD MMC devices
+#ifdef USE_SD_MMC_CARD
+  for (void *dev_ptr : this->sd_mmc_devices_) {
+    auto *device = static_cast<sd_mmc_card::SdMmcCard *>(dev_ptr);
+    if (device->get_mount_path() == mount_path) {
+      return device->is_mounted();
+    }
+  }
+#endif
+
+  // If no matching device found, assume it's mounted (could be static mount)
+  return true;
 }
 
 // API handlers

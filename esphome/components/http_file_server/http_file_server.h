@@ -74,6 +74,7 @@ struct FileInfo {
   std::string path;
   bool is_directory;
   bool is_mount_point{false};
+  bool mounted{true};  // Only relevant for mount points
   size_t size;
   time_t modified;
 };
@@ -205,6 +206,9 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   bool is_directory_empty(const std::string &path);
   void count_directory_contents(const std::string &path, int &file_count, int &dir_count);
   bool recursive_delete_directory(const std::string &path);
+
+  // Mount status helper
+  bool is_mount_point_mounted(const std::string &mount_path);
 
   // JSON parsing helper
   struct ApiRequest {
