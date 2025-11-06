@@ -363,6 +363,11 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
     if (config.get_hidden()) {
       params.set_hidden(true);
       params.set_ssid(config.get_ssid());
+      // Clear BSSID and channel for hidden networks - there might be multiple hidden networks
+      // and we can't know which one is correct. Rely on probe-req with just SSID.
+      // Leaving channel empty triggers ALL_CHANNEL_SCAN instead of FAST_SCAN.
+      params.set_bssid(optional<bssid_t>{});
+      params.set_channel(optional<uint8_t>{});
     }
   }
 
@@ -377,8 +382,6 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
       params.set_bssid(scan.get_bssid());
       params.set_channel(scan.get_channel());
     }
-    // For hidden networks, don't use scan BSSID/channel - there might be multiple hidden networks
-    // and we can't know which one is correct. Rely on probe-req with just SSID.
   }
 
   return params;
