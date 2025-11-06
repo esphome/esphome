@@ -71,9 +71,10 @@ def mock_changed_files() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture(autouse=True)
-def clear_clang_tidy_cache() -> None:
-    """Clear the clang-tidy full scan cache before each test."""
+def clear_determine_jobs_caches() -> None:
+    """Clear all cached functions before each test."""
     determine_jobs._is_clang_tidy_full_scan.cache_clear()
+    determine_jobs._component_has_tests.cache_clear()
 
 
 def test_main_all_tests_should_run(
@@ -543,6 +544,7 @@ def test_main_filters_components_without_tests(
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(helpers, "create_components_graph", return_value={}),
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(
             determine_jobs,
@@ -564,7 +566,6 @@ def test_main_filters_components_without_tests(
         patch.object(determine_jobs, "changed_files", return_value=[]),
     ):
         # Clear the cache since we're mocking root_path
-        determine_jobs._component_has_tests.cache_clear()
         determine_jobs.main()
 
     # Check output
@@ -640,6 +641,7 @@ def test_main_detects_components_with_variant_tests(
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(helpers, "create_components_graph", return_value={}),
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(
             determine_jobs,
@@ -663,7 +665,6 @@ def test_main_detects_components_with_variant_tests(
         patch.object(determine_jobs, "changed_files", return_value=[]),
     ):
         # Clear the cache since we're mocking root_path
-        determine_jobs._component_has_tests.cache_clear()
         determine_jobs.main()
 
     # Check output
@@ -712,7 +713,6 @@ def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> Non
             "esphome/components/wifi/wifi.cpp",
             "esphome/components/api/api.cpp",
         ]
-        determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
@@ -742,7 +742,6 @@ def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
             "esphome/core/application.cpp",
             "esphome/core/component.h",
         ]
-        determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
@@ -773,7 +772,6 @@ def test_detect_memory_impact_config_core_python_only_changes(tmp_path: Path) ->
             "esphome/config.py",
             "esphome/core/config.py",
         ]
-        determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
@@ -806,7 +804,6 @@ def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
             "esphome/components/wifi/wifi.cpp",
             "esphome/components/logger/logger.cpp",
         ]
-        determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
@@ -828,7 +825,6 @@ def test_detect_memory_impact_config_no_changes(tmp_path: Path) -> None:
         patch.object(determine_jobs, "changed_files") as mock_changed_files,
     ):
         mock_changed_files.return_value = []
-        determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
@@ -853,7 +849,6 @@ def test_detect_memory_impact_config_no_components_with_tests(tmp_path: Path) ->
         mock_changed_files.return_value = [
             "esphome/components/my_custom_component/component.cpp",
         ]
-        determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
@@ -893,7 +888,6 @@ def test_detect_memory_impact_config_includes_base_bus_components(
             "esphome/components/uart/automation.h",  # Header file with inline code
             "esphome/components/wifi/wifi.cpp",
         ]
-        determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
@@ -936,7 +930,6 @@ def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
             "esphome/components/improv_serial/improv_serial.cpp",
             "esphome/components/ethernet/ethernet.cpp",
         ]
-        determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
@@ -1130,3 +1123,233 @@ def test_main_core_files_changed_still_detects_components(
     assert "select" in output["changed_components"]
     assert "api" in output["changed_components"]
     assert len(output["changed_components"]) > 0
+
+
+def test_detect_memory_impact_config_filters_incompatible_esp32_on_esp8266(
+    tmp_path: Path,
+) -> None:
+    """Test that ESP32 components are filtered out when ESP8266 platform is selected.
+
+    This test verifies the fix for the issue where ESP32 components were being included
+    when ESP8266 was selected as the platform, causing build failures in PR 10387.
+    """
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # esp32 component only has esp32-idf tests (NOT compatible with esp8266)
+    esp32_dir = tests_dir / "esp32"
+    esp32_dir.mkdir(parents=True)
+    (esp32_dir / "test.esp32-idf.yaml").write_text("test: esp32")
+    (esp32_dir / "test.esp32-s3-idf.yaml").write_text("test: esp32")
+
+    # esp8266 component only has esp8266-ard test (NOT compatible with esp32)
+    esp8266_dir = tests_dir / "esp8266"
+    esp8266_dir.mkdir(parents=True)
+    (esp8266_dir / "test.esp8266-ard.yaml").write_text("test: esp8266")
+
+    # Mock changed_files to return both esp32 and esp8266 component changes
+    # Include esp8266-specific filename to trigger esp8266 platform hint
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "tests/components/esp32/common.yaml",
+            "tests/components/esp8266/test.esp8266-ard.yaml",
+            "esphome/core/helpers_esp8266.h",  # ESP8266-specific file to hint platform
+        ]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should run
+    assert result["should_run"] == "true"
+
+    # Platform should be esp8266-ard (due to ESP8266 filename hint)
+    assert result["platform"] == "esp8266-ard"
+
+    # CRITICAL: Only esp8266 component should be included, not esp32
+    # This prevents trying to build ESP32 components on ESP8266 platform
+    assert result["components"] == ["esp8266"], (
+        "When esp8266-ard platform is selected, only esp8266 component should be included, "
+        "not esp32. This prevents trying to build ESP32 components on ESP8266 platform."
+    )
+
+    assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_filters_incompatible_esp8266_on_esp32(
+    tmp_path: Path,
+) -> None:
+    """Test that ESP8266 components are filtered out when ESP32 platform is selected.
+
+    This is the inverse of the ESP8266 test - ensures filtering works both ways.
+    """
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # esp32 component only has esp32-idf tests (NOT compatible with esp8266)
+    esp32_dir = tests_dir / "esp32"
+    esp32_dir.mkdir(parents=True)
+    (esp32_dir / "test.esp32-idf.yaml").write_text("test: esp32")
+    (esp32_dir / "test.esp32-s3-idf.yaml").write_text("test: esp32")
+
+    # esp8266 component only has esp8266-ard test (NOT compatible with esp32)
+    esp8266_dir = tests_dir / "esp8266"
+    esp8266_dir.mkdir(parents=True)
+    (esp8266_dir / "test.esp8266-ard.yaml").write_text("test: esp8266")
+
+    # Mock changed_files to return both esp32 and esp8266 component changes
+    # Include MORE esp32-specific filenames to ensure esp32-idf wins the hint count
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "tests/components/esp32/common.yaml",
+            "tests/components/esp8266/test.esp8266-ard.yaml",
+            "esphome/components/wifi/wifi_component_esp_idf.cpp",  # ESP-IDF hint
+            "esphome/components/ethernet/ethernet_esp32.cpp",  # ESP32 hint
+        ]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should run
+    assert result["should_run"] == "true"
+
+    # Platform should be esp32-idf (due to more ESP32-IDF hints)
+    assert result["platform"] == "esp32-idf"
+
+    # CRITICAL: Only esp32 component should be included, not esp8266
+    # This prevents trying to build ESP8266 components on ESP32 platform
+    assert result["components"] == ["esp32"], (
+        "When esp32-idf platform is selected, only esp32 component should be included, "
+        "not esp8266. This prevents trying to build ESP8266 components on ESP32 platform."
+    )
+
+    assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_skips_release_branch(tmp_path: Path) -> None:
+    """Test that memory impact analysis is skipped for release* branches."""
+    # Create test directory structure with components that have tests
+    tests_dir = tmp_path / "tests" / "components"
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+        patch.object(determine_jobs, "get_target_branch", return_value="release"),
+    ):
+        mock_changed_files.return_value = ["esphome/components/wifi/wifi.cpp"]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should be skipped for release branch
+    assert result["should_run"] == "false"
+
+
+def test_detect_memory_impact_config_skips_beta_branch(tmp_path: Path) -> None:
+    """Test that memory impact analysis is skipped for beta* branches."""
+    # Create test directory structure with components that have tests
+    tests_dir = tmp_path / "tests" / "components"
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+        patch.object(determine_jobs, "get_target_branch", return_value="beta"),
+    ):
+        mock_changed_files.return_value = ["esphome/components/wifi/wifi.cpp"]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should be skipped for beta branch
+    assert result["should_run"] == "false"
+
+
+def test_detect_memory_impact_config_runs_for_dev_branch(tmp_path: Path) -> None:
+    """Test that memory impact analysis runs for dev branch."""
+    # Create test directory structure with components that have tests
+    tests_dir = tmp_path / "tests" / "components"
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+        patch.object(determine_jobs, "get_target_branch", return_value="dev"),
+    ):
+        mock_changed_files.return_value = ["esphome/components/wifi/wifi.cpp"]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should run for dev branch
+    assert result["should_run"] == "true"
+    assert result["components"] == ["wifi"]
+
+
+def test_detect_memory_impact_config_skips_too_many_components(
+    tmp_path: Path,
+) -> None:
+    """Test that memory impact analysis is skipped when more than 40 components changed."""
+    # Create test directory structure with 41 components
+    tests_dir = tmp_path / "tests" / "components"
+    component_names = [f"component_{i}" for i in range(41)]
+
+    for component_name in component_names:
+        comp_dir = tests_dir / component_name
+        comp_dir.mkdir(parents=True)
+        (comp_dir / "test.esp32-idf.yaml").write_text(f"test: {component_name}")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+        patch.object(determine_jobs, "get_target_branch", return_value="dev"),
+    ):
+        mock_changed_files.return_value = [
+            f"esphome/components/{name}/{name}.cpp" for name in component_names
+        ]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should be skipped for too many components (41 > 40)
+    assert result["should_run"] == "false"
+
+
+def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> None:
+    """Test that memory impact analysis runs with exactly 40 components (at limit)."""
+    # Create test directory structure with exactly 40 components
+    tests_dir = tmp_path / "tests" / "components"
+    component_names = [f"component_{i}" for i in range(40)]
+
+    for component_name in component_names:
+        comp_dir = tests_dir / component_name
+        comp_dir.mkdir(parents=True)
+        (comp_dir / "test.esp32-idf.yaml").write_text(f"test: {component_name}")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+        patch.object(determine_jobs, "get_target_branch", return_value="dev"),
+    ):
+        mock_changed_files.return_value = [
+            f"esphome/components/{name}/{name}.cpp" for name in component_names
+        ]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should run at exactly 40 components (at limit but not over)
+    assert result["should_run"] == "true"
+    assert len(result["components"]) == 40

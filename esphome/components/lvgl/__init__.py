@@ -41,10 +41,7 @@ from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
-    FLEX_OBJ_SCHEMA,
     FULL_STYLE_SCHEMA,
-    GRID_CELL_SCHEMA,
-    LAYOUT_SCHEMAS,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
@@ -78,6 +75,7 @@ from .widgets.button import button_spec
 from .widgets.buttonmatrix import buttonmatrix_spec
 from .widgets.canvas import canvas_spec
 from .widgets.checkbox import checkbox_spec
+from .widgets.container import container_spec
 from .widgets.dropdown import dropdown_spec
 from .widgets.img import img_spec
 from .widgets.keyboard import keyboard_spec
@@ -130,20 +128,10 @@ for w_type in (
     tileview_spec,
     qr_code_spec,
     canvas_spec,
+    container_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
-WIDGET_SCHEMA = any_widget_schema()
-
-LAYOUT_SCHEMAS[df.TYPE_GRID] = {
-    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(GRID_CELL_SCHEMA))
-}
-LAYOUT_SCHEMAS[df.TYPE_FLEX] = {
-    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(FLEX_OBJ_SCHEMA))
-}
-LAYOUT_SCHEMAS[df.TYPE_NONE] = {
-    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())
-}
 for w_type in WIDGET_TYPES.values():
     register_action(
         f"lvgl.{w_type.name}.update",
@@ -410,7 +398,7 @@ def display_schema(config):
 def add_hello_world(config):
     if df.CONF_WIDGETS not in config and CONF_PAGES not in config:
         LOGGER.info("No pages or widgets configured, creating default hello_world page")
-        config[df.CONF_WIDGETS] = cv.ensure_list(WIDGET_SCHEMA)(get_hello_world())
+        config[df.CONF_WIDGETS] = any_widget_schema()(get_hello_world())
     return config
 
 
@@ -450,6 +438,7 @@ LVGL_SCHEMA = cv.All(
                         ),
                     }
                 ),
+                cv.Optional(CONF_PAGES): cv.ensure_list(container_schema(page_spec)),
                 **{
                     cv.Optional(x): validate_automation(
                         {
@@ -459,12 +448,6 @@ LVGL_SCHEMA = cv.All(
                     )
                     for x in SIMPLE_TRIGGERS
                 },
-                cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(
-                    WIDGET_SCHEMA
-                ),
-                cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
-                    container_schema(page_spec)
-                ),
                 cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
                 cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
                 cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),

@@ -122,7 +122,7 @@ template<typename... Ts> class PlayAction : public Action<Ts...> {
   PlayAction(Rtttl *rtttl) : rtttl_(rtttl) {}
   TEMPLATABLE_VALUE(std::string, value)
 
-  void play(Ts... x) override { this->rtttl_->play(this->value_.value(x...)); }
+  void play(const Ts &...x) override { this->rtttl_->play(this->value_.value(x...)); }
 
  protected:
   Rtttl *rtttl_;
@@ -130,12 +130,12 @@ template<typename... Ts> class PlayAction : public Action<Ts...> {
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<Rtttl> {
  public:
-  void play(Ts... x) override { this->parent_->stop(); }
+  void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
 template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<Rtttl> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_playing(); }
+  bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
 class FinishedPlaybackTrigger : public Trigger<> {
