@@ -117,12 +117,6 @@ void log_device_class(const char *tag, const char *prefix, const EntityBase_Devi
   }
 }
 
-void log_entity_icon_and_device_class(const char *tag, const char *prefix, const EntityBase *icon_obj,
-                                      const EntityBase_DeviceClass *device_class_obj) {
-  log_entity_icon(tag, prefix, icon_obj);
-  log_device_class(tag, prefix, device_class_obj);
-}
-
 void log_entity_name_and_icon(const char *tag, const char *prefix, const char *type, const EntityBase *obj) {
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
   log_entity_icon(tag, prefix, obj);
