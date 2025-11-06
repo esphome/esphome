@@ -89,14 +89,9 @@ uint8_t BM8563::bcd2_to_byte_(uint8_t value) {
 }
 
 uint8_t BM8563::byte_to_bcd2_(uint8_t value) {
-  uint8_t bcdhigh = 0;
-
-  while (value >= 10) {
-    bcdhigh++;
-    value -= 10;
-  }
-
-  return ((uint8_t) (bcdhigh << 4) | value);
+  const uint8_t bcdhigh = value / 10;
+  value -= bcdhigh * 10;
+  return (bcdhigh << 4) | value;
 }
 
 void BM8563::get_time_(BM8563TimeTypeDef *b_m8563_time_struct) {
