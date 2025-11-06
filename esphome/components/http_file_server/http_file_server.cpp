@@ -955,41 +955,24 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
 // API handlers
 void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
-  // Check if we have body data (from handleBody callback)
-  // If empty, check if there's content-length and we need to wait for body
-  if (this->body_buffer_.empty() && request->contentLength() > 0) {
-    // Body not received yet - this shouldn't happen if handleBody works correctly
-    ESP_LOGW(TAG, "Body buffer empty but content-length is %u", request->contentLength());
-    request->send(400, "application/json", "{\"error\":\"Request body not received\"}");
-    return;
-  }
+  // Get parameters from POST body
+  auto *source_param = request->getParam("source", true);
+  auto *dest_param = request->getParam("destination", true);
 
-  if (this->body_buffer_.empty()) {
-    request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
-    return;
-  }
-
-  ESP_LOGD(TAG, "Parsing form data (%zu bytes): %s", this->body_buffer_.size(), this->body_buffer_.c_str());
-
-  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
-  size_t body_len = this->body_buffer_.length();
-
-  ApiRequest api_req;
-  if (!this->parse_json_request(body_data, body_len, api_req)) {
-    request->send(400, "application/json", "{\"error\":\"Invalid form data\"}");
-    return;
-  }
-
-  if (api_req.source.empty() || api_req.destination.empty()) {
+  if (!source_param || !dest_param) {
+    ESP_LOGW(TAG, "Missing source or destination parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or destination\"}");
     return;
   }
 
-  ESP_LOGI(TAG, "API COPY: %s -> %s", api_req.source.c_str(), api_req.destination.c_str());
+  std::string source = source_param->value().c_str();
+  std::string destination = dest_param->value().c_str();
+
+  ESP_LOGI(TAG, "API COPY: %s -> %s", source.c_str(), destination.c_str());
 
   // Check if source exists
   struct stat src_stat;
-  if (stat(api_req.source.c_str(), &src_stat) != 0) {
+  if (stat(source.c_str(), &src_stat) != 0) {
     request->send(404, "application/json", "{\"error\":\"Source file not found\"}");
     return;
   }
@@ -1001,7 +984,7 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
 
   // Perform copy with progress tracking for large files (> 1MB)
   bool track_progress = (src_stat.st_size > 1048576);
-  if (this->perform_file_copy(api_req.source, api_req.destination, src_stat.st_size, track_progress)) {
+  if (this->perform_file_copy(source, destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Copy operation failed\"}");
@@ -1009,31 +992,24 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
-  // Use body buffer populated by handleBody callback
-  if (this->body_buffer_.empty()) {
-    request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
-    return;
-  }
+  // Get parameters from POST body
+  auto *source_param = request->getParam("source", true);
+  auto *dest_param = request->getParam("destination", true);
 
-  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
-  size_t body_len = this->body_buffer_.length();
-
-  ApiRequest api_req;
-  if (!this->parse_json_request(body_data, body_len, api_req)) {
-    request->send(400, "application/json", "{\"error\":\"Invalid form data\"}");
-    return;
-  }
-
-  if (api_req.source.empty() || api_req.destination.empty()) {
+  if (!source_param || !dest_param) {
+    ESP_LOGW(TAG, "Missing source or destination parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or destination\"}");
     return;
   }
 
-  ESP_LOGI(TAG, "API MOVE: %s -> %s", api_req.source.c_str(), api_req.destination.c_str());
+  std::string source = source_param->value().c_str();
+  std::string destination = dest_param->value().c_str();
+
+  ESP_LOGI(TAG, "API MOVE: %s -> %s", source.c_str(), destination.c_str());
 
   // Check if source exists
   struct stat src_stat;
-  if (stat(api_req.source.c_str(), &src_stat) != 0) {
+  if (stat(source.c_str(), &src_stat) != 0) {
     request->send(404, "application/json", "{\"error\":\"Source file not found\"}");
     return;
   }
@@ -1045,7 +1021,7 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 
   // Perform move with progress tracking for large files (> 1MB)
   bool track_progress = (src_stat.st_size > 1048576);
-  if (this->perform_file_move(api_req.source, api_req.destination, src_stat.st_size, track_progress)) {
+  if (this->perform_file_move(source, destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Move operation failed\"}");
@@ -1053,76 +1029,60 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
-  // Use body buffer populated by handleBody callback
-  if (this->body_buffer_.empty()) {
-    request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
-    return;
-  }
+  // Get parameters from POST body
+  auto *source_param = request->getParam("source", true);
+  auto *name_param = request->getParam("name", true);
 
-  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
-  size_t body_len = this->body_buffer_.length();
-
-  ApiRequest api_req;
-  if (!this->parse_json_request(body_data, body_len, api_req)) {
-    request->send(400, "application/json", "{\"error\":\"Invalid form data\"}");
-    return;
-  }
-
-  if (api_req.source.empty() || api_req.name.empty()) {
+  if (!source_param || !name_param) {
+    ESP_LOGW(TAG, "Missing source or name parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or name\"}");
     return;
   }
 
-  // Build new path (same directory, new name)
-  std::string dir_path = api_req.source.substr(0, api_req.source.find_last_of('/'));
-  std::string new_path = Path::join(dir_path, api_req.name);
+  std::string source = source_param->value().c_str();
+  std::string new_name = name_param->value().c_str();
 
-  ESP_LOGI(TAG, "API RENAME: %s -> %s", api_req.source.c_str(), new_path.c_str());
+  // Build new path (same directory, new name)
+  std::string dir_path = source.substr(0, source.find_last_of('/'));
+  std::string new_path = Path::join(dir_path, new_name);
+
+  ESP_LOGI(TAG, "API RENAME: %s -> %s", source.c_str(), new_path.c_str());
 
   // Check if source exists
   struct stat src_stat;
-  if (stat(api_req.source.c_str(), &src_stat) != 0) {
+  if (stat(source.c_str(), &src_stat) != 0) {
     request->send(404, "application/json", "{\"error\":\"Source file not found\"}");
     return;
   }
 
   // Perform rename
-  if (rename(api_req.source.c_str(), new_path.c_str()) == 0) {
+  if (rename(source.c_str(), new_path.c_str()) == 0) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
-    ESP_LOGE(TAG, "Rename failed: %s (errno: %d, %s)", api_req.source.c_str(), errno, strerror(errno));
+    ESP_LOGE(TAG, "Rename failed: %s (errno: %d, %s)", source.c_str(), errno, strerror(errno));
     request->send(500, "application/json", "{\"error\":\"Rename operation failed\"}");
   }
 }
 
 void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
-  // Use body buffer populated by handleBody callback
-  if (this->body_buffer_.empty()) {
-    request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
-    return;
-  }
+  // Get parameters from POST body
+  auto *name_param = request->getParam("name", true);
 
-  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
-  size_t body_len = this->body_buffer_.length();
-
-  ApiRequest api_req;
-  if (!this->parse_json_request(body_data, body_len, api_req)) {
-    request->send(400, "application/json", "{\"error\":\"Invalid form data\"}");
-    return;
-  }
-
-  if (api_req.name.empty()) {
+  if (!name_param) {
+    ESP_LOGW(TAG, "Missing name parameter");
     request->send(400, "application/json", "{\"error\":\"Missing directory name\"}");
     return;
   }
 
-  ESP_LOGI(TAG, "API MKDIR: %s", api_req.name.c_str());
+  std::string dir_name = name_param->value().c_str();
+
+  ESP_LOGI(TAG, "API MKDIR: %s", dir_name.c_str());
 
   // Create directory
-  if (mkdir(api_req.name.c_str(), 0755) == 0) {
+  if (mkdir(dir_name.c_str(), 0755) == 0) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
-    ESP_LOGE(TAG, "Mkdir failed: %s (errno: %d, %s)", api_req.name.c_str(), errno, strerror(errno));
+    ESP_LOGE(TAG, "Mkdir failed: %s (errno: %d, %s)", dir_name.c_str(), errno, strerror(errno));
     request->send(500, "application/json", "{\"error\":\"Mkdir operation failed\"}");
   }
 }
