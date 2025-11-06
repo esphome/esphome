@@ -144,9 +144,9 @@ class WebDAVServer : public Component {
 
   // Helper for performing synchronous file operations
   bool perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
-                         const std::string &operation_id = "");
+                         const std::string &operation_id = "", httpd_req_t *req = nullptr);
   bool perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size,
-                         const std::string &operation_id = "");
+                         const std::string &operation_id = "", httpd_req_t *req = nullptr);
 
   // Operation tracking
   std::string create_operation_id();

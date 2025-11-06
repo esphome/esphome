@@ -769,7 +769,7 @@ void WebDAVServer::cleanup_old_operations() {
 
 // Helper function: Perform file copy operation (used by both sync and async paths)
 bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
-                                     const std::string &operation_id) {
+                                     const std::string &operation_id, httpd_req_t *req) {
   FILE *src = fopen(src_path.c_str(), "rb");
   if (!src) {
     ESP_LOGE(TAG, "Failed to open source file: %s (errno: %d, %s)", src_path.c_str(), errno, strerror(errno));
@@ -783,11 +783,20 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
     return false;
   }
 
+  // If req is provided, start chunked response for keepalive
+  bool send_keepalive = (req != nullptr);
+  if (send_keepalive) {
+    httpd_resp_set_status(req, "201 Created");
+    httpd_resp_set_type(req, "text/plain");
+    // Don't call httpd_resp_send - we'll use httpd_resp_send_chunk for chunked transfer
+  }
+
   auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
   size_t bytes_read;
   size_t total_copied = 0;
   bool copy_success = true;
   bool read_error = false;
+  uint32_t chunk_counter = 0;
 
   ESP_LOGI(TAG, "Starting file copy: %s -> %s (size: %lld bytes)", src_path.c_str(), dst_path.c_str(),
            (long long) file_size);
@@ -804,6 +813,22 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
     // Update operation progress if tracking
     if (!operation_id.empty()) {
       update_operation_progress(operation_id, total_copied);
+    }
+
+    // Send HTTP keepalive chunk every 64 buffer reads (~256KB for 4KB buffers, ~1MB for 16KB buffers)
+    chunk_counter++;
+    if (send_keepalive && chunk_counter % 64 == 0) {
+      int progress_percent = (file_size > 0) ? (int) ((total_copied * 100) / file_size) : 0;
+      char progress_msg[64];
+      snprintf(progress_msg, sizeof(progress_msg), "Progress: %d%% (%zu/%lld bytes)\n", progress_percent, total_copied,
+               (long long) file_size);
+
+      if (httpd_resp_send_chunk(req, progress_msg, strlen(progress_msg)) != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to send keepalive chunk - client may have disconnected");
+        // Continue copying even if client disconnects
+      }
+
+      ESP_LOGD(TAG, "Sent keepalive: %s", progress_msg);
     }
 
     // Log progress for large files
@@ -839,10 +864,28 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
 
   if (copy_success && !read_error && total_copied == static_cast<size_t>(file_size)) {
     ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
+
+    // Send final completion chunk if using keepalive
+    if (send_keepalive) {
+      const char *completion_msg = "Copy completed successfully\n";
+      httpd_resp_send_chunk(req, completion_msg, strlen(completion_msg));
+      // Send empty chunk to signal end of chunked response
+      httpd_resp_send_chunk(req, nullptr, 0);
+    }
+
     return true;
   } else {
     ESP_LOGE(TAG, "File copy failed: %s to %s (copied %zu of %lld bytes, read_error=%d)", src_path.c_str(),
              dst_path.c_str(), total_copied, (long long) file_size, read_error);
+
+    // Send failure chunk if using keepalive
+    if (send_keepalive) {
+      const char *failure_msg = "Copy failed\n";
+      httpd_resp_send_chunk(req, failure_msg, strlen(failure_msg));
+      // Send empty chunk to signal end of chunked response
+      httpd_resp_send_chunk(req, nullptr, 0);
+    }
+
     // Clean up partial file
     if (remove(dst_path.c_str()) != 0) {
       ESP_LOGE(TAG, "Failed to remove partial destination file (errno: %d, %s)", errno, strerror(errno));
@@ -853,8 +896,8 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
 
 // Helper function: Perform file move operation (copy + delete source)
 bool WebDAVServer::perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size,
-                                     const std::string &operation_id) {
-  if (perform_file_copy(src_path, dst_path, file_size, operation_id)) {
+                                     const std::string &operation_id, httpd_req_t *req) {
+  if (perform_file_copy(src_path, dst_path, file_size, operation_id, req)) {
     if (remove(src_path.c_str()) == 0) {
       ESP_LOGI(TAG, "File move completed successfully");
       return true;
@@ -965,12 +1008,14 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
       return ESP_OK;
     }
 
-    // Perform synchronous cross-mount move (HTTP server already handles multi-client via tasks)
-    if (server->perform_file_move(filepath, dest_filepath, src_stat.st_size)) {
-      httpd_resp_set_status(req, "201 Created");
-      httpd_resp_send(req, "Resource moved", -1);
+    // Perform synchronous cross-mount move with keepalive (HTTP server already handles multi-client via tasks)
+    // Pass req to enable chunked progress updates during copy+delete
+    if (server->perform_file_move(filepath, dest_filepath, src_stat.st_size, "", req)) {
+      // Response already sent via chunked transfer in perform_file_copy
+      // No need to send response here
     } else {
-      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Move failed");
+      // Only send error if not already handled by chunked transfer
+      // perform_file_copy sends final chunk on both success and failure
     }
   } else {
     // Other rename error
@@ -1014,12 +1059,14 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  // Perform synchronous copy (HTTP server already handles multi-client via tasks)
-  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size)) {
-    httpd_resp_set_status(req, "201 Created");
-    httpd_resp_send(req, "Resource copied", -1);
+  // Perform synchronous copy with keepalive (HTTP server already handles multi-client via tasks)
+  // Pass req to enable chunked progress updates during copy
+  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size, "", req)) {
+    // Response already sent via chunked transfer in perform_file_copy
+    // No need to send response here
   } else {
-    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
+    // Only send error if not already handled by chunked transfer
+    // perform_file_copy sends final chunk on both success and failure
   }
 
   return ESP_OK;
