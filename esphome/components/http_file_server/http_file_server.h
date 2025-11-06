@@ -160,9 +160,27 @@ class HttpFileServer : public Component {
   static esp_err_t handle_post(httpd_req_t *req);
   static esp_err_t handle_delete(httpd_req_t *req);
 
+  // REST API handlers for file operations
+  static esp_err_t handle_api_copy(httpd_req_t *req);
+  static esp_err_t handle_api_move(httpd_req_t *req);
+  static esp_err_t handle_api_rename(httpd_req_t *req);
+  static esp_err_t handle_api_mkdir(httpd_req_t *req);
+
   // Specific handlers for different GET requests
   esp_err_t handle_directory_listing(httpd_req_t *req, const std::string &filepath);
   esp_err_t handle_file_download(httpd_req_t *req, const std::string &filepath);
+
+  // JSON parsing helper
+  struct ApiRequest {
+    std::string source;
+    std::string destination;
+    std::string name;
+  };
+  bool parse_json_request(const char *body, size_t body_len, ApiRequest &req);
+
+  // File operation helpers (reused from WebDAV logic)
+  bool perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size);
+  bool perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size);
 };
 
 }  // namespace http_file_server

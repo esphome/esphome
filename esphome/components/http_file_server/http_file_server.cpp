@@ -69,30 +69,65 @@ bool HttpFileServer::start_server() {
     return false;
   }
 
-  // Build URI pattern for this file server
+  // Build URI patterns
   std::string uri_pattern = this->url_prefix_;
   if (!uri_pattern.empty() && uri_pattern.back() != '/') {
     uri_pattern += '/';
   }
-  uri_pattern += "*";  // Match all paths under prefix
+  std::string uri_wildcard = uri_pattern + "*";  // Match all paths under prefix
 
-  // Register HTTP handlers
+  // Build API endpoint URIs
+  std::string api_copy_uri = uri_pattern + "api/copy";
+  std::string api_move_uri = uri_pattern + "api/move";
+  std::string api_rename_uri = uri_pattern + "api/rename";
+  std::string api_mkdir_uri = uri_pattern + "api/mkdir";
+
+  // Register API handlers (MUST be registered BEFORE wildcard handlers!)
+  httpd_uri_t api_copy_handler = {
+      .uri = api_copy_uri.c_str(),
+      .method = HTTP_POST,
+      .handler = HttpFileServer::handle_api_copy,
+      .user_ctx = this,
+  };
+
+  httpd_uri_t api_move_handler = {
+      .uri = api_move_uri.c_str(),
+      .method = HTTP_POST,
+      .handler = HttpFileServer::handle_api_move,
+      .user_ctx = this,
+  };
+
+  httpd_uri_t api_rename_handler = {
+      .uri = api_rename_uri.c_str(),
+      .method = HTTP_POST,
+      .handler = HttpFileServer::handle_api_rename,
+      .user_ctx = this,
+  };
+
+  httpd_uri_t api_mkdir_handler = {
+      .uri = api_mkdir_uri.c_str(),
+      .method = HTTP_POST,
+      .handler = HttpFileServer::handle_api_mkdir,
+      .user_ctx = this,
+  };
+
+  // Register main HTTP handlers (wildcards)
   httpd_uri_t get_handler = {
-      .uri = uri_pattern.c_str(),
+      .uri = uri_wildcard.c_str(),
       .method = HTTP_GET,
       .handler = HttpFileServer::handle_get,
       .user_ctx = this,
   };
 
   httpd_uri_t post_handler = {
-      .uri = uri_pattern.c_str(),
+      .uri = uri_wildcard.c_str(),
       .method = HTTP_POST,
       .handler = HttpFileServer::handle_post,
       .user_ctx = this,
   };
 
   httpd_uri_t delete_handler = {
-      .uri = uri_pattern.c_str(),
+      .uri = uri_wildcard.c_str(),
       .method = HTTP_DELETE,
       .handler = HttpFileServer::handle_delete,
       .user_ctx = this,
@@ -100,6 +135,40 @@ bool HttpFileServer::start_server() {
 
   esp_err_t err;
 
+  // Register API endpoints FIRST (before wildcards!)
+  err = httpd_register_uri_handler(this->server_, &api_copy_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register API COPY handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered API COPY handler for %s", api_copy_uri.c_str());
+
+  err = httpd_register_uri_handler(this->server_, &api_move_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register API MOVE handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered API MOVE handler for %s", api_move_uri.c_str());
+
+  err = httpd_register_uri_handler(this->server_, &api_rename_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register API RENAME handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered API RENAME handler for %s", api_rename_uri.c_str());
+
+  err = httpd_register_uri_handler(this->server_, &api_mkdir_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register API MKDIR handler: %s", esp_err_to_name(err));
+    httpd_stop(this->server_);
+    return false;
+  }
+  ESP_LOGD(TAG, "Registered API MKDIR handler for %s", api_mkdir_uri.c_str());
+
+  // Now register wildcard handlers
   err = httpd_register_uri_handler(this->server_, &get_handler);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to register GET handler: %s", esp_err_to_name(err));
@@ -588,6 +657,89 @@ function download_file(path, filename) {
       alert('Error: ' + error);
     });
 }
+function copy_file(source) {
+  const destination = prompt('Enter destination path:', source + '.copy');
+  if (!destination) return;
+
+  fetch(window.location.pathname + 'api/copy', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({source: source, destination: destination})
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('File copied successfully!');
+        location.reload();
+      } else {
+        alert('Copy failed: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+}
+function move_file(source) {
+  const destination = prompt('Enter destination path:', source);
+  if (!destination) return;
+
+  fetch(window.location.pathname + 'api/move', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({source: source, destination: destination})
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('File moved successfully!');
+        location.reload();
+      } else {
+        alert('Move failed: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+}
+function rename_file(source) {
+  const currentName = source.split('/').pop();
+  const newName = prompt('Enter new name:', currentName);
+  if (!newName || newName === currentName) return;
+
+  fetch(window.location.pathname + 'api/rename', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({source: source, name: newName})
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('File renamed successfully!');
+        location.reload();
+      } else {
+        alert('Rename failed: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+}
+function create_directory() {
+  const name = prompt('Enter directory name:');
+  if (!name) return;
+
+  const fullPath = window.location.pathname.replace(/\/$/, '') + '/' + name;
+
+  fetch(window.location.pathname + 'api/mkdir', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: fullPath})
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Directory created successfully!');
+        location.reload();
+      } else {
+        alert('Create directory failed: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+}
 </script>
 </body>
 </html>
@@ -649,9 +801,17 @@ std::string HttpFileServer::generate_file_row(const FileInfo &info, const std::s
   row += "</td><td><div class=\"file-actions\">";
 
   if (!info.is_directory) {
+    // Download button
     if (this->download_enabled_) {
       row += "<button onclick=\"download_file('" + file_uri + "', '" + info.name + "')\">Download</button>";
     }
+    // Copy button
+    row += "<button onclick=\"copy_file('" + info.path + "')\">Copy</button>";
+    // Move button
+    row += "<button onclick=\"move_file('" + info.path + "')\">Move</button>";
+    // Rename button
+    row += "<button onclick=\"rename_file('" + info.path + "')\">Rename</button>";
+    // Delete button
     if (this->deletion_enabled_) {
       row += "<button class=\"delete\" onclick=\"delete_file('" + file_uri + "')\">Delete</button>";
     }
@@ -705,6 +865,7 @@ esp_err_t HttpFileServer::handle_directory_listing(httpd_req_t *req, const std::
 
   html += "<div class=\"header-actions\">";
   html += "<h1>File Browser</h1>";
+  html += "<button onclick=\"create_directory()\">New Folder</button>";
   html += "</div>";
 
   html += this->generate_breadcrumb(filepath);
@@ -942,6 +1103,395 @@ esp_err_t HttpFileServer::handle_delete(httpd_req_t *req) {
     httpd_resp_send(req, nullptr, 0);
   } else {
     httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Cannot delete file");
+  }
+
+  return ESP_OK;
+}
+
+// JSON parsing helper for API requests
+bool HttpFileServer::parse_json_request(const char *body, size_t body_len, ApiRequest &req) {
+  // Simple JSON parser for our specific format
+  // Format: {"source": "/path/to/file", "destination": "/path/to/dest", "name": "newname"}
+  std::string json(body, body_len);
+
+  // Extract source
+  size_t source_pos = json.find("\"source\"");
+  if (source_pos != std::string::npos) {
+    size_t value_start = json.find('\"', source_pos + 8);
+    if (value_start != std::string::npos) {
+      size_t value_end = json.find('\"', value_start + 1);
+      if (value_end != std::string::npos) {
+        req.source = json.substr(value_start + 1, value_end - value_start - 1);
+      }
+    }
+  }
+
+  // Extract destination
+  size_t dest_pos = json.find("\"destination\"");
+  if (dest_pos != std::string::npos) {
+    size_t value_start = json.find('\"', dest_pos + 13);
+    if (value_start != std::string::npos) {
+      size_t value_end = json.find('\"', value_start + 1);
+      if (value_end != std::string::npos) {
+        req.destination = json.substr(value_start + 1, value_end - value_start - 1);
+      }
+    }
+  }
+
+  // Extract name
+  size_t name_pos = json.find("\"name\"");
+  if (name_pos != std::string::npos) {
+    size_t value_start = json.find('\"', name_pos + 6);
+    if (value_start != std::string::npos) {
+      size_t value_end = json.find('\"', value_start + 1);
+      if (value_end != std::string::npos) {
+        req.name = json.substr(value_start + 1, value_end - value_start - 1);
+      }
+    }
+  }
+
+  return !req.source.empty() || !req.destination.empty() || !req.name.empty();
+}
+
+// File operation helpers (adapted from WebDAV)
+bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size) {
+  FILE *src = fopen(src_path.c_str(), "rb");
+  if (!src) {
+    ESP_LOGE(TAG, "Failed to open source file: %s (errno: %d, %s)", src_path.c_str(), errno, strerror(errno));
+    return false;
+  }
+
+  FILE *dst = fopen(dst_path.c_str(), "wb");
+  if (!dst) {
+    ESP_LOGE(TAG, "Failed to open destination file: %s (errno: %d, %s)", dst_path.c_str(), errno, strerror(errno));
+    fclose(src);
+    return false;
+  }
+
+  auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
+  size_t bytes_read;
+  size_t total_copied = 0;
+  bool copy_success = true;
+
+  ESP_LOGI(TAG, "Starting file copy: %s -> %s (size: %lld bytes)", src_path.c_str(), dst_path.c_str(),
+           (long long) file_size);
+
+  while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, src)) > 0) {
+    size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
+    if (bytes_written != bytes_read) {
+      ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d, %s)", total_copied, errno, strerror(errno));
+      copy_success = false;
+      break;
+    }
+    total_copied += bytes_written;
+
+    // Log progress for large files
+    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0 && file_size > 0) {
+      ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
+               (total_copied * 100.0) / file_size);
+    }
+  }
+
+  // Check for read errors
+  if (ferror(src)) {
+    ESP_LOGE(TAG, "Read error at offset %zu (errno: %d, %s)", total_copied, errno, strerror(errno));
+    copy_success = false;
+  }
+
+  // Flush and close files
+  if (fflush(dst) != 0) {
+    ESP_LOGE(TAG, "Flush failed (errno: %d, %s)", errno, strerror(errno));
+    copy_success = false;
+  }
+
+  fclose(src);
+  fclose(dst);
+
+  if (copy_success && total_copied == static_cast<size_t>(file_size)) {
+    ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
+    return true;
+  } else {
+    ESP_LOGE(TAG, "File copy failed: %s to %s (copied %zu of %lld bytes)", src_path.c_str(), dst_path.c_str(),
+             total_copied, (long long) file_size);
+
+    // Clean up partial file
+    if (remove(dst_path.c_str()) != 0) {
+      ESP_LOGE(TAG, "Failed to remove partial destination file (errno: %d, %s)", errno, strerror(errno));
+    }
+    return false;
+  }
+}
+
+bool HttpFileServer::perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size) {
+  // Try atomic rename first (works within same filesystem)
+  if (rename(src_path.c_str(), dst_path.c_str()) == 0) {
+    ESP_LOGI(TAG, "File moved successfully (atomic rename)");
+    return true;
+  }
+
+  // If rename fails with EXDEV (cross-device), fall back to copy+delete
+  if (errno == EXDEV) {
+    ESP_LOGI(TAG, "Cross-mount move detected, using copy+delete fallback");
+    if (perform_file_copy(src_path, dst_path, file_size)) {
+      if (remove(src_path.c_str()) == 0) {
+        ESP_LOGI(TAG, "File move completed successfully");
+        return true;
+      } else {
+        ESP_LOGE(TAG, "Failed to delete source after copy: %s (errno: %d, %s)", src_path.c_str(), errno,
+                 strerror(errno));
+        // File was copied but source remains - still consider success
+        return true;
+      }
+    }
+  } else {
+    ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d, %s)", src_path.c_str(), dst_path.c_str(), errno,
+             strerror(errno));
+  }
+
+  return false;
+}
+
+// REST API handlers
+esp_err_t HttpFileServer::handle_api_copy(httpd_req_t *req) {
+  auto *server = static_cast<HttpFileServer *>(req->user_ctx);
+
+  // Check authentication if enabled
+  if (server->auth_enabled_) {
+    char auth_header[256] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", auth_header, sizeof(auth_header)) != ESP_OK ||
+        !server->authenticate(auth_header)) {
+      httpd_resp_set_status(req, "401 Unauthorized");
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"HTTP File Server\"");
+      httpd_resp_send(req, "{\"error\":\"Unauthorized\"}", -1);
+      return ESP_OK;
+    }
+  }
+
+  // Read request body
+  char *buf = new char[req->content_len + 1];
+  int ret = httpd_req_recv(req, buf, req->content_len);
+  if (ret <= 0) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Failed to read request body\"}");
+    return ESP_OK;
+  }
+  buf[ret] = '\0';
+
+  // Parse JSON
+  ApiRequest api_req;
+  if (!server->parse_json_request(buf, ret, api_req)) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Invalid JSON format\"}");
+    return ESP_OK;
+  }
+  delete[] buf;
+
+  if (api_req.source.empty() || api_req.destination.empty()) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Missing source or destination\"}");
+    return ESP_OK;
+  }
+
+  ESP_LOGI(TAG, "API COPY: %s -> %s", api_req.source.c_str(), api_req.destination.c_str());
+
+  // Check if source exists
+  struct stat src_stat;
+  if (stat(api_req.source.c_str(), &src_stat) != 0) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "{\"error\":\"Source file not found\"}");
+    return ESP_OK;
+  }
+
+  if (S_ISDIR(src_stat.st_mode)) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Directory copy not supported\"}");
+    return ESP_OK;
+  }
+
+  // Perform copy
+  if (server->perform_file_copy(api_req.source, api_req.destination, src_stat.st_size)) {
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"success\":true}", -1);
+  } else {
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "{\"error\":\"Copy operation failed\"}");
+  }
+
+  return ESP_OK;
+}
+
+esp_err_t HttpFileServer::handle_api_move(httpd_req_t *req) {
+  auto *server = static_cast<HttpFileServer *>(req->user_ctx);
+
+  // Check authentication if enabled
+  if (server->auth_enabled_) {
+    char auth_header[256] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", auth_header, sizeof(auth_header)) != ESP_OK ||
+        !server->authenticate(auth_header)) {
+      httpd_resp_set_status(req, "401 Unauthorized");
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"HTTP File Server\"");
+      httpd_resp_send(req, "{\"error\":\"Unauthorized\"}", -1);
+      return ESP_OK;
+    }
+  }
+
+  // Read request body
+  char *buf = new char[req->content_len + 1];
+  int ret = httpd_req_recv(req, buf, req->content_len);
+  if (ret <= 0) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Failed to read request body\"}");
+    return ESP_OK;
+  }
+  buf[ret] = '\0';
+
+  // Parse JSON
+  ApiRequest api_req;
+  if (!server->parse_json_request(buf, ret, api_req)) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Invalid JSON format\"}");
+    return ESP_OK;
+  }
+  delete[] buf;
+
+  if (api_req.source.empty() || api_req.destination.empty()) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Missing source or destination\"}");
+    return ESP_OK;
+  }
+
+  ESP_LOGI(TAG, "API MOVE: %s -> %s", api_req.source.c_str(), api_req.destination.c_str());
+
+  // Check if source exists
+  struct stat src_stat;
+  if (stat(api_req.source.c_str(), &src_stat) != 0) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "{\"error\":\"Source file not found\"}");
+    return ESP_OK;
+  }
+
+  if (S_ISDIR(src_stat.st_mode)) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Directory move not supported\"}");
+    return ESP_OK;
+  }
+
+  // Perform move
+  if (server->perform_file_move(api_req.source, api_req.destination, src_stat.st_size)) {
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"success\":true}", -1);
+  } else {
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "{\"error\":\"Move operation failed\"}");
+  }
+
+  return ESP_OK;
+}
+
+esp_err_t HttpFileServer::handle_api_rename(httpd_req_t *req) {
+  auto *server = static_cast<HttpFileServer *>(req->user_ctx);
+
+  // Check authentication if enabled
+  if (server->auth_enabled_) {
+    char auth_header[256] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", auth_header, sizeof(auth_header)) != ESP_OK ||
+        !server->authenticate(auth_header)) {
+      httpd_resp_set_status(req, "401 Unauthorized");
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"HTTP File Server\"");
+      httpd_resp_send(req, "{\"error\":\"Unauthorized\"}", -1);
+      return ESP_OK;
+    }
+  }
+
+  // Read request body
+  char *buf = new char[req->content_len + 1];
+  int ret = httpd_req_recv(req, buf, req->content_len);
+  if (ret <= 0) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Failed to read request body\"}");
+    return ESP_OK;
+  }
+  buf[ret] = '\0';
+
+  // Parse JSON
+  ApiRequest api_req;
+  if (!server->parse_json_request(buf, ret, api_req)) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Invalid JSON format\"}");
+    return ESP_OK;
+  }
+  delete[] buf;
+
+  if (api_req.source.empty() || api_req.name.empty()) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Missing source or name\"}");
+    return ESP_OK;
+  }
+
+  // Build new path (same directory, new name)
+  std::string dir_path = api_req.source.substr(0, api_req.source.find_last_of('/'));
+  std::string new_path = Path::join(dir_path, api_req.name);
+
+  ESP_LOGI(TAG, "API RENAME: %s -> %s", api_req.source.c_str(), new_path.c_str());
+
+  // Check if source exists
+  struct stat src_stat;
+  if (stat(api_req.source.c_str(), &src_stat) != 0) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "{\"error\":\"Source file not found\"}");
+    return ESP_OK;
+  }
+
+  // Perform rename
+  if (rename(api_req.source.c_str(), new_path.c_str()) == 0) {
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"success\":true}", -1);
+  } else {
+    ESP_LOGE(TAG, "Rename failed: %s (errno: %d, %s)", api_req.source.c_str(), errno, strerror(errno));
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "{\"error\":\"Rename operation failed\"}");
+  }
+
+  return ESP_OK;
+}
+
+esp_err_t HttpFileServer::handle_api_mkdir(httpd_req_t *req) {
+  auto *server = static_cast<HttpFileServer *>(req->user_ctx);
+
+  // Check authentication if enabled
+  if (server->auth_enabled_) {
+    char auth_header[256] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", auth_header, sizeof(auth_header)) != ESP_OK ||
+        !server->authenticate(auth_header)) {
+      httpd_resp_set_status(req, "401 Unauthorized");
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"HTTP File Server\"");
+      httpd_resp_send(req, "{\"error\":\"Unauthorized\"}", -1);
+      return ESP_OK;
+    }
+  }
+
+  // Read request body
+  char *buf = new char[req->content_len + 1];
+  int ret = httpd_req_recv(req, buf, req->content_len);
+  if (ret <= 0) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Failed to read request body\"}");
+    return ESP_OK;
+  }
+  buf[ret] = '\0';
+
+  // Parse JSON
+  ApiRequest api_req;
+  if (!server->parse_json_request(buf, ret, api_req)) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Invalid JSON format\"}");
+    return ESP_OK;
+  }
+  delete[] buf;
+
+  if (api_req.name.empty()) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "{\"error\":\"Missing directory name\"}");
+    return ESP_OK;
+  }
+
+  ESP_LOGI(TAG, "API MKDIR: %s", api_req.name.c_str());
+
+  // Create directory
+  if (mkdir(api_req.name.c_str(), 0755) == 0) {
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"success\":true}", -1);
+  } else {
+    ESP_LOGE(TAG, "Mkdir failed: %s (errno: %d, %s)", api_req.name.c_str(), errno, strerror(errno));
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "{\"error\":\"Mkdir operation failed\"}");
   }
 
   return ESP_OK;
