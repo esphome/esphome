@@ -285,8 +285,12 @@ std::string HttpFileServer::url_decode(const std::string &src) {
 
 esphome::FixedVector<FileInfo> HttpFileServer::list_directory(const std::string &path) {
   esphome::FixedVector<FileInfo> files;
+
+  ESP_LOGD(TAG, "Attempting to open directory: %s", path.c_str());
   DIR *dir = opendir(path.c_str());
+
   if (dir != nullptr) {
+    ESP_LOGV(TAG, "Directory opened successfully: %s", path.c_str());
     // Count entries first to allocate once
     size_t count = 0;
     struct dirent *entry;
@@ -585,7 +589,10 @@ function pollProgress() {
   fetch(API_BASE + '/api/progress')
     .then(response => response.json())
     .then(data => {
+      console.log('Progress update:', data);
+
       if (!data.in_progress) {
+        console.log('Operation complete, closing modal');
         hideProgressModal();
         location.reload();
         return;
@@ -607,6 +614,7 @@ function pollProgress() {
       }
 
       details.textContent = detailText;
+      console.log('Updated progress bar:', percentage.toFixed(1) + '%');
     })
     .catch(error => {
       console.error('Progress polling error:', error);
@@ -626,11 +634,13 @@ function startProgressPolling() {
 function delete_file(path) {
   if (confirm('Are you sure you want to delete this file?')) {
     fetch(path, {method: 'DELETE'})
-      .then(response => {
-        if (response.ok) {
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('File deleted successfully!');
           location.reload();
         } else {
-          alert('Failed to delete file');
+          alert('Delete failed: ' + (data.error || 'Unknown error'));
         }
       })
       .catch(error => {
@@ -728,9 +738,11 @@ function rename_file(source) {
 }
 function create_directory() {
   const name = prompt('Enter directory name:');
-  if (!name) return;
+  if (!name || !name.trim()) return;
 
-  const fullPath = window.location.pathname.replace(/\/$/, '') + '/' + name;
+  // Create directory in current location
+  const currentPath = window.location.pathname.replace(/\/$/, '');
+  const fullPath = currentPath + '/' + name.trim();
 
   fetch(API_BASE + '/api/mkdir', {
     method: 'POST',
@@ -982,8 +994,8 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform copy with progress tracking for large files (> 1MB)
-  bool track_progress = (src_stat.st_size > 1048576);
+  // Perform copy with progress tracking for files > 100KB
+  bool track_progress = (src_stat.st_size > 102400);
   if (this->perform_file_copy(source, destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
@@ -1019,8 +1031,8 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform move with progress tracking for large files (> 1MB)
-  bool track_progress = (src_stat.st_size > 1048576);
+  // Perform move with progress tracking for files > 100KB
+  bool track_progress = (src_stat.st_size > 102400);
   if (this->perform_file_move(source, destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
@@ -1074,15 +1086,18 @@ void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string dir_name = name_param->value().c_str();
+  std::string dir_uri = name_param->value().c_str();
 
-  ESP_LOGI(TAG, "API MKDIR: %s", dir_name.c_str());
+  // Convert URI to filesystem path
+  std::string dir_path = this->uri_to_filepath(dir_uri);
+
+  ESP_LOGI(TAG, "API MKDIR: URI=%s -> Path=%s", dir_uri.c_str(), dir_path.c_str());
 
   // Create directory
-  if (mkdir(dir_name.c_str(), 0755) == 0) {
+  if (mkdir(dir_path.c_str(), 0755) == 0) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
-    ESP_LOGE(TAG, "Mkdir failed: %s (errno: %d, %s)", dir_name.c_str(), errno, strerror(errno));
+    ESP_LOGE(TAG, "Mkdir failed: %s (errno: %d, %s)", dir_path.c_str(), errno, strerror(errno));
     request->send(500, "application/json", "{\"error\":\"Mkdir operation failed\"}");
   }
 }
@@ -1165,6 +1180,20 @@ bool HttpFileServer::parse_json_request(const uint8_t *body, size_t body_len, Ap
   return !req.source.empty() || !req.destination.empty() || !req.name.empty();
 }
 
+// RAII wrapper for FILE* to ensure files are always closed
+struct FileCloser {
+  FILE *fp;
+  FileCloser(FILE *f) : fp(f) {}
+  ~FileCloser() {
+    if (fp) {
+      fclose(fp);
+    }
+  }
+  // Delete copy/move to prevent double-close
+  FileCloser(const FileCloser &) = delete;
+  FileCloser &operator=(const FileCloser &) = delete;
+};
+
 // File operation helpers (reused from WebDAV logic)
 bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
                                        bool track_progress) {
@@ -1187,15 +1216,16 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       this->progress_.in_progress = false;
     return false;
   }
+  FileCloser src_closer(src);  // RAII: will close src on scope exit
 
   FILE *dst = fopen(dst_path.c_str(), "wb");
   if (!dst) {
     ESP_LOGE(TAG, "Failed to open destination file: %s (errno: %d, %s)", dst_path.c_str(), errno, strerror(errno));
-    fclose(src);
     if (track_progress)
       this->progress_.in_progress = false;
     return false;
   }
+  FileCloser dst_closer(dst);  // RAII: will close dst on scope exit
 
   auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
   size_t bytes_read;
@@ -1232,14 +1262,14 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     copy_success = false;
   }
 
-  // Flush and close files
+  // Flush destination file before closing
   if (fflush(dst) != 0) {
     ESP_LOGE(TAG, "Flush failed (errno: %d, %s)", errno, strerror(errno));
     copy_success = false;
   }
 
-  fclose(src);
-  fclose(dst);
+  // Files will be automatically closed by RAII wrappers (FileCloser destructors)
+  // This happens even if HTTP connection times out or handler is interrupted
 
   if (copy_success && total_copied == static_cast<size_t>(file_size)) {
     ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
