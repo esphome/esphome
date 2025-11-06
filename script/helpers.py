@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import cache
+import hashlib
 import json
 import os
 import os.path
@@ -52,6 +53,10 @@ BASE_BUS_COMPONENTS = {
     "remote_receiver",
 }
 
+# Cache version for components graph
+# Increment this when the cache format or graph building logic changes
+COMPONENTS_GRAPH_CACHE_VERSION = 1
+
 
 def parse_list_components_output(output: str) -> list[str]:
     """Parse the output from list-components.py script.
@@ -90,16 +95,22 @@ def get_component_from_path(file_path: str) -> str | None:
     """Extract component name from a file path.
 
     Args:
-        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp")
+        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp"
+                                or "tests/components/uart/test.esp32-idf.yaml")
 
     Returns:
-        Component name if path is in components directory, None otherwise
+        Component name if path is in components or tests directory, None otherwise
     """
-    if not file_path.startswith(ESPHOME_COMPONENTS_PATH):
-        return None
-    parts = file_path.split("/")
-    if len(parts) >= 3:
-        return parts[2]
+    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
+        ESPHOME_TESTS_COMPONENTS_PATH
+    ):
+        parts = file_path.split("/")
+        if len(parts) >= 3 and parts[2]:
+            # Verify that parts[2] is actually a component directory, not a file
+            # like .gitignore or README.md in the components directory itself
+            component_name = parts[2]
+            if "." not in component_name:
+                return component_name
     return None
 
 
@@ -185,6 +196,20 @@ def splitlines_no_ends(string: str) -> list[str]:
     return [s.strip() for s in string.splitlines()]
 
 
+@cache
+def _get_github_event_data() -> dict | None:
+    """Read and parse GitHub event file (cached).
+
+    Returns:
+        Parsed event data dictionary, or None if not available
+    """
+    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if github_event_path and os.path.exists(github_event_path):
+        with open(github_event_path) as f:
+            return json.load(f)
+    return None
+
+
 def _get_pr_number_from_github_env() -> str | None:
     """Extract PR number from GitHub environment variables.
 
@@ -197,13 +222,30 @@ def _get_pr_number_from_github_env() -> str | None:
         return github_ref.split("/pull/")[1].split("/")[0]
 
     # Fallback to GitHub event file
-    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
-            event_data = json.load(f)
-            pr_data = event_data.get("pull_request", {})
-            if pr_number := pr_data.get("number"):
-                return str(pr_number)
+    if event_data := _get_github_event_data():
+        pr_data = event_data.get("pull_request", {})
+        if pr_number := pr_data.get("number"):
+            return str(pr_number)
+
+    return None
+
+
+def get_target_branch() -> str | None:
+    """Get the target branch from GitHub environment variables.
+
+    Returns:
+        Target branch name (e.g., "dev", "release", "beta"), or None if not in PR context
+    """
+    # First try GITHUB_BASE_REF (set for pull_request events)
+    if base_ref := os.environ.get("GITHUB_BASE_REF"):
+        return base_ref
+
+    # Fallback to GitHub event file
+    if event_data := _get_github_event_data():
+        pr_data = event_data.get("pull_request", {})
+        base_data = pr_data.get("base", {})
+        if ref := base_data.get("ref"):
+            return ref
 
     return None
 
@@ -750,20 +792,71 @@ def resolve_auto_load(
     return auto_load()
 
 
+@cache
+def get_components_graph_cache_key() -> str:
+    """Generate cache key based on all component Python file hashes.
+
+    Uses git ls-files with sha1 hashes to generate a stable cache key that works
+    across different machines and CI runs. This is faster and more reliable than
+    reading file contents or using modification times.
+
+    Returns:
+        SHA256 hex string uniquely identifying the current component state
+    """
+
+    # Use git ls-files -s to get sha1 hashes of all component Python files
+    # Format: <mode> <sha1> <stage> <path>
+    # This is fast and works consistently across CI and local dev
+    # We hash all .py files because AUTO_LOAD, DEPENDENCIES, etc. can be defined
+    # in any Python file, not just __init__.py
+    cmd = ["git", "ls-files", "-s", "esphome/components/**/*.py"]
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, check=True, cwd=root_path, close_fds=False
+    )
+
+    # Hash the git output (includes file paths and their sha1 hashes)
+    # This changes only when component Python files actually change
+    hasher = hashlib.sha256()
+    hasher.update(result.stdout.encode())
+
+    return hasher.hexdigest()
+
+
 def create_components_graph() -> dict[str, list[str]]:
-    """Create a graph of component dependencies.
+    """Create a graph of component dependencies (cached).
+
+    This function is expensive (5-6 seconds) because it imports all ESPHome components
+    to extract their DEPENDENCIES and AUTO_LOAD metadata. The result is cached based
+    on component file modification times, so unchanged components don't trigger a rebuild.
 
     Returns:
         Dictionary mapping parent components to their children (dependencies)
     """
-    from pathlib import Path
+    # Check cache first - use fixed filename since GitHub Actions cache doesn't support wildcards
+    cache_file = Path(temp_folder) / "components_graph.json"
+
+    if cache_file.exists():
+        try:
+            cached_data = json.loads(cache_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            # Cache file corrupted or unreadable, rebuild
+            pass
+        else:
+            # Verify cache version matches
+            if cached_data.get("_version") == COMPONENTS_GRAPH_CACHE_VERSION:
+                # Verify cache is for current component state
+                cache_key = get_components_graph_cache_key()
+                if cached_data.get("_cache_key") == cache_key:
+                    return cached_data.get("graph", {})
+                # Cache key mismatch - stale cache, rebuild
+            # Cache version mismatch - incompatible format, rebuild
 
     from esphome import const
     from esphome.core import CORE
     from esphome.loader import ComponentManifest, get_component, get_platform
 
     # The root directory of the repo
-    root = Path(__file__).parent.parent
+    root = Path(root_path)
     components_dir = root / ESPHOME_COMPONENTS_PATH
     # Fake some directory so that get_component works
     CORE.config_path = root
@@ -839,6 +932,15 @@ def create_components_graph() -> dict[str, list[str]]:
                     add_item_to_components_graph(components_graph, item, name)
             # restore config
             CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
+
+    # Save to cache with version and cache key for validation
+    cache_data = {
+        "_version": COMPONENTS_GRAPH_CACHE_VERSION,
+        "_cache_key": get_components_graph_cache_key(),
+        "graph": components_graph,
+    }
+    cache_file.parent.mkdir(exist_ok=True)
+    cache_file.write_text(json.dumps(cache_data))
 
     return components_graph
 

@@ -125,7 +125,13 @@ class APIServer : public Component, public Controller {
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_API_SERVICES
+  void initialize_user_services(std::initializer_list<UserServiceDescriptor *> services) {
+    this->user_services_.assign(services);
+  }
+#ifdef USE_API_CUSTOM_SERVICES
+  // Only compile push_back method when custom_services: true (external components)
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
+#endif
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
@@ -231,7 +237,7 @@ extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-cons
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override { return global_api_server->is_connected(); }
+  bool check(const Ts &...x) override { return global_api_server->is_connected(); }
 };
 
 }  // namespace esphome::api

@@ -1,3 +1,5 @@
+import ipaddress
+
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
@@ -10,6 +12,41 @@ AUTO_LOAD = ["mdns"]
 network_ns = cg.esphome_ns.namespace("network")
 IPAddress = network_ns.class_("IPAddress")
 
+
+def ip_address_literal(ip: str | int | None) -> cg.MockObj:
+    """Generate an IPAddress with compile-time initialization instead of runtime parsing.
+
+    This function parses the IP address in Python during code generation and generates
+    a call to the 4-octet constructor (IPAddress(192, 168, 1, 1)) instead of the
+    string constructor (IPAddress("192.168.1.1")). This eliminates runtime string
+    parsing overhead and reduces flash usage on embedded systems.
+
+    Args:
+        ip: IP address as string (e.g., "192.168.1.1"), ipaddress.IPv4Address, or None
+
+    Returns:
+        IPAddress expression that uses 4-octet constructor for efficiency
+    """
+    if ip is None:
+        return IPAddress(0, 0, 0, 0)
+
+    try:
+        # Parse using Python's ipaddress module
+        ip_obj = ipaddress.ip_address(ip)
+    except (ValueError, TypeError):
+        pass
+    else:
+        # Only support IPv4 for now
+        if isinstance(ip_obj, ipaddress.IPv4Address):
+            # Extract octets from the packed bytes representation
+            octets = ip_obj.packed
+            # Generate call to 4-octet constructor: IPAddress(192, 168, 1, 1)
+            return IPAddress(octets[0], octets[1], octets[2], octets[3])
+
+    # Fallback to string constructor if parsing fails
+    return IPAddress(str(ip))
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
@@ -18,6 +55,7 @@ CONFIG_SCHEMA = cv.Schema(
             esp32=False,
             rp2040=False,
             bk72xx=False,
+            host=False,
         ): cv.All(
             cv.boolean,
             cv.Any(
@@ -27,6 +65,7 @@ CONFIG_SCHEMA = cv.Schema(
                     esp8266_arduino=cv.Version(0, 0, 0),
                     rp2040_arduino=cv.Version(0, 0, 0),
                     bk72xx_arduino=cv.Version(1, 7, 0),
+                    host=cv.Version(0, 0, 0),
                 ),
                 cv.boolean_false,
             ),
