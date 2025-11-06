@@ -864,7 +864,13 @@ async function performCopy(source, destination) {
   })
     .then(response => response.json())
     .then(data => {
-      if (!data.success) {
+      if (data.success) {
+        // Operation complete - do final progress check then close modal
+        setTimeout(() => {
+          hideProgressModal();
+          location.reload();
+        }, 500);
+      } else {
         hideProgressModal();
         alert('Copy failed: ' + (data.error || 'Unknown error'));
       }
@@ -906,7 +912,13 @@ async function performMove(source, destination) {
   })
     .then(response => response.json())
     .then(data => {
-      if (!data.success) {
+      if (data.success) {
+        // Operation complete - do final progress check then close modal
+        setTimeout(() => {
+          hideProgressModal();
+          location.reload();
+        }, 500);
+      } else {
         hideProgressModal();
         alert('Move failed: ' + (data.error || 'Unknown error'));
       }
@@ -1548,7 +1560,7 @@ bool HttpFileServer::is_mount_point_mounted(const std::string &mount_path) {
   // Check SD MMC devices
 #ifdef USE_SD_MMC_CARD
   for (void *dev_ptr : this->sd_mmc_devices_) {
-    auto *device = static_cast<sd_mmc_card::SdMmcCard *>(dev_ptr);
+    auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
     if (device->get_mount_path() == mount_path) {
       return device->is_mounted();
     }
@@ -1589,9 +1601,8 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform copy with progress tracking for files > 100KB
-  bool track_progress = (src_stat.st_size > 102400);
-  if (this->perform_file_copy(source, destination, src_stat.st_size, track_progress)) {
+  // Perform copy with progress tracking (always enabled for UI feedback)
+  if (this->perform_file_copy(source, destination, src_stat.st_size, true)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Copy operation failed\"}");
@@ -1627,9 +1638,8 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform move with progress tracking for files > 100KB
-  bool track_progress = (src_stat.st_size > 102400);
-  if (this->perform_file_move(source, destination, src_stat.st_size, track_progress)) {
+  // Perform move with progress tracking (always enabled for UI feedback)
+  if (this->perform_file_move(source, destination, src_stat.st_size, true)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Move operation failed\"}");
@@ -1782,7 +1792,7 @@ void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
   // Try SD MMC devices
 #ifdef USE_SD_MMC_CARD
   for (void *dev_ptr : this->sd_mmc_devices_) {
-    auto *device = static_cast<sd_mmc_card::SdMmcCard *>(dev_ptr);
+    auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
     if (device->get_mount_path() == mount_point) {
       if (device->remount_device()) {
         ESP_LOGI(TAG, "Successfully remounted SD MMC device at %s", mount_point.c_str());
@@ -1830,7 +1840,7 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
   // Try SD MMC devices
 #ifdef USE_SD_MMC_CARD
   for (void *dev_ptr : this->sd_mmc_devices_) {
-    auto *device = static_cast<sd_mmc_card::SdMmcCard *>(dev_ptr);
+    auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
     if (device->get_mount_path() == mount_point) {
       device->unmount_device();
       ESP_LOGI(TAG, "Successfully unmounted SD MMC device at %s", mount_point.c_str());

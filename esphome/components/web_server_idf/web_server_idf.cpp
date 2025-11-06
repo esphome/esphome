@@ -140,6 +140,7 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
 
   if (content_type.has_value()) {
     const char *content_type_char = content_type.value().c_str();
+    ESP_LOGD(TAG, "POST Content-Type: %s", content_type_char);
 
     // Check most common case first
     if (stristr(content_type_char, "application/x-www-form-urlencoded") != nullptr) {
@@ -150,12 +151,13 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
       return server->handle_multipart_upload_(r, content_type_char);
 #endif
     } else if (stristr(content_type_char, "application/octet-stream") != nullptr) {
-      // Binary file upload - pass through to handlers via handleBody callback
-      // Don't consume the body here, let the handler read it directly
+      // Binary file upload - pass through to handlers without consuming body
+      // Handler will read directly from httpd_req_t
+      ESP_LOGD(TAG, "Binary upload detected, passing to handler");
       AsyncWebServerRequest req(r);
       return static_cast<AsyncWebServer *>(r->user_ctx)->request_handler_(&req);
     } else {
-      ESP_LOGW(TAG, "Unsupported content type for POST: %s", content_type_char);
+      ESP_LOGD(TAG, "Unsupported content type for POST: %s (falling back to GET handler)", content_type_char);
       // fallback to get handler to support backward compatibility
       return AsyncWebServer::request_handler(r);
     }
