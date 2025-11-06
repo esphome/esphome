@@ -619,8 +619,8 @@ function startProgressPolling() {
   }
   // Poll every 500ms
   progressPollInterval = setInterval(pollProgress, 500);
-  // Also poll immediately
-  pollProgress();
+  // First poll after 250ms delay to give backend time to start tracking
+  setTimeout(pollProgress, 250);
 }
 
 function delete_file(path) {
@@ -655,8 +655,9 @@ function copy_file(source) {
   const destination = prompt('Enter destination path:', source + '.copy');
   if (!destination) return;
 
-  // Show progress modal
+  // Show progress modal and start polling immediately
   showProgressModal('copy', source, destination);
+  startProgressPolling();
 
   fetch(API_BASE + '/api/copy', {
     method: 'POST',
@@ -665,14 +666,12 @@ function copy_file(source) {
   })
     .then(response => response.json())
     .then(data => {
-      if (data.success) {
-        // Start polling for progress (for large files)
-        // Small files might complete instantly, so check progress first
-        startProgressPolling();
-      } else {
+      if (!data.success) {
+        // Operation failed - hide modal and show error
         hideProgressModal();
         alert('Copy failed: ' + (data.error || 'Unknown error'));
       }
+      // If successful, polling will continue and auto-close modal when done
     })
     .catch(error => {
       hideProgressModal();
@@ -683,8 +682,9 @@ function move_file(source) {
   const destination = prompt('Enter destination path:', source);
   if (!destination) return;
 
-  // Show progress modal
+  // Show progress modal and start polling immediately
   showProgressModal('move', source, destination);
+  startProgressPolling();
 
   fetch(API_BASE + '/api/move', {
     method: 'POST',
@@ -693,14 +693,12 @@ function move_file(source) {
   })
     .then(response => response.json())
     .then(data => {
-      if (data.success) {
-        // Start polling for progress (for large files)
-        // Small files might complete instantly, so check progress first
-        startProgressPolling();
-      } else {
+      if (!data.success) {
+        // Operation failed - hide modal and show error
         hideProgressModal();
         alert('Move failed: ' + (data.error || 'Unknown error'));
       }
+      // If successful, polling will continue and auto-close modal when done
     })
     .catch(error => {
       hideProgressModal();
