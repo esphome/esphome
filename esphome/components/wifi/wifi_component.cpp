@@ -112,7 +112,7 @@ void WiFiComponent::start() {
     this->trying_loaded_ap_ = this->load_fast_connect_settings_();
     if (!this->trying_loaded_ap_) {
       // FAST CONNECT FALLBACK: No saved settings available
-      // Use first config without any scan result (config data only, no SSID/BSSID/channel)
+      // Use first config (will use SSID from config since scan_result_ is empty)
       this->selected_sta_index_ = 0;
     }
     this->start_connecting_to_selected_(false);
@@ -355,15 +355,20 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
     params.set_eap(config->get_eap());
 #endif
 
-    // Selected network is hidden, we use the data from the config
+    // Set network parameters from config
+    // These will be used as-is for hidden networks, or overridden by scan for visible networks
+    params.set_ssid(config->get_ssid());
+
     if (config->get_hidden()) {
       params.set_hidden(true);
-      params.set_ssid(config->get_ssid());
-      // Clear BSSID and channel for hidden networks - there might be multiple hidden networks
-      // but we can't know which one is the correct one. Rely on probe-req with just SSID.
-      // Leaving channel empty triggers ALL_CHANNEL_SCAN instead of FAST_SCAN.
+      // For hidden networks, clear BSSID and channel even if set in config
+      // There might be multiple hidden networks with same SSID but we can't know which is correct
+      // Rely on probe-req with just SSID. Leaving channel empty triggers ALL_CHANNEL_SCAN.
       params.set_bssid(optional<bssid_t>{});
       params.set_channel(optional<uint8_t>{});
+    } else {
+      params.set_bssid(config->get_bssid());
+      params.set_channel(config->get_channel());
     }
   }
 
@@ -377,7 +382,7 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
     const WiFiScanResult &scan = this->scan_result_[0];
 
     if (!params.get_hidden()) {
-      // Selected network is visible, we use the data from the scan.
+      // Selected network is visible, override with data from the scan.
       // Limit the connect params to only connect to exactly this network
       // (network selection is done during scan phase).
       params.set_ssid(scan.get_ssid());
