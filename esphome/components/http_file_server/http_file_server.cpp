@@ -1360,8 +1360,9 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string source = source_param->value().c_str();
-  std::string destination = dest_param->value().c_str();
+  // Convert URI paths to filesystem paths (strips URL prefix)
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
+  std::string destination = this->uri_to_filepath(dest_param->value().c_str());
 
   ESP_LOGI(TAG, "API COPY: %s -> %s", source.c_str(), destination.c_str());
 
@@ -1397,8 +1398,9 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string source = source_param->value().c_str();
-  std::string destination = dest_param->value().c_str();
+  // Convert URI paths to filesystem paths (strips URL prefix)
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
+  std::string destination = this->uri_to_filepath(dest_param->value().c_str());
 
   ESP_LOGI(TAG, "API MOVE: %s -> %s", source.c_str(), destination.c_str());
 
@@ -1434,7 +1436,8 @@ void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string source = source_param->value().c_str();
+  // Convert URI path to filesystem path (strips URL prefix)
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
   std::string new_name = name_param->value().c_str();
 
   // Build new path (same directory, new name)
@@ -1534,7 +1537,8 @@ void HttpFileServer::handle_api_exists(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string filepath = path_param->value().c_str();
+  // Convert URI path to filesystem path (strips URL prefix)
+  std::string filepath = this->uri_to_filepath(path_param->value().c_str());
 
   // Check if file exists
   struct stat file_stat;
