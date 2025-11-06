@@ -347,6 +347,16 @@ void WiFiComponent::clear_sta() {
   this->selected_sta_index_ = -1;
 }
 
+// Helper to copy base config settings (password, manual_ip, priority, EAP) from source to dest
+static void copy_wifi_ap_base_config(WiFiAP &dest, const WiFiAP &source) {
+  dest.set_password(source.get_password());
+  dest.set_manual_ip(source.get_manual_ip());
+  dest.set_priority(source.get_priority());
+#ifdef USE_WIFI_WPA2_EAP
+  dest.set_eap(source.get_eap());
+#endif
+}
+
 WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   const WiFiAP *config = this->get_selected_sta_();
   if (!config) {
@@ -356,12 +366,7 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
 
   WiFiAP params;
   // Copy config data that's never overridden (password, manual IP, priority, EAP)
-  params.set_password(config->get_password());
-  params.set_manual_ip(config->get_manual_ip());
-  params.set_priority(config->get_priority());
-#ifdef USE_WIFI_WPA2_EAP
-  params.set_eap(config->get_eap());
-#endif
+  copy_wifi_ap_base_config(params, *config);
 
   // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
   // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
@@ -921,12 +926,8 @@ bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
 
     // Build WiFiAP directly from saved settings + config
     const WiFiAP &config = this->sta_[fast_connect_save.ap_index];
-    params.set_password(config.get_password());
-    params.set_manual_ip(config.get_manual_ip());
-    params.set_priority(config.get_priority());
-#ifdef USE_WIFI_WPA2_EAP
-    params.set_eap(config.get_eap());
-#endif
+    // Copy config data that's never overridden (password, manual IP, priority, EAP)
+    copy_wifi_ap_base_config(params, config);
 
     // Use saved BSSID/channel from fast connect, SSID from config
     params.set_ssid(config.get_ssid());
