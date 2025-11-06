@@ -840,8 +840,7 @@ void WiFiComponent::retry_connect() {
       this->trying_loaded_ap_ = false;
       this->selected_sta_index_ = 0;  // Retry from the first configured AP
       this->reset_for_next_ap_attempt_();
-    } else if (this->selected_sta_index_ >= static_cast<int>(this->sta_.size()) - 1) {
-      // Cast size to int (not int8_t which overflows at 127, not size_t which wraps negative indices)
+    } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
       // Exhausted all configured APs, restart adapter and cycle back to first
       // Restart clears any stuck WiFi driver state
       // Each AP is tried with config data only (SSID + optional BSSID/channel if user configured them)
