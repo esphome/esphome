@@ -533,6 +533,8 @@ std::string HttpFileServer::generate_html_footer() {
   </div>
 </div>
 <script>
+// API base path for this file server instance
+const API_BASE = ')" + this->url_prefix_ + R"(';
 let progressPollInterval = null;
 
 function showProgressModal(operation, source, destination) {
@@ -580,7 +582,7 @@ function formatTime(ms) {
 }
 
 function pollProgress() {
-  fetch(window.location.pathname + 'api/progress')
+  fetch(API_BASE + '/api/progress')
     .then(response => response.json())
     .then(data => {
       if (!data.in_progress) {
@@ -656,7 +658,7 @@ function copy_file(source) {
   // Show progress modal
   showProgressModal('copy', source, destination);
 
-  fetch(window.location.pathname + 'api/copy', {
+  fetch(API_BASE + '/api/copy', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({source: source, destination: destination})
@@ -684,7 +686,7 @@ function move_file(source) {
   // Show progress modal
   showProgressModal('move', source, destination);
 
-  fetch(window.location.pathname + 'api/move', {
+  fetch(API_BASE + '/api/move', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({source: source, destination: destination})
@@ -710,7 +712,7 @@ function rename_file(source) {
   const newName = prompt('Enter new name:', currentName);
   if (!newName || newName === currentName) return;
 
-  fetch(window.location.pathname + 'api/rename', {
+  fetch(API_BASE + '/api/rename', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({source: source, name: newName})
@@ -732,7 +734,7 @@ function create_directory() {
 
   const fullPath = window.location.pathname.replace(/\/$/, '') + '/' + name;
 
-  fetch(window.location.pathname + 'api/mkdir', {
+  fetch(API_BASE + '/api/mkdir', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({name: fullPath})
