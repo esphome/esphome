@@ -343,10 +343,6 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
 }
-void WiFiComponent::clear_sta() {
-  this->sta_.clear();
-  this->selected_sta_index_ = -1;
-}
 
 WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   // PRECONDITION: selected_sta_index_ must be valid (ensured by all callers)

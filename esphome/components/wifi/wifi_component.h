@@ -222,7 +222,10 @@ class WiFiComponent : public Component {
   WiFiAP get_sta() const;
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
-  void clear_sta();
+  void clear_sta() {
+    this->sta_.clear();
+    this->selected_sta_index_ = -1;
+  }
 
 #ifdef USE_WIFI_AP
   /** Setup an Access Point that should be created if no connection to a station can be made.
