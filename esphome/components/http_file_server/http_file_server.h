@@ -117,10 +117,14 @@ class HttpFileServer : public Component, public AsyncWebHandler {
 
   // Storage device registration for mount/unmount API
   template<typename T> void register_usb_msc_device(T *device) {
+    ESP_LOGI("http_file_server", "Registering USB MSC device at %p", static_cast<void *>(device));
     this->usb_msc_devices_.push_back(static_cast<void *>(device));
+    ESP_LOGI("http_file_server", "USB MSC devices vector now has %zu devices", this->usb_msc_devices_.size());
   }
   template<typename T> void register_sd_mmc_device(T *device) {
+    ESP_LOGI("http_file_server", "Registering SD MMC device at %p", static_cast<void *>(device));
     this->sd_mmc_devices_.push_back(static_cast<void *>(device));
+    ESP_LOGI("http_file_server", "SD MMC devices vector now has %zu devices", this->sd_mmc_devices_.size());
   }
 
  protected:

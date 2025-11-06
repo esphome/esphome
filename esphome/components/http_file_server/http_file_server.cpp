@@ -1328,12 +1328,12 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
   ESP_LOGI(TAG, "Starting file download: %s (size: %zu bytes)", filename.c_str(), file_size);
 
-  // Use AsyncWebServer's response but with a size limit for practical memory usage
-  // For files > 16MB, we'd need a proper streaming solution outside AsyncWebServer
-  const size_t CHUNK_READ_SIZE = 16 * 1024 * 1024;  // 16MB chunks
+  // For files > 16MB, use chunked streaming instead of loading into memory
+  const size_t MEMORY_LIMIT = 16 * 1024 * 1024;  // 16MB
+  const size_t CHUNK_SIZE = 8192;                 // 8KB chunks for streaming
 
-  if (file_size <= CHUNK_READ_SIZE) {
-    // Small enough to read into memory at once
+  if (file_size <= MEMORY_LIMIT) {
+    // Small file - read into memory at once
     std::string content;
     content.resize(file_size);
     size_t bytes_read = fread(content.data(), 1, file_size, file);
@@ -1350,10 +1350,59 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     request->send(response);
     ESP_LOGI(TAG, "Download sent: %zu bytes", bytes_read);
   } else {
-    // File too large - would need proper streaming support
+    // Large file - use chunked streaming via raw ESP-IDF API
+    ESP_LOGI(TAG, "Large file download, using chunked streaming");
+
+    // Get raw httpd_req_t
+    httpd_req_t *req = static_cast<httpd_req_t *>(*request);
+
+    // Set response headers
+    httpd_resp_set_type(req, mime_type.c_str());
+    httpd_resp_set_hdr(req, "Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
+
+    // Allocate chunk buffer on heap
+    auto buffer = std::make_unique<uint8_t[]>(CHUNK_SIZE);
+    size_t total_sent = 0;
+    bool success = true;
+
+    // Send file in chunks
+    while (total_sent < file_size) {
+      App.feed_wdt();  // Feed watchdog for large files
+
+      size_t to_read = std::min(CHUNK_SIZE, file_size - total_sent);
+      size_t bytes_read = fread(buffer.get(), 1, to_read, file);
+
+      if (bytes_read == 0) {
+        ESP_LOGE(TAG, "Failed to read chunk at offset %zu", total_sent);
+        success = false;
+        break;
+      }
+
+      esp_err_t err = httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buffer.get()), bytes_read);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to send chunk: %s", esp_err_to_name(err));
+        success = false;
+        break;
+      }
+
+      total_sent += bytes_read;
+
+      // Log progress every ~1MB
+      if (total_sent % (1024 * 1024) < CHUNK_SIZE) {
+        ESP_LOGD(TAG, "Download progress: %zu / %zu bytes (%.1f%%)", total_sent, file_size,
+                 (float) total_sent / file_size * 100.0f);
+      }
+    }
+
     fclose(file);
-    ESP_LOGW(TAG, "File too large: %zu bytes (max %zu)", file_size, CHUNK_READ_SIZE);
-    request->send(413, "text/plain", "File too large - maximum 16MB");
+
+    // Send final empty chunk to signal completion
+    if (success) {
+      httpd_resp_send_chunk(req, nullptr, 0);
+      ESP_LOGI(TAG, "Chunked download complete: %zu bytes", total_sent);
+    } else {
+      ESP_LOGE(TAG, "Chunked download failed at %zu / %zu bytes", total_sent, file_size);
+    }
   }
 }
 
