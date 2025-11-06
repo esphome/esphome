@@ -90,10 +90,13 @@ class GreeClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
+  void set_display_light(bool enabled) { this->display_light_ = enabled; }
+  bool get_display_light() const { return this->display_light_; }
 
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  void control(const climate::ClimateCall &call) override;
 
   uint8_t operation_mode_();
   uint8_t fan_speed_();
@@ -101,8 +104,10 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t vertical_swing_();
   uint8_t temperature_();
   uint8_t preset_();
+  climate::ClimateTraits traits() override;
 
   Model model_{};
+  bool display_light_{true};
 };
 
 }  // namespace gree

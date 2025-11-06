@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir
 import esphome.config_validation as cv
-from esphome.const import CONF_MODEL
+from esphome.const import CONF_DISPLAY, CONF_MODEL
 
 CODEOWNERS = ["@orestismers"]
 
@@ -24,6 +24,7 @@ MODELS = {
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
     {
         cv.Required(CONF_MODEL): cv.enum(MODELS),
+        cv.Optional(CONF_DISPLAY, default=True): cv.boolean,
     }
 )
 
@@ -31,3 +32,4 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
 async def to_code(config):
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))
+    cg.add(var.set_display_light(config[CONF_DISPLAY]))

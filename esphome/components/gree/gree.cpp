@@ -1,15 +1,38 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include <string>
 
 namespace esphome {
 namespace gree {
 
 static const char *const TAG = "gree.climate";
 
+static const char *const PRESET_DISPLAY_LIGHT_OFF = "Light off";
+
+climate::ClimateTraits GreeClimate::traits() {
+  auto t = climate_ir::ClimateIR::traits();
+  t.set_supported_custom_presets({PRESET_DISPLAY_LIGHT_OFF});
+  return t;
+}
+
+void GreeClimate::control(const climate::ClimateCall &call) {
+  auto preset = call.get_custom_preset();
+  if (preset && preset.value() == PRESET_DISPLAY_LIGHT_OFF) {
+    this->set_display_light(false);
+    this->set_custom_preset_(preset.value().c_str());
+  } else if (call.get_preset().has_value()) {
+    // Standard preset is being set, use set_preset_ which will clear custom preset
+    this->set_preset_(*call.get_preset());
+    this->set_display_light(true);
+  }
+  climate_ir::ClimateIR::control(call);
+}
+
 void GreeClimate::set_model(Model model) {
+  // Ensure NONE preset is available on all models
+  this->presets_.insert(climate::CLIMATE_PRESET_NONE);
   if (model == GREE_YX1FF) {
     this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);   // YX1FF 4 speed
-    this->presets_.insert(climate::CLIMATE_PRESET_NONE);   // YX1FF sleep mode
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);  // YX1FF sleep mode
   }
 
@@ -23,7 +46,8 @@ void GreeClimate::transmit_state() {
   remote_state[1] = this->temperature_();
 
   if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF || this->model_ == GREE_YAG) {
-    remote_state[2] = 0x60;
+    // Set bit 6 (ModelA) for these models; bit 5 (Light) follows computed display_light
+    remote_state[2] = this->get_display_light() ? 0x60 : 0x40;
     remote_state[3] = 0x50;
     remote_state[4] = this->vertical_swing_();
   }
@@ -41,9 +65,10 @@ void GreeClimate::transmit_state() {
   }
 
   if (this->model_ == GREE_YAA || this->model_ == GREE_YAC || this->model_ == GREE_YAC1FB9) {
-    remote_state[2] = 0x20;  // bits 0..3 always 0000, bits 4..7 TURBO,LIGHT,HEALTH,X-FAN
-    remote_state[3] = 0x50;  // bits 4..7 always 0101
-    remote_state[6] = 0x20;  // YAA1FB, FAA1FB1, YB1F2 bits 4..7 always 0010
+    // Bit 5 (Light) depends on display_light_. Other feature bits remain 0 unless set elsewhere.
+    remote_state[2] = this->get_display_light() ? 0x20 : 0x00;  // bits 4..7 TURBO,LIGHT,HEALTH,X-FAN
+    remote_state[3] = 0x50;                                     // bits 4..7 always 0101
+    remote_state[6] = 0x20;                                     // YAA1FB, FAA1FB1, YB1F2 bits 4..7 always 0010
 
     if (this->vertical_swing_() == GREE_VDIR_SWING) {
       remote_state[0] |= (1 << 6);  // Enable swing by setting bit 6

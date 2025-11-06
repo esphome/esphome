@@ -1,5 +1,14 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - climate.control:
+          id: gree_ac
+          custom_preset: Light off
+
 climate:
   - platform: gree
+    id: gree_ac
     name: GREE
     model: generic
     transmitter_id: xmitr
