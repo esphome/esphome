@@ -396,7 +396,7 @@ bool WiFiComponent::sync_selected_sta_to_best_scan_result_() {
   return false;
 }
 
-WiFiAP WiFiComponent::get_sta() {
+WiFiAP WiFiComponent::get_sta() const {
   const WiFiAP *config = this->get_selected_sta_();
   return config ? *config : WiFiAP{};
 }
