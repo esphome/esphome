@@ -791,6 +791,12 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
     httpd_resp_set_type(req, "text/plain");
     // Status defaults to 200 OK, which is appropriate for chunked progress responses
     // Don't call httpd_resp_send - we'll use httpd_resp_send_chunk for chunked transfer
+
+    // Send initial chunk immediately to establish chunked transfer and prevent client timeout
+    const char *start_msg = "Starting transfer...\n";
+    if (httpd_resp_send_chunk(req, start_msg, strlen(start_msg)) != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to send initial chunk - client may have disconnected");
+    }
   }
 
   auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
