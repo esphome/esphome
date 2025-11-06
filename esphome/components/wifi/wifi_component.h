@@ -426,7 +426,11 @@ class WiFiComponent : public Component {
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   uint8_t num_retried_{0};
+  // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
+  // Used to access password, manual_ip, priority, EAP settings, and hidden flag
   int8_t selected_ap_index_{-1};
+  // Index into scan_result_ array for the currently selected scan result (-1 = no scan data)
+  // Used to access scanned SSID, BSSID, and channel. Also used for fast connect (synthetic scan result)
   int8_t selected_scan_index_{-1};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};

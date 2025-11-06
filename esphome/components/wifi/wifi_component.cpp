@@ -915,26 +915,22 @@ void WiFiComponent::save_fast_connect_settings_() {
   bssid_t bssid = wifi_bssid();
   uint8_t channel = get_wifi_channel();
 
-  // Check if we need to save (compare with current scan result if available)
-  bool should_save = true;
+  // Skip save if settings haven't changed (compare with current scan result if available)
   if (this->selected_scan_index_ >= 0 && this->selected_scan_index_ < this->scan_result_.size()) {
     const WiFiScanResult &scan = this->scan_result_[this->selected_scan_index_];
     if (bssid == scan.get_bssid() && channel == scan.get_channel()) {
-      should_save = false;
+      return;  // No change, nothing to save
     }
   }
 
-  if (should_save) {
-    SavedWifiFastConnectSettings fast_connect_save{};
+  SavedWifiFastConnectSettings fast_connect_save{};
+  memcpy(fast_connect_save.bssid, bssid.data(), 6);
+  fast_connect_save.channel = channel;
+  fast_connect_save.ap_index = this->selected_ap_index_ >= 0 ? this->selected_ap_index_ : 0;
 
-    memcpy(fast_connect_save.bssid, bssid.data(), 6);
-    fast_connect_save.channel = channel;
-    fast_connect_save.ap_index = this->selected_ap_index_ >= 0 ? this->selected_ap_index_ : 0;
+  this->fast_connect_pref_.save(&fast_connect_save);
 
-    this->fast_connect_pref_.save(&fast_connect_save);
-
-    ESP_LOGD(TAG, "Saved fast_connect settings");
-  }
+  ESP_LOGD(TAG, "Saved fast_connect settings");
 }
 #endif
 
