@@ -1178,6 +1178,20 @@ bool HttpFileServer::parse_json_request(const uint8_t *body, size_t body_len, Ap
   return !req.source.empty() || !req.destination.empty() || !req.name.empty();
 }
 
+// RAII wrapper for FILE* to ensure files are always closed
+struct FileCloser {
+  FILE *fp;
+  FileCloser(FILE *f) : fp(f) {}
+  ~FileCloser() {
+    if (fp) {
+      fclose(fp);
+    }
+  }
+  // Delete copy/move to prevent double-close
+  FileCloser(const FileCloser &) = delete;
+  FileCloser &operator=(const FileCloser &) = delete;
+};
+
 // File operation helpers (reused from WebDAV logic)
 bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
                                        bool track_progress) {
@@ -1200,15 +1214,16 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       this->progress_.in_progress = false;
     return false;
   }
+  FileCloser src_closer(src);  // RAII: will close src on scope exit
 
   FILE *dst = fopen(dst_path.c_str(), "wb");
   if (!dst) {
     ESP_LOGE(TAG, "Failed to open destination file: %s (errno: %d, %s)", dst_path.c_str(), errno, strerror(errno));
-    fclose(src);
     if (track_progress)
       this->progress_.in_progress = false;
     return false;
   }
+  FileCloser dst_closer(dst);  // RAII: will close dst on scope exit
 
   auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
   size_t bytes_read;
@@ -1245,14 +1260,14 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     copy_success = false;
   }
 
-  // Flush and close files
+  // Flush destination file before closing
   if (fflush(dst) != 0) {
     ESP_LOGE(TAG, "Flush failed (errno: %d, %s)", errno, strerror(errno));
     copy_success = false;
   }
 
-  fclose(src);
-  fclose(dst);
+  // Files will be automatically closed by RAII wrappers (FileCloser destructors)
+  // This happens even if HTTP connection times out or handler is interrupted
 
   if (copy_success && total_copied == static_cast<size_t>(file_size)) {
     ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
