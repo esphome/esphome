@@ -1378,7 +1378,8 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   std::string upload_path = Path::join(dir_path, filename);
   ESP_LOGI(TAG, "Starting upload: %s", upload_path.c_str());
 
-  // Initialize progress tracking
+  // Initialize progress tracking (thread-safe)
+  portENTER_CRITICAL(&this->progress_mutex_);
   this->progress_.operation = "upload";
   this->progress_.source = filename.c_str();
   this->progress_.destination = upload_path;
@@ -1386,12 +1387,15 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   this->progress_.transferred_bytes = 0;
   this->progress_.in_progress = true;
   this->progress_.start_time = millis();
+  portEXIT_CRITICAL(&this->progress_mutex_);
 
   // Open file for writing
   FILE *file = fopen(upload_path.c_str(), "wb");
   if (!file) {
     ESP_LOGE(TAG, "Failed to open file for writing: %s", upload_path.c_str());
+    portENTER_CRITICAL(&this->progress_mutex_);
     this->progress_.in_progress = false;
+    portEXIT_CRITICAL(&this->progress_mutex_);
     request->send(500, "text/plain", "Failed to open file for writing");
     return;
   }
@@ -1399,8 +1403,8 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   // Get raw httpd_req_t to read POST body
   httpd_req_t *req = static_cast<httpd_req_t *>(*request);
   size_t remaining = request->contentLength();
-  const size_t BUFFER_SIZE = 2048;  // Smaller buffer to reduce stack usage
-  uint8_t buffer[BUFFER_SIZE];
+  const size_t BUFFER_SIZE = 4096;  // Increased from 2KB to 4KB for better performance
+  auto buffer = std::make_unique<uint8_t[]>(BUFFER_SIZE);  // Heap allocation to avoid stack overflow
   bool success = true;
 
   ESP_LOGI(TAG, "Reading upload data: %zu bytes total", remaining);
@@ -1411,7 +1415,7 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
     App.feed_wdt();
 
     size_t to_read = (remaining > BUFFER_SIZE) ? BUFFER_SIZE : remaining;
-    int received = httpd_req_recv(req, reinterpret_cast<char *>(buffer), to_read);
+    int received = httpd_req_recv(req, reinterpret_cast<char *>(buffer.get()), to_read);
 
     if (received <= 0) {
       ESP_LOGE(TAG, "Failed to receive data: %d (errno: %d)", received, errno);
@@ -1419,7 +1423,7 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
       break;
     }
 
-    size_t written = fwrite(buffer, 1, received, file);
+    size_t written = fwrite(buffer.get(), 1, received, file);
     fflush(file);  // Ensure data is written immediately
 
     if (written != static_cast<size_t>(received)) {
@@ -1428,24 +1432,32 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
       break;
     }
 
+    // Update progress (thread-safe)
+    portENTER_CRITICAL(&this->progress_mutex_);
     this->progress_.transferred_bytes += written;
+    size_t current_transferred = this->progress_.transferred_bytes;
+    size_t current_total = this->progress_.total_bytes;
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
     remaining -= received;
 
     // Log progress every ~50KB
-    if (this->progress_.transferred_bytes % (50 * 1024) < BUFFER_SIZE) {
-      ESP_LOGD(TAG, "Upload progress: %zu / %zu bytes (%.1f%%)", this->progress_.transferred_bytes,
-               this->progress_.total_bytes,
-               (float) this->progress_.transferred_bytes / this->progress_.total_bytes * 100.0f);
+    if (current_transferred % (50 * 1024) < BUFFER_SIZE) {
+      ESP_LOGD(TAG, "Upload progress: %zu / %zu bytes (%.1f%%)", current_transferred, current_total,
+               (float) current_transferred / current_total * 100.0f);
     }
   }
 
   fclose(file);
 
-  // Mark progress as complete
+  // Mark progress as complete (thread-safe)
+  portENTER_CRITICAL(&this->progress_mutex_);
+  size_t final_transferred = this->progress_.transferred_bytes;
   this->progress_.in_progress = false;
+  portEXIT_CRITICAL(&this->progress_mutex_);
 
   if (success) {
-    ESP_LOGI(TAG, "Upload complete: %zu bytes", this->progress_.transferred_bytes);
+    ESP_LOGI(TAG, "Upload complete: %zu bytes", final_transferred);
     request->send(200, "text/plain", "File uploaded successfully");
   } else {
     ESP_LOGE(TAG, "Upload failed");
