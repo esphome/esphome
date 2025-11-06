@@ -585,7 +585,10 @@ function pollProgress() {
   fetch(API_BASE + '/api/progress')
     .then(response => response.json())
     .then(data => {
+      console.log('Progress update:', data);
+
       if (!data.in_progress) {
+        console.log('Operation complete, closing modal');
         hideProgressModal();
         location.reload();
         return;
@@ -607,6 +610,7 @@ function pollProgress() {
       }
 
       details.textContent = detailText;
+      console.log('Updated progress bar:', percentage.toFixed(1) + '%');
     })
     .catch(error => {
       console.error('Progress polling error:', error);
@@ -986,8 +990,8 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform copy with progress tracking for large files (> 1MB)
-  bool track_progress = (src_stat.st_size > 1048576);
+  // Perform copy with progress tracking for files > 100KB
+  bool track_progress = (src_stat.st_size > 102400);
   if (this->perform_file_copy(source, destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
@@ -1023,8 +1027,8 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform move with progress tracking for large files (> 1MB)
-  bool track_progress = (src_stat.st_size > 1048576);
+  // Perform move with progress tracking for files > 100KB
+  bool track_progress = (src_stat.st_size > 102400);
   if (this->perform_file_move(source, destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
