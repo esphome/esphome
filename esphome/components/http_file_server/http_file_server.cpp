@@ -651,8 +651,10 @@ let progressPollCount = 0;
 let hasSeenProgress = false;
 
 function pollProgress() {
+  console.log('[FileServer] pollProgress() START, count=' + progressPollCount);
   progressPollCount++;
 
+  console.log('[FileServer] About to fetch:', API_BASE + '/api/progress');
   fetch(API_BASE + '/api/progress')
     .then(response => response.json())
     .then(data => {
