@@ -165,6 +165,9 @@ The text value may also be a lambda returning a `std::string` or may be
 specified with a `format` property utilising `printf` style formatting. There is also a `time_format` option
 which allows use of [strftime](http://www.cplusplus.com/reference/ctime/strftime/) formats.
 
+When formatting a single floating point value, it is possible to provide a substitute string to be used when the
+value is `nan` or `inf`. The substitute string is specified with the `if_nan` option.
+
 **Examples:**
 
 ```yaml
@@ -199,6 +202,12 @@ on_...:
       text:
         time_format: "%c"
         time: !lambda return id(sntp_id).utcnow();
+  - lvgl.label.update:
+      id: value_id
+      text:
+        format: "%.1f"
+        args: [id(sensor_id).state]
+        if_nan: "N/A"
 ```
 
 {{< anchor "lvgl-widget-animimg" >}}
