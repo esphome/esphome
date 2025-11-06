@@ -664,7 +664,7 @@ function download_file(path, filename) {
     });
 }
 
-// Helper function to suggest a new filename with " (1)" before extension
+// Helper function to suggest a new filename with (1) appended before extension
 function suggestNewFilename(filepath) {
   const lastSlashIndex = filepath.lastIndexOf('/');
   const path = filepath.substring(0, lastSlashIndex + 1);
@@ -802,7 +802,10 @@ function create_directory() {
   if (!name || !name.trim()) return;
 
   // Create directory in current location
-  const currentPath = window.location.pathname.replace(/\/$/, '');
+  let currentPath = window.location.pathname;
+  if (currentPath.endsWith('/')) {
+    currentPath = currentPath.slice(0, -1);
+  }
   const fullPath = currentPath + '/' + name.trim();
 
   fetch(API_BASE + '/api/mkdir', {
