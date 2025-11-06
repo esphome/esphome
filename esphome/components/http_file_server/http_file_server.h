@@ -137,6 +137,18 @@ class HttpFileServer : public Component {
   std::string extract_path_from_url(const std::string &url);
   esphome::FixedVector<FileInfo> list_directory(const std::string &path);
 
+  // Authentication helpers
+  std::string base64_decode(const std::string &encoded);
+
+  // Multipart form data parsing helpers
+  struct MultipartFile {
+    std::string filename;
+    std::string content_type;
+    const char *data;
+    size_t size;
+  };
+  bool parse_multipart_form(const char *body, size_t body_len, const std::string &boundary, MultipartFile &file);
+
   // HTML generation helpers
   std::string generate_html_header(const std::string &title);
   std::string generate_html_footer();

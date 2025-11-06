@@ -170,22 +170,71 @@ std::string HttpFileServer::uri_to_filepath(const std::string &uri) {
   return full_path;
 }
 
+std::string HttpFileServer::base64_decode(const std::string &encoded) {
+  static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string decoded;
+  std::vector<int> values(256, -1);
+
+  // Build lookup table
+  for (int i = 0; i < 64; i++) {
+    values[static_cast<unsigned char>(base64_chars[i])] = i;
+  }
+
+  int val = 0;
+  int bits = -8;
+  for (unsigned char c : encoded) {
+    if (values[c] == -1)
+      break;
+    val = (val << 6) + values[c];
+    bits += 6;
+
+    if (bits >= 0) {
+      decoded.push_back(char((val >> bits) & 0xFF));
+      bits -= 8;
+    }
+  }
+
+  return decoded;
+}
+
 bool HttpFileServer::authenticate(const std::string &auth_header) {
   if (!this->auth_enabled_) {
     return true;  // Auth disabled
   }
 
   if (auth_header.empty()) {
+    ESP_LOGD(TAG, "No authorization header provided");
     return false;
   }
 
   // Basic auth: "Basic base64(username:password)"
   if (auth_header.find("Basic ") == 0) {
-    // For now, just check if header is present
-    // Full validation would require base64 decoding
-    return true;
+    std::string encoded = auth_header.substr(6);  // Skip "Basic "
+    std::string decoded = this->base64_decode(encoded);
+
+    ESP_LOGD(TAG, "Decoded credentials (length: %d)", decoded.length());
+
+    // Find colon separator
+    size_t colon_pos = decoded.find(':');
+    if (colon_pos == std::string::npos) {
+      ESP_LOGW(TAG, "Invalid credentials format");
+      return false;
+    }
+
+    std::string username = decoded.substr(0, colon_pos);
+    std::string password = decoded.substr(colon_pos + 1);
+
+    // Validate credentials
+    bool valid = (username == this->username_ && password == this->password_);
+    if (!valid) {
+      ESP_LOGW(TAG, "Invalid username or password");
+    } else {
+      ESP_LOGD(TAG, "Authentication successful");
+    }
+    return valid;
   }
 
+  ESP_LOGW(TAG, "Authorization header is not Basic auth");
   return false;
 }
 
@@ -283,6 +332,106 @@ esphome::FixedVector<FileInfo> HttpFileServer::list_directory(const std::string 
     ESP_LOGE(TAG, "Cannot open directory: %s (errno: %d)", path.c_str(), errno);
   }
   return files;
+}
+
+bool HttpFileServer::parse_multipart_form(const char *body, size_t body_len, const std::string &boundary,
+                                          MultipartFile &file) {
+  // Multipart boundary format: --boundary
+  std::string boundary_start = "--" + boundary;
+  std::string boundary_end = "--" + boundary + "--";
+
+  // Find first boundary
+  const char *boundary_pos = std::strstr(body, boundary_start.c_str());
+  if (!boundary_pos) {
+    ESP_LOGE(TAG, "No boundary found in multipart data");
+    return false;
+  }
+
+  // Move past first boundary and CRLF
+  const char *current = boundary_pos + boundary_start.length();
+  while (*current == '\r' || *current == '\n') {
+    current++;
+  }
+
+  // Parse headers
+  bool found_filename = false;
+  while (current < body + body_len) {
+    // Check if we reached the end of headers (empty line)
+    if (*current == '\r' && *(current + 1) == '\n') {
+      current += 2;
+      break;
+    }
+
+    // Look for Content-Disposition header
+    if (std::strncmp(current, "Content-Disposition:", 20) == 0) {
+      const char *line_end = std::strstr(current, "\r\n");
+      if (!line_end)
+        line_end = body + body_len;
+
+      std::string header_line(current, line_end - current);
+
+      // Extract filename
+      size_t filename_pos = header_line.find("filename=\"");
+      if (filename_pos != std::string::npos) {
+        filename_pos += 10;  // Skip 'filename="'
+        size_t filename_end = header_line.find('\"', filename_pos);
+        if (filename_end != std::string::npos) {
+          file.filename = header_line.substr(filename_pos, filename_end - filename_pos);
+          found_filename = true;
+          ESP_LOGD(TAG, "Found filename: %s", file.filename.c_str());
+        }
+      }
+
+      current = line_end;
+    }
+    // Look for Content-Type header
+    else if (std::strncmp(current, "Content-Type:", 13) == 0) {
+      const char *line_end = std::strstr(current, "\r\n");
+      if (!line_end)
+        line_end = body + body_len;
+
+      current += 13;  // Skip "Content-Type:"
+      while (*current == ' ')
+        current++;  // Skip spaces
+
+      file.content_type = std::string(current, line_end - current);
+      ESP_LOGD(TAG, "Found content-type: %s", file.content_type.c_str());
+      current = line_end;
+    }
+
+    // Move to next line
+    while (*current == '\r' || *current == '\n') {
+      current++;
+    }
+  }
+
+  if (!found_filename) {
+    ESP_LOGE(TAG, "No filename found in multipart data");
+    return false;
+  }
+
+  // Now current points to the start of file data
+  file.data = current;
+
+  // Find the ending boundary
+  const char *end_boundary_pos = std::strstr(current, boundary_start.c_str());
+  if (!end_boundary_pos) {
+    ESP_LOGE(TAG, "No end boundary found");
+    return false;
+  }
+
+  // File data is between current and end_boundary_pos
+  // Need to skip the \r\n before the boundary
+  const char *file_end = end_boundary_pos;
+  if (file_end > file.data && *(file_end - 1) == '\n')
+    file_end--;
+  if (file_end > file.data && *(file_end - 1) == '\r')
+    file_end--;
+
+  file.size = file_end - file.data;
+
+  ESP_LOGD(TAG, "Parsed multipart file: %s (%zu bytes)", file.filename.c_str(), file.size);
+  return true;
 }
 
 std::string HttpFileServer::generate_html_header(const std::string &title) {
@@ -516,6 +665,18 @@ std::string HttpFileServer::generate_file_row(const FileInfo &info, const std::s
 esp_err_t HttpFileServer::handle_get(httpd_req_t *req) {
   auto *server = static_cast<HttpFileServer *>(req->user_ctx);
 
+  // Check authentication if enabled
+  if (server->auth_enabled_) {
+    char auth_header[256] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", auth_header, sizeof(auth_header)) != ESP_OK ||
+        !server->authenticate(auth_header)) {
+      httpd_resp_set_status(req, "401 Unauthorized");
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"HTTP File Server\"");
+      httpd_resp_send(req, "Unauthorized", -1);
+      return ESP_OK;
+    }
+  }
+
   std::string filepath = server->uri_to_filepath(req->uri);
   ESP_LOGD(TAG, "GET request for: %s (mapped to: %s)", req->uri, filepath.c_str());
 
@@ -647,6 +808,18 @@ esp_err_t HttpFileServer::handle_file_download(httpd_req_t *req, const std::stri
 esp_err_t HttpFileServer::handle_post(httpd_req_t *req) {
   auto *server = static_cast<HttpFileServer *>(req->user_ctx);
 
+  // Check authentication if enabled
+  if (server->auth_enabled_) {
+    char auth_header[256] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", auth_header, sizeof(auth_header)) != ESP_OK ||
+        !server->authenticate(auth_header)) {
+      httpd_resp_set_status(req, "401 Unauthorized");
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"HTTP File Server\"");
+      httpd_resp_send(req, "Unauthorized", -1);
+      return ESP_OK;
+    }
+  }
+
   if (!server->upload_enabled_) {
     httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "File upload is disabled");
     return ESP_OK;
@@ -662,8 +835,26 @@ esp_err_t HttpFileServer::handle_post(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  // Parse multipart form data
-  // This is a simplified implementation - full multipart parsing would be more complex
+  // Get Content-Type header to extract boundary
+  char content_type[256];
+  if (httpd_req_get_hdr_value_str(req, "Content-Type", content_type, sizeof(content_type)) != ESP_OK) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing Content-Type header");
+    return ESP_OK;
+  }
+
+  // Extract boundary from Content-Type header
+  // Format: "multipart/form-data; boundary=----WebKitFormBoundary..."
+  std::string content_type_str(content_type);
+  size_t boundary_pos = content_type_str.find("boundary=");
+  if (boundary_pos == std::string::npos) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No boundary in Content-Type");
+    return ESP_OK;
+  }
+
+  std::string boundary = content_type_str.substr(boundary_pos + 9);  // Skip "boundary="
+  ESP_LOGD(TAG, "Multipart boundary: %s", boundary.c_str());
+
+  // Allocate buffer for request body
   char *buf = new char[req->content_len + 1];
   int ret = httpd_req_recv(req, buf, req->content_len);
   if (ret <= 0) {
@@ -675,19 +866,38 @@ esp_err_t HttpFileServer::handle_post(httpd_req_t *req) {
   }
   buf[ret] = '\0';
 
-  // For simplicity, we'll just save the received data
-  // In a full implementation, you'd parse the multipart boundary and extract the file
-  std::string upload_path = Path::join(filepath, "uploaded_file");
+  // Parse multipart form data
+  MultipartFile file;
+  if (!server->parse_multipart_form(buf, ret, boundary, file)) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to parse multipart form data");
+    return ESP_OK;
+  }
+
+  // Validate filename
+  if (file.filename.empty()) {
+    delete[] buf;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No filename provided");
+    return ESP_OK;
+  }
+
+  // Save file
+  std::string upload_path = Path::join(filepath, file.filename);
+  ESP_LOGI(TAG, "Uploading file: %s (%zu bytes)", upload_path.c_str(), file.size);
+
   std::ofstream outfile(upload_path, std::ios::binary);
   if (!outfile.is_open()) {
     delete[] buf;
+    ESP_LOGE(TAG, "Failed to create file: %s", upload_path.c_str());
     httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
     return ESP_OK;
   }
 
-  outfile.write(buf, ret);
+  outfile.write(file.data, file.size);
   outfile.close();
   delete[] buf;
+
+  ESP_LOGI(TAG, "File uploaded successfully: %s", file.filename.c_str());
 
   // Redirect back to directory listing
   httpd_resp_set_status(req, "303 See Other");
@@ -699,6 +909,18 @@ esp_err_t HttpFileServer::handle_post(httpd_req_t *req) {
 
 esp_err_t HttpFileServer::handle_delete(httpd_req_t *req) {
   auto *server = static_cast<HttpFileServer *>(req->user_ctx);
+
+  // Check authentication if enabled
+  if (server->auth_enabled_) {
+    char auth_header[256] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", auth_header, sizeof(auth_header)) != ESP_OK ||
+        !server->authenticate(auth_header)) {
+      httpd_resp_set_status(req, "401 Unauthorized");
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"HTTP File Server\"");
+      httpd_resp_send(req, "Unauthorized", -1);
+      return ESP_OK;
+    }
+  }
 
   if (!server->deletion_enabled_) {
     httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "File deletion is disabled");
