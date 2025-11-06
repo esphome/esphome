@@ -2054,8 +2054,9 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
 
     // Estimate remaining time if we have progress
     if (transferred_bytes > 0 && total_bytes > 0) {
-      uint32_t total_estimated_ms = (elapsed_ms * total_bytes) / transferred_bytes;
-      uint32_t remaining_ms = total_estimated_ms - elapsed_ms;
+      // Use 64-bit arithmetic to avoid overflow when multiplying elapsed_ms * total_bytes
+      uint64_t total_estimated_ms = ((uint64_t) elapsed_ms * total_bytes) / transferred_bytes;
+      uint64_t remaining_ms = total_estimated_ms > elapsed_ms ? total_estimated_ms - elapsed_ms : 0;
       json += ",\"remaining_ms\":" + std::to_string(remaining_ms);
     }
 
