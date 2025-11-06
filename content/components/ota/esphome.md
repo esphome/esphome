@@ -10,7 +10,7 @@ params:
 {{< anchor "config-ota_esphome" >}}
 
 ESPHome's Over-The-Air (OTA) platform allows you to remotely install modified/updated firmware binaries onto your
-ESPHome devices over their network (Wi-Fi or Ethernet) interface.
+ESPHome devices over their network interface (Wi-Fi / Ethernet / Thread).
 
 This platform is used by both the ESPHome dashboard as well as the command line interface (CLI) (via
 `esphome run ...`  ) to install firmware onto supported devices.
