@@ -4,6 +4,7 @@
 #include "esphome/components/uart/uart.h"
 
 #include "esphome/components/modbus/modbus_definitions.h"
+#include "esphome/components/modbus/modbus_helpers.h"
 
 #include <vector>
 #include <deque>
@@ -11,6 +12,8 @@
 
 namespace esphome {
 namespace modbus {
+
+using namespace esphome::modbus::helpers;
 
 static const uint16_t MODBUS_TX_BUFFER_SIZE = 100;
 

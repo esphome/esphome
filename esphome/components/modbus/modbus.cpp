@@ -187,7 +187,7 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
     data_offset = 1;
 
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
+    uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
 
     if (computed_crc != remote_crc)
       return true;
@@ -221,7 +221,7 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
 
     // Byte data_offset+len+1: CRC_HI (over all bytes)
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
+    uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
     if (computed_crc != remote_crc) {
       return false;
     }
@@ -286,7 +286,7 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
     data_offset = 1;
 
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
+    uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
 
     if (computed_crc != remote_crc)
       return true;
@@ -323,7 +323,7 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
 
     // Byte data_offset+len+1: CRC_HI (over all bytes)
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
+    uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
     if (computed_crc != remote_crc) {
       if (this->expecting_peer_response_ == 0) {
         // Don't log CRC errors for expected responses from peers - we'll try again first
@@ -387,8 +387,7 @@ void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t functio
   }
 }
 
-void ModbusServer::process_modbus_server_frame_(uint8_t address, uint8_t function_code,
-                                                const std::vector<uint8_t> &data) {
+void ModbusServer::process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &) {
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
       ESP_LOGE(TAG, "Unexpected response from address %d, which is mapped to this device.", address);
@@ -413,8 +412,7 @@ void ModbusServer::process_modbus_client_frame_(uint8_t address, uint8_t functio
 
       if (function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           function_code == ModbusFunctionCode::READ_INPUT_REGISTERS) {
-        device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
-                                         uint16_t(data[3]) | (uint16_t(data[2]) << 8));
+        device->on_modbus_read_registers(function_code, get_data<uint16_t>(data, 0), get_data<uint16_t>(data, 2));
       } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         device->on_modbus_write_registers(function_code, data);
@@ -548,9 +546,7 @@ void ModbusClient::send(ModbusClientDevice *device, uint8_t address, uint8_t fun
 }
 
 void ModbusServer::send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
-  std::initializer_list<uint8_t> header = {address, function_code};
-  payload.insert(payload.begin(), header);
-
+  payload.insert(payload.begin(), std::initializer_list<uint8_t>{address, function_code});
   this->send_raw(payload);
 }
 
