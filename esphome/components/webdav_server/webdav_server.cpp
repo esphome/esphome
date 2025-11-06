@@ -965,45 +965,13 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
       return ESP_OK;
     }
 
-#ifdef USE_ESP32
-    // Create operation tracking
-    std::string op_id = server->create_operation_id();
-    OperationState op_state{
-        op_id, "move", filepath, dest_filepath, src_stat.st_size, 0, OperationStatus::IN_PROGRESS, esphome::millis(),
-        ""};
-    server->operations_.push_back(op_state);
-    server->cleanup_old_operations();
-
-    // Spawn async task for cross-mount move
-    auto *task_params = new MoveTaskParams{server, op_id, filepath, dest_filepath, src_stat.st_size};
-
-    BaseType_t task_created = xTaskCreate(WebDAVServer::move_task, "webdav_move", 8192, task_params, 1, nullptr);
-
-    if (task_created == pdPASS) {
-      ESP_LOGI(TAG, "Cross-mount move task created [%s], responding to client", op_id.c_str());
-
-      // Return operation ID to client for status tracking
-      std::string response =
-          "{\"operation_id\":\"" + op_id + "\",\"status_url\":\"" + server->url_prefix_ + "/status?op_id=" + op_id + "\"}";
-
-      httpd_resp_set_type(req, "application/json");
-      httpd_resp_set_status(req, "202 Accepted");
-      httpd_resp_send(req, response.c_str(), response.length());
-    } else {
-      ESP_LOGE(TAG, "Failed to create move task");
-      server->update_operation_status(op_id, OperationStatus::FAILED, "Failed to create task");
-      delete task_params;
-      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start move operation");
-    }
-#else
-    // Non-ESP32: Perform synchronous move
+    // Perform synchronous cross-mount move (HTTP server already handles multi-client via tasks)
     if (server->perform_file_move(filepath, dest_filepath, src_stat.st_size)) {
       httpd_resp_set_status(req, "201 Created");
       httpd_resp_send(req, "Resource moved", -1);
     } else {
       httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Move failed");
     }
-#endif
   } else {
     // Other rename error
     ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d, %s)", filepath.c_str(), dest_filepath.c_str(), rename_errno,
@@ -1046,43 +1014,13 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     return ESP_OK;
   }
 
-#ifdef USE_ESP32
-  // Create operation tracking
-  std::string op_id = server->create_operation_id();
-  OperationState op_state{
-      op_id, "copy", filepath, dest_filepath, src_stat.st_size, 0, OperationStatus::IN_PROGRESS, esphome::millis(), ""};
-  server->operations_.push_back(op_state);
-  server->cleanup_old_operations();
-
-  // Spawn async task for file copy
-  auto *task_params = new CopyTaskParams{server, op_id, filepath, dest_filepath, src_stat.st_size};
-
-  BaseType_t task_created = xTaskCreate(WebDAVServer::copy_task, "webdav_copy", 8192, task_params, 1, nullptr);
-
-  if (task_created == pdPASS) {
-    ESP_LOGI(TAG, "Copy task created [%s], responding to client", op_id.c_str());
-
-    // Return operation ID to client for status tracking
-    std::string response =
-        "{\"operation_id\":\"" + op_id + "\",\"status_url\":\"" + server->url_prefix_ + "/status?op_id=" + op_id + "\"}";
-
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_status(req, "202 Accepted");
-    httpd_resp_send(req, response.c_str(), response.length());
-  } else {
-    ESP_LOGE(TAG, "Failed to create copy task");
-    delete task_params;
-    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start copy operation");
-  }
-#else
-  // Non-ESP32: Perform synchronous copy
+  // Perform synchronous copy (HTTP server already handles multi-client via tasks)
   if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size)) {
     httpd_resp_set_status(req, "201 Created");
     httpd_resp_send(req, "Resource copied", -1);
   } else {
     httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
   }
-#endif
 
   return ESP_OK;
 }
