@@ -79,7 +79,7 @@ struct FileInfo {
 
 class HttpFileServer : public Component, public AsyncWebHandler {
  public:
-  HttpFileServer(web_server_base::WebServerBase *base);
+  HttpFileServer(web_server_base::WebServerBase *base) : base_(base) {}
 
   void setup() override;
   void dump_config() override;
@@ -88,8 +88,9 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   // AsyncWebHandler interface
   bool canHandle(AsyncWebServerRequest *request) const override;
   void handleRequest(AsyncWebServerRequest *request) override;
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override;
+  void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
+                    size_t len, bool final) override;
+  void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override;
   bool isRequestHandlerTrivial() const override { return false; }
 
   // Configuration setters
@@ -99,6 +100,11 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   void set_upload_enabled(bool enabled) { this->upload_enabled_ = enabled; }
   void set_download_enabled(bool enabled) { this->download_enabled_ = enabled; }
   void set_deletion_enabled(bool enabled) { this->deletion_enabled_ = enabled; }
+  void set_auth(const std::string &username, const std::string &password) {
+    this->username_ = username;
+    this->password_ = password;
+    this->auth_enabled_ = true;
+  }
 
   // Getters
   const std::string &get_root_path() const { return this->root_path_; }
@@ -121,15 +127,22 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   bool download_enabled_{true};
   bool deletion_enabled_{false};
 
+  // Authentication
+  std::string username_;
+  std::string password_;
+  bool auth_enabled_{false};
+
   // Upload state (for handleUpload)
   std::string upload_directory_;
   std::string upload_filename_;
   FILE *upload_file_{nullptr};
 
+  // Body buffer (for handleBody - stores POST request body)
+  std::string body_buffer_;
+
   // Helper methods
   std::string uri_to_filepath(const std::string &uri);
   std::string url_decode(const std::string &src);
-  std::string build_url_prefix() const;
   esphome::FixedVector<FileInfo> list_directory(const std::string &path);
 
   // HTML generation helpers
@@ -138,17 +151,15 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   std::string generate_breadcrumb(const std::string &current_path);
   std::string generate_file_row(const FileInfo &info, const std::string &uri_prefix);
 
-  // Request handlers
-  void handle_get(AsyncWebServerRequest *request);
-  void handle_delete(AsyncWebServerRequest *request);
+  // Specific handlers for different GET requests
+  void handle_directory_listing(AsyncWebServerRequest *request, const std::string &filepath);
+  void handle_file_download(AsyncWebServerRequest *request, const std::string &filepath);
+
+  // API handlers
   void handle_api_copy(AsyncWebServerRequest *request);
   void handle_api_move(AsyncWebServerRequest *request);
   void handle_api_rename(AsyncWebServerRequest *request);
   void handle_api_mkdir(AsyncWebServerRequest *request);
-
-  // Specific handlers for different GET requests
-  void handle_directory_listing(AsyncWebServerRequest *request, const std::string &filepath);
-  void handle_file_download(AsyncWebServerRequest *request, const std::string &filepath);
 
   // JSON parsing helper
   struct ApiRequest {
@@ -156,7 +167,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
     std::string destination;
     std::string name;
   };
-  bool parse_json_request(const char *body, size_t body_len, ApiRequest &req);
+  bool parse_json_request(const uint8_t *body, size_t body_len, ApiRequest &req);
 
   // File operation helpers (reused from WebDAV logic)
   bool perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size);

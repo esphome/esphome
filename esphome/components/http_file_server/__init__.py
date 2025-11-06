@@ -17,6 +17,8 @@ CONF_STORAGE_HOST_ID = "storage_host_id"
 CONF_ENABLE_UPLOAD = "enable_upload"
 CONF_ENABLE_DOWNLOAD = "enable_download"
 CONF_ENABLE_DELETION = "enable_deletion"
+CONF_USERNAME = "username"
+CONF_PASSWORD = "password"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -32,6 +34,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ENABLE_UPLOAD, default=False): cv.boolean,
         cv.Optional(CONF_ENABLE_DOWNLOAD, default=True): cv.boolean,
         cv.Optional(CONF_ENABLE_DELETION, default=False): cv.boolean,
+        cv.Optional(CONF_USERNAME): cv.string,
+        cv.Optional(CONF_PASSWORD): cv.string,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -65,3 +69,7 @@ async def to_code(config):
     cg.add(var.set_upload_enabled(enable_upload))
     cg.add(var.set_download_enabled(enable_download))
     cg.add(var.set_deletion_enabled(enable_deletion))
+
+    # Optional authentication
+    if CONF_USERNAME in config and CONF_PASSWORD in config:
+        cg.add(var.set_auth(config[CONF_USERNAME], config[CONF_PASSWORD]))
