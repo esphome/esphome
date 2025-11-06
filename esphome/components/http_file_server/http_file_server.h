@@ -143,7 +143,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
 
   // Progress tracking for long operations
   struct {
-    std::string operation;  // "copy" or "move"
+    std::string operation;  // "copy", "move", or "upload"
     std::string source;
     std::string destination;
     size_t total_bytes{0};
@@ -151,6 +151,10 @@ class HttpFileServer : public Component, public AsyncWebHandler {
     bool in_progress{false};
     uint32_t start_time{0};
   } progress_;
+
+  // Upload progress tracking
+  size_t upload_total_size_{0};
+  size_t upload_received_size_{0};
 
   // Helper methods
   std::string uri_to_filepath(const std::string &uri);
