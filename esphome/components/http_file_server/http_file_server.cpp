@@ -447,6 +447,67 @@ std::string HttpFileServer::generate_html_header(const std::string &title) {
     .header-actions button:hover {
       background: #45a049;
     }
+    .progress-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .progress-modal.active {
+      display: flex;
+    }
+    .progress-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      min-width: 400px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+    .progress-title {
+      font-size: 1.2rem;
+      font-weight: 500;
+      margin-bottom: 1rem;
+      color: #1d1d1f;
+    }
+    .progress-bar-container {
+      width: 100%;
+      height: 20px;
+      background: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 1rem 0;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #0066cc, #0052a3);
+      width: 0%;
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .progress-details {
+      color: #666;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+    .progress-file-info {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
   </style>
 </head>
 <body>
@@ -458,7 +519,108 @@ std::string HttpFileServer::generate_html_header(const std::string &title) {
 std::string HttpFileServer::generate_html_footer() {
   return R"(
 </div>
+<div id="progressModal" class="progress-modal">
+  <div class="progress-content">
+    <div class="progress-title" id="progressTitle">Processing...</div>
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar">0%</div>
+    </div>
+    <div class="progress-details" id="progressDetails">Initializing...</div>
+    <div class="progress-file-info">
+      <div><strong>From:</strong> <span id="progressSource">-</span></div>
+      <div><strong>To:</strong> <span id="progressDest">-</span></div>
+    </div>
+  </div>
+</div>
 <script>
+let progressPollInterval = null;
+
+function showProgressModal(operation, source, destination) {
+  const modal = document.getElementById('progressModal');
+  const title = document.getElementById('progressTitle');
+  const bar = document.getElementById('progressBar');
+  const details = document.getElementById('progressDetails');
+  const sourceEl = document.getElementById('progressSource');
+  const destEl = document.getElementById('progressDest');
+
+  title.textContent = operation === 'copy' ? 'Copying File...' : 'Moving File...';
+  bar.style.width = '0%';
+  bar.textContent = '0%';
+  details.textContent = 'Starting operation...';
+  sourceEl.textContent = source;
+  destEl.textContent = destination;
+
+  modal.classList.add('active');
+}
+
+function hideProgressModal() {
+  const modal = document.getElementById('progressModal');
+  modal.classList.remove('active');
+  if (progressPollInterval) {
+    clearInterval(progressPollInterval);
+    progressPollInterval = null;
+  }
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+function formatTime(ms) {
+  if (ms < 1000) return ms + 'ms';
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return seconds + 's';
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return minutes + 'm ' + remainingSeconds + 's';
+}
+
+function pollProgress() {
+  fetch(window.location.pathname + 'api/progress')
+    .then(response => response.json())
+    .then(data => {
+      if (!data.in_progress) {
+        hideProgressModal();
+        location.reload();
+        return;
+      }
+
+      const bar = document.getElementById('progressBar');
+      const details = document.getElementById('progressDetails');
+
+      const percentage = data.percentage || 0;
+      bar.style.width = percentage + '%';
+      bar.textContent = percentage.toFixed(1) + '%';
+
+      let detailText = formatBytes(data.transferred_bytes) + ' / ' + formatBytes(data.total_bytes);
+      if (data.elapsed_ms) {
+        detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
+      }
+      if (data.remaining_ms) {
+        detailText += ' • Remaining: ' + formatTime(data.remaining_ms);
+      }
+
+      details.textContent = detailText;
+    })
+    .catch(error => {
+      console.error('Progress polling error:', error);
+    });
+}
+
+function startProgressPolling() {
+  if (progressPollInterval) {
+    clearInterval(progressPollInterval);
+  }
+  // Poll every 500ms
+  progressPollInterval = setInterval(pollProgress, 500);
+  // Also poll immediately
+  pollProgress();
+}
+
 function delete_file(path) {
   if (confirm('Are you sure you want to delete this file?')) {
     fetch(path, {method: 'DELETE'})
@@ -491,6 +653,9 @@ function copy_file(source) {
   const destination = prompt('Enter destination path:', source + '.copy');
   if (!destination) return;
 
+  // Show progress modal
+  showProgressModal('copy', source, destination);
+
   fetch(window.location.pathname + 'api/copy', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -499,17 +664,25 @@ function copy_file(source) {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        alert('File copied successfully!');
-        location.reload();
+        // Start polling for progress (for large files)
+        // Small files might complete instantly, so check progress first
+        startProgressPolling();
       } else {
+        hideProgressModal();
         alert('Copy failed: ' + (data.error || 'Unknown error'));
       }
     })
-    .catch(error => alert('Error: ' + error));
+    .catch(error => {
+      hideProgressModal();
+      alert('Error: ' + error);
+    });
 }
 function move_file(source) {
   const destination = prompt('Enter destination path:', source);
   if (!destination) return;
+
+  // Show progress modal
+  showProgressModal('move', source, destination);
 
   fetch(window.location.pathname + 'api/move', {
     method: 'POST',
@@ -519,13 +692,18 @@ function move_file(source) {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        alert('File moved successfully!');
-        location.reload();
+        // Start polling for progress (for large files)
+        // Small files might complete instantly, so check progress first
+        startProgressPolling();
       } else {
+        hideProgressModal();
         alert('Move failed: ' + (data.error || 'Unknown error'));
       }
     })
-    .catch(error => alert('Error: ' + error));
+    .catch(error => {
+      hideProgressModal();
+      alert('Error: ' + error);
+    });
 }
 function rename_file(source) {
   const currentName = source.split('/').pop();
