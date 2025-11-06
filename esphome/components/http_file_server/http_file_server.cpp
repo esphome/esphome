@@ -735,14 +735,12 @@ function rename_file(source) {
     .catch(error => alert('Error: ' + error));
 }
 function create_directory() {
-  // Get current directory from URL and convert to display format
+  const name = prompt('Enter directory name:');
+  if (!name || !name.trim()) return;
+
+  // Create directory in current location
   const currentPath = window.location.pathname.replace(/\/$/, '');
-  const displayPath = currentPath || '/';
-
-  const name = prompt('Enter directory name:\n(Will be created in: ' + displayPath + ')');
-  if (!name) return;
-
-  const fullPath = currentPath + '/' + name;
+  const fullPath = currentPath + '/' + name.trim();
 
   fetch(API_BASE + '/api/mkdir', {
     method: 'POST',
