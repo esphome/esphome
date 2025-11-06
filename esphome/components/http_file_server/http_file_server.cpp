@@ -990,9 +990,16 @@ std::string HttpFileServer::generate_file_row(const FileInfo &info, const std::s
     }
   } else {
     // Directory actions
-    if (this->deletion_enabled_) {
-      row += "<button class=\"delete\" onclick=\"delete_directory('" + info.path + "')\">Delete</button>";
+    if (!info.is_mount_point) {
+      // Rename button (not for mount points)
+      row += "<button onclick=\"rename_file('" + info.path + "')\">Rename</button>";
+      // Delete button (not for mount points)
+      if (this->deletion_enabled_) {
+        row += "<button class=\"delete\" onclick=\"delete_directory('" + file_uri + "')\">Delete</button>";
+      }
     }
+    // TODO: Add Mount/Unmount buttons for mount points
+    // This requires integration with usb_msc_host and sd_mmc_card automation actions
   }
 
   row += "</div></td></tr>";
@@ -1048,6 +1055,7 @@ void HttpFileServer::handle_directory_listing(AsyncWebServerRequest *request, co
         info.name = "root";
       info.path = mount.path;
       info.is_directory = true;
+      info.is_mount_point = true;
       info.size = 0;
       info.modified = 0;
 
@@ -1427,7 +1435,8 @@ void HttpFileServer::handle_api_dirisempty(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string dirpath = path_param->value().c_str();
+  std::string dir_uri = path_param->value().c_str();
+  std::string dirpath = this->uri_to_filepath(dir_uri);
 
   // Check if path exists and is a directory
   struct stat dir_stat;
@@ -1455,7 +1464,8 @@ void HttpFileServer::handle_api_dirinfo(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string dirpath = path_param->value().c_str();
+  std::string dir_uri = path_param->value().c_str();
+  std::string dirpath = this->uri_to_filepath(dir_uri);
 
   // Check if path exists and is a directory
   struct stat dir_stat;
