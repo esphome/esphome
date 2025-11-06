@@ -786,9 +786,7 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
   // If req is provided, start chunked response for keepalive
   bool send_keepalive = (req != nullptr);
   if (send_keepalive) {
-    // Set content type for chunked response
-    // Don't set status code here - it will default to 200 OK when chunked transfer starts
-    // Setting 201 Created here causes clients to interpret it as immediate completion
+    httpd_resp_set_status(req, "201 Created");
     httpd_resp_set_type(req, "text/plain");
     // Don't call httpd_resp_send - we'll use httpd_resp_send_chunk for chunked transfer
   }
