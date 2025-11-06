@@ -53,9 +53,11 @@ bool HttpFileServer::canHandle(AsyncWebServerRequest *request) const {
 
   // We handle GET, POST, and DELETE methods
   if (request->method() == HTTP_GET || request->method() == HTTP_POST || request->method() == HTTP_DELETE) {
+    ESP_LOGD(TAG, "canHandle=true for %s %s", request->methodToString(), uri.c_str());
     return true;
   }
 
+  ESP_LOGW(TAG, "canHandle=false - unsupported method %s for %s", request->methodToString(), uri.c_str());
   return false;
 }
 
@@ -109,13 +111,16 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
       this->handle_file_download(request, filepath);
     }
   } else if (request->method() == HTTP_DELETE) {
+    ESP_LOGI(TAG, "DELETE handler called for URI: %s", uri.c_str());
+
     if (!this->deletion_enabled_) {
+      ESP_LOGW(TAG, "Deletion is disabled");
       request->send(403, "application/json", "{\"error\":\"File deletion is disabled\"}");
       return;
     }
 
     std::string filepath = this->uri_to_filepath(uri);
-    ESP_LOGD(TAG, "DELETE request for: %s", filepath.c_str());
+    ESP_LOGI(TAG, "DELETE request - URI: %s -> Filepath: %s", uri.c_str(), filepath.c_str());
 
     struct stat file_stat;
     if (stat(filepath.c_str(), &file_stat) != 0) {
