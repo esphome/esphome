@@ -67,7 +67,7 @@ class RealTimeClock : public PollingComponent {
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
  public:
   TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
-  bool check(Ts... x) override { return this->parent_->now().is_valid(); }
+  bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
 
  protected:
   RealTimeClock *parent_;

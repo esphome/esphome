@@ -266,6 +266,12 @@ class Scheduler {
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
 
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  // Helper for debug logging in set_timer_common_ - extracted to reduce code size
+  void debug_log_timer_(const SchedulerItem *item, bool is_static_string, const char *name_cstr,
+                        SchedulerItem::Type type, uint32_t delay, uint64_t now);
+#endif /* ESPHOME_DEBUG_SCHEDULER */
+
 #ifndef ESPHOME_THREAD_SINGLE
   // Helper to process defer queue - inline for performance in hot path
   inline void process_defer_queue_(uint32_t &now) {
@@ -367,6 +373,24 @@ class Scheduler {
 #endif
   }
 
+  // Helper to set item removal flag (platform-specific)
+  // For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this
+  // function. Uses memory_order_release when setting to true (for cancellation synchronization),
+  // and memory_order_relaxed when setting to false (for initialization).
+  void set_item_removed_(SchedulerItem *item, bool removed) {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    // Multi-threaded with atomics: use atomic store with appropriate ordering
+    // Release ordering when setting to true ensures cancellation is visible to other threads
+    // Relaxed ordering when setting to false is sufficient for initialization
+    item->remove.store(removed, removed ? std::memory_order_release : std::memory_order_relaxed);
+#else
+    // Single-threaded (ESPHOME_THREAD_SINGLE) or
+    // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
+    // For ESPHOME_THREAD_MULTI_NO_ATOMICS, caller MUST hold lock!
+    item->remove = removed;
+#endif
+  }
+
   // Helper to mark matching items in a container as removed
   // Returns the number of items marked for removal
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
@@ -383,15 +407,7 @@ class Scheduler {
         continue;
       if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
         // Mark item for removal (platform-specific)
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-        // Multi-threaded with atomics: use atomic store
-        item->remove.store(true, std::memory_order_release);
-#else
-        // Single-threaded (ESPHOME_THREAD_SINGLE) or
-        // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
-        // For ESPHOME_THREAD_MULTI_NO_ATOMICS, caller MUST hold lock!
-        item->remove = true;
-#endif
+        this->set_item_removed_(item.get(), true);
         count++;
       }
     }
