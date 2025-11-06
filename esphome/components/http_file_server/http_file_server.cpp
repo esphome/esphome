@@ -1319,6 +1319,7 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
   // Set content type based on file extension
   std::string mime_type = Path::mime_type(filepath);
   std::string filename = Path::file_name(filepath);
+  std::string content_disposition = "attachment; filename=\"" + filename + "\"";
 
   ESP_LOGI(TAG, "Starting file download: %s (size: %zu bytes)", filename.c_str(), file_size);
 
@@ -1340,7 +1341,7 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     }
 
     AsyncWebServerResponse *response = request->beginResponse(200, mime_type.c_str(), content);
-    response->addHeader("Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
+    response->addHeader("Content-Disposition", content_disposition.c_str());
     request->send(response);
     ESP_LOGI(TAG, "Download sent: %zu bytes", bytes_read);
   } else {
@@ -1350,14 +1351,9 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     // Get raw httpd_req_t
     httpd_req_t *req = static_cast<httpd_req_t *>(*request);
 
-    // Set response headers including Content-Length so browser recognizes download
+    // Set response headers - browser needs Content-Disposition to trigger download
     httpd_resp_set_type(req, mime_type.c_str());
-    httpd_resp_set_hdr(req, "Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
-
-    // Set Content-Length header - critical for browser to recognize download and show progress
-    char content_length_str[32];
-    snprintf(content_length_str, sizeof(content_length_str), "%zu", file_size);
-    httpd_resp_set_hdr(req, "Content-Length", content_length_str);
+    httpd_resp_set_hdr(req, "Content-Disposition", content_disposition.c_str());
 
     // Allocate chunk buffer on heap
     auto buffer = std::make_unique<uint8_t[]>(CHUNK_SIZE);
