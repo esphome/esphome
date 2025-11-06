@@ -343,7 +343,7 @@ void WiFiComponent::clear_sta() {
   this->selected_sta_index_ = -1;
 }
 
-WiFiAP WiFiComponent::build_selected_ap_() const {
+void WiFiComponent::start_connecting_to_selected_(bool two) {
   WiFiAP params;
 
   if (const WiFiAP *config = this->get_selected_sta_()) {
@@ -384,7 +384,7 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
     }
   }
 
-  return params;
+  this->start_connecting(params, two);
 }
 
 bool WiFiComponent::sync_selected_sta_to_best_scan_result_() {
@@ -708,7 +708,7 @@ void WiFiComponent::check_scanning_finished() {
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
   // After sorting, scan_result_[0] contains the best network. Now find which sta_[i] config
   // matches that network and record it in selected_sta_index_. This keeps the two indices
-  // synchronized so build_selected_ap_() can safely use both to build connection parameters.
+  // synchronized so start_connecting_to_selected_() can safely use both to build connection parameters.
   if (!this->sync_selected_sta_to_best_scan_result_()) {
     ESP_LOGW(TAG, "No matching network found");
     this->retry_connect();

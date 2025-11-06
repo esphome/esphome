@@ -339,7 +339,7 @@ class WiFiComponent : public Component {
 #endif  // USE_WIFI_AP
 
   void print_connect_params_();
-  WiFiAP build_selected_ap_() const;
+  void start_connecting_to_selected_(bool two);
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
@@ -371,11 +371,6 @@ class WiFiComponent : public Component {
   // Find which sta_[i] matches scan_result_[0] and set selected_sta_index_ (scan done path)
   // Returns true if match found, false otherwise
   bool sync_selected_sta_to_best_scan_result_();
-
-  void start_connecting_to_selected_(bool two) {
-    WiFiAP connection_params = this->build_selected_ap_();
-    this->start_connecting(connection_params, two);
-  }
 
 #ifdef USE_WIFI_FAST_CONNECT
   // Reset state for next fast connect AP attempt
