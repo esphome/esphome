@@ -584,6 +584,7 @@ std::string HttpFileServer::generate_html_footer() {
 <script>
 // API base path for this file server instance
 const API_BASE = ')" + this->url_prefix_ + R"(';
+console.log('[FileServer] Script loaded, API_BASE:', API_BASE);
 let progressPollInterval = null;
 
 function showProgressModal(operation, source, destination) {
@@ -696,6 +697,7 @@ function pollProgress() {
 }
 
 function startProgressPolling() {
+  console.log('[FileServer] startProgressPolling called');
   // Reset progress tracking
   progressPollCount = 0;
   hasSeenProgress = false;
@@ -705,8 +707,10 @@ function startProgressPolling() {
   }
   // Poll every 500ms
   progressPollInterval = setInterval(pollProgress, 500);
+  console.log('[FileServer] Set interval ID:', progressPollInterval);
   // First poll after 250ms delay to give backend time to start tracking
   setTimeout(pollProgress, 250);
+  console.log('[FileServer] Scheduled first poll in 250ms');
 }
 
 function delete_file(path) {
@@ -854,7 +858,9 @@ async function fileExists(filepath) {
 
 // Helper function to handle file copy with existence check
 async function performCopy(source, destination) {
+  console.log('[FileServer] performCopy called:', source, '->', destination);
   showProgressModal('copy', source, destination);
+  console.log('[FileServer] Starting progress polling');
   startProgressPolling();
 
   fetch(API_BASE + '/api/copy', {
