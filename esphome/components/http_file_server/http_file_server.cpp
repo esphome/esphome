@@ -1943,13 +1943,13 @@ void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
       auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
       ESP_LOGD(TAG, "  Checking SD MMC device with mount_path: %s", device->get_mount_path().c_str());
       if (device->get_mount_path() == mount_point) {
-        if (device->remount_device()) {
-          ESP_LOGI(TAG, "Successfully remounted SD MMC device at %s", mount_point.c_str());
+        if (device->mount_card()) {
+          ESP_LOGI(TAG, "Successfully mounted SD MMC device at %s", mount_point.c_str());
           request->send(200, "application/json", "{\"success\":true}");
           return;
         } else {
-          ESP_LOGE(TAG, "Failed to remount SD MMC device at %s", mount_point.c_str());
-          request->send(500, "application/json", "{\"error\":\"Remount failed\"}");
+          ESP_LOGE(TAG, "Failed to mount SD MMC device at %s", mount_point.c_str());
+          request->send(500, "application/json", "{\"error\":\"Mount failed\"}");
           return;
         }
       }
@@ -2000,7 +2000,7 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
       auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
       ESP_LOGD(TAG, "  Checking SD MMC device with mount_path: %s", device->get_mount_path().c_str());
       if (device->get_mount_path() == mount_point) {
-        device->unmount_device();
+        device->unmount_card();
         ESP_LOGI(TAG, "Successfully unmounted SD MMC device at %s", mount_point.c_str());
         request->send(200, "application/json", "{\"success\":true}");
         return;
