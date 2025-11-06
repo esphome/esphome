@@ -82,6 +82,8 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
   } else if (uri.find(this->url_prefix_ + "/api/mkdir") == 0 && request->method() == HTTP_POST) {
     ESP_LOGD(TAG, "API MKDIR endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_mkdir(request);
+  } else if (uri.find(this->url_prefix_ + "/api/exists") == 0 && request->method() == HTTP_GET) {
+    this->handle_api_exists(request);
   } else if (uri.find(this->url_prefix_ + "/api/progress") == 0 && request->method() == HTTP_GET) {
     this->handle_api_progress(request);
   } else if (request->method() == HTTP_GET) {
@@ -661,11 +663,38 @@ function download_file(path, filename) {
       alert('Error: ' + error);
     });
 }
-function copy_file(source) {
-  const destination = prompt('Enter destination path:', source + '.copy');
-  if (!destination) return;
 
-  // Show progress modal and start polling immediately
+// Helper function to suggest a new filename with " (1)" before extension
+function suggestNewFilename(filepath) {
+  const lastSlashIndex = filepath.lastIndexOf('/');
+  const path = filepath.substring(0, lastSlashIndex + 1);
+  const filename = filepath.substring(lastSlashIndex + 1);
+
+  const lastDotIndex = filename.lastIndexOf('.');
+  if (lastDotIndex === -1) {
+    // No extension
+    return filepath + ' (1)';
+  } else {
+    const basename = filename.substring(0, lastDotIndex);
+    const extension = filename.substring(lastDotIndex);
+    return path + basename + ' (1)' + extension;
+  }
+}
+
+// Helper function to check if a file exists
+async function fileExists(filepath) {
+  try {
+    const response = await fetch(API_BASE + '/api/exists?path=' + encodeURIComponent(filepath));
+    const data = await response.json();
+    return data.exists;
+  } catch (error) {
+    console.error('Error checking file existence:', error);
+    return false;
+  }
+}
+
+// Helper function to handle file copy with existence check
+async function performCopy(source, destination) {
   showProgressModal('copy', source, destination);
   startProgressPolling();
 
@@ -677,22 +706,37 @@ function copy_file(source) {
     .then(response => response.json())
     .then(data => {
       if (!data.success) {
-        // Operation failed - hide modal and show error
         hideProgressModal();
         alert('Copy failed: ' + (data.error || 'Unknown error'));
       }
-      // If successful, polling will continue and auto-close modal when done
     })
     .catch(error => {
       hideProgressModal();
       alert('Error: ' + error);
     });
 }
-function move_file(source) {
-  const destination = prompt('Enter destination path:', source);
+
+async function copy_file(source) {
+  let destination = prompt('Enter destination path:', source + '.copy');
   if (!destination) return;
 
-  // Show progress modal and start polling immediately
+  // Check if destination exists
+  const exists = await fileExists(destination);
+  if (exists) {
+    const choice = confirm('File already exists. Click OK to overwrite, or Cancel to change the filename.');
+    if (!choice) {
+      // User wants to change filename - suggest new name with " (1)"
+      const suggested = suggestNewFilename(destination);
+      destination = prompt('Enter new destination path:', suggested);
+      if (!destination) return;
+    }
+  }
+
+  performCopy(source, destination);
+}
+
+// Helper function to handle file move with existence check
+async function performMove(source, destination) {
   showProgressModal('move', source, destination);
   startProgressPolling();
 
@@ -704,16 +748,33 @@ function move_file(source) {
     .then(response => response.json())
     .then(data => {
       if (!data.success) {
-        // Operation failed - hide modal and show error
         hideProgressModal();
         alert('Move failed: ' + (data.error || 'Unknown error'));
       }
-      // If successful, polling will continue and auto-close modal when done
     })
     .catch(error => {
       hideProgressModal();
       alert('Error: ' + error);
     });
+}
+
+async function move_file(source) {
+  let destination = prompt('Enter destination path:', source);
+  if (!destination) return;
+
+  // Check if destination exists
+  const exists = await fileExists(destination);
+  if (exists) {
+    const choice = confirm('File already exists. Click OK to overwrite, or Cancel to change the filename.');
+    if (!choice) {
+      // User wants to change filename - suggest new name with " (1)"
+      const suggested = suggestNewFilename(destination);
+      destination = prompt('Enter new destination path:', suggested);
+      if (!destination) return;
+    }
+  }
+
+  performMove(source, destination);
 }
 function rename_file(source) {
   const currentName = source.split('/').pop();
@@ -1139,6 +1200,25 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
 
   json += "}";
 
+  request->send(200, "application/json", json.c_str());
+}
+
+void HttpFileServer::handle_api_exists(AsyncWebServerRequest *request) {
+  // Get path parameter from query string
+  auto *path_param = request->getParam("path");
+
+  if (!path_param) {
+    request->send(400, "application/json", "{\"error\":\"Missing path parameter\"}");
+    return;
+  }
+
+  std::string filepath = path_param->value().c_str();
+
+  // Check if file exists
+  struct stat file_stat;
+  bool exists = (stat(filepath.c_str(), &file_stat) == 0);
+
+  std::string json = "{\"exists\":" + std::string(exists ? "true" : "false") + "}";
   request->send(200, "application/json", json.c_str());
 }
 
