@@ -727,10 +727,14 @@ function rename_file(source) {
     .catch(error => alert('Error: ' + error));
 }
 function create_directory() {
-  const name = prompt('Enter directory name:');
+  // Get current directory from URL and convert to display format
+  const currentPath = window.location.pathname.replace(/\/$/, '');
+  const displayPath = currentPath || '/';
+
+  const name = prompt('Enter directory name:\n(Will be created in: ' + displayPath + ')');
   if (!name) return;
 
-  const fullPath = window.location.pathname.replace(/\/$/, '') + '/' + name;
+  const fullPath = currentPath + '/' + name;
 
   fetch(API_BASE + '/api/mkdir', {
     method: 'POST',
@@ -1074,15 +1078,18 @@ void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string dir_name = name_param->value().c_str();
+  std::string dir_uri = name_param->value().c_str();
 
-  ESP_LOGI(TAG, "API MKDIR: %s", dir_name.c_str());
+  // Convert URI to filesystem path
+  std::string dir_path = this->uri_to_filepath(dir_uri);
+
+  ESP_LOGI(TAG, "API MKDIR: URI=%s -> Path=%s", dir_uri.c_str(), dir_path.c_str());
 
   // Create directory
-  if (mkdir(dir_name.c_str(), 0755) == 0) {
+  if (mkdir(dir_path.c_str(), 0755) == 0) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
-    ESP_LOGE(TAG, "Mkdir failed: %s (errno: %d, %s)", dir_name.c_str(), errno, strerror(errno));
+    ESP_LOGE(TAG, "Mkdir failed: %s (errno: %d, %s)", dir_path.c_str(), errno, strerror(errno));
     request->send(500, "application/json", "{\"error\":\"Mkdir operation failed\"}");
   }
 }
