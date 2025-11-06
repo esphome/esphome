@@ -1,3 +1,6 @@
+logger:
+  level: VERBOSE
+
 esphome:
   on_boot:
     - lambda: |-
@@ -8,10 +11,3 @@ esphome:
         assert(x == 95);
         x = clamp_at_most(x, 40);
         assert(x == 40);
-nrf52:
-  dfu:
-    reset_pin:
-      number: 14
-      inverted: true
-      mode:
-        output: true
