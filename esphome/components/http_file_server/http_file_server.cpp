@@ -1603,6 +1603,7 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
 
   // Perform copy with progress tracking for files > 1MB
   bool track_progress = (src_stat.st_size > 1048576);
+  ESP_LOGI(TAG, "Copy: file size %lld bytes, track_progress=%d", (long long) src_stat.st_size, track_progress);
   if (this->perform_file_copy(source, destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
@@ -1888,6 +1889,12 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
       uint32_t remaining_ms = total_estimated_ms - elapsed_ms;
       json += ",\"remaining_ms\":" + std::to_string(remaining_ms);
     }
+
+    ESP_LOGD(TAG, "Progress poll: %s operation, %.1f%% (%zu/%zu bytes)",
+             this->progress_.operation.c_str(), percentage,
+             this->progress_.transferred_bytes, this->progress_.total_bytes);
+  } else {
+    ESP_LOGD(TAG, "Progress poll: no operation in progress");
   }
 
   json += "}";
