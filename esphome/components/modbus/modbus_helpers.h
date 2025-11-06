@@ -8,6 +8,32 @@ namespace esphome {
 namespace modbus {
 namespace helpers {
 
+inline bool is_function_code_read(uint8_t function_code) {
+  return static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::READ_COILS ||
+         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
+         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
+         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::READ_INPUT_REGISTERS;
+}
+
+inline bool is_function_code_write(uint8_t function_code) {
+  return static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::WRITE_SINGLE_COIL ||
+         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
+         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
+}
+
+inline bool is_function_code_exception(uint8_t function_code) {
+  return (static_cast<uint8_t>(function_code) & FUNCTION_CODE_EXCEPTION_MASK) != 0;
+}
+
+inline bool is_function_code_custom(uint8_t function_code) {
+  return static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::CUSTOM ||
+         (static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT &&
+          static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END) ||
+         (static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT &&
+          static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
+}
+
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
   U_WORD = 0x1,   // 1 Register unsigned

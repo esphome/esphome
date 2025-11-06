@@ -153,38 +153,27 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
   }
   this->rx_buffer_.push_back(byte);
 
+  // Smallest possible frame is 5 bytes: address(1) + function(1) + exception(1) + CRC(2)
+  if (at < 4)
+    return true;
+
   const uint8_t *raw = &this->rx_buffer_[0];
 
-  // Byte 0: modbus address (match all)
-  if (at == 0)
-    return true;
   uint8_t address = raw[0];
   uint8_t function_code = raw[1];
-  // Byte 2: Size (with modbus rtu function code 4/3)
-  // See also https://en.wikipedia.org/wiki/Modbus
-  if (at == 2)
-    return true;
 
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
 
-  // Per https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf Ch 5 User-Defined function codes
-  if (((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT) &&
-       (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END)) ||
-      ((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT) &&
-       (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END))) {
+  if (is_function_code_custom(function_code)) {
     // Handle user-defined function, since we don't know how big this ought to be,
     // ideally we should delegate the entire length detection to whatever handler is
     // installed, but wait, there is the CRC, and if we get a hit there is a good
     // chance that this is a complete message ... admittedly there is a small chance is
     // isn't but that is quite small given the purpose of the CRC in the first place
 
-    // Fewer than 2 bytes can't calc CRC
-    if (at < 2)
-      return true;
-
+    data_offset = 2;
     data_len = at - 2;
-    data_offset = 1;
 
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
     uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
@@ -196,27 +185,20 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
 
   } else {
     // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
-    if (function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
-        function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
-        function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
-        function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+    if (is_function_code_write(function_code)) {
       data_offset = 2;
       data_len = 4;
     }
 
     // Error ( msb indicates error )
     // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] exception code, Byte[3-4] crc
-    if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
+    if (is_function_code_exception(function_code)) {
       data_offset = 2;
       data_len = 1;
     }
 
-    // Byte data_offset..data_offset+data_len-1: Data
-    if (at < data_offset + data_len)
-      return true;
-
     // Byte 3+data_len: CRC_LO (over all bytes)
-    if (at == data_offset + data_len)
+    if (at <= data_offset + data_len)
       return true;
 
     // Byte data_offset+len+1: CRC_HI (over all bytes)
@@ -246,17 +228,13 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
     this->rx_buffer_.push_back(byte.value());
   else if (at > 0)
     at--;  // we're being called to re-parse existing buffer
+
+  if (at < 4)
+    return true;
   const uint8_t *raw = &this->rx_buffer_[0];
 
-  // Byte 0: modbus address (match all)
-  if (at == 0)
-    return true;
   uint8_t address = raw[0];
   uint8_t function_code = raw[1];
-  // Byte 2: Size (with modbus rtu function code 4/3)
-  // See also https://en.wikipedia.org/wiki/Modbus
-  if (at == 2)
-    return true;
 
   if (this->expecting_peer_response_ != 0 && address != this->expecting_peer_response_) {
     ESP_LOGVV(TAG, "Received frame with address %d while expecting response from %d. Assume new client command.",
@@ -267,23 +245,15 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
 
-  // Per https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf Ch 5 User-Defined function codes
-  if (((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT) &&
-       (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END)) ||
-      ((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT) &&
-       (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END))) {
+  if (is_function_code_custom(function_code)) {
     // Handle user-defined function, since we don't know how big this ought to be,
     // ideally we should delegate the entire length detection to whatever handler is
     // installed, but wait, there is the CRC, and if we get a hit there is a good
     // chance that this is a complete message ... admittedly there is a small chance is
     // isn't but that is quite small given the purpose of the CRC in the first place
 
-    // Fewer than 2 bytes can't calc CRC
-    if (at < 2)
-      return true;
-
+    data_offset = 2;
     data_len = at - 2;
-    data_offset = 1;
 
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
     uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
@@ -296,10 +266,7 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
   } else {
     // data starts at 2 and length is 4 for read registers commands
 
-    if (function_code == ModbusFunctionCode::READ_COILS || function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
-        function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
-        function_code == ModbusFunctionCode::READ_INPUT_REGISTERS ||
-        function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
+    if (is_function_code_read(function_code) || function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
       data_offset = 2;
       data_len = 4;
     } else if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
@@ -311,22 +278,16 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
       data_len = 2 + 2 + 1 + raw[6];
     }
 
-    // Clients don't send error responses
-
-    // Byte data_offset..data_offset+data_len-1: Data
-    if (at < data_offset + data_len)
-      return true;
-
     // Byte 3+data_len: CRC_LO (over all bytes)
-    if (at == data_offset + data_len)
+    if (at <= data_offset + data_len)
       return true;
 
     // Byte data_offset+len+1: CRC_HI (over all bytes)
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
     uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
     if (computed_crc != remote_crc) {
+      // Don't log CRC errors for expected responses from peers - we'll try again first
       if (this->expecting_peer_response_ == 0) {
-        // Don't log CRC errors for expected responses from peers - we'll try again first
         ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
         ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
       }
