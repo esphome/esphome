@@ -1428,8 +1428,8 @@ void HttpFileServer::handle_directory_listing(AsyncWebServerRequest *request, co
 
   html += this->generate_breadcrumb(filepath);
 
-  // Upload form
-  if (this->upload_enabled_) {
+  // Upload form (hidden for root directory)
+  if (this->upload_enabled_ && !is_virtual_root) {
     html += R"(<div class="upload-form">
       <form id="uploadForm" onsubmit="return handleUpload(event);">
         <input type="file" name="file" id="uploadFile" required>
@@ -1658,6 +1658,7 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   ESP_LOGI(TAG, "Reading upload data: %zu bytes total", remaining);
 
   // Read and write in chunks
+  size_t chunks_since_yield = 0;
   while (remaining > 0) {
     // Feed the watchdog to prevent timeout on large uploads
     App.feed_wdt();
@@ -1688,6 +1689,13 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
     portEXIT_CRITICAL(&this->progress_mutex_);
 
     remaining -= received;
+    chunks_since_yield++;
+
+    // Yield to other tasks every 64 chunks (256KB - 1MB) to allow progress polling
+    if (chunks_since_yield >= 64) {
+      vTaskDelay(1);  // Brief yield to let other tasks run (including /api/progress requests)
+      chunks_since_yield = 0;
+    }
 
     // Log progress every ~50KB
     if (current_transferred % (50 * 1024) < BUFFER_SIZE) {
@@ -2092,49 +2100,7 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
   this->deferred_mount_op_.schedule_time = millis() + 100;  // 100ms delay
 
   request->send(200, "application/json", "{\"success\":true}");
-  return;
-
-  // NOTE: The actual unmount happens in loop() - see perform_deferred_mount_op()
-  // This old immediate unmount code is commented out to prevent double-free crashes:
-  /*
-  ESP_LOGD(TAG, "  USB MSC devices in vector: %zu", this->usb_msc_devices_.size());
-  ESP_LOGD(TAG, "  SD MMC devices in vector: %zu", this->sd_mmc_devices_.size());
-
-  // Try to find matching USB MSC device and unmount
-#ifdef USE_USB_MSC_HOST
-  for (void *dev_ptr : this->usb_msc_devices_) {
-    auto *device = static_cast<usb_msc_host::USBMscDevice *>(dev_ptr);
-    ESP_LOGD(TAG, "  Checking USB MSC device with mount_path: %s", device->get_mount_path().c_str());
-    if (device->get_mount_path() == mount_point) {
-      device->unmount_device();
-      ESP_LOGI(TAG, "Successfully unmounted USB MSC device at %s", mount_point.c_str());
-      request->send(200, "application/json", "{\"success\":true}");
-      return;
-    }
-  }
-#endif
-
-  // Try SD MMC devices (check vector size instead of #ifdef to handle runtime registration)
-  if (!this->sd_mmc_devices_.empty()) {
-    for (void *dev_ptr : this->sd_mmc_devices_) {
-      ESP_LOGD(TAG, "  Iterating SD MMC devices, dev_ptr=%p", dev_ptr);
-#ifdef USE_SD_MMC_CARD
-      auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
-      ESP_LOGD(TAG, "  Checking SD MMC device with mount_path: %s", device->get_mount_path().c_str());
-      if (device->get_mount_path() == mount_point) {
-        device->unmount_card();
-        ESP_LOGI(TAG, "Successfully unmounted SD MMC device at %s", mount_point.c_str());
-        request->send(200, "application/json", "{\"success\":true}");
-        return;
-      }
-#else
-      ESP_LOGW(TAG, "  SD MMC device registered but USE_SD_MMC_CARD not defined - cannot access device");
-#endif
-    }
-  }
-
-  ESP_LOGW(TAG, "No device found for mount point: %s", mount_point.c_str());
-  request->send(404, "application/json", "{\"error\":\"Mount point not found\"}");
+  // NOTE: The actual unmount happens in loop() - see the loop() method
 }
 
 void HttpFileServer::handle_api_remount(AsyncWebServerRequest *request) {
