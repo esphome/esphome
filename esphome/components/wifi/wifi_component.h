@@ -482,7 +482,6 @@ class WiFiComponent : public Component {
   // Group all boolean values together
 #ifdef USE_WIFI_FAST_CONNECT
   bool trying_loaded_ap_{false};
-  bool fast_connect_exhausted_{false};  // All APs tried, fall back to scan
 #endif
   bool retry_hidden_{false};
   bool has_ap_{false};

@@ -170,15 +170,10 @@ void WiFiComponent::loop() {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
         if (millis() - this->action_started_ > 5000) {
 #ifdef USE_WIFI_FAST_CONNECT
-          if (this->fast_connect_exhausted_) {
-            // All APs tried, fall back to scanning
-            this->start_scanning();
-          } else {
-            // Safety check: Ensure selected_sta_index_ is valid before retrying
-            // (should already be set by retry_connect(), but check for robustness)
-            this->reset_selected_ap_to_first_if_invalid_();
-            this->start_connecting_to_selected_(false);
-          }
+          // Safety check: Ensure selected_sta_index_ is valid before retrying
+          // (should already be set by retry_connect(), but check for robustness)
+          this->reset_selected_ap_to_first_if_invalid_();
+          this->start_connecting_to_selected_(false);
 #else
           if (this->retry_hidden_) {
             this->reset_selected_ap_to_first_if_invalid_();
@@ -759,7 +754,6 @@ void WiFiComponent::check_connecting_finished() {
     this->num_retried_ = 0;
 
 #ifdef USE_WIFI_FAST_CONNECT
-    this->fast_connect_exhausted_ = false;  // Reset on successful connection
     this->save_fast_connect_settings_();
 #endif
 
@@ -821,11 +815,10 @@ void WiFiComponent::retry_connect() {
       this->selected_sta_index_ = 0;  // Retry from the first configured AP
       this->reset_for_next_ap_attempt_();
     } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
-      // Exhausted all configured APs, fall back to full scan
-      ESP_LOGW(TAG, "No more APs to try, starting scan");
-      this->fast_connect_exhausted_ = true;
-      this->restart_adapter();
-      return;
+      // Exhausted all configured APs, cycle back to first
+      // Each AP is tried with SSID only (no BSSID/channel) which triggers ESP-IDF internal scanning
+      this->selected_sta_index_ = 0;
+      this->reset_for_next_ap_attempt_();
     } else {
       // Try next AP
       this->selected_sta_index_++;
