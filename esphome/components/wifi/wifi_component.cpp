@@ -538,10 +538,8 @@ void WiFiComponent::print_connect_params_() {
                 LOG_STR_ARG(get_signal_bars(rssi)), get_wifi_channel(), wifi_subnet_mask_().str().c_str(),
                 wifi_gateway_ip_().str().c_str(), wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  if (const WiFiAP *config = this->get_selected_sta_()) {
-    if (config->get_bssid().has_value()) {
-      ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*config->get_bssid()));
-    }
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid().has_value()) {
+    ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*config->get_bssid()));
   }
 #endif
 #ifdef USE_WIFI_11KV_SUPPORT
@@ -731,9 +729,8 @@ void WiFiComponent::check_connecting_finished() {
     ESP_LOGI(TAG, "Connected");
     // We won't retry hidden networks unless a reconnect fails more than three times again
     if (this->retry_hidden_) {
-      if (const WiFiAP *config = this->get_selected_sta_()) {
-        if (!config->get_hidden())
-          ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config->get_ssid().c_str());
+      if (const WiFiAP *config = this->get_selected_sta_(); config && !config->get_hidden()) {
+        ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config->get_ssid().c_str());
       }
     }
     this->retry_hidden_ = false;
@@ -805,12 +802,10 @@ void WiFiComponent::check_connecting_finished() {
 }
 
 void WiFiComponent::retry_connect() {
-  if (const WiFiAP *config = this->get_selected_sta_()) {
-    if (config->get_bssid()) {
-      auto bssid = *config->get_bssid();
-      float priority = this->get_sta_priority(bssid);
-      this->set_sta_priority(bssid, priority - 1.0f);
-    }
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid()) {
+    auto bssid = *config->get_bssid();
+    float priority = this->get_sta_priority(bssid);
+    this->set_sta_priority(bssid, priority - 1.0f);
   }
 
   delay(10);
