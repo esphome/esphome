@@ -84,6 +84,10 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_api_mkdir(request);
   } else if (uri.find(this->url_prefix_ + "/api/exists") == 0 && request->method() == HTTP_GET) {
     this->handle_api_exists(request);
+  } else if (uri.find(this->url_prefix_ + "/api/dirisempty") == 0 && request->method() == HTTP_GET) {
+    this->handle_api_dirisempty(request);
+  } else if (uri.find(this->url_prefix_ + "/api/dirinfo") == 0 && request->method() == HTTP_GET) {
+    this->handle_api_dirinfo(request);
   } else if (uri.find(this->url_prefix_ + "/api/progress") == 0 && request->method() == HTTP_GET) {
     this->handle_api_progress(request);
   } else if (request->method() == HTTP_GET) {
@@ -114,15 +118,25 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     ESP_LOGD(TAG, "DELETE request for: %s", filepath.c_str());
 
     struct stat file_stat;
-    if (stat(filepath.c_str(), &file_stat) == 0 && S_ISDIR(file_stat.st_mode)) {
-      request->send(400, "application/json", "{\"error\":\"Cannot delete directories\"}");
+    if (stat(filepath.c_str(), &file_stat) != 0) {
+      request->send(404, "application/json", "{\"error\":\"Path not found\"}");
       return;
     }
 
-    if (remove(filepath.c_str()) == 0) {
+    bool success = false;
+    if (S_ISDIR(file_stat.st_mode)) {
+      // Recursive directory deletion
+      ESP_LOGI(TAG, "Deleting directory recursively: %s", filepath.c_str());
+      success = this->recursive_delete_directory(filepath);
+    } else {
+      // Single file deletion
+      success = (remove(filepath.c_str()) == 0);
+    }
+
+    if (success) {
       request->send(200, "application/json", "{\"success\":true}");
     } else {
-      request->send(500, "application/json", "{\"error\":\"Failed to delete file\"}");
+      request->send(500, "application/json", "{\"error\":\"Failed to delete\"}");
     }
   } else {
     request->send(405, "application/json", "{\"error\":\"Method not allowed\"}");
@@ -636,7 +650,14 @@ function startProgressPolling() {
 function delete_file(path) {
   if (confirm('Are you sure you want to delete this file?')) {
     fetch(path, {method: 'DELETE'})
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(text => {
+            throw new Error('HTTP ' + response.status + ': ' + text);
+          });
+        }
+        return response.json();
+      })
       .then(data => {
         if (data.success) {
           alert('File deleted successfully!');
@@ -650,6 +671,74 @@ function delete_file(path) {
       });
   }
 }
+
+async function delete_directory(path) {
+  try {
+    // First do lightweight check if directory is empty
+    const emptyCheck = await fetch(API_BASE + '/api/dirisempty?path=' + encodeURIComponent(path));
+    const emptyInfo = await emptyCheck.json();
+
+    if (emptyInfo.error) {
+      alert('Error checking directory: ' + emptyInfo.error);
+      return;
+    }
+
+    let message;
+    if (emptyInfo.is_empty) {
+      // Fast path for empty directories
+      message = 'Delete empty directory?';
+    } else {
+      // Only count contents if directory is not empty
+      const response = await fetch(API_BASE + '/api/dirinfo?path=' + encodeURIComponent(path));
+      const info = await response.json();
+
+      if (info.error) {
+        alert('Error checking directory contents: ' + info.error);
+        return;
+      }
+
+      const dirName = path.split('/').pop();
+      message = 'Delete directory "' + dirName + '" and all its contents?\n\n';
+      message += 'This will delete:\n';
+      if (info.file_count > 0) {
+        message += '- ' + info.file_count + ' file' + (info.file_count > 1 ? 's' : '') + '\n';
+      }
+      if (info.dir_count > 0) {
+        message += '- ' + info.dir_count + ' subdirector' + (info.dir_count > 1 ? 'ies' : 'y') + '\n';
+      }
+      message += '\nThis action cannot be undone!';
+    }
+
+    if (!confirm(message)) {
+      return;
+    }
+
+    // Perform deletion
+    fetch(path, {method: 'DELETE'})
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(text => {
+            throw new Error('HTTP ' + response.status + ': ' + text);
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          alert('Directory deleted successfully!');
+          location.reload();
+        } else {
+          alert('Delete failed: ' + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(error => {
+        alert('Error: ' + error);
+      });
+  } catch (error) {
+    alert('Error: ' + error);
+  }
+}
+
 function download_file(path, filename) {
   fetch(path)
     .then(response => response.blob())
@@ -899,6 +988,11 @@ std::string HttpFileServer::generate_file_row(const FileInfo &info, const std::s
     if (this->deletion_enabled_) {
       row += "<button class=\"delete\" onclick=\"delete_file('" + file_uri + "')\">Delete</button>";
     }
+  } else {
+    // Directory actions
+    if (this->deletion_enabled_) {
+      row += "<button class=\"delete\" onclick=\"delete_directory('" + info.path + "')\">Delete</button>";
+    }
   }
 
   row += "</div></td></tr>";
@@ -1027,6 +1121,105 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     ESP_LOGW(TAG, "File too large: %zu bytes (max %zu)", file_size, CHUNK_READ_SIZE);
     request->send(413, "text/plain", "File too large - maximum 16MB");
   }
+}
+
+// Directory helpers
+bool HttpFileServer::is_directory_empty(const std::string &path) {
+  DIR *dir = opendir(path.c_str());
+  if (!dir) {
+    return true;  // Can't open, treat as empty
+  }
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    // Skip . and ..
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+    // Found at least one entry - not empty
+    closedir(dir);
+    return false;
+  }
+
+  closedir(dir);
+  return true;  // No entries found - empty
+}
+
+void HttpFileServer::count_directory_contents(const std::string &path, int &file_count, int &dir_count) {
+  DIR *dir = opendir(path.c_str());
+  if (!dir) {
+    return;
+  }
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    // Skip . and ..
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+
+    std::string entry_path = Path::join(path, entry->d_name);
+    struct stat entry_stat;
+    if (stat(entry_path.c_str(), &entry_stat) == 0) {
+      if (S_ISDIR(entry_stat.st_mode)) {
+        dir_count++;
+        // Recursively count subdirectory contents
+        this->count_directory_contents(entry_path, file_count, dir_count);
+      } else {
+        file_count++;
+      }
+    }
+  }
+
+  closedir(dir);
+}
+
+bool HttpFileServer::recursive_delete_directory(const std::string &path) {
+  DIR *dir = opendir(path.c_str());
+  if (!dir) {
+    ESP_LOGE(TAG, "Cannot open directory for deletion: %s (errno: %d)", path.c_str(), errno);
+    return false;
+  }
+
+  bool success = true;
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    // Skip . and ..
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+
+    std::string entry_path = Path::join(path, entry->d_name);
+    struct stat entry_stat;
+    if (stat(entry_path.c_str(), &entry_stat) == 0) {
+      if (S_ISDIR(entry_stat.st_mode)) {
+        // Recursively delete subdirectory
+        if (!this->recursive_delete_directory(entry_path)) {
+          success = false;
+          break;
+        }
+      } else {
+        // Delete file
+        if (remove(entry_path.c_str()) != 0) {
+          ESP_LOGE(TAG, "Failed to delete file: %s (errno: %d, %s)", entry_path.c_str(), errno, strerror(errno));
+          success = false;
+          break;
+        }
+      }
+    }
+  }
+
+  closedir(dir);
+
+  // Delete the directory itself
+  if (success) {
+    if (rmdir(path.c_str()) != 0) {
+      ESP_LOGE(TAG, "Failed to delete directory: %s (errno: %d, %s)", path.c_str(), errno, strerror(errno));
+      return false;
+    }
+  }
+
+  return success;
 }
 
 // API handlers
@@ -1222,6 +1415,75 @@ void HttpFileServer::handle_api_exists(AsyncWebServerRequest *request) {
   bool exists = (stat(filepath.c_str(), &file_stat) == 0);
 
   std::string json = "{\"exists\":" + std::string(exists ? "true" : "false") + "}";
+  request->send(200, "application/json", json.c_str());
+}
+
+void HttpFileServer::handle_api_dirisempty(AsyncWebServerRequest *request) {
+  // Lightweight check - only checks if directory has any entries, doesn't count them
+  auto *path_param = request->getParam("path");
+
+  if (!path_param) {
+    request->send(400, "application/json", "{\"error\":\"Missing path parameter\"}");
+    return;
+  }
+
+  std::string dirpath = path_param->value().c_str();
+
+  // Check if path exists and is a directory
+  struct stat dir_stat;
+  if (stat(dirpath.c_str(), &dir_stat) != 0) {
+    request->send(404, "application/json", "{\"error\":\"Path not found\"}");
+    return;
+  }
+
+  if (!S_ISDIR(dir_stat.st_mode)) {
+    request->send(400, "application/json", "{\"error\":\"Path is not a directory\"}");
+    return;
+  }
+
+  bool is_empty = this->is_directory_empty(dirpath);
+  std::string json = "{\"is_empty\":" + std::string(is_empty ? "true" : "false") + "}";
+  request->send(200, "application/json", json.c_str());
+}
+
+void HttpFileServer::handle_api_dirinfo(AsyncWebServerRequest *request) {
+  // Get path parameter from query string
+  auto *path_param = request->getParam("path");
+
+  if (!path_param) {
+    request->send(400, "application/json", "{\"error\":\"Missing path parameter\"}");
+    return;
+  }
+
+  std::string dirpath = path_param->value().c_str();
+
+  // Check if path exists and is a directory
+  struct stat dir_stat;
+  if (stat(dirpath.c_str(), &dir_stat) != 0) {
+    request->send(404, "application/json", "{\"error\":\"Path not found\"}");
+    return;
+  }
+
+  if (!S_ISDIR(dir_stat.st_mode)) {
+    request->send(400, "application/json", "{\"error\":\"Path is not a directory\"}");
+    return;
+  }
+
+  // Count directory contents recursively
+  int file_count = 0;
+  int dir_count = 0;
+  this->count_directory_contents(dirpath, file_count, dir_count);
+
+  bool is_empty = (file_count == 0 && dir_count == 0);
+  int total_items = file_count + dir_count;
+
+  std::string json = "{";
+  json += "\"is_empty\":" + std::string(is_empty ? "true" : "false");
+  json += ",\"file_count\":" + std::to_string(file_count);
+  json += ",\"dir_count\":" + std::to_string(dir_count);
+  json += ",\"total_items\":" + std::to_string(total_items);
+  json += "}";
+
   request->send(200, "application/json", json.c_str());
 }
 
