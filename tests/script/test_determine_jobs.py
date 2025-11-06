@@ -1240,3 +1240,73 @@ def test_detect_memory_impact_config_filters_incompatible_esp8266_on_esp32(
     )
 
     assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_skips_release_branch(tmp_path: Path) -> None:
+    """Test that memory impact analysis is skipped for release* branches."""
+    # Create test directory structure with components that have tests
+    tests_dir = tmp_path / "tests" / "components"
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+        patch.object(determine_jobs, "get_target_branch", return_value="release"),
+    ):
+        mock_changed_files.return_value = ["esphome/components/wifi/wifi.cpp"]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should be skipped for release branch
+    assert result["should_run"] == "false"
+
+
+def test_detect_memory_impact_config_skips_beta_branch(tmp_path: Path) -> None:
+    """Test that memory impact analysis is skipped for beta* branches."""
+    # Create test directory structure with components that have tests
+    tests_dir = tmp_path / "tests" / "components"
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+        patch.object(determine_jobs, "get_target_branch", return_value="beta"),
+    ):
+        mock_changed_files.return_value = ["esphome/components/wifi/wifi.cpp"]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should be skipped for beta branch
+    assert result["should_run"] == "false"
+
+
+def test_detect_memory_impact_config_runs_for_dev_branch(tmp_path: Path) -> None:
+    """Test that memory impact analysis runs for dev branch."""
+    # Create test directory structure with components that have tests
+    tests_dir = tmp_path / "tests" / "components"
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+        patch.object(determine_jobs, "get_target_branch", return_value="dev"),
+    ):
+        mock_changed_files.return_value = ["esphome/components/wifi/wifi.cpp"]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Memory impact should run for dev branch
+    assert result["should_run"] == "true"
+    assert result["components"] == ["wifi"]

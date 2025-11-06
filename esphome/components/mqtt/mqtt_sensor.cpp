@@ -44,17 +44,17 @@ void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire
 void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
 
 void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   const auto device_class = this->sensor_->get_device_class_ref();
   if (!device_class.empty()) {
-    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[MQTT_DEVICE_CLASS] = device_class;
   }
 
   const auto unit_of_measurement = this->sensor_->get_unit_of_measurement_ref();
   if (!unit_of_measurement.empty()) {
-    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
   }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
   if (this->get_expire_after() > 0)
     root[MQTT_EXPIRE_AFTER] = this->get_expire_after() / 1000;

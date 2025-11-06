@@ -117,12 +117,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   item->set_name(name_cstr, !is_static_string);
   item->type = type;
   item->callback = std::move(func);
-  // Initialize remove to false (though it should already be from constructor)
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  item->remove.store(false, std::memory_order_relaxed);
-#else
-  item->remove = false;
-#endif
+  // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
+  this->set_item_removed_(item.get(), false);
   item->is_retry = is_retry;
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -153,21 +149,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  // Validate static strings in debug mode
-  if (is_static_string && name_cstr != nullptr) {
-    validate_static_string(name_cstr);
-  }
-
-  // Debug logging
-  const char *type_str = (type == SchedulerItem::TIMEOUT) ? "timeout" : "interval";
-  if (type == SchedulerItem::TIMEOUT) {
-    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
-             name_cstr ? name_cstr : "(null)", type_str, delay);
-  } else {
-    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
-             name_cstr ? name_cstr : "(null)", type_str, delay,
-             static_cast<uint32_t>(item->get_next_execution() - now));
-  }
+  this->debug_log_timer_(item.get(), is_static_string, name_cstr, type, delay, now);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
   // For retries, check if there's a cancelled timeout first
@@ -786,5 +768,26 @@ void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
   }
   // else: unique_ptr will delete the item when it goes out of scope
 }
+
+#ifdef ESPHOME_DEBUG_SCHEDULER
+void Scheduler::debug_log_timer_(const SchedulerItem *item, bool is_static_string, const char *name_cstr,
+                                 SchedulerItem::Type type, uint32_t delay, uint64_t now) {
+  // Validate static strings in debug mode
+  if (is_static_string && name_cstr != nullptr) {
+    validate_static_string(name_cstr);
+  }
+
+  // Debug logging
+  const char *type_str = (type == SchedulerItem::TIMEOUT) ? "timeout" : "interval";
+  if (type == SchedulerItem::TIMEOUT) {
+    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
+             name_cstr ? name_cstr : "(null)", type_str, delay);
+  } else {
+    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
+             name_cstr ? name_cstr : "(null)", type_str, delay,
+             static_cast<uint32_t>(item->get_next_execution() - now));
+  }
+}
+#endif /* ESPHOME_DEBUG_SCHEDULER */
 
 }  // namespace esphome
