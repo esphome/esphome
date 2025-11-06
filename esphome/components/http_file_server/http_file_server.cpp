@@ -84,6 +84,8 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_api_mkdir(request);
   } else if (uri.find(this->url_prefix_ + "/api/exists") == 0 && request->method() == HTTP_GET) {
     this->handle_api_exists(request);
+  } else if (uri.find(this->url_prefix_ + "/api/dirisempty") == 0 && request->method() == HTTP_GET) {
+    this->handle_api_dirisempty(request);
   } else if (uri.find(this->url_prefix_ + "/api/dirinfo") == 0 && request->method() == HTTP_GET) {
     this->handle_api_dirinfo(request);
   } else if (uri.find(this->url_prefix_ + "/api/progress") == 0 && request->method() == HTTP_GET) {
@@ -672,20 +674,29 @@ function delete_file(path) {
 
 async function delete_directory(path) {
   try {
-    // Get directory info
-    const response = await fetch(API_BASE + '/api/dirinfo?path=' + encodeURIComponent(path));
-    const info = await response.json();
+    // First do lightweight check if directory is empty
+    const emptyCheck = await fetch(API_BASE + '/api/dirisempty?path=' + encodeURIComponent(path));
+    const emptyInfo = await emptyCheck.json();
 
-    if (info.error) {
-      alert('Error checking directory: ' + info.error);
+    if (emptyInfo.error) {
+      alert('Error checking directory: ' + emptyInfo.error);
       return;
     }
 
-    // Build confirmation message
     let message;
-    if (info.is_empty) {
+    if (emptyInfo.is_empty) {
+      // Fast path for empty directories
       message = 'Delete empty directory?';
     } else {
+      // Only count contents if directory is not empty
+      const response = await fetch(API_BASE + '/api/dirinfo?path=' + encodeURIComponent(path));
+      const info = await response.json();
+
+      if (info.error) {
+        alert('Error checking directory contents: ' + info.error);
+        return;
+      }
+
       const dirName = path.split('/').pop();
       message = 'Delete directory "' + dirName + '" and all its contents?\n\n';
       message += 'This will delete:\n';
@@ -1113,6 +1124,27 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 }
 
 // Directory helpers
+bool HttpFileServer::is_directory_empty(const std::string &path) {
+  DIR *dir = opendir(path.c_str());
+  if (!dir) {
+    return true;  // Can't open, treat as empty
+  }
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    // Skip . and ..
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+    // Found at least one entry - not empty
+    closedir(dir);
+    return false;
+  }
+
+  closedir(dir);
+  return true;  // No entries found - empty
+}
+
 void HttpFileServer::count_directory_contents(const std::string &path, int &file_count, int &dir_count) {
   DIR *dir = opendir(path.c_str());
   if (!dir) {
@@ -1383,6 +1415,34 @@ void HttpFileServer::handle_api_exists(AsyncWebServerRequest *request) {
   bool exists = (stat(filepath.c_str(), &file_stat) == 0);
 
   std::string json = "{\"exists\":" + std::string(exists ? "true" : "false") + "}";
+  request->send(200, "application/json", json.c_str());
+}
+
+void HttpFileServer::handle_api_dirisempty(AsyncWebServerRequest *request) {
+  // Lightweight check - only checks if directory has any entries, doesn't count them
+  auto *path_param = request->getParam("path");
+
+  if (!path_param) {
+    request->send(400, "application/json", "{\"error\":\"Missing path parameter\"}");
+    return;
+  }
+
+  std::string dirpath = path_param->value().c_str();
+
+  // Check if path exists and is a directory
+  struct stat dir_stat;
+  if (stat(dirpath.c_str(), &dir_stat) != 0) {
+    request->send(404, "application/json", "{\"error\":\"Path not found\"}");
+    return;
+  }
+
+  if (!S_ISDIR(dir_stat.st_mode)) {
+    request->send(400, "application/json", "{\"error\":\"Path is not a directory\"}");
+    return;
+  }
+
+  bool is_empty = this->is_directory_empty(dirpath);
+  std::string json = "{\"is_empty\":" + std::string(is_empty ? "true" : "false") + "}";
   request->send(200, "application/json", json.c_str());
 }
 
