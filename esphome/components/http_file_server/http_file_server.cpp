@@ -53,11 +53,12 @@ bool HttpFileServer::canHandle(AsyncWebServerRequest *request) const {
 
   // We handle GET, POST, and DELETE methods
   if (request->method() == HTTP_GET || request->method() == HTTP_POST || request->method() == HTTP_DELETE) {
-    ESP_LOGD(TAG, "canHandle=true for %s %s", request->methodToString(), uri.c_str());
+    const char *method_name = (request->method() == HTTP_GET) ? "GET" : (request->method() == HTTP_POST) ? "POST" : "DELETE";
+    ESP_LOGD(TAG, "canHandle=true for %s %s", method_name, uri.c_str());
     return true;
   }
 
-  ESP_LOGW(TAG, "canHandle=false - unsupported method %s for %s", request->methodToString(), uri.c_str());
+  ESP_LOGW(TAG, "canHandle=false - unsupported method for %s", uri.c_str());
   return false;
 }
 
@@ -113,13 +114,9 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
   } else if (request->method() == HTTP_POST) {
     // Handle POST for file uploads (non-API endpoints)
     // Note: The actual upload is handled by handleUpload() callback
-    // This just sends the response after upload completes
-    ESP_LOGD(TAG, "POST handler - upload completed for URI: %s", uri.c_str());
     // Response is already sent in handleUpload when final==true
-    // This path shouldn't normally be reached, but if it is, send success
-    if (!request->_tempObject) {
-      request->send(200, "text/plain", "Upload handled");
-    }
+    ESP_LOGD(TAG, "POST handler - upload for URI: %s", uri.c_str());
+    // Nothing to do here - handleUpload sends the response
   } else if (request->method() == HTTP_DELETE) {
     ESP_LOGI(TAG, "DELETE handler called for URI: %s", uri.c_str());
 
@@ -202,10 +199,8 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     this->progress_.in_progress = true;
     this->progress_.start_time = millis();
 
-    // Try to get content length from request
-    if (request->hasHeader("Content-Length")) {
-      this->progress_.total_bytes = atoll(request->header("Content-Length").c_str());
-    }
+    // Get content length from request
+    this->progress_.total_bytes = request->contentLength();
 
     this->upload_file_ = fopen(upload_path.c_str(), "wb");
     if (!this->upload_file_) {
