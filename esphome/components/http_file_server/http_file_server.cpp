@@ -1306,22 +1306,29 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   // Get raw httpd_req_t to read POST body
   httpd_req_t *req = static_cast<httpd_req_t *>(*request);
   size_t remaining = request->contentLength();
-  const size_t BUFFER_SIZE = 4096;
+  const size_t BUFFER_SIZE = 2048;  // Smaller buffer to reduce stack usage
   uint8_t buffer[BUFFER_SIZE];
   bool success = true;
 
+  ESP_LOGI(TAG, "Reading upload data: %zu bytes total", remaining);
+
   // Read and write in chunks
   while (remaining > 0) {
+    // Feed the watchdog to prevent timeout on large uploads
+    App.feed_wdt();
+
     size_t to_read = (remaining > BUFFER_SIZE) ? BUFFER_SIZE : remaining;
     int received = httpd_req_recv(req, reinterpret_cast<char *>(buffer), to_read);
 
     if (received <= 0) {
-      ESP_LOGE(TAG, "Failed to receive data: %d", received);
+      ESP_LOGE(TAG, "Failed to receive data: %d (errno: %d)", received, errno);
       success = false;
       break;
     }
 
     size_t written = fwrite(buffer, 1, received, file);
+    fflush(file);  // Ensure data is written immediately
+
     if (written != static_cast<size_t>(received)) {
       ESP_LOGE(TAG, "Failed to write to file: wrote %zu of %d bytes", written, received);
       success = false;
@@ -1331,9 +1338,11 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
     this->progress_.transferred_bytes += written;
     remaining -= received;
 
-    // Log progress every ~100KB
-    if (this->progress_.transferred_bytes % (100 * 1024) < BUFFER_SIZE) {
-      ESP_LOGD(TAG, "Upload progress: %zu / %zu bytes", this->progress_.transferred_bytes, this->progress_.total_bytes);
+    // Log progress every ~50KB
+    if (this->progress_.transferred_bytes % (50 * 1024) < BUFFER_SIZE) {
+      ESP_LOGD(TAG, "Upload progress: %zu / %zu bytes (%.1f%%)", this->progress_.transferred_bytes,
+               this->progress_.total_bytes,
+               (float) this->progress_.transferred_bytes / this->progress_.total_bytes * 100.0f);
     }
   }
 

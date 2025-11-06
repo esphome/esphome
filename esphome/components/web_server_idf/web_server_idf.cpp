@@ -127,7 +127,7 @@ void AsyncWebServer::begin() {
     httpd_register_uri_handler(this->server_, &handler_options);
 
     const httpd_uri_t handler_delete = {
-        .uri = "",
+        .uri = "/*",
         .method = HTTP_DELETE,
         .handler = AsyncWebServer::request_handler,
         .user_ctx = this,
@@ -157,6 +157,11 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
       auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
       return server->handle_multipart_upload_(r, content_type_char);
 #endif
+    } else if (stristr(content_type_char, "application/octet-stream") != nullptr) {
+      // Binary file upload - pass through to handlers via handleBody callback
+      // Don't consume the body here, let the handler read it directly
+      AsyncWebServerRequest req(r);
+      return static_cast<AsyncWebServer *>(r->user_ctx)->request_handler_(&req);
     } else {
       ESP_LOGW(TAG, "Unsupported content type for POST: %s", content_type_char);
       // fallback to get handler to support backward compatibility
