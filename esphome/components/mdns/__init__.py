@@ -163,6 +163,8 @@ async def to_code(config):
             cg.add_library("ESP8266mDNS", None)
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
+        elif CORE.is_nrf52:
+            # TODO
 
     if CORE.using_esp_idf:
         add_idf_component(name="espressif/mdns", ref="1.8.2")
@@ -236,5 +238,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "mdns_zephyr.cpp":: {PlatformFramework.ZEPHYR},
     }
 )
