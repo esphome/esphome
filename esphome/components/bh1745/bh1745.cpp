@@ -57,7 +57,8 @@ void BH1745Component::setup() {
   sys_ctrl.int_reset = false;
   this->reg((uint8_t) Bh1745Registers::SYSTEM_CONTROL) = sys_ctrl.raw;
 
-  // only for pimoroni boards for now - there are LEDs connected to interrupt pin
+  // ESPHome doesnt support using interrupts yet, so set the threasholds to max/min
+  // so that the int pin can be used as an open drain output if configured.
   uint16_t th_high[1] = {0xFFFF};
   uint16_t th_low[1] = {0x0000};
   this->write_bytes_16((uint8_t) Bh1745Registers::TH_LSB, th_high, 1);
@@ -157,8 +158,7 @@ void BH1745Component::loop() {
   }
 }
 
-void BH1745Component::switch_led(bool on_off) {
-  // shall we require somehow that its a pimoroni board?
+void BH1745Component::set_interrupt_state(bool on_off) {
   uint8_t raw = this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG).get();
 
   if (on_off) {
@@ -273,13 +273,6 @@ void BH1745Component::publish_data_() {
   }
   if (this->color_temperature_sensor_ != nullptr) {
     this->color_temperature_sensor_->publish_state(this->calculate_cct_(this->readings_));
-  }
-}
-
-void BH1745Component::set_pimoroni_led_switch(switch_::Switch *led_switch) {
-  this->led_switch_ = led_switch;
-  if (this->led_switch_ != nullptr) {
-    static_cast<BH1745SwitchLed *>(this->led_switch_)->set_bh1745(this);
   }
 }
 

@@ -2,7 +2,6 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 
 namespace esphome {
@@ -100,10 +99,8 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   void set_clear_counts_sensor(sensor::Sensor *clear) { this->clear_counts_sensor_ = clear; }
   void set_illuminance_sensor(sensor::Sensor *illuminance) { this->illuminance_sensor_ = illuminance; }
   void set_color_temperature_sensor(sensor::Sensor *cct) { this->color_temperature_sensor_ = cct; }
-  void set_pimoroni_led_switch(switch_::Switch *led_switch);
 
-  // only for Pimoroni board
-  void switch_led(bool on_off);
+  void set_interrupt_state(bool on_off);
 
  protected:
   MeasurementTime measurement_time_{MeasurementTime::TIME_160MS};
@@ -116,8 +113,6 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *clear_counts_sensor_{nullptr};
   sensor::Sensor *illuminance_sensor_{nullptr};
   sensor::Sensor *color_temperature_sensor_{nullptr};
-
-  switch_::Switch *led_switch_{nullptr};
 
   enum class State : uint8_t {
     NOT_INITIALIZED,
@@ -151,20 +146,6 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   float calculate_cct_(Readings &data);
 
   void publish_data_();
-};
-
-class BH1745SwitchLed : public switch_::Switch, public Component {
- public:
-  void set_bh1745(BH1745Component *bh1745) { this->bh1745_ = bh1745; }
-
- protected:
-  void write_state(bool state) override {
-    if (this->bh1745_ != nullptr) {
-      this->bh1745_->switch_led(state);
-      publish_state(state);
-    }
-  };
-  BH1745Component *bh1745_;
 };
 
 }  // namespace bh1745

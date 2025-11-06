@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import i2c, sensor, switch
+from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR_TEMPERATURE,
@@ -19,7 +19,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensor", "switch"]
 
 CONF_BH1745_ID = "bh1745_id"
 
@@ -30,15 +29,12 @@ CONF_GREEN_CHANNEL = "green_channel"
 CONF_BLUE_CHANNEL = "blue_channel"
 CONF_CLEAR_CHANNEL = "clear_channel"
 
-CONF_PIMORONI_LED_SWITCH = "pimoroni_led_switch"
-
 bh1745_ns = cg.esphome_ns.namespace("bh1745")
 
 BH1745SComponent = bh1745_ns.class_(
     "BH1745Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-BH1745SSwitchLed = bh1745_ns.class_("BH1745SwitchLed", switch.Switch, cg.Component)
 
 AdcGain = bh1745_ns.enum("AdcGain")
 ADC_GAINS = {
@@ -107,16 +103,6 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 key=CONF_NAME,
             ),
-            cv.Optional(CONF_PIMORONI_LED_SWITCH): cv.maybe_simple_value(
-                switch.SWITCH_SCHEMA.extend(
-                    cv.Schema(
-                        {
-                            cv.GenerateID(): cv.declare_id(BH1745SSwitchLed),
-                        }
-                    )
-                ),
-                key=CONF_NAME,
-            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -151,7 +137,3 @@ async def to_code(config):
     if CONF_COLOR_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_COLOR_TEMPERATURE])
         cg.add(var.set_color_temperature_sensor(sens))
-
-    if CONF_PIMORONI_LED_SWITCH in config:
-        sw = await switch.new_switch(config[CONF_PIMORONI_LED_SWITCH])
-        cg.add(var.set_pimoroni_led_switch(sw))

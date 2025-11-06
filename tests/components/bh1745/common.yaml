@@ -1,7 +1,8 @@
 sensor:
   - platform: bh1745
+    id: bh1745_sensor
     address: 0x38
-    i2c_id: i2c_bh1745
+    i2c_id: i2c_bus
     gain: 1X
     integration_time: 160ms
     red_channel: Red channel
@@ -10,4 +11,8 @@ sensor:
     clear_channel: Clear channel
     illuminance: Illuminance
     color_temperature: Color temperature
-    pimoroni_led_switch: LED Switch
+
+output:
+  - platform: bh1745
+    id: bh1745_output
+    bh1745_id: bh1745_sensor
