@@ -742,57 +742,62 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
   std::string mime_type = Path::mime_type(filepath);
   std::string filename = Path::file_name(filepath);
 
-  // Get raw httpd_req_t for chunked sending
-  httpd_req_t *req = *request;
+  ESP_LOGI(TAG, "Starting file download: %s (size: %zu bytes)", filename.c_str(), file_size);
 
-  ESP_LOGI(TAG, "Starting chunked download: %s (size: %zu bytes)", filename.c_str(), file_size);
+  // Use AsyncWebServer's response but with a size limit for practical memory usage
+  // For files > 16MB, we'd need a proper streaming solution outside AsyncWebServer
+  const size_t CHUNK_READ_SIZE = 16 * 1024 * 1024;  // 16MB chunks
 
-  // Set response status and headers BEFORE sending any data
-  httpd_resp_set_status(req, HTTPD_200);
-  httpd_resp_set_type(req, mime_type.c_str());
-  httpd_resp_set_hdr(req, "Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
+  if (file_size <= CHUNK_READ_SIZE) {
+    // Small enough to read into memory at once
+    std::string content;
+    content.resize(file_size);
+    size_t bytes_read = fread(content.data(), 1, file_size, file);
+    fclose(file);
 
-  // Read and send in chunks using httpd_resp_send_chunk
-  std::unique_ptr<char[]> buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
-  size_t bytes_read;
-  size_t total_sent = 0;
-  esp_err_t err = ESP_OK;
-
-  while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, file)) > 0 && err == ESP_OK) {
-    err = httpd_resp_send_chunk(req, buffer.get(), bytes_read);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error sending file chunk at offset %zu: %s (0x%x)", total_sent, esp_err_to_name(err), err);
-      break;
+    if (bytes_read != file_size) {
+      ESP_LOGE(TAG, "Failed to read file completely");
+      request->send(500, "text/plain", "Failed to read file");
+      return;
     }
-    total_sent += bytes_read;
-    ESP_LOGV(TAG, "Sent chunk: %zu bytes (total: %zu/%zu)", bytes_read, total_sent, file_size);
-  }
 
-  fclose(file);
-
-  // Send final empty chunk to complete the response
-  if (err == ESP_OK) {
-    err = httpd_resp_send_chunk(req, nullptr, 0);
-    if (err == ESP_OK) {
-      ESP_LOGI(TAG, "Download completed successfully: %zu bytes", total_sent);
-    } else {
-      ESP_LOGE(TAG, "Error sending final chunk: %s (0x%x)", esp_err_to_name(err), err);
-    }
+    AsyncWebServerResponse *response = request->beginResponse(200, mime_type.c_str(), content);
+    response->addHeader("Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
+    request->send(response);
+    ESP_LOGI(TAG, "Download sent: %zu bytes", bytes_read);
+  } else {
+    // File too large - would need proper streaming support
+    fclose(file);
+    ESP_LOGW(TAG, "File too large: %zu bytes (max %zu)", file_size, CHUNK_READ_SIZE);
+    request->send(413, "text/plain", "File too large - maximum 16MB");
   }
 }
 
 // API handlers
 void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
-  if (this->body_buffer_.empty()) {
+  // Read POST body manually since AsyncWebServer doesn't handle application/json automatically
+  size_t content_len = request->contentLength();
+  if (content_len == 0) {
     request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
     return;
   }
 
-  const uint8_t *body = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
-  size_t body_len = this->body_buffer_.length();
+  std::string body;
+  body.resize(content_len);
+  httpd_req_t *req = *request;
+  int ret = httpd_req_recv(req, &body[0], content_len);
+  if (ret <= 0) {
+    ESP_LOGE(TAG, "Failed to receive POST body: %d", ret);
+    request->send(400, "application/json", "{\"error\":\"Failed to read request body\"}");
+    return;
+  }
+  body.resize(ret);
+
+  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(body.c_str());
+  size_t body_len = body.length();
 
   ApiRequest api_req;
-  if (!this->parse_json_request(body, body_len, api_req)) {
+  if (!this->parse_json_request(body_data, body_len, api_req)) {
     request->send(400, "application/json", "{\"error\":\"Invalid JSON format\"}");
     return;
   }
@@ -825,16 +830,28 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
-  if (this->body_buffer_.empty()) {
+  size_t content_len = request->contentLength();
+  if (content_len == 0) {
     request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
     return;
   }
 
-  const uint8_t *body = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
-  size_t body_len = this->body_buffer_.length();
+  std::string body;
+  body.resize(content_len);
+  httpd_req_t *req = *request;
+  int ret = httpd_req_recv(req, &body[0], content_len);
+  if (ret <= 0) {
+    ESP_LOGE(TAG, "Failed to receive POST body: %d", ret);
+    request->send(400, "application/json", "{\"error\":\"Failed to read request body\"}");
+    return;
+  }
+  body.resize(ret);
+
+  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(body.c_str());
+  size_t body_len = body.length();
 
   ApiRequest api_req;
-  if (!this->parse_json_request(body, body_len, api_req)) {
+  if (!this->parse_json_request(body_data, body_len, api_req)) {
     request->send(400, "application/json", "{\"error\":\"Invalid JSON format\"}");
     return;
   }
@@ -867,16 +884,28 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
-  if (this->body_buffer_.empty()) {
+  size_t content_len = request->contentLength();
+  if (content_len == 0) {
     request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
     return;
   }
 
-  const uint8_t *body = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
-  size_t body_len = this->body_buffer_.length();
+  std::string body;
+  body.resize(content_len);
+  httpd_req_t *req = *request;
+  int ret = httpd_req_recv(req, &body[0], content_len);
+  if (ret <= 0) {
+    ESP_LOGE(TAG, "Failed to receive POST body: %d", ret);
+    request->send(400, "application/json", "{\"error\":\"Failed to read request body\"}");
+    return;
+  }
+  body.resize(ret);
+
+  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(body.c_str());
+  size_t body_len = body.length();
 
   ApiRequest api_req;
-  if (!this->parse_json_request(body, body_len, api_req)) {
+  if (!this->parse_json_request(body_data, body_len, api_req)) {
     request->send(400, "application/json", "{\"error\":\"Invalid JSON format\"}");
     return;
   }
@@ -909,16 +938,28 @@ void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
-  if (this->body_buffer_.empty()) {
+  size_t content_len = request->contentLength();
+  if (content_len == 0) {
     request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
     return;
   }
 
-  const uint8_t *body = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
-  size_t body_len = this->body_buffer_.length();
+  std::string body;
+  body.resize(content_len);
+  httpd_req_t *req = *request;
+  int ret = httpd_req_recv(req, &body[0], content_len);
+  if (ret <= 0) {
+    ESP_LOGE(TAG, "Failed to receive POST body: %d", ret);
+    request->send(400, "application/json", "{\"error\":\"Failed to read request body\"}");
+    return;
+  }
+  body.resize(ret);
+
+  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(body.c_str());
+  size_t body_len = body.length();
 
   ApiRequest api_req;
-  if (!this->parse_json_request(body, body_len, api_req)) {
+  if (!this->parse_json_request(body_data, body_len, api_req)) {
     request->send(400, "application/json", "{\"error\":\"Invalid JSON format\"}");
     return;
   }
