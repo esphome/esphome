@@ -71,8 +71,8 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
 // Stores copies of runtime-generated names
 template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor {
  public:
-  UserServiceDynamic(const std::string &name, const std::array<std::string, sizeof...(Ts)> &arg_names)
-      : name_(name), arg_names_(arg_names) {
+  UserServiceDynamic(std::string name, const std::array<std::string, sizeof...(Ts)> &arg_names)
+      : name_(std::move(name)), arg_names_(arg_names) {
     this->key_ = fnv1_hash(this->name_.c_str());
   }
 
