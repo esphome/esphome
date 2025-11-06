@@ -170,9 +170,14 @@ void WiFiComponent::loop() {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
         if (millis() - this->action_started_ > 5000) {
 #ifdef USE_WIFI_FAST_CONNECT
-          // NOTE: This check may not make sense here as it could interfere with AP cycling
-          this->reset_selected_ap_to_first_if_invalid_();
-          this->start_connecting_to_selected_(false);
+          if (this->fast_connect_exhausted_) {
+            // All APs tried, fall back to scanning
+            this->start_scanning();
+          } else {
+            // NOTE: This check may not make sense here as it could interfere with AP cycling
+            this->reset_selected_ap_to_first_if_invalid_();
+            this->start_connecting_to_selected_(false);
+          }
 #else
           if (this->retry_hidden_) {
             this->reset_selected_ap_to_first_if_invalid_();
@@ -703,6 +708,11 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
 
+#ifdef USE_WIFI_FAST_CONNECT
+  // Scan found a network, reset exhausted flag to allow fast connect to work next time
+  this->fast_connect_exhausted_ = false;
+#endif
+
   yield();
 
   this->start_connecting_to_selected_(false);
@@ -751,6 +761,7 @@ void WiFiComponent::check_connecting_finished() {
     this->num_retried_ = 0;
 
 #ifdef USE_WIFI_FAST_CONNECT
+    this->fast_connect_exhausted_ = false;  // Reset on successful connection
     this->save_fast_connect_settings_();
 #endif
 
@@ -810,15 +821,18 @@ void WiFiComponent::retry_connect() {
     if (this->trying_loaded_ap_) {
       this->trying_loaded_ap_ = false;
       this->selected_sta_index_ = 0;  // Retry from the first configured AP
+      this->num_retried_ = 0;
     } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
-      ESP_LOGW(TAG, "No more APs to try");
-      this->selected_sta_index_ = 0;
+      // Exhausted all configured APs, fall back to full scan
+      ESP_LOGW(TAG, "No more APs to try, starting scan");
+      this->fast_connect_exhausted_ = true;
       this->restart_adapter();
+      return;
     } else {
       // Try next AP
       this->selected_sta_index_++;
+      this->num_retried_ = 0;
     }
-    this->num_retried_ = 0;
 #else
     if (this->num_retried_ > 5) {
       // If retry failed for more than 5 times, let's restart STA
