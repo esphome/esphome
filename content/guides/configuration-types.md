@@ -23,8 +23,7 @@ ID twice.
 
 Because ESPHome converts your configuration into C++ code and the
 IDs are in reality just C++ variable names, they must also adhere to
-C++'s naming conventions. [C++ Variablenames](https://venus.cs.qc.cuny.edu/~krishna/cs111/lectures/D3_C++_Variables.pdf)
-…
+[C++'s naming conventions](https://en.cppreference.com/w/cpp/language/identifiers)…
 
 - … must start with a letter and can end with numbers.
 - … must not have a space in the name.

@@ -76,5 +76,5 @@ See {{< docref "time/gps" >}} for config options for the GPS time source.
 ## See Also
 
 - [Sensor Filters](#sensor-filters)
-- [TinyGPS++ library](http://arduiniana.org/libraries/tinygpsplus/)
+- [TinyGPS++ library](https://github.com/esphome/TinyGPSPlus)
 - {{< apiref "gps/gps.h" "gps/gps.h" >}}

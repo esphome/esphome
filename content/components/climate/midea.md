@@ -12,11 +12,11 @@ The `midea` component creates a Midea air conditioner climate device.
 > [!NOTE]
 > This protocol also used by some vendors:
 >
-> - [Electrolux](https://www.electrolux.ru/)
+> - [Electrolux](https://www.electrolux.com/en/)
 > - [Qlima](https://www.qlima.com/)
 > - [Artel](https://www.artelgroup.com/)
 > - [Carrier](https://www.carrier.com/)
-> - [Comfee](http://www.comfee-russia.ru/)
+> - [Comfee](https://www.feelcomfee.com/global/)
 > - [Inventor](https://www.inventorairconditioner.com/)
 > - [Senville](https://senville.com/)
 > - and maybe others

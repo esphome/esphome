@@ -400,6 +400,5 @@ so that the process does not have to start from zero on device restart.
 - {{< docref "bme680/" >}}
 - {{< apiref "bme680_bsec/bme680_bsec.h" "bme680_bsec/bme680_bsec.h" >}}
 - [BME680 Datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme680-ds001.pdf)
-- [BME680 VOC classification](https://community.bosch-sensortec.com/t5/MEMS-sensors-forum/BME680-VOC-classification/td-p/26154)
 - [BSEC Arduino Library](https://github.com/BoschSensortec/BSEC-Arduino-library) by [Bosch Sensortec](https://www.bosch-sensortec.com/)
 - [Bosch Sensortec Community](https://community.bosch-sensortec.com/)

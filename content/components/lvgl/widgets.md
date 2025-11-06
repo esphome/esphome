@@ -2027,7 +2027,7 @@ ESPHome implements as universal triggers the following interaction events genera
 
 These triggers can be applied directly to any widget in the LVGL configuration, *given that the widget itself supports generating such events*. For the widgets having a value, the triggers return the current value in variable `x`  ; this variable may be used in lambdas defined within those triggers.
 
-Each trigger also deliver an `event` parameter, which is a pointer to the LVGL C type `lv_event_t`. This may be used in lambdas defined within those triggers. Refer to the [LVGL documentation](https://docs.lvgl.io/8.4/overview/event.html/) for more information.
+Each trigger also deliver an `event` parameter, which is a pointer to the LVGL C type `lv_event_t`. This may be used in lambdas defined within those triggers. Refer to the [LVGL documentation](https://docs.lvgl.io/8.4/overview/event.html) for more information.
 
 There are additional triggers for pages - each page may have an `on_load` and `on_unload` trigger. These will be called
 when the page becomes active or inactive respectively.

@@ -8,7 +8,7 @@ params:
 ---
 
 The `Havells Inverter` sensor platform allows you to use Havells inverter data reading on modbus
-([website](https://www.havells.com/en/consumer/solar/solar-on-grid-inverter-and-solutions/solar-on-grid-inverter.html))
+([website](https://havells.com/business/discover-solar-solutions))
 with ESPHome.
 
 {{< img src="havellsgti5000d.jpg" alt="Image" caption="Havells On Grid Solar Inverter." width="50.0%" class="align-center" >}}

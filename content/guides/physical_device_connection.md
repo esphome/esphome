@@ -52,7 +52,7 @@ On Windows these interfaces are named `COM1`, `COM2`, etc. and on Linux they are
 >
 > * CH34x: [driver](https://github.com/nodemcu/nodemcu-devkit/tree/master/Drivers)
 > * CP2102: [driver](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers)
-> * PL2303: [driver](https://www.prolific.com.tw/US/ShowProduct.aspx?p_id=225&pcid=41)
+> * PL2303: [driver](https://cdn-shop.adafruit.com/datasheets/PL2303HX.pdf)
 
 With the exception of the situation where you have a USB port, you need to make
 five electrical connections to program an ESP-based board:

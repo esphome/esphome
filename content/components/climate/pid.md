@@ -27,9 +27,6 @@ temperature to a user-specified setpoint.
 > keep the temperature as constant as possible, and smooth out oscillations otherwise produced by
 > classic thermostats.
 
-Explaining how PID controllers work in detail is out of scope of this documentation entry,
-but there's a nice article explaining the function principle at <https://blog.opticontrols.com/archives/344>.
-
 ```yaml
 # Example configuration entry
 climate:
@@ -443,6 +440,5 @@ Advanced options:
 - {{< docref "/components/climate" >}}
 - {{< docref "/components/output/sigma_delta_output" >}}
 - {{< docref "/components/output/slow_pwm" >}}
-- [Principles of PID](https://blog.opticontrols.com/archives/344)
 - {{< apiref "pid/pid_climate.h" "pid/pid_climate.h" >}}
 - {{< apiref "PID Autotuner" "pid/pid_autotuner.h" >}}

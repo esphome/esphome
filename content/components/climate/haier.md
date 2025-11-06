@@ -211,7 +211,7 @@ on_...:
 
 ### `climate.haier.health_on` Action
 
-Turn on health mode ([UV light sterilization](https://www.haierhvac.eu/en/node/1809)).
+Turn on health mode (UV light sterilization).
 
 ```yaml
 on_...:

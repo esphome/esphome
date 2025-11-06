@@ -9,7 +9,7 @@ params:
 
 The ZyAura CO2 & Temperature & Humidity sensor allows you to use your
 [ZGm05(3)(U)](http://www.zyaura.com/products/ZGm05.asp)
-([MT8057](https://masterkit.ru/shop/1266110), [MT8057S](https://medgadgets.ru/shop/kit-mt8057.html)),
+[MT8057](https://masterkit.ru/shop/1266110),
 [ZG1683R(U)](http://www.zyaura.com/products/ZG1683R.asp) ([MT8060](https://masterkit.ru/shop/1921398)),
 [ZG1583RUD](http://www.zyaura.com/products/ZG1583RUD.asp)
 monitors with ESPHome.

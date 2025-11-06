@@ -284,7 +284,8 @@ The raw data will be available in the log and can later be used with [`rf_bridge
 
 > [!NOTE]
 > A conversion from *B1* (received) raw format to *B0* (send) raw command format should be applied.
-> For this, you can use the tool [BitBucket Converter](https://bbconv.hrbl.pl/) or [B1 Converter](https://jonajona.nl/convertB1.html/)
+> For this, you can use the tool [B1 Converter](https://jonajona.nl/convertB1.html)
+
 > [!NOTE]
 > There seems to be an overflow problem in Portisch firmware and after a short while, the bucket sniffing stops.
 > You should re-call the action to reset and start sniffing again. This issue is fixed in Mightymos firmware.

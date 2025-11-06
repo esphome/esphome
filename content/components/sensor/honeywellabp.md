@@ -8,9 +8,9 @@ params:
 ---
 
 The `honeywellabp` sensor platform allows you to use your Honeywell ABP
-([website](https://sps.honeywell.com/us/en/products/sensing-and-iot/sensors/pressure-sensors/board-mount-pressure-sensors/basic-abp-series),
-[datasheet](https://prod-edam.honeywell.com/content/dam/honeywell-edam/sps/siot/en-us/products/sensors/pressure-sensors/board-mount-pressure-sensors/basic-abp-series/documents/sps-siot-basic-board-mount-pressure-abp-series-datasheet-32305128-ciid-155789.pdf?download=false),
-[Mouser](https://www.mouser.ca/new/honeywell/honeywell-abp-pressure-sensors/)) pressure and temperature sensors with ESPHome. The [SPI](#spi) is
+([datasheet](https://prod-edam.honeywell.com/content/dam/honeywell-edam/sps/siot/en-us/products/sensors/pressure-sensors/board-mount-pressure-sensors/basic-abp-series/documents/sps-siot-basic-board-mount-pressure-abp-series-datasheet-32305128-ciid-155789.pdf?download=false),
+[Mouser](https://www.mouser.ca/new/honeywell/honeywell-abp-pressure-sensors/))
+pressure and temperature sensors with ESPHome. The [SPI](#spi) is
 required to be set up in your configuration for this sensor to work
 
 {{< img src="honeywellabp.jpg" alt="Image" caption="Honeywell ABP Pressure and Temperature Sensor." width="50.0%" class="align-center" >}}
