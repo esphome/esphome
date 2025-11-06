@@ -875,6 +875,12 @@ bool WiFiComponent::load_fast_connect_settings_() {
   SavedWifiFastConnectSettings fast_connect_save{};
 
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
+    // Validate saved AP index
+    if (fast_connect_save.ap_index >= this->sta_.size()) {
+      ESP_LOGW(TAG, "Saved AP index out of bounds");
+      return false;
+    }
+
     // Load BSSID from saved settings
     bssid_t bssid{};
     std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
@@ -883,7 +889,9 @@ bool WiFiComponent::load_fast_connect_settings_() {
     // SYNCHRONIZATION: Link temporary scan result with sta_[saved_index]
     // Unlike wifi_scan_done() which sorts then finds the match, here we know exactly
     // which config was used before and create a matching temporary scan result
-    WiFiScanResult fast_connect_scan(bssid, "", fast_connect_save.channel, 0, false, false);
+    // Use SSID from config for the temporary scan result
+    const std::string &ssid = this->sta_[fast_connect_save.ap_index].get_ssid();
+    WiFiScanResult fast_connect_scan(bssid, ssid, fast_connect_save.channel, 0, false, false);
     this->set_selected_sta_with_scan_(fast_connect_save.ap_index, fast_connect_scan);
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
