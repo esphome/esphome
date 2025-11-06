@@ -433,6 +433,10 @@ void Modbus::send_frame_(const std::vector<uint8_t> &data) {
     ESP_LOGE(TAG, "Attempted to send while transmission blocked");
     return;
   }
+  if (data.size() > MAX_FRAME_SIZE) {
+    ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %d bytes", MAX_FRAME_SIZE);
+    return;
+  }
 
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->digital_write(true);
@@ -501,7 +505,6 @@ float Modbus::get_setup_priority() const {
 
 void ModbusClient::send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
                         uint16_t number_of_entities, uint8_t payload_len, const uint8_t *payload) {
-  static const size_t MAX_VALUES = 128;
   ESP_LOGVV(TAG,
             "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d "
             "payload_len=%d %s",
@@ -511,8 +514,9 @@ void ModbusClient::send(ModbusClientDevice *device, uint8_t address, uint8_t fun
 
   // Only check max number of registers for standard function codes
   // Some devices use non standard codes like 0x43
-  if (number_of_entities > MAX_VALUES && function_code <= ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-    ESP_LOGE(TAG, "send too many values %d max=%zu", number_of_entities, MAX_VALUES);
+  if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_WRITE &&
+      function_code <= ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+    ESP_LOGE(TAG, "send too many values %d max=%zu", number_of_entities, MAX_NUM_OF_REGISTERS_TO_READ);
     return;
   }
 
@@ -543,29 +547,11 @@ void ModbusClient::send(ModbusClientDevice *device, uint8_t address, uint8_t fun
   this->send_raw(device, data);
 }
 
-void ModbusServer::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-                        uint8_t payload_len, const uint8_t *payload) {
-  static const size_t MAX_VALUES = 128;
+void ModbusServer::send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
+  std::initializer_list<uint8_t> header = {address, function_code};
+  payload.insert(payload.begin(), header);
 
-  // Only check max number of registers for standard function codes
-  // Some devices use non standard codes like 0x43
-  if (number_of_entities > MAX_VALUES && function_code <= ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-    ESP_LOGE(TAG, "send too many values %d max=%zu", number_of_entities, MAX_VALUES);
-    return;
-  }
-
-  std::vector<uint8_t> data;
-  data.push_back(address);
-  data.push_back(function_code);
-
-  if (payload != nullptr) {
-    data.push_back(payload_len);  // Byte count is required for write
-    for (int i = 0; i < payload_len; i++) {
-      data.push_back(payload[i]);
-    }
-  }
-
-  this->send_raw(data);
+  this->send_raw(payload);
 }
 
 // Helper function for lambdas
