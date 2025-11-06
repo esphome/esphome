@@ -365,9 +365,8 @@ void WiFiComponent::start_connecting_to_selected_(bool two) {
   // - Sets selected_sta_index_ = i to record that matching config
   // Therefore scan_result_[0] is guaranteed to match sta_[selected_sta_index_]
   if (!this->scan_result_.empty()) {
-    // Use scan data - proves network is visible (not hidden)
+    // Use scan data - network is visible (hidden defaults to false)
     const WiFiScanResult &scan = this->scan_result_[0];
-    params.set_hidden(false);
     params.set_ssid(scan.get_ssid());
     params.set_bssid(scan.get_bssid());
     params.set_channel(scan.get_channel());
