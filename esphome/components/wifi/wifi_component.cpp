@@ -382,19 +382,14 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   } else {
     // Use config settings
     params.set_ssid(config->get_ssid());
-    if (config->get_hidden()) {
-      params.set_hidden(true);
-      // For hidden networks, clear BSSID and channel even if set in config
-      // There might be multiple hidden networks with same SSID but we can't know which is correct
-      // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
-      params.set_bssid(optional<bssid_t>{});
-      params.set_channel(optional<uint8_t>{});
-    } else {
-      params.set_bssid(config->get_bssid());
-      params.set_channel(config->get_channel());
-    }
+    const auto hidden = config->get_hidden();
+    params.set_hidden(hidden);
+    // For hidden networks, clear BSSID and channel even if set in config
+    // There might be multiple hidden networks with same SSID but we can't know which is correct
+    // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
+    params.set_bssid(hidden ? optional<bssid_t>{} : config->get_bssid());
+    params.set_channel(hidden ? optional<uint8_t>{} : config->get_channel());
   }
-
   return params;
 }
 
