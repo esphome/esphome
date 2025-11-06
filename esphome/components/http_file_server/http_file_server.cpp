@@ -1635,51 +1635,21 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
-  // Get parameters from POST body
-  auto *device_param = request->getParam("device");
-  auto *mount_point_param = request->getParam("mount_point");
-
-  if (!device_param || !mount_point_param) {
-    ESP_LOGW(TAG, "Missing device or mount_point parameter");
-    request->send(400, "application/json", "{\"error\":\"Missing device or mount_point parameter\"}");
-    return;
-  }
-
-  std::string device = device_param->value().c_str();
-  std::string mount_point = mount_point_param->value().c_str();
-
-  ESP_LOGI(TAG, "API MOUNT: device=%s, mount_point=%s", device.c_str(), mount_point.c_str());
-
-  // Call storage_host to mount the device
-  if (this->storage_host_->mount_device(device.c_str(), mount_point.c_str())) {
-    request->send(200, "application/json", "{\"success\":true}");
-  } else {
-    ESP_LOGE(TAG, "Mount failed: %s at %s", device.c_str(), mount_point.c_str());
-    request->send(500, "application/json", "{\"error\":\"Mount operation failed\"}");
-  }
+  // Mount/unmount operations should be performed via ESPHome automations
+  // using storage_host actions (storage_host.mount/storage_host.unmount)
+  // This API endpoint is reserved for future functionality
+  ESP_LOGW(TAG, "Mount API called - not implemented (use automations)");
+  request->send(501, "application/json",
+                "{\"error\":\"Mount operations must be performed via ESPHome automations\"}");
 }
 
 void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
-  // Get parameters from POST body
-  auto *mount_point_param = request->getParam("mount_point");
-
-  if (!mount_point_param) {
-    ESP_LOGW(TAG, "Missing mount_point parameter");
-    request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
-    return;
-  }
-
-  std::string mount_point = mount_point_param->value().c_str();
-
-  ESP_LOGI(TAG, "API UNMOUNT: mount_point=%s", mount_point.c_str());
-
-  // Call storage_host to unmount the device
-  if (this->storage_host_->unmount_device(mount_point.c_str())) {
-    request->send(200, "application/json", "{\"success\":true}");
-  } else {
-    ESP_LOGE(TAG, "Unmount failed: %s", mount_point.c_str());
-    request->send(500, "application/json", "{\"error\":\"Unmount operation failed\"}");
-  }
+  // Mount/unmount operations should be performed via ESPHome automations
+  // using storage_host actions (storage_host.mount/storage_host.unmount)
+  // This API endpoint is reserved for future functionality
+  ESP_LOGW(TAG, "Unmount API called - not implemented (use automations)");
+  request->send(501, "application/json",
+                "{\"error\":\"Unmount operations must be performed via ESPHome automations\"}");
 }
 
 void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
