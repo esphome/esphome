@@ -786,8 +786,10 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
   // If req is provided, start chunked response for keepalive
   bool send_keepalive = (req != nullptr);
   if (send_keepalive) {
-    httpd_resp_set_status(req, "201 Created");
+    // Use 200 OK (not 201 Created) to indicate "processing in progress"
+    // 201 Created signals completion to WebDAV clients, causing them to block
     httpd_resp_set_type(req, "text/plain");
+    // Status defaults to 200 OK, which is appropriate for chunked progress responses
     // Don't call httpd_resp_send - we'll use httpd_resp_send_chunk for chunked transfer
   }
 
@@ -1059,12 +1061,14 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  // Perform synchronous copy (instant, no chunked keepalive needed for COPY operations)
-  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size, "", nullptr)) {
-    httpd_resp_set_status(req, "201 Created");
-    httpd_resp_send(req, "Resource copied", -1);
+  // Perform synchronous copy with keepalive (HTTP server already handles multi-client via tasks)
+  // Pass req to enable chunked progress updates during copy
+  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size, "", req)) {
+    // Response already sent via chunked transfer in perform_file_copy
+    // No need to send response here
   } else {
-    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
+    // Only send error if not already handled by chunked transfer
+    // perform_file_copy sends final chunk on both success and failure
   }
 
   return ESP_OK;
