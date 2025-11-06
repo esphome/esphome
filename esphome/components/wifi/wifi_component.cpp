@@ -347,22 +347,20 @@ void WiFiComponent::clear_sta() {
 WiFiAP WiFiComponent::build_selected_ap_() const {
   WiFiAP params;
 
-  if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
-    const WiFiAP &config = this->sta_[this->selected_sta_index_];
-
+  if (const WiFiAP *config = this->get_selected_sta_()) {
     // Copy config data
-    params.set_password(config.get_password());
-    params.set_manual_ip(config.get_manual_ip());
-    params.set_priority(config.get_priority());
+    params.set_password(config->get_password());
+    params.set_manual_ip(config->get_manual_ip());
+    params.set_priority(config->get_priority());
 
 #ifdef USE_WIFI_WPA2_EAP
-    params.set_eap(config.get_eap());
+    params.set_eap(config->get_eap());
 #endif
 
     // Use config SSID for hidden networks
-    if (config.get_hidden()) {
+    if (config->get_hidden()) {
       params.set_hidden(true);
-      params.set_ssid(config.get_ssid());
+      params.set_ssid(config->get_ssid());
       // Clear BSSID and channel for hidden networks - there might be multiple hidden networks
       // and we can't know which one is correct. Rely on probe-req with just SSID.
       // Leaving channel empty triggers ALL_CHANNEL_SCAN instead of FAST_SCAN.
@@ -388,8 +386,8 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
 }
 
 WiFiAP WiFiComponent::get_sta() {
-  if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
-    return this->sta_[this->selected_sta_index_];
+  if (const WiFiAP *config = this->get_selected_sta_()) {
+    return *config;
   }
   return WiFiAP{};
 }
@@ -540,10 +538,9 @@ void WiFiComponent::print_connect_params_() {
                 LOG_STR_ARG(get_signal_bars(rssi)), get_wifi_channel(), wifi_subnet_mask_().str().c_str(),
                 wifi_gateway_ip_().str().c_str(), wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
-    const WiFiAP &config = this->sta_[this->selected_sta_index_];
-    if (config.get_bssid().has_value()) {
-      ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*config.get_bssid()));
+  if (const WiFiAP *config = this->get_selected_sta_()) {
+    if (config->get_bssid().has_value()) {
+      ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*config->get_bssid()));
     }
   }
 #endif
@@ -733,10 +730,11 @@ void WiFiComponent::check_connecting_finished() {
 
     ESP_LOGI(TAG, "Connected");
     // We won't retry hidden networks unless a reconnect fails more than three times again
-    if (this->retry_hidden_ && this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
-      const WiFiAP &config = this->sta_[this->selected_sta_index_];
-      if (!config.get_hidden())
-        ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config.get_ssid().c_str());
+    if (this->retry_hidden_) {
+      if (const WiFiAP *config = this->get_selected_sta_()) {
+        if (!config->get_hidden())
+          ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config->get_ssid().c_str());
+      }
     }
     this->retry_hidden_ = false;
 
@@ -807,10 +805,9 @@ void WiFiComponent::check_connecting_finished() {
 }
 
 void WiFiComponent::retry_connect() {
-  if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
-    const WiFiAP &config = this->sta_[this->selected_sta_index_];
-    if (config.get_bssid()) {
-      auto bssid = *config.get_bssid();
+  if (const WiFiAP *config = this->get_selected_sta_()) {
+    if (config->get_bssid()) {
+      auto bssid = *config->get_bssid();
       float priority = this->get_sta_priority(bssid);
       this->set_sta_priority(bssid, priority - 1.0f);
     }

@@ -339,6 +339,13 @@ class WiFiComponent : public Component {
   void print_connect_params_();
   WiFiAP build_selected_ap_() const;
 
+  const WiFiAP *get_selected_sta_() const {
+    if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
+      return &this->sta_[this->selected_sta_index_];
+    }
+    return nullptr;
+  }
+
   void reset_selected_ap_to_first_if_invalid_() {
     if (this->selected_sta_index_ < 0 || this->selected_sta_index_ >= this->sta_.size()) {
       this->selected_sta_index_ = this->sta_.empty() ? -1 : 0;
