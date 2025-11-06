@@ -229,6 +229,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   void handle_api_progress(AsyncWebServerRequest *request);
   void handle_api_mount(AsyncWebServerRequest *request);
   void handle_api_unmount(AsyncWebServerRequest *request);
+  void handle_api_remount(AsyncWebServerRequest *request);
 
   // Directory helpers
   bool is_directory_empty(const std::string &path);
