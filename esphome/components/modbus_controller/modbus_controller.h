@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 
 #include "esphome/components/modbus/modbus.h"
+#include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 
 #include <list>
@@ -19,7 +20,7 @@ class ModbusController;
 using modbus::ModbusFunctionCode;
 using modbus::ModbusRegisterType;
 using modbus::ModbusExceptionCode;
-using modbus::SensorValueType;
+using namespace modbus::helpers;
 
 class ModbusController;
 
@@ -302,7 +303,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
  * @return float value of data
  */
 inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  int64_t number = modbus::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
+  int64_t number = payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
 
   float float_value;
   if (value_type_is_float(item.sensor_value_type)) {

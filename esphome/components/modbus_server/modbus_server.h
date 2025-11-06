@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 
 #include "esphome/components/modbus/modbus.h"
+#include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 
 #include <list>
@@ -19,7 +20,7 @@ class ModbusServer;
 using modbus::ModbusFunctionCode;
 using modbus::ModbusRegisterType;
 using modbus::ModbusExceptionCode;
-using modbus::SensorValueType;
+using namespace modbus::helpers;
 
 class ModbusServer;
 

@@ -35,7 +35,7 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
 
         std::vector<uint16_t> payload;
         payload.reserve(server_register->register_count * 2);
-        modbus::number_to_payload(payload, value, server_register->value_type);
+        number_to_payload(payload, value, server_register->value_type);
         sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
         current_address += server_register->register_count;
         found = true;
@@ -137,7 +137,7 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
 
   // Actually write to the registers:
   if (!for_each_register([&data](ServerRegister *server_register, uint16_t offset) {
-        int64_t number = modbus::payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
+        int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
         return server_register->write_lambda(number);
       })) {
     this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
