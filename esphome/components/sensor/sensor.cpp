@@ -9,16 +9,14 @@ static const char *const TAG = "sensor";
 // Function implementation of LOG_SENSOR macro to reduce code size
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj) {
   if (obj != nullptr) {
+    log_entity_name_icon_and_device_class(tag, prefix, type, obj, obj);
+
     ESP_LOGCONFIG(tag,
-                  "%s%s '%s'\n"
                   "%s  State Class: '%s'\n"
                   "%s  Unit of Measurement: '%s'\n"
                   "%s  Accuracy Decimals: %d",
-                  prefix, type, obj->get_name().c_str(), prefix,
-                  LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
+                  prefix, LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
                   obj->get_unit_of_measurement_ref().c_str(), prefix, obj->get_accuracy_decimals());
-
-    log_entity_icon_and_device_class(tag, prefix, obj, obj);
 
     if (obj->get_force_update()) {
       ESP_LOGV(tag, "%s  Force Update: YES", prefix);

@@ -11,8 +11,7 @@ namespace text {
 
 #define LOG_TEXT(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    log_entity_icon(TAG, prefix, (obj)); \
+    log_entity_name_and_icon(TAG, prefix, LOG_STR_LITERAL(type), (obj)); \
   }
 
 /** Base-class for all text inputs.

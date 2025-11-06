@@ -119,4 +119,15 @@ void log_entity_icon_and_device_class(const char *tag, const char *prefix, const
   }
 }
 
+void log_entity_name_and_icon(const char *tag, const char *prefix, const char *type, const EntityBase *obj) {
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  log_entity_icon(tag, prefix, obj);
+}
+
+void log_entity_name_icon_and_device_class(const char *tag, const char *prefix, const char *type, const EntityBase *obj,
+                                           const EntityBase_DeviceClass *device_class_obj) {
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  log_entity_icon_and_device_class(tag, prefix, obj, device_class_obj);
+}
+
 }  // namespace esphome

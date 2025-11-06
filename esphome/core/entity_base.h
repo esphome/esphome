@@ -257,4 +257,11 @@ void log_entity_icon(const char *tag, const char *prefix, const EntityBase *obj)
 void log_entity_icon_and_device_class(const char *tag, const char *prefix, const EntityBase *icon_obj,
                                       const EntityBase_DeviceClass *device_class_obj);
 
+/// Log entity name and icon (combines both for efficiency)
+void log_entity_name_and_icon(const char *tag, const char *prefix, const char *type, const EntityBase *obj);
+
+/// Log entity name, icon, and device class (combines all three for maximum efficiency)
+void log_entity_name_icon_and_device_class(const char *tag, const char *prefix, const char *type, const EntityBase *obj,
+                                           const EntityBase_DeviceClass *device_class_obj);
+
 }  // namespace esphome
