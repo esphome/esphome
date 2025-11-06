@@ -2,16 +2,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/web_server_base/web_server_base.h"
 #include <string>
 #include <string_view>
 #include <memory>
 #include <vector>
-#include <esp_http_server.h>
-
-#ifdef USE_ESP32
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#endif
+#include <sys/stat.h>
 
 // Forward declaration
 namespace esphome {
@@ -81,23 +77,25 @@ struct FileInfo {
   time_t modified;
 };
 
-class HttpFileServer : public Component {
+class HttpFileServer : public Component, public AsyncWebHandler {
  public:
+  HttpFileServer(web_server_base::WebServerBase *base);
+
   void setup() override;
-  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
+  // AsyncWebHandler interface
+  bool canHandle(AsyncWebServerRequest *request) const override;
+  void handleRequest(AsyncWebServerRequest *request) override;
+  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
+                    bool final) override;
+  bool isRequestHandlerTrivial() const override { return false; }
 
   // Configuration setters
   void set_storage_host(storage_host::StorageHost *storage_host) { this->storage_host_ = storage_host; }
   void set_root_path(const std::string &root_path) { this->root_path_ = root_path; }
   void set_url_prefix(const std::string &url_prefix) { this->url_prefix_ = url_prefix; }
-  void set_port(uint16_t port) { this->port_ = port; }
-  void set_credentials(const std::string &username, const std::string &password) {
-    this->username_ = username;
-    this->password_ = password;
-    this->auth_enabled_ = true;
-  }
   void set_upload_enabled(bool enabled) { this->upload_enabled_ = enabled; }
   void set_download_enabled(bool enabled) { this->download_enabled_ = enabled; }
   void set_deletion_enabled(bool enabled) { this->deletion_enabled_ = enabled; }
@@ -105,14 +103,13 @@ class HttpFileServer : public Component {
   // Getters
   const std::string &get_root_path() const { return this->root_path_; }
   const std::string &get_url_prefix() const { return this->url_prefix_; }
-  uint16_t get_port() const { return this->port_; }
   bool is_upload_enabled() const { return this->upload_enabled_; }
   bool is_download_enabled() const { return this->download_enabled_; }
   bool is_deletion_enabled() const { return this->deletion_enabled_; }
 
- private:
-  // HTTP server handle
-  httpd_handle_t server_{nullptr};
+ protected:
+  // Web server base reference
+  web_server_base::WebServerBase *base_;
 
   // Storage host reference
   storage_host::StorageHost *storage_host_{nullptr};
@@ -120,34 +117,20 @@ class HttpFileServer : public Component {
   // Configuration
   std::string root_path_{};
   std::string url_prefix_;
-  uint16_t port_;
-  std::string username_;
-  std::string password_;
-  bool auth_enabled_{false};
   bool upload_enabled_{false};
   bool download_enabled_{true};
   bool deletion_enabled_{false};
 
+  // Upload state (for handleUpload)
+  std::string upload_directory_;
+  std::string upload_filename_;
+  FILE *upload_file_{nullptr};
+
   // Helper methods
-  bool start_server();
-  void stop_server();
-  bool authenticate(const std::string &auth_header);
   std::string uri_to_filepath(const std::string &uri);
   std::string url_decode(const std::string &src);
-  std::string extract_path_from_url(const std::string &url);
+  std::string build_url_prefix() const;
   esphome::FixedVector<FileInfo> list_directory(const std::string &path);
-
-  // Authentication helpers
-  std::string base64_decode(const std::string &encoded);
-
-  // Multipart form data parsing helpers
-  struct MultipartFile {
-    std::string filename;
-    std::string content_type;
-    const char *data;
-    size_t size;
-  };
-  bool parse_multipart_form(const char *body, size_t body_len, const std::string &boundary, MultipartFile &file);
 
   // HTML generation helpers
   std::string generate_html_header(const std::string &title);
@@ -155,20 +138,17 @@ class HttpFileServer : public Component {
   std::string generate_breadcrumb(const std::string &current_path);
   std::string generate_file_row(const FileInfo &info, const std::string &uri_prefix);
 
-  // HTTP handlers (static, called via context)
-  static esp_err_t handle_get(httpd_req_t *req);
-  static esp_err_t handle_post(httpd_req_t *req);
-  static esp_err_t handle_delete(httpd_req_t *req);
-
-  // REST API handlers for file operations
-  static esp_err_t handle_api_copy(httpd_req_t *req);
-  static esp_err_t handle_api_move(httpd_req_t *req);
-  static esp_err_t handle_api_rename(httpd_req_t *req);
-  static esp_err_t handle_api_mkdir(httpd_req_t *req);
+  // Request handlers
+  void handle_get(AsyncWebServerRequest *request);
+  void handle_delete(AsyncWebServerRequest *request);
+  void handle_api_copy(AsyncWebServerRequest *request);
+  void handle_api_move(AsyncWebServerRequest *request);
+  void handle_api_rename(AsyncWebServerRequest *request);
+  void handle_api_mkdir(AsyncWebServerRequest *request);
 
   // Specific handlers for different GET requests
-  esp_err_t handle_directory_listing(httpd_req_t *req, const std::string &filepath);
-  esp_err_t handle_file_download(httpd_req_t *req, const std::string &filepath);
+  void handle_directory_listing(AsyncWebServerRequest *request, const std::string &filepath);
+  void handle_file_download(AsyncWebServerRequest *request, const std::string &filepath);
 
   // JSON parsing helper
   struct ApiRequest {
