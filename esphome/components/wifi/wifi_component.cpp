@@ -367,7 +367,11 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
   }
 
   // Overlay scan result data (if available)
-  // Scan results are sorted, so index 0 is always the best network
+  // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
+  // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
+  // - It then finds which sta_[i] config matches scan_result_[0]
+  // - Sets selected_sta_index_ = i to record that matching config
+  // Therefore scan_result_[0] is guaranteed to match sta_[selected_sta_index_]
   if (!this->scan_result_.empty()) {
     const WiFiScanResult &scan = this->scan_result_[0];
 
