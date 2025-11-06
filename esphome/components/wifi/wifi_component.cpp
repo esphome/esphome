@@ -113,7 +113,6 @@ void WiFiComponent::start() {
     if (!this->trying_loaded_ap_) {
       // Fast connect failed - start from first configured AP without scan result
       this->selected_sta_index_ = 0;
-      this->selected_scan_index_ = -1;
     }
     this->start_connecting_to_selected_(false);
 #else
@@ -336,12 +335,10 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
-  this->selected_scan_index_ = -1;
 }
 void WiFiComponent::clear_sta() {
   this->sta_.clear();
   this->selected_sta_index_ = -1;
-  this->selected_scan_index_ = -1;
 }
 
 WiFiAP WiFiComponent::build_selected_ap_() const {
@@ -370,8 +367,9 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
   }
 
   // Overlay scan result data (if available)
-  if (this->selected_scan_index_ >= 0 && this->selected_scan_index_ < this->scan_result_.size()) {
-    const WiFiScanResult &scan = this->scan_result_[this->selected_scan_index_];
+  // Scan results are sorted, so index 0 is always the best network
+  if (!this->scan_result_.empty()) {
+    const WiFiScanResult &scan = this->scan_result_[0];
 
     if (!params.get_hidden()) {
       // Selected network is visible, we use the data from the scan.
@@ -691,9 +689,8 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
 
-  // Find matching config and set indices for on-demand connection params building
+  // Find matching config for on-demand connection params building
   const WiFiScanResult &scan_res = this->scan_result_[0];
-  this->selected_scan_index_ = 0;
 
   for (size_t i = 0; i < this->sta_.size(); i++) {
     // search for matching STA config, at least one will match (from checks before)
@@ -760,7 +757,6 @@ void WiFiComponent::check_connecting_finished() {
     if (!this->keep_scan_results_) {
       this->scan_result_.clear();
       this->scan_result_.shrink_to_fit();
-      this->selected_scan_index_ = -1;  // Invalidate index since scan results are gone
     }
 
     return;
@@ -822,7 +818,6 @@ void WiFiComponent::retry_connect() {
       this->selected_sta_index_++;
     }
     this->num_retried_ = 0;
-    this->selected_scan_index_ = -1;
 #else
     if (this->num_retried_ > 5) {
       // If retry failed for more than 5 times, let's restart STA
@@ -893,9 +888,8 @@ bool WiFiComponent::load_fast_connect_settings_() {
     WiFiScanResult fast_connect_scan(bssid, "", fast_connect_save.channel, 0, false, false);
     this->scan_result_.push_back(fast_connect_scan);
 
-    // Set indices to use the loaded AP config and temporary scan result
+    // Set index to use the loaded AP config with temporary scan result
     this->selected_sta_index_ = fast_connect_save.ap_index;
-    this->selected_scan_index_ = 0;
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
     return true;
@@ -909,8 +903,8 @@ void WiFiComponent::save_fast_connect_settings_() {
   uint8_t channel = get_wifi_channel();
 
   // Skip save if settings haven't changed (compare with current scan result if available)
-  if (this->selected_scan_index_ >= 0 && this->selected_scan_index_ < this->scan_result_.size()) {
-    const WiFiScanResult &scan = this->scan_result_[this->selected_scan_index_];
+  if (!this->scan_result_.empty()) {
+    const WiFiScanResult &scan = this->scan_result_[0];
     if (bssid == scan.get_bssid() && channel == scan.get_channel()) {
       return;  // No change, nothing to save
     }

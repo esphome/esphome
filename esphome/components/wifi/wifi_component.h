@@ -349,7 +349,6 @@ class WiFiComponent : public Component {
   void reset_selected_ap_to_first_if_invalid_() {
     if (this->selected_sta_index_ < 0 || this->selected_sta_index_ >= this->sta_.size()) {
       this->selected_sta_index_ = this->sta_.empty() ? -1 : 0;
-      this->selected_scan_index_ = -1;
     }
   }
 
@@ -436,9 +435,6 @@ class WiFiComponent : public Component {
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
   int8_t selected_sta_index_{-1};
-  // Index into scan_result_ array for the currently selected scan result (-1 = no scan data)
-  // Used to access scanned SSID, BSSID, and channel. Also used for fast connect (synthetic scan result)
-  int8_t selected_scan_index_{-1};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
