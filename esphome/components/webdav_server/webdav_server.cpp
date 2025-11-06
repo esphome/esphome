@@ -823,9 +823,10 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
       update_operation_progress(operation_id, total_copied);
     }
 
-    // Send HTTP keepalive chunk every 64 buffer reads (~256KB for 4KB buffers, ~1MB for 16KB buffers)
+    // Send HTTP keepalive chunk every 8 buffer reads (~32KB for 4KB buffers, ~128KB for 16KB buffers)
+    // More frequent updates ensure client gets feedback quickly
     chunk_counter++;
-    if (send_keepalive && chunk_counter % 64 == 0) {
+    if (send_keepalive && chunk_counter % 8 == 0) {
       int progress_percent = (file_size > 0) ? (int) ((total_copied * 100) / file_size) : 0;
       char progress_msg[64];
       snprintf(progress_msg, sizeof(progress_msg), "Progress: %d%% (%zu/%lld bytes)\n", progress_percent, total_copied,
