@@ -751,15 +751,16 @@ void WiFiComponent::check_connecting_finished() {
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
 
+#ifdef USE_WIFI_FAST_CONNECT
+    this->save_fast_connect_settings_();
+#endif
+
     // Free scan results memory unless a component needs them
     if (!this->keep_scan_results_) {
       this->scan_result_.clear();
       this->scan_result_.shrink_to_fit();
+      this->selected_scan_index_ = -1;  // Invalidate index since scan results are gone
     }
-
-#ifdef USE_WIFI_FAST_CONNECT
-    this->save_fast_connect_settings_();
-#endif
 
     return;
   }
