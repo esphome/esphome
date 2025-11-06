@@ -17,27 +17,54 @@ CONF_STORAGE_HOST_ID = "storage_host_id"
 CONF_ENABLE_UPLOAD = "enable_upload"
 CONF_ENABLE_DOWNLOAD = "enable_download"
 CONF_ENABLE_DELETION = "enable_deletion"
+CONF_AUTH_ENABLED = "auth_enabled"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(HttpFileServer),
-        cv.GenerateID(web_server_base.CONF_WEB_SERVER_BASE_ID): cv.use_id(
-            web_server_base.WebServerBase
-        ),
-        cv.Required(CONF_STORAGE_HOST_ID): cv.use_id(
-            storage_host.StorageHost
-        ),  # Reference to storage_host (REQUIRED)
-        cv.Optional(CONF_ROOT_PATH, default="/"): cv.string,
-        cv.Optional(CONF_URL_PREFIX, default="/files"): cv.string,
-        cv.Optional(CONF_ENABLE_UPLOAD, default=False): cv.boolean,
-        cv.Optional(CONF_ENABLE_DOWNLOAD, default=True): cv.boolean,
-        cv.Optional(CONF_ENABLE_DELETION, default=False): cv.boolean,
-        cv.Optional(CONF_USERNAME): cv.string,
-        cv.Optional(CONF_PASSWORD): cv.string,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+
+def validate_auth(config):
+    """Validate authentication configuration."""
+    auth_enabled = config.get(CONF_AUTH_ENABLED, False)
+    has_username = CONF_USERNAME in config
+    has_password = CONF_PASSWORD in config
+
+    if auth_enabled:
+        # If auth is enabled, username and password are required
+        if not has_username or not has_password:
+            raise cv.Invalid(
+                f"When {CONF_AUTH_ENABLED} is true, both {CONF_USERNAME} and {CONF_PASSWORD} are required"
+            )
+    # If auth is disabled, username and password must not be set
+    elif has_username or has_password:
+        raise cv.Invalid(
+            f"{CONF_USERNAME} and {CONF_PASSWORD} can only be set when {CONF_AUTH_ENABLED} is true"
+        )
+
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(HttpFileServer),
+            cv.GenerateID(web_server_base.CONF_WEB_SERVER_BASE_ID): cv.use_id(
+                web_server_base.WebServerBase
+            ),
+            cv.Required(CONF_STORAGE_HOST_ID): cv.use_id(
+                storage_host.StorageHost
+            ),  # Reference to storage_host (REQUIRED)
+            cv.Optional(CONF_ROOT_PATH, default="/"): cv.string,
+            cv.Optional(CONF_URL_PREFIX, default="/files"): cv.string,
+            cv.Optional(CONF_ENABLE_UPLOAD, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_DOWNLOAD, default=True): cv.boolean,
+            cv.Optional(CONF_ENABLE_DELETION, default=False): cv.boolean,
+            cv.Optional(CONF_AUTH_ENABLED, default=False): cv.boolean,
+            cv.Optional(CONF_USERNAME): cv.string,
+            cv.Optional(CONF_PASSWORD): cv.string,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    validate_auth,
+)
 
 
 @coroutine_with_priority(45.0)
@@ -71,5 +98,5 @@ async def to_code(config):
     cg.add(var.set_deletion_enabled(enable_deletion))
 
     # Optional authentication
-    if CONF_USERNAME in config and CONF_PASSWORD in config:
+    if config.get(CONF_AUTH_ENABLED, False):
         cg.add(var.set_auth(config[CONF_USERNAME], config[CONF_PASSWORD]))

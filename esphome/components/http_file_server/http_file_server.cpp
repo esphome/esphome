@@ -20,9 +20,15 @@ void HttpFileServer::setup() {
   ESP_LOGI(TAG, "Upload: %s, Download: %s, Delete: %s", this->upload_enabled_ ? "YES" : "NO",
            this->download_enabled_ ? "YES" : "NO", this->deletion_enabled_ ? "YES" : "NO");
 
-  // Register this handler with the web server base
-  this->base_->add_handler(this);
-  ESP_LOGI(TAG, "HTTP File Server registered successfully");
+  // Register directly with AsyncWebServer to bypass web_server_base's auth middleware
+  // This allows http_file_server to have its own independent authentication
+  auto server = this->base_->get_server();
+  if (server) {
+    server->addHandler(this);
+    ESP_LOGI(TAG, "HTTP File Server registered successfully (bypassing base auth)");
+  } else {
+    ESP_LOGE(TAG, "Failed to get web server instance");
+  }
 }
 
 void HttpFileServer::dump_config() {
