@@ -1,6 +1,5 @@
 #pragma once
 
-#include <set>
 #include <string>
 
 #include "esphome/core/component.h"
@@ -26,13 +25,13 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   const std::string *last_event_type;
 
   void trigger(const std::string &event_type);
-  void set_event_types(const std::set<std::string> &event_types) { this->types_ = event_types; }
-  std::set<std::string> get_event_types() const { return this->types_; }
+  void set_event_types(const std::initializer_list<std::string> &event_types) { this->types_ = event_types; }
+  const FixedVector<std::string> &get_event_types() const { return this->types_; }
   void add_on_event_callback(std::function<void(const std::string &event_type)> &&callback);
 
  protected:
   CallbackManager<void(const std::string &event_type)> event_callback_;
-  std::set<std::string> types_;
+  FixedVector<std::string> types_;
 };
 
 }  // namespace event

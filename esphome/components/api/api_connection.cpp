@@ -410,8 +410,8 @@ uint16_t APIConnection::try_send_fan_state(EntityBase *entity, APIConnection *co
   }
   if (traits.supports_direction())
     msg.direction = static_cast<enums::FanDirection>(fan->direction);
-  if (traits.supports_preset_modes())
-    msg.set_preset_mode(StringRef(fan->preset_mode));
+  if (traits.supports_preset_modes() && fan->has_preset_mode())
+    msg.set_preset_mode(StringRef(fan->get_preset_mode()));
   return fill_and_encode_entity_state(fan, msg, FanStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -423,7 +423,7 @@ uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *con
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
-  msg.supported_preset_modes = &traits.supported_preset_modes_for_api_();
+  msg.supported_preset_modes = &traits.supported_preset_modes();
   return fill_and_encode_entity_info(fan, msg, ListEntitiesFanResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -486,7 +486,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   if (light->supports_effects()) {
     msg.effects.emplace_back("None");
     for (auto *effect : light->get_effects()) {
-      msg.effects.push_back(effect->get_name());
+      msg.effects.emplace_back(effect->get_name());
     }
   }
   return fill_and_encode_entity_info(light, msg, ListEntitiesLightResponse::MESSAGE_TYPE, conn, remaining_size,
@@ -637,14 +637,14 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   }
   if (traits.get_supports_fan_modes() && climate->fan_mode.has_value())
     resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode.value());
-  if (!traits.get_supported_custom_fan_modes().empty() && climate->custom_fan_mode.has_value()) {
-    resp.set_custom_fan_mode(StringRef(climate->custom_fan_mode.value()));
+  if (!traits.get_supported_custom_fan_modes().empty() && climate->has_custom_fan_mode()) {
+    resp.set_custom_fan_mode(StringRef(climate->get_custom_fan_mode()));
   }
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
   }
-  if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value()) {
-    resp.set_custom_preset(StringRef(climate->custom_preset.value()));
+  if (!traits.get_supported_custom_presets().empty() && climate->has_custom_preset()) {
+    resp.set_custom_preset(StringRef(climate->get_custom_preset()));
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
@@ -669,18 +669,18 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
-  msg.supported_modes = &traits.get_supported_modes_for_api_();
+  msg.supported_modes = &traits.get_supported_modes();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
   msg.visual_target_temperature_step = traits.get_visual_target_temperature_step();
   msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
   msg.visual_min_humidity = traits.get_visual_min_humidity();
   msg.visual_max_humidity = traits.get_visual_max_humidity();
-  msg.supported_fan_modes = &traits.get_supported_fan_modes_for_api_();
-  msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes_for_api_();
-  msg.supported_presets = &traits.get_supported_presets_for_api_();
-  msg.supported_custom_presets = &traits.get_supported_custom_presets_for_api_();
-  msg.supported_swing_modes = &traits.get_supported_swing_modes_for_api_();
+  msg.supported_fan_modes = &traits.get_supported_fan_modes();
+  msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes();
+  msg.supported_presets = &traits.get_supported_presets();
+  msg.supported_custom_presets = &traits.get_supported_custom_presets();
+  msg.supported_swing_modes = &traits.get_supported_swing_modes();
   return fill_and_encode_entity_info(climate, msg, ListEntitiesClimateResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -877,7 +877,7 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
                                               bool is_single) {
   auto *select = static_cast<select::Select *>(entity);
   SelectStateResponse resp;
-  resp.set_state(StringRef(select->state));
+  resp.set_state(StringRef(select->current_option()));
   resp.missing_state = !select->has_state();
   return fill_and_encode_entity_state(select, resp, SelectStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -1572,7 +1572,13 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
   resp.success = false;
 
   psk_t psk{};
-  if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
+  if (msg.key.empty()) {
+    if (this->parent_->clear_noise_psk(true)) {
+      resp.success = true;
+    } else {
+      ESP_LOGW(TAG, "Failed to clear encryption key");
+    }
+  } else if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
   } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");

@@ -7,6 +7,13 @@ button:
         source: 0x01
         command: 0x0C
   - platform: template
+    name: Dyson fan up
+    id: dyson_fan_up
+    on_press:
+      remote_transmitter.transmit_dyson:
+        code: 0x1215
+        index: 0x0
+  - platform: template
     name: JVC Off
     id: living_room_lights_on
     on_press:

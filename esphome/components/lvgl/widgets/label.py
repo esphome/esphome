@@ -23,12 +23,11 @@ class LabelType(WidgetType):
             CONF_LABEL,
             LvText("lv_label_t"),
             (CONF_MAIN, CONF_SCROLLBAR, CONF_SELECTED),
-            TEXT_SCHEMA.extend(
-                {
-                    cv.Optional(CONF_RECOLOR): lv_bool,
-                    cv.Optional(CONF_LONG_MODE): LV_LONG_MODES.one_of,
-                }
-            ),
+            {
+                **TEXT_SCHEMA,
+                cv.Optional(CONF_RECOLOR): lv_bool,
+                cv.Optional(CONF_LONG_MODE): LV_LONG_MODES.one_of,
+            },
         )
 
     async def to_code(self, w: Widget, config):
