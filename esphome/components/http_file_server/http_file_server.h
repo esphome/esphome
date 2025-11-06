@@ -133,7 +133,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   // Storage device references for mount/unmount operations
   // Forward declarations to avoid circular dependencies
   std::vector<void *> usb_msc_devices_;  // std::vector<usb_msc_host::USBMscDevice *>
-  std::vector<void *> sd_mmc_devices_;   // std::vector<sd_mmc_card::SdMmcCard *>
+  std::vector<void *> sd_mmc_devices_;   // std::vector<sd_mmc_card::SdMmc *>
 
   // Configuration
   std::string root_path_{};
