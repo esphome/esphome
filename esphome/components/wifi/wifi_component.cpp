@@ -895,7 +895,7 @@ bool WiFiComponent::load_fast_connect_settings_() {
 
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
     // Validate saved AP index
-    if (fast_connect_save.ap_index >= this->sta_.size()) {
+    if (static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
       ESP_LOGW(TAG, "Saved AP index out of bounds");
       return false;
     }
