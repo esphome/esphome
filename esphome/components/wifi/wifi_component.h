@@ -356,7 +356,7 @@ class WiFiComponent : public Component {
 
   // SYNCHRONIZATION HELPERS: Encapsulate the relationship between selected_sta_index_ and scan_result_
 
-  // Set selected sta with a temporary scan result (fast connect path)
+  // Add temporary scan result and set selected sta index (fast connect path)
   void set_selected_sta_with_scan_(int8_t sta_index, const WiFiScanResult &scan) {
 #ifdef USE_RP2040
     this->scan_result_.clear();
