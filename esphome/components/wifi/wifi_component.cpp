@@ -112,7 +112,6 @@ void WiFiComponent::start() {
     this->trying_loaded_ap_ = this->load_fast_connect_settings_();
     if (!this->trying_loaded_ap_) {
       // Fast connect failed - start from first configured AP without scan result
-      this->ap_index_ = 0;
       this->selected_ap_index_ = 0;
       this->selected_scan_index_ = -1;
     }
@@ -820,17 +819,16 @@ void WiFiComponent::retry_connect() {
 #ifdef USE_WIFI_FAST_CONNECT
     if (this->trying_loaded_ap_) {
       this->trying_loaded_ap_ = false;
-      this->ap_index_ = 0;  // Retry from the first configured AP
-    } else if (this->ap_index_ >= this->sta_.size() - 1) {
+      this->selected_ap_index_ = 0;  // Retry from the first configured AP
+    } else if (this->selected_ap_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
       ESP_LOGW(TAG, "No more APs to try");
-      this->ap_index_ = 0;
+      this->selected_ap_index_ = 0;
       this->restart_adapter();
     } else {
       // Try next AP
-      this->ap_index_++;
+      this->selected_ap_index_++;
     }
     this->num_retried_ = 0;
-    this->selected_ap_index_ = this->ap_index_;
     this->selected_scan_index_ = -1;
 #else
     if (this->num_retried_ > 5) {
@@ -903,8 +901,7 @@ bool WiFiComponent::load_fast_connect_settings_() {
     this->scan_result_.push_back(fast_connect_scan);
 
     // Set indices to use the loaded AP config and temporary scan result
-    this->ap_index_ = fast_connect_save.ap_index;
-    this->selected_ap_index_ = this->ap_index_;
+    this->selected_ap_index_ = fast_connect_save.ap_index;
     this->selected_scan_index_ = 0;
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
@@ -932,7 +929,7 @@ void WiFiComponent::save_fast_connect_settings_() {
 
     memcpy(fast_connect_save.bssid, bssid.data(), 6);
     fast_connect_save.channel = channel;
-    fast_connect_save.ap_index = this->ap_index_;
+    fast_connect_save.ap_index = this->selected_ap_index_ >= 0 ? this->selected_ap_index_ : 0;
 
     this->fast_connect_pref_.save(&fast_connect_save);
 

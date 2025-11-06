@@ -426,9 +426,6 @@ class WiFiComponent : public Component {
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   uint8_t num_retried_{0};
-#ifdef USE_WIFI_FAST_CONNECT
-  uint8_t ap_index_{0};
-#endif
   int8_t selected_ap_index_{-1};
   int8_t selected_scan_index_{-1};
 #if USE_NETWORK_IPV6
