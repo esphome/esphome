@@ -823,8 +823,9 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform copy
-  if (this->perform_file_copy(api_req.source, api_req.destination, src_stat.st_size)) {
+  // Perform copy with progress tracking for large files (> 1MB)
+  bool track_progress = (src_stat.st_size > 1048576);
+  if (this->perform_file_copy(api_req.source, api_req.destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Copy operation failed\"}");
@@ -877,8 +878,9 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform move
-  if (this->perform_file_move(api_req.source, api_req.destination, src_stat.st_size)) {
+  // Perform move with progress tracking for large files (> 1MB)
+  bool track_progress = (src_stat.st_size > 1048576);
+  if (this->perform_file_move(api_req.source, api_req.destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Move operation failed\"}");
@@ -982,6 +984,46 @@ void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
   }
 }
 
+void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
+  // Build JSON response with progress information
+  std::string json = "{";
+  json += "\"in_progress\":" + std::string(this->progress_.in_progress ? "true" : "false");
+
+  if (this->progress_.in_progress) {
+    json += ",\"operation\":\"" + this->progress_.operation + "\"";
+    json += ",\"source\":\"" + this->progress_.source + "\"";
+    json += ",\"destination\":\"" + this->progress_.destination + "\"";
+    json += ",\"total_bytes\":" + std::to_string(this->progress_.total_bytes);
+    json += ",\"transferred_bytes\":" + std::to_string(this->progress_.transferred_bytes);
+
+    // Calculate progress percentage
+    float percentage = 0.0;
+    if (this->progress_.total_bytes > 0) {
+      percentage = (this->progress_.transferred_bytes * 100.0) / this->progress_.total_bytes;
+    }
+
+    // Format percentage with 1 decimal place
+    char percent_buf[16];
+    snprintf(percent_buf, sizeof(percent_buf), "%.1f", percentage);
+    json += ",\"percentage\":" + std::string(percent_buf);
+
+    // Calculate elapsed time
+    uint32_t elapsed_ms = millis() - this->progress_.start_time;
+    json += ",\"elapsed_ms\":" + std::to_string(elapsed_ms);
+
+    // Estimate remaining time if we have progress
+    if (this->progress_.transferred_bytes > 0 && this->progress_.total_bytes > 0) {
+      uint32_t total_estimated_ms = (elapsed_ms * this->progress_.total_bytes) / this->progress_.transferred_bytes;
+      uint32_t remaining_ms = total_estimated_ms - elapsed_ms;
+      json += ",\"remaining_ms\":" + std::to_string(remaining_ms);
+    }
+  }
+
+  json += "}";
+
+  request->send(200, "application/json", json.c_str());
+}
+
 // JSON parsing helper
 bool HttpFileServer::parse_json_request(const uint8_t *body, size_t body_len, ApiRequest &req) {
   // Simple JSON parser for our specific format
@@ -1030,8 +1072,9 @@ bool HttpFileServer::parse_json_request(const uint8_t *body, size_t body_len, Ap
 // File operation helpers (reused from WebDAV logic)
 bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
                                        bool track_progress) {
-  // Initialize progress tracking if requested
-  if (track_progress) {
+  // Initialize progress tracking if requested (only if not already in progress)
+  // This allows perform_file_move to set up progress as "move" before calling this function
+  if (track_progress && !this->progress_.in_progress) {
     this->progress_.operation = "copy";
     this->progress_.source = src_path;
     this->progress_.destination = dst_path;
@@ -1104,6 +1147,11 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
 
   if (copy_success && total_copied == static_cast<size_t>(file_size)) {
     ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
+    // Clear progress tracking on success (unless perform_file_move will handle it)
+    // Note: perform_file_move sets operation to "move" and will clear progress itself
+    if (track_progress && this->progress_.operation == "copy") {
+      this->progress_.in_progress = false;
+    }
     return true;
   } else {
     ESP_LOGE(TAG, "File copy failed: %s to %s (copied %zu of %lld bytes)", src_path.c_str(), dst_path.c_str(),
@@ -1113,34 +1161,65 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     if (remove(dst_path.c_str()) != 0) {
       ESP_LOGE(TAG, "Failed to remove partial destination file (errno: %d, %s)", errno, strerror(errno));
     }
+
+    // Clear progress tracking on failure (unless perform_file_move will handle it)
+    if (track_progress && this->progress_.operation == "copy") {
+      this->progress_.in_progress = false;
+    }
     return false;
   }
 }
 
-bool HttpFileServer::perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size) {
+bool HttpFileServer::perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                                       bool track_progress) {
+  // Initialize progress tracking if requested
+  if (track_progress) {
+    this->progress_.operation = "move";
+    this->progress_.source = src_path;
+    this->progress_.destination = dst_path;
+    this->progress_.total_bytes = file_size;
+    this->progress_.transferred_bytes = 0;
+    this->progress_.in_progress = true;
+    this->progress_.start_time = millis();
+  }
+
   // Try atomic rename first (works within same filesystem)
   if (rename(src_path.c_str(), dst_path.c_str()) == 0) {
     ESP_LOGI(TAG, "File moved successfully (atomic rename)");
+    if (track_progress) {
+      this->progress_.transferred_bytes = file_size;
+      this->progress_.in_progress = false;
+    }
     return true;
   }
 
   // If rename fails with EXDEV (cross-device), fall back to copy+delete
   if (errno == EXDEV) {
     ESP_LOGI(TAG, "Cross-mount move detected, using copy+delete fallback");
-    if (perform_file_copy(src_path, dst_path, file_size)) {
+    // Note: perform_file_copy will handle progress tracking if track_progress is true
+    if (perform_file_copy(src_path, dst_path, file_size, track_progress)) {
       if (remove(src_path.c_str()) == 0) {
         ESP_LOGI(TAG, "File move completed successfully");
+        if (track_progress)
+          this->progress_.in_progress = false;
         return true;
       } else {
         ESP_LOGE(TAG, "Failed to delete source after copy: %s (errno: %d, %s)", src_path.c_str(), errno,
                  strerror(errno));
         // File was copied but source remains - still consider success
+        if (track_progress)
+          this->progress_.in_progress = false;
         return true;
       }
+    } else {
+      if (track_progress)
+        this->progress_.in_progress = false;
     }
   } else {
     ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d, %s)", src_path.c_str(), dst_path.c_str(), errno,
              strerror(errno));
+    if (track_progress)
+      this->progress_.in_progress = false;
   }
 
   return false;
