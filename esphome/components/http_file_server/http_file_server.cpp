@@ -45,20 +45,23 @@ void HttpFileServer::dump_config() {
 bool HttpFileServer::canHandle(AsyncWebServerRequest *request) const {
   // Handle requests that start with our URL prefix
   std::string uri = request->url().c_str();
+  const char *method_name = (request->method() == HTTP_GET) ? "GET" : (request->method() == HTTP_POST) ? "POST" : (request->method() == HTTP_DELETE) ? "DELETE" : "OTHER";
+
+  ESP_LOGD(TAG, "canHandle called: %s %s (prefix: %s)", method_name, uri.c_str(), this->url_prefix_.c_str());
 
   // Check if URI starts with our prefix
   if (uri.find(this->url_prefix_) != 0) {
+    ESP_LOGD(TAG, "  -> NO: URI doesn't start with prefix");
     return false;
   }
 
   // We handle GET, POST, and DELETE methods
   if (request->method() == HTTP_GET || request->method() == HTTP_POST || request->method() == HTTP_DELETE) {
-    const char *method_name = (request->method() == HTTP_GET) ? "GET" : (request->method() == HTTP_POST) ? "POST" : "DELETE";
-    ESP_LOGD(TAG, "canHandle=true for %s %s", method_name, uri.c_str());
+    ESP_LOGI(TAG, "  -> YES: Will handle %s %s", method_name, uri.c_str());
     return true;
   }
 
-  ESP_LOGW(TAG, "canHandle=false - unsupported method for %s", uri.c_str());
+  ESP_LOGW(TAG, "  -> NO: Unsupported method %s", method_name);
   return false;
 }
 
