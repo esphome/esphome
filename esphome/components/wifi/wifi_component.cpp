@@ -365,7 +365,7 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
       // For hidden networks, clear BSSID and channel even if set in config
       // There might be multiple hidden networks with same SSID but we can't know which is correct
       // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
-      // Note: Scan data is never used for hidden networks (see check below at line ~390)
+      // Note: Scan data is never used for hidden networks (see !params.get_hidden() check below)
       params.set_bssid(optional<bssid_t>{});
       params.set_channel(optional<uint8_t>{});
     } else {

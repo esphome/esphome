@@ -358,7 +358,12 @@ class WiFiComponent : public Component {
 
   // Set selected sta with a temporary scan result (fast connect path)
   void set_selected_sta_with_scan_(int8_t sta_index, const WiFiScanResult &scan) {
+#ifdef USE_RP2040
+    this->scan_result_.clear();
+    this->scan_result_.reserve(1);
+#else
     this->scan_result_.init(1);
+#endif
     this->scan_result_.push_back(scan);
     this->selected_sta_index_ = sta_index;
   }
