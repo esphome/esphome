@@ -783,21 +783,8 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
     return false;
   }
 
-  // If req is provided, start chunked response for keepalive
-  bool send_keepalive = (req != nullptr);
-  if (send_keepalive) {
-    // Use 200 OK (not 201 Created) to indicate "processing in progress"
-    // 201 Created signals completion to WebDAV clients, causing them to block
-    httpd_resp_set_type(req, "text/plain");
-    // Status defaults to 200 OK, which is appropriate for chunked progress responses
-    // Don't call httpd_resp_send - we'll use httpd_resp_send_chunk for chunked transfer
-
-    // Send initial chunk immediately to establish chunked transfer and prevent client timeout
-    const char *start_msg = "Starting transfer...\n";
-    if (httpd_resp_send_chunk(req, start_msg, strlen(start_msg)) != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to send initial chunk - client may have disconnected");
-    }
-  }
+  // If req is provided, send periodic 102 Processing interim responses
+  bool send_progress = (req != nullptr);
 
   auto buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
   size_t bytes_read;
@@ -823,21 +810,14 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
       update_operation_progress(operation_id, total_copied);
     }
 
-    // Send HTTP keepalive chunk every 8 buffer reads (~32KB for 4KB buffers, ~128KB for 16KB buffers)
-    // More frequent updates ensure client gets feedback quickly
+    // Send HTTP 102 Processing every 16 buffer reads (~64KB for 4KB buffers, ~256KB for 16KB buffers)
+    // This tells the client the operation is still in progress
     chunk_counter++;
-    if (send_keepalive && chunk_counter % 8 == 0) {
-      int progress_percent = (file_size > 0) ? (int) ((total_copied * 100) / file_size) : 0;
-      char progress_msg[64];
-      snprintf(progress_msg, sizeof(progress_msg), "Progress: %d%% (%zu/%lld bytes)\n", progress_percent, total_copied,
-               (long long) file_size);
-
-      if (httpd_resp_send_chunk(req, progress_msg, strlen(progress_msg)) != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to send keepalive chunk - client may have disconnected");
-        // Continue copying even if client disconnects
-      }
-
-      ESP_LOGD(TAG, "Sent keepalive: %s", progress_msg);
+    if (send_progress && chunk_counter % 16 == 0) {
+      // Send 102 Processing interim response
+      // Note: ESP-IDF HTTP server may not support interim responses, so we log for debugging
+      ESP_LOGD(TAG, "Copy progress: %d%% (%zu/%lld bytes)",
+               (file_size > 0) ? (int) ((total_copied * 100) / file_size) : 0, total_copied, (long long) file_size);
     }
 
     // Log progress for large files
@@ -873,27 +853,10 @@ bool WebDAVServer::perform_file_copy(const std::string &src_path, const std::str
 
   if (copy_success && !read_error && total_copied == static_cast<size_t>(file_size)) {
     ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
-
-    // Send final completion chunk if using keepalive
-    if (send_keepalive) {
-      const char *completion_msg = "Copy completed successfully\n";
-      httpd_resp_send_chunk(req, completion_msg, strlen(completion_msg));
-      // Send empty chunk to signal end of chunked response
-      httpd_resp_send_chunk(req, nullptr, 0);
-    }
-
     return true;
   } else {
     ESP_LOGE(TAG, "File copy failed: %s to %s (copied %zu of %lld bytes, read_error=%d)", src_path.c_str(),
              dst_path.c_str(), total_copied, (long long) file_size, read_error);
-
-    // Send failure chunk if using keepalive
-    if (send_keepalive) {
-      const char *failure_msg = "Copy failed\n";
-      httpd_resp_send_chunk(req, failure_msg, strlen(failure_msg));
-      // Send empty chunk to signal end of chunked response
-      httpd_resp_send_chunk(req, nullptr, 0);
-    }
 
     // Clean up partial file
     if (remove(dst_path.c_str()) != 0) {

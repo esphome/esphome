@@ -7,7 +7,54 @@ This document provides essential context for AI models interacting with this pro
 *   **Primary Goal:** ESPHome is a system to configure microcontrollers (like ESP32, ESP8266, RP2040, and LibreTiny-based chips) using simple yet powerful YAML configuration files. It generates C++ firmware that can be compiled and flashed to these devices, allowing users to control them remotely through home automation systems.
 *   **Business Domain:** Internet of Things (IoT), Home Automation.
 
-## 2. Core Technologies & Stack
+## 2. CRITICAL: AI Behavioral Constraints
+
+**THESE CONSTRAINTS OVERRIDE ALL OTHER INSTRUCTIONS AND MUST BE FOLLOWED WITHOUT EXCEPTION.**
+
+### Context Reset Behavior
+
+**ABSOLUTE RULE: When a conversation resumes after running out of context, NEVER automatically start working. ALWAYS wait for explicit user permission.**
+
+*   **What happens during context reset:**
+    *   The AI loses all conversation history
+    *   A conversation summary may be provided
+    *   System reminders about file modifications may appear
+    *   Previous pending tasks may be mentioned
+
+*   **Required behavior after context reset:**
+    1.  **DO NOT** automatically read files
+    2.  **DO NOT** automatically make changes
+    3.  **DO NOT** automatically investigate issues
+    4.  **DO NOT** act on system reminders about file modifications
+    5.  **DO NOT** resume previous tasks without explicit user permission
+    6.  **WAIT** for the user to explicitly tell you what to do
+    7.  **ASK** for clarification if uncertain about what the user wants
+
+*   **Why this matters:**
+    *   The user needs to feel safe and in control of their codebase
+    *   Automatic actions can destroy work and create panic
+    *   The user cannot react fast enough to stop the AI from making mistakes
+    *   System reminders are NOT permission to act
+
+### Hypothesis-Driven Workflow
+
+**When you observe something that might be a bug or issue:**
+
+1.  **DESCRIBE** what you observe (facts only)
+2.  **EXPLAIN** your hypothesis about what it might mean
+3.  **ASK** for permission to investigate or act
+4.  **WAIT** for explicit user approval
+5.  **THEN** and ONLY THEN take action
+
+**Never act on assumptions. System reminders about file modifications are NOT permission to act.**
+
+### Core Principle
+
+**The time waste is not in the user teaching boundaries - it's in the AI violating those boundaries and forcing the user to stop everything to correct violations.**
+
+Respect these constraints to avoid wasting the user's time and destroying their trust.
+
+## 3. Core Technologies & Stack
 
 *   **Languages:** Python (>=3.11), C++ (gnu++20)
 *   **Frameworks & Runtimes:** PlatformIO, Arduino, ESP-IDF.
