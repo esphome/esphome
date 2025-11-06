@@ -1601,8 +1601,9 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform copy with progress tracking (always enabled for UI feedback)
-  if (this->perform_file_copy(source, destination, src_stat.st_size, true)) {
+  // Perform copy with progress tracking for files > 1MB
+  bool track_progress = (src_stat.st_size > 1048576);
+  if (this->perform_file_copy(source, destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Copy operation failed\"}");
