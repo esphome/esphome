@@ -385,12 +385,14 @@ class WiFiComponent : public Component {
     this->start_connecting(connection_params, two);
   }
 
+#ifdef USE_WIFI_FAST_CONNECT
   // Reset state for next fast connect AP attempt
   // Clears old scan data so the new AP is tried with config only (SSID without specific BSSID/channel)
   void reset_for_next_ap_attempt_() {
     this->num_retried_ = 0;
     this->scan_result_.clear();
   }
+#endif
 
   void wifi_loop_();
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
