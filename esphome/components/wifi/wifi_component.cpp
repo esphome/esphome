@@ -841,6 +841,7 @@ void WiFiComponent::retry_connect() {
       this->selected_sta_index_ = 0;  // Retry from the first configured AP
       this->reset_for_next_ap_attempt_();
     } else if (this->selected_sta_index_ >= static_cast<int>(this->sta_.size()) - 1) {
+      // Cast size to int (not int8_t which overflows at 127, not size_t which wraps negative indices)
       // Exhausted all configured APs, restart adapter and cycle back to first
       // Restart clears any stuck WiFi driver state
       // Each AP is tried with config data only (SSID + optional BSSID/channel if user configured them)
@@ -944,6 +945,8 @@ bool WiFiComponent::load_fast_connect_settings_() {
 void WiFiComponent::save_fast_connect_settings_() {
   bssid_t bssid = wifi_bssid();
   uint8_t channel = get_wifi_channel();
+  // selected_sta_index_ is always valid here (called only after successful connection)
+  // Fallback to 0 is defensive programming for robustness
   int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
 
   // Skip save if settings haven't changed (compare with previously saved settings to reduce flash wear)
