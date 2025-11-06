@@ -1609,14 +1609,24 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Send response immediately so web server can handle progress polls
-  // The copy will continue in the background
+  // Create task parameters
   bool track_progress = (src_stat.st_size > 1048576);
   ESP_LOGI(TAG, "Copy: file size %lld bytes, track_progress=%d", (long long) src_stat.st_size, track_progress);
-  request->send(200, "application/json", "{\"success\":true}");
 
-  // Now perform the copy (non-blocking for web server)
-  this->perform_file_copy(source, destination, src_stat.st_size, track_progress);
+  auto *task_params = new CopyTaskParams{this, source, destination, src_stat.st_size, track_progress};
+
+  // Create FreeRTOS task for background copy (4KB stack, priority 1)
+  BaseType_t result =
+      xTaskCreate(copy_task, "http_copy", 4096, task_params, 1, nullptr);
+
+  if (result == pdPASS) {
+    ESP_LOGI(TAG, "Copy task created successfully");
+    request->send(200, "application/json", "{\"success\":true}");
+  } else {
+    ESP_LOGE(TAG, "Failed to create copy task");
+    delete task_params;
+    request->send(500, "application/json", "{\"error\":\"Failed to start copy operation\"}");
+  }
 }
 
 void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
@@ -1648,13 +1658,23 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Send response immediately so web server can handle progress polls
-  // The move will continue in the background
+  // Create task parameters
   bool track_progress = (src_stat.st_size > 1048576);
-  request->send(200, "application/json", "{\"success\":true}");
 
-  // Now perform the move (non-blocking for web server)
-  this->perform_file_move(source, destination, src_stat.st_size, track_progress);
+  auto *task_params = new MoveTaskParams{this, source, destination, src_stat.st_size, track_progress};
+
+  // Create FreeRTOS task for background move (4KB stack, priority 1)
+  BaseType_t result =
+      xTaskCreate(move_task, "http_move", 4096, task_params, 1, nullptr);
+
+  if (result == pdPASS) {
+    ESP_LOGI(TAG, "Move task created successfully");
+    request->send(200, "application/json", "{\"success\":true}");
+  } else {
+    ESP_LOGE(TAG, "Failed to create move task");
+    delete task_params;
+    request->send(500, "application/json", "{\"error\":\"Failed to start move operation\"}");
+  }
 }
 
 void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
@@ -1870,21 +1890,32 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
+  // Thread-safe snapshot of progress data
+  portENTER_CRITICAL(&this->progress_mutex_);
+  bool in_progress = this->progress_.in_progress;
+  std::string operation = this->progress_.operation;
+  std::string source = this->progress_.source;
+  std::string destination = this->progress_.destination;
+  size_t total_bytes = this->progress_.total_bytes;
+  size_t transferred_bytes = this->progress_.transferred_bytes;
+  uint32_t start_time = this->progress_.start_time;
+  portEXIT_CRITICAL(&this->progress_mutex_);
+
   // Build JSON response with progress information
   std::string json = "{";
-  json += "\"in_progress\":" + std::string(this->progress_.in_progress ? "true" : "false");
+  json += "\"in_progress\":" + std::string(in_progress ? "true" : "false");
 
-  if (this->progress_.in_progress) {
-    json += ",\"operation\":\"" + this->progress_.operation + "\"";
-    json += ",\"source\":\"" + this->progress_.source + "\"";
-    json += ",\"destination\":\"" + this->progress_.destination + "\"";
-    json += ",\"total_bytes\":" + std::to_string(this->progress_.total_bytes);
-    json += ",\"transferred_bytes\":" + std::to_string(this->progress_.transferred_bytes);
+  if (in_progress) {
+    json += ",\"operation\":\"" + operation + "\"";
+    json += ",\"source\":\"" + source + "\"";
+    json += ",\"destination\":\"" + destination + "\"";
+    json += ",\"total_bytes\":" + std::to_string(total_bytes);
+    json += ",\"transferred_bytes\":" + std::to_string(transferred_bytes);
 
     // Calculate progress percentage
     float percentage = 0.0;
-    if (this->progress_.total_bytes > 0) {
-      percentage = (this->progress_.transferred_bytes * 100.0) / this->progress_.total_bytes;
+    if (total_bytes > 0) {
+      percentage = (transferred_bytes * 100.0) / total_bytes;
     }
 
     // Format percentage with 1 decimal place
@@ -1893,19 +1924,18 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
     json += ",\"percentage\":" + std::string(percent_buf);
 
     // Calculate elapsed time
-    uint32_t elapsed_ms = millis() - this->progress_.start_time;
+    uint32_t elapsed_ms = millis() - start_time;
     json += ",\"elapsed_ms\":" + std::to_string(elapsed_ms);
 
     // Estimate remaining time if we have progress
-    if (this->progress_.transferred_bytes > 0 && this->progress_.total_bytes > 0) {
-      uint32_t total_estimated_ms = (elapsed_ms * this->progress_.total_bytes) / this->progress_.transferred_bytes;
+    if (transferred_bytes > 0 && total_bytes > 0) {
+      uint32_t total_estimated_ms = (elapsed_ms * total_bytes) / transferred_bytes;
       uint32_t remaining_ms = total_estimated_ms - elapsed_ms;
       json += ",\"remaining_ms\":" + std::to_string(remaining_ms);
     }
 
-    ESP_LOGD(TAG, "Progress poll: %s operation, %.1f%% (%zu/%zu bytes)",
-             this->progress_.operation.c_str(), percentage,
-             this->progress_.transferred_bytes, this->progress_.total_bytes);
+    ESP_LOGD(TAG, "Progress poll: %s operation, %.1f%% (%zu/%zu bytes)", operation.c_str(), percentage,
+             transferred_bytes, total_bytes);
   } else {
     ESP_LOGD(TAG, "Progress poll: no operation in progress");
   }
@@ -2058,26 +2088,68 @@ struct FileCloser {
   FileCloser &operator=(const FileCloser &) = delete;
 };
 
+// FreeRTOS task functions for background operations
+void HttpFileServer::copy_task(void *params) {
+  auto *task_params = static_cast<CopyTaskParams *>(params);
+  ESP_LOGI(TAG, "Copy task started for %s -> %s", task_params->source.c_str(), task_params->destination.c_str());
+
+  // Perform the copy operation
+  task_params->server->perform_file_copy(task_params->source, task_params->destination, task_params->file_size,
+                                         task_params->track_progress);
+
+  ESP_LOGI(TAG, "Copy task completed");
+
+  // Clean up parameters
+  delete task_params;
+
+  // Delete this task
+  vTaskDelete(nullptr);
+}
+
+void HttpFileServer::move_task(void *params) {
+  auto *task_params = static_cast<MoveTaskParams *>(params);
+  ESP_LOGI(TAG, "Move task started for %s -> %s", task_params->source.c_str(), task_params->destination.c_str());
+
+  // Perform the move operation
+  task_params->server->perform_file_move(task_params->source, task_params->destination, task_params->file_size,
+                                         task_params->track_progress);
+
+  ESP_LOGI(TAG, "Move task completed");
+
+  // Clean up parameters
+  delete task_params;
+
+  // Delete this task
+  vTaskDelete(nullptr);
+}
+
 // File operation helpers (reused from WebDAV logic)
 bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
                                        bool track_progress) {
   // Initialize progress tracking if requested (only if not already in progress)
   // This allows perform_file_move to set up progress as "move" before calling this function
-  if (track_progress && !this->progress_.in_progress) {
-    this->progress_.operation = "copy";
-    this->progress_.source = src_path;
-    this->progress_.destination = dst_path;
-    this->progress_.total_bytes = file_size;
-    this->progress_.transferred_bytes = 0;
-    this->progress_.in_progress = true;
-    this->progress_.start_time = millis();
+  if (track_progress) {
+    portENTER_CRITICAL(&this->progress_mutex_);
+    if (!this->progress_.in_progress) {
+      this->progress_.operation = "copy";
+      this->progress_.source = src_path;
+      this->progress_.destination = dst_path;
+      this->progress_.total_bytes = file_size;
+      this->progress_.transferred_bytes = 0;
+      this->progress_.in_progress = true;
+      this->progress_.start_time = millis();
+    }
+    portEXIT_CRITICAL(&this->progress_mutex_);
   }
 
   FILE *src = fopen(src_path.c_str(), "rb");
   if (!src) {
     ESP_LOGE(TAG, "Failed to open source file: %s (errno: %d, %s)", src_path.c_str(), errno, strerror(errno));
-    if (track_progress)
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+    }
     return false;
   }
   FileCloser src_closer(src);  // RAII: will close src on scope exit
@@ -2085,8 +2157,11 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
   FILE *dst = fopen(dst_path.c_str(), "wb");
   if (!dst) {
     ESP_LOGE(TAG, "Failed to open destination file: %s (errno: %d, %s)", dst_path.c_str(), errno, strerror(errno));
-    if (track_progress)
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+    }
     return false;
   }
   FileCloser dst_closer(dst);  // RAII: will close dst on scope exit
@@ -2108,9 +2183,11 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     }
     total_copied += bytes_written;
 
-    // Update progress
+    // Update progress (thread-safe)
     if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.transferred_bytes = total_copied;
+      portEXIT_CRITICAL(&this->progress_mutex_);
     }
 
     // Log progress for large files
@@ -2139,8 +2216,12 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
     // Clear progress tracking on success (unless perform_file_move will handle it)
     // Note: perform_file_move sets operation to "move" and will clear progress itself
-    if (track_progress && this->progress_.operation == "copy") {
-      this->progress_.in_progress = false;
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
+      if (this->progress_.operation == "copy") {
+        this->progress_.in_progress = false;
+      }
+      portEXIT_CRITICAL(&this->progress_mutex_);
     }
     return true;
   } else {
@@ -2153,8 +2234,12 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     }
 
     // Clear progress tracking on failure (unless perform_file_move will handle it)
-    if (track_progress && this->progress_.operation == "copy") {
-      this->progress_.in_progress = false;
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
+      if (this->progress_.operation == "copy") {
+        this->progress_.in_progress = false;
+      }
+      portEXIT_CRITICAL(&this->progress_mutex_);
     }
     return false;
   }
@@ -2164,6 +2249,7 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
                                        bool track_progress) {
   // Initialize progress tracking if requested
   if (track_progress) {
+    portENTER_CRITICAL(&this->progress_mutex_);
     this->progress_.operation = "move";
     this->progress_.source = src_path;
     this->progress_.destination = dst_path;
@@ -2171,14 +2257,17 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
     this->progress_.transferred_bytes = 0;
     this->progress_.in_progress = true;
     this->progress_.start_time = millis();
+    portEXIT_CRITICAL(&this->progress_mutex_);
   }
 
   // Try atomic rename first (works within same filesystem)
   if (rename(src_path.c_str(), dst_path.c_str()) == 0) {
     ESP_LOGI(TAG, "File moved successfully (atomic rename)");
     if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.transferred_bytes = file_size;
       this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
     }
     return true;
   }
@@ -2190,26 +2279,38 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
     if (perform_file_copy(src_path, dst_path, file_size, track_progress)) {
       if (remove(src_path.c_str()) == 0) {
         ESP_LOGI(TAG, "File move completed successfully");
-        if (track_progress)
+        if (track_progress) {
+          portENTER_CRITICAL(&this->progress_mutex_);
           this->progress_.in_progress = false;
+          portEXIT_CRITICAL(&this->progress_mutex_);
+        }
         return true;
       } else {
         ESP_LOGE(TAG, "Failed to delete source after copy: %s (errno: %d, %s)", src_path.c_str(), errno,
                  strerror(errno));
         // File was copied but source remains - still consider success
-        if (track_progress)
+        if (track_progress) {
+          portENTER_CRITICAL(&this->progress_mutex_);
           this->progress_.in_progress = false;
+          portEXIT_CRITICAL(&this->progress_mutex_);
+        }
         return true;
       }
     } else {
-      if (track_progress)
+      if (track_progress) {
+        portENTER_CRITICAL(&this->progress_mutex_);
         this->progress_.in_progress = false;
+        portEXIT_CRITICAL(&this->progress_mutex_);
+      }
     }
   } else {
     ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d, %s)", src_path.c_str(), dst_path.c_str(), errno,
              strerror(errno));
-    if (track_progress)
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+    }
   }
 
   return false;

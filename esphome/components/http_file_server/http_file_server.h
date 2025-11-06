@@ -169,6 +169,30 @@ class HttpFileServer : public Component, public AsyncWebHandler {
     uint32_t start_time{0};
   } progress_;
 
+  // Mutex to protect progress structure when accessed from multiple threads
+  portMUX_TYPE progress_mutex_ = portMUX_INITIALIZER_UNLOCKED;
+
+  // Task parameter structures for background operations
+  struct CopyTaskParams {
+    HttpFileServer *server;
+    std::string source;
+    std::string destination;
+    off_t file_size;
+    bool track_progress;
+  };
+
+  struct MoveTaskParams {
+    HttpFileServer *server;
+    std::string source;
+    std::string destination;
+    off_t file_size;
+    bool track_progress;
+  };
+
+  // Static task functions for FreeRTOS
+  static void copy_task(void *params);
+  static void move_task(void *params);
+
   // Upload progress tracking
   size_t upload_total_size_{0};
   size_t upload_received_size_{0};
