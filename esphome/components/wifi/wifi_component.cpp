@@ -1,5 +1,6 @@
 #include "wifi_component.h"
 #ifdef USE_WIFI
+#include <cassert>
 #include <cinttypes>
 
 #ifdef USE_ESP32
