@@ -9,8 +9,8 @@ static const char *const TAG = "text_sensor";
 void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj) {
   if (obj != nullptr) {
     ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-    obj->log_device_class(tag, prefix);
-    obj->log_icon(tag, prefix);
+    log_entity_device_class(tag, prefix, obj);
+    log_entity_icon(tag, prefix, obj);
   }
 }
 

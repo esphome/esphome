@@ -15,7 +15,7 @@ class Lock;
 #define LOG_LOCK(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    (obj)->log_icon(TAG, prefix); \
+    log_entity_icon(TAG, prefix, (obj)); \
     if ((obj)->traits.get_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \

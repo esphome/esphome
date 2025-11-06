@@ -45,14 +45,6 @@ void EntityBase::set_icon(const char *icon) {
 #endif
 }
 
-void EntityBase::log_icon(const char *tag, const char *prefix) const {
-#ifdef USE_ENTITY_ICON
-  if (!this->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, this->get_icon_ref().c_str());
-  }
-#endif
-}
-
 // Check if the object_id is dynamic (changes with MAC suffix)
 bool EntityBase::is_object_id_dynamic_() const {
   return !this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled();
@@ -99,12 +91,6 @@ std::string EntityBase_DeviceClass::get_device_class() {
 
 void EntityBase_DeviceClass::set_device_class(const char *device_class) { this->device_class_ = device_class; }
 
-void EntityBase_DeviceClass::log_device_class(const char *tag, const char *prefix) const {
-  if (!this->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, this->get_device_class_ref().c_str());
-  }
-}
-
 std::string EntityBase_UnitOfMeasurement::get_unit_of_measurement() {
   if (this->unit_of_measurement_ == nullptr)
     return "";
@@ -112,6 +98,21 @@ std::string EntityBase_UnitOfMeasurement::get_unit_of_measurement() {
 }
 void EntityBase_UnitOfMeasurement::set_unit_of_measurement(const char *unit_of_measurement) {
   this->unit_of_measurement_ = unit_of_measurement;
+}
+
+// Helper functions for logging entity attributes
+void log_entity_icon(const char *tag, const char *prefix, const EntityBase *obj) {
+#ifdef USE_ENTITY_ICON
+  if (!obj->get_icon_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
+  }
+#endif
+}
+
+void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass *obj) {
+  if (!obj->get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
+  }
 }
 
 }  // namespace esphome

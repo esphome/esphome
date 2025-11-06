@@ -19,7 +19,7 @@ const extern float VALVE_CLOSED;
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    (obj)->log_device_class(TAG, prefix); \
+    log_entity_device_class(TAG, prefix, (obj)); \
   }
 
 class Valve;
