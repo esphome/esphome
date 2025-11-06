@@ -956,8 +956,8 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 // API handlers
 void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
   // Get parameters from POST body
-  auto *source_param = request->getParam("source", true);
-  auto *dest_param = request->getParam("destination", true);
+  auto *source_param = request->getParam("source");
+  auto *dest_param = request->getParam("destination");
 
   if (!source_param || !dest_param) {
     ESP_LOGW(TAG, "Missing source or destination parameter");
@@ -993,8 +993,8 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
 
 void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
   // Get parameters from POST body
-  auto *source_param = request->getParam("source", true);
-  auto *dest_param = request->getParam("destination", true);
+  auto *source_param = request->getParam("source");
+  auto *dest_param = request->getParam("destination");
 
   if (!source_param || !dest_param) {
     ESP_LOGW(TAG, "Missing source or destination parameter");
@@ -1030,8 +1030,8 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 
 void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
   // Get parameters from POST body
-  auto *source_param = request->getParam("source", true);
-  auto *name_param = request->getParam("name", true);
+  auto *source_param = request->getParam("source");
+  auto *name_param = request->getParam("name");
 
   if (!source_param || !name_param) {
     ESP_LOGW(TAG, "Missing source or name parameter");
@@ -1066,7 +1066,7 @@ void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
 
 void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
   // Get parameters from POST body
-  auto *name_param = request->getParam("name", true);
+  auto *name_param = request->getParam("name");
 
   if (!name_param) {
     ESP_LOGW(TAG, "Missing name parameter");
