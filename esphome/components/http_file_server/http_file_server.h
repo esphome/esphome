@@ -84,6 +84,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   HttpFileServer(web_server_base::WebServerBase *base) : base_(base) {}
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -158,6 +159,15 @@ class HttpFileServer : public Component, public AsyncWebHandler {
 
   // Body buffer (for handleBody - stores POST request body)
   std::string body_buffer_;
+
+  // Deferred mount/unmount operations (to avoid memory corruption during HTTP response)
+  struct DeferredMountOp {
+    enum Type { NONE, MOUNT, UNMOUNT, REMOUNT };
+    Type type{NONE};
+    std::string mount_point;
+    uint32_t schedule_time{0};
+  };
+  DeferredMountOp deferred_mount_op_;
 
   // Progress tracking for long operations
   struct {
