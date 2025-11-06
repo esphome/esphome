@@ -821,7 +821,7 @@ void WiFiComponent::retry_connect() {
     if (this->trying_loaded_ap_) {
       this->trying_loaded_ap_ = false;
       this->selected_sta_index_ = 0;  // Retry from the first configured AP
-      this->num_retried_ = 0;
+      this->reset_for_next_ap_attempt_();
     } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
       // Exhausted all configured APs, fall back to full scan
       ESP_LOGW(TAG, "No more APs to try, starting scan");
@@ -831,7 +831,7 @@ void WiFiComponent::retry_connect() {
     } else {
       // Try next AP
       this->selected_sta_index_++;
-      this->num_retried_ = 0;
+      this->reset_for_next_ap_attempt_();
     }
 #else
     if (this->num_retried_ > 5) {
