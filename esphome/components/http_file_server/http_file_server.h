@@ -73,6 +73,7 @@ struct FileInfo {
   std::string name;
   std::string path;
   bool is_directory;
+  bool is_mount_point{false};
   size_t size;
   time_t modified;
 };
