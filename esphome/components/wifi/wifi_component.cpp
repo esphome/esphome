@@ -386,10 +386,8 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
 }
 
 WiFiAP WiFiComponent::get_sta() {
-  if (const WiFiAP *config = this->get_selected_sta_()) {
-    return *config;
-  }
-  return WiFiAP{};
+  const WiFiAP *config = this->get_selected_sta_();
+  return config ? *config : WiFiAP{};
 }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};  // zero-initialized - all bytes set to \0, guaranteeing null termination
