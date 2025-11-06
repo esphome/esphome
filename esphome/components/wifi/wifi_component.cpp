@@ -347,47 +347,41 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
   WiFiAP params;
 
   if (const WiFiAP *config = this->get_selected_sta_()) {
-    // Copy config data (password, manual IP, priority, EAP)
+    // Copy config data that's never overridden (password, manual IP, priority, EAP)
     params.set_password(config->get_password());
     params.set_manual_ip(config->get_manual_ip());
     params.set_priority(config->get_priority());
-
 #ifdef USE_WIFI_WPA2_EAP
     params.set_eap(config->get_eap());
 #endif
 
-    // Set network parameters from config
-    // These will be used as-is for hidden networks, or overridden by scan for visible networks
-    params.set_ssid(config->get_ssid());
-
-    if (config->get_hidden()) {
-      params.set_hidden(true);
-      // For hidden networks, clear BSSID and channel even if set in config
-      // There might be multiple hidden networks with same SSID but we can't know which is correct
-      // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
-      // Note: Scan data is never used for hidden networks (see !params.get_hidden() check below)
-      params.set_bssid(optional<bssid_t>{});
-      params.set_channel(optional<uint8_t>{});
+    // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
+    // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
+    // - It then finds which sta_[i] config matches scan_result_[0]
+    // - Sets selected_sta_index_ = i to record that matching config
+    // Therefore scan_result_[0] is guaranteed to match sta_[selected_sta_index_]
+    if (!this->scan_result_.empty()) {
+      // Use scan data - proves network is visible (not hidden)
+      const WiFiScanResult &scan = this->scan_result_[0];
+      params.set_hidden(false);
+      params.set_ssid(scan.get_ssid());
+      params.set_bssid(scan.get_bssid());
+      params.set_channel(scan.get_channel());
     } else {
-      params.set_bssid(config->get_bssid());
-      params.set_channel(config->get_channel());
+      // Use config settings
+      params.set_ssid(config->get_ssid());
+      if (config->get_hidden()) {
+        params.set_hidden(true);
+        // For hidden networks, clear BSSID and channel even if set in config
+        // There might be multiple hidden networks with same SSID but we can't know which is correct
+        // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
+        params.set_bssid(optional<bssid_t>{});
+        params.set_channel(optional<uint8_t>{});
+      } else {
+        params.set_bssid(config->get_bssid());
+        params.set_channel(config->get_channel());
+      }
     }
-  }
-
-  // Overlay scan result data (if available)
-  // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
-  // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
-  // - It then finds which sta_[i] config matches scan_result_[0]
-  // - Sets selected_sta_index_ = i to record that matching config
-  // Therefore scan_result_[0] is guaranteed to match sta_[selected_sta_index_]
-  if (!this->scan_result_.empty()) {
-    const WiFiScanResult &scan = this->scan_result_[0];
-    // If we have scan data, the network is visible (not hidden) - use it regardless of config
-    // Hidden networks don't appear in scan results, so presence of scan data is ground truth
-    params.set_hidden(false);
-    params.set_ssid(scan.get_ssid());
-    params.set_bssid(scan.get_bssid());
-    params.set_channel(scan.get_channel());
   }
 
   return params;
