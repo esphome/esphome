@@ -63,6 +63,7 @@ from helpers import (
     get_components_from_integration_fixtures,
     get_components_with_dependencies,
     get_cpp_changed_components,
+    get_target_branch,
     git_ls_files,
     parse_test_filename,
     root_path,
@@ -93,6 +94,7 @@ class Platform(StrEnum):
 # Memory impact analysis constants
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
+MEMORY_IMPACT_MAX_COMPONENTS = 40  # Max components before results become nonsensical
 
 # Platform-specific components that can only be built on their respective platforms
 # These components contain platform-specific code and cannot be cross-compiled
@@ -471,6 +473,20 @@ def detect_memory_impact_config(
         - platform: platform name for the merged build
         - use_merged_config: "true" (always use merged config)
     """
+    # Skip memory impact analysis for release* or beta* branches
+    # These branches typically contain many merged changes from dev, and building
+    # all components at once would produce nonsensical memory impact results.
+    # Memory impact analysis is most useful for focused PRs targeting dev.
+    target_branch = get_target_branch()
+    if target_branch and (
+        target_branch.startswith("release") or target_branch.startswith("beta")
+    ):
+        print(
+            f"Memory impact: Skipping analysis for target branch {target_branch} "
+            f"(would try to build all components at once, giving nonsensical results)",
+            file=sys.stderr,
+        )
+        return {"should_run": "false"}
 
     # Get actually changed files (not dependencies)
     files = changed_files(branch)
@@ -538,6 +554,17 @@ def detect_memory_impact_config(
 
     # If no components have tests, don't run memory impact
     if not components_with_tests:
+        return {"should_run": "false"}
+
+    # Skip memory impact analysis if too many components changed
+    # Building 40+ components at once produces nonsensical memory impact results
+    # This typically happens with large refactorings or batch updates
+    if len(components_with_tests) > MEMORY_IMPACT_MAX_COMPONENTS:
+        print(
+            f"Memory impact: Skipping analysis for {len(components_with_tests)} components "
+            f"(limit is {MEMORY_IMPACT_MAX_COMPONENTS}, would give nonsensical results)",
+            file=sys.stderr,
+        )
         return {"should_run": "false"}
 
     # Find common platforms supported by ALL components

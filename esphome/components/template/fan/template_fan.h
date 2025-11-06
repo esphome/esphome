@@ -6,7 +6,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateFan : public Component, public fan::Fan {
+class TemplateFan final : public Component, public fan::Fan {
  public:
   TemplateFan() {}
   void setup() override;
