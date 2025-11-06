@@ -15,7 +15,7 @@ DEPENDENCIES = ["gdk101"]
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_GDK101_ID): cv.use_id(GDK101Component),
-        cv.Optional(CONF_VIBRATIONS): binary_sensor.binary_sensor_schema(
+        cv.Required(CONF_VIBRATIONS): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_VIBRATION,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             icon=ICON_VIBRATE,
