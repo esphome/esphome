@@ -218,7 +218,7 @@ class WiFiComponent : public Component {
   WiFiComponent();
 
   void set_sta(const WiFiAP &ap);
-  WiFiAP get_sta() { return this->selected_ap_; }
+  WiFiAP get_sta();
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
   void clear_sta();
@@ -337,6 +337,19 @@ class WiFiComponent : public Component {
 #endif  // USE_WIFI_AP
 
   void print_connect_params_();
+  WiFiAP build_selected_ap_() const;
+
+  void reset_selected_ap_to_first_if_invalid_() {
+    if (this->selected_ap_index_ < 0 || this->selected_ap_index_ >= this->sta_.size()) {
+      this->selected_ap_index_ = this->sta_.empty() ? -1 : 0;
+      this->selected_scan_index_ = -1;
+    }
+  }
+
+  void start_connecting_to_selected_(bool two) {
+    WiFiAP connection_params = this->build_selected_ap_();
+    this->start_connecting(connection_params, two);
+  }
 
   void wifi_loop_();
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
@@ -396,7 +409,6 @@ class WiFiComponent : public Component {
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
-  WiFiAP selected_ap_;
   WiFiAP ap_;
   optional<float> output_power_;
   ESPPreferenceObject pref_;
@@ -417,6 +429,8 @@ class WiFiComponent : public Component {
 #ifdef USE_WIFI_FAST_CONNECT
   uint8_t ap_index_{0};
 #endif
+  int8_t selected_ap_index_{-1};
+  int8_t selected_scan_index_{-1};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
