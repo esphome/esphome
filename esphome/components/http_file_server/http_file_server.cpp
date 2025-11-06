@@ -654,48 +654,76 @@ function pollProgress() {
   console.log('[FileServer] pollProgress() START, count=' + progressPollCount);
   progressPollCount++;
 
-  console.log('[FileServer] About to fetch:', API_BASE + '/api/progress');
-  fetch(API_BASE + '/api/progress')
-    .then(response => response.json())
-    .then(data => {
-      console.log('Progress update #' + progressPollCount + ':', data);
+  const url = API_BASE + '/api/progress';
+  console.log('[FileServer] Polling:', url);
 
-      if (!data.in_progress) {
-        // Only close if we've seen progress before, or after 10 polls
-        if (hasSeenProgress || progressPollCount > 10) {
-          console.log('Operation complete, closing modal');
-          hideProgressModal();
-          location.reload();
-        } else {
-          console.log('Waiting for operation to start...');
-        }
-        return;
+  // Use XMLHttpRequest instead of fetch for better compatibility with ESP32 web server
+  const xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.timeout = 5000; // 5 second timeout
+
+  xhr.onload = function() {
+    console.log('[FileServer] XHR onload, status:', xhr.status, 'response:', xhr.responseText);
+
+    if (xhr.status !== 200) {
+      console.error('[FileServer] Bad status:', xhr.status);
+      return;
+    }
+
+    let data;
+    try {
+      data = JSON.parse(xhr.responseText);
+    } catch (e) {
+      console.error('[FileServer] JSON parse error:', e, 'text:', xhr.responseText);
+      return;
+    }
+
+    console.log('[FileServer] Progress update #' + progressPollCount + ':', data);
+
+    if (!data.in_progress) {
+      // Only close if we've seen progress before, or after 10 polls
+      if (hasSeenProgress || progressPollCount > 10) {
+        console.log('[FileServer] Operation complete, closing modal');
+        hideProgressModal();
+        location.reload();
+      } else {
+        console.log('[FileServer] Waiting for operation to start...');
       }
+      return;
+    }
 
-      // Mark that we've seen progress
-      hasSeenProgress = true;
+    // Mark that we've seen progress
+    hasSeenProgress = true;
 
-      const bar = document.getElementById('progressBar');
-      const details = document.getElementById('progressDetails');
+    const bar = document.getElementById('progressBar');
+    const details = document.getElementById('progressDetails');
 
-      const percentage = data.percentage || 0;
-      bar.style.width = percentage + '%';
-      bar.textContent = percentage.toFixed(1) + '%';
+    const percentage = data.percentage || 0;
+    bar.style.width = percentage + '%';
+    bar.textContent = percentage.toFixed(1) + '%';
 
-      let detailText = formatBytes(data.transferred_bytes) + ' / ' + formatBytes(data.total_bytes);
-      if (data.elapsed_ms) {
-        detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
-      }
-      if (data.remaining_ms) {
-        detailText += ' • Remaining: ' + formatTime(data.remaining_ms);
-      }
+    let detailText = formatBytes(data.transferred_bytes) + ' / ' + formatBytes(data.total_bytes);
+    if (data.elapsed_ms) {
+      detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
+    }
+    if (data.remaining_ms) {
+      detailText += ' • Remaining: ' + formatTime(data.remaining_ms);
+    }
 
-      details.textContent = detailText;
-      console.log('Updated progress bar:', percentage.toFixed(1) + '%');
-    })
-    .catch(error => {
-      console.error('Progress polling error:', error);
-    });
+    details.textContent = detailText;
+    console.log('[FileServer] Updated progress bar:', percentage.toFixed(1) + '%');
+  };
+
+  xhr.onerror = function() {
+    console.error('[FileServer] XHR network error');
+  };
+
+  xhr.ontimeout = function() {
+    console.error('[FileServer] XHR timeout after 5s');
+  };
+
+  xhr.send();
+  console.log('[FileServer] XHR sent');
 }
 
 function startProgressPolling() {
@@ -1967,6 +1995,16 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
   size_t total_bytes = this->progress_.total_bytes;
   size_t transferred_bytes = this->progress_.transferred_bytes;
   uint32_t start_time = this->progress_.start_time;
+
+  // Auto-clear stuck operations (timeout after 5 minutes with no progress updates)
+  if (in_progress && start_time > 0) {
+    uint32_t elapsed_ms = millis() - start_time;
+    if (elapsed_ms > 300000) {  // 5 minutes
+      ESP_LOGW(TAG, "Auto-clearing stuck operation: %s (elapsed: %u ms)", operation.c_str(), elapsed_ms);
+      this->progress_.in_progress = false;
+      in_progress = false;
+    }
+  }
   portEXIT_CRITICAL(&this->progress_mutex_);
 
   // Build JSON response with progress information
