@@ -82,6 +82,8 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
   } else if (uri.find(this->url_prefix_ + "/api/mkdir") == 0 && request->method() == HTTP_POST) {
     ESP_LOGD(TAG, "API MKDIR endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_mkdir(request);
+  } else if (uri.find(this->url_prefix_ + "/api/progress") == 0 && request->method() == HTTP_GET) {
+    this->handle_api_progress(request);
   } else if (request->method() == HTTP_GET) {
     // Handle GET request (directory listing or file download)
     std::string filepath = this->uri_to_filepath(uri);
@@ -1026,10 +1028,24 @@ bool HttpFileServer::parse_json_request(const uint8_t *body, size_t body_len, Ap
 }
 
 // File operation helpers (reused from WebDAV logic)
-bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size) {
+bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                                       bool track_progress) {
+  // Initialize progress tracking if requested
+  if (track_progress) {
+    this->progress_.operation = "copy";
+    this->progress_.source = src_path;
+    this->progress_.destination = dst_path;
+    this->progress_.total_bytes = file_size;
+    this->progress_.transferred_bytes = 0;
+    this->progress_.in_progress = true;
+    this->progress_.start_time = millis();
+  }
+
   FILE *src = fopen(src_path.c_str(), "rb");
   if (!src) {
     ESP_LOGE(TAG, "Failed to open source file: %s (errno: %d, %s)", src_path.c_str(), errno, strerror(errno));
+    if (track_progress)
+      this->progress_.in_progress = false;
     return false;
   }
 
@@ -1037,6 +1053,8 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
   if (!dst) {
     ESP_LOGE(TAG, "Failed to open destination file: %s (errno: %d, %s)", dst_path.c_str(), errno, strerror(errno));
     fclose(src);
+    if (track_progress)
+      this->progress_.in_progress = false;
     return false;
   }
 
@@ -1056,6 +1074,11 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       break;
     }
     total_copied += bytes_written;
+
+    // Update progress
+    if (track_progress) {
+      this->progress_.transferred_bytes = total_copied;
+    }
 
     // Log progress for large files
     if (total_copied % (FILE_BUFFER_SIZE * 64) == 0 && file_size > 0) {

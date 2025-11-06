@@ -140,6 +140,17 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   // Body buffer (for handleBody - stores POST request body)
   std::string body_buffer_;
 
+  // Progress tracking for long operations
+  struct {
+    std::string operation;  // "copy" or "move"
+    std::string source;
+    std::string destination;
+    size_t total_bytes{0};
+    size_t transferred_bytes{0};
+    bool in_progress{false};
+    uint32_t start_time{0};
+  } progress_;
+
   // Helper methods
   std::string uri_to_filepath(const std::string &uri);
   std::string url_decode(const std::string &src);
@@ -160,6 +171,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   void handle_api_move(AsyncWebServerRequest *request);
   void handle_api_rename(AsyncWebServerRequest *request);
   void handle_api_mkdir(AsyncWebServerRequest *request);
+  void handle_api_progress(AsyncWebServerRequest *request);
 
   // JSON parsing helper
   struct ApiRequest {
@@ -169,9 +181,11 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   };
   bool parse_json_request(const uint8_t *body, size_t body_len, ApiRequest &req);
 
-  // File operation helpers (reused from WebDAV logic)
-  bool perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size);
-  bool perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size);
+  // File operation helpers (with progress tracking)
+  bool perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                         bool track_progress = false);
+  bool perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                         bool track_progress = false);
 };
 
 }  // namespace http_file_server
