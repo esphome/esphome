@@ -1203,8 +1203,12 @@ void HttpFileServer::handle_directory_listing(AsyncWebServerRequest *request, co
   html += "</tbody></table>";
   html += this->generate_html_footer();
 
-  // Send response
-  request->send(200, "text/html", html.c_str());
+  // Send response with cache-busting headers to ensure browser gets latest JS
+  AsyncWebServerResponse *response = request->beginResponse(200, "text/html", html);
+  response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  response->addHeader("Pragma", "no-cache");
+  response->addHeader("Expires", "0");
+  request->send(response);
 }
 
 void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const std::string &filepath) {
