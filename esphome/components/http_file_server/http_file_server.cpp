@@ -661,8 +661,8 @@ function copy_file(source) {
 
   fetch(API_BASE + '/api/copy', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({source: source, destination: destination})
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination)
   })
     .then(response => response.json())
     .then(data => {
@@ -688,8 +688,8 @@ function move_file(source) {
 
   fetch(API_BASE + '/api/move', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({source: source, destination: destination})
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination)
   })
     .then(response => response.json())
     .then(data => {
@@ -712,8 +712,8 @@ function rename_file(source) {
 
   fetch(API_BASE + '/api/rename', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({source: source, name: newName})
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'source=' + encodeURIComponent(source) + '&name=' + encodeURIComponent(newName)
   })
     .then(response => response.json())
     .then(data => {
@@ -734,8 +734,8 @@ function create_directory() {
 
   fetch(API_BASE + '/api/mkdir', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name: fullPath})
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'name=' + encodeURIComponent(fullPath)
   })
     .then(response => response.json())
     .then(data => {
@@ -955,30 +955,28 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
 // API handlers
 void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
-  // Read POST body manually since AsyncWebServer doesn't handle application/json automatically
-  size_t content_len = request->contentLength();
-  if (content_len == 0) {
+  // Check if we have body data (from handleBody callback)
+  // If empty, check if there's content-length and we need to wait for body
+  if (this->body_buffer_.empty() && request->contentLength() > 0) {
+    // Body not received yet - this shouldn't happen if handleBody works correctly
+    ESP_LOGW(TAG, "Body buffer empty but content-length is %u", request->contentLength());
+    request->send(400, "application/json", "{\"error\":\"Request body not received\"}");
+    return;
+  }
+
+  if (this->body_buffer_.empty()) {
     request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
     return;
   }
 
-  std::string body;
-  body.resize(content_len);
-  httpd_req_t *req = *request;
-  int ret = httpd_req_recv(req, &body[0], content_len);
-  if (ret <= 0) {
-    ESP_LOGE(TAG, "Failed to receive POST body: %d", ret);
-    request->send(400, "application/json", "{\"error\":\"Failed to read request body\"}");
-    return;
-  }
-  body.resize(ret);
+  ESP_LOGD(TAG, "Parsing form data (%zu bytes): %s", this->body_buffer_.size(), this->body_buffer_.c_str());
 
-  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(body.c_str());
-  size_t body_len = body.length();
+  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
+  size_t body_len = this->body_buffer_.length();
 
   ApiRequest api_req;
   if (!this->parse_json_request(body_data, body_len, api_req)) {
-    request->send(400, "application/json", "{\"error\":\"Invalid JSON format\"}");
+    request->send(400, "application/json", "{\"error\":\"Invalid form data\"}");
     return;
   }
 
@@ -1011,29 +1009,18 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
-  size_t content_len = request->contentLength();
-  if (content_len == 0) {
+  // Use body buffer populated by handleBody callback
+  if (this->body_buffer_.empty()) {
     request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
     return;
   }
 
-  std::string body;
-  body.resize(content_len);
-  httpd_req_t *req = *request;
-  int ret = httpd_req_recv(req, &body[0], content_len);
-  if (ret <= 0) {
-    ESP_LOGE(TAG, "Failed to receive POST body: %d", ret);
-    request->send(400, "application/json", "{\"error\":\"Failed to read request body\"}");
-    return;
-  }
-  body.resize(ret);
-
-  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(body.c_str());
-  size_t body_len = body.length();
+  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
+  size_t body_len = this->body_buffer_.length();
 
   ApiRequest api_req;
   if (!this->parse_json_request(body_data, body_len, api_req)) {
-    request->send(400, "application/json", "{\"error\":\"Invalid JSON format\"}");
+    request->send(400, "application/json", "{\"error\":\"Invalid form data\"}");
     return;
   }
 
@@ -1066,29 +1053,18 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
-  size_t content_len = request->contentLength();
-  if (content_len == 0) {
+  // Use body buffer populated by handleBody callback
+  if (this->body_buffer_.empty()) {
     request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
     return;
   }
 
-  std::string body;
-  body.resize(content_len);
-  httpd_req_t *req = *request;
-  int ret = httpd_req_recv(req, &body[0], content_len);
-  if (ret <= 0) {
-    ESP_LOGE(TAG, "Failed to receive POST body: %d", ret);
-    request->send(400, "application/json", "{\"error\":\"Failed to read request body\"}");
-    return;
-  }
-  body.resize(ret);
-
-  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(body.c_str());
-  size_t body_len = body.length();
+  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
+  size_t body_len = this->body_buffer_.length();
 
   ApiRequest api_req;
   if (!this->parse_json_request(body_data, body_len, api_req)) {
-    request->send(400, "application/json", "{\"error\":\"Invalid JSON format\"}");
+    request->send(400, "application/json", "{\"error\":\"Invalid form data\"}");
     return;
   }
 
@@ -1120,29 +1096,18 @@ void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
-  size_t content_len = request->contentLength();
-  if (content_len == 0) {
+  // Use body buffer populated by handleBody callback
+  if (this->body_buffer_.empty()) {
     request->send(400, "application/json", "{\"error\":\"Missing request body\"}");
     return;
   }
 
-  std::string body;
-  body.resize(content_len);
-  httpd_req_t *req = *request;
-  int ret = httpd_req_recv(req, &body[0], content_len);
-  if (ret <= 0) {
-    ESP_LOGE(TAG, "Failed to receive POST body: %d", ret);
-    request->send(400, "application/json", "{\"error\":\"Failed to read request body\"}");
-    return;
-  }
-  body.resize(ret);
-
-  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(body.c_str());
-  size_t body_len = body.length();
+  const uint8_t *body_data = reinterpret_cast<const uint8_t *>(this->body_buffer_.c_str());
+  size_t body_len = this->body_buffer_.length();
 
   ApiRequest api_req;
   if (!this->parse_json_request(body_data, body_len, api_req)) {
-    request->send(400, "application/json", "{\"error\":\"Invalid JSON format\"}");
+    request->send(400, "application/json", "{\"error\":\"Invalid form data\"}");
     return;
   }
 
@@ -1202,46 +1167,39 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
   request->send(200, "application/json", json.c_str());
 }
 
-// JSON parsing helper
+// Form data parsing helper
 bool HttpFileServer::parse_json_request(const uint8_t *body, size_t body_len, ApiRequest &req) {
-  // Simple JSON parser for our specific format
-  // Format: {"source": "/path/to/file", "destination": "/path/to/dest", "name": "newname"}
-  std::string json((const char *) body, body_len);
+  // Parse URL-encoded form data
+  // Format: source=/path/to/file&destination=/path/to/dest&name=newname
+  std::string form_data((const char *) body, body_len);
 
-  // Extract source
-  size_t source_pos = json.find("\"source\"");
-  if (source_pos != std::string::npos) {
-    size_t value_start = json.find('\"', source_pos + 8);
-    if (value_start != std::string::npos) {
-      size_t value_end = json.find('\"', value_start + 1);
-      if (value_end != std::string::npos) {
-        req.source = json.substr(value_start + 1, value_end - value_start - 1);
+  // Split by '&' to get key=value pairs
+  size_t pos = 0;
+  while (pos < form_data.length()) {
+    size_t amp_pos = form_data.find('&', pos);
+    if (amp_pos == std::string::npos) {
+      amp_pos = form_data.length();
+    }
+
+    std::string pair = form_data.substr(pos, amp_pos - pos);
+    size_t eq_pos = pair.find('=');
+    if (eq_pos != std::string::npos) {
+      std::string key = pair.substr(0, eq_pos);
+      std::string value = pair.substr(eq_pos + 1);
+
+      // URL decode the value
+      value = this->url_decode(value);
+
+      if (key == "source") {
+        req.source = value;
+      } else if (key == "destination") {
+        req.destination = value;
+      } else if (key == "name") {
+        req.name = value;
       }
     }
-  }
 
-  // Extract destination
-  size_t dest_pos = json.find("\"destination\"");
-  if (dest_pos != std::string::npos) {
-    size_t value_start = json.find('\"', dest_pos + 13);
-    if (value_start != std::string::npos) {
-      size_t value_end = json.find('\"', value_start + 1);
-      if (value_end != std::string::npos) {
-        req.destination = json.substr(value_start + 1, value_end - value_start - 1);
-      }
-    }
-  }
-
-  // Extract name
-  size_t name_pos = json.find("\"name\"");
-  if (name_pos != std::string::npos) {
-    size_t value_start = json.find('\"', name_pos + 6);
-    if (value_start != std::string::npos) {
-      size_t value_end = json.find('\"', value_start + 1);
-      if (value_end != std::string::npos) {
-        req.name = json.substr(value_start + 1, value_end - value_start - 1);
-      }
-    }
+    pos = amp_pos + 1;
   }
 
   return !req.source.empty() || !req.destination.empty() || !req.name.empty();
