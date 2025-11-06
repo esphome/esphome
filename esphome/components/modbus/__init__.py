@@ -37,10 +37,10 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.GenerateID(): cv.declare_id(ModbusClient),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
                 cv.Optional(
-                    CONF_SEND_WAIT_TIME, default="250ms"
+                    CONF_SEND_WAIT_TIME, default="2000ms"
                 ): cv.positive_time_period_milliseconds,
                 cv.Optional(
-                    CONF_TURNAROUND_TIME, default="100ms"
+                    CONF_TURNAROUND_TIME, default="600ms"
                 ): cv.positive_time_period_milliseconds,
             }
         )

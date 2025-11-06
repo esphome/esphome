@@ -74,7 +74,7 @@ class ModbusClient : public Modbus {
   void process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void send_next_frame_();
 
-  uint16_t send_wait_time_{250};
+  uint16_t send_wait_time_{2000};
   std::optional<ModbusDeviceCommand> waiting_for_response_;
 
   // std::queue is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
