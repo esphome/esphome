@@ -7,10 +7,18 @@ namespace text_sensor {
 static const char *const TAG = "text_sensor";
 
 void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj) {
-  if (obj != nullptr) {
-    ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-    obj->log_device_class(tag, prefix);
-    obj->log_icon(tag, prefix);
+  if (obj == nullptr) {
+    return;
+  }
+
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+
+  if (!obj->get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
+  }
+
+  if (!obj->get_icon_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
   }
 }
 

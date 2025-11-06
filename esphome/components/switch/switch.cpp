@@ -91,14 +91,18 @@ void log_switch(const char *tag, const char *prefix, const char *type, Switch *o
                   LOG_STR_ARG(onoff));
 
     // Add optional fields separately
-    obj->log_icon(tag, prefix);
+    if (!obj->get_icon_ref().empty()) {
+      ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
+    }
     if (obj->assumed_state()) {
       ESP_LOGCONFIG(tag, "%s  Assumed State: YES", prefix);
     }
     if (obj->is_inverted()) {
       ESP_LOGCONFIG(tag, "%s  Inverted: YES", prefix);
     }
-    obj->log_device_class(tag, prefix);
+    if (!obj->get_device_class_ref().empty()) {
+      ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
+    }
   }
 }
 

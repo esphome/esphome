@@ -45,14 +45,6 @@ void EntityBase::set_icon(const char *icon) {
 #endif
 }
 
-void EntityBase::log_icon(const char *tag, const char *prefix) const {
-#ifdef USE_ENTITY_ICON
-  if (!this->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, this->get_icon_ref().c_str());
-  }
-#endif
-}
-
 // Check if the object_id is dynamic (changes with MAC suffix)
 bool EntityBase::is_object_id_dynamic_() const {
   return !this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled();
@@ -98,12 +90,6 @@ std::string EntityBase_DeviceClass::get_device_class() {
 }
 
 void EntityBase_DeviceClass::set_device_class(const char *device_class) { this->device_class_ = device_class; }
-
-void EntityBase_DeviceClass::log_device_class(const char *tag, const char *prefix) const {
-  if (!this->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, this->get_device_class_ref().c_str());
-  }
-}
 
 std::string EntityBase_UnitOfMeasurement::get_unit_of_measurement() {
   if (this->unit_of_measurement_ == nullptr)
