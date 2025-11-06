@@ -1017,14 +1017,15 @@ esp_err_t WebDAVServer::handle_move(httpd_req_t *req) {
       return ESP_OK;
     }
 
-    // Perform synchronous cross-mount move with keepalive (HTTP server already handles multi-client via tasks)
-    // Pass req to enable chunked progress updates during copy+delete
-    if (server->perform_file_move(filepath, dest_filepath, src_stat.st_size, "", req)) {
-      // Response already sent via chunked transfer in perform_file_copy
-      // No need to send response here
+    // Perform synchronous cross-mount move (HTTP server already handles multi-client via per-request tasks)
+    // Per RFC 4918, COPY/MOVE are synchronous operations - block until complete, then return status
+    if (server->perform_file_move(filepath, dest_filepath, src_stat.st_size, "")) {
+      ESP_LOGI(TAG, "Cross-mount move completed successfully");
+      httpd_resp_set_status(req, "201 Created");
+      httpd_resp_send(req, "Resource moved", -1);
     } else {
-      // Only send error if not already handled by chunked transfer
-      // perform_file_copy sends final chunk on both success and failure
+      ESP_LOGE(TAG, "Cross-mount move failed");
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Move operation failed");
     }
   } else {
     // Other rename error
@@ -1068,14 +1069,15 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  // Perform synchronous copy with keepalive (HTTP server already handles multi-client via tasks)
-  // Pass req to enable chunked progress updates during copy
-  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size, "", req)) {
-    // Response already sent via chunked transfer in perform_file_copy
-    // No need to send response here
+  // Perform synchronous copy (HTTP server already handles multi-client via per-request tasks)
+  // Per RFC 4918, COPY/MOVE are synchronous operations - block until complete, then return status
+  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size, "")) {
+    ESP_LOGI(TAG, "Copy completed successfully");
+    httpd_resp_set_status(req, "201 Created");
+    httpd_resp_send(req, "Resource copied", -1);
   } else {
-    // Only send error if not already handled by chunked transfer
-    // perform_file_copy sends final chunk on both success and failure
+    ESP_LOGE(TAG, "Copy failed");
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy operation failed");
   }
 
   return ESP_OK;
