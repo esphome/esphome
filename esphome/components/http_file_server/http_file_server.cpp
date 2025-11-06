@@ -1350,9 +1350,14 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     // Get raw httpd_req_t
     httpd_req_t *req = static_cast<httpd_req_t *>(*request);
 
-    // Set response headers
+    // Set response headers including Content-Length so browser recognizes download
     httpd_resp_set_type(req, mime_type.c_str());
     httpd_resp_set_hdr(req, "Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
+
+    // Set Content-Length header - critical for browser to recognize download and show progress
+    char content_length_str[32];
+    snprintf(content_length_str, sizeof(content_length_str), "%zu", file_size);
+    httpd_resp_set_hdr(req, "Content-Length", content_length_str);
 
     // Allocate chunk buffer on heap
     auto buffer = std::make_unique<uint8_t[]>(CHUNK_SIZE);
@@ -1386,6 +1391,9 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
         ESP_LOGD(TAG, "Download progress: %zu / %zu bytes (%.1f%%)", total_sent, file_size,
                  (float) total_sent / file_size * 100.0f);
       }
+
+      // Yield briefly to other tasks to prevent blocking too long
+      vTaskDelay(1);  // 1 tick = ~10ms, allows other tasks to run
     }
 
     fclose(file);
@@ -1419,10 +1427,16 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
 
   // Build full upload path
   std::string upload_path = Path::join(dir_path, filename);
-  ESP_LOGI(TAG, "Starting upload: %s", upload_path.c_str());
 
-  // Initialize progress tracking (thread-safe)
+  // Atomically check and set in_progress flag to prevent concurrent uploads
   portENTER_CRITICAL(&this->progress_mutex_);
+  if (this->progress_.in_progress) {
+    portEXIT_CRITICAL(&this->progress_mutex_);
+    ESP_LOGW(TAG, "Upload rejected: another operation is already in progress (%s)", upload_path.c_str());
+    request->send(409, "text/plain", "Another upload/copy/move is already in progress. Please wait.");
+    return;
+  }
+  // Set progress tracking immediately while still in critical section to prevent race
   this->progress_.operation = "upload";
   this->progress_.source = filename.c_str();
   this->progress_.destination = upload_path;
@@ -1431,6 +1445,9 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   this->progress_.in_progress = true;
   this->progress_.start_time = millis();
   portEXIT_CRITICAL(&this->progress_mutex_);
+
+  ESP_LOGI(TAG, "Starting upload: %s (%zu bytes, handler address: %p)", upload_path.c_str(),
+           request->contentLength(), (void *) this);
 
   // Open file for writing
   FILE *file = fopen(upload_path.c_str(), "wb");
