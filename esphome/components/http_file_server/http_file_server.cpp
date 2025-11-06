@@ -649,6 +649,7 @@ function formatTime(ms) {
 
 let progressPollCount = 0;
 let hasSeenProgress = false;
+let consecutiveTimeouts = 0;
 
 function pollProgress() {
   console.log('[FileServer] pollProgress() START, count=' + progressPollCount);
@@ -664,6 +665,9 @@ function pollProgress() {
 
   xhr.onload = function() {
     console.log('[FileServer] XHR onload, status:', xhr.status, 'response:', xhr.responseText);
+
+    // Reset timeout counter on successful response
+    consecutiveTimeouts = 0;
 
     if (xhr.status !== 200) {
       console.error('[FileServer] Bad status:', xhr.status);
@@ -716,14 +720,28 @@ function pollProgress() {
 
   xhr.onerror = function() {
     console.error('[FileServer] XHR network error');
+    consecutiveTimeouts++;
+    checkTimeoutLimit();
   };
 
   xhr.ontimeout = function() {
-    console.error('[FileServer] XHR timeout after 5s');
+    console.error('[FileServer] XHR timeout after 5s (consecutive: ' + (consecutiveTimeouts + 1) + ')');
+    consecutiveTimeouts++;
+    checkTimeoutLimit();
   };
 
   xhr.send();
   console.log('[FileServer] XHR sent');
+}
+
+function checkTimeoutLimit() {
+  // Close modal after 5 consecutive timeouts (25 seconds of no responses)
+  // This handles the case where upload is blocking the server from responding
+  if (consecutiveTimeouts >= 5) {
+    console.warn('[FileServer] Too many consecutive timeouts (' + consecutiveTimeouts + '), closing modal');
+    alert('Progress tracking unavailable - the operation may still be running in the background. Please refresh the page in a few moments.');
+    hideProgressModal();
+  }
 }
 
 function startProgressPolling() {
@@ -731,6 +749,7 @@ function startProgressPolling() {
   // Reset progress tracking
   progressPollCount = 0;
   hasSeenProgress = false;
+  consecutiveTimeouts = 0;
 
   if (progressPollInterval) {
     clearInterval(progressPollInterval);
@@ -2035,8 +2054,9 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
 
     // Estimate remaining time if we have progress
     if (transferred_bytes > 0 && total_bytes > 0) {
-      uint32_t total_estimated_ms = (elapsed_ms * total_bytes) / transferred_bytes;
-      uint32_t remaining_ms = total_estimated_ms - elapsed_ms;
+      // Use 64-bit arithmetic to avoid overflow when multiplying elapsed_ms * total_bytes
+      uint64_t total_estimated_ms = ((uint64_t) elapsed_ms * total_bytes) / transferred_bytes;
+      uint64_t remaining_ms = total_estimated_ms > elapsed_ms ? total_estimated_ms - elapsed_ms : 0;
       json += ",\"remaining_ms\":" + std::to_string(remaining_ms);
     }
 
@@ -2048,7 +2068,9 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
 
   json += "}";
 
+  ESP_LOGD(TAG, "Sending progress JSON response (%zu bytes): %s", json.length(), json.c_str());
   request->send(200, "application/json", json.c_str());
+  ESP_LOGD(TAG, "Progress response sent");
 }
 
 void HttpFileServer::handle_api_exists(AsyncWebServerRequest *request) {
