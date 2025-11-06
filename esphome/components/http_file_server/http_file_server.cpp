@@ -725,7 +725,7 @@ async function copy_file(source) {
   if (exists) {
     const choice = confirm('File already exists. Click OK to overwrite, or Cancel to change the filename.');
     if (!choice) {
-      // User wants to change filename - suggest new name with " (1)"
+      // User wants to change filename - suggest new name with (1) appended
       const suggested = suggestNewFilename(destination);
       destination = prompt('Enter new destination path:', suggested);
       if (!destination) return;
@@ -767,7 +767,7 @@ async function move_file(source) {
   if (exists) {
     const choice = confirm('File already exists. Click OK to overwrite, or Cancel to change the filename.');
     if (!choice) {
-      // User wants to change filename - suggest new name with " (1)"
+      // User wants to change filename - suggest new name with (1) appended
       const suggested = suggestNewFilename(destination);
       destination = prompt('Enter new destination path:', suggested);
       if (!destination) return;
