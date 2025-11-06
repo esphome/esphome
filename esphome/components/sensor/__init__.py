@@ -369,11 +369,6 @@ def sensor_schema(
     return _SENSOR_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-SENSOR_SCHEMA = sensor_schema()
-SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("sensor"))
-
-
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
 async def offset_filter_to_code(config, filter_id):
     template_ = await cg.templatable(config, [], float)

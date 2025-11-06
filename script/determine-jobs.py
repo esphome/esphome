@@ -43,12 +43,14 @@ from enum import StrEnum
 from functools import cache
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 from typing import Any
 
 from helpers import (
     CPP_FILE_EXTENSIONS,
+    ESPHOME_TESTS_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
     core_changed,
@@ -61,15 +63,21 @@ from helpers import (
     get_components_from_integration_fixtures,
     get_components_with_dependencies,
     get_cpp_changed_components,
+    get_target_branch,
     git_ls_files,
     parse_test_filename,
     root_path,
 )
+from split_components_for_ci import create_intelligent_batches
 
 # Threshold for splitting clang-tidy jobs
 # For small PRs (< 65 files), use nosplit for faster CI
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
+
+# Component test batch size (weighted)
+# Isolated components count as 10x, groupable components count as 1x
+COMPONENT_TEST_BATCH_SIZE = 40
 
 
 class Platform(StrEnum):
@@ -86,6 +94,23 @@ class Platform(StrEnum):
 # Memory impact analysis constants
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
+MEMORY_IMPACT_MAX_COMPONENTS = 40  # Max components before results become nonsensical
+
+# Platform-specific components that can only be built on their respective platforms
+# These components contain platform-specific code and cannot be cross-compiled
+# Regular components (wifi, logger, api, etc.) are cross-platform and not listed here
+PLATFORM_SPECIFIC_COMPONENTS = frozenset(
+    {
+        "esp32",  # ESP32 platform implementation
+        "esp8266",  # ESP8266 platform implementation
+        "rp2040",  # Raspberry Pi Pico / RP2040 platform implementation
+        "bk72xx",  # Beken BK72xx platform implementation (uses LibreTiny)
+        "rtl87xx",  # Realtek RTL87xx platform implementation (uses LibreTiny)
+        "ln882x",  # Winner Micro LN882x platform implementation (uses LibreTiny)
+        "host",  # Host platform (for testing on development machine)
+        "nrf52",  # Nordic nRF52 platform implementation
+    }
+)
 
 # Platform preference order for memory impact analysis
 # This order is used when no platform-specific hints are detected from filenames
@@ -448,6 +473,20 @@ def detect_memory_impact_config(
         - platform: platform name for the merged build
         - use_merged_config: "true" (always use merged config)
     """
+    # Skip memory impact analysis for release* or beta* branches
+    # These branches typically contain many merged changes from dev, and building
+    # all components at once would produce nonsensical memory impact results.
+    # Memory impact analysis is most useful for focused PRs targeting dev.
+    target_branch = get_target_branch()
+    if target_branch and (
+        target_branch.startswith("release") or target_branch.startswith("beta")
+    ):
+        print(
+            f"Memory impact: Skipping analysis for target branch {target_branch} "
+            f"(would try to build all components at once, giving nonsensical results)",
+            file=sys.stderr,
+        )
+        return {"should_run": "false"}
 
     # Get actually changed files (not dependencies)
     files = changed_files(branch)
@@ -517,6 +556,17 @@ def detect_memory_impact_config(
     if not components_with_tests:
         return {"should_run": "false"}
 
+    # Skip memory impact analysis if too many components changed
+    # Building 40+ components at once produces nonsensical memory impact results
+    # This typically happens with large refactorings or batch updates
+    if len(components_with_tests) > MEMORY_IMPACT_MAX_COMPONENTS:
+        print(
+            f"Memory impact: Skipping analysis for {len(components_with_tests)} components "
+            f"(limit is {MEMORY_IMPACT_MAX_COMPONENTS}, would give nonsensical results)",
+            file=sys.stderr,
+        )
+        return {"should_run": "false"}
+
     # Find common platforms supported by ALL components
     # This ensures we can build all components together in a merged config
     common_platforms = set(MEMORY_IMPACT_PLATFORM_PREFERENCE)
@@ -561,6 +611,20 @@ def detect_memory_impact_config(
         )
         platform = _select_platform_by_count(platform_counts)
 
+    # Filter out platform-specific components that are incompatible with selected platform
+    # Platform components (esp32, esp8266, rp2040, etc.) can only build on their own platform
+    # Other components (wifi, logger, etc.) are cross-platform and can build anywhere
+    compatible_components = [
+        component
+        for component in components_with_tests
+        if component not in PLATFORM_SPECIFIC_COMPONENTS
+        or platform in component_platforms_map.get(component, set())
+    ]
+
+    # If no components are compatible with the selected platform, don't run
+    if not compatible_components:
+        return {"should_run": "false"}
+
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
     print(f"  Changed components: {sorted(changed_component_set)}", file=sys.stderr)
@@ -572,10 +636,11 @@ def detect_memory_impact_config(
     print(f"  Platform hints from filenames: {platform_hints}", file=sys.stderr)
     print(f"  Common platforms: {sorted(common_platforms)}", file=sys.stderr)
     print(f"  Selected platform: {platform}", file=sys.stderr)
+    print(f"  Compatible components: {compatible_components}", file=sys.stderr)
 
     return {
         "should_run": "true",
-        "components": components_with_tests,
+        "components": compatible_components,
         "platform": platform,
         "use_merged_config": "true",
     }
@@ -686,6 +751,22 @@ def main() -> None:
     # Determine which C++ unit tests to run
     cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
 
+    # Split components into batches for CI testing
+    # This intelligently groups components with similar bus configurations
+    component_test_batches: list[str]
+    if changed_components_with_tests:
+        tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+        batches, _ = create_intelligent_batches(
+            components=changed_components_with_tests,
+            tests_dir=tests_dir,
+            batch_size=COMPONENT_TEST_BATCH_SIZE,
+            directly_changed=directly_changed_with_tests,
+        )
+        # Convert batches to space-separated strings for CI matrix
+        component_test_batches = [" ".join(batch) for batch in batches]
+    else:
+        component_test_batches = []
+
     output: dict[str, Any] = {
         "integration_tests": run_integration,
         "clang_tidy": run_clang_tidy,
@@ -703,6 +784,7 @@ def main() -> None:
         "memory_impact": memory_impact,
         "cpp_unit_tests_run_all": cpp_run_all,
         "cpp_unit_tests_components": cpp_components,
+        "component_test_batches": component_test_batches,
     }
 
     # Output as JSON

@@ -129,7 +129,7 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
     this->remote_transmission_request_ = remote_transmission_request;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
     auto use_extended_id =
         this->use_extended_id_.has_value() ? *this->use_extended_id_ : this->parent_->use_extended_id_;

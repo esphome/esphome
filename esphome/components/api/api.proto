@@ -425,7 +425,7 @@ message ListEntitiesFanResponse {
   bool disabled_by_default = 9;
   string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 11;
-  repeated string supported_preset_modes = 12 [(container_pointer) = "std::set"];
+  repeated string supported_preset_modes = 12 [(container_pointer_no_template) = "std::vector<const char *>"];
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
 }
 // Deprecated in API version 1.6 - only used in deprecated fields
@@ -1000,9 +1000,9 @@ message ListEntitiesClimateResponse {
   bool supports_action = 12; // Deprecated: use feature_flags
   repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer_no_template) = "climate::ClimateFanModeMask"];
   repeated ClimateSwingMode supported_swing_modes = 14 [(container_pointer_no_template) = "climate::ClimateSwingModeMask"];
-  repeated string supported_custom_fan_modes = 15 [(container_pointer) = "std::vector"];
+  repeated string supported_custom_fan_modes = 15 [(container_pointer_no_template) = "std::vector<const char *>"];
   repeated ClimatePreset supported_presets = 16 [(container_pointer_no_template) = "climate::ClimatePresetMask"];
-  repeated string supported_custom_presets = 17 [(container_pointer) = "std::vector"];
+  repeated string supported_custom_presets = 17 [(container_pointer_no_template) = "std::vector<const char *>"];
   bool disabled_by_default = 18;
   string icon = 19 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 20;
@@ -1143,7 +1143,7 @@ message ListEntitiesSelectResponse {
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
-  repeated string options = 6 [(container_pointer) = "std::vector"];
+  repeated string options = 6 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];

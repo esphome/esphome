@@ -54,6 +54,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 #if defined(USE_ESP32)
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
   void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
+  void set_non_blocking(bool non_blocking) { this->non_blocking_ = non_blocking; }
 #endif
 
   Trigger<> *get_transmit_trigger() const { return this->transmit_trigger_; };
@@ -74,6 +75,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
 #ifdef USE_ESP32
   void configure_rmt_();
+  void wait_for_rmt_();
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
   RemoteTransmitterComponentStore store_{};
@@ -90,6 +92,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   esp_err_t error_code_{ESP_OK};
   std::string error_string_{""};
   bool inverted_{false};
+  bool non_blocking_{false};
 #endif
   uint8_t carrier_duty_percent_;
 

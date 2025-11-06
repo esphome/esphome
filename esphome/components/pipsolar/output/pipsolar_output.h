@@ -32,7 +32,7 @@ template<typename... Ts> class SetOutputAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, level)
 
-  void play(Ts... x) override { this->output_->set_value(this->level_.value(x...)); }
+  void play(const Ts &...x) override { this->output_->set_value(this->level_.value(x...)); }
 
  protected:
   PipsolarOutput *output_;
