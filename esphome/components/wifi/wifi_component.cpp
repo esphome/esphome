@@ -728,10 +728,8 @@ void WiFiComponent::check_connecting_finished() {
 
     ESP_LOGI(TAG, "Connected");
     // We won't retry hidden networks unless a reconnect fails more than three times again
-    if (this->retry_hidden_) {
-      if (const WiFiAP *config = this->get_selected_sta_(); config && !config->get_hidden()) {
-        ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config->get_ssid().c_str());
-      }
+    if (const WiFiAP *config = this->get_selected_sta_(); this->retry_hidden_ && config && !config->get_hidden()) {
+      ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config->get_ssid().c_str());
     }
     this->retry_hidden_ = false;
 
