@@ -285,8 +285,12 @@ std::string HttpFileServer::url_decode(const std::string &src) {
 
 esphome::FixedVector<FileInfo> HttpFileServer::list_directory(const std::string &path) {
   esphome::FixedVector<FileInfo> files;
+
+  ESP_LOGD(TAG, "Attempting to open directory: %s", path.c_str());
   DIR *dir = opendir(path.c_str());
+
   if (dir != nullptr) {
+    ESP_LOGV(TAG, "Directory opened successfully: %s", path.c_str());
     // Count entries first to allocate once
     size_t count = 0;
     struct dirent *entry;
