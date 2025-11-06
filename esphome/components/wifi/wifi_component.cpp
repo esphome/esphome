@@ -369,15 +369,12 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
     params.set_ssid(scan.get_ssid());
     params.set_bssid(scan.get_bssid());
     params.set_channel(scan.get_channel());
-  } else {
-    // No scan data - use config values
-    const bool hidden = config->get_hidden();
-    params.set_hidden(hidden);
+  } else if (config->get_hidden()) {
     // Hidden network - clear BSSID and channel even if set in config
     // There might be multiple hidden networks with same SSID but we can't know which is correct
     // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
-    params.set_bssid(hidden ? optional<bssid_t>{} : config->get_bssid());
-    params.set_channel(hidden ? optional<uint8_t>{} : config->get_channel());
+    params.set_bssid(optional<bssid_t>{});
+    params.set_channel(optional<uint8_t>{});
   }
 
   return params;
