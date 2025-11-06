@@ -352,7 +352,7 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   WiFiAP params = this->get_sta();
   // PRECONDITION: selected_sta_index_ must be valid (ensured by all callers)
   // If SSID is empty, it means selected_sta_index_ was invalid - this is a bug
-  assert(!params.get_ssid().empty() && "build_wifi_ap_from_selected_() called with invalid selected_sta_index_");
+  assert(!params.get_ssid().empty());
 
   // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
   // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
