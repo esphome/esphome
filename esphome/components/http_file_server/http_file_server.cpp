@@ -1935,23 +1935,29 @@ void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
   }
 #endif
 
-  // Try SD MMC devices
+  // Try SD MMC devices (check vector size instead of #ifdef to handle runtime registration)
+  if (!this->sd_mmc_devices_.empty()) {
+    for (void *dev_ptr : this->sd_mmc_devices_) {
+      ESP_LOGD(TAG, "  Iterating SD MMC devices for remount, dev_ptr=%p", dev_ptr);
 #ifdef USE_SD_MMC_CARD
-  for (void *dev_ptr : this->sd_mmc_devices_) {
-    auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
-    if (device->get_mount_path() == mount_point) {
-      if (device->remount_device()) {
-        ESP_LOGI(TAG, "Successfully remounted SD MMC device at %s", mount_point.c_str());
-        request->send(200, "application/json", "{\"success\":true}");
-        return;
-      } else {
-        ESP_LOGE(TAG, "Failed to remount SD MMC device at %s", mount_point.c_str());
-        request->send(500, "application/json", "{\"error\":\"Remount failed\"}");
-        return;
+      auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
+      ESP_LOGD(TAG, "  Checking SD MMC device with mount_path: %s", device->get_mount_path().c_str());
+      if (device->get_mount_path() == mount_point) {
+        if (device->remount_device()) {
+          ESP_LOGI(TAG, "Successfully remounted SD MMC device at %s", mount_point.c_str());
+          request->send(200, "application/json", "{\"success\":true}");
+          return;
+        } else {
+          ESP_LOGE(TAG, "Failed to remount SD MMC device at %s", mount_point.c_str());
+          request->send(500, "application/json", "{\"error\":\"Remount failed\"}");
+          return;
+        }
       }
+#else
+      ESP_LOGW(TAG, "  SD MMC device registered but USE_SD_MMC_CARD not defined - cannot access device");
+#endif
     }
   }
-#endif
 
   ESP_LOGW(TAG, "No device found for mount point: %s", mount_point.c_str());
   request->send(404, "application/json", "{\"error\":\"Mount point not found\"}");
@@ -1986,19 +1992,24 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
   }
 #endif
 
-  // Try SD MMC devices
+  // Try SD MMC devices (check vector size instead of #ifdef to handle runtime registration)
+  if (!this->sd_mmc_devices_.empty()) {
+    for (void *dev_ptr : this->sd_mmc_devices_) {
+      ESP_LOGD(TAG, "  Iterating SD MMC devices, dev_ptr=%p", dev_ptr);
 #ifdef USE_SD_MMC_CARD
-  for (void *dev_ptr : this->sd_mmc_devices_) {
-    auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
-    ESP_LOGD(TAG, "  Checking SD MMC device with mount_path: %s", device->get_mount_path().c_str());
-    if (device->get_mount_path() == mount_point) {
-      device->unmount_device();
-      ESP_LOGI(TAG, "Successfully unmounted SD MMC device at %s", mount_point.c_str());
-      request->send(200, "application/json", "{\"success\":true}");
-      return;
+      auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
+      ESP_LOGD(TAG, "  Checking SD MMC device with mount_path: %s", device->get_mount_path().c_str());
+      if (device->get_mount_path() == mount_point) {
+        device->unmount_device();
+        ESP_LOGI(TAG, "Successfully unmounted SD MMC device at %s", mount_point.c_str());
+        request->send(200, "application/json", "{\"success\":true}");
+        return;
+      }
+#else
+      ESP_LOGW(TAG, "  SD MMC device registered but USE_SD_MMC_CARD not defined - cannot access device");
+#endif
     }
   }
-#endif
 
   ESP_LOGW(TAG, "No device found for mount point: %s", mount_point.c_str());
   request->send(404, "application/json", "{\"error\":\"Mount point not found\"}");
@@ -2316,6 +2327,12 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.transferred_bytes = total_copied;
       portEXIT_CRITICAL(&this->progress_mutex_);
+    }
+
+    // Yield to other tasks periodically to allow web server to respond to progress polls
+    // Yield every 64 buffers (256KB - 1MB depending on platform)
+    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0) {
+      vTaskDelay(1);  // Brief yield to let other tasks run
     }
 
     // Log progress for large files

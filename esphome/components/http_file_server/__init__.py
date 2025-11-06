@@ -111,6 +111,8 @@ async def to_code(config):
         _LOGGER.info(
             f"Registering {len(CORE.data['usb_msc_devices'])} USB MSC devices with http_file_server"
         )
+        # Define USE_USB_MSC_HOST so http_file_server can access device methods
+        cg.add_define("USE_USB_MSC_HOST")
         for usb_device in CORE.data["usb_msc_devices"]:
             cg.add(var.register_usb_msc_device(usb_device))
     else:
@@ -121,6 +123,8 @@ async def to_code(config):
         _LOGGER.info(
             f"Registering {len(CORE.data['sd_mmc_devices'])} SD MMC devices with http_file_server"
         )
+        # Define USE_SD_MMC_CARD so http_file_server can access device methods
+        cg.add_define("USE_SD_MMC_CARD")
         for sd_device in CORE.data["sd_mmc_devices"]:
             cg.add(var.register_sd_mmc_device(sd_device))
     else:
