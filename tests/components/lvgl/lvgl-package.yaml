@@ -726,6 +726,12 @@ lvgl:
                 - logger.log:
                     format: "Spinbox value is %f"
                     args: [x]
+                - lvgl.label.update:
+                    id: hello_label
+                    text:
+                      format: "value is %.1f now"
+                      args: [x]
+                      if_nan: "Value unknown"
         - button:
             styles: spin_button
             id: spin_down

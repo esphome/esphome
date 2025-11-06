@@ -20,7 +20,7 @@ from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
 from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
-from .helpers import requires_component, validate_printf
+from .helpers import CONF_IF_NAN, requires_component, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
@@ -54,6 +54,7 @@ PRINTF_TEXT_SCHEMA = cv.All(
         {
             cv.Required(CONF_FORMAT): cv.string,
             cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
+            cv.Optional(CONF_IF_NAN): cv.string,
         },
     ),
     validate_printf,
