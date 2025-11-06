@@ -103,12 +103,25 @@ async def to_code(config):
 
     # Register USB MSC devices for mount/unmount API
     from esphome.core import CORE
+    import logging
+
+    _LOGGER = logging.getLogger(__name__)
 
     if hasattr(CORE, "data") and "usb_msc_devices" in CORE.data:
+        _LOGGER.info(
+            f"Registering {len(CORE.data['usb_msc_devices'])} USB MSC devices with http_file_server"
+        )
         for usb_device in CORE.data["usb_msc_devices"]:
             cg.add(var.register_usb_msc_device(usb_device))
+    else:
+        _LOGGER.info("No USB MSC devices to register with http_file_server")
 
     # Register SD MMC devices for mount/unmount API
     if hasattr(CORE, "data") and "sd_mmc_devices" in CORE.data:
+        _LOGGER.info(
+            f"Registering {len(CORE.data['sd_mmc_devices'])} SD MMC devices with http_file_server"
+        )
         for sd_device in CORE.data["sd_mmc_devices"]:
             cg.add(var.register_sd_mmc_device(sd_device))
+    else:
+        _LOGGER.info("No SD MMC devices to register with http_file_server")
