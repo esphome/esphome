@@ -447,6 +447,67 @@ std::string HttpFileServer::generate_html_header(const std::string &title) {
     .header-actions button:hover {
       background: #45a049;
     }
+    .progress-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .progress-modal.active {
+      display: flex;
+    }
+    .progress-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      min-width: 400px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+    .progress-title {
+      font-size: 1.2rem;
+      font-weight: 500;
+      margin-bottom: 1rem;
+      color: #1d1d1f;
+    }
+    .progress-bar-container {
+      width: 100%;
+      height: 20px;
+      background: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 1rem 0;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #0066cc, #0052a3);
+      width: 0%;
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .progress-details {
+      color: #666;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+    .progress-file-info {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
   </style>
 </head>
 <body>
@@ -458,7 +519,108 @@ std::string HttpFileServer::generate_html_header(const std::string &title) {
 std::string HttpFileServer::generate_html_footer() {
   return R"(
 </div>
+<div id="progressModal" class="progress-modal">
+  <div class="progress-content">
+    <div class="progress-title" id="progressTitle">Processing...</div>
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar">0%</div>
+    </div>
+    <div class="progress-details" id="progressDetails">Initializing...</div>
+    <div class="progress-file-info">
+      <div><strong>From:</strong> <span id="progressSource">-</span></div>
+      <div><strong>To:</strong> <span id="progressDest">-</span></div>
+    </div>
+  </div>
+</div>
 <script>
+let progressPollInterval = null;
+
+function showProgressModal(operation, source, destination) {
+  const modal = document.getElementById('progressModal');
+  const title = document.getElementById('progressTitle');
+  const bar = document.getElementById('progressBar');
+  const details = document.getElementById('progressDetails');
+  const sourceEl = document.getElementById('progressSource');
+  const destEl = document.getElementById('progressDest');
+
+  title.textContent = operation === 'copy' ? 'Copying File...' : 'Moving File...';
+  bar.style.width = '0%';
+  bar.textContent = '0%';
+  details.textContent = 'Starting operation...';
+  sourceEl.textContent = source;
+  destEl.textContent = destination;
+
+  modal.classList.add('active');
+}
+
+function hideProgressModal() {
+  const modal = document.getElementById('progressModal');
+  modal.classList.remove('active');
+  if (progressPollInterval) {
+    clearInterval(progressPollInterval);
+    progressPollInterval = null;
+  }
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+function formatTime(ms) {
+  if (ms < 1000) return ms + 'ms';
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return seconds + 's';
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return minutes + 'm ' + remainingSeconds + 's';
+}
+
+function pollProgress() {
+  fetch(window.location.pathname + 'api/progress')
+    .then(response => response.json())
+    .then(data => {
+      if (!data.in_progress) {
+        hideProgressModal();
+        location.reload();
+        return;
+      }
+
+      const bar = document.getElementById('progressBar');
+      const details = document.getElementById('progressDetails');
+
+      const percentage = data.percentage || 0;
+      bar.style.width = percentage + '%';
+      bar.textContent = percentage.toFixed(1) + '%';
+
+      let detailText = formatBytes(data.transferred_bytes) + ' / ' + formatBytes(data.total_bytes);
+      if (data.elapsed_ms) {
+        detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
+      }
+      if (data.remaining_ms) {
+        detailText += ' • Remaining: ' + formatTime(data.remaining_ms);
+      }
+
+      details.textContent = detailText;
+    })
+    .catch(error => {
+      console.error('Progress polling error:', error);
+    });
+}
+
+function startProgressPolling() {
+  if (progressPollInterval) {
+    clearInterval(progressPollInterval);
+  }
+  // Poll every 500ms
+  progressPollInterval = setInterval(pollProgress, 500);
+  // Also poll immediately
+  pollProgress();
+}
+
 function delete_file(path) {
   if (confirm('Are you sure you want to delete this file?')) {
     fetch(path, {method: 'DELETE'})
@@ -491,6 +653,9 @@ function copy_file(source) {
   const destination = prompt('Enter destination path:', source + '.copy');
   if (!destination) return;
 
+  // Show progress modal
+  showProgressModal('copy', source, destination);
+
   fetch(window.location.pathname + 'api/copy', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -499,17 +664,25 @@ function copy_file(source) {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        alert('File copied successfully!');
-        location.reload();
+        // Start polling for progress (for large files)
+        // Small files might complete instantly, so check progress first
+        startProgressPolling();
       } else {
+        hideProgressModal();
         alert('Copy failed: ' + (data.error || 'Unknown error'));
       }
     })
-    .catch(error => alert('Error: ' + error));
+    .catch(error => {
+      hideProgressModal();
+      alert('Error: ' + error);
+    });
 }
 function move_file(source) {
   const destination = prompt('Enter destination path:', source);
   if (!destination) return;
+
+  // Show progress modal
+  showProgressModal('move', source, destination);
 
   fetch(window.location.pathname + 'api/move', {
     method: 'POST',
@@ -519,13 +692,18 @@ function move_file(source) {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        alert('File moved successfully!');
-        location.reload();
+        // Start polling for progress (for large files)
+        // Small files might complete instantly, so check progress first
+        startProgressPolling();
       } else {
+        hideProgressModal();
         alert('Move failed: ' + (data.error || 'Unknown error'));
       }
     })
-    .catch(error => alert('Error: ' + error));
+    .catch(error => {
+      hideProgressModal();
+      alert('Error: ' + error);
+    });
 }
 function rename_file(source) {
   const currentName = source.split('/').pop();
@@ -823,8 +1001,9 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform copy
-  if (this->perform_file_copy(api_req.source, api_req.destination, src_stat.st_size)) {
+  // Perform copy with progress tracking for large files (> 1MB)
+  bool track_progress = (src_stat.st_size > 1048576);
+  if (this->perform_file_copy(api_req.source, api_req.destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Copy operation failed\"}");
@@ -877,8 +1056,9 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform move
-  if (this->perform_file_move(api_req.source, api_req.destination, src_stat.st_size)) {
+  // Perform move with progress tracking for large files (> 1MB)
+  bool track_progress = (src_stat.st_size > 1048576);
+  if (this->perform_file_move(api_req.source, api_req.destination, src_stat.st_size, track_progress)) {
     request->send(200, "application/json", "{\"success\":true}");
   } else {
     request->send(500, "application/json", "{\"error\":\"Move operation failed\"}");
@@ -982,6 +1162,46 @@ void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
   }
 }
 
+void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
+  // Build JSON response with progress information
+  std::string json = "{";
+  json += "\"in_progress\":" + std::string(this->progress_.in_progress ? "true" : "false");
+
+  if (this->progress_.in_progress) {
+    json += ",\"operation\":\"" + this->progress_.operation + "\"";
+    json += ",\"source\":\"" + this->progress_.source + "\"";
+    json += ",\"destination\":\"" + this->progress_.destination + "\"";
+    json += ",\"total_bytes\":" + std::to_string(this->progress_.total_bytes);
+    json += ",\"transferred_bytes\":" + std::to_string(this->progress_.transferred_bytes);
+
+    // Calculate progress percentage
+    float percentage = 0.0;
+    if (this->progress_.total_bytes > 0) {
+      percentage = (this->progress_.transferred_bytes * 100.0) / this->progress_.total_bytes;
+    }
+
+    // Format percentage with 1 decimal place
+    char percent_buf[16];
+    snprintf(percent_buf, sizeof(percent_buf), "%.1f", percentage);
+    json += ",\"percentage\":" + std::string(percent_buf);
+
+    // Calculate elapsed time
+    uint32_t elapsed_ms = millis() - this->progress_.start_time;
+    json += ",\"elapsed_ms\":" + std::to_string(elapsed_ms);
+
+    // Estimate remaining time if we have progress
+    if (this->progress_.transferred_bytes > 0 && this->progress_.total_bytes > 0) {
+      uint32_t total_estimated_ms = (elapsed_ms * this->progress_.total_bytes) / this->progress_.transferred_bytes;
+      uint32_t remaining_ms = total_estimated_ms - elapsed_ms;
+      json += ",\"remaining_ms\":" + std::to_string(remaining_ms);
+    }
+  }
+
+  json += "}";
+
+  request->send(200, "application/json", json.c_str());
+}
+
 // JSON parsing helper
 bool HttpFileServer::parse_json_request(const uint8_t *body, size_t body_len, ApiRequest &req) {
   // Simple JSON parser for our specific format
@@ -1030,8 +1250,9 @@ bool HttpFileServer::parse_json_request(const uint8_t *body, size_t body_len, Ap
 // File operation helpers (reused from WebDAV logic)
 bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::string &dst_path, off_t file_size,
                                        bool track_progress) {
-  // Initialize progress tracking if requested
-  if (track_progress) {
+  // Initialize progress tracking if requested (only if not already in progress)
+  // This allows perform_file_move to set up progress as "move" before calling this function
+  if (track_progress && !this->progress_.in_progress) {
     this->progress_.operation = "copy";
     this->progress_.source = src_path;
     this->progress_.destination = dst_path;
@@ -1104,6 +1325,11 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
 
   if (copy_success && total_copied == static_cast<size_t>(file_size)) {
     ESP_LOGI(TAG, "File copy completed successfully: %zu bytes", total_copied);
+    // Clear progress tracking on success (unless perform_file_move will handle it)
+    // Note: perform_file_move sets operation to "move" and will clear progress itself
+    if (track_progress && this->progress_.operation == "copy") {
+      this->progress_.in_progress = false;
+    }
     return true;
   } else {
     ESP_LOGE(TAG, "File copy failed: %s to %s (copied %zu of %lld bytes)", src_path.c_str(), dst_path.c_str(),
@@ -1113,34 +1339,65 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     if (remove(dst_path.c_str()) != 0) {
       ESP_LOGE(TAG, "Failed to remove partial destination file (errno: %d, %s)", errno, strerror(errno));
     }
+
+    // Clear progress tracking on failure (unless perform_file_move will handle it)
+    if (track_progress && this->progress_.operation == "copy") {
+      this->progress_.in_progress = false;
+    }
     return false;
   }
 }
 
-bool HttpFileServer::perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size) {
+bool HttpFileServer::perform_file_move(const std::string &src_path, const std::string &dst_path, off_t file_size,
+                                       bool track_progress) {
+  // Initialize progress tracking if requested
+  if (track_progress) {
+    this->progress_.operation = "move";
+    this->progress_.source = src_path;
+    this->progress_.destination = dst_path;
+    this->progress_.total_bytes = file_size;
+    this->progress_.transferred_bytes = 0;
+    this->progress_.in_progress = true;
+    this->progress_.start_time = millis();
+  }
+
   // Try atomic rename first (works within same filesystem)
   if (rename(src_path.c_str(), dst_path.c_str()) == 0) {
     ESP_LOGI(TAG, "File moved successfully (atomic rename)");
+    if (track_progress) {
+      this->progress_.transferred_bytes = file_size;
+      this->progress_.in_progress = false;
+    }
     return true;
   }
 
   // If rename fails with EXDEV (cross-device), fall back to copy+delete
   if (errno == EXDEV) {
     ESP_LOGI(TAG, "Cross-mount move detected, using copy+delete fallback");
-    if (perform_file_copy(src_path, dst_path, file_size)) {
+    // Note: perform_file_copy will handle progress tracking if track_progress is true
+    if (perform_file_copy(src_path, dst_path, file_size, track_progress)) {
       if (remove(src_path.c_str()) == 0) {
         ESP_LOGI(TAG, "File move completed successfully");
+        if (track_progress)
+          this->progress_.in_progress = false;
         return true;
       } else {
         ESP_LOGE(TAG, "Failed to delete source after copy: %s (errno: %d, %s)", src_path.c_str(), errno,
                  strerror(errno));
         // File was copied but source remains - still consider success
+        if (track_progress)
+          this->progress_.in_progress = false;
         return true;
       }
+    } else {
+      if (track_progress)
+        this->progress_.in_progress = false;
     }
   } else {
     ESP_LOGE(TAG, "Failed to move %s to %s (errno: %d, %s)", src_path.c_str(), dst_path.c_str(), errno,
              strerror(errno));
+    if (track_progress)
+      this->progress_.in_progress = false;
   }
 
   return false;
