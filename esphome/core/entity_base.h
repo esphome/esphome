@@ -74,9 +74,6 @@ class EntityBase {
 #endif
   }
 
-  /// Log entity icon if present (guarded by USE_ENTITY_ICON)
-  void log_icon(const char *tag, const char *prefix) const;
-
 #ifdef USE_DEVICES
   // Get/set this entity's device id
   uint32_t get_device_id() const {
@@ -174,9 +171,6 @@ class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
     return this->device_class_ == nullptr ? EMPTY_STRING : StringRef(this->device_class_);
   }
 
-  /// Log entity device class if present
-  void log_device_class(const char *tag, const char *prefix) const;
-
  protected:
   const char *device_class_{nullptr};  ///< Device class override
 };
@@ -253,5 +247,4 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   CallbackManager<void(optional<T> previous, optional<T> current)> *full_state_callbacks_{};
   CallbackManager<void(T)> *state_callbacks_{};
 };
-
 }  // namespace esphome

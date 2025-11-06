@@ -9,9 +9,14 @@ static const char *const TAG = "binary_sensor";
 
 // Function implementation of LOG_BINARY_SENSOR macro to reduce code size
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj) {
-  if (obj != nullptr) {
-    ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-    obj->log_device_class(tag, prefix);
+  if (obj == nullptr) {
+    return;
+  }
+
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+
+  if (!obj->get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
   }
 }
 
