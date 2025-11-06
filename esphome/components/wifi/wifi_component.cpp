@@ -112,8 +112,7 @@ void WiFiComponent::start() {
     this->trying_loaded_ap_ = this->load_fast_connect_settings_();
     if (!this->trying_loaded_ap_) {
       // FAST CONNECT FALLBACK: No saved settings available
-      // Set selected_sta_index_ to first config without any scan result
-      // build_selected_ap_() will use config data only (no SSID/BSSID/channel from scan)
+      // Use first config without any scan result (config data only, no SSID/BSSID/channel)
       this->selected_sta_index_ = 0;
     }
     this->start_connecting_to_selected_(false);
@@ -689,27 +688,14 @@ void WiFiComponent::check_scanning_finished() {
     log_scan_result(res);
   }
 
-  // Find matching config for on-demand connection params building
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
   // After sorting, scan_result_[0] contains the best network. Now find which sta_[i] config
   // matches that network and record it in selected_sta_index_. This keeps the two indices
   // synchronized so build_selected_ap_() can safely use both to build connection parameters.
-  const WiFiScanResult &scan_res = this->scan_result_[0];
-
-  if (!scan_res.get_matches()) {
+  if (!this->sync_selected_sta_to_best_scan_result_()) {
     ESP_LOGW(TAG, "No matching network found");
     this->retry_connect();
     return;
-  }
-
-  for (size_t i = 0; i < this->sta_.size(); i++) {
-    // search for matching STA config, at least one will match (from checks before)
-    if (!scan_res.matches(this->sta_[i])) {
-      continue;
-    }
-
-    this->selected_sta_index_ = i;  // Links scan_result_[0] with sta_[i]
-    break;
   }
 
   yield();
@@ -894,15 +880,11 @@ bool WiFiComponent::load_fast_connect_settings_() {
     std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
 
     // FAST CONNECT SUCCESS: Restore saved settings without scanning
-    // Create a temporary scan result with the fast connect BSSID and channel
-    this->scan_result_.init(1);
-    WiFiScanResult fast_connect_scan(bssid, "", fast_connect_save.channel, 0, false, false);
-    this->scan_result_.push_back(fast_connect_scan);
-
-    // SYNCHRONIZATION: Link scan_result_[0] (temporary) with sta_[saved_index]
+    // SYNCHRONIZATION: Link temporary scan result with sta_[saved_index]
     // Unlike wifi_scan_done() which sorts then finds the match, here we know exactly
     // which config was used before and create a matching temporary scan result
-    this->selected_sta_index_ = fast_connect_save.ap_index;
+    WiFiScanResult fast_connect_scan(bssid, "", fast_connect_save.channel, 0, false, false);
+    this->set_selected_sta_with_scan_(fast_connect_save.ap_index, fast_connect_scan);
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
     return true;

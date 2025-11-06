@@ -352,6 +352,34 @@ class WiFiComponent : public Component {
     }
   }
 
+  // SYNCHRONIZATION HELPERS: Encapsulate the relationship between selected_sta_index_ and scan_result_
+
+  // Set selected sta with a temporary scan result (fast connect path)
+  void set_selected_sta_with_scan_(int8_t sta_index, const WiFiScanResult &scan) {
+    this->scan_result_.init(1);
+    this->scan_result_.push_back(scan);
+    this->selected_sta_index_ = sta_index;
+  }
+
+  // Find which sta_[i] matches scan_result_[0] and set selected_sta_index_ (scan done path)
+  // Returns true if match found, false otherwise
+  bool sync_selected_sta_to_best_scan_result_() {
+    if (this->scan_result_.empty())
+      return false;
+
+    const WiFiScanResult &scan_res = this->scan_result_[0];
+    if (!scan_res.get_matches())
+      return false;
+
+    for (size_t i = 0; i < this->sta_.size(); i++) {
+      if (scan_res.matches(this->sta_[i])) {
+        this->selected_sta_index_ = i;  // Links scan_result_[0] with sta_[i]
+        return true;
+      }
+    }
+    return false;
+  }
+
   void start_connecting_to_selected_(bool two) {
     WiFiAP connection_params = this->build_selected_ap_();
     this->start_connecting(connection_params, two);
