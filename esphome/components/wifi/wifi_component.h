@@ -376,7 +376,7 @@ class WiFiComponent : public Component {
     for (size_t i = 0; i < this->sta_.size(); i++) {
       if (scan_res.matches(this->sta_[i])) {
         if (i > std::numeric_limits<int8_t>::max()) {
-          ESP_LOGE(TAG, "Matched AP index %zu exceeds int8_t range", i);
+          ESP_LOGE(TAG, "AP index %zu too large", i);
           continue;
         }
         this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]

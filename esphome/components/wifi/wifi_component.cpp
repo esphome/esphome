@@ -813,7 +813,7 @@ void WiFiComponent::retry_connect() {
 #ifdef USE_WIFI_FAST_CONNECT
     if (this->sta_.empty()) {
       // No configured networks - shouldn't happen in fast_connect mode, but handle defensively
-      ESP_LOGW(TAG, "No configured networks available");
+      ESP_LOGW(TAG, "No configured networks");
       this->restart_adapter();
     } else if (this->trying_loaded_ap_) {
       this->trying_loaded_ap_ = false;
@@ -896,7 +896,7 @@ bool WiFiComponent::load_fast_connect_settings_() {
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
     // Validate saved AP index
     if (fast_connect_save.ap_index < 0 || static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
-      ESP_LOGW(TAG, "Saved AP index out of bounds");
+      ESP_LOGW(TAG, "AP index out of bounds");
       return false;
     }
 
