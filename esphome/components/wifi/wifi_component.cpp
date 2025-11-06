@@ -348,14 +348,11 @@ void WiFiComponent::clear_sta() {
 }
 
 WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
-  const WiFiAP *config = this->get_selected_sta_();
-  if (!config) {
+  WiFiAP params = this->get_sta();
+  if (params.get_ssid().empty()) {
     ESP_LOGE(TAG, "No config selected");
     return {};
   }
-
-  // Start with a copy of the entire config
-  WiFiAP params = *config;
 
   // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
   // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
@@ -369,7 +366,7 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
     params.set_ssid(scan.get_ssid());
     params.set_bssid(scan.get_bssid());
     params.set_channel(scan.get_channel());
-  } else if (config->get_hidden()) {
+  } else if (params.get_hidden()) {
     // Hidden network - clear BSSID and channel even if set in config
     // There might be multiple hidden networks with same SSID but we can't know which is correct
     // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
