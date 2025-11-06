@@ -339,7 +339,7 @@ class WiFiComponent : public Component {
 #endif  // USE_WIFI_AP
 
   void print_connect_params_();
-  void start_connecting_to_selected_(bool two);
+  WiFiAP build_wifi_ap_from_selected_() const;
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
@@ -354,22 +354,8 @@ class WiFiComponent : public Component {
     }
   }
 
-  // SYNCHRONIZATION HELPERS: Encapsulate the relationship between selected_sta_index_ and scan_result_
-
-  // Add temporary scan result and set selected sta index (fast connect path)
-  void set_selected_sta_with_scan_(int8_t sta_index, const WiFiScanResult &scan) {
-#ifdef USE_RP2040
-    this->scan_result_.clear();
-    this->scan_result_.reserve(1);
-#else
-    this->scan_result_.init(1);
-#endif
-    this->scan_result_.push_back(scan);
-    this->selected_sta_index_ = sta_index;
-  }
-
-  // Find which sta_[i] matches scan_result_[0] and set selected_sta_index_ (scan done path)
-  // Returns true if match found, false otherwise
+  // SYNCHRONIZATION HELPER: Find which sta_[i] matches scan_result_[0] and set selected_sta_index_
+  // Returns true if match found, false otherwise (scan done path)
   bool sync_selected_sta_to_best_scan_result_();
 
 #ifdef USE_WIFI_FAST_CONNECT
@@ -408,7 +394,7 @@ class WiFiComponent : public Component {
   bool is_esp32_improv_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
-  bool load_fast_connect_settings_();
+  bool load_fast_connect_settings_(WiFiAP &params);
   void save_fast_connect_settings_();
 #endif
 

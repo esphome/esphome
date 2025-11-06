@@ -109,13 +109,15 @@ void WiFiComponent::start() {
     }
 
 #ifdef USE_WIFI_FAST_CONNECT
-    this->trying_loaded_ap_ = this->load_fast_connect_settings_();
+    WiFiAP params;
+    this->trying_loaded_ap_ = this->load_fast_connect_settings_(params);
     if (!this->trying_loaded_ap_) {
       // FAST CONNECT FALLBACK: No saved settings available
-      // Use first config (will use SSID from config since scan_result_ is empty)
+      // Use first config (will use SSID from config)
       this->selected_sta_index_ = 0;
+      params = this->build_wifi_ap_from_selected_();
     }
-    this->start_connecting_to_selected_(false);
+    this->start_connecting(params, false);
 #else
     this->start_scanning();
 #endif
@@ -173,11 +175,13 @@ void WiFiComponent::loop() {
           // Safety check: Ensure selected_sta_index_ is valid before retrying
           // (should already be set by retry_connect(), but check for robustness)
           this->reset_selected_ap_to_first_if_invalid_();
-          this->start_connecting_to_selected_(false);
+          WiFiAP params = this->build_wifi_ap_from_selected_();
+          this->start_connecting(params, false);
 #else
           if (this->retry_hidden_) {
             this->reset_selected_ap_to_first_if_invalid_();
-            this->start_connecting_to_selected_(false);
+            WiFiAP params = this->build_wifi_ap_from_selected_();
+            this->start_connecting(params, false);
           } else {
             this->start_scanning();
           }
@@ -343,11 +347,11 @@ void WiFiComponent::clear_sta() {
   this->selected_sta_index_ = -1;
 }
 
-void WiFiComponent::start_connecting_to_selected_(bool two) {
+WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   const WiFiAP *config = this->get_selected_sta_();
   if (!config) {
     ESP_LOGE(TAG, "No config selected");
-    return;
+    return {};
   }
 
   WiFiAP params;
@@ -386,7 +390,7 @@ void WiFiComponent::start_connecting_to_selected_(bool two) {
     }
   }
 
-  this->start_connecting(params, two);
+  return params;
 }
 
 bool WiFiComponent::sync_selected_sta_to_best_scan_result_() {
@@ -710,7 +714,7 @@ void WiFiComponent::check_scanning_finished() {
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
   // After sorting, scan_result_[0] contains the best network. Now find which sta_[i] config
   // matches that network and record it in selected_sta_index_. This keeps the two indices
-  // synchronized so start_connecting_to_selected_() can safely use both to build connection parameters.
+  // synchronized so build_wifi_ap_from_selected_() can safely use both to build connection parameters.
   if (!this->sync_selected_sta_to_best_scan_result_()) {
     ESP_LOGW(TAG, "No matching network found");
     this->retry_connect();
@@ -719,7 +723,8 @@ void WiFiComponent::check_scanning_finished() {
 
   yield();
 
-  this->start_connecting_to_selected_(false);
+  WiFiAP params = this->build_wifi_ap_from_selected_();
+  this->start_connecting(params, false);
 }
 
 void WiFiComponent::dump_config() {
@@ -861,7 +866,8 @@ void WiFiComponent::retry_connect() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
-    this->start_connecting_to_selected_(true);
+    WiFiAP params = this->build_wifi_ap_from_selected_();
+    this->start_connecting(params, true);
     return;
   }
 
@@ -900,7 +906,7 @@ bool WiFiComponent::is_esp32_improv_active_() {
 }
 
 #ifdef USE_WIFI_FAST_CONNECT
-bool WiFiComponent::load_fast_connect_settings_() {
+bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
   SavedWifiFastConnectSettings fast_connect_save{};
 
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
@@ -910,18 +916,25 @@ bool WiFiComponent::load_fast_connect_settings_() {
       return false;
     }
 
-    // Load BSSID from saved settings
+    // Set selected index for future operations (save, retry, etc)
+    this->selected_sta_index_ = fast_connect_save.ap_index;
+
+    // Build WiFiAP directly from saved settings + config
+    const WiFiAP &config = this->sta_[fast_connect_save.ap_index];
+    params.set_password(config.get_password());
+    params.set_manual_ip(config.get_manual_ip());
+    params.set_priority(config.get_priority());
+#ifdef USE_WIFI_WPA2_EAP
+    params.set_eap(config.get_eap());
+#endif
+
+    // Use saved BSSID/channel from fast connect, SSID from config
+    params.set_ssid(config.get_ssid());
     bssid_t bssid{};
     std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
-
-    // FAST CONNECT SUCCESS: Restore saved settings without scanning
-    // SYNCHRONIZATION: Link temporary scan result with sta_[saved_index]
-    // Unlike wifi_scan_done() which sorts then finds the match, here we know exactly
-    // which config was used before and create a matching temporary scan result
-    // Use SSID from config for the temporary scan result
-    const std::string &ssid = this->sta_[fast_connect_save.ap_index].get_ssid();
-    WiFiScanResult fast_connect_scan(bssid, ssid, fast_connect_save.channel, 0, false, false);
-    this->set_selected_sta_with_scan_(fast_connect_save.ap_index, fast_connect_scan);
+    params.set_bssid(bssid);
+    params.set_channel(fast_connect_save.channel);
+    // hidden defaults to false (network was found before, so not hidden)
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
     return true;
