@@ -1059,14 +1059,12 @@ esp_err_t WebDAVServer::handle_copy(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  // Perform synchronous copy with keepalive (HTTP server already handles multi-client via tasks)
-  // Pass req to enable chunked progress updates during copy
-  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size, "", req)) {
-    // Response already sent via chunked transfer in perform_file_copy
-    // No need to send response here
+  // Perform synchronous copy (instant, no chunked keepalive needed for COPY operations)
+  if (server->perform_file_copy(filepath, dest_filepath, src_stat.st_size, "", nullptr)) {
+    httpd_resp_set_status(req, "201 Created");
+    httpd_resp_send(req, "Resource copied", -1);
   } else {
-    // Only send error if not already handled by chunked transfer
-    // perform_file_copy sends final chunk on both success and failure
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
   }
 
   return ESP_OK;
