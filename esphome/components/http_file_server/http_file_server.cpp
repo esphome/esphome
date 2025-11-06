@@ -654,11 +654,17 @@ function pollProgress() {
   console.log('[FileServer] pollProgress() START, count=' + progressPollCount);
   progressPollCount++;
 
-  console.log('[FileServer] About to fetch:', API_BASE + '/api/progress');
-  fetch(API_BASE + '/api/progress')
-    .then(response => response.json())
+  const url = API_BASE + '/api/progress';
+  console.log('[FileServer] About to fetch:', url);
+  console.log('[FileServer] fetch() call starting...');
+
+  fetch(url)
+    .then(response => {
+      console.log('[FileServer] Got response, status:', response.status);
+      return response.json();
+    })
     .then(data => {
-      console.log('Progress update #' + progressPollCount + ':', data);
+      console.log('[FileServer] Progress update #' + progressPollCount + ':', data);
 
       if (!data.in_progress) {
         // Only close if we've seen progress before, or after 10 polls
@@ -691,11 +697,16 @@ function pollProgress() {
       }
 
       details.textContent = detailText;
-      console.log('Updated progress bar:', percentage.toFixed(1) + '%');
+      console.log('[FileServer] Updated progress bar:', percentage.toFixed(1) + '%');
     })
     .catch(error => {
-      console.error('Progress polling error:', error);
+      console.error('[FileServer] Progress polling FETCH ERROR:', error);
+      console.error('[FileServer] Error type:', error.name);
+      console.error('[FileServer] Error message:', error.message);
+      console.error('[FileServer] Stack:', error.stack);
     });
+
+  console.log('[FileServer] pollProgress() END');
 }
 
 function startProgressPolling() {
