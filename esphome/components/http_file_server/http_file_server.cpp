@@ -193,6 +193,20 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     std::string upload_path = Path::join(this->upload_directory_, this->upload_filename_);
     ESP_LOGI(TAG, "Starting upload: %s", upload_path.c_str());
 
+    // Initialize progress tracking
+    this->progress_.operation = "upload";
+    this->progress_.source = filename.c_str();
+    this->progress_.destination = upload_path;
+    this->progress_.total_bytes = 0;  // We'll try to get this from Content-Length
+    this->progress_.transferred_bytes = 0;
+    this->progress_.in_progress = true;
+    this->progress_.start_time = millis();
+
+    // Try to get content length from request
+    if (request->hasHeader("Content-Length")) {
+      this->progress_.total_bytes = atoll(request->header("Content-Length").c_str());
+    }
+
     this->upload_file_ = fopen(upload_path.c_str(), "wb");
     if (!this->upload_file_) {
       ESP_LOGE(TAG, "Failed to open file for upload: %s", upload_path.c_str());
@@ -210,10 +224,16 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
       ESP_LOGE(TAG, "Failed to write upload data");
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
+      this->progress_.in_progress = false;
       if (final) {
         request->send(500, "text/plain", "Failed to write file");
       }
       return;
+    }
+
+    // Update progress
+    if (this->progress_.in_progress) {
+      this->progress_.transferred_bytes += written;
     }
   }
 
@@ -223,8 +243,13 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
       ESP_LOGI(TAG, "Upload completed: %s", this->upload_filename_.c_str());
+
+      // Mark progress as complete
+      this->progress_.in_progress = false;
+
       request->send(201, "text/plain", "File uploaded successfully");
     } else {
+      this->progress_.in_progress = false;
       request->send(500, "text/plain", "Upload failed");
     }
   }
@@ -928,6 +953,53 @@ function create_directory() {
     })
     .catch(error => alert('Error: ' + error));
 }
+
+function handleUpload(event) {
+  event.preventDefault();
+
+  const fileInput = document.getElementById('uploadFile');
+  const file = fileInput.files[0];
+
+  if (!file) {
+    alert('Please select a file');
+    return false;
+  }
+
+  // Show progress modal
+  showProgressModal('upload', file.name, window.location.pathname);
+  startProgressPolling();
+
+  // Create FormData and upload
+  const formData = new FormData();
+  formData.append('file', file);
+
+  fetch(window.location.pathname, {
+    method: 'POST',
+    body: formData
+  })
+    .then(response => {
+      if (!response.ok) {
+        return response.text().then(text => {
+          throw new Error('Upload failed: ' + text);
+        });
+      }
+      return response.text();
+    })
+    .then(() => {
+      // Upload complete - polling will detect and close modal
+      setTimeout(() => {
+        hideProgressModal();
+        alert('File uploaded successfully!');
+        location.reload();
+      }, 500);
+    })
+    .catch(error => {
+      hideProgressModal();
+      alert('Error: ' + error);
+    });
+
+  return false;
+}
 </script>
 </body>
 </html>
@@ -1039,8 +1111,8 @@ void HttpFileServer::handle_directory_listing(AsyncWebServerRequest *request, co
   // Upload form
   if (this->upload_enabled_) {
     html += R"(<div class="upload-form">
-      <form method="POST" enctype="multipart/form-data">
-        <input type="file" name="file" required>
+      <form id="uploadForm" onsubmit="return handleUpload(event);">
+        <input type="file" name="file" id="uploadFile" required>
         <button type="submit">Upload</button>
       </form>
     </div>)";
