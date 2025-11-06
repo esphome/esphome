@@ -384,6 +384,7 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
     const WiFiScanResult &scan = this->scan_result_[0];
     // If we have scan data, the network is visible (not hidden) - use it regardless of config
     // Hidden networks don't appear in scan results, so presence of scan data is ground truth
+    params.set_hidden(false);
     params.set_ssid(scan.get_ssid());
     params.set_bssid(scan.get_bssid());
     params.set_channel(scan.get_channel());
