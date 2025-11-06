@@ -41,6 +41,12 @@ CameraWebServer::~CameraWebServer() {}
 
 void CameraWebServer::setup() {
   if (!camera::Camera::instance() || camera::Camera::instance()->is_failed()) {
+    if (!camera::Camera::instance()) {
+      ESP_LOGE(TAG, "No Camera objecte created!");
+    } else {
+      ESP_LOGE(TAG, "Camera object setup failed!");
+    }
+
     this->mark_failed();
     return;
   }
@@ -55,6 +61,7 @@ void CameraWebServer::setup() {
   config.lru_purge_enable = true;
 
   if (httpd_start(&this->httpd_, &config) != ESP_OK) {
+    ESP_LOGE(TAG, "Could not start server!");
     mark_failed();
     return;
   }
