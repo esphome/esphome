@@ -347,6 +347,17 @@ void WiFiComponent::clear_sta() {
   this->selected_sta_index_ = -1;
 }
 
+// Helper to copy base config settings (password, manual_ip, priority, EAP) from source to dest
+// These fields are never overridden by scan data, so we copy them once to avoid full WiFiAP copy
+static void copy_wifi_ap_base_config(WiFiAP &dest, const WiFiAP &source) {
+  dest.set_password(source.get_password());
+  dest.set_manual_ip(source.get_manual_ip());
+  dest.set_priority(source.get_priority());
+#ifdef USE_WIFI_WPA2_EAP
+  dest.set_eap(source.get_eap());
+#endif
+}
+
 WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   const WiFiAP *config = this->get_selected_sta_();
   if (!config) {
@@ -354,8 +365,9 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
     return {};
   }
 
-  // Start with a copy of the entire config
-  WiFiAP params = *config;
+  WiFiAP params;
+  // Copy only base fields (password, manual_ip, priority, EAP) to avoid copying strings we'll override
+  copy_wifi_ap_base_config(params, *config);
 
   // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
   // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
@@ -365,16 +377,23 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   if (!this->scan_result_.empty()) {
     // Override with scan data - network is visible (hidden defaults to false)
     const WiFiScanResult &scan = this->scan_result_[0];
-    params.set_hidden(false);
     params.set_ssid(scan.get_ssid());
     params.set_bssid(scan.get_bssid());
     params.set_channel(scan.get_channel());
+    // hidden defaults to false, no need to set explicitly
   } else if (config->get_hidden()) {
-    // For hidden networks, clear BSSID and channel even if set in config
+    // For hidden networks, use config SSID but clear BSSID and channel
     // There might be multiple hidden networks with same SSID but we can't know which is correct
     // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
+    params.set_ssid(config->get_ssid());
+    params.set_hidden(true);
     params.set_bssid(optional<bssid_t>{});
     params.set_channel(optional<uint8_t>{});
+  } else {
+    // No scan data, visible network - use all config values
+    params.set_ssid(config->get_ssid());
+    params.set_bssid(config->get_bssid());
+    params.set_channel(config->get_channel());
   }
 
   return params;
@@ -906,15 +925,18 @@ bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
     // Set selected index for future operations (save, retry, etc)
     this->selected_sta_index_ = fast_connect_save.ap_index;
 
-    // Copy entire config, then override with fast connect data
-    params = this->sta_[fast_connect_save.ap_index];
+    // Build WiFiAP from config + saved fast connect data
+    const WiFiAP &config = this->sta_[fast_connect_save.ap_index];
+    // Copy only base fields (password, manual_ip, priority, EAP) to avoid unnecessary string copies
+    copy_wifi_ap_base_config(params, config);
 
-    // Override with saved BSSID/channel from fast connect (SSID/password/hidden/etc already copied)
+    // Use SSID from config, BSSID/channel from saved fast connect data
+    params.set_ssid(config.get_ssid());
     bssid_t bssid{};
     std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
     params.set_bssid(bssid);
     params.set_channel(fast_connect_save.channel);
-    // Network was found before, so not hidden (already false in default-constructed WiFiAP)
+    // Network was found before, so not hidden (hidden defaults to false)
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
     return true;
