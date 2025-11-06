@@ -873,11 +873,8 @@ async function performCopy(source, destination) {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        // Operation complete - do final progress check then close modal
-        setTimeout(() => {
-          hideProgressModal();
-          location.reload();
-        }, 500);
+        // Task started successfully - polling will handle closing modal when done
+        console.log('[FileServer] Copy task started, polling will track progress');
       } else {
         hideProgressModal();
         alert('Copy failed: ' + (data.error || 'Unknown error'));
@@ -921,11 +918,8 @@ async function performMove(source, destination) {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        // Operation complete - do final progress check then close modal
-        setTimeout(() => {
-          hideProgressModal();
-          location.reload();
-        }, 500);
+        // Task started successfully - polling will handle closing modal when done
+        console.log('[FileServer] Move task started, polling will track progress');
       } else {
         hideProgressModal();
         alert('Move failed: ' + (data.error || 'Unknown error'));
