@@ -2018,6 +2018,70 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
   request->send(404, "application/json", "{\"error\":\"Mount point not found\"}");
 }
 
+void HttpFileServer::handle_api_remount(AsyncWebServerRequest *request) {
+  // Get mount_point parameter
+  auto *mount_point_param = request->getParam("mount_point");
+
+  if (!mount_point_param) {
+    ESP_LOGW(TAG, "Missing mount_point parameter");
+    request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
+    return;
+  }
+
+  std::string mount_point = mount_point_param->value().c_str();
+  ESP_LOGI(TAG, "API REMOUNT: mount_point=%s", mount_point.c_str());
+  ESP_LOGD(TAG, "  USB MSC devices in vector: %zu", this->usb_msc_devices_.size());
+  ESP_LOGD(TAG, "  SD MMC devices in vector: %zu", this->sd_mmc_devices_.size());
+
+  // Try to find matching USB MSC device and remount
+#ifdef USE_USB_MSC_HOST
+  for (void *dev_ptr : this->usb_msc_devices_) {
+    auto *device = static_cast<usb_msc_host::USBMscDevice *>(dev_ptr);
+    ESP_LOGD(TAG, "  Checking USB MSC device with mount_path: %s", device->get_mount_path().c_str());
+    if (device->get_mount_path() == mount_point) {
+      if (device->remount_device()) {
+        ESP_LOGI(TAG, "Successfully remounted USB MSC device at %s", mount_point.c_str());
+        request->send(200, "application/json", "{\"success\":true}");
+        return;
+      } else {
+        ESP_LOGE(TAG, "Failed to remount USB MSC device at %s", mount_point.c_str());
+        request->send(500, "application/json", "{\"error\":\"Remount failed\"}");
+        return;
+      }
+    }
+  }
+#endif
+
+  // Try SD MMC devices (check vector size instead of #ifdef to handle runtime registration)
+  if (!this->sd_mmc_devices_.empty()) {
+    for (void *dev_ptr : this->sd_mmc_devices_) {
+      ESP_LOGD(TAG, "  Iterating SD MMC devices for remount, dev_ptr=%p", dev_ptr);
+#ifdef USE_SD_MMC_CARD
+      auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
+      ESP_LOGD(TAG, "  Checking SD MMC device with mount_path: %s", device->get_mount_path().c_str());
+      if (device->get_mount_path() == mount_point) {
+        // Remount = unmount then mount
+        device->unmount_card();
+        if (device->mount_card()) {
+          ESP_LOGI(TAG, "Successfully remounted SD MMC device at %s", mount_point.c_str());
+          request->send(200, "application/json", "{\"success\":true}");
+          return;
+        } else {
+          ESP_LOGE(TAG, "Failed to remount SD MMC device at %s", mount_point.c_str());
+          request->send(500, "application/json", "{\"error\":\"Remount failed\"}");
+          return;
+        }
+      }
+#else
+      ESP_LOGW(TAG, "  SD MMC device registered but USE_SD_MMC_CARD not defined - cannot access device");
+#endif
+    }
+  }
+
+  ESP_LOGW(TAG, "No device found for mount point: %s", mount_point.c_str());
+  request->send(404, "application/json", "{\"error\":\"Mount point not found\"}");
+}
+
 void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
   // Thread-safe snapshot of progress data
   portENTER_CRITICAL(&this->progress_mutex_);
