@@ -10,7 +10,7 @@ static const char *const TAG = "button";
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj) {
   if (obj != nullptr) {
     ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-    log_entity_icon(tag, prefix, obj);
+    obj->log_icon(tag, prefix);
   }
 }
 
