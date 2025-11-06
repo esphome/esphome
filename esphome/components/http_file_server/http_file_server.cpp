@@ -110,6 +110,16 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     } else {
       this->handle_file_download(request, filepath);
     }
+  } else if (request->method() == HTTP_POST) {
+    // Handle POST for file uploads (non-API endpoints)
+    // Note: The actual upload is handled by handleUpload() callback
+    // This just sends the response after upload completes
+    ESP_LOGD(TAG, "POST handler - upload completed for URI: %s", uri.c_str());
+    // Response is already sent in handleUpload when final==true
+    // This path shouldn't normally be reached, but if it is, send success
+    if (!request->_tempObject) {
+      request->send(200, "text/plain", "Upload handled");
+    }
   } else if (request->method() == HTTP_DELETE) {
     ESP_LOGI(TAG, "DELETE handler called for URI: %s", uri.c_str());
 
