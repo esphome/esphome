@@ -71,12 +71,16 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
 
   // Check for API endpoints
   if (uri.find(this->url_prefix_ + "/api/copy") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API COPY endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_copy(request);
   } else if (uri.find(this->url_prefix_ + "/api/move") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API MOVE endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_move(request);
   } else if (uri.find(this->url_prefix_ + "/api/rename") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API RENAME endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_rename(request);
   } else if (uri.find(this->url_prefix_ + "/api/mkdir") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API MKDIR endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_mkdir(request);
   } else if (request->method() == HTTP_GET) {
     // Handle GET request (directory listing or file download)
@@ -98,7 +102,7 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     }
   } else if (request->method() == HTTP_DELETE) {
     if (!this->deletion_enabled_) {
-      request->send(403, "text/plain", "File deletion is disabled");
+      request->send(403, "application/json", "{\"error\":\"File deletion is disabled\"}");
       return;
     }
 
@@ -107,17 +111,17 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
 
     struct stat file_stat;
     if (stat(filepath.c_str(), &file_stat) == 0 && S_ISDIR(file_stat.st_mode)) {
-      request->send(400, "text/plain", "Cannot delete directories");
+      request->send(400, "application/json", "{\"error\":\"Cannot delete directories\"}");
       return;
     }
 
     if (remove(filepath.c_str()) == 0) {
-      request->send(204);
+      request->send(200, "application/json", "{\"success\":true}");
     } else {
-      request->send(403, "text/plain", "Cannot delete file");
+      request->send(500, "application/json", "{\"error\":\"Failed to delete file\"}");
     }
   } else {
-    request->send(405, "text/plain", "Method not allowed");
+    request->send(405, "application/json", "{\"error\":\"Method not allowed\"}");
   }
 }
 
@@ -203,11 +207,13 @@ void HttpFileServer::handleBody(AsyncWebServerRequest *request, uint8_t *data, s
 
   // Accumulate body data in buffer
   if (index == 0) {
+    ESP_LOGD(TAG, "handleBody called: total=%zu bytes", total);
     this->body_buffer_.clear();
     this->body_buffer_.reserve(total);
   }
 
   this->body_buffer_.append(reinterpret_cast<char *>(data), len);
+  ESP_LOGV(TAG, "handleBody: appended %zu bytes (total now: %zu/%zu)", len, this->body_buffer_.size(), total);
 }
 
 // Helper methods
@@ -739,6 +745,8 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
   // Get raw httpd_req_t for chunked sending
   httpd_req_t *req = *request;
 
+  ESP_LOGI(TAG, "Starting chunked download: %s (size: %zu bytes)", filename.c_str(), file_size);
+
   // Set response status and headers BEFORE sending any data
   httpd_resp_set_status(req, HTTPD_200);
   httpd_resp_set_type(req, mime_type.c_str());
@@ -747,21 +755,29 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
   // Read and send in chunks using httpd_resp_send_chunk
   std::unique_ptr<char[]> buffer = std::make_unique<char[]>(FILE_BUFFER_SIZE);
   size_t bytes_read;
+  size_t total_sent = 0;
   esp_err_t err = ESP_OK;
 
   while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, file)) > 0 && err == ESP_OK) {
     err = httpd_resp_send_chunk(req, buffer.get(), bytes_read);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error sending file chunk: %s (0x%x)", esp_err_to_name(err), err);
+      ESP_LOGE(TAG, "Error sending file chunk at offset %zu: %s (0x%x)", total_sent, esp_err_to_name(err), err);
       break;
     }
+    total_sent += bytes_read;
+    ESP_LOGV(TAG, "Sent chunk: %zu bytes (total: %zu/%zu)", bytes_read, total_sent, file_size);
   }
 
   fclose(file);
 
   // Send final empty chunk to complete the response
   if (err == ESP_OK) {
-    httpd_resp_send_chunk(req, nullptr, 0);
+    err = httpd_resp_send_chunk(req, nullptr, 0);
+    if (err == ESP_OK) {
+      ESP_LOGI(TAG, "Download completed successfully: %zu bytes", total_sent);
+    } else {
+      ESP_LOGE(TAG, "Error sending final chunk: %s (0x%x)", esp_err_to_name(err), err);
+    }
   }
 }
 
