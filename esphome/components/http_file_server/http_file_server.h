@@ -74,6 +74,7 @@ struct FileInfo {
   std::string path;
   bool is_directory;
   bool is_mount_point{false};
+  bool mounted{true};  // Only relevant for mount points
   size_t size;
   time_t modified;
 };
@@ -114,12 +115,25 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   bool is_download_enabled() const { return this->download_enabled_; }
   bool is_deletion_enabled() const { return this->deletion_enabled_; }
 
+  // Storage device registration for mount/unmount API
+  template<typename T> void register_usb_msc_device(T *device) {
+    this->usb_msc_devices_.push_back(static_cast<void *>(device));
+  }
+  template<typename T> void register_sd_mmc_device(T *device) {
+    this->sd_mmc_devices_.push_back(static_cast<void *>(device));
+  }
+
  protected:
   // Web server base reference
   web_server_base::WebServerBase *base_;
 
   // Storage host reference
   storage_host::StorageHost *storage_host_{nullptr};
+
+  // Storage device references for mount/unmount operations
+  // Forward declarations to avoid circular dependencies
+  std::vector<void *> usb_msc_devices_;  // std::vector<usb_msc_host::USBMscDevice *>
+  std::vector<void *> sd_mmc_devices_;   // std::vector<sd_mmc_card::SdMmcCard *>
 
   // Configuration
   std::string root_path_{};
@@ -192,6 +206,9 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   bool is_directory_empty(const std::string &path);
   void count_directory_contents(const std::string &path, int &file_count, int &dir_count);
   bool recursive_delete_directory(const std::string &path);
+
+  // Mount status helper
+  bool is_mount_point_mounted(const std::string &mount_path);
 
   // JSON parsing helper
   struct ApiRequest {

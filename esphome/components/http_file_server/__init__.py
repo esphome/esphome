@@ -100,3 +100,15 @@ async def to_code(config):
     # Optional authentication
     if config.get(CONF_AUTH_ENABLED, False):
         cg.add(var.set_auth(config[CONF_USERNAME], config[CONF_PASSWORD]))
+
+    # Register USB MSC devices for mount/unmount API
+    from esphome.core import CORE
+
+    if hasattr(CORE, "data") and "usb_msc_devices" in CORE.data:
+        for usb_device in CORE.data["usb_msc_devices"]:
+            cg.add(var.register_usb_msc_device(usb_device))
+
+    # Register SD MMC devices for mount/unmount API
+    if hasattr(CORE, "data") and "sd_mmc_devices" in CORE.data:
+        for sd_device in CORE.data["sd_mmc_devices"]:
+            cg.add(var.register_sd_mmc_device(sd_device))
