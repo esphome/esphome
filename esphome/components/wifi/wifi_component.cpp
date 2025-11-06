@@ -815,10 +815,13 @@ void WiFiComponent::retry_connect() {
       this->selected_sta_index_ = 0;  // Retry from the first configured AP
       this->reset_for_next_ap_attempt_();
     } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
-      // Exhausted all configured APs, cycle back to first
+      // Exhausted all configured APs, restart adapter and cycle back to first
+      // Restart clears any stuck WiFi driver state
       // Each AP is tried with SSID only (no BSSID/channel) which triggers ESP-IDF internal scanning
+      ESP_LOGW(TAG, "No more APs to try");
       this->selected_sta_index_ = 0;
       this->reset_for_next_ap_attempt_();
+      this->restart_adapter();
     } else {
       // Try next AP
       this->selected_sta_index_++;
