@@ -340,14 +340,14 @@ class WiFiComponent : public Component {
   WiFiAP build_selected_ap_() const;
 
   const WiFiAP *get_selected_sta_() const {
-    if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
+    if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
       return &this->sta_[this->selected_sta_index_];
     }
     return nullptr;
   }
 
   void reset_selected_ap_to_first_if_invalid_() {
-    if (this->selected_sta_index_ < 0 || this->selected_sta_index_ >= this->sta_.size()) {
+    if (this->selected_sta_index_ < 0 || static_cast<size_t>(this->selected_sta_index_) >= this->sta_.size()) {
       this->selected_sta_index_ = this->sta_.empty() ? -1 : 0;
     }
   }
@@ -373,7 +373,7 @@ class WiFiComponent : public Component {
 
     for (size_t i = 0; i < this->sta_.size(); i++) {
       if (scan_res.matches(this->sta_[i])) {
-        this->selected_sta_index_ = i;  // Links scan_result_[0] with sta_[i]
+        this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
         return true;
       }
     }
