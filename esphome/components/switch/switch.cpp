@@ -83,15 +83,11 @@ void log_switch(const char *tag, const char *prefix, const char *type, Switch *o
       restore = obj->restore_mode & RESTORE_MODE_PERSISTENT_MASK ? LOG_STR("restore defaults to") : LOG_STR("always");
     }
 
-    // Build the base message with mandatory fields
-    ESP_LOGCONFIG(tag,
-                  "%s%s '%s'\n"
-                  "%s  Restore Mode: %s%s %s",
-                  prefix, type, obj->get_name().c_str(), prefix, LOG_STR_ARG(inverted), LOG_STR_ARG(restore),
+    log_entity_name_icon_and_device_class(tag, prefix, type, obj, obj);
+
+    ESP_LOGCONFIG(tag, "%s  Restore Mode: %s%s %s", prefix, LOG_STR_ARG(inverted), LOG_STR_ARG(restore),
                   LOG_STR_ARG(onoff));
 
-    // Add optional fields separately
-    log_entity_icon_and_device_class(tag, prefix, obj, obj);
     if (obj->assumed_state()) {
       ESP_LOGCONFIG(tag, "%s  Assumed State: YES", prefix);
     }
