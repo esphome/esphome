@@ -1609,14 +1609,14 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform copy with progress tracking for files > 1MB
+  // Send response immediately so web server can handle progress polls
+  // The copy will continue in the background
   bool track_progress = (src_stat.st_size > 1048576);
   ESP_LOGI(TAG, "Copy: file size %lld bytes, track_progress=%d", (long long) src_stat.st_size, track_progress);
-  if (this->perform_file_copy(source, destination, src_stat.st_size, track_progress)) {
-    request->send(200, "application/json", "{\"success\":true}");
-  } else {
-    request->send(500, "application/json", "{\"error\":\"Copy operation failed\"}");
-  }
+  request->send(200, "application/json", "{\"success\":true}");
+
+  // Now perform the copy (non-blocking for web server)
+  this->perform_file_copy(source, destination, src_stat.st_size, track_progress);
 }
 
 void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
@@ -1648,12 +1648,13 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Perform move with progress tracking (always enabled for UI feedback)
-  if (this->perform_file_move(source, destination, src_stat.st_size, true)) {
-    request->send(200, "application/json", "{\"success\":true}");
-  } else {
-    request->send(500, "application/json", "{\"error\":\"Move operation failed\"}");
-  }
+  // Send response immediately so web server can handle progress polls
+  // The move will continue in the background
+  bool track_progress = (src_stat.st_size > 1048576);
+  request->send(200, "application/json", "{\"success\":true}");
+
+  // Now perform the move (non-blocking for web server)
+  this->perform_file_move(source, destination, src_stat.st_size, track_progress);
 }
 
 void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
