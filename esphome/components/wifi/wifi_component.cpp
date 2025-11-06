@@ -349,10 +349,9 @@ void WiFiComponent::clear_sta() {
 
 WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   WiFiAP params = this->get_sta();
-  if (params.get_ssid().empty()) {
-    ESP_LOGE(TAG, "No config selected");
-    return {};
-  }
+  // PRECONDITION: selected_sta_index_ must be valid (ensured by all callers)
+  // If SSID is empty, it means selected_sta_index_ was invalid - this is a bug
+  assert(!params.get_ssid().empty() && "build_wifi_ap_from_selected_() called with invalid selected_sta_index_");
 
   // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
   // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
