@@ -67,7 +67,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
   uint32_t key_{0};
 };
 
-// Derived class for custom_api_device services (rare case)
+// Separate class for custom_api_device services (rare case)
 // Stores copies of runtime-generated names
 template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor {
  public:
