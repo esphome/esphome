@@ -143,11 +143,14 @@ class HttpFileServer : public Component, public AsyncWebHandler {
 
   // Progress tracking for long operations
   struct {
-    std::string operation;  // "copy", "move", or "upload"
+    std::string operation;  // "copy", "move", "upload", or "delete"
     std::string source;
     std::string destination;
+    std::string current_file;  // Current file being processed (for delete operations)
     size_t total_bytes{0};
     size_t transferred_bytes{0};
+    int total_items{0};        // Total files/dirs to process (for delete operations)
+    int processed_items{0};    // Files/dirs processed so far (for delete operations)
     bool in_progress{false};
     uint32_t start_time{0};
   } progress_;
@@ -177,10 +180,13 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   void handle_api_move(AsyncWebServerRequest *request);
   void handle_api_rename(AsyncWebServerRequest *request);
   void handle_api_mkdir(AsyncWebServerRequest *request);
+  void handle_api_delete(AsyncWebServerRequest *request);
   void handle_api_exists(AsyncWebServerRequest *request);
   void handle_api_dirisempty(AsyncWebServerRequest *request);
   void handle_api_dirinfo(AsyncWebServerRequest *request);
   void handle_api_progress(AsyncWebServerRequest *request);
+  void handle_api_mount(AsyncWebServerRequest *request);
+  void handle_api_unmount(AsyncWebServerRequest *request);
 
   // Directory helpers
   bool is_directory_empty(const std::string &path);

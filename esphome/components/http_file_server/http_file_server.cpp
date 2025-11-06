@@ -2,6 +2,7 @@
 #include "esphome/components/storage_host/storage_host.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
@@ -88,6 +89,15 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
   } else if (uri.find(this->url_prefix_ + "/api/mkdir") == 0 && request->method() == HTTP_POST) {
     ESP_LOGD(TAG, "API MKDIR endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_mkdir(request);
+  } else if (uri.find(this->url_prefix_ + "/api/delete") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API DELETE endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
+    this->handle_api_delete(request);
+  } else if (uri.find(this->url_prefix_ + "/api/mount") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API MOUNT endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
+    this->handle_api_mount(request);
+  } else if (uri.find(this->url_prefix_ + "/api/unmount") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API UNMOUNT endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
+    this->handle_api_unmount(request);
   } else if (uri.find(this->url_prefix_ + "/api/exists") == 0 && request->method() == HTTP_GET) {
     this->handle_api_exists(request);
   } else if (uri.find(this->url_prefix_ + "/api/dirisempty") == 0 && request->method() == HTTP_GET) {
@@ -124,39 +134,6 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
       this->handle_file_upload(request, filename_param->value().c_str());
     } else {
       request->send(400, "text/plain", "Missing filename parameter");
-    }
-  } else if (request->method() == HTTP_DELETE) {
-    ESP_LOGI(TAG, "DELETE handler called for URI: %s", uri.c_str());
-
-    if (!this->deletion_enabled_) {
-      ESP_LOGW(TAG, "Deletion is disabled");
-      request->send(403, "application/json", "{\"error\":\"File deletion is disabled\"}");
-      return;
-    }
-
-    std::string filepath = this->uri_to_filepath(uri);
-    ESP_LOGI(TAG, "DELETE request - URI: %s -> Filepath: %s", uri.c_str(), filepath.c_str());
-
-    struct stat file_stat;
-    if (stat(filepath.c_str(), &file_stat) != 0) {
-      request->send(404, "application/json", "{\"error\":\"Path not found\"}");
-      return;
-    }
-
-    bool success = false;
-    if (S_ISDIR(file_stat.st_mode)) {
-      // Recursive directory deletion
-      ESP_LOGI(TAG, "Deleting directory recursively: %s", filepath.c_str());
-      success = this->recursive_delete_directory(filepath);
-    } else {
-      // Single file deletion
-      success = (remove(filepath.c_str()) == 0);
-    }
-
-    if (success) {
-      request->send(200, "application/json", "{\"success\":true}");
-    } else {
-      request->send(500, "application/json", "{\"error\":\"Failed to delete\"}");
     }
   } else {
     request->send(405, "application/json", "{\"error\":\"Method not allowed\"}");
@@ -725,7 +702,11 @@ function startProgressPolling() {
 
 function delete_file(path) {
   if (confirm('Are you sure you want to delete this file?')) {
-    fetch(path, {method: 'DELETE'})
+    fetch(API_BASE + '/api/delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'path=' + encodeURIComponent(path)
+    })
       .then(response => {
         if (!response.ok) {
           return response.text().then(text => {
@@ -789,8 +770,12 @@ async function delete_directory(path) {
       return;
     }
 
-    // Perform deletion
-    fetch(path, {method: 'DELETE'})
+    // Perform deletion using API endpoint
+    fetch(API_BASE + '/api/delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'path=' + encodeURIComponent(path)
+    })
       .then(response => {
         if (!response.ok) {
           return response.text().then(text => {
@@ -1597,6 +1582,103 @@ void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
   } else {
     ESP_LOGE(TAG, "Mkdir failed: %s (errno: %d, %s)", dir_path.c_str(), errno, strerror(errno));
     request->send(500, "application/json", "{\"error\":\"Mkdir operation failed\"}");
+  }
+}
+
+void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
+  if (!this->deletion_enabled_) {
+    ESP_LOGW(TAG, "Deletion is disabled");
+    request->send(403, "application/json", "{\"error\":\"File deletion is disabled\"}");
+    return;
+  }
+
+  // Get parameters from POST body
+  auto *path_param = request->getParam("path");
+
+  if (!path_param) {
+    ESP_LOGW(TAG, "Missing path parameter");
+    request->send(400, "application/json", "{\"error\":\"Missing path parameter\"}");
+    return;
+  }
+
+  std::string path_uri = path_param->value().c_str();
+
+  // Convert URI to filesystem path
+  std::string filepath = this->uri_to_filepath(path_uri);
+
+  ESP_LOGI(TAG, "API DELETE: URI=%s -> Path=%s", path_uri.c_str(), filepath.c_str());
+
+  // Check if path exists
+  struct stat file_stat;
+  if (stat(filepath.c_str(), &file_stat) != 0) {
+    request->send(404, "application/json", "{\"error\":\"Path not found\"}");
+    return;
+  }
+
+  bool success = false;
+  if (S_ISDIR(file_stat.st_mode)) {
+    // Recursive directory deletion
+    ESP_LOGI(TAG, "Deleting directory recursively: %s", filepath.c_str());
+    success = this->recursive_delete_directory(filepath);
+  } else {
+    // Single file deletion
+    ESP_LOGI(TAG, "Deleting file: %s", filepath.c_str());
+    success = (remove(filepath.c_str()) == 0);
+  }
+
+  if (success) {
+    request->send(200, "application/json", "{\"success\":true}");
+  } else {
+    ESP_LOGE(TAG, "Delete failed: %s (errno: %d, %s)", filepath.c_str(), errno, strerror(errno));
+    request->send(500, "application/json", "{\"error\":\"Delete operation failed\"}");
+  }
+}
+
+void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
+  // Get parameters from POST body
+  auto *device_param = request->getParam("device");
+  auto *mount_point_param = request->getParam("mount_point");
+
+  if (!device_param || !mount_point_param) {
+    ESP_LOGW(TAG, "Missing device or mount_point parameter");
+    request->send(400, "application/json", "{\"error\":\"Missing device or mount_point parameter\"}");
+    return;
+  }
+
+  std::string device = device_param->value().c_str();
+  std::string mount_point = mount_point_param->value().c_str();
+
+  ESP_LOGI(TAG, "API MOUNT: device=%s, mount_point=%s", device.c_str(), mount_point.c_str());
+
+  // Call storage_host to mount the device
+  if (this->storage_host_->mount_device(device.c_str(), mount_point.c_str())) {
+    request->send(200, "application/json", "{\"success\":true}");
+  } else {
+    ESP_LOGE(TAG, "Mount failed: %s at %s", device.c_str(), mount_point.c_str());
+    request->send(500, "application/json", "{\"error\":\"Mount operation failed\"}");
+  }
+}
+
+void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
+  // Get parameters from POST body
+  auto *mount_point_param = request->getParam("mount_point");
+
+  if (!mount_point_param) {
+    ESP_LOGW(TAG, "Missing mount_point parameter");
+    request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
+    return;
+  }
+
+  std::string mount_point = mount_point_param->value().c_str();
+
+  ESP_LOGI(TAG, "API UNMOUNT: mount_point=%s", mount_point.c_str());
+
+  // Call storage_host to unmount the device
+  if (this->storage_host_->unmount_device(mount_point.c_str())) {
+    request->send(200, "application/json", "{\"success\":true}");
+  } else {
+    ESP_LOGE(TAG, "Unmount failed: %s", mount_point.c_str());
+    request->send(500, "application/json", "{\"error\":\"Unmount operation failed\"}");
   }
 }
 
