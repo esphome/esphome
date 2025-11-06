@@ -922,11 +922,9 @@ void WiFiComponent::save_fast_connect_settings_() {
 
   // Skip save if settings haven't changed (compare with previously saved settings to reduce flash wear)
   SavedWifiFastConnectSettings previous_save{};
-  if (this->fast_connect_pref_.load(&previous_save)) {
-    if (memcmp(previous_save.bssid, bssid.data(), 6) == 0 && previous_save.channel == channel &&
-        previous_save.ap_index == ap_index) {
-      return;  // No change, nothing to save
-    }
+  if (this->fast_connect_pref_.load(&previous_save) && memcmp(previous_save.bssid, bssid.data(), 6) == 0 &&
+      previous_save.channel == channel && previous_save.ap_index == ap_index) {
+    return;  // No change, nothing to save
   }
 
   SavedWifiFastConnectSettings fast_connect_save{};
