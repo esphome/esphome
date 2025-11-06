@@ -634,11 +634,13 @@ function startProgressPolling() {
 function delete_file(path) {
   if (confirm('Are you sure you want to delete this file?')) {
     fetch(path, {method: 'DELETE'})
-      .then(response => {
-        if (response.ok) {
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('File deleted successfully!');
           location.reload();
         } else {
-          alert('Failed to delete file');
+          alert('Delete failed: ' + (data.error || 'Unknown error'));
         }
       })
       .catch(error => {
