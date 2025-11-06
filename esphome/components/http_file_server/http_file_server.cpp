@@ -736,39 +736,36 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
   std::string mime_type = Path::mime_type(filepath);
   std::string filename = Path::file_name(filepath);
 
-  // For small files, read into memory and send
-  if (file_size < FILE_BUFFER_SIZE) {
-    std::string content;
-    content.resize(file_size);
-    size_t bytes_read = fread(content.data(), 1, file_size, file);
-    fclose(file);
+  // Get raw httpd_req_t for chunked sending
+  httpd_req_t *req = *request;
 
-    if (bytes_read != file_size) {
-      content.resize(bytes_read);
+  // Send headers
+  httpd_resp_set_type(req, mime_type.c_str());
+  httpd_resp_set_hdr(req, "Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
+
+  // For large files, use chunked transfer encoding
+  if (file_size > FILE_BUFFER_SIZE) {
+    httpd_resp_set_hdr(req, "Transfer-Encoding", "chunked");
+  }
+
+  // Read and send in chunks
+  std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(FILE_BUFFER_SIZE);
+  size_t bytes_read;
+  esp_err_t err = ESP_OK;
+
+  while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, file)) > 0 && err == ESP_OK) {
+    err = httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buffer.get()), bytes_read);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Error sending chunk: %d", err);
+      break;
     }
+  }
 
-    AsyncWebServerResponse *response = request->beginResponse(200, mime_type.c_str(), content);
-    response->addHeader("Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
-    request->send(response);
-  } else {
-    // For large files, use stream response
-    AsyncResponseStream *stream = request->beginResponseStream(mime_type.c_str());
-    stream->addHeader("Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
+  fclose(file);
 
-    // Read and write in chunks
-    std::string chunk;
-    chunk.resize(FILE_BUFFER_SIZE);
-    size_t bytes_read;
-    while ((bytes_read = fread(chunk.data(), 1, FILE_BUFFER_SIZE, file)) > 0) {
-      if (bytes_read != FILE_BUFFER_SIZE) {
-        chunk.resize(bytes_read);
-      }
-      stream->print(chunk);
-      chunk.resize(FILE_BUFFER_SIZE);  // Reset for next iteration
-    }
-    fclose(file);
-
-    request->send(stream);
+  // Send final empty chunk to signal end
+  if (err == ESP_OK) {
+    httpd_resp_send_chunk(req, nullptr, 0);
   }
 }
 
