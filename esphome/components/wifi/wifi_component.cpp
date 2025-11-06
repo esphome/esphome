@@ -112,7 +112,7 @@ void WiFiComponent::start() {
     this->trying_loaded_ap_ = this->load_fast_connect_settings_();
     if (!this->trying_loaded_ap_) {
       // Fast connect failed - start from first configured AP without scan result
-      this->selected_ap_index_ = 0;
+      this->selected_sta_index_ = 0;
       this->selected_scan_index_ = -1;
     }
     this->start_connecting_to_selected_(false);
@@ -335,20 +335,20 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();
   this->init_sta(1);
   this->add_sta(ap);
-  this->selected_ap_index_ = 0;
+  this->selected_sta_index_ = 0;
   this->selected_scan_index_ = -1;
 }
 void WiFiComponent::clear_sta() {
   this->sta_.clear();
-  this->selected_ap_index_ = -1;
+  this->selected_sta_index_ = -1;
   this->selected_scan_index_ = -1;
 }
 
 WiFiAP WiFiComponent::build_selected_ap_() const {
   WiFiAP params;
 
-  if (this->selected_ap_index_ >= 0 && this->selected_ap_index_ < this->sta_.size()) {
-    const WiFiAP &config = this->sta_[this->selected_ap_index_];
+  if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
+    const WiFiAP &config = this->sta_[this->selected_sta_index_];
 
     // Copy config data
     params.set_password(config.get_password());
@@ -388,8 +388,8 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
 }
 
 WiFiAP WiFiComponent::get_sta() {
-  if (this->selected_ap_index_ >= 0 && this->selected_ap_index_ < this->sta_.size()) {
-    return this->sta_[this->selected_ap_index_];
+  if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
+    return this->sta_[this->selected_sta_index_];
   }
   return WiFiAP{};
 }
@@ -540,8 +540,8 @@ void WiFiComponent::print_connect_params_() {
                 LOG_STR_ARG(get_signal_bars(rssi)), get_wifi_channel(), wifi_subnet_mask_().str().c_str(),
                 wifi_gateway_ip_().str().c_str(), wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  if (this->selected_ap_index_ >= 0 && this->selected_ap_index_ < this->sta_.size()) {
-    const WiFiAP &config = this->sta_[this->selected_ap_index_];
+  if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
+    const WiFiAP &config = this->sta_[this->selected_sta_index_];
     if (config.get_bssid().has_value()) {
       ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*config.get_bssid()));
     }
@@ -707,7 +707,7 @@ void WiFiComponent::check_scanning_finished() {
       continue;
     }
 
-    this->selected_ap_index_ = i;
+    this->selected_sta_index_ = i;
     break;
   }
 
@@ -733,8 +733,8 @@ void WiFiComponent::check_connecting_finished() {
 
     ESP_LOGI(TAG, "Connected");
     // We won't retry hidden networks unless a reconnect fails more than three times again
-    if (this->retry_hidden_ && this->selected_ap_index_ >= 0 && this->selected_ap_index_ < this->sta_.size()) {
-      const WiFiAP &config = this->sta_[this->selected_ap_index_];
+    if (this->retry_hidden_ && this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
+      const WiFiAP &config = this->sta_[this->selected_sta_index_];
       if (!config.get_hidden())
         ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config.get_ssid().c_str());
     }
@@ -807,8 +807,8 @@ void WiFiComponent::check_connecting_finished() {
 }
 
 void WiFiComponent::retry_connect() {
-  if (this->selected_ap_index_ >= 0 && this->selected_ap_index_ < this->sta_.size()) {
-    const WiFiAP &config = this->sta_[this->selected_ap_index_];
+  if (this->selected_sta_index_ >= 0 && this->selected_sta_index_ < this->sta_.size()) {
+    const WiFiAP &config = this->sta_[this->selected_sta_index_];
     if (config.get_bssid()) {
       auto bssid = *config.get_bssid();
       float priority = this->get_sta_priority(bssid);
@@ -822,14 +822,14 @@ void WiFiComponent::retry_connect() {
 #ifdef USE_WIFI_FAST_CONNECT
     if (this->trying_loaded_ap_) {
       this->trying_loaded_ap_ = false;
-      this->selected_ap_index_ = 0;  // Retry from the first configured AP
-    } else if (this->selected_ap_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
+      this->selected_sta_index_ = 0;  // Retry from the first configured AP
+    } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
       ESP_LOGW(TAG, "No more APs to try");
-      this->selected_ap_index_ = 0;
+      this->selected_sta_index_ = 0;
       this->restart_adapter();
     } else {
       // Try next AP
-      this->selected_ap_index_++;
+      this->selected_sta_index_++;
     }
     this->num_retried_ = 0;
     this->selected_scan_index_ = -1;
@@ -904,7 +904,7 @@ bool WiFiComponent::load_fast_connect_settings_() {
     this->scan_result_.push_back(fast_connect_scan);
 
     // Set indices to use the loaded AP config and temporary scan result
-    this->selected_ap_index_ = fast_connect_save.ap_index;
+    this->selected_sta_index_ = fast_connect_save.ap_index;
     this->selected_scan_index_ = 0;
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
@@ -929,7 +929,7 @@ void WiFiComponent::save_fast_connect_settings_() {
   SavedWifiFastConnectSettings fast_connect_save{};
   memcpy(fast_connect_save.bssid, bssid.data(), 6);
   fast_connect_save.channel = channel;
-  fast_connect_save.ap_index = this->selected_ap_index_ >= 0 ? this->selected_ap_index_ : 0;
+  fast_connect_save.ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
 
   this->fast_connect_pref_.save(&fast_connect_save);
 
