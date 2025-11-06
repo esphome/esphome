@@ -365,26 +365,7 @@ class WiFiComponent : public Component {
 
   // Find which sta_[i] matches scan_result_[0] and set selected_sta_index_ (scan done path)
   // Returns true if match found, false otherwise
-  bool sync_selected_sta_to_best_scan_result_() {
-    if (this->scan_result_.empty())
-      return false;
-
-    const WiFiScanResult &scan_res = this->scan_result_[0];
-    if (!scan_res.get_matches())
-      return false;
-
-    for (size_t i = 0; i < this->sta_.size(); i++) {
-      if (scan_res.matches(this->sta_[i])) {
-        if (i > std::numeric_limits<int8_t>::max()) {
-          ESP_LOGE(TAG, "AP index %zu too large", i);
-          continue;
-        }
-        this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
-        return true;
-      }
-    }
-    return false;
-  }
+  bool sync_selected_sta_to_best_scan_result_();
 
   void start_connecting_to_selected_(bool two) {
     WiFiAP connection_params = this->build_selected_ap_();

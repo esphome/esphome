@@ -396,6 +396,27 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
   return params;
 }
 
+bool WiFiComponent::sync_selected_sta_to_best_scan_result_() {
+  if (this->scan_result_.empty())
+    return false;
+
+  const WiFiScanResult &scan_res = this->scan_result_[0];
+  if (!scan_res.get_matches())
+    return false;
+
+  for (size_t i = 0; i < this->sta_.size(); i++) {
+    if (scan_res.matches(this->sta_[i])) {
+      if (i > std::numeric_limits<int8_t>::max()) {
+        ESP_LOGE(TAG, "AP index %zu too large", i);
+        return false;
+      }
+      this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
+      return true;
+    }
+  }
+  return false;
+}
+
 WiFiAP WiFiComponent::get_sta() {
   const WiFiAP *config = this->get_selected_sta_();
   return config ? *config : WiFiAP{};
