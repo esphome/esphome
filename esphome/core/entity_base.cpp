@@ -109,9 +109,15 @@ void log_entity_icon(const char *tag, const char *prefix, const EntityBase *obj)
 #endif
 }
 
-void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass *obj) {
-  if (!obj->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
+void log_entity_icon_and_device_class(const char *tag, const char *prefix, const EntityBase *icon_obj,
+                                      const EntityBase_DeviceClass *device_class_obj) {
+#ifdef USE_ENTITY_ICON
+  if (!icon_obj->get_icon_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, icon_obj->get_icon_ref().c_str());
+  }
+#endif
+  if (!device_class_obj->get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, device_class_obj->get_device_class_ref().c_str());
   }
 }
 

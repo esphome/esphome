@@ -11,7 +11,7 @@ static const char *const TAG = "binary_sensor";
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj) {
   if (obj != nullptr) {
     ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-    log_entity_device_class(tag, prefix, obj);
+    log_entity_icon_and_device_class(tag, prefix, obj, obj);
   }
 }
 

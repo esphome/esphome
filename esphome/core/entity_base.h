@@ -253,7 +253,8 @@ template<typename T> class StatefulEntityBase : public EntityBase {
 /// Log entity icon if present (guarded by USE_ENTITY_ICON)
 void log_entity_icon(const char *tag, const char *prefix, const EntityBase *obj);
 
-/// Log entity device class if present
-void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass *obj);
+/// Log both entity icon and device class if present (combines both checks for efficiency)
+void log_entity_icon_and_device_class(const char *tag, const char *prefix, const EntityBase *icon_obj,
+                                      const EntityBase_DeviceClass *device_class_obj);
 
 }  // namespace esphome

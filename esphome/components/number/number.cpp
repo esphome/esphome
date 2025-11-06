@@ -10,13 +10,11 @@ static const char *const TAG = "number";
 void log_number(const char *tag, const char *prefix, const char *type, Number *obj) {
   if (obj != nullptr) {
     ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-    log_entity_icon(tag, prefix, obj);
-
     if (!obj->traits.get_unit_of_measurement_ref().empty()) {
       ESP_LOGCONFIG(tag, "%s  Unit of Measurement: '%s'", prefix, obj->traits.get_unit_of_measurement_ref().c_str());
     }
 
-    log_entity_device_class(tag, prefix, &obj->traits);
+    log_entity_icon_and_device_class(tag, prefix, obj, &obj->traits);
   }
 }
 
