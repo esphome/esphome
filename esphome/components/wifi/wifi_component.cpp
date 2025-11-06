@@ -406,10 +406,8 @@ bool WiFiComponent::sync_selected_sta_to_best_scan_result_() {
 
   for (size_t i = 0; i < this->sta_.size(); i++) {
     if (scan_res.matches(this->sta_[i])) {
-      if (i > std::numeric_limits<int8_t>::max()) {
-        ESP_LOGE(TAG, "AP index %zu too large", i);
-        return false;
-      }
+      // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
+      // No overflow check needed - YAML validation prevents >127 networks
       this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
       return true;
     }
@@ -832,15 +830,13 @@ void WiFiComponent::retry_connect() {
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
       (this->num_retried_ > 3 || this->error_from_callback_)) {
 #ifdef USE_WIFI_FAST_CONNECT
-    if (this->sta_.empty()) {
-      // No configured networks - shouldn't happen in fast_connect mode, but handle defensively
-      ESP_LOGW(TAG, "No configured networks");
-      this->restart_adapter();
-    } else if (this->trying_loaded_ap_) {
+    // No empty check needed - YAML validation requires at least one network for fast_connect
+    if (this->trying_loaded_ap_) {
       this->trying_loaded_ap_ = false;
       this->selected_sta_index_ = 0;  // Retry from the first configured AP
       this->reset_for_next_ap_attempt_();
     } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
+      // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
       // Exhausted all configured APs, restart adapter and cycle back to first
       // Restart clears any stuck WiFi driver state
       // Each AP is tried with config data only (SSID + optional BSSID/channel if user configured them)

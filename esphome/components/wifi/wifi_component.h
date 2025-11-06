@@ -463,7 +463,7 @@ class WiFiComponent : public Component {
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
-  // int8_t limits to 127 APs which should be sufficient for all practical use cases
+  // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
