@@ -12,6 +12,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <concepts>
 
 #include "esphome/core/optional.h"
 
@@ -1169,7 +1170,20 @@ template<class T> class RAMAllocator {
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
-/// @}
+/**
+ * Functions to constrain the range of arithmetic values.
+ */
+
+template<std::totally_ordered T> T clamp_at_least(T value, T min) {
+  if (value < min)
+    return min;
+  return value;
+}
+template<std::totally_ordered T> T clamp_at_most(T value, T max) {
+  if (value > max)
+    return max;
+  return value;
+}
 
 /// @name Internal functions
 ///@{
