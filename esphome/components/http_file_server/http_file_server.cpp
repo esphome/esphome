@@ -739,34 +739,27 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
   // Get raw httpd_req_t for chunked sending
   httpd_req_t *req = *request;
 
-  // Send headers
+  // Set response headers
   httpd_resp_set_type(req, mime_type.c_str());
   httpd_resp_set_hdr(req, "Content-Disposition", ("attachment; filename=\"" + filename + "\"").c_str());
 
-  // For large files, use chunked transfer encoding
-  if (file_size > FILE_BUFFER_SIZE) {
-    httpd_resp_set_hdr(req, "Transfer-Encoding", "chunked");
-  }
-
-  // Read and send in chunks
+  // Read and send in chunks using httpd_resp_send_chunk
   std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(FILE_BUFFER_SIZE);
   size_t bytes_read;
-  esp_err_t err = ESP_OK;
 
-  while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, file)) > 0 && err == ESP_OK) {
-    err = httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buffer.get()), bytes_read);
+  while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, file)) > 0) {
+    esp_err_t err = httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buffer.get()), bytes_read);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error sending chunk: %d", err);
-      break;
+      ESP_LOGE(TAG, "Error sending file chunk: %d", err);
+      fclose(file);
+      return;
     }
   }
 
   fclose(file);
 
-  // Send final empty chunk to signal end
-  if (err == ESP_OK) {
-    httpd_resp_send_chunk(req, nullptr, 0);
-  }
+  // Send final empty chunk to complete the response
+  httpd_resp_send_chunk(req, nullptr, 0);
 }
 
 // API handlers
