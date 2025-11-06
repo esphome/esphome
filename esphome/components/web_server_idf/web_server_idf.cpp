@@ -125,6 +125,14 @@ void AsyncWebServer::begin() {
         .user_ctx = this,
     };
     httpd_register_uri_handler(this->server_, &handler_options);
+
+    const httpd_uri_t handler_delete = {
+        .uri = "",
+        .method = HTTP_DELETE,
+        .handler = AsyncWebServer::request_handler,
+        .user_ctx = this,
+    };
+    httpd_register_uri_handler(this->server_, &handler_delete);
   }
 }
 

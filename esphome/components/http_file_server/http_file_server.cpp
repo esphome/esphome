@@ -603,12 +603,28 @@ function showProgressModal(operation, source, destination) {
   const sourceEl = document.getElementById('progressSource');
   const destEl = document.getElementById('progressDest');
 
-  title.textContent = operation === 'copy' ? 'Copying File...' : 'Moving File...';
+  // Set title based on operation type
+  if (operation === 'copy') {
+    title.textContent = 'Copying File...';
+  } else if (operation === 'move') {
+    title.textContent = 'Moving File...';
+  } else if (operation === 'upload') {
+    title.textContent = 'Uploading File...';
+  } else {
+    title.textContent = 'Processing...';
+  }
+
   bar.style.width = '0%';
   bar.textContent = '0%';
   details.textContent = 'Starting operation...';
   sourceEl.textContent = source;
-  destEl.textContent = destination;
+
+  // Strip URL prefix from destination if present
+  let cleanDest = destination;
+  if (cleanDest.startsWith(API_BASE)) {
+    cleanDest = cleanDest.substring(API_BASE.length);
+  }
+  destEl.textContent = cleanDest;
 
   modal.classList.add('active');
 }
@@ -639,18 +655,31 @@ function formatTime(ms) {
   return minutes + 'm ' + remainingSeconds + 's';
 }
 
+let progressPollCount = 0;
+let hasSeenProgress = false;
+
 function pollProgress() {
+  progressPollCount++;
+
   fetch(API_BASE + '/api/progress')
     .then(response => response.json())
     .then(data => {
-      console.log('Progress update:', data);
+      console.log('Progress update #' + progressPollCount + ':', data);
 
       if (!data.in_progress) {
-        console.log('Operation complete, closing modal');
-        hideProgressModal();
-        location.reload();
+        // Only close if we've seen progress before, or after 10 polls
+        if (hasSeenProgress || progressPollCount > 10) {
+          console.log('Operation complete, closing modal');
+          hideProgressModal();
+          location.reload();
+        } else {
+          console.log('Waiting for operation to start...');
+        }
         return;
       }
+
+      // Mark that we've seen progress
+      hasSeenProgress = true;
 
       const bar = document.getElementById('progressBar');
       const details = document.getElementById('progressDetails');
@@ -676,6 +705,10 @@ function pollProgress() {
 }
 
 function startProgressPolling() {
+  // Reset progress tracking
+  progressPollCount = 0;
+  hasSeenProgress = false;
+
   if (progressPollInterval) {
     clearInterval(progressPollInterval);
   }
@@ -1327,8 +1360,9 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string source = source_param->value().c_str();
-  std::string destination = dest_param->value().c_str();
+  // Convert URI paths to filesystem paths (strips URL prefix)
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
+  std::string destination = this->uri_to_filepath(dest_param->value().c_str());
 
   ESP_LOGI(TAG, "API COPY: %s -> %s", source.c_str(), destination.c_str());
 
@@ -1364,8 +1398,9 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string source = source_param->value().c_str();
-  std::string destination = dest_param->value().c_str();
+  // Convert URI paths to filesystem paths (strips URL prefix)
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
+  std::string destination = this->uri_to_filepath(dest_param->value().c_str());
 
   ESP_LOGI(TAG, "API MOVE: %s -> %s", source.c_str(), destination.c_str());
 
@@ -1401,7 +1436,8 @@ void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string source = source_param->value().c_str();
+  // Convert URI path to filesystem path (strips URL prefix)
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
   std::string new_name = name_param->value().c_str();
 
   // Build new path (same directory, new name)
@@ -1501,7 +1537,8 @@ void HttpFileServer::handle_api_exists(AsyncWebServerRequest *request) {
     return;
   }
 
-  std::string filepath = path_param->value().c_str();
+  // Convert URI path to filesystem path (strips URL prefix)
+  std::string filepath = this->uri_to_filepath(path_param->value().c_str());
 
   // Check if file exists
   struct stat file_stat;
