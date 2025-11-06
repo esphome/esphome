@@ -8,29 +8,22 @@ static const char *const TAG = "sensor";
 
 // Function implementation of LOG_SENSOR macro to reduce code size
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj) {
-  if (obj == nullptr) {
-    return;
-  }
+  if (obj != nullptr) {
+    ESP_LOGCONFIG(tag,
+                  "%s%s '%s'\n"
+                  "%s  State Class: '%s'\n"
+                  "%s  Unit of Measurement: '%s'\n"
+                  "%s  Accuracy Decimals: %d",
+                  prefix, type, obj->get_name().c_str(), prefix,
+                  LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
+                  obj->get_unit_of_measurement_ref().c_str(), prefix, obj->get_accuracy_decimals());
 
-  ESP_LOGCONFIG(tag,
-                "%s%s '%s'\n"
-                "%s  State Class: '%s'\n"
-                "%s  Unit of Measurement: '%s'\n"
-                "%s  Accuracy Decimals: %d",
-                prefix, type, obj->get_name().c_str(), prefix,
-                LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
-                obj->get_unit_of_measurement_ref().c_str(), prefix, obj->get_accuracy_decimals());
+    obj->log_device_class(tag, prefix);
+    obj->log_icon(tag, prefix);
 
-  if (!obj->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
-  }
-
-  if (!obj->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
-  }
-
-  if (obj->get_force_update()) {
-    ESP_LOGV(tag, "%s  Force Update: YES", prefix);
+    if (obj->get_force_update()) {
+      ESP_LOGV(tag, "%s  Force Update: YES", prefix);
+    }
   }
 }
 
