@@ -171,6 +171,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   void handle_api_move(AsyncWebServerRequest *request);
   void handle_api_rename(AsyncWebServerRequest *request);
   void handle_api_mkdir(AsyncWebServerRequest *request);
+  void handle_api_exists(AsyncWebServerRequest *request);
   void handle_api_progress(AsyncWebServerRequest *request);
 
   // JSON parsing helper
