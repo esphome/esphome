@@ -107,6 +107,9 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
   } else if (uri.find(this->url_prefix_ + "/api/unmount") == 0 && request->method() == HTTP_POST) {
     ESP_LOGD(TAG, "API UNMOUNT endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_unmount(request);
+  } else if (uri.find(this->url_prefix_ + "/api/remount") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API REMOUNT endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
+    this->handle_api_remount(request);
   } else if (uri.find(this->url_prefix_ + "/api/exists") == 0 && request->method() == HTTP_GET) {
     this->handle_api_exists(request);
   } else if (uri.find(this->url_prefix_ + "/api/dirisempty") == 0 && request->method() == HTTP_GET) {
@@ -1943,15 +1946,13 @@ void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
       auto *device = static_cast<sd_mmc_card::SdMmc *>(dev_ptr);
       ESP_LOGD(TAG, "  Checking SD MMC device with mount_path: %s", device->get_mount_path().c_str());
       if (device->get_mount_path() == mount_point) {
-        // Remount = unmount then mount
-        device->unmount_card();
         if (device->mount_card()) {
-          ESP_LOGI(TAG, "Successfully remounted SD MMC device at %s", mount_point.c_str());
+          ESP_LOGI(TAG, "Successfully mounted SD MMC device at %s", mount_point.c_str());
           request->send(200, "application/json", "{\"success\":true}");
           return;
         } else {
-          ESP_LOGE(TAG, "Failed to remount SD MMC device at %s", mount_point.c_str());
-          request->send(500, "application/json", "{\"error\":\"Remount failed\"}");
+          ESP_LOGE(TAG, "Failed to mount SD MMC device at %s", mount_point.c_str());
+          request->send(500, "application/json", "{\"error\":\"Mount failed\"}");
           return;
         }
       }
