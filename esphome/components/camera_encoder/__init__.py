@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_component
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TYPE
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DT-art1"]
@@ -51,9 +50,8 @@ async def to_code(config: ConfigType) -> None:
     buffer = cg.new_Pvariable(config[CONF_ENCODER_BUFFER_ID])
     cg.add(buffer.set_buffer_size(config[CONF_BUFFER_SIZE]))
     if config[CONF_TYPE] == ESP32_CAMERA_ENCODER:
-        if CORE.using_esp_idf:
-            add_idf_component(name="espressif/esp32-camera", ref="2.1.0")
-        cg.add_build_flag("-DUSE_ESP32_CAMERA_JPEG_ENCODER")
+        add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
+        cg.add_define("USE_ESP32_CAMERA_JPEG_ENCODER")
         var = cg.new_Pvariable(
             config[CONF_ID],
             config[CONF_QUALITY],

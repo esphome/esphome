@@ -69,7 +69,7 @@ class ESPHomeDataBase:
         self._content_offset = database.content_offset
 
 
-class ESPForceValue:
+class ESPLiteralValue:
     pass
 
 
@@ -348,9 +348,15 @@ class ESPHomeLoaderMixin:
         return Lambda(str(node.value))
 
     @_add_data_ref
-    def construct_force(self, node: yaml.Node) -> ESPForceValue:
-        obj = self.construct_scalar(node)
-        return add_class_to_obj(obj, ESPForceValue)
+    def construct_literal(self, node: yaml.Node) -> ESPLiteralValue:
+        obj = None
+        if isinstance(node, yaml.ScalarNode):
+            obj = self.construct_scalar(node)
+        elif isinstance(node, yaml.SequenceNode):
+            obj = self.construct_sequence(node)
+        elif isinstance(node, yaml.MappingNode):
+            obj = self.construct_mapping(node)
+        return add_class_to_obj(obj, ESPLiteralValue)
 
     @_add_data_ref
     def construct_extend(self, node: yaml.Node) -> Extend:
@@ -407,7 +413,7 @@ for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
         "!include_dir_merge_named", _loader.construct_include_dir_merge_named
     )
     _loader.add_constructor("!lambda", _loader.construct_lambda)
-    _loader.add_constructor("!force", _loader.construct_force)
+    _loader.add_constructor("!literal", _loader.construct_literal)
     _loader.add_constructor("!extend", _loader.construct_extend)
     _loader.add_constructor("!remove", _loader.construct_remove)
 

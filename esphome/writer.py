@@ -1,5 +1,6 @@
 import importlib
 import logging
+import os
 from pathlib import Path
 import re
 
@@ -14,6 +15,8 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
+    get_str_env,
+    is_ha_addon,
     read_file,
     walk_files,
     write_file_if_changed,
@@ -301,6 +304,11 @@ def clean_cmake_cache():
 def clean_build():
     import shutil
 
+    # Allow skipping cache cleaning for integration tests
+    if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
+        _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
+        return
+
     pioenvs = CORE.relative_pioenvs_path()
     if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
@@ -317,17 +325,51 @@ def clean_build():
     # Clean PlatformIO cache to resolve CMake compiler detection issues
     # This helps when toolchain paths change or get corrupted
     try:
-        from platformio.project.helpers import get_project_cache_dir
+        from platformio.project.config import ProjectConfig
     except ImportError:
         # PlatformIO is not available, skip cache cleaning
         pass
     else:
-        cache_dir = get_project_cache_dir()
-        if cache_dir and cache_dir.strip():
-            cache_path = Path(cache_dir)
-            if cache_path.is_dir():
-                _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
-                shutil.rmtree(cache_dir)
+        config = ProjectConfig.get_instance()
+        cache_dir = Path(config.get("platformio", "cache_dir"))
+        if cache_dir.is_dir():
+            _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
+            shutil.rmtree(cache_dir)
+
+
+def clean_all(configuration: list[str]):
+    import shutil
+
+    data_dirs = [Path(dir) / ".esphome" for dir in configuration]
+    if is_ha_addon():
+        data_dirs.append(Path("/data"))
+    if "ESPHOME_DATA_DIR" in os.environ:
+        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+
+    # Clean build dir
+    for dir in data_dirs:
+        if dir.is_dir():
+            _LOGGER.info("Cleaning %s", dir)
+            # Don't remove storage or .json files which are needed by the dashboard
+            for item in dir.iterdir():
+                if item.is_file() and not item.name.endswith(".json"):
+                    item.unlink()
+                elif item.is_dir() and item.name != "storage":
+                    shutil.rmtree(item)
+
+    # Clean PlatformIO project files
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cleaning
+        pass
+    else:
+        config = ProjectConfig.get_instance()
+        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
+            path = Path(config.get("platformio", pio_dir))
+            if path.is_dir():
+                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
+                shutil.rmtree(path)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

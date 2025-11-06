@@ -10,6 +10,8 @@
 namespace esphome {
 namespace wifi_info {
 
+static constexpr size_t MAX_STATE_LENGTH = 255;
+
 class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
@@ -71,11 +73,14 @@ class ScanResultsWiFiInfo : public PollingComponent, public text_sensor::TextSen
       scan_results += "dB\n";
     }
 
+    // There's a limit of 255 characters per state.
+    // Longer states just don't get sent so we truncate it.
+    if (scan_results.length() > MAX_STATE_LENGTH) {
+      scan_results.resize(MAX_STATE_LENGTH);
+    }
     if (this->last_scan_results_ != scan_results) {
       this->last_scan_results_ = scan_results;
-      // There's a limit of 255 characters per state.
-      // Longer states just don't get sent so we truncate it.
-      this->publish_state(scan_results.substr(0, 255));
+      this->publish_state(scan_results);
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }

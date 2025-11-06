@@ -6,6 +6,7 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 import sys
 from typing import Any
+from unittest import mock
 
 import pytest
 
@@ -17,6 +18,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.types import ConfigType
+from esphome.util import OrderedDict
 
 # Add package root to python path
 here = Path(__file__).parent
@@ -135,3 +137,29 @@ def generate_main() -> Generator[Callable[[str | Path], str]]:
         return CORE.cpp_main_section
 
     yield generator
+
+
+@pytest.fixture
+def mock_clone_or_update() -> Generator[Any]:
+    """Mock git.clone_or_update for testing."""
+    with mock.patch("esphome.git.clone_or_update") as mock_func:
+        # Default return value
+        mock_func.return_value = (Path("/tmp/test"), None)
+        yield mock_func
+
+
+@pytest.fixture
+def mock_load_yaml() -> Generator[Any]:
+    """Mock yaml_util.load_yaml for testing."""
+
+    with mock.patch("esphome.yaml_util.load_yaml") as mock_func:
+        # Default return value
+        mock_func.return_value = OrderedDict({"sensor": []})
+        yield mock_func
+
+
+@pytest.fixture
+def mock_install_meta_finder() -> Generator[Any]:
+    """Mock loader.install_meta_finder for testing."""
+    with mock.patch("esphome.loader.install_meta_finder") as mock_func:
+        yield mock_func

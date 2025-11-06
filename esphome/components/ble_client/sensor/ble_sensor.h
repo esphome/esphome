@@ -15,8 +15,6 @@ namespace ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-using data_to_value_t = std::function<float(std::vector<uint8_t>)>;
-
 class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClientNode {
  public:
   void loop() override;
@@ -33,13 +31,17 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
   void set_descr_uuid16(uint16_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
   void set_descr_uuid32(uint32_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_descr_uuid128(uint8_t *uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
-  void set_data_to_value(data_to_value_t &&lambda) { this->data_to_value_func_ = lambda; }
+  void set_data_to_value(float (*lambda)(const std::vector<uint8_t> &)) {
+    this->data_to_value_func_ = lambda;
+    this->has_data_to_value_ = true;
+  }
   void set_enable_notify(bool notify) { this->notify_ = notify; }
   uint16_t handle;
 
  protected:
   float parse_data_(uint8_t *value, uint16_t value_len);
-  optional<data_to_value_t> data_to_value_func_{};
+  bool has_data_to_value_{false};
+  float (*data_to_value_func_)(const std::vector<uint8_t> &){};
   bool notify_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
