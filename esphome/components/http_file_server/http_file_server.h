@@ -170,6 +170,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   // Specific handlers for different GET requests
   void handle_directory_listing(AsyncWebServerRequest *request, const std::string &filepath);
   void handle_file_download(AsyncWebServerRequest *request, const std::string &filepath);
+  void handle_file_upload(AsyncWebServerRequest *request, const std::string &filename);
 
   // API handlers
   void handle_api_copy(AsyncWebServerRequest *request);

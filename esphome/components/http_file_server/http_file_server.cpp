@@ -116,10 +116,15 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     }
   } else if (request->method() == HTTP_POST) {
     // Handle POST for file uploads (non-API endpoints)
-    // Note: The actual upload is handled by handleUpload() callback
-    // Response is already sent in handleUpload when final==true
     ESP_LOGD(TAG, "POST handler - upload for URI: %s", uri.c_str());
-    // Nothing to do here - handleUpload sends the response
+
+    // Check if this is a file upload (has filename query parameter)
+    auto *filename_param = request->getParam("filename");
+    if (filename_param) {
+      this->handle_file_upload(request, filename_param->value().c_str());
+    } else {
+      request->send(400, "text/plain", "Missing filename parameter");
+    }
   } else if (request->method() == HTTP_DELETE) {
     ESP_LOGI(TAG, "DELETE handler called for URI: %s", uri.c_str());
 
@@ -1000,13 +1005,19 @@ function handleUpload(event) {
   showProgressModal('upload', file.name, window.location.pathname);
   startProgressPolling();
 
-  // Create FormData and upload
-  const formData = new FormData();
-  formData.append('file', file);
+  // Send file as raw binary with filename in URL query parameter
+  let uploadUrl = window.location.pathname;
+  if (!uploadUrl.endsWith('/')) {
+    uploadUrl += '/';
+  }
+  uploadUrl += '?filename=' + encodeURIComponent(file.name);
 
-  fetch(window.location.pathname, {
+  fetch(uploadUrl, {
     method: 'POST',
-    body: formData
+    headers: {
+      'Content-Type': 'application/octet-stream'
+    },
+    body: file
   })
     .then(response => {
       if (!response.ok) {
@@ -1246,6 +1257,94 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     fclose(file);
     ESP_LOGW(TAG, "File too large: %zu bytes (max %zu)", file_size, CHUNK_READ_SIZE);
     request->send(413, "text/plain", "File too large - maximum 16MB");
+  }
+}
+
+void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const std::string &filename) {
+  if (!this->upload_enabled_) {
+    request->send(403, "text/plain", "File upload is disabled");
+    return;
+  }
+
+  // Get the directory path from URI
+  std::string uri = request->url().c_str();
+  std::string dir_path = this->uri_to_filepath(uri);
+
+  // Check if target is a directory
+  struct stat file_stat;
+  if (stat(dir_path.c_str(), &file_stat) != 0 || !S_ISDIR(file_stat.st_mode)) {
+    request->send(400, "text/plain", "Upload target must be a directory");
+    return;
+  }
+
+  // Build full upload path
+  std::string upload_path = Path::join(dir_path, filename);
+  ESP_LOGI(TAG, "Starting upload: %s", upload_path.c_str());
+
+  // Initialize progress tracking
+  this->progress_.operation = "upload";
+  this->progress_.source = filename.c_str();
+  this->progress_.destination = upload_path;
+  this->progress_.total_bytes = request->contentLength();
+  this->progress_.transferred_bytes = 0;
+  this->progress_.in_progress = true;
+  this->progress_.start_time = millis();
+
+  // Open file for writing
+  FILE *file = fopen(upload_path.c_str(), "wb");
+  if (!file) {
+    ESP_LOGE(TAG, "Failed to open file for writing: %s", upload_path.c_str());
+    this->progress_.in_progress = false;
+    request->send(500, "text/plain", "Failed to open file for writing");
+    return;
+  }
+
+  // Get raw httpd_req_t to read POST body
+  httpd_req_t *req = static_cast<httpd_req_t *>(*request);
+  size_t remaining = request->contentLength();
+  const size_t BUFFER_SIZE = 4096;
+  uint8_t buffer[BUFFER_SIZE];
+  bool success = true;
+
+  // Read and write in chunks
+  while (remaining > 0) {
+    size_t to_read = (remaining > BUFFER_SIZE) ? BUFFER_SIZE : remaining;
+    int received = httpd_req_recv(req, reinterpret_cast<char *>(buffer), to_read);
+
+    if (received <= 0) {
+      ESP_LOGE(TAG, "Failed to receive data: %d", received);
+      success = false;
+      break;
+    }
+
+    size_t written = fwrite(buffer, 1, received, file);
+    if (written != static_cast<size_t>(received)) {
+      ESP_LOGE(TAG, "Failed to write to file: wrote %zu of %d bytes", written, received);
+      success = false;
+      break;
+    }
+
+    this->progress_.transferred_bytes += written;
+    remaining -= received;
+
+    // Log progress every ~100KB
+    if (this->progress_.transferred_bytes % (100 * 1024) < BUFFER_SIZE) {
+      ESP_LOGD(TAG, "Upload progress: %zu / %zu bytes", this->progress_.transferred_bytes, this->progress_.total_bytes);
+    }
+  }
+
+  fclose(file);
+
+  // Mark progress as complete
+  this->progress_.in_progress = false;
+
+  if (success) {
+    ESP_LOGI(TAG, "Upload complete: %zu bytes", this->progress_.transferred_bytes);
+    request->send(200, "text/plain", "File uploaded successfully");
+  } else {
+    ESP_LOGE(TAG, "Upload failed");
+    remove(upload_path.c_str());  // Clean up partial file
+    request->send(500, "text/plain", "Upload failed");
   }
 }
 
