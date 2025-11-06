@@ -348,7 +348,7 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
   WiFiAP params;
 
   if (const WiFiAP *config = this->get_selected_sta_()) {
-    // Copy config data
+    // Copy config data (password, manual IP, priority, EAP)
     params.set_password(config->get_password());
     params.set_manual_ip(config->get_manual_ip());
     params.set_priority(config->get_priority());
@@ -357,12 +357,12 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
     params.set_eap(config->get_eap());
 #endif
 
-    // Use config SSID for hidden networks
+    // Selected network is hidden, we use the data from the config
     if (config->get_hidden()) {
       params.set_hidden(true);
       params.set_ssid(config->get_ssid());
       // Clear BSSID and channel for hidden networks - there might be multiple hidden networks
-      // and we can't know which one is correct. Rely on probe-req with just SSID.
+      // but we can't know which one is the correct one. Rely on probe-req with just SSID.
       // Leaving channel empty triggers ALL_CHANNEL_SCAN instead of FAST_SCAN.
       params.set_bssid(optional<bssid_t>{});
       params.set_channel(optional<uint8_t>{});
@@ -374,7 +374,8 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
     const WiFiScanResult &scan = this->scan_result_[this->selected_scan_index_];
 
     if (!params.get_hidden()) {
-      // For visible networks, use scan data to limit connection to exactly this network
+      // Selected network is visible, we use the data from the scan.
+      // Limit the connect params to only connect to exactly this network
       // (network selection is done during scan phase).
       params.set_ssid(scan.get_ssid());
       params.set_bssid(scan.get_bssid());
