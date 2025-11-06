@@ -364,7 +364,8 @@ WiFiAP WiFiComponent::build_selected_ap_() const {
       params.set_hidden(true);
       // For hidden networks, clear BSSID and channel even if set in config
       // There might be multiple hidden networks with same SSID but we can't know which is correct
-      // Rely on probe-req with just SSID. Leaving channel empty triggers ALL_CHANNEL_SCAN.
+      // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
+      // Note: Scan data is never used for hidden networks (see check below at line ~390)
       params.set_bssid(optional<bssid_t>{});
       params.set_channel(optional<uint8_t>{});
     } else {
@@ -810,7 +811,11 @@ void WiFiComponent::retry_connect() {
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
       (this->num_retried_ > 3 || this->error_from_callback_)) {
 #ifdef USE_WIFI_FAST_CONNECT
-    if (this->trying_loaded_ap_) {
+    if (this->sta_.empty()) {
+      // No configured networks - shouldn't happen in fast_connect mode, but handle defensively
+      ESP_LOGW(TAG, "No configured networks available");
+      this->restart_adapter();
+    } else if (this->trying_loaded_ap_) {
       this->trying_loaded_ap_ = false;
       this->selected_sta_index_ = 0;  // Retry from the first configured AP
       this->reset_for_next_ap_attempt_();
@@ -890,7 +895,7 @@ bool WiFiComponent::load_fast_connect_settings_() {
 
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
     // Validate saved AP index
-    if (static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
+    if (fast_connect_save.ap_index < 0 || static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
       ESP_LOGW(TAG, "Saved AP index out of bounds");
       return false;
     }
