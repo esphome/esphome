@@ -47,8 +47,6 @@ class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
 
   uint8_t bcd2_to_byte_(uint8_t value);
   uint8_t byte_to_bcd2_(uint8_t value);
-
-  bool setup_complete_;
 };
 
 template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<BM8563> {

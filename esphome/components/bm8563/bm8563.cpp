@@ -10,28 +10,25 @@ static const char *const TAG = "BM8563";
 static const uint8_t CONTROL_STATUS_2_REG = 0x01;
 
 void BM8563::setup() {
-  this->write_byte_16(0, 0);
-  this->setup_complete_ = true;
-}
-
-void BM8563::update() {
-  if (!this->setup_complete_) {
+  if (!this->write_byte_16(0, 0)) {
+    this->mark_failed();
     return;
   }
-  this->read_time();
 }
+
+void BM8563::update() { this->read_time(); }
 
 void BM8563::dump_config() {
   ESP_LOGCONFIG(TAG, "BM8563:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
-  ESP_LOGCONFIG(TAG, "  setup_complete: %s", this->setup_complete_ ? "true" : "false");
+  LOG_I2C_DEVICE(this);
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  }
 }
 
 void BM8563::start_timer(uint32_t timer_s) {
-  if (this->setup_complete_) {
-    this->clear_irq_();
-    this->set_timer_irq_(timer_s);
-  }
+  this->clear_irq_();
+  this->set_timer_irq_(timer_s);
 }
 
 void BM8563::write_time() {
@@ -87,9 +84,8 @@ bool BM8563::get_volt_low_() {
 }
 
 uint8_t BM8563::bcd2_to_byte_(uint8_t value) {
-  uint8_t tmp = 0;
-  tmp = ((uint8_t) (value & (uint8_t) 0xF0) >> (uint8_t) 0x4) * 10;
-  return (tmp + (value & (uint8_t) 0x0F));
+  uint8_t tmp = ((value & 0xF0) >> 0x4) * 10;
+  return (tmp + (value & 0x0F));
 }
 
 uint8_t BM8563::byte_to_bcd2_(uint8_t value) {
