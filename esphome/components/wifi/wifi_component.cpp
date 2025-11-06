@@ -174,7 +174,8 @@ void WiFiComponent::loop() {
             // All APs tried, fall back to scanning
             this->start_scanning();
           } else {
-            // NOTE: This check may not make sense here as it could interfere with AP cycling
+            // Safety check: Ensure selected_sta_index_ is valid before retrying
+            // (should already be set by retry_connect(), but check for robustness)
             this->reset_selected_ap_to_first_if_invalid_();
             this->start_connecting_to_selected_(false);
           }
@@ -708,11 +709,6 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
 
-#ifdef USE_WIFI_FAST_CONNECT
-  // Scan found a network, reset exhausted flag to allow fast connect to work next time
-  this->fast_connect_exhausted_ = false;
-#endif
-
   yield();
 
   this->start_connecting_to_selected_(false);
@@ -923,11 +919,13 @@ bool WiFiComponent::load_fast_connect_settings_() {
 void WiFiComponent::save_fast_connect_settings_() {
   bssid_t bssid = wifi_bssid();
   uint8_t channel = get_wifi_channel();
+  int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
 
-  // Skip save if settings haven't changed (compare with current scan result if available)
-  if (!this->scan_result_.empty()) {
-    const WiFiScanResult &scan = this->scan_result_[0];
-    if (bssid == scan.get_bssid() && channel == scan.get_channel()) {
+  // Skip save if settings haven't changed (compare with previously saved settings to reduce flash wear)
+  SavedWifiFastConnectSettings previous_save{};
+  if (this->fast_connect_pref_.load(&previous_save)) {
+    if (memcmp(previous_save.bssid, bssid.data(), 6) == 0 && previous_save.channel == channel &&
+        previous_save.ap_index == ap_index) {
       return;  // No change, nothing to save
     }
   }
@@ -935,7 +933,7 @@ void WiFiComponent::save_fast_connect_settings_() {
   SavedWifiFastConnectSettings fast_connect_save{};
   memcpy(fast_connect_save.bssid, bssid.data(), 6);
   fast_connect_save.channel = channel;
-  fast_connect_save.ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
+  fast_connect_save.ap_index = ap_index;
 
   this->fast_connect_pref_.save(&fast_connect_save);
 

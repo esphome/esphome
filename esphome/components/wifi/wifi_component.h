@@ -218,6 +218,8 @@ class WiFiComponent : public Component {
   WiFiComponent();
 
   void set_sta(const WiFiAP &ap);
+  // Returns a copy of the currently selected AP configuration
+  // Note: This copies the 88-byte WiFiAP. Only used by WiFiConfigureAction for state save/restore.
   WiFiAP get_sta();
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
@@ -471,6 +473,7 @@ class WiFiComponent : public Component {
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
+  // int8_t limits to 127 APs which should be sufficient for all practical use cases
   int8_t selected_sta_index_{-1};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
