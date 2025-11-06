@@ -15,12 +15,11 @@ const extern float COVER_CLOSED;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+    log_entity_name_icon_and_device_class(TAG, prefix, LOG_STR_LITERAL(type), (obj), (obj)); \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    log_entity_icon_and_device_class(TAG, prefix, (obj), (obj)); \
   }
 
 class Cover;

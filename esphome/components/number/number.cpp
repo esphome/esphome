@@ -9,12 +9,16 @@ static const char *const TAG = "number";
 // Function implementation of LOG_NUMBER macro to reduce code size
 void log_number(const char *tag, const char *prefix, const char *type, Number *obj) {
   if (obj != nullptr) {
-    ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+    log_entity_name_and_icon(tag, prefix, type, obj);
+
     if (!obj->traits.get_unit_of_measurement_ref().empty()) {
       ESP_LOGCONFIG(tag, "%s  Unit of Measurement: '%s'", prefix, obj->traits.get_unit_of_measurement_ref().c_str());
     }
 
-    log_entity_icon_and_device_class(tag, prefix, obj, &obj->traits);
+    auto device_class_ref = obj->traits.get_device_class_ref();
+    if (!device_class_ref.empty()) {
+      ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, device_class_ref.c_str());
+    }
   }
 }
 
