@@ -3,6 +3,15 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
+
+// Storage device headers for mount/unmount
+#ifdef USE_USB_MSC_HOST
+#include "esphome/components/usb_msc_host/usb_msc_host.h"
+#endif
+#ifdef USE_SD_MMC_CARD
+#include "esphome/components/sd_mmc_card/sd_mmc_card.h"
+#endif
+
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
@@ -1635,21 +1644,99 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
-  // Mount/unmount operations should be performed via ESPHome automations
-  // using storage_host actions (storage_host.mount/storage_host.unmount)
-  // This API endpoint is reserved for future functionality
-  ESP_LOGW(TAG, "Mount API called - not implemented (use automations)");
-  request->send(501, "application/json",
-                "{\"error\":\"Mount operations must be performed via ESPHome automations\"}");
+  // Get mount_point parameter
+  auto *mount_point_param = request->getParam("mount_point");
+
+  if (!mount_point_param) {
+    ESP_LOGW(TAG, "Missing mount_point parameter");
+    request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
+    return;
+  }
+
+  std::string mount_point = mount_point_param->value().c_str();
+  ESP_LOGI(TAG, "API MOUNT: mount_point=%s", mount_point.c_str());
+
+  // Try to find matching USB MSC device and call remount
+#ifdef USE_USB_MSC_HOST
+  for (void *dev_ptr : this->usb_msc_devices_) {
+    auto *device = static_cast<usb_msc_host::USBMscDevice *>(dev_ptr);
+    if (device->get_mount_path() == mount_point) {
+      if (device->remount_device()) {
+        ESP_LOGI(TAG, "Successfully remounted USB MSC device at %s", mount_point.c_str());
+        request->send(200, "application/json", "{\"success\":true}");
+        return;
+      } else {
+        ESP_LOGE(TAG, "Failed to remount USB MSC device at %s", mount_point.c_str());
+        request->send(500, "application/json", "{\"error\":\"Remount failed\"}");
+        return;
+      }
+    }
+  }
+#endif
+
+  // Try SD MMC devices
+#ifdef USE_SD_MMC_CARD
+  for (void *dev_ptr : this->sd_mmc_devices_) {
+    auto *device = static_cast<sd_mmc_card::SdMmcCard *>(dev_ptr);
+    if (device->get_mount_path() == mount_point) {
+      if (device->remount_device()) {
+        ESP_LOGI(TAG, "Successfully remounted SD MMC device at %s", mount_point.c_str());
+        request->send(200, "application/json", "{\"success\":true}");
+        return;
+      } else {
+        ESP_LOGE(TAG, "Failed to remount SD MMC device at %s", mount_point.c_str());
+        request->send(500, "application/json", "{\"error\":\"Remount failed\"}");
+        return;
+      }
+    }
+  }
+#endif
+
+  ESP_LOGW(TAG, "No device found for mount point: %s", mount_point.c_str());
+  request->send(404, "application/json", "{\"error\":\"Mount point not found\"}");
 }
 
 void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
-  // Mount/unmount operations should be performed via ESPHome automations
-  // using storage_host actions (storage_host.mount/storage_host.unmount)
-  // This API endpoint is reserved for future functionality
-  ESP_LOGW(TAG, "Unmount API called - not implemented (use automations)");
-  request->send(501, "application/json",
-                "{\"error\":\"Unmount operations must be performed via ESPHome automations\"}");
+  // Get mount_point parameter
+  auto *mount_point_param = request->getParam("mount_point");
+
+  if (!mount_point_param) {
+    ESP_LOGW(TAG, "Missing mount_point parameter");
+    request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
+    return;
+  }
+
+  std::string mount_point = mount_point_param->value().c_str();
+  ESP_LOGI(TAG, "API UNMOUNT: mount_point=%s", mount_point.c_str());
+
+  // Try to find matching USB MSC device and unmount
+#ifdef USE_USB_MSC_HOST
+  for (void *dev_ptr : this->usb_msc_devices_) {
+    auto *device = static_cast<usb_msc_host::USBMscDevice *>(dev_ptr);
+    if (device->get_mount_path() == mount_point) {
+      device->unmount_device();
+      ESP_LOGI(TAG, "Successfully unmounted USB MSC device at %s", mount_point.c_str());
+      request->send(200, "application/json", "{\"success\":true}");
+      return;
+    }
+  }
+#endif
+
+  // Try SD MMC devices
+#ifdef USE_SD_MMC_CARD
+  for (void *dev_ptr : this->sd_mmc_devices_) {
+    auto *device = static_cast<sd_mmc_card::SdMmcCard *>(dev_ptr);
+    if (device->get_mount_path() == mount_point) {
+      device->unmount_device();
+      ESP_LOGI(TAG, "Successfully unmounted SD MMC device at %s", mount_point.c_str());
+      request->send(200, "application/json", "{\"success\":true}");
+      return;
+    }
+  }
+#endif
+
+  ESP_LOGW(TAG, "No device found for mount point: %s", mount_point.c_str());
+  request->send(404, "application/json", "{\"error\":\"Mount point not found\"}");
 }
 
 void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
