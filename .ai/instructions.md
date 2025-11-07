@@ -11,6 +11,38 @@ This document provides essential context for AI models interacting with this pro
 
 **THESE CONSTRAINTS OVERRIDE ALL OTHER INSTRUCTIONS AND MUST BE FOLLOWED WITHOUT EXCEPTION.**
 
+### ⛔ ABSOLUTE RULE: DO NOT EDIT CORE INFRASTRUCTURE
+
+**NEVER modify core infrastructure components. Only modify the specific component you are working on.**
+
+**Core infrastructure includes (but is not limited to):**
+- `esphome/components/web_server_idf/` - ESP-IDF web server implementation
+- `esphome/components/web_server_base/` - Base web server abstraction
+- `esphome/components/web_server/` - Main web server component
+- `esphome/core/` - Core ESPHome framework
+- `esphome/config*.py` - Configuration system
+- `esphome/codegen.py` - Code generation system
+- Any component that other components depend on
+
+**When debugging issues:**
+1. ✅ **DO**: Read core files to understand how they work
+2. ✅ **DO**: Modify ONLY the specific component you're debugging (e.g., `http_file_server`)
+3. ⛔ **DO NOT**: Modify core infrastructure to "fix" component issues
+4. ⛔ **DO NOT**: Change timeouts, limits, or configurations in core components
+5. ⛔ **DO NOT**: Add workarounds to core that should be in the component
+
+**Why this matters:**
+- Core changes affect ALL components and can break the entire system
+- Component-specific issues must be fixed in the component, not in core
+- Core modifications require extensive testing across all platforms and components
+- User explicitly forbids core changes - violating this destroys trust
+
+**If you think core needs modification:**
+1. Document the issue clearly
+2. Explain why component-level fixes won't work
+3. Ask the user explicitly before making ANY core changes
+4. The answer will likely be "NO" - find another solution
+
 ### Context Reset Behavior
 
 **ABSOLUTE RULE: When a conversation resumes after running out of context, NEVER automatically start working. ALWAYS wait for explicit user permission.**

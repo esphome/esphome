@@ -136,14 +136,44 @@ while (total_received < content_len) {
 
 ## Known Issues
 
-### ⚠️ Upload Stops at 44MB/55MB
-- **Status**: ONGOING INVESTIGATION
-- **Symptoms**: Upload consistently aborts at approximately 80% completion (44MB out of 55MB)
-- **Possible Causes**:
-  - ESP-IDF HTTP server limit
-  - Memory issue
-  - Network stack timeout
-  - Unknown constraint in HTTP stack
+### ⚠️ Upload Abort Issue - CRITICAL FINDINGS
+- **Status**: ACTIVE INVESTIGATION
+- **Symptoms**:
+  - Upload consistently aborts before completion
+  - Single XHR status 0 error (connection abort)
+  - JavaScript File API reads file as 47MB when actual file is 55MB
+  - Uploaded file is only 44MB (loss of 11MB from actual file)
+
+- **CRITICAL FINDING - Chunk Size Dependency**:
+  - **Different chunk sizes result in different abort positions**
+  - Example: 256KB chunks → stops at 44MB
+  - Example: Larger chunks → stops at 30MB
+  - **This rules out**: Timeout issues, fixed byte limits
+  - **This suggests**: Issue related to number of HTTP requests/connections
+
+- **File Size Discrepancy**:
+  - Actual file on disk: 55MB
+  - JavaScript `file.size` property: 47MB (8MB loss)
+  - Uploaded file result: 44MB (additional 3MB loss from what JS reads)
+  - Two separate data losses occurring
+
+- **Possible Root Causes**:
+  - ESP-IDF HTTP server connection/request count limit
+  - Socket exhaustion despite `Connection: close` header
+  - Browser or network stack request limit
+  - File API reading issue (why does JS see 47MB instead of 55MB?)
+  - Memory accumulation per request
+
+- **NOT the cause** (ruled out):
+  - Timeout (user confirmed performance is good, requests complete quickly)
+  - Body size limits (octet-stream bypasses 1024-byte limit)
+  - Memory leak (heap stable throughout upload)
+  - fflush errors (no errors logged)
+
+- **⛔ CRITICAL CONSTRAINT**:
+  - **DO NOT modify core components** (web_server_idf, web_server_base, etc.)
+  - Fix must be implemented within http_file_server component only
+  - Cannot change core timeouts, limits, or configurations
 
 ## Performance Metrics
 - **Current Upload Speed**: ~800 KB/s
