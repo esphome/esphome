@@ -36,7 +36,6 @@ void OpenThreadComponent::dump_config() {
 #elif CONFIG_OPENTHREAD_MTD
   ESP_LOGCONFIG(TAG, "  Device Type: MTD");
   // TBD: Synchronized Sleepy End Device
-  if (this->poll_period > 0) {
 #ifdef USE_OPENTHREAD_POLL_PERIOD
   ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
   uint32_t duration = this->poll_period_ / 1000;
