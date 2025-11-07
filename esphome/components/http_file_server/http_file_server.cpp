@@ -282,12 +282,23 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     // Handle POST for file uploads (non-API endpoints)
     ESP_LOGD(TAG, "POST handler - upload for URI: %s", uri.c_str());
 
-    // Check if this is a file upload (has filename query parameter)
-    auto *filename_param = request->getParam("filename");
-    if (filename_param) {
-      this->handle_file_upload(request, filename_param->value().c_str());
+    // Check Content-Type to determine upload method
+    const char *content_type = request->contentType().c_str();
+    ESP_LOGD(TAG, "Content-Type: %s", content_type);
+
+    // If multipart/form-data, let it pass through to handleUpload() callback
+    // If application/octet-stream, use old synchronous handler
+    if (strstr(content_type, "multipart/form-data") != nullptr) {
+      // Multipart upload will be handled by handleUpload() callback - do nothing here
+      ESP_LOGD(TAG, "Multipart upload detected - will be handled by handleUpload() callback");
     } else {
-      request->send(400, "text/plain", "Missing filename parameter");
+      // Old synchronous upload handler for raw binary uploads
+      auto *filename_param = request->getParam("filename");
+      if (filename_param) {
+        this->handle_file_upload(request, filename_param->value().c_str());
+      } else {
+        request->send(400, "text/plain", "Missing filename parameter");
+      }
     }
   } else {
     request->send(405, "application/json", "{\"error\":\"Method not allowed\"}");
