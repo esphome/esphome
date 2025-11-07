@@ -1513,7 +1513,7 @@ std::string HttpFileServer::generate_html_footer() {
     event.stopPropagation();
 
     // Chunked upload configuration
-    const CHUNK_SIZE = 500 * 1024; // 500KB chunks
+    const CHUNK_SIZE = 64 * 1024; // 64KB chunks for better responsiveness and throughput
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     console.log('[FileServer] Starting chunked upload: ' + totalChunks + ' chunks of ' + CHUNK_SIZE + ' bytes');
