@@ -1390,6 +1390,7 @@ std::string HttpFileServer::generate_html_footer() {
   }
 
   function handleUpload(event) {
+    console.log('[FileServer] handleUpload called, event:', event);
     event.preventDefault();
 
     const fileInput = document.getElementById('uploadFile');
@@ -1399,6 +1400,8 @@ std::string HttpFileServer::generate_html_footer() {
       alert('Please select a file');
       return false;
     }
+
+    console.log('[FileServer] File selected:', file.name, 'size:', file.size);
 
     // Show progress modal
     showProgressModal('upload', file.name, window.location.pathname);
@@ -1413,13 +1416,17 @@ std::string HttpFileServer::generate_html_footer() {
       uploadUrl += '/';
     }
 
+    console.log('[FileServer] Starting upload to:', uploadUrl);
+
     fetch(uploadUrl, {
       method: 'POST',
-      body: formData
+      body: formData,
+      credentials: 'include'  // Include authentication if needed
       // Don't set Content-Type - browser will set it with boundary for multipart/form-data
     })
         .then(response =>
                          {
+                           console.log('[FileServer] Upload response:', response.status, response.statusText);
                            if (!response.ok) {
                              return response.text().then(text => { throw new Error('Upload failed: ' + text); });
                            }
@@ -1427,6 +1434,7 @@ std::string HttpFileServer::generate_html_footer() {
                          })
         .then(() =>
                    {
+                     console.log('[FileServer] Upload complete');
                      // Upload complete - polling will detect and close modal
                      setTimeout(() =>
                                      {
@@ -1437,6 +1445,7 @@ std::string HttpFileServer::generate_html_footer() {
                                 500);
                    })
         .catch(error => {
+          console.error('[FileServer] Upload error:', error);
           hideProgressModal();
           alert('Error: ' + error);
         });
@@ -1573,7 +1582,7 @@ void HttpFileServer::handle_directory_listing(AsyncWebServerRequest *request, co
   // Upload form (hidden for root directory)
   if (this->upload_enabled_ && !is_virtual_root) {
     html += R"(<div class="upload-form">
-      <form id="uploadForm" onsubmit="return handleUpload(event);">
+      <form id="uploadForm" action="javascript:void(0);" method="post" onsubmit="return handleUpload(event);">
         <input type="file" name="file" id="uploadFile" required>
         <button type="submit">Upload</button>
       </form>
