@@ -228,6 +228,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   size_t chunk_buffer_size_{0};
 
   // Helper methods
+  bool is_directory_writable(const std::string &dir_path);
   std::string uri_to_filepath(const std::string &uri);
   std::string url_decode(const std::string &src);
   esphome::FixedVector<FileInfo> list_directory(const std::string &path);

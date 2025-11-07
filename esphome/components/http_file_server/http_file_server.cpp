@@ -2093,6 +2093,32 @@ bool HttpFileServer::is_directory_empty(const std::string &path) {
   return true;  // No entries found - empty
 }
 
+bool HttpFileServer::is_directory_writable(const std::string &dir_path) {
+  // Check if directory exists and is actually a directory
+  struct stat dir_stat;
+  if (stat(dir_path.c_str(), &dir_stat) != 0) {
+    ESP_LOGW(TAG, "Directory does not exist: %s", dir_path.c_str());
+    return false;
+  }
+
+  if (!S_ISDIR(dir_stat.st_mode)) {
+    ESP_LOGW(TAG, "Path is not a directory: %s", dir_path.c_str());
+    return false;
+  }
+
+  // Try to create a temporary test file to verify write permissions
+  std::string test_file = Path::join(dir_path, ".write_test");
+  FILE *f = fopen(test_file.c_str(), "w");
+  if (!f) {
+    ESP_LOGW(TAG, "Directory is not writable: %s (errno: %d, %s)", dir_path.c_str(), errno, strerror(errno));
+    return false;
+  }
+
+  fclose(f);
+  remove(test_file.c_str());  // Clean up test file
+  return true;
+}
+
 void HttpFileServer::count_directory_contents(const std::string &path, int &file_count, int &dir_count) {
   DIR *dir = opendir(path.c_str());
   if (!dir) {
@@ -2285,6 +2311,13 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
+  // Check if destination directory is writable
+  std::string dest_dir = Path::dirname(destination);
+  if (!this->is_directory_writable(dest_dir)) {
+    request->send(403, "application/json", "{\"error\":\"Destination directory is not writable\"}");
+    return;
+  }
+
   // Check if another operation is already in progress
   portENTER_CRITICAL(&this->progress_mutex_);
   bool already_in_progress = this->progress_.in_progress;
@@ -2343,6 +2376,13 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 
   if (S_ISDIR(src_stat.st_mode)) {
     request->send(400, "application/json", "{\"error\":\"Directory move not supported\"}");
+    return;
+  }
+
+  // Check if destination directory is writable
+  std::string dest_dir = Path::dirname(destination);
+  if (!this->is_directory_writable(dest_dir)) {
+    request->send(403, "application/json", "{\"error\":\"Destination directory is not writable\"}");
     return;
   }
 
@@ -2803,6 +2843,12 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
     if (stat(dir_path.c_str(), &file_stat) != 0 || !S_ISDIR(file_stat.st_mode)) {
       ESP_LOGE(TAG, "Upload target is not a directory: %s", dir_path.c_str());
       request->send(400, "application/json", "{\"error\":\"Target is not a directory\"}");
+      return;
+    }
+
+    // Check if directory is writable
+    if (!this->is_directory_writable(dir_path)) {
+      request->send(403, "application/json", "{\"error\":\"Upload directory is not writable\"}");
       return;
     }
 
@@ -3313,6 +3359,7 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
   size_t bytes_read;
   size_t total_copied = 0;
   bool copy_success = true;
+  size_t buffer_count = 0;  // Counter for periodic operations (cheaper than modulo on large numbers)
 
   ESP_LOGI(TAG, "Starting file copy: %s -> %s (size: %lld bytes)", src_path.c_str(), dst_path.c_str(),
            (long long) file_size);
@@ -3338,6 +3385,7 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       break;
     }
     total_copied += bytes_written;
+    buffer_count++;
 
     // Update progress (thread-safe)
     if (track_progress) {
@@ -3348,14 +3396,14 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
 
     // Yield to other tasks periodically to allow web server to respond to progress polls
     // Yield every 64 buffers (256KB - 1MB depending on platform)
-    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0) {
+    if (buffer_count % 64 == 0) {
       vTaskDelay(1);  // Brief yield to let other tasks run
-    }
 
-    // Log progress for large files
-    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0 && file_size > 0) {
-      ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
-               (total_copied * 100.0) / file_size);
+      // Log progress for large files
+      if (file_size > 0) {
+        ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
+                 (total_copied * 100.0) / file_size);
+      }
     }
   }
 
