@@ -3,11 +3,11 @@
 #include <algorithm>
 
 // Forward declare storage_host for soft dependency
-#ifdef USE_STORAGE_HOST
+#if defined(USE_STORAGE_HOST)
 namespace storage_host {
 extern class StorageHost *global_storage_host;
 }
-#endif
+#endif  // USE_STORAGE_HOST
 
 namespace esphome {
 namespace binary_storage {
@@ -32,7 +32,7 @@ void BinaryStorage::dump_config() {
 }
 
 void BinaryStorage::register_with_storage_host(const std::string &device_node_path) {
-#ifdef USE_STORAGE_HOST
+#if defined(USE_STORAGE_HOST)
   // Check if storage_host is available (soft dependency)
   if (storage_host::global_storage_host != nullptr) {
     storage_host::global_storage_host->register_device_node(device_node_path, this, this->get_device_type());
@@ -42,7 +42,7 @@ void BinaryStorage::register_with_storage_host(const std::string &device_node_pa
   }
 #else
   ESP_LOGD(TAG, "storage_host component not compiled, device node registration disabled");
-#endif
+#endif  // USE_STORAGE_HOST
 }
 
 uint32_t BinaryStorage::fill(uint8_t value) {

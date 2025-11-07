@@ -165,7 +165,7 @@ bool LittleFSMount::format() {
 }
 
 void LittleFSMount::register_with_storage_host_() {
-#ifdef USE_STORAGE_HOST
+#if defined(USE_STORAGE_HOST)
   // Check if storage_host is available via global accessor (soft dependency)
   namespace storage_host {
   extern class StorageHost *global_storage_host;
@@ -182,7 +182,7 @@ void LittleFSMount::register_with_storage_host_() {
   }
 #else
   ESP_LOGD(TAG, "storage_host component not compiled, mount registration disabled");
-#endif
+#endif  // USE_STORAGE_HOST
 }
 
 }  // namespace binary_storage
