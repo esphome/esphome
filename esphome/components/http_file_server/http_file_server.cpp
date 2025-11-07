@@ -486,7 +486,7 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     this->upload_bytes_since_yield_ += written;
     static constexpr size_t YIELD_INTERVAL_BYTES = 16 * 1024;  // 16KB - same as ESP-IDF multipart handler
     if (this->upload_bytes_since_yield_ >= YIELD_INTERVAL_BYTES) {
-      vTaskDelay(1);  // Brief yield to let other tasks run (including /api/progress requests)
+      vTaskDelay(10);  // Yield for ~100ms to give httpd time to send progress responses
       this->upload_bytes_since_yield_ = 0;
     }
   }
