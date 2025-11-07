@@ -17,7 +17,9 @@ void Text::publish_state(const std::string &state) {
     ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), state.c_str());
   }
   this->state_callback_.call(state);
+#ifdef USE_TEXT
   ControllerRegistry::notify_text_update(this);
+#endif
 }
 
 void Text::add_on_state_callback(std::function<void(std::string)> &&callback) {

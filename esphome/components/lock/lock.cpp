@@ -54,7 +54,9 @@ void Lock::publish_state(LockState state) {
   this->rtc_.save(&this->state);
   ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), lock_state_to_string(state));
   this->state_callback_.call();
+#ifdef USE_LOCK
   ControllerRegistry::notify_lock_update(this);
+#endif
 }
 
 void Lock::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }

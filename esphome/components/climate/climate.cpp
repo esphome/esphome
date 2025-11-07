@@ -464,7 +464,9 @@ void Climate::publish_state() {
 
   // Send state to frontend
   this->state_callback_.call(*this);
+#ifdef USE_CLIMATE
   ControllerRegistry::notify_climate_update(this);
+#endif
   // Save state
   this->save_state_();
 }

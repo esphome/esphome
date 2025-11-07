@@ -150,7 +150,9 @@ void MediaPlayer::add_on_state_callback(std::function<void()> &&callback) {
 
 void MediaPlayer::publish_state() {
   this->state_callback_.call();
+#ifdef USE_MEDIA_PLAYER
   ControllerRegistry::notify_media_player_update(this);
+#endif
 }
 
 }  // namespace media_player

@@ -85,7 +85,9 @@ void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
   this->callback_.call(state);
+#ifdef USE_TEXT_SENSOR
   ControllerRegistry::notify_text_sensor_update(this);
+#endif
 }
 
 }  // namespace text_sensor

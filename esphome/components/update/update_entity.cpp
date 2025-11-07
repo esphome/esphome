@@ -32,7 +32,9 @@ void UpdateEntity::publish_state() {
 
   this->set_has_state(true);
   this->state_callback_.call();
+#ifdef USE_UPDATE
   ControllerRegistry::notify_update(this);
+#endif
 }
 
 }  // namespace update

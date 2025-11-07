@@ -33,7 +33,9 @@ void Number::publish_state(float state) {
   this->state = state;
   ESP_LOGD(TAG, "'%s': Sending state %f", this->get_name().c_str(), state);
   this->state_callback_.call(state);
+#ifdef USE_NUMBER
   ControllerRegistry::notify_number_update(this);
+#endif
 }
 
 void Number::add_on_state_callback(std::function<void(float)> &&callback) {

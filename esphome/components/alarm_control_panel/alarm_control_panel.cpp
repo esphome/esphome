@@ -34,7 +34,9 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
              LOG_STR_ARG(alarm_control_panel_state_to_string(prev_state)));
     this->current_state_ = state;
     this->state_callback_.call();
+#ifdef USE_ALARM_CONTROL_PANEL
     ControllerRegistry::notify_alarm_control_panel_update(this);
+#endif
     if (state == ACP_STATE_TRIGGERED) {
       this->triggered_callback_.call();
     } else if (state == ACP_STATE_ARMING) {

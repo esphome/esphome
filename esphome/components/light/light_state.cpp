@@ -140,7 +140,9 @@ float LightState::get_setup_priority() const { return setup_priority::HARDWARE -
 
 void LightState::publish_state() {
   this->remote_values_callback_.call();
+#ifdef USE_LIGHT
   ControllerRegistry::notify_light_update(this);
+#endif
 }
 
 LightOutput *LightState::get_output() const { return this->output_; }

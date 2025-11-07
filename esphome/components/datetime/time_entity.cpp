@@ -29,7 +29,9 @@ void TimeEntity::publish_state() {
   ESP_LOGD(TAG, "'%s': Sending time %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_,
            this->second_);
   this->state_callback_.call();
+#ifdef USE_DATETIME_TIME
   ControllerRegistry::notify_time_update(this);
+#endif
 }
 
 TimeCall TimeEntity::make_call() { return TimeCall(this); }

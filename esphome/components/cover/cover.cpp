@@ -170,7 +170,9 @@ void Cover::publish_state(bool save) {
   ESP_LOGD(TAG, "  Current Operation: %s", cover_operation_to_str(this->current_operation));
 
   this->state_callback_.call();
+#ifdef USE_COVER
   ControllerRegistry::notify_cover_update(this);
+#endif
 
   if (save) {
     CoverRestoreState restore{};

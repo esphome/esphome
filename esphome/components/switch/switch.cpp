@@ -63,7 +63,9 @@ void Switch::publish_state(bool state) {
 
   ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), ONOFF(this->state));
   this->state_callback_.call(this->state);
+#ifdef USE_SWITCH
   ControllerRegistry::notify_switch_update(this);
+#endif
 }
 bool Switch::assumed_state() { return false; }
 

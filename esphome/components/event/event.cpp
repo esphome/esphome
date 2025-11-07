@@ -23,7 +23,9 @@ void Event::trigger(const std::string &event_type) {
   this->last_event_type_ = found;
   ESP_LOGD(TAG, "'%s' Triggered event '%s'", this->get_name().c_str(), this->last_event_type_);
   this->event_callback_.call(event_type);
+#ifdef USE_EVENT
   ControllerRegistry::notify_event(this);
+#endif
 }
 
 void Event::set_event_types(const FixedVector<const char *> &event_types) {

@@ -34,7 +34,9 @@ void Select::publish_state(size_t index) {
   ESP_LOGD(TAG, "'%s': Sending state %s (index %zu)", this->get_name().c_str(), option, index);
   // Callback signature requires std::string, create temporary for compatibility
   this->state_callback_.call(std::string(option), index);
+#ifdef USE_SELECT
   ControllerRegistry::notify_select_update(this);
+#endif
 }
 
 const char *Select::current_option() const { return this->has_state() ? this->option_at(this->active_index_) : ""; }

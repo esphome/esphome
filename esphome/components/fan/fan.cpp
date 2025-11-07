@@ -182,7 +182,9 @@ void Fan::publish_state() {
     ESP_LOGD(TAG, "  Preset Mode: %s", preset);
   }
   this->state_callback_.call();
+#ifdef USE_FAN
   ControllerRegistry::notify_fan_update(this);
+#endif
   this->save_state_();
 }
 
