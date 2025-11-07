@@ -23,17 +23,22 @@ namespace event {
 
 class Event : public EntityBase, public EntityBase_DeviceClass {
  public:
-  const char *last_event_type{nullptr};
-
   void trigger(const std::string &event_type);
 
   /// Set the event types supported by this event (from initializer list).
-  void set_event_types(std::initializer_list<const char *> event_types) { this->types_ = event_types; }
+  void set_event_types(std::initializer_list<const char *> event_types) {
+    this->types_ = event_types;
+    this->last_event_type_ = nullptr;  // Reset when types change
+  }
   /// Set the event types supported by this event (from FixedVector).
-  void set_event_types(const FixedVector<const char *> &event_types) { this->types_ = event_types; }
+  void set_event_types(const FixedVector<const char *> &event_types) {
+    this->types_ = event_types;
+    this->last_event_type_ = nullptr;  // Reset when types change
+  }
   /// Set the event types supported by this event (from C array).
   template<size_t N> void set_event_types(const char *const (&event_types)[N]) {
     this->types_.assign(event_types, event_types + N);
+    this->last_event_type_ = nullptr;  // Reset when types change
   }
 
   // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
@@ -43,11 +48,19 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   /// Return the event types supported by this event.
   const FixedVector<const char *> &get_event_types() const { return this->types_; }
 
+  /// Return the last triggered event type (pointer to string in types_), or nullptr if no event triggered yet.
+  const char *get_last_event_type() const { return this->last_event_type_; }
+
   void add_on_event_callback(std::function<void(const std::string &event_type)> &&callback);
 
  protected:
   CallbackManager<void(const std::string &event_type)> event_callback_;
   FixedVector<const char *> types_;
+
+ private:
+  /// Last triggered event type - must point to entry in types_ to ensure valid lifetime.
+  /// Set by trigger() after validation, reset to nullptr when types_ changes.
+  const char *last_event_type_{nullptr};
 };
 
 }  // namespace event
