@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c
+from esphome.components import i2c, esp32
 from esphome.const import CONF_ID, CONF_MODEL, CONF_TYPE
 import re
 
@@ -24,10 +24,18 @@ I2CEeprom = binary_storage_ns.class_("I2CEeprom", BinaryStorage, i2c.I2CDevice)
 # I2C FRAM class
 I2CFram = binary_storage_ns.class_("I2CFram", BinaryStorage, i2c.I2CDevice)
 
+# LittleFS Mount class
+LittleFSMount = binary_storage_ns.class_("LittleFSMount", cg.Component)
+
 # Configuration keys
 CONF_PAGE_SIZE = "page_size"
 CONF_CAPACITY = "capacity"
 CONF_ADDRESSING_BITS = "addressing_bits"
+CONF_MOUNT_PATH = "mount_path"
+CONF_AUTO_FORMAT = "auto_format"
+CONF_PARTITION_LABEL = "partition_label"
+CONF_FILESYSTEM = "filesystem"
+CONF_STORAGE_DEVICE = "storage_device"
 
 
 def validate_bytes(value):
@@ -63,6 +71,9 @@ EEPROM_SCHEMA = (
             cv.Optional(CONF_CAPACITY): validate_bytes,
             cv.Optional(CONF_PAGE_SIZE): cv.int_range(min=8, max=128),
             cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(8, 9, 10, 11, 16, int=True),
+            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
+            cv.Optional(CONF_PARTITION_LABEL): cv.string,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -77,6 +88,9 @@ FRAM_SCHEMA = (
             cv.Optional(CONF_MODEL, default="MB85RC256"): cv.string,
             cv.Optional(CONF_CAPACITY): validate_bytes,
             cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(9, 11, 16, 32, int=True),
+            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
+            cv.Optional(CONF_PARTITION_LABEL): cv.string,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -99,6 +113,10 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config):
     """Configure binary storage device."""
+    # Add LittleFS ESP-IDF component if filesystem mounting is requested
+    if CONF_MOUNT_PATH in config:
+        esp32.add_idf_component(name="joltwallet/littlefs", ref="1.14.8")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -111,13 +129,29 @@ async def to_code(config):
     if CONF_CAPACITY in config:
         cg.add(var.set_capacity(config[CONF_CAPACITY]))
 
-    # Set page size if specified
+    # Set page size if specified (EEPROM only)
     if CONF_PAGE_SIZE in config:
         cg.add(var.set_page_size(config[CONF_PAGE_SIZE]))
 
     # Set addressing bits if specified
     if CONF_ADDRESSING_BITS in config:
         cg.add(var.set_addressing_bits(config[CONF_ADDRESSING_BITS]))
+
+    # Setup LittleFS mount if mount_path is specified
+    if CONF_MOUNT_PATH in config:
+        mount_var = cg.new_Pvariable(
+            cg.RawExpression(f"id({config[CONF_ID]}_mount)"), LittleFSMount
+        )
+        await cg.register_component(mount_var, config)
+
+        cg.add(mount_var.set_storage_device(var))
+        cg.add(mount_var.set_mount_path(config[CONF_MOUNT_PATH]))
+
+        if CONF_AUTO_FORMAT in config:
+            cg.add(mount_var.set_auto_format(config[CONF_AUTO_FORMAT]))
+
+        if CONF_PARTITION_LABEL in config:
+            cg.add(mount_var.set_partition_label(config[CONF_PARTITION_LABEL]))
 
     # Register with storage_host via CORE.data
     from esphome.core import CORE
