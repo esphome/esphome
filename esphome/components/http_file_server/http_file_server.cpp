@@ -2716,6 +2716,13 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
   // Write chunk data from body_buffer_
   if (!this->upload_file_) {
     ESP_LOGE(TAG, "Upload file not open for chunk %d", chunk_index);
+
+    // Clean up progress state (file handle was lost/corrupted)
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.in_progress = false;
+    this->progress_.cancelled = false;  // Reset cancelled flag after handling
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
     request->send(500, "application/json", "{\"error\":\"Upload not initialized\"}");
     return;
   }
@@ -2726,10 +2733,18 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
       ESP_LOGE(TAG, "Failed to write chunk %d data", chunk_index);
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
-      remove(upload_path.c_str());
 
+      // Delete partial file on write failure (analogous to perform_file_copy)
+      if (remove(upload_path.c_str()) == 0) {
+        ESP_LOGI(TAG, "Deleted partial upload file after write failure: %s", upload_path.c_str());
+      } else {
+        ESP_LOGE(TAG, "Failed to delete partial upload file: %s (errno: %d)", upload_path.c_str(), errno);
+      }
+
+      // Clear progress tracking on failure (analogous to perform_file_copy)
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      this->progress_.cancelled = false;  // Reset cancelled flag after handling
       portEXIT_CRITICAL(&this->progress_mutex_);
 
       request->send(500, "application/json", "{\"error\":\"Write failed\"}");
