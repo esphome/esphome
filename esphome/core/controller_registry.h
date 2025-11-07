@@ -234,7 +234,7 @@ class ControllerRegistry {
 #endif
 
  protected:
-  static std::vector<Controller *> controllers_;
+  static std::vector<Controller *> controllers;
 };
 
 }  // namespace esphome
