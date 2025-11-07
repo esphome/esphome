@@ -2165,16 +2165,16 @@ void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
-  // Parse parameters from POST body
-  ApiRequest req;
-  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
-      req.name.empty()) {
+  // Get parameters from POST body
+  auto *name_param = request->getParam("name");
+
+  if (!name_param) {
     ESP_LOGW(TAG, "Missing name parameter");
     request->send(400, "application/json", "{\"error\":\"Missing directory name\"}");
     return;
   }
 
-  std::string dir_uri = req.name;
+  std::string dir_uri = name_param->value().c_str();
 
   // Convert URI to filesystem path
   std::string dir_path = this->uri_to_filepath(dir_uri);
@@ -2197,16 +2197,16 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Parse parameters from POST body
-  ApiRequest req;
-  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
-      req.path.empty()) {
+  // Get parameters from POST body
+  auto *path_param = request->getParam("path");
+
+  if (!path_param) {
     ESP_LOGW(TAG, "Missing path parameter");
     request->send(400, "application/json", "{\"error\":\"Missing path parameter\"}");
     return;
   }
 
-  std::string path_uri = req.path;
+  std::string path_uri = path_param->value().c_str();
 
   // Convert URI to filesystem path
   std::string filepath = this->uri_to_filepath(path_uri);
@@ -2271,16 +2271,16 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
-  // Parse parameters from POST body
-  ApiRequest req;
-  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
-      req.mount_point.empty()) {
+  // Get parameters from POST body
+  auto *mount_point_param = request->getParam("mount_point");
+
+  if (!mount_point_param) {
     ESP_LOGW(TAG, "Missing mount_point parameter");
     request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
     return;
   }
 
-  std::string mount_point = req.mount_point;
+  std::string mount_point = mount_point_param->value().c_str();
   ESP_LOGI(TAG, "API MOUNT: mount_point=%s (scheduling deferred mount)", mount_point.c_str());
 
   // Schedule deferred mount to happen in loop() after HTTP response completes
@@ -2294,16 +2294,16 @@ void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
-  // Parse parameters from POST body
-  ApiRequest req;
-  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
-      req.mount_point.empty()) {
+  // Get parameters from POST body
+  auto *mount_point_param = request->getParam("mount_point");
+
+  if (!mount_point_param) {
     ESP_LOGW(TAG, "Missing mount_point parameter");
     request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
     return;
   }
 
-  std::string mount_point = req.mount_point;
+  std::string mount_point = mount_point_param->value().c_str();
   ESP_LOGI(TAG, "API UNMOUNT: mount_point=%s (scheduling deferred unmount)", mount_point.c_str());
 
   // Schedule deferred unmount to happen in loop() after HTTP response completes
@@ -2317,16 +2317,16 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_remount(AsyncWebServerRequest *request) {
-  // Parse parameters from POST body
-  ApiRequest req;
-  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
-      req.mount_point.empty()) {
+  // Get parameters from POST body
+  auto *mount_point_param = request->getParam("mount_point");
+
+  if (!mount_point_param) {
     ESP_LOGW(TAG, "Missing mount_point parameter");
     request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
     return;
   }
 
-  std::string mount_point = req.mount_point;
+  std::string mount_point = mount_point_param->value().c_str();
   ESP_LOGI(TAG, "API REMOUNT: mount_point=%s (scheduling deferred remount)", mount_point.c_str());
 
   // Schedule deferred remount to happen in loop() after HTTP response completes
