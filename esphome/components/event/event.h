@@ -36,11 +36,6 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
     this->types_ = event_types;
     this->last_event_type_ = nullptr;  // Reset when types change
   }
-  /// Set the event types supported by this event (from C array).
-  template<size_t N> void set_event_types(const char *const (&event_types)[N]) {
-    this->types_.assign(event_types, event_types + N);
-    this->last_event_type_ = nullptr;  // Reset when types change
-  }
 
   // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
   void set_event_types(std::initializer_list<std::string> event_types) = delete;
