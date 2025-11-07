@@ -1,0 +1,482 @@
+# =====================================================
+# Picture Viewer LVGL Page Configuration
+# =====================================================
+#
+# This is a ready-to-use LVGL page for the picture_viewer component.
+# Copy this into your main YAML under the lvgl: section.
+#
+# Display Layout (800x480):
+# ┌─────────────────────────────────┬───────────┐
+# │                                 │  Photos   │
+# │                                 ├───────────┤
+# │                                 │ [thumb1]  │
+# │         Main Canvas             │ [thumb2]  │
+# │         (650x400)               │ [thumb3]  │
+# │      Photo Display Area         │ [thumb4]  │
+# │                                 │ [thumb5]  │
+# │                                 │ [thumb6]  │
+# ├─────────────────────────────────┤ [thumb7]  │
+# │  [◄] [▶] [►] [⛶] [⚙]  5 / 23   │ [thumb8]  │
+# └─────────────────────────────────┴───────────┘
+
+lvgl:
+  log_level: INFO
+  color_depth: 16
+  buffer_size: 25%
+
+  displays:
+    - main_display
+
+  touchscreens:
+    - main_touch
+
+  # Theme customization
+  theme:
+    obj:
+      bg_color: 0x000000
+      text_color: 0xFFFFFF
+
+    btn:
+      bg_color: 0x2196F3
+      text_color: 0xFFFFFF
+      border_width: 0
+      radius: 8
+      pressed:
+        bg_color: 0x1976D2
+      checked:
+        bg_color: 0x4CAF50
+
+    slider:
+      bg_color: 0x424242
+      indicator_color: 0x2196F3
+
+  # =====================================================
+  # Pages
+  # =====================================================
+  pages:
+    # =====================================================
+    # Main Picture Viewer Page
+    # =====================================================
+    - id: photo_viewer_page
+      skip: false
+      layout:
+        type: flex
+        flex_flow: row
+      bg_color: 0x000000
+
+      widgets:
+        # =====================================================
+        # Left Side - Main Display Area (650px wide)
+        # =====================================================
+        - obj:
+            id: main_area
+            width: 650
+            height: 480
+            bg_color: 0x000000
+            border_width: 0
+            pad_all: 0
+            layout:
+              type: flex
+              flex_flow: column
+
+            widgets:
+              # =====================================================
+              # Photo Canvas (650x400)
+              # =====================================================
+              - canvas:
+                  id: photo_canvas
+                  width: 650
+                  height: 400
+                  bg_color: 0x000000
+                  border_color: 0x424242
+                  border_width: 1
+
+              # =====================================================
+              # Control Panel (bottom bar)
+              # =====================================================
+              - obj:
+                  id: control_panel
+                  width: 650
+                  height: 80
+                  bg_color: 0x1E1E1E
+                  border_width: 0
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align: space_evenly center
+
+                  widgets:
+                    # Previous Button
+                    - button:
+                        id: btn_previous
+                        width: 70
+                        height: 60
+                        on_click:
+                          - lambda: |-
+                              id(viewer)->previous_image();
+                        widgets:
+                          - label:
+                              text: "◄"
+                              text_font: montserrat_32
+                              text_color: 0xFFFFFF
+
+                    # Next Button
+                    - button:
+                        id: btn_next
+                        width: 70
+                        height: 60
+                        on_click:
+                          - lambda: |-
+                              id(viewer)->next_image();
+                        widgets:
+                          - label:
+                              text: "►"
+                              text_font: montserrat_32
+                              text_color: 0xFFFFFF
+
+                    # Play/Pause Button
+                    - button:
+                        id: btn_play_pause
+                        width: 70
+                        height: 60
+                        checkable: true
+                        on_click:
+                          - lambda: |-
+                              id(viewer)->toggle_slideshow();
+                        widgets:
+                          - label:
+                              id: play_pause_icon
+                              text: "▶"
+                              text_font: montserrat_32
+                              text_color: 0xFFFFFF
+
+                    # Fullscreen Toggle Button
+                    - button:
+                        id: btn_fullscreen
+                        width: 70
+                        height: 60
+                        on_click:
+                          - lambda: |-
+                              bool is_fs = id(viewer)->is_fullscreen();
+                              id(viewer)->set_fullscreen(!is_fs);
+
+                              // Toggle thumbnail panel visibility
+                              if (!is_fs) {
+                                // Going fullscreen - hide thumbnails, expand canvas
+                                lv_obj_add_flag(id(thumbnail_panel), LV_OBJ_FLAG_HIDDEN);
+                                lv_obj_set_width(id(main_area), 800);
+                                lv_obj_set_width(id(photo_canvas), 800);
+                                lv_obj_set_width(id(control_panel), 800);
+                              } else {
+                                // Exiting fullscreen - show thumbnails
+                                lv_obj_clear_flag(id(thumbnail_panel), LV_OBJ_FLAG_HIDDEN);
+                                lv_obj_set_width(id(main_area), 650);
+                                lv_obj_set_width(id(photo_canvas), 650);
+                                lv_obj_set_width(id(control_panel), 650);
+                              }
+                        widgets:
+                          - label:
+                              text: "⛶"
+                              text_font: montserrat_32
+                              text_color: 0xFFFFFF
+
+                    # Settings Button
+                    - button:
+                        id: btn_settings
+                        width: 70
+                        height: 60
+                        on_click:
+                          - lvgl.page.show: settings_page
+                        widgets:
+                          - label:
+                              text: "⚙"
+                              text_font: montserrat_32
+                              text_color: 0xFFFFFF
+
+                    # Photo Counter Label
+                    - label:
+                        id: photo_counter
+                        text: "0 / 0"
+                        width: 120
+                        text_align: center
+                        text_font: montserrat_20
+                        text_color: 0xFFFFFF
+
+        # =====================================================
+        # Right Side - Thumbnail Panel (150px wide)
+        # =====================================================
+        - obj:
+            id: thumbnail_panel
+            width: 150
+            height: 480
+            bg_color: 0x1E1E1E
+            border_width: 0
+            pad_all: 5
+            layout:
+              type: flex
+              flex_flow: column
+              flex_align: start center
+
+            widgets:
+              # Panel Title
+              - label:
+                  text: "Photos"
+                  width: 140
+                  text_align: center
+                  text_font: montserrat_18
+                  text_color: 0xFFFFFF
+                  bg_color: 0x2196F3
+                  pad_all: 5
+                  radius: 4
+
+              # Thumbnail List Container (scrollable)
+              - obj:
+                  id: thumbnail_list
+                  width: 140
+                  height: 430
+                  bg_color: 0x1E1E1E
+                  border_width: 0
+                  scrollbar_mode: auto
+                  layout:
+                    type: flex
+                    flex_flow: column
+                    flex_align: start center
+
+                  widgets:
+                    # Thumbnail placeholders (you can dynamically create these)
+                    # For now, showing 8 static thumbnail slots
+                    - button:
+                        id: thumb_btn_1
+                        width: 120
+                        height: 90
+                        bg_color: 0x424242
+                        on_click:
+                          - lambda: id(viewer)->show_image(0);
+                        widgets:
+                          - label:
+                              text: "1"
+                              text_color: 0x888888
+
+                    - button:
+                        id: thumb_btn_2
+                        width: 120
+                        height: 90
+                        bg_color: 0x424242
+                        on_click:
+                          - lambda: id(viewer)->show_image(1);
+                        widgets:
+                          - label:
+                              text: "2"
+                              text_color: 0x888888
+
+                    - button:
+                        id: thumb_btn_3
+                        width: 120
+                        height: 90
+                        bg_color: 0x424242
+                        on_click:
+                          - lambda: id(viewer)->show_image(2);
+                        widgets:
+                          - label:
+                              text: "3"
+                              text_color: 0x888888
+
+                    - button:
+                        id: thumb_btn_4
+                        width: 120
+                        height: 90
+                        bg_color: 0x424242
+                        on_click:
+                          - lambda: id(viewer)->show_image(3);
+                        widgets:
+                          - label:
+                              text: "4"
+                              text_color: 0x888888
+
+                    - button:
+                        id: thumb_btn_5
+                        width: 120
+                        height: 90
+                        bg_color: 0x424242
+                        on_click:
+                          - lambda: id(viewer)->show_image(4);
+                        widgets:
+                          - label:
+                              text: "5"
+                              text_color: 0x888888
+
+                    - button:
+                        id: thumb_btn_6
+                        width: 120
+                        height: 90
+                        bg_color: 0x424242
+                        on_click:
+                          - lambda: id(viewer)->show_image(5);
+                        widgets:
+                          - label:
+                              text: "6"
+                              text_color: 0x888888
+
+                    - button:
+                        id: thumb_btn_7
+                        width: 120
+                        height: 90
+                        bg_color: 0x424242
+                        on_click:
+                          - lambda: id(viewer)->show_image(6);
+                        widgets:
+                          - label:
+                              text: "7"
+                              text_color: 0x888888
+
+                    - button:
+                        id: thumb_btn_8
+                        width: 120
+                        height: 90
+                        bg_color: 0x424242
+                        on_click:
+                          - lambda: id(viewer)->show_image(7);
+                        widgets:
+                          - label:
+                              text: "8"
+                              text_color: 0x888888
+
+    # =====================================================
+    # Settings Page
+    # =====================================================
+    - id: settings_page
+      skip: true
+      bg_color: 0x000000
+      layout:
+        type: flex
+        flex_flow: column
+        flex_align: center center
+
+      widgets:
+        # Title
+        - label:
+            text: "Slideshow Settings"
+            text_font: montserrat_32
+            text_color: 0xFFFFFF
+            pad_bottom: 20
+
+        # Settings Container
+        - obj:
+            width: 600
+            height: 350
+            bg_color: 0x1E1E1E
+            border_color: 0x2196F3
+            border_width: 2
+            radius: 10
+            pad_all: 20
+            layout:
+              type: flex
+              flex_flow: column
+              flex_align: start center
+
+            widgets:
+              # Slideshow Interval Setting
+              - label:
+                  id: interval_label
+                  text: "Interval: 5 seconds"
+                  text_font: montserrat_20
+                  text_color: 0xFFFFFF
+                  width: 560
+                  text_align: left
+                  pad_bottom: 10
+
+              - slider:
+                  id: interval_slider
+                  width: 560
+                  height: 20
+                  min_value: 1
+                  max_value: 60
+                  value: 5
+                  on_value:
+                    - lambda: |-
+                        int seconds = (int)x;
+                        id(viewer)->set_slideshow_interval_runtime(seconds * 1000);
+                        char buf[32];
+                        snprintf(buf, sizeof(buf), "Interval: %d seconds", seconds);
+                        lv_label_set_text(id(interval_label), buf);
+                  pad_bottom: 30
+
+              # Auto-start slideshow setting
+              - obj:
+                  width: 560
+                  height: 60
+                  bg_color: 0x2E2E2E
+                  radius: 5
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align: space_between center
+                  pad_all: 10
+
+                  widgets:
+                    - label:
+                        text: "Auto-start slideshow"
+                        text_font: montserrat_18
+                        text_color: 0xFFFFFF
+
+                    - switch:
+                        id: autostart_switch
+                        on_value:
+                          - lambda: |-
+                              if (x) {
+                                id(viewer)->start_slideshow();
+                              } else {
+                                id(viewer)->stop_slideshow();
+                              }
+
+              # Spacer
+              - obj:
+                  width: 560
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+
+              # Back Button
+              - button:
+                  width: 200
+                  height: 60
+                  bg_color: 0x2196F3
+                  on_click:
+                    - lvgl.page.show: photo_viewer_page
+                  widgets:
+                    - label:
+                        text: "◄ Back"
+                        text_font: montserrat_24
+                        text_color: 0xFFFFFF
+
+# =====================================================
+# Update Photo Counter with Interval
+# =====================================================
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          // Update photo counter
+          auto *viewer = id(viewer);
+          size_t count = viewer->get_image_count();
+          int index = viewer->get_current_index();
+
+          char buf[32];
+          if (count > 0) {
+            snprintf(buf, sizeof(buf), "%d / %zu", index + 1, count);
+          } else {
+            snprintf(buf, sizeof(buf), "0 / 0");
+          }
+          lv_label_set_text(id(photo_counter), buf);
+
+          // Update play/pause icon
+          auto mode = viewer->get_slideshow_mode();
+          bool is_playing = (mode == picture_viewer::SlideshowMode::PLAYING);
+          lv_label_set_text(id(play_pause_icon), is_playing ? "⏸" : "▶");
+
+          // Update play/pause button state
+          if (is_playing) {
+            lv_obj_add_state(id(btn_play_pause), LV_STATE_CHECKED);
+          } else {
+            lv_obj_clear_state(id(btn_play_pause), LV_STATE_CHECKED);
+          }
