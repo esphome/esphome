@@ -40,7 +40,12 @@ from esphome.const import (
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    KEY_CONTROLLER_REGISTRY_COUNT,
+    CoroPriority,
+    coroutine_with_priority,
+)
 from esphome.helpers import (
     copy_file_if_changed,
     fnv1a_32bit_hash,
@@ -465,7 +470,7 @@ async def _add_platform_defines() -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_controller_registry_define() -> None:
     # Generate StaticVector size for ControllerRegistry
-    controller_count = CORE.data.get("controller_registry_count", 0)
+    controller_count = CORE.data.get(KEY_CONTROLLER_REGISTRY_COUNT, 0)
     if controller_count > 0:
         cg.add_define("USE_CONTROLLER_REGISTRY")
         cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
