@@ -49,26 +49,32 @@ def ip_address_literal(ip: str | int | None) -> cg.MockObj:
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        # Allow enabling IPv6 on nRF52 (Zephyr) without framework gating
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
             esp8266=False,
             esp32=False,
             rp2040=False,
             bk72xx=False,
-            host=False,
-        ): cv.All(
-            cv.boolean,
-            cv.Any(
-                cv.require_framework_version(
-                    esp_idf=cv.Version(0, 0, 0),
-                    esp32_arduino=cv.Version(0, 0, 0),
-                    esp8266_arduino=cv.Version(0, 0, 0),
-                    rp2040_arduino=cv.Version(0, 0, 0),
-                    bk72xx_arduino=cv.Version(1, 7, 0),
-                    host=cv.Version(0, 0, 0),
+            nrf52=False,
+        ): (
+            cv.boolean
+            if CORE.is_nrf52
+            else cv.All(
+                cv.boolean,
+                cv.Any(
+                    cv.require_framework_version(
+                        bk72xx_arduino=cv.Version(1, 7, 0),
+                        esp_idf=cv.Version(0, 0, 0),
+                        esp32_arduino=cv.Version(0, 0, 0),
+                        esp8266_arduino=cv.Version(0, 0, 0),
+                        host=cv.Version(0, 0, 0),
+                        nrf52_arduino=cv.Version(0, 0, 0),
+                        rp2040_arduino=cv.Version(0, 0, 0),
+                    ),
+                    cv.boolean_false,
                 ),
-                cv.boolean_false,
-            ),
+            )
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
     }
