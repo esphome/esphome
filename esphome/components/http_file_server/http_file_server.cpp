@@ -1549,8 +1549,7 @@ std::string HttpFileServer::generate_html_footer() {
             body: chunk,
             credentials: 'include',
             headers: {
-              'Content-Type': 'application/octet-stream',
-              'Connection': 'close'  // Force new connection per chunk to avoid keep-alive timeout
+              'Content-Type': 'application/octet-stream'
             },
             signal: controller.signal
           });
