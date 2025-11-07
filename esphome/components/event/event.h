@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
@@ -30,13 +31,23 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
     this->types_ = event_types;
     this->last_event_type_ = nullptr;  // Reset when types change
   }
+  /// Set the event types supported by this event (from vector).
+  void set_event_types(const std::vector<const char *> &event_types) {
+    this->types_ = event_types;
+    this->last_event_type_ = nullptr;  // Reset when types change
+  }
+  /// Set the event types supported by this event (from C array).
+  template<size_t N> void set_event_types(const char *const (&event_types)[N]) {
+    this->types_.assign(event_types, event_types + N);
+    this->last_event_type_ = nullptr;  // Reset when types change
+  }
 
   // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
   void set_event_types(std::initializer_list<std::string> event_types) = delete;
-  void set_event_types(const FixedVector<std::string> &event_types) = delete;
+  void set_event_types(const std::vector<std::string> &event_types) = delete;
 
   /// Return the event types supported by this event.
-  const FixedVector<const char *> &get_event_types() const { return this->types_; }
+  const std::vector<const char *> &get_event_types() const { return this->types_; }
 
   /// Return the last triggered event type (pointer to string in types_), or nullptr if no event triggered yet.
   const char *get_last_event_type() const { return this->last_event_type_; }
@@ -45,7 +56,7 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
 
  protected:
   CallbackManager<void(const std::string &event_type)> event_callback_;
-  FixedVector<const char *> types_;
+  std::vector<const char *> types_;
 
  private:
   /// Last triggered event type - must point to entry in types_ to ensure valid lifetime.
