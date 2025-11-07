@@ -497,6 +497,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
     CORE.add_job(_add_platform_defines)
+    CORE.add_job(_add_controller_registry_define)
 
     CORE.add_job(_add_automations, config)
 
