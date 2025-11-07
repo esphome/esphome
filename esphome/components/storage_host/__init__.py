@@ -21,6 +21,7 @@ storage_host_ns = cg.esphome_ns.namespace("storage_host")
 
 # Classes
 StorageHost = storage_host_ns.class_("StorageHost", cg.Component)
+StorageMount = storage_host_ns.class_("StorageMount")
 FileManager = storage_host_ns.class_("FileManager", cg.Component)
 
 # Triggers
@@ -63,6 +64,7 @@ PLATFORM_SMB = "smb"
 # Single mount configuration
 MOUNT_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(StorageMount),
         cv.Required(CONF_MOUNT_PATH): cv.string,
         cv.Optional(CONF_MOUNT_PLATFORM, default=PLATFORM_SD_DIRECT): cv.one_of(
             PLATFORM_SD_DIRECT,
@@ -139,6 +141,14 @@ async def to_code(config):
     for mount_config in config.get(CONF_MOUNTS, []):
         mount_path = mount_config[CONF_MOUNT_PATH]
         mount_platform = mount_config[CONF_MOUNT_PLATFORM]
+
+        # Create StorageMount object for this mount
+        mount_var = cg.new_Pvariable(mount_config[CONF_ID])
+        cg.add(mount_var.set_path(mount_path))
+        cg.add(mount_var.set_platform(mount_platform))
+        cg.add(mount_var.set_storage_host(var))
+
+        # Register with storage_host
         cg.add(var.register_mount(mount_path, mount_platform))
 
     # Register file managers

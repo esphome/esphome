@@ -29,6 +29,33 @@ struct MountEntry {
   std::string platform;
 };
 
+// =====================================================
+// StorageMount - Individual mount point reference
+// =====================================================
+class StorageMount {
+ public:
+  StorageMount() = default;
+
+  void set_path(const std::string &path) { this->path_ = path; }
+  void set_platform(const std::string &platform) { this->platform_ = platform; }
+  void set_storage_host(StorageHost *host) { this->storage_host_ = host; }
+
+  const std::string &get_path() const { return this->path_; }
+  const std::string &get_platform() const { return this->platform_; }
+  StorageHost *get_storage_host() const { return this->storage_host_; }
+
+  /// Check if this mount point is available (e.g., SD card inserted)
+  bool is_available() const;
+
+  /// Get mount statistics (if supported by platform)
+  bool get_stats(uint64_t &total_bytes, uint64_t &free_bytes) const;
+
+ protected:
+  std::string path_;
+  std::string platform_;
+  StorageHost *storage_host_{nullptr};
+};
+
 // Device node entry - virtual /dev files pointing to binary_storage devices
 struct DeviceNode {
   std::string path;                       // e.g., "/dev/fram0"

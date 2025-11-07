@@ -35,7 +35,8 @@ logger:
 storage_host:
   id: storage
   mounts:
-    - path: /sd
+    - id: sd_mount
+      path: /sd
       platform: sd_mmc
   file_managers:
     # Watch photos directory for changes
@@ -402,6 +403,25 @@ api:
     - service: refresh_images
       then:
         - lambda: id(viewer)->refresh_images();
+
+    # Service to check SD card status (example using mount ID)
+    - service: check_sd_status
+      then:
+        - lambda: |-
+            auto *mount = id(sd_mount);
+            if (mount->is_available()) {
+              uint64_t total, free;
+              if (mount->get_stats(total, free)) {
+                ESP_LOGI("sd", "SD card mounted at %s", mount->get_path().c_str());
+                ESP_LOGI("sd", "  Total: %.2f MB", total / 1024.0 / 1024.0);
+                ESP_LOGI("sd", "  Free: %.2f MB", free / 1024.0 / 1024.0);
+                ESP_LOGI("sd", "  Used: %.2f MB", (total - free) / 1024.0 / 1024.0);
+              } else {
+                ESP_LOGI("sd", "SD card available but stats not supported");
+              }
+            } else {
+              ESP_LOGW("sd", "SD card not available");
+            }
 
 wifi:
   ssid: !secret wifi_ssid

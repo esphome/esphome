@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"  // For App.feed_wdt()
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <dirent.h>
 #include <errno.h>
 #include <algorithm>
@@ -26,6 +27,37 @@ static const char *const TAG = "storage_host";
 
 // Global accessor for soft dependency pattern
 StorageHost *global_storage_host = nullptr;
+
+// =====================================================
+// StorageMount Implementation
+// =====================================================
+
+bool StorageMount::is_available() const {
+  if (this->storage_host_ == nullptr) {
+    return false;
+  }
+
+  // Check if the mount path exists
+  struct stat st;
+  if (stat(this->path_.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
+    return true;
+  }
+
+  return false;
+}
+
+bool StorageMount::get_stats(uint64_t &total_bytes, uint64_t &free_bytes) const {
+#ifdef ESP32
+  // ESP32/ESP-IDF has statvfs
+  struct statvfs stat;
+  if (statvfs(this->path_.c_str(), &stat) == 0) {
+    total_bytes = static_cast<uint64_t>(stat.f_blocks) * stat.f_frsize;
+    free_bytes = static_cast<uint64_t>(stat.f_bfree) * stat.f_frsize;
+    return true;
+  }
+#endif
+  return false;
+}
 
 // =====================================================
 // StorageHost Implementation
