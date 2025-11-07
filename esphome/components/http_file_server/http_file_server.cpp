@@ -1525,8 +1525,11 @@ std::string HttpFileServer::generate_html_footer() {
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
 
-        console.log('[FileServer] Uploading chunk ' + (chunkIndex + 1) + '/' + totalChunks +
-                    ' (bytes ' + start + '-' + end + ')');
+        // Only log every 50th chunk, first chunk, and last chunk to reduce overhead
+        if (chunkIndex % 50 === 0 || chunkIndex === 0 || chunkIndex === totalChunks - 1) {
+          console.log('[FileServer] Uploading chunk ' + (chunkIndex + 1) + '/' + totalChunks +
+                      ' (bytes ' + start + '-' + end + ')');
+        }
 
         // Build API URL with query parameters
         const apiUrl = API_BASE + '/api/upload_chunk' +
@@ -1582,8 +1585,10 @@ std::string HttpFileServer::generate_html_footer() {
             console.log('[FileServer] Upload completed by server at final chunk');
           }
 
-          // Progress is automatically tracked by backend and polled by progress modal
-          console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
+          // Log progress sparingly to reduce overhead (every 50th chunk, first, and last)
+          if (chunkIndex % 50 === 0 || chunkIndex === 0 || chunkIndex === totalChunks - 1) {
+            console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
+          }
         } catch (fetchError) {
           clearTimeout(timeoutId);
           if (fetchError.name === 'AbortError') {
@@ -2665,8 +2670,11 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
   std::string path = path_param->value().c_str();
   size_t file_size = std::stoull(file_size_param->value().c_str());
 
-  ESP_LOGD(TAG, "Upload chunk: file=%s, chunk=%d/%d, path=%s, size=%zu", filename.c_str(), chunk_index, total_chunks,
-           path.c_str(), file_size);
+  // Log only every 50th chunk, first, and last to reduce overhead
+  if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1) {
+    ESP_LOGD(TAG, "Upload chunk: file=%s, chunk=%d/%d, path=%s, size=%zu", filename.c_str(), chunk_index, total_chunks,
+             path.c_str(), file_size);
+  }
 
   // Convert path to filesystem path
   std::string dir_path = this->uri_to_filepath(path);
@@ -2834,8 +2842,11 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
     this->progress_.transferred_bytes += written;
     portEXIT_CRITICAL(&this->progress_mutex_);
 
-    ESP_LOGD(TAG, "Wrote chunk %d: %zu bytes (total: %zu/%zu)", chunk_index, written,
-             this->progress_.transferred_bytes, file_size);
+    // Log only every 50th chunk, first, and last to reduce overhead
+    if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1) {
+      ESP_LOGD(TAG, "Wrote chunk %d: %zu bytes (total: %zu/%zu)", chunk_index, written,
+               this->progress_.transferred_bytes, file_size);
+    }
   }
 
   // Clear body buffer for next chunk
