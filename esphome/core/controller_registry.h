@@ -8,125 +8,85 @@ namespace esphome {
 
 class Controller;
 
-#ifdef USE_BINARY_SENSOR
 namespace binary_sensor {
 class BinarySensor;
 }
-#endif
 
-#ifdef USE_FAN
 namespace fan {
 class Fan;
 }
-#endif
 
-#ifdef USE_LIGHT
 namespace light {
 class LightState;
 }
-#endif
 
-#ifdef USE_SENSOR
 namespace sensor {
 class Sensor;
 }
-#endif
 
-#ifdef USE_SWITCH
 namespace switch_ {
 class Switch;
 }
-#endif
 
-#ifdef USE_COVER
 namespace cover {
 class Cover;
 }
-#endif
 
-#ifdef USE_TEXT_SENSOR
 namespace text_sensor {
 class TextSensor;
 }
-#endif
 
-#ifdef USE_CLIMATE
 namespace climate {
 class Climate;
 }
-#endif
 
-#ifdef USE_NUMBER
 namespace number {
 class Number;
 }
-#endif
 
-#ifdef USE_DATETIME_DATE
 namespace datetime {
 class DateEntity;
 }
-#endif
 
-#ifdef USE_DATETIME_TIME
 namespace datetime {
 class TimeEntity;
 }
-#endif
 
-#ifdef USE_DATETIME_DATETIME
 namespace datetime {
 class DateTimeEntity;
 }
-#endif
 
-#ifdef USE_TEXT
 namespace text {
 class Text;
 }
-#endif
 
-#ifdef USE_SELECT
 namespace select {
 class Select;
 }
-#endif
 
-#ifdef USE_LOCK
 namespace lock {
 class Lock;
 }
-#endif
 
-#ifdef USE_VALVE
 namespace valve {
 class Valve;
 }
-#endif
 
-#ifdef USE_MEDIA_PLAYER
 namespace media_player {
 class MediaPlayer;
 }
-#endif
 
-#ifdef USE_ALARM_CONTROL_PANEL
 namespace alarm_control_panel {
 class AlarmControlPanel;
 }
-#endif
 
-#ifdef USE_EVENT
 namespace event {
 class Event;
 }
-#endif
 
-#ifdef USE_UPDATE
 namespace update {
 class UpdateEntity;
 }
-#endif
 
 /** Global registry for Controllers to receive entity state updates.
  *
