@@ -806,7 +806,8 @@ std::string HttpFileServer::generate_html_footer() {
     </div>
     <button id="cancelBtn" class="delete" onclick="cancelOperation()" > Cancel</ button></ div></ div><script>
              // API base path for this file server instance
-             const API_BASE = ')" + this->url_prefix_ + R"(';
+             const API_BASE = ')HTML" +
+         this->url_prefix_ + R"HTML(';
   console.log('[FileServer] Script loaded, API_BASE:', API_BASE);
   let progressPollInterval = null;
 
