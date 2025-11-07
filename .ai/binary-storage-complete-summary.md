@@ -24,6 +24,20 @@ A complete, production-ready binary storage system for ESPHome with three major 
 - **Write Time**: Instant (<1μs)
 - **Best For**: Frequent writes, state machines, logging, counters
 
+### ✅ SPI Flash
+- **Models**: W25Q, MX25, AT25 series (up to 128Mbit)
+- **Write Endurance**: 100,000 cycles per sector
+- **Write Time**: ~3ms per page (256 bytes)
+- **Erase Time**: 45ms (4KB), 200ms (32KB), 500ms (64KB)
+- **Best For**: Large data storage, firmware storage, logs
+
+### ✅ SPI FRAM
+- **Models**: FM25, CY15B series (up to 4Mbit)
+- **Write Endurance**: 100 trillion cycles (!!)
+- **Write Time**: Instant (<1μs)
+- **Speed**: Up to 40MHz SPI (faster than I2C)
+- **Best For**: High-speed frequent writes, real-time logging
+
 ---
 
 ## Key Features
@@ -125,12 +139,13 @@ Dynamic values in automations:
 ### Basic Configuration
 
 ```yaml
+# I2C devices
 i2c:
   sda: GPIO21
   scl: GPIO22
 
 binary_storage:
-  # Required
+  # I2C EEPROM or FRAM
   - type: EEPROM | FRAM | I2C_EEPROM | I2C_FRAM
     id: device_id
 
@@ -141,7 +156,7 @@ binary_storage:
     # Mode selection
     mode: raw                  # raw | littlefs | both (default: raw)
 
-    # Optional overrides
+    # Optional overrides (I2C)
     capacity: 32KB             # Override auto-detected size
     page_size: 64              # EEPROM page size
     addressing_bits: 16        # 8, 9, 10, 11, 16, or 32
@@ -150,6 +165,35 @@ binary_storage:
     mount_path: /storage       # Defaults to /<id>
     auto_format: true          # Format if not formatted (default: true)
     partition_label: storage   # Advanced: partition label
+
+# SPI devices
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+binary_storage:
+  # SPI Flash or SPI FRAM
+  - type: SPI_FLASH | FLASH | SPI_FRAM
+    id: device_id
+    cs_pin: GPIO5
+
+    # Device settings
+    model: "W25Q32"            # Model name (auto-configures)
+
+    # Mode selection
+    mode: raw                  # raw | littlefs | both (default: raw)
+
+    # Optional overrides (SPI)
+    capacity: 4MB              # Override auto-detected size
+    page_size: 256             # Flash page size (standard: 256)
+    erase_size: 4096           # Flash erase size (4KB, 32KB, or 64KB)
+    jedec_id: 0xEF4016         # Override JEDEC ID
+    addressing_bits: 24        # SPI FRAM: 16 or 24
+
+    # LittleFS options (mode: littlefs or both)
+    mount_path: /storage       # Defaults to /<id>
+    auto_format: true          # Format if not formatted (default: true)
 ```
 
 ### All Automation Actions
@@ -265,10 +309,14 @@ esphome/components/binary_storage/
 ├── __init__.py                  # Python configuration & automations
 ├── binary_storage.h             # Base interface
 ├── binary_storage.cpp           # Base implementation
-├── i2c_eeprom.h                 # EEPROM implementation
+├── i2c_eeprom.h                 # I2C EEPROM implementation
 ├── i2c_eeprom.cpp
-├── i2c_fram.h                   # FRAM implementation
+├── i2c_fram.h                   # I2C FRAM implementation
 ├── i2c_fram.cpp
+├── spi_flash.h                  # SPI Flash implementation
+├── spi_flash.cpp
+├── spi_fram.h                   # SPI FRAM implementation
+├── spi_fram.cpp
 ├── littlefs_mount.h             # LittleFS mounting
 ├── littlefs_mount.cpp
 └── automation.h                 # Automation actions/conditions
@@ -285,10 +333,10 @@ Documentation:
 
 ## Statistics
 
-- **~3,500 lines** of C++ code
-- **~340 lines** of Python code
+- **~5,500 lines** of C++ code
+- **~400 lines** of Python code
 - **~1,700 lines** of documentation
-- **2 device types** implemented (EEPROM, FRAM)
+- **4 device types** implemented (I2C EEPROM, I2C FRAM, SPI Flash, SPI FRAM)
 - **5 automation actions**
 - **1 condition**
 - **3 access modes** (raw, littlefs, both)
@@ -298,12 +346,12 @@ Documentation:
 
 ## What's Next (Future)
 
-Not yet implemented, but interface is ready:
+Potential future enhancements:
 
-1. **SPI FRAM** (FM25, CY15B series) - Easy, similar to I2C
-2. **SPI Flash** (W25Q, MX25, AT25 series) - Needs erase logic
-3. **Raw Device Mode** for http_file_server - Download/flash binary
-4. **Network Storage** - WebDAV, NFS (lighter than SMB)
+1. **Raw Device Mode** for http_file_server - Download/flash binary images
+2. **Network Storage** - WebDAV, NFS (lighter than SMB)
+3. **QSPI Support** - Quad-SPI for faster Flash access
+4. **Wear Leveling** - Optional wear leveling layer for Flash devices
 
 ---
 

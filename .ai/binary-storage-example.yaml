@@ -1,0 +1,220 @@
+# Binary Storage - Complete Example Configuration
+# This demonstrates all 4 supported storage device types
+
+esphome:
+  name: storage-demo
+  platform: ESP32
+  board: esp32dev
+
+# I2C Bus for EEPROM and FRAM
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  frequency: 400kHz
+
+# SPI Bus for Flash and FRAM
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+# ============================================================================
+# Storage Devices
+# ============================================================================
+
+binary_storage:
+  # I2C EEPROM - For infrequent config storage
+  - type: I2C_EEPROM
+    id: config_eeprom
+    model: AT24C256          # 32KB, auto-configured
+    address: 0x50
+    mode: littlefs
+    mount_path: /config
+    auto_format: true
+
+  # I2C FRAM - For frequent state updates
+  - type: I2C_FRAM
+    id: state_fram
+    model: MB85RC64          # 8KB, instant writes
+    address: 0x51
+    mode: raw                # Binary access only
+
+  # SPI Flash - For large data storage
+  - type: SPI_FLASH
+    id: data_flash
+    cs_pin: GPIO5
+    model: W25Q32             # 4MB, auto-configured
+    mode: littlefs
+    mount_path: /data
+    auto_format: true
+
+  # SPI FRAM - For high-speed logging
+  - type: SPI_FRAM
+    id: log_fram
+    cs_pin: GPIO15
+    model: FM25V10            # 128KB, fast SPI
+    mode: both               # Binary + filesystem
+    mount_path: /logs
+    auto_format: true
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+
+# Boot counter using FRAM (unlimited writes!)
+on_boot:
+  priority: -100
+  then:
+    # Read boot counter from FRAM
+    - lambda: |-
+        auto *fram = id(state_fram);
+        uint32_t count = 0;
+        fram->read(0x0000, (uint8_t*)&count, sizeof(count));
+        count++;
+        fram->write(0x0000, (uint8_t*)&count, sizeof(count));
+        ESP_LOGI("boot", "Boot count: %u", count);
+
+        // Write to config file on EEPROM
+        FILE *f = fopen("/config/boot.txt", "w");
+        if (f) {
+          fprintf(f, "Last boot: %u\n", count);
+          fclose(f);
+        }
+
+# Temperature sensor with logging
+sensor:
+  - platform: dallas
+    id: temp_sensor
+    name: "Temperature"
+    on_value:
+      then:
+        # Log to SPI Flash filesystem
+        - lambda: |-
+            FILE *f = fopen("/data/temp.csv", "a");
+            if (f) {
+              fprintf(f, "%lu,%.1f\n", millis(), id(temp_sensor).state);
+              fclose(f);
+            }
+
+# Button to save state
+binary_sensor:
+  - platform: gpio
+    pin: GPIO0
+    name: "Save Button"
+    on_press:
+      # Save state to FRAM instantly
+      - binary_storage.write_byte:
+          id: state_fram
+          address: 0x0100
+          value: 0x01
+      - logger.log: "State saved to FRAM"
+
+  - platform: gpio
+    pin: GPIO4
+    name: "Clear Button"
+    on_click:
+      min_length: 3s
+      max_length: 10s
+      then:
+        # Clear entire FRAM
+        - binary_storage.fill:
+            id: state_fram
+            value: 0x00
+        - logger.log: "FRAM cleared"
+
+# Write string to storage
+switch:
+  - platform: template
+    name: "Write Test Data"
+    turn_on_action:
+      - binary_storage.write_string:
+          id: log_fram
+          address: 0x0000
+          value: "ESPHome Binary Storage Demo!"
+      - logger.log: "Test data written"
+
+# Interval logging
+interval:
+  - interval: 60s
+    then:
+      # High-speed logging to SPI FRAM
+      - lambda: |-
+          char buffer[64];
+          snprintf(buffer, sizeof(buffer), "%lu: Uptime %u seconds\n",
+                   millis(), millis() / 1000);
+          id(log_fram)->write(0x1000, (uint8_t*)buffer, strlen(buffer));
+
+# ============================================================================
+# Device Status Sensors
+# ============================================================================
+
+text_sensor:
+  - platform: template
+    name: "EEPROM Info"
+    lambda: |-
+      auto *dev = id(config_eeprom);
+      char buffer[128];
+      snprintf(buffer, sizeof(buffer), "%s - %u bytes",
+               dev->get_device_name(), dev->get_capacity());
+      return std::string(buffer);
+    update_interval: 60s
+
+  - platform: template
+    name: "FRAM Info"
+    lambda: |-
+      auto *dev = id(state_fram);
+      char buffer[128];
+      snprintf(buffer, sizeof(buffer), "%s - %u bytes",
+               dev->get_device_name(), dev->get_capacity());
+      return std::string(buffer);
+    update_interval: 60s
+
+  - platform: template
+    name: "Flash Info"
+    lambda: |-
+      auto *dev = id(data_flash);
+      char buffer[128];
+      snprintf(buffer, sizeof(buffer), "%s - %u bytes",
+               dev->get_device_name(), dev->get_capacity());
+      return std::string(buffer);
+    update_interval: 60s
+
+  - platform: template
+    name: "SPI FRAM Info"
+    lambda: |-
+      auto *dev = id(log_fram);
+      char buffer[128];
+      snprintf(buffer, sizeof(buffer), "%s - %u bytes",
+               dev->get_device_name(), dev->get_capacity());
+      return std::string(buffer);
+    update_interval: 60s
+
+# ============================================================================
+# Notes
+# ============================================================================
+
+# Device Comparison:
+#
+# I2C EEPROM (config_eeprom):
+#   - 32KB capacity
+#   - 1M write cycles per location
+#   - 5ms write delay
+#   - Best for: Configuration files
+#
+# I2C FRAM (state_fram):
+#   - 8KB capacity
+#   - 100 trillion write cycles
+#   - Instant writes (<1μs)
+#   - Best for: Frequent state updates, counters
+#
+# SPI Flash (data_flash):
+#   - 4MB capacity
+#   - 100K write cycles per sector
+#   - Must erase before write
+#   - Best for: Large data storage, logs
+#
+# SPI FRAM (log_fram):
+#   - 128KB capacity
+#   - 100 trillion write cycles
+#   - Instant writes, up to 40MHz
+#   - Best for: High-speed logging

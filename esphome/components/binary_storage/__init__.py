@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, esp32
+from esphome.components import i2c, spi, esp32
 from esphome.const import CONF_ID, CONF_MODEL, CONF_TYPE, CONF_VALUE, CONF_ADDRESS, CONF_LENGTH, CONF_DATA, CONF_MODE
 from esphome import automation
 import re
 
 CODEOWNERS = ["@esphome/core"]
-DEPENDENCIES = ["i2c"]
+DEPENDENCIES = []
 AUTO_LOAD = []
 MULTI_CONF = True
 
@@ -24,6 +24,22 @@ I2CEeprom = binary_storage_ns.class_("I2CEeprom", BinaryStorage, i2c.I2CDevice)
 
 # I2C FRAM class
 I2CFram = binary_storage_ns.class_("I2CFram", BinaryStorage, i2c.I2CDevice)
+
+# SPI Flash class
+SPIFlash = binary_storage_ns.class_(
+    "SPIFlash",
+    BinaryStorage,
+    spi.SPIDevice,
+    cg.Parented.template(spi.SPIComponent),
+)
+
+# SPI FRAM class
+SPIFram = binary_storage_ns.class_(
+    "SPIFram",
+    BinaryStorage,
+    spi.SPIDevice,
+    cg.Parented.template(spi.SPIComponent),
+)
 
 # LittleFS Mount class
 LittleFSMount = binary_storage_ns.class_("LittleFSMount", cg.Component)
@@ -45,6 +61,8 @@ CONF_AUTO_FORMAT = "auto_format"
 CONF_PARTITION_LABEL = "partition_label"
 CONF_FILESYSTEM = "filesystem"
 CONF_STORAGE_DEVICE = "storage_device"
+CONF_ERASE_SIZE = "erase_size"
+CONF_JEDEC_ID = "jedec_id"
 
 # Storage modes
 MODE_RAW = "raw"
@@ -123,6 +141,54 @@ FRAM_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x50))
 )
 
+# SPI Flash Configuration Schema
+SPI_FLASH_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SPIFlash),
+            # Device configuration
+            cv.Optional(CONF_MODEL, default="W25Q32"): cv.string,
+            cv.Optional(CONF_CAPACITY): validate_bytes,
+            cv.Optional(CONF_PAGE_SIZE): cv.int_range(min=256, max=256),  # Standard: 256 bytes
+            cv.Optional(CONF_ERASE_SIZE): cv.one_of(4096, 32768, 65536, int=True),  # 4KB, 32KB, 64KB
+            cv.Optional(CONF_JEDEC_ID): cv.hex_uint32_t,
+            # Usage mode: how to use this device
+            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
+                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
+            ),
+            # LittleFS configuration (only used if mode is littlefs or both)
+            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
+            cv.Optional(CONF_PARTITION_LABEL): cv.string,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(spi.spi_device_schema(cs_pin_required=True))
+)
+
+# SPI FRAM Configuration Schema
+SPI_FRAM_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SPIFram),
+            # Device configuration
+            cv.Optional(CONF_MODEL, default="FM25V10"): cv.string,
+            cv.Optional(CONF_CAPACITY): validate_bytes,
+            cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(16, 24, int=True),
+            # Usage mode: how to use this device
+            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
+                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
+            ),
+            # LittleFS configuration (only used if mode is littlefs or both)
+            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
+            cv.Optional(CONF_PARTITION_LABEL): cv.string,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(spi.spi_device_schema(cs_pin_required=True))
+)
+
 # Typed schema for device selection
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -130,6 +196,9 @@ CONFIG_SCHEMA = cv.typed_schema(
         "I2C_EEPROM": EEPROM_SCHEMA,
         "FRAM": FRAM_SCHEMA,
         "I2C_FRAM": FRAM_SCHEMA,
+        "SPI_FLASH": SPI_FLASH_SCHEMA,
+        "FLASH": SPI_FLASH_SCHEMA,
+        "SPI_FRAM": SPI_FRAM_SCHEMA,
     },
     key=CONF_TYPE,
     default_type="EEPROM",
@@ -140,6 +209,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 async def to_code(config):
     """Configure binary storage device."""
     mode = config.get(CONF_MODE, MODE_RAW)
+    device_type = config.get(CONF_TYPE, "EEPROM").upper()
 
     # Add LittleFS ESP-IDF component if filesystem is enabled
     if mode in [MODE_LITTLEFS, MODE_BOTH]:
@@ -147,7 +217,13 @@ async def to_code(config):
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+
+    # Register as I2C or SPI device
+    is_spi = device_type in ["SPI_FLASH", "FLASH", "SPI_FRAM"]
+    if is_spi:
+        await spi.register_spi_device(var, config)
+    else:
+        await i2c.register_i2c_device(var, config)
 
     # Set model name
     if CONF_MODEL in config:
@@ -157,9 +233,17 @@ async def to_code(config):
     if CONF_CAPACITY in config:
         cg.add(var.set_capacity(config[CONF_CAPACITY]))
 
-    # Set page size if specified (EEPROM only)
+    # Set page size if specified (EEPROM and Flash)
     if CONF_PAGE_SIZE in config:
         cg.add(var.set_page_size(config[CONF_PAGE_SIZE]))
+
+    # Set erase size if specified (Flash only)
+    if CONF_ERASE_SIZE in config:
+        cg.add(var.set_erase_size(config[CONF_ERASE_SIZE]))
+
+    # Set JEDEC ID if specified (Flash only)
+    if CONF_JEDEC_ID in config:
+        cg.add(var.set_jedec_id(config[CONF_JEDEC_ID]))
 
     # Set addressing bits if specified
     if CONF_ADDRESSING_BITS in config:
