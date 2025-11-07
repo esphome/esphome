@@ -348,12 +348,12 @@ API_DISPATCH_UPDATE(media_player::MediaPlayer, media_player)
 #endif
 
 #ifdef USE_EVENT
-// Event is a special case - it reads event_type from obj->last_event_type
+// Event is a special case - it reads event_type from obj->get_last_event_type()
 void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_event(obj, *obj->last_event_type);
+    c->send_event(obj, obj->get_last_event_type());
 }
 #endif
 
