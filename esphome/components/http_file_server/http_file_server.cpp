@@ -1653,58 +1653,64 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
   ESP_LOGI(TAG, "Starting file download: %s (size: %zu bytes)", filename.c_str(), file_size);
 
-  // For files > 16MB, use FreeRTOS task with chunked streaming
-  const size_t MEMORY_LIMIT = 16 * 1024 * 1024;  // 16MB
+  // Use raw httpd API for streaming (AsyncWebServer wraps httpd but doesn't expose streaming)
+  // Get the underlying httpd_req_t
+  httpd_req_t *req = static_cast<httpd_req_t *>(*request);
 
-  if (file_size <= MEMORY_LIMIT) {
-    // Small file - read into memory at once
-    FILE *file = fopen(filepath.c_str(), "rb");
-    if (!file) {
-      request->send(404, "text/plain", "File not found");
-      return;
+  // Open file
+  FILE *file = fopen(filepath.c_str(), "rb");
+  if (!file) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File not found");
+    return;
+  }
+
+  // Set response headers using raw httpd API
+  httpd_resp_set_type(req, mime_type.c_str());
+  httpd_resp_set_hdr(req, "Content-Disposition", content_disposition.c_str());
+  httpd_resp_set_hdr(req, "Content-Length", std::to_string(file_size).c_str());
+  httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+
+  // Stream file in chunks
+  auto buffer = std::make_unique<uint8_t[]>(FILE_BUFFER_SIZE);
+  size_t total_sent = 0;
+  bool success = true;
+
+  while (total_sent < file_size) {
+    App.feed_wdt();  // Feed watchdog for large files
+
+    size_t to_read = std::min(FILE_BUFFER_SIZE, file_size - total_sent);
+    size_t bytes_read = fread(buffer.get(), 1, to_read, file);
+
+    if (bytes_read == 0) {
+      ESP_LOGE(TAG, "Failed to read chunk at offset %zu", total_sent);
+      success = false;
+      break;
     }
 
-    std::string content;
-    content.resize(file_size);
-    size_t bytes_read = fread(content.data(), 1, file_size, file);
-    fclose(file);
-
-    if (bytes_read != file_size) {
-      ESP_LOGE(TAG, "Failed to read file completely");
-      request->send(500, "text/plain", "Failed to read file");
-      return;
+    esp_err_t err = httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buffer.get()), bytes_read);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Download cancelled or connection closed at %zu / %zu bytes", total_sent, file_size);
+      success = false;
+      break;
     }
 
-    AsyncWebServerResponse *response = request->beginResponse(200, mime_type.c_str(), content);
-    response->addHeader("Content-Disposition", content_disposition.c_str());
-    response->addHeader("Content-Length", std::to_string(file_size).c_str());
-    response->addHeader("Cache-Control", "no-cache");
-    request->send(response);
+    total_sent += bytes_read;
 
-    ESP_LOGI(TAG, "Download sent: %zu bytes", bytes_read);
+    // Log progress every ~3MB
+    if (file_size > 3 * 1024 * 1024 && (total_sent % (3 * 1024 * 1024) < FILE_BUFFER_SIZE)) {
+      ESP_LOGI(TAG, "Download progress: %zu / %zu MB (%.1f%%)", total_sent / (1024 * 1024), file_size / (1024 * 1024),
+               (float) total_sent / file_size * 100.0f);
+    }
+  }
+
+  fclose(file);
+
+  // Send final empty chunk to signal completion
+  if (success) {
+    httpd_resp_send_chunk(req, nullptr, 0);
+    ESP_LOGI(TAG, "Download completed: %zu bytes", total_sent);
   } else {
-    // Large file - use FreeRTOS task for non-blocking download
-    ESP_LOGI(TAG, "Large file download, using FreeRTOS task");
-
-    // Get raw httpd_req_t
-    httpd_req_t *req = static_cast<httpd_req_t *>(*request);
-
-    // Create task parameters (no caller_task since we won't wait)
-    auto *task_params = new DownloadTaskParams{req, filepath, filename, mime_type, file_size, nullptr};
-
-    // Create FreeRTOS task for background download (16KB stack for larger buffers, priority 1)
-    BaseType_t result = xTaskCreate(download_task, "http_download", 16384, task_params, 1, nullptr);
-
-    if (result != pdPASS) {
-      ESP_LOGE(TAG, "Failed to create download task");
-      delete task_params;
-      request->send(500, "text/plain", "Failed to start download");
-      return;
-    }
-
-    ESP_LOGI(TAG, "Download task created for %s (%zu bytes) - processing in background", filename.c_str(), file_size);
-    // Don't wait - let the task handle the download independently
-    // The browser will receive the chunked response as the task sends it
+    ESP_LOGW(TAG, "Download incomplete: %zu / %zu bytes", total_sent, file_size);
   }
 }
 
