@@ -211,16 +211,6 @@ bool HttpFileServer::canHandle(AsyncWebServerRequest *request) const {
     return false;
   }
 
-  // For POST requests with multipart/form-data, return false so handleRequest() is not called
-  // (handleUpload() will handle these requests instead)
-  if (request->method() == HTTP_POST) {
-    auto content_type = request->get_header("Content-Type");
-    if (content_type.has_value() && content_type.value().find("multipart/form-data") != std::string::npos) {
-      ESP_LOGD(TAG, "  -> NO: Multipart upload will be handled by handleUpload() callback only");
-      return false;  // Let handleUpload() handle this, don't call handleRequest()
-    }
-  }
-
   // We handle GET, POST, and DELETE methods
   if (request->method() == HTTP_GET || request->method() == HTTP_POST || request->method() == HTTP_DELETE) {
     ESP_LOGI(TAG, "  -> YES: Will handle %s %s", method_name, uri.c_str());
@@ -2046,33 +2036,18 @@ bool HttpFileServer::is_mount_point_mounted(const std::string &mount_path) {
 
 // API handlers
 void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
-  // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
-  std::string source_uri, dest_uri;
-
-  auto *source_param = request->getParam("source", true);  // true = POST parameter
-  auto *dest_param = request->getParam("destination", true);
-
-  if (source_param && dest_param) {
-    source_uri = source_param->value().c_str();
-    dest_uri = dest_param->value().c_str();
-  } else {
-    // Fallback: parse from body_buffer_
-    ApiRequest req;
-    if (this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req)) {
-      source_uri = req.source;
-      dest_uri = req.destination;
-    }
-  }
-
-  if (source_uri.empty() || dest_uri.empty()) {
+  // Parse parameters from POST body
+  ApiRequest req;
+  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
+      req.source.empty() || req.destination.empty()) {
     ESP_LOGW(TAG, "Missing source or destination parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or destination\"}");
     return;
   }
 
   // Convert URI paths to filesystem paths (strips URL prefix)
-  std::string source = this->uri_to_filepath(source_uri);
-  std::string destination = this->uri_to_filepath(dest_uri);
+  std::string source = this->uri_to_filepath(req.source);
+  std::string destination = this->uri_to_filepath(req.destination);
 
   ESP_LOGI(TAG, "API COPY: %s -> %s", source.c_str(), destination.c_str());
 
@@ -2108,33 +2083,18 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
-  // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
-  std::string source_uri, dest_uri;
-
-  auto *source_param = request->getParam("source", true);  // true = POST parameter
-  auto *dest_param = request->getParam("destination", true);
-
-  if (source_param && dest_param) {
-    source_uri = source_param->value().c_str();
-    dest_uri = dest_param->value().c_str();
-  } else {
-    // Fallback: parse from body_buffer_
-    ApiRequest req;
-    if (this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req)) {
-      source_uri = req.source;
-      dest_uri = req.destination;
-    }
-  }
-
-  if (source_uri.empty() || dest_uri.empty()) {
+  // Parse parameters from POST body
+  ApiRequest req;
+  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
+      req.source.empty() || req.destination.empty()) {
     ESP_LOGW(TAG, "Missing source or destination parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or destination\"}");
     return;
   }
 
   // Convert URI paths to filesystem paths (strips URL prefix)
-  std::string source = this->uri_to_filepath(source_uri);
-  std::string destination = this->uri_to_filepath(dest_uri);
+  std::string source = this->uri_to_filepath(req.source);
+  std::string destination = this->uri_to_filepath(req.destination);
 
   ESP_LOGI(TAG, "API MOVE: %s -> %s", source.c_str(), destination.c_str());
 
@@ -2169,32 +2129,18 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
-  // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
-  std::string source_uri, new_name;
-
-  auto *source_param = request->getParam("source", true);  // true = POST parameter
-  auto *name_param = request->getParam("name", true);
-
-  if (source_param && name_param) {
-    source_uri = source_param->value().c_str();
-    new_name = name_param->value().c_str();
-  } else {
-    // Fallback: parse from body_buffer_
-    ApiRequest req;
-    if (this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req)) {
-      source_uri = req.source;
-      new_name = req.name;
-    }
-  }
-
-  if (source_uri.empty() || new_name.empty()) {
+  // Parse parameters from POST body
+  ApiRequest req;
+  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
+      req.source.empty() || req.name.empty()) {
     ESP_LOGW(TAG, "Missing source or name parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or name\"}");
     return;
   }
 
   // Convert URI path to filesystem path (strips URL prefix)
-  std::string source = this->uri_to_filepath(source_uri);
+  std::string source = this->uri_to_filepath(req.source);
+  std::string new_name = req.name;
 
   // Build new path (same directory, new name)
   std::string dir_path = source.substr(0, source.find_last_of('/'));
@@ -2219,25 +2165,16 @@ void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
-  // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
-  std::string dir_uri;
-
-  auto *name_param = request->getParam("name", true);  // true = POST parameter
-  if (name_param) {
-    dir_uri = name_param->value().c_str();
-  } else {
-    // Fallback: parse from body_buffer_
-    ApiRequest req;
-    if (this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req)) {
-      dir_uri = req.name;
-    }
-  }
-
-  if (dir_uri.empty()) {
+  // Parse parameters from POST body
+  ApiRequest req;
+  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
+      req.name.empty()) {
     ESP_LOGW(TAG, "Missing name parameter");
     request->send(400, "application/json", "{\"error\":\"Missing directory name\"}");
     return;
   }
+
+  std::string dir_uri = req.name;
 
   // Convert URI to filesystem path
   std::string dir_path = this->uri_to_filepath(dir_uri);
@@ -2260,25 +2197,16 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
-  std::string path_uri;
-
-  auto *path_param = request->getParam("path", true);  // true = POST parameter
-  if (path_param) {
-    path_uri = path_param->value().c_str();
-  } else {
-    // Fallback: parse from body_buffer_
-    ApiRequest req;
-    if (this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req)) {
-      path_uri = req.path;
-    }
-  }
-
-  if (path_uri.empty()) {
+  // Parse parameters from POST body
+  ApiRequest req;
+  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
+      req.path.empty()) {
     ESP_LOGW(TAG, "Missing path parameter");
     request->send(400, "application/json", "{\"error\":\"Missing path parameter\"}");
     return;
   }
+
+  std::string path_uri = req.path;
 
   // Convert URI to filesystem path
   std::string filepath = this->uri_to_filepath(path_uri);
@@ -2343,25 +2271,16 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
-  // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
-  std::string mount_point;
-
-  auto *mount_point_param = request->getParam("mount_point", true);  // true = POST parameter
-  if (mount_point_param) {
-    mount_point = mount_point_param->value().c_str();
-  } else {
-    // Fallback: parse from body_buffer_
-    ApiRequest req;
-    if (this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req)) {
-      mount_point = req.mount_point;
-    }
-  }
-
-  if (mount_point.empty()) {
+  // Parse parameters from POST body
+  ApiRequest req;
+  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
+      req.mount_point.empty()) {
     ESP_LOGW(TAG, "Missing mount_point parameter");
     request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
     return;
   }
+
+  std::string mount_point = req.mount_point;
   ESP_LOGI(TAG, "API MOUNT: mount_point=%s (scheduling deferred mount)", mount_point.c_str());
 
   // Schedule deferred mount to happen in loop() after HTTP response completes
@@ -2375,25 +2294,16 @@ void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
-  // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
-  std::string mount_point;
-
-  auto *mount_point_param = request->getParam("mount_point", true);  // true = POST parameter
-  if (mount_point_param) {
-    mount_point = mount_point_param->value().c_str();
-  } else {
-    // Fallback: parse from body_buffer_
-    ApiRequest req;
-    if (this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req)) {
-      mount_point = req.mount_point;
-    }
-  }
-
-  if (mount_point.empty()) {
+  // Parse parameters from POST body
+  ApiRequest req;
+  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
+      req.mount_point.empty()) {
     ESP_LOGW(TAG, "Missing mount_point parameter");
     request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
     return;
   }
+
+  std::string mount_point = req.mount_point;
   ESP_LOGI(TAG, "API UNMOUNT: mount_point=%s (scheduling deferred unmount)", mount_point.c_str());
 
   // Schedule deferred unmount to happen in loop() after HTTP response completes
@@ -2407,25 +2317,16 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_remount(AsyncWebServerRequest *request) {
-  // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
-  std::string mount_point;
-
-  auto *mount_point_param = request->getParam("mount_point", true);  // true = POST parameter
-  if (mount_point_param) {
-    mount_point = mount_point_param->value().c_str();
-  } else {
-    // Fallback: parse from body_buffer_
-    ApiRequest req;
-    if (this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req)) {
-      mount_point = req.mount_point;
-    }
-  }
-
-  if (mount_point.empty()) {
+  // Parse parameters from POST body
+  ApiRequest req;
+  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
+      req.mount_point.empty()) {
     ESP_LOGW(TAG, "Missing mount_point parameter");
     request->send(400, "application/json", "{\"error\":\"Missing mount_point parameter\"}");
     return;
   }
+
+  std::string mount_point = req.mount_point;
   ESP_LOGI(TAG, "API REMOUNT: mount_point=%s (scheduling deferred remount)", mount_point.c_str());
 
   // Schedule deferred remount to happen in loop() after HTTP response completes
