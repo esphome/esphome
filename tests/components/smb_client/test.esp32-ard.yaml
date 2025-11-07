@@ -1,0 +1,7 @@
+smb_client:
+  - id: nas_share
+    server: NAS-SERVER
+    share: homes
+    username: esphome
+    password: !secret smb_password
+    mount_path: /smb/nas

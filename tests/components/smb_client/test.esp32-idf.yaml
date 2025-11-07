@@ -1,0 +1,9 @@
+smb_client:
+  - id: windows_share
+    server: 192.168.1.100
+    share: Public
+    username: user
+    password: !secret smb_password
+    port: 445
+    domain: WORKGROUP
+    mount_path: /smb/windows
