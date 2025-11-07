@@ -3546,6 +3546,21 @@ std::string Path::file_name(const std::string &path) {
   return path;
 }
 
+std::string Path::dirname(const std::string &path) {
+  // Find the last separator
+  size_t pos = path.rfind(separator);
+  if (pos != std::string::npos) {
+    // If separator found, return everything before it
+    // Special case: if pos is 0, return "/" (root directory)
+    if (pos == 0) {
+      return "/";
+    }
+    return path.substr(0, pos);
+  }
+  // No separator found - return current directory
+  return ".";
+}
+
 bool Path::is_absolute(const std::string &path) { return !path.empty() && path[0] == separator; }
 
 bool Path::has_trailing_slash(const std::string &path) { return !path.empty() && path.back() == separator; }

@@ -43,6 +43,9 @@ struct Path {
   // Return the name of the file/directory
   static std::string file_name(const std::string &path);
 
+  // Get directory name (parent directory of path)
+  static std::string dirname(const std::string &path);
+
   // Is the path an absolute path?
   static bool is_absolute(const std::string &path);
 
