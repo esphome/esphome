@@ -101,6 +101,10 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
+  // Increase receive timeout to support large file uploads
+  // Default is 5 seconds, increase to 30 seconds to handle slower transfers
+  config.recv_wait_timeout = 30;
+  config.send_wait_timeout = 30;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
