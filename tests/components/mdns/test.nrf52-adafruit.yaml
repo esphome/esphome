@@ -1,0 +1,11 @@
+# mDNS test for nrf52
+network:
+
+mdns:
+  disabled: false
+  services:
+    - service: _test_service
+      protocol: _tcp
+      port: 8888
+      txt:
+        static_string: Anything
