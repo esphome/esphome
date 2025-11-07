@@ -393,6 +393,9 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     this->progress_.start_time = millis();
     portEXIT_CRITICAL(&this->progress_mutex_);
 
+    // Reset yield tracking for upload
+    this->upload_bytes_since_yield_ = 0;
+
     this->upload_file_ = fopen(upload_path.c_str(), "wb");
     if (!this->upload_file_) {
       ESP_LOGE(TAG, "Failed to open file for async upload: %s", upload_path.c_str());
@@ -477,6 +480,15 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
       this->progress_.transferred_bytes += written;
     }
     portEXIT_CRITICAL(&this->progress_mutex_);
+
+    // Yield CPU periodically to allow web server to handle other requests (like progress API)
+    // This follows the ESP-IDF multipart upload pattern (see web_server_idf/web_server_idf.cpp)
+    this->upload_bytes_since_yield_ += written;
+    static constexpr size_t YIELD_INTERVAL_BYTES = 16 * 1024;  // 16KB - same as ESP-IDF multipart handler
+    if (this->upload_bytes_since_yield_ >= YIELD_INTERVAL_BYTES) {
+      vTaskDelay(1);  // Brief yield to let other tasks run (including /api/progress requests)
+      this->upload_bytes_since_yield_ = 0;
+    }
   }
 
   // Finalize upload

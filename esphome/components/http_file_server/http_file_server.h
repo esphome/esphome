@@ -221,6 +221,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   // Upload progress tracking
   size_t upload_total_size_{0};
   size_t upload_received_size_{0};
+  size_t upload_bytes_since_yield_{0};  // Track bytes to yield CPU periodically
 
   // Helper methods
   std::string uri_to_filepath(const std::string &uri);
