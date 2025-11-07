@@ -17,16 +17,18 @@
 #include <memory>
 
 // JPEG decoder selection
-#ifdef USE_ESP_IDF
-// ESP-IDF: Use esp_jpeg for S2/S3, hardware decoder for P4
+#ifdef USE_ESP_JPEG_DECODER
+// ESP32-S2/S3: Use esp_jpeg decoder from ESP Component Registry
 #include "esp_jpeg_dec.h"
-#ifdef CONFIG_IDF_TARGET_ESP32P4
-#define USE_HARDWARE_JPEG_DECODER
+#endif
+
+#ifdef USE_HARDWARE_JPEG_DECODER
+// ESP32-P4: Use hardware JPEG decoder
 #include "driver/jpeg_decode.h"
 #endif
-#else
-// Arduino: Use JPEGDec library
-#define USE_JPEGDEC
+
+#ifdef USE_JPEGDEC
+// Other platforms: Use JPEGDec library
 #include <JPEGDEC.h>
 #endif
 
