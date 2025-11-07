@@ -1412,6 +1412,9 @@ std::string HttpFileServer::generate_html_footer() {
     showProgressModal('upload', file.name, window.location.pathname);
     startProgressPolling();
 
+    // Prevent default form submission
+    event.stopPropagation();
+
     // Use FormData for async chunked upload
     const formData = new FormData();
     formData.append('file', file, file.name);
@@ -1587,7 +1590,7 @@ void HttpFileServer::handle_directory_listing(AsyncWebServerRequest *request, co
   // Upload form (hidden for root directory)
   if (this->upload_enabled_ && !is_virtual_root) {
     html += R"HTML(<div class="upload-form">
-      <form id="uploadForm" onsubmit="handleUpload(event); return false;">
+      <form id="uploadForm" onsubmit="return handleUpload(event);">
         <input type="file" name="file" id="uploadFile" required>
         <button type="submit">Upload</button>
       </form>
