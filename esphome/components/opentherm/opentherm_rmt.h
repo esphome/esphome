@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 
 #include <string>
 #include "opentherm_base.h"
@@ -54,7 +54,7 @@ class OpenTherm : public OpenThermBase {
   void rmt_write_();
   static bool rmt_read_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *evt, void *arg);
 
-  void set_protocol_error(ProtocolErrorType error_type);
+  void set_protocol_error_(ProtocolErrorType error_type);
 
   bool decode_rmt_symbols_(size_t num_symbols);
 };

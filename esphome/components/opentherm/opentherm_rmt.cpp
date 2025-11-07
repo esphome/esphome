@@ -1,4 +1,4 @@
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 
 #include "opentherm_rmt.h"
 #include "esphome/core/helpers.h"
@@ -12,7 +12,6 @@ namespace esphome {
 namespace opentherm {
 
 using std::string;
-using std::to_string;
 
 static const char *const TAG = "opentherm";
 
@@ -154,33 +153,26 @@ void OpenTherm::rmt_read_() {
 void OpenTherm::rmt_write_() {
   // Build Manchester stream as raw RMT symbols, 1 bit = two halves of 500us
   rmt_symbol_word_t syms[34];
-  auto set_sym = [](rmt_symbol_word_t &s, bool level0, uint16_t dur0, bool level1, uint16_t dur1) {
-    s.level0 = level0;
-    s.duration0 = dur0;
-    s.level1 = level1;
-    s.duration1 = dur1;
-  };
 
   // Helper to encode a bit: 1 => low,high; 0 => high,low
-  auto encode_bit = [&](uint8_t bit) -> rmt_symbol_word_t {
+  auto encode_bit = [&](bool bit) -> rmt_symbol_word_t {
     rmt_symbol_word_t s{};
-    if (bit) {
-      set_sym(s, 0, 500, 1, 500);
-    } else {
-      set_sym(s, 1, 500, 0, 500);
-    }
+    s.level0 = bit ? 0 : 1;
+    s.duration0 = 500;
+    s.level1 = bit ? 1 : 0;
+    s.duration1 = 500;
     return s;
   };
 
   // Start bit '1'
-  syms[0] = encode_bit(1);
+  syms[0] = encode_bit(true);
   // Data bits MSB..LSB (bits 31..0)
   for (int i = 31; i >= 0; i--) {
     uint8_t b = (this->data_ >> i) & 0x1;
     syms[32 - i] = encode_bit(b);
   }
   // Stop bit '1'
-  syms[33] = encode_bit(1);
+  syms[33] = encode_bit(true);
 
   rmt_transmit_config_t cfg = {};
   cfg.loop_count = 0;
@@ -258,7 +250,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
 
   auto produce_bit = [&](uint16_t level) -> uint8_t {
     if (prev_level == level) {
-      this->set_protocol_error(ProtocolErrorType::NO_TRANSITION);
+      this->set_protocol_error_(ProtocolErrorType::NO_TRANSITION);
       return ERROR_BIT_VALUE;
     }
 
@@ -279,10 +271,10 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
         tick = 1;
       } else {
         // Long intervals should happen only when we already have first half of a bit.
-        this->set_protocol_error(ProtocolErrorType::NO_CHANGE_TOO_LONG);
+        this->set_protocol_error_(ProtocolErrorType::NO_CHANGE_TOO_LONG);
       }
     } else {
-      this->set_protocol_error(ProtocolErrorType::INVALID_DURATION);
+      this->set_protocol_error_(ProtocolErrorType::INVALID_DURATION);
     }
 
     prev_level = level;
@@ -301,7 +293,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
         if (level == 0 && prev_level == 1) {
           bit = 1;
         } else {
-          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT);
+          this->set_protocol_error_(ProtocolErrorType::INVALID_START_STOP_BIT);
           return false;
         }
       } else {
@@ -317,7 +309,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
 
       if (this->bit_index_ == 0 || this->bit_index_ == 33) {  // Check start and stop bit
         if (bit != 1) {
-          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT);
+          this->set_protocol_error_(ProtocolErrorType::INVALID_START_STOP_BIT);
           return false;
         }
       } else {
@@ -332,11 +324,11 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
   }
 
   // If we reached here, something went wrong and our data is incomplete.
-  this->set_protocol_error(ProtocolErrorType::INSUFFICIENT_DATA);
+  this->set_protocol_error_(ProtocolErrorType::INSUFFICIENT_DATA);
   return false;
 }
 
-void OpenTherm::set_protocol_error(ProtocolErrorType error_type) {
+void OpenTherm::set_protocol_error_(ProtocolErrorType error_type) {
   this->mode_ = OperationMode::ERROR_PROTOCOL;
   this->error_type_ = error_type;
 }
