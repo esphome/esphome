@@ -355,6 +355,7 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     this->progress_.total_bytes = request->contentLength();
     this->progress_.transferred_bytes = 0;
     this->progress_.in_progress = true;
+    this->progress_.cancelled = false;
     this->progress_.start_time = millis();
     portEXIT_CRITICAL(&this->progress_mutex_);
 
@@ -1727,6 +1728,7 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   this->progress_.total_bytes = request->contentLength();
   this->progress_.transferred_bytes = 0;
   this->progress_.in_progress = true;
+  this->progress_.cancelled = false;
   this->progress_.start_time = millis();
   portEXIT_CRITICAL(&this->progress_mutex_);
 
@@ -2515,6 +2517,9 @@ void HttpFileServer::download_task(void *params) {
   ESP_LOGI(TAG, "Download task started for %s (size: %zu bytes)", task_params->filename.c_str(),
            task_params->file_size);
 
+  // Track start time for performance logging
+  uint32_t start_time = millis();
+
   // Open the file
   FILE *file = fopen(task_params->filepath.c_str(), "rb");
   if (!file) {
@@ -2582,8 +2587,11 @@ void HttpFileServer::download_task(void *params) {
   // Send final empty chunk to signal completion
   if (success) {
     httpd_resp_send_chunk(req, nullptr, 0);
-    ESP_LOGI(TAG, "Download completed: %zu MB in %.1f seconds", total_sent / (1024 * 1024),
-             (millis() - task_params->file_size) / 1000.0f);  // Approximate timing
+    uint32_t elapsed_ms = millis() - start_time;
+    float elapsed_sec = elapsed_ms / 1000.0f;
+    float speed_mbps = (total_sent / (1024.0f * 1024.0f)) / (elapsed_sec > 0 ? elapsed_sec : 1.0f);
+    ESP_LOGI(TAG, "Download completed: %zu MB in %.1f seconds (%.2f MB/s)", total_sent / (1024 * 1024), elapsed_sec,
+             speed_mbps);
   } else {
     ESP_LOGW(TAG, "Download incomplete: %zu / %zu bytes (%.1f%%)", total_sent, task_params->file_size,
              (float) total_sent / task_params->file_size * 100.0f);
@@ -2615,6 +2623,7 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       this->progress_.total_bytes = file_size;
       this->progress_.transferred_bytes = 0;
       this->progress_.in_progress = true;
+      this->progress_.cancelled = false;
       this->progress_.start_time = millis();
     }
     portEXIT_CRITICAL(&this->progress_mutex_);
@@ -2753,6 +2762,7 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
     this->progress_.total_bytes = file_size;
     this->progress_.transferred_bytes = 0;
     this->progress_.in_progress = true;
+    this->progress_.cancelled = false;
     this->progress_.start_time = millis();
     portEXIT_CRITICAL(&this->progress_mutex_);
   }
