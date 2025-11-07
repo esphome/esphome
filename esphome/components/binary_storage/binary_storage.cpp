@@ -2,6 +2,13 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 
+// Forward declare storage_host for soft dependency
+#ifdef USE_STORAGE_HOST
+namespace storage_host {
+extern class StorageHost *global_storage_host;
+}
+#endif
+
 namespace esphome {
 namespace binary_storage {
 
@@ -22,6 +29,20 @@ void BinaryStorage::dump_config() {
   ESP_LOGCONFIG(TAG, "Binary Storage:");
   ESP_LOGCONFIG(TAG, "  Device: %s", this->get_device_name());
   ESP_LOGCONFIG(TAG, "  Capacity: %u bytes", this->get_capacity());
+}
+
+void BinaryStorage::register_with_storage_host(const std::string &device_node_path) {
+#ifdef USE_STORAGE_HOST
+  // Check if storage_host is available (soft dependency)
+  if (storage_host::global_storage_host != nullptr) {
+    storage_host::global_storage_host->register_device_node(device_node_path, this, this->get_device_type());
+    ESP_LOGI(TAG, "Registered device node: %s -> %s", device_node_path.c_str(), this->get_device_name());
+  } else {
+    ESP_LOGD(TAG, "storage_host not available, skipping device node registration");
+  }
+#else
+  ESP_LOGD(TAG, "storage_host component not compiled, device node registration disabled");
+#endif
 }
 
 uint32_t BinaryStorage::fill(uint8_t value) {

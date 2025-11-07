@@ -31,6 +31,12 @@
 #endif
 
 namespace esphome {
+
+// Forward declaration for binary_storage (soft dependency)
+namespace binary_storage {
+class BinaryStorage;
+}
+
 namespace storage_host {
 
 // Forward declarations
@@ -48,8 +54,18 @@ struct MountEntry {
   std::string platform;
 };
 
+// Device node entry - virtual /dev files pointing to binary_storage devices
+struct DeviceNode {
+  std::string path;                               // e.g., "/dev/fram0"
+  binary_storage::BinaryStorage *device;          // Pointer to binary_storage device
+  std::string device_type;                        // e.g., "i2c_fram", "spi_flash"
+};
+
 // Maximum number of mount points (SD, USB, internal, etc.)
 static constexpr size_t MAX_MOUNT_POINTS = 8;
+
+// Maximum number of device nodes (binary_storage devices in /dev)
+static constexpr size_t MAX_DEVICE_NODES = 16;
 
 // =====================================================
 // StorageHost - Main Storage Class
@@ -74,9 +90,19 @@ class StorageHost : public Component {
   const esphome::StaticVector<MountEntry, MAX_MOUNT_POINTS> &get_mounts() const { return this->mounts_; }
   std::string find_mount_for_path(const std::string &path);
 
- private:
+  // Device node management (virtual /dev files for binary_storage)
+  void register_device_node(const std::string &path, binary_storage::BinaryStorage *device, const std::string &device_type);
+  const esphome::StaticVector<DeviceNode, MAX_DEVICE_NODES> &get_device_nodes() const { return this->device_nodes_; }
+  bool is_device_node(const std::string &path) const;
+  DeviceNode *find_device_node(const std::string &path);
+
+ protected:
   esphome::StaticVector<MountEntry, MAX_MOUNT_POINTS> mounts_;
+  esphome::StaticVector<DeviceNode, MAX_DEVICE_NODES> device_nodes_;
 };
+
+// Global accessor for soft dependency pattern
+extern StorageHost *global_storage_host;
 
 // =====================================================
 // StorageImage - Dynamic Image Component

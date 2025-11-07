@@ -165,19 +165,24 @@ bool LittleFSMount::format() {
 }
 
 void LittleFSMount::register_with_storage_host_() {
-  // Find storage_host component and register this mount
-  auto *storage_host = App.get_component_by_type("storage_host");
-
-  if (storage_host != nullptr) {
-    // Storage host exists, register mount
-    // This will be implemented when we integrate with storage_host
-    ESP_LOGD(TAG, "Registering mount with storage_host");
-
-    // TODO: Call storage_host->register_mount(mount_path_, storage_->get_device_type())
-    // This requires storage_host API enhancement
-  } else {
-    ESP_LOGD(TAG, "No storage_host component found, mount will be standalone");
+#ifdef USE_STORAGE_HOST
+  // Check if storage_host is available via global accessor (soft dependency)
+  namespace storage_host {
+  extern class StorageHost *global_storage_host;
   }
+
+  if (storage_host::global_storage_host != nullptr) {
+    // Storage host exists, register this mount point
+    std::string platform = this->storage_->get_device_type();
+    storage_host::global_storage_host->register_mount(this->mount_path_, platform);
+    ESP_LOGI(TAG, "Registered LittleFS mount with storage_host: %s (platform: %s)", this->mount_path_.c_str(),
+             platform.c_str());
+  } else {
+    ESP_LOGD(TAG, "storage_host not available, mount will be standalone");
+  }
+#else
+  ESP_LOGD(TAG, "storage_host component not compiled, mount registration disabled");
+#endif
 }
 
 }  // namespace binary_storage

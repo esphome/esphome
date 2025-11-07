@@ -358,6 +358,24 @@ async def to_code(config):
         if CONF_PARTITION_LABEL in config:
             cg.add(mount_var.set_partition_label(config[CONF_PARTITION_LABEL]))
 
+    # Register device node with storage_host if mode is raw or both
+    if mode in [MODE_RAW, MODE_BOTH]:
+        # Auto-generate device node path from device type
+        from esphome.core import CORE
+
+        # Track device counter for automatic /dev naming
+        device_counter_key = f"binary_storage_{device_type.lower()}_counter"
+        device_counter = CORE.data.setdefault(device_counter_key, 0)
+
+        # Generate device node path (e.g., /dev/fram0, /dev/eeprom1)
+        device_node_path = f"/dev/{device_type.lower()}{device_counter}"
+
+        # Register device node with storage_host (soft dependency via C++ check)
+        cg.add(var.register_with_storage_host(device_node_path))
+
+        # Increment counter for next device
+        CORE.data[device_counter_key] = device_counter + 1
+
     # Register with storage_host via CORE.data
     from esphome.core import CORE
 

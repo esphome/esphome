@@ -44,6 +44,20 @@ class BinaryStorage : public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   //========================================================================
+  // Storage Host Integration (soft dependency)
+  //========================================================================
+
+  /**
+   * @brief Register this device with storage_host as a device node
+   *
+   * Creates a virtual /dev entry for raw access to this binary_storage device.
+   * Only works if storage_host component is present (soft dependency).
+   *
+   * @param device_node_path Path for device node (e.g., "/dev/fram0")
+   */
+  void register_with_storage_host(const std::string &device_node_path);
+
+  //========================================================================
   // Device Information
   //========================================================================
 

@@ -24,6 +24,9 @@ namespace storage_host {
 
 static const char *const TAG = "storage_host";
 
+// Global accessor for soft dependency pattern
+StorageHost *global_storage_host = nullptr;
+
 // Global decoder instances for callbacks
 static StorageImage *current_storage_image = nullptr;
 
@@ -33,9 +36,18 @@ static StorageImage *current_storage_image = nullptr;
 
 void StorageHost::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Storage Host Component...");
+
+  // Set global accessor for soft dependency pattern
+  global_storage_host = this;
+
   ESP_LOGCONFIG(TAG, "  Mounts configured: %zu", this->mounts_.size());
   for (const auto &mount : this->mounts_) {
     ESP_LOGCONFIG(TAG, "    - %s (platform: %s)", mount.path.c_str(), mount.platform.c_str());
+  }
+
+  ESP_LOGCONFIG(TAG, "  Device nodes configured: %zu", this->device_nodes_.size());
+  for (const auto &node : this->device_nodes_) {
+    ESP_LOGCONFIG(TAG, "    - %s (type: %s)", node.path.c_str(), node.device_type.c_str());
   }
 }
 
@@ -48,6 +60,10 @@ void StorageHost::dump_config() {
   ESP_LOGCONFIG(TAG, "  Mounts: %zu", this->mounts_.size());
   for (const auto &mount : this->mounts_) {
     ESP_LOGCONFIG(TAG, "    - %s (platform: %s)", mount.path.c_str(), mount.platform.c_str());
+  }
+  ESP_LOGCONFIG(TAG, "  Device Nodes (/dev): %zu", this->device_nodes_.size());
+  for (const auto &node : this->device_nodes_) {
+    ESP_LOGCONFIG(TAG, "    - %s (type: %s)", node.path.c_str(), node.device_type.c_str());
   }
 }
 
@@ -71,6 +87,34 @@ std::string StorageHost::find_mount_for_path(const std::string &path) {
   }
 
   return best_mount;
+}
+
+// =====================================================
+// Device Node Management
+// =====================================================
+
+void StorageHost::register_device_node(const std::string &path, binary_storage::BinaryStorage *device,
+                                       const std::string &device_type) {
+  this->device_nodes_.push_back({path, device, device_type});
+  ESP_LOGD(TAG, "Registered device node: %s (type: %s, device: %p)", path.c_str(), device_type.c_str(), device);
+}
+
+bool StorageHost::is_device_node(const std::string &path) const {
+  for (const auto &node : this->device_nodes_) {
+    if (node.path == path) {
+      return true;
+    }
+  }
+  return false;
+}
+
+DeviceNode *StorageHost::find_device_node(const std::string &path) {
+  for (auto &node : this->device_nodes_) {
+    if (node.path == path) {
+      return &node;
+    }
+  }
+  return nullptr;
 }
 
 bool StorageHost::file_exists(const std::string &path) {
