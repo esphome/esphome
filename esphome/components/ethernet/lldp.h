@@ -72,8 +72,8 @@ class LLDPTransmitter {
   // Optional setup follows
 
   // set_port() - sets alternate port name
-  void set_port(const std::string &port) { this->port_ = port; };
-  const std::string &get_port() { return this->port_; };
+  void set_port(const char *port) { this->port_ = port; };
+  const char *get_port() { return this->port_; };
 
   // set_tx_fast_count() sets the number of packets to burst upon (re)connection
   void set_tx_fast_count(uint16_t count) {
@@ -97,12 +97,12 @@ class LLDPTransmitter {
   uint16_t get_ttl() { return this->calc_ttl_; };
 
   // set_system_name() sets the System Name TLV value
-  void set_system_name(std::string name) { this->system_name_ = name; }
-  const std::string &get_system_name() { return this->system_name_; }
+  void set_system_name(const char *name) { this->system_name_ = name; }
+  const char *get_system_name() { return this->system_name_; }
 
   // set_system_description() sets the System Description TLV value
-  void set_system_description(std::string desc) { this->system_description_ = desc; }
-  const std::string &get_system_description() { return this->system_description_; }
+  void set_system_description(const char *desc) { this->system_description_ = desc; }
+  const char *get_system_description() { return this->system_description_; }
 
   // Support for Management TLVs with the device IP address(es)
   //
@@ -118,9 +118,9 @@ class LLDPTransmitter {
 
   // Sorted by descending size
   network::IPAddresses ip_addresses_;
-  std::string port_;
-  std::string system_name_;
-  std::string system_description_;
+  const char *port_{""};
+  const char *system_name_{""};
+  const char *system_description_{""};
   struct eth_addr lldp_multicast_mac_;
   struct eth_addr mac_addr_;
   int l2tap_fd_;

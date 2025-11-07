@@ -90,9 +90,9 @@ class EthernetComponent : public Component {
   void set_manual_ip(const ManualIP &manual_ip);
   void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
 #ifdef USE_ETHERNET_LLDP
-  void set_lldp_port(const std::string &use_port) { this->use_lldp_port_ = use_port; };
-  void set_lldp_system_name(const std::string &use_name) { this->use_lldp_name_ = use_name; };
-  void set_lldp_system_description(const std::string &use_desc) { this->use_lldp_desc_ = use_desc; };
+  void set_lldp_port(const char *use_port) { this->use_lldp_port_ = use_port; };
+  void set_lldp_system_name(const char *use_name) { this->use_lldp_name_ = use_name; };
+  void set_lldp_system_description(const char *use_desc) { this->use_lldp_desc_ = use_desc; };
   void set_lldp_tx_fast_count(const uint16_t &use_count) { this->use_lldp_tx_fast_count_ = use_count; };
   void set_lldp_tx_interval(const uint16_t &use_interval) { this->use_lldp_tx_interval_ = use_interval; };
   void set_lldp_tx_hold(const uint16_t &use_hold) { this->use_lldp_tx_hold_ = use_hold; };
@@ -133,9 +133,9 @@ class EthernetComponent : public Component {
   uint16_t use_lldp_tx_fast_count_;
   uint16_t use_lldp_tx_interval_;
   uint16_t use_lldp_tx_hold_;
-  std::string use_lldp_port_;
-  std::string use_lldp_name_;
-  std::string use_lldp_desc_;
+  const char *use_lldp_port_{""};
+  const char *use_lldp_name_{""};
+  const char *use_lldp_desc_{""};
   // Internal use functions
   esp_err_t lldp_setup_(uint8_t mac_addr[6]);
   void lldp_timer_tick_();

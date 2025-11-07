@@ -451,9 +451,9 @@ void EthernetComponent::dump_config() {
                 "  TX Interval: %u\n"
                 "  TX Hold: %u\n"
                 "  TTL (calculated): %u\n",
-                this->lldp.get_port().c_str(), this->lldp.get_system_name().c_str(),
-                this->lldp.get_system_description().c_str(), this->use_lldp_tx_fast_count_, this->use_lldp_tx_interval_,
-                this->use_lldp_tx_hold_, this->lldp.get_ttl());
+                this->lldp.get_port(), this->lldp.get_system_name(), this->lldp.get_system_description(),
+                this->use_lldp_tx_fast_count_, this->use_lldp_tx_interval_, this->use_lldp_tx_hold_,
+                this->lldp.get_ttl());
 #endif /* USE_ETHERNET_LLDP */
 }
 
@@ -720,17 +720,17 @@ esp_err_t EthernetComponent::lldp_setup_(uint8_t mac_addr[6]) {
   this->lldp.set_tx_fast_count(this->use_lldp_tx_fast_count_);
   this->lldp.set_tx_interval(this->use_lldp_tx_interval_);
   this->lldp.set_tx_hold(this->use_lldp_tx_hold_);
-  if (!this->use_lldp_port_.empty()) {
+  if (strlen(this->use_lldp_port_)) {
     this->lldp.set_port(this->use_lldp_port_);
   }
-  if (!this->use_lldp_name_.empty()) {
+  if (strlen(this->use_lldp_name_)) {
     // If a name has been set, use it
     this->lldp.set_system_name(this->use_lldp_name_);
   } else {
     // Otherwise use the ESPHome app name
-    this->lldp.set_system_name(App.get_name());
+    this->lldp.set_system_name(App.get_name().c_str());
   }
-  if (!this->use_lldp_desc_.empty()) {
+  if (strlen(this->use_lldp_desc_)) {
     // If a description has been set, use it
     this->lldp.set_system_description(this->use_lldp_desc_);
   } else {

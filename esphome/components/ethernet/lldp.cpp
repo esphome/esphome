@@ -322,8 +322,7 @@ bool LLDPTransmitter::generate(uint8_t *buf, size_t buf_len, size_t *pkt_len) {
 
   // Send Port ID with our interface name
   ret = pkt.append_tlv_subtype(LLDPPacket::TLV_PORT_ID, LLDPPacket::PORT_ID_SUBTYPE_IFNAME,
-                               std::min(this->port_.length(), LLDP_STRING_MAX_SIZE_T),
-                               (const uint8_t *) this->port_.c_str());
+                               std::min(strlen(this->port_), LLDP_STRING_MAX_SIZE_T), (const uint8_t *) this->port_);
   LLDP_ERROR_CHECK(ret);
 
   // Send our TTL value
@@ -335,17 +334,17 @@ bool LLDPTransmitter::generate(uint8_t *buf, size_t buf_len, size_t *pkt_len) {
   // =============
 
   // Send System Name if set
-  if (!this->system_name_.empty()) {
-    ret = pkt.append_tlv(LLDPPacket::TLV_SYSTEM_NAME, std::min(this->system_name_.length(), LLDP_STRING_MAX_SIZE_T),
-                         (uint8_t *) this->system_name_.c_str());
+  if (strlen(this->system_name_)) {
+    ret = pkt.append_tlv(LLDPPacket::TLV_SYSTEM_NAME, std::min(strlen(this->system_name_), LLDP_STRING_MAX_SIZE_T),
+                         (uint8_t *) this->system_name_);
     LLDP_ERROR_CHECK(ret);
   }
 
   // Send System Description if set
-  if (!this->system_description_.empty()) {
+  if (strlen(this->system_description_)) {
     ret = pkt.append_tlv(LLDPPacket::TLV_SYSTEM_DESCRIPTION,
-                         std::min(this->system_description_.length(), LLDP_STRING_MAX_SIZE_T),
-                         (uint8_t *) this->system_description_.c_str());
+                         std::min(strlen(this->system_description_), LLDP_STRING_MAX_SIZE_T),
+                         (uint8_t *) this->system_description_);
     LLDP_ERROR_CHECK(ret);
   }
 
