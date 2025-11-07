@@ -1026,8 +1026,8 @@ std::string HttpFileServer::generate_html_footer() {
     }
 
     fetch(API_BASE + '/api/cancel', {method: 'POST', headers: {'Content-Type': 'application/json'}})
-        .then(response = > response.json())
-        .then(data = >
+        .then(response => response.json())
+        .then(data =>
                      {
                        if (data.success) {
                          alert('Operation cancelled');
@@ -1037,7 +1037,7 @@ std::string HttpFileServer::generate_html_footer() {
                          alert(data.message || 'No operation in progress');
                        }
                      })
-        .catch(error = > { alert('Error cancelling operation: ' + error); });
+        .catch(error => { alert('Error cancelling operation: ' + error); });
   }
 
   function delete_file(path) {
@@ -1047,15 +1047,15 @@ std::string HttpFileServer::generate_html_footer() {
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: 'path=' + encodeURIComponent(path)
       })
-          .then(response = >
+          .then(response =>
                            {
                              if (!response.ok) {
                                return response.text().then(
-                                   text = > { throw new Error('HTTP ' + response.status + ': ' + text); });
+                                   text => { throw new Error('HTTP ' + response.status + ': ' + text); });
                              }
                              return response.json();
                            })
-          .then(data = >
+          .then(data =>
                        {
                          if (data.success) {
                            alert('File deleted successfully!');
@@ -1064,7 +1064,7 @@ std::string HttpFileServer::generate_html_footer() {
                            alert('Delete failed: ' + (data.error || 'Unknown error'));
                          }
                        })
-          .catch(error = > { alert('Error: ' + error); });
+          .catch(error => { alert('Error: ' + error); });
     }
   }
 
@@ -1115,15 +1115,15 @@ std::string HttpFileServer::generate_html_footer() {
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: 'path=' + encodeURIComponent(path)
       })
-          .then(response = >
+          .then(response =>
                            {
                              if (!response.ok) {
                                return response.text().then(
-                                   text = > { throw new Error('HTTP ' + response.status + ': ' + text); });
+                                   text => { throw new Error('HTTP ' + response.status + ': ' + text); });
                              }
                              return response.json();
                            })
-          .then(data = >
+          .then(data =>
                        {
                          if (data.success) {
                            alert('Directory deleted successfully!');
@@ -1132,7 +1132,7 @@ std::string HttpFileServer::generate_html_footer() {
                            alert('Delete failed: ' + (data.error || 'Unknown error'));
                          }
                        })
-          .catch(error = > { alert('Error: ' + error); });
+          .catch(error => { alert('Error: ' + error); });
     } catch (error) {
       alert('Error: ' + error);
     }
@@ -1185,8 +1185,8 @@ std::string HttpFileServer::generate_html_footer() {
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination)
     })
-        .then(response = > response.json())
-        .then(data = >
+        .then(response => response.json())
+        .then(data =>
                      {
                        if (data.success) {
                          // Task started successfully - polling will handle closing modal when done
@@ -1196,7 +1196,7 @@ std::string HttpFileServer::generate_html_footer() {
                          alert('Copy failed: ' + (data.error || 'Unknown error'));
                        }
                      })
-        .catch(error = > {
+        .catch(error => {
           hideProgressModal();
           alert('Error: ' + error);
         });
@@ -1233,8 +1233,8 @@ std::string HttpFileServer::generate_html_footer() {
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination)
     })
-        .then(response = > response.json())
-        .then(data = >
+        .then(response => response.json())
+        .then(data =>
                      {
                        if (data.success) {
                          // Task started successfully - polling will handle closing modal when done
@@ -1244,7 +1244,7 @@ std::string HttpFileServer::generate_html_footer() {
                          alert('Move failed: ' + (data.error || 'Unknown error'));
                        }
                      })
-        .catch(error = > {
+        .catch(error => {
           hideProgressModal();
           alert('Error: ' + error);
         });
@@ -1281,8 +1281,8 @@ std::string HttpFileServer::generate_html_footer() {
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'source=' + encodeURIComponent(source) + '&name=' + encodeURIComponent(newName)
     })
-        .then(response = > response.json())
-        .then(data = >
+        .then(response => response.json())
+        .then(data =>
                      {
                        if (data.success) {
                          alert('File renamed successfully!');
@@ -1291,7 +1291,7 @@ std::string HttpFileServer::generate_html_footer() {
                          alert('Rename failed: ' + (data.error || 'Unknown error'));
                        }
                      })
-        .catch(error = > alert('Error: ' + error));
+        .catch(error => alert('Error: ' + error));
   }
   function create_directory() {
     const name = prompt('Enter directory name:');
@@ -1310,8 +1310,8 @@ std::string HttpFileServer::generate_html_footer() {
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'name=' + encodeURIComponent(fullPath)
     })
-        .then(response = > response.json())
-        .then(data = >
+        .then(response => response.json())
+        .then(data =>
                      {
                        if (data.success) {
                          alert('Directory created successfully!');
@@ -1320,7 +1320,7 @@ std::string HttpFileServer::generate_html_footer() {
                          alert('Create directory failed: ' + (data.error || 'Unknown error'));
                        }
                      })
-        .catch(error = > alert('Error: ' + error));
+        .catch(error => alert('Error: ' + error));
   }
 
   function mount_device(mount_point) {
@@ -1332,8 +1332,8 @@ std::string HttpFileServer::generate_html_footer() {
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'mount_point=' + encodeURIComponent(mount_point)
     })
-        .then(response = > response.json())
-        .then(data = >
+        .then(response => response.json())
+        .then(data =>
                      {
                        if (data.success) {
                          alert('Device mounted successfully!');
@@ -1342,7 +1342,7 @@ std::string HttpFileServer::generate_html_footer() {
                          alert('Mount failed: ' + (data.error || 'Unknown error'));
                        }
                      })
-        .catch(error = > alert('Error: ' + error));
+        .catch(error => alert('Error: ' + error));
   }
 
   function unmount_device(mount_point) {
@@ -1354,8 +1354,8 @@ std::string HttpFileServer::generate_html_footer() {
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'mount_point=' + encodeURIComponent(mount_point)
     })
-        .then(response = > response.json())
-        .then(data = >
+        .then(response => response.json())
+        .then(data =>
                      {
                        if (data.success) {
                          alert('Device unmounted successfully!');
@@ -1364,7 +1364,7 @@ std::string HttpFileServer::generate_html_footer() {
                          alert('Unmount failed: ' + (data.error || 'Unknown error'));
                        }
                      })
-        .catch(error = > alert('Error: ' + error));
+        .catch(error => alert('Error: ' + error));
   }
 
   function remount_device(mount_point) {
@@ -1376,8 +1376,8 @@ std::string HttpFileServer::generate_html_footer() {
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'mount_point=' + encodeURIComponent(mount_point)
     })
-        .then(response = > response.json())
-        .then(data = >
+        .then(response => response.json())
+        .then(data =>
                      {
                        if (data.success) {
                          alert('Device remounted successfully!');
@@ -1386,7 +1386,7 @@ std::string HttpFileServer::generate_html_footer() {
                          alert('Remount failed: ' + (data.error || 'Unknown error'));
                        }
                      })
-        .catch(error = > alert('Error: ' + error));
+        .catch(error => alert('Error: ' + error));
   }
 
   function handleUpload(event) {
@@ -1418,17 +1418,17 @@ std::string HttpFileServer::generate_html_footer() {
       body: formData
       // Don't set Content-Type - browser will set it with boundary for multipart/form-data
     })
-        .then(response = >
+        .then(response =>
                          {
                            if (!response.ok) {
-                             return response.text().then(text = > { throw new Error('Upload failed: ' + text); });
+                             return response.text().then(text => { throw new Error('Upload failed: ' + text); });
                            }
                            return response.text();
                          })
-        .then(() = >
+        .then(() =>
                    {
                      // Upload complete - polling will detect and close modal
-                     setTimeout(() = >
+                     setTimeout(() =>
                                      {
                                        hideProgressModal();
                                        alert('File uploaded successfully!');
@@ -1436,7 +1436,7 @@ std::string HttpFileServer::generate_html_footer() {
                                      },
                                 500);
                    })
-        .catch(error = > {
+        .catch(error => {
           hideProgressModal();
           alert('Error: ' + error);
         });
