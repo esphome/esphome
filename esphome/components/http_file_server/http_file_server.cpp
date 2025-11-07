@@ -1541,7 +1541,7 @@ std::string HttpFileServer::generate_html_footer() {
           body: chunk,
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/octet-stream'
           }
         });
 
@@ -2713,7 +2713,7 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
     ESP_LOGI(TAG, "Started chunked upload: %s (%zu bytes, %d chunks)", upload_path.c_str(), file_size, total_chunks);
   }
 
-  // Write chunk data from body_buffer_
+  // Write chunk data
   if (!this->upload_file_) {
     ESP_LOGE(TAG, "Upload file not open for chunk %d", chunk_index);
 
@@ -2727,10 +2727,63 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
     return;
   }
 
+  size_t bytes_to_write = 0;
+  const uint8_t *data_ptr = nullptr;
+  std::unique_ptr<uint8_t[]> chunk_buffer;
+
+  // Check if data is in body_buffer_ (form-urlencoded) or needs to be read from request (octet-stream)
   if (!this->body_buffer_.empty()) {
-    size_t written = fwrite(this->body_buffer_.data(), 1, this->body_buffer_.size(), this->upload_file_);
-    if (written != this->body_buffer_.size()) {
-      ESP_LOGE(TAG, "Failed to write chunk %d data", chunk_index);
+    // Data already in body_buffer_
+    data_ptr = reinterpret_cast<const uint8_t *>(this->body_buffer_.data());
+    bytes_to_write = this->body_buffer_.size();
+    ESP_LOGD(TAG, "Reading chunk %d from body_buffer_: %zu bytes", chunk_index, bytes_to_write);
+  } else {
+    // body_buffer_ is empty - read directly from httpd_req_t (octet-stream case)
+    httpd_req_t *req = *request;  // Convert AsyncWebServerRequest to httpd_req_t
+    size_t content_len = httpd_req_get_content_len(req);
+
+    if (content_len == 0) {
+      ESP_LOGW(TAG, "Chunk %d has zero content length", chunk_index);
+      // Empty chunk is valid (could be last chunk of a file that's exactly divisible by chunk size)
+      bytes_to_write = 0;
+    } else {
+      ESP_LOGD(TAG, "Reading chunk %d directly from httpd request: %zu bytes", chunk_index, content_len);
+
+      // Allocate buffer for chunk data
+      chunk_buffer = std::make_unique<uint8_t[]>(content_len);
+
+      // Read chunk data from HTTP request
+      int received = httpd_req_recv(req, reinterpret_cast<char *>(chunk_buffer.get()), content_len);
+      if (received <= 0) {
+        ESP_LOGE(TAG, "Failed to receive chunk %d data: httpd_req_recv returned %d", chunk_index, received);
+        fclose(this->upload_file_);
+        this->upload_file_ = nullptr;
+
+        if (remove(upload_path.c_str()) == 0) {
+          ESP_LOGI(TAG, "Deleted partial upload file after receive failure: %s", upload_path.c_str());
+        } else {
+          ESP_LOGE(TAG, "Failed to delete partial upload file: %s (errno: %d)", upload_path.c_str(), errno);
+        }
+
+        portENTER_CRITICAL(&this->progress_mutex_);
+        this->progress_.in_progress = false;
+        this->progress_.cancelled = false;
+        portEXIT_CRITICAL(&this->progress_mutex_);
+
+        request->send(500, "application/json", "{\"error\":\"Failed to receive chunk data\"}");
+        return;
+      }
+
+      data_ptr = chunk_buffer.get();
+      bytes_to_write = received;
+    }
+  }
+
+  // Write data to file
+  if (bytes_to_write > 0) {
+    size_t written = fwrite(data_ptr, 1, bytes_to_write, this->upload_file_);
+    if (written != bytes_to_write) {
+      ESP_LOGE(TAG, "Failed to write chunk %d data: wrote %zu of %zu bytes", chunk_index, written, bytes_to_write);
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
 
