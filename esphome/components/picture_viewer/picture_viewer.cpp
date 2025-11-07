@@ -267,8 +267,8 @@ void PictureViewer::scan_directory_() {
     return;
   }
 
-  auto files = this->file_manager_->get_files();
-  for (const auto &file : files) {
+  const auto &directory_state = this->file_manager_->get_directory_state();
+  for (const auto &[path, file] : directory_state) {
     // Filter JPEG files
     std::string lower_filename = file.filename;
     std::transform(lower_filename.begin(), lower_filename.end(), lower_filename.begin(), ::tolower);
