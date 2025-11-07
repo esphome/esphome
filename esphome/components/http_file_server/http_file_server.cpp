@@ -2740,7 +2740,7 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
   } else {
     // body_buffer_ is empty - read directly from httpd_req_t (octet-stream case)
     httpd_req_t *req = *request;  // Convert AsyncWebServerRequest to httpd_req_t
-    size_t content_len = httpd_req_get_content_len(req);
+    size_t content_len = req->content_len;
 
     if (content_len == 0) {
       ESP_LOGW(TAG, "Chunk %d has zero content length", chunk_index);
