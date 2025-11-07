@@ -1,4 +1,5 @@
 #include "text.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
@@ -17,7 +18,7 @@ void Text::publish_state(const std::string &state) {
     ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), state.c_str());
   }
   this->state_callback_.call(state);
-#ifdef USE_TEXT
+#if defined(USE_TEXT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_text_update(this);
 #endif
 }

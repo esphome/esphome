@@ -1,4 +1,5 @@
 #include "media_player.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
@@ -150,7 +151,7 @@ void MediaPlayer::add_on_state_callback(std::function<void()> &&callback) {
 
 void MediaPlayer::publish_state() {
   this->state_callback_.call();
-#ifdef USE_MEDIA_PLAYER
+#if defined(USE_MEDIA_PLAYER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_media_player_update(this);
 #endif
 }

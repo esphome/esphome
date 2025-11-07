@@ -1,4 +1,5 @@
 #include "cover.h"
+#include "esphome/core/defines.h"
 #include <strings.h>
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
@@ -170,7 +171,7 @@ void Cover::publish_state(bool save) {
   ESP_LOGD(TAG, "  Current Operation: %s", cover_operation_to_str(this->current_operation));
 
   this->state_callback_.call();
-#ifdef USE_COVER
+#if defined(USE_COVER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_cover_update(this);
 #endif
 

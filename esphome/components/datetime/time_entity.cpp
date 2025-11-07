@@ -1,4 +1,5 @@
 #include "time_entity.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #ifdef USE_DATETIME_TIME
 
@@ -29,7 +30,7 @@ void TimeEntity::publish_state() {
   ESP_LOGD(TAG, "'%s': Sending time %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_,
            this->second_);
   this->state_callback_.call();
-#ifdef USE_DATETIME_TIME
+#if defined(USE_DATETIME_TIME) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_time_update(this);
 #endif
 }

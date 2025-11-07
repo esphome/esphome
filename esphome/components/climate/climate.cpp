@@ -1,4 +1,5 @@
 #include "climate.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/macros.h"
 
@@ -464,7 +465,7 @@ void Climate::publish_state() {
 
   // Send state to frontend
   this->state_callback_.call(*this);
-#ifdef USE_CLIMATE
+#if defined(USE_CLIMATE) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_climate_update(this);
 #endif
   // Save state

@@ -1,4 +1,5 @@
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #include "light_output.h"
@@ -140,7 +141,7 @@ float LightState::get_setup_priority() const { return setup_priority::HARDWARE -
 
 void LightState::publish_state() {
   this->remote_values_callback_.call();
-#ifdef USE_LIGHT
+#if defined(USE_LIGHT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_light_update(this);
 #endif
 }

@@ -1,4 +1,5 @@
 #include "lock.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
@@ -54,7 +55,7 @@ void Lock::publish_state(LockState state) {
   this->rtc_.save(&this->state);
   ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), lock_state_to_string(state));
   this->state_callback_.call();
-#ifdef USE_LOCK
+#if defined(USE_LOCK) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_lock_update(this);
 #endif
 }
