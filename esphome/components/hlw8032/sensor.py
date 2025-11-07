@@ -63,6 +63,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_VOLTAGE_DIVIDER, default=1.720): cv.positive_float,
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
+
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "hlw8032", baud_rate=4800, require_rx=True, data_bits=8, parity="EVEN"
 )
