@@ -462,7 +462,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_EVENT
-  void on_event(event::Event *obj, const std::string &event_type) override;
+  void on_event(event::Event *obj) override;
 
   static std::string event_state_json_generator(WebServer *web_server, void *source);
   static std::string event_all_json_generator(WebServer *web_server, void *source);

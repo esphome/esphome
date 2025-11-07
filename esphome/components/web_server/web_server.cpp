@@ -1642,7 +1642,9 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 #endif
 
 #ifdef USE_EVENT
-void WebServer::on_event(event::Event *obj, const std::string &event_type) {
+void WebServer::on_event(event::Event *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", event_state_json_generator);
 }
 
