@@ -230,6 +230,8 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
   }
 
   std::string uri = request->url().c_str();
+  ESP_LOGI(TAG, "handleRequest: uri='%s', url_prefix_='%s', method=%d", uri.c_str(), this->url_prefix_.c_str(),
+           request->method());
 
   // Check for API endpoints
   if (uri.find(this->url_prefix_ + "/api/copy") == 0 && request->method() == HTTP_POST) {
