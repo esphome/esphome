@@ -8,7 +8,7 @@
 
 // Include yield function for ESP32/ESP8266
 #ifdef ESP32
-#include <sys/statvfs.h>  // statvfs is ESP32-specific
+#include <esp_vfs_fat.h>  // For esp_vfs_fat_info()
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #define yield() taskYIELD()
@@ -48,15 +48,13 @@ bool StorageMount::is_available() const {
 
 bool StorageMount::get_stats(uint64_t &total_bytes, uint64_t &free_bytes) const {
 #ifdef ESP32
-  // ESP32/ESP-IDF has statvfs
-  struct statvfs stat;
-  if (statvfs(this->path_.c_str(), &stat) == 0) {
-    total_bytes = static_cast<uint64_t>(stat.f_blocks) * stat.f_frsize;
-    free_bytes = static_cast<uint64_t>(stat.f_bfree) * stat.f_frsize;
-    return true;
-  }
-#endif
+  // Use ESP-IDF VFS FAT API to get filesystem stats
+  esp_err_t ret = esp_vfs_fat_info(this->path_.c_str(), &total_bytes, &free_bytes);
+  return (ret == ESP_OK);
+#else
+  // Not implemented for other platforms
   return false;
+#endif
 }
 
 // =====================================================
