@@ -1529,7 +1529,7 @@ std::string HttpFileServer::generate_html_footer() {
                     ' (bytes ' + start + '-' + end + ')');
 
         // Build API URL with query parameters
-        const apiUrl = window.location.pathname.replace(/\/+$/, '') + '/api/upload_chunk' +
+        const apiUrl = API_BASE + '/api/upload_chunk' +
                        '?filename=' + encodeURIComponent(file.name) +
                        '&chunkIndex=' + chunkIndex +
                        '&totalChunks=' + totalChunks +
