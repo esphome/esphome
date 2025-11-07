@@ -1,5 +1,6 @@
 #include "select.h"
-#include "esphome/core/controller_registry.h" #include "esphome/core/log.h"
+#include "esphome/core/controller_registry.h"
+#include "esphome/core/log.h"
 #include <cstring>
 
 namespace esphome {
