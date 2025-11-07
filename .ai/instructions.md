@@ -519,6 +519,56 @@ Respect these constraints to avoid wasting the user's time and destroying their 
     *   **Python:** When adding a new Python dependency, add it to the appropriate `requirements*.txt` file and `pyproject.toml`.
     *   **C++ / PlatformIO:** When adding a new C++ dependency, add it to `platformio.ini` and use `cg.add_library`.
     *   **Build Flags:** Use `cg.add_build_flag(...)` to add compiler flags.
+    *   **ESP-IDF Managed Components:** For ESP-IDF managed components from the ESP Component Registry:
+
+        **How to add ESP-IDF components:**
+        ```python
+        from esphome.components.esp32 import add_idf_component
+
+        # Add component from ESP Component Registry
+        add_idf_component(name="espressif/esp_jpeg", ref="1.3.1")
+        ```
+
+        **Finding components and versions:**
+        1. Browse ESP Component Registry: https://components.espressif.com/
+        2. Search for the component (e.g., "esp_jpeg")
+        3. Note the latest version (e.g., "1.3.1")
+        4. Component name format: `espressif/component_name` or `vendor/component_name`
+
+        **Examples from existing components:**
+        ```python
+        # From esp32_hosted component:
+        add_idf_component(name="espressif/esp_wifi_remote", ref="1.1.5")
+        add_idf_component(name="espressif/eppp_link", ref="1.1.3")
+        add_idf_component(name="espressif/esp_hosted", ref="2.6.1")
+
+        # From picture_viewer component:
+        add_idf_component(name="espressif/esp_jpeg", ref="1.3.1")
+        ```
+
+        **What happens:**
+        - ESP-IDF component manager downloads the component during build
+        - Component is added to `idf_component.yml` in the build directory
+        - Headers become available for `#include` in C++ code
+        - Library is automatically linked
+
+        **Platform-specific component loading:**
+        ```python
+        from esphome.components.esp32 import get_esp32_variant, add_idf_component
+
+        variant = get_esp32_variant()
+        if variant == "esp32s2" or variant == "esp32s3":
+            add_idf_component(name="espressif/esp_jpeg", ref="1.3.1")
+            cg.add_define("USE_ESP_JPEG_DECODER")
+        elif variant == "esp32p4":
+            cg.add_define("USE_HARDWARE_JPEG_DECODER")
+        ```
+
+        **Common patterns:**
+        - Always specify `ref` parameter with exact version for reproducible builds
+        - Check ESP Component Registry for latest stable version
+        - Use platform detection to load components only where supported
+        - Add corresponding `#define` to enable conditional compilation in C++
 
 ## 8. Public API and Breaking Changes
 
