@@ -1,4 +1,5 @@
 substitutions:
-  rx_pin: GPIO13
+packages:
+  uart_4800_even: !include ../../test_build_components/common/uart_4800_even/esp32-ard.yaml
 
 <<: !include common.yaml

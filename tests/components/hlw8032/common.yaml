@@ -1,12 +1,5 @@
-uart:
-  id: uart_hlw8032
-  rx_pin: ${rx_pin}
-  baud_rate: 4800
-  parity: EVEN
-
 sensor:
   - platform: hlw8032
-    uart_id: uart_hlw8032
     voltage:
       name: HLW8032 Voltage
       id: hlw8032_voltage
