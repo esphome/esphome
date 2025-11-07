@@ -3,15 +3,17 @@ from __future__ import annotations
 import logging
 
 import esphome.codegen as cg
-from esphome.components import image
-from esphome.components.esp32 import get_esp32_variant
+from esphome import automation
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE
+from esphome.const import (
+    CONF_ID,
+    CONF_TRIGGER_ID,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
-DEPENDENCIES = ["image"]
+DEPENDENCIES = []
 AUTO_LOAD = []
 
 # Namespaces
@@ -19,189 +21,181 @@ storage_host_ns = cg.esphome_ns.namespace("storage_host")
 
 # Classes
 StorageHost = storage_host_ns.class_("StorageHost", cg.Component)
-StorageImage = storage_host_ns.class_("StorageImage", cg.Component, image.Image_)
+FileManager = storage_host_ns.class_("FileManager", cg.Component)
+
+# Triggers
+FileAddedTrigger = storage_host_ns.class_("FileAddedTrigger", automation.Trigger)
+FileModifiedTrigger = storage_host_ns.class_("FileModifiedTrigger", automation.Trigger)
+FileDeletedTrigger = storage_host_ns.class_("FileDeletedTrigger", automation.Trigger)
+DirectoryChangedTrigger = storage_host_ns.class_(
+    "DirectoryChangedTrigger", automation.Trigger
+)
+
+# Info structs
+FileInfo = storage_host_ns.struct("FileInfo")
+DirectoryChangeInfo = storage_host_ns.struct("DirectoryChangeInfo")
 
 # Configuration keys
 CONF_MOUNTS = "mounts"
-CONF_MOUNT_ID = "id"
 CONF_MOUNT_PATH = "path"
 CONF_MOUNT_PLATFORM = "platform"
-CONF_STORAGE_IMAGES = "storage_images"
-CONF_FILE = "file"
-CONF_FILE_PATH = "file_path"
-CONF_FORMAT = "format"
-CONF_AUTO_LOAD = "auto_load"
-CONF_MOUNT_SOURCE = "mount_source"
-CONF_RESIZE = "resize"
-CONF_BYTE_ORDER = "byte_order"
-CONF_RETRY_ENABLED = "retry_enabled"
-CONF_RETRY_INTERVAL = "retry_interval"
-CONF_RETRY_MAX_ATTEMPTS = "retry_max_attempts"
-CONF_USE_HARDWARE_DECODER = "use_hardware_decoder"
+CONF_FILE_MANAGERS = "file_managers"
+CONF_STORAGE_HOST_ID = "storage_host_id"
+CONF_WATCH_DIRECTORY = "watch_directory"
+CONF_WATCH_FILE = "watch_file"
+CONF_SCAN_INTERVAL = "scan_interval"
+CONF_PATTERNS = "patterns"
+CONF_MIN_SIZE = "min_size"
+CONF_MAX_SIZE = "max_size"
+CONF_ON_FILE_ADDED = "on_file_added"
+CONF_ON_FILE_MODIFIED = "on_file_modified"
+CONF_ON_FILE_DELETED = "on_file_deleted"
+CONF_ON_DIRECTORY_CHANGED = "on_directory_changed"
 
+# Platform types
 PLATFORM_SD_DIRECT = "sd_direct"
 PLATFORM_USB_MSC = "usb_msc"
 PLATFORM_SD_MMC = "sd_mmc"
 PLATFORM_SPIFFS = "spiffs"
+PLATFORM_NFS = "nfs"
+PLATFORM_SMB = "smb"
 
 # Single mount configuration
 MOUNT_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_MOUNT_ID): cv.declare_id(cg.void),
         cv.Required(CONF_MOUNT_PATH): cv.string,
         cv.Optional(CONF_MOUNT_PLATFORM, default=PLATFORM_SD_DIRECT): cv.one_of(
-            PLATFORM_SD_DIRECT, PLATFORM_USB_MSC, PLATFORM_SD_MMC, PLATFORM_SPIFFS
+            PLATFORM_SD_DIRECT,
+            PLATFORM_USB_MSC,
+            PLATFORM_SD_MMC,
+            PLATFORM_SPIFFS,
+            PLATFORM_NFS,
+            PLATFORM_SMB,
         ),
     }
 )
 
-# Storage image configuration - loads images from mounted storage
-STORAGE_IMAGE_SCHEMA = cv.Schema(
+# File manager configuration with automation triggers
+FILE_MANAGER_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(StorageImage),
-        cv.Required(CONF_FILE): cv.string,
-        cv.Optional(CONF_FORMAT, default="RGB565"): cv.one_of(
-            "RGB565", "RGB888", "RGBA"
-        ),
-        cv.Optional(CONF_TYPE, default="RGB565"): cv.one_of("RGB565", "RGB888", "RGBA"),
-        cv.Optional(CONF_AUTO_LOAD, default=True): cv.boolean,
-        cv.Optional(CONF_MOUNT_SOURCE): cv.string,
-        cv.Optional(CONF_RESIZE): cv.string,
-        cv.Optional(CONF_BYTE_ORDER, default="little_endian"): cv.one_of(
-            "little_endian", "big_endian"
-        ),
-        # NEW: Retry mechanism configuration (Ansatz 2)
-        cv.Optional(CONF_RETRY_ENABLED, default=True): cv.boolean,
+        cv.GenerateID(): cv.declare_id(FileManager),
+        cv.GenerateID(CONF_STORAGE_HOST_ID): cv.use_id(StorageHost),
+        # Watch either a directory or a single file (mutually exclusive)
+        cv.Optional(CONF_WATCH_DIRECTORY): cv.string,
+        cv.Optional(CONF_WATCH_FILE): cv.string,
+        # Scan interval
         cv.Optional(
-            CONF_RETRY_INTERVAL, default="2s"
+            CONF_SCAN_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_RETRY_MAX_ATTEMPTS, default=30): cv.int_range(min=1, max=100),
-        # Hardware JPEG decoder (ESP32-P4 only)
-        cv.Optional(CONF_USE_HARDWARE_DECODER, default=True): cv.boolean,
+        # Pattern filters (glob patterns like "*.jpg", "*.png")
+        cv.Optional(CONF_PATTERNS, default=[]): cv.ensure_list(cv.string),
+        # Size filters
+        cv.Optional(CONF_MIN_SIZE, default=0): cv.int_range(min=0),
+        cv.Optional(CONF_MAX_SIZE): cv.int_range(min=0),
+        # Automation triggers
+        cv.Optional(CONF_ON_FILE_ADDED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FileAddedTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_FILE_MODIFIED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FileModifiedTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_FILE_DELETED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FileDeletedTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_DIRECTORY_CHANGED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DirectoryChangedTrigger),
+            }
+        ),
     }
-)
+).extend(cv.COMPONENT_SCHEMA)
 
+# StorageHost configuration
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageHost),
         cv.Optional(CONF_MOUNTS, default=[]): cv.ensure_list(MOUNT_SCHEMA),
-        cv.Optional(CONF_STORAGE_IMAGES, default=[]): cv.ensure_list(
-            STORAGE_IMAGE_SCHEMA
+        cv.Optional(CONF_FILE_MANAGERS, default=[]): cv.ensure_list(
+            FILE_MANAGER_SCHEMA
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):
+    """Generate code for storage_host component"""
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     cg.add_define("USE_STORAGE_HOST")
 
-    # Add hardware JPEG decoder support for ESP32-P4
-    if "P4" in get_esp32_variant():
-        # ESP32-P4 has built-in JPEG decoder in ESP-IDF 5.3+
-        # esp_driver_jpeg is an ESP-IDF component that's automatically linked
-        # when the headers are included. We just need to enable it.
-        cg.add_define("USE_HARDWARE_JPEG_DECODER")
-        _LOGGER.info("Hardware JPEG decoder enabled for ESP32-P4")
-
-    # JPEGDEC library can be added via include_libs in YAML config
-
     # Register each mount
     for mount_config in config.get(CONF_MOUNTS, []):
         mount_path = mount_config[CONF_MOUNT_PATH]
         mount_platform = mount_config[CONF_MOUNT_PLATFORM]
-
         cg.add(var.register_mount(mount_path, mount_platform))
 
-    # Register storage images - following WebDAVBox3 pattern
-    if CONF_STORAGE_IMAGES in config:
-        for img_config in config[CONF_STORAGE_IMAGES]:
-            await setup_storage_image_component(img_config, var)
+    # Register file managers
+    if CONF_FILE_MANAGERS in config:
+        for fm_config in config[CONF_FILE_MANAGERS]:
+            await setup_file_manager(fm_config, var)
 
 
-async def setup_storage_image_component(config, parent_storage):
-    """Configure a StorageImage component following WebDAVBox3 pattern"""
+async def setup_file_manager(config, parent_storage):
+    """Configure a FileManager component with automation triggers"""
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     # Link to parent storage_host component
-    cg.add(var.set_storage_host(parent_storage))
+    storage = await cg.get_variable(config[CONF_STORAGE_HOST_ID])
+    cg.add(var.set_storage_host(storage))
 
-    # Set file path
-    file_path = config[CONF_FILE]
-    cg.add(var.set_file_path(file_path))
+    # Set watch directory or file
+    if CONF_WATCH_DIRECTORY in config:
+        cg.add(var.set_watch_directory(config[CONF_WATCH_DIRECTORY]))
+    elif CONF_WATCH_FILE in config:
+        cg.add(var.set_watch_file(config[CONF_WATCH_FILE]))
+    else:
+        raise cv.Invalid("Either watch_directory or watch_file must be specified")
 
-    # Get string values from config - pass as strings directly
-    format_str = config[CONF_FORMAT]
-    cg.add(var.set_format(format_str))
+    # Scan interval
+    cg.add(var.set_scan_interval(config[CONF_SCAN_INTERVAL]))
 
-    # Configure auto_load
-    cg.add(var.set_auto_load(config[CONF_AUTO_LOAD]))
+    # Pattern filters
+    for pattern in config.get(CONF_PATTERNS, []):
+        cg.add(var.add_pattern(pattern))
 
-    # Set mount source if provided
-    if CONF_MOUNT_SOURCE in config:
-        cg.add(var.set_mount_source(config[CONF_MOUNT_SOURCE]))
+    # Size filters
+    if CONF_MIN_SIZE in config:
+        cg.add(var.set_min_size(config[CONF_MIN_SIZE]))
+    if CONF_MAX_SIZE in config:
+        cg.add(var.set_max_size(config[CONF_MAX_SIZE]))
 
-    # Handle resize if provided (WIDTHxHEIGHT format)
-    if CONF_RESIZE in config:
-        resize_str = config[CONF_RESIZE]
-        if "x" in resize_str.lower():
-            parts = resize_str.lower().split("x")
-            if len(parts) == 2:
-                try:
-                    width = int(parts[0].strip())
-                    height = int(parts[1].strip())
-                    cg.add(var.set_resize(width, height))
-                except ValueError:
-                    _LOGGER.error(
-                        "Invalid resize format: %s. Use WIDTHxHEIGHT", resize_str
-                    )
+    # Automation triggers
+    for conf in config.get(CONF_ON_FILE_ADDED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(FileInfo, "x")], conf)
+        cg.add(var.add_on_file_added_callback(trigger))
 
-    # NEW: Configure retry mechanism (Ansatz 2)
-    cg.add(var.set_retry_enabled(config[CONF_RETRY_ENABLED]))
-    cg.add(var.set_retry_interval(config[CONF_RETRY_INTERVAL]))
-    cg.add(var.set_retry_max_attempts(config[CONF_RETRY_MAX_ATTEMPTS]))
+    for conf in config.get(CONF_ON_FILE_MODIFIED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(FileInfo, "x")], conf)
+        cg.add(var.add_on_file_modified_callback(trigger))
 
-    # Hardware decoder configuration
-    cg.add(var.set_use_hardware_decoder(config[CONF_USE_HARDWARE_DECODER]))
+    for conf in config.get(CONF_ON_FILE_DELETED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(FileInfo, "x")], conf)
+        cg.add(var.add_on_file_deleted_callback(trigger))
 
-    # NEW: Event-based loading (Ansatz 3)
-    # Register callback with USB MSC devices if available
-    from esphome.core import CORE
-
-    if hasattr(CORE, "data") and "usb_msc_devices" in CORE.data:
-        for usb_device in CORE.data["usb_msc_devices"]:
-            # Register callback: when USB device is mounted, try to load this image
-            # Create a lambda that captures the StorageImage pointer by value
-            cg.add(
-                usb_device.add_mount_ready_callback(
-                    cg.RawExpression(
-                        f"[=](const std::string &mount_path) {{ {var}->on_mount_ready(mount_path); }}"
-                    )
-                )
-            )
-            _LOGGER.info(
-                "Registered mount ready callback for image '%s' with USB MSC device",
-                file_path,
-            )
-
-    # Register callback with SD MMC devices if available
-    if hasattr(CORE, "data") and "sd_mmc_devices" in CORE.data:
-        for sd_device in CORE.data["sd_mmc_devices"]:
-            # Register callback: when SD card is mounted, try to load this image
-            # Create a lambda that captures the StorageImage pointer by value
-            cg.add(
-                sd_device.add_mount_ready_callback(
-                    cg.RawExpression(
-                        f"[=](const std::string &mount_path) {{ {var}->on_mount_ready(mount_path); }}"
-                    )
-                )
-            )
-            _LOGGER.info(
-                "Registered mount ready callback for image '%s' with SD MMC device",
-                file_path,
-            )
+    for conf in config.get(CONF_ON_DIRECTORY_CHANGED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(DirectoryChangeInfo, "x")], conf)
+        cg.add(var.add_on_directory_changed_callback(trigger))
 
     return var
