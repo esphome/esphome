@@ -1079,7 +1079,7 @@ async function performCopy(source, destination) {
 }
 
 async function copy_file(source) {
-  let destination = prompt('Enter destination path:', source + '.copy');
+  let destination = prompt('Enter destination path:', source);
   if (!destination) return;
 
   // Check if destination exists
@@ -1780,8 +1780,30 @@ bool HttpFileServer::recursive_delete_directory(const std::string &path) {
     return false;
   }
 
-  bool success = true;
+  // First pass: count the number of files in the directory
+  size_t file_count = 0;
   struct dirent *entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+      file_count++;
+    }
+  }
+  closedir(dir);
+
+  // Determine if we should log each file deletion
+  bool log_each_file = (file_count > 5);
+  if (log_each_file) {
+    ESP_LOGI(TAG, "Deleting directory with %zu files: %s (will log each file)", file_count, path.c_str());
+  }
+
+  // Second pass: actually delete the files
+  dir = opendir(path.c_str());
+  if (!dir) {
+    ESP_LOGE(TAG, "Cannot reopen directory for deletion: %s (errno: %d)", path.c_str(), errno);
+    return false;
+  }
+
+  bool success = true;
   while ((entry = readdir(dir)) != nullptr) {
     // Skip . and ..
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
@@ -1799,6 +1821,9 @@ bool HttpFileServer::recursive_delete_directory(const std::string &path) {
         }
       } else {
         // Delete file
+        if (log_each_file) {
+          ESP_LOGI(TAG, "Deleting file: %s", entry_path.c_str());
+        }
         if (remove(entry_path.c_str()) != 0) {
           ESP_LOGE(TAG, "Failed to delete file: %s (errno: %d, %s)", entry_path.c_str(), errno, strerror(errno));
           success = false;
