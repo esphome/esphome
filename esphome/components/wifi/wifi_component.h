@@ -218,7 +218,7 @@ class WiFiComponent : public Component {
   WiFiComponent();
 
   void set_sta(const WiFiAP &ap);
-  // Returns a copy of the currently selected AP configuration (88 bytes)
+  // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);

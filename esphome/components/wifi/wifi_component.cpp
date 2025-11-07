@@ -350,11 +350,11 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   assert(config != nullptr);
   WiFiAP params = *config;
 
-  // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync:
+  // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync after wifi_scan_done():
   // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
   // - It then finds which sta_[i] config matches scan_result_[0]
   // - Sets selected_sta_index_ = i to record that matching config
-  // Therefore scan_result_[0] is guaranteed to match sta_[selected_sta_index_]
+  // This sync holds until scan_result_ is cleared (e.g., after connection or in reset_for_next_ap_attempt_())
   if (!this->scan_result_.empty()) {
     // Override with scan data - network is visible
     const WiFiScanResult &scan = this->scan_result_[0];
@@ -901,12 +901,13 @@ bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
     // Copy entire config, then override with fast connect data
     params = this->sta_[fast_connect_save.ap_index];
 
-    // Override with saved BSSID/channel from fast connect (SSID/password/hidden/etc already copied)
+    // Override with saved BSSID/channel from fast connect (SSID/password/etc already copied from config)
     bssid_t bssid{};
     std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
     params.set_bssid(bssid);
     params.set_channel(fast_connect_save.channel);
-    // Network was found before, so not hidden (already false in default-constructed WiFiAP)
+    // Fast connect uses specific BSSID+channel, not hidden network probe (even if config has hidden: true)
+    params.set_hidden(false);
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
     return true;
