@@ -223,6 +223,10 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   size_t upload_received_size_{0};
   size_t upload_bytes_since_yield_{0};  // Track bytes to yield CPU periodically
 
+  // Reusable chunk buffer for uploads (avoids repeated allocations)
+  std::unique_ptr<uint8_t[]> chunk_buffer_;
+  size_t chunk_buffer_size_{0};
+
   // Helper methods
   std::string uri_to_filepath(const std::string &uri);
   std::string url_decode(const std::string &src);
