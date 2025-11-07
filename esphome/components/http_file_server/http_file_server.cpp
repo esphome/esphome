@@ -292,12 +292,12 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
       ESP_LOGD(TAG, "Content-Type: %s", content_type.value().c_str());
     }
 
-    // If multipart/form-data, let it pass through to handleUpload() callback
-    // If application/octet-stream, use old synchronous handler
+    // If multipart/form-data, it was already handled by handleUpload() callback
+    // The web server calls handleRequest() after processing multipart, so just send success
     if (content_type.has_value() && content_type.value().find("multipart/form-data") != std::string::npos) {
-      // Multipart upload will be handled by handleUpload() callback - do nothing here
-      ESP_LOGD(TAG, "Multipart upload detected - will be handled by handleUpload() callback");
-      return;  // Don't send a response here - handleUpload() will send it when final==true
+      ESP_LOGD(TAG, "Multipart upload was handled by handleUpload() callback");
+      // Don't send another response - handleUpload() already sent it
+      return;
     } else {
       // Old synchronous upload handler for raw binary uploads
       auto *filename_param = request->getParam("filename");
@@ -348,11 +348,13 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     ESP_LOGI(TAG, "Starting async upload: %s", upload_path.c_str());
 
     // Initialize progress tracking (thread-safe)
+    // Note: We can't use request->contentLength() because it includes multipart overhead
+    // Instead, we'll track actual file bytes and show "Progress tracking unavailable" until complete
     portENTER_CRITICAL(&this->progress_mutex_);
     this->progress_.operation = "upload";
     this->progress_.source = filename.c_str();
     this->progress_.destination = upload_path;
-    this->progress_.total_bytes = request->contentLength();
+    this->progress_.total_bytes = 0;  // Unknown until upload completes
     this->progress_.transferred_bytes = 0;
     this->progress_.in_progress = true;
     this->progress_.cancelled = false;
@@ -1581,12 +1583,12 @@ void HttpFileServer::handle_directory_listing(AsyncWebServerRequest *request, co
 
   // Upload form (hidden for root directory)
   if (this->upload_enabled_ && !is_virtual_root) {
-    html += R"(<div class="upload-form">
-      <form id="uploadForm" action="javascript:void(0);" method="post" onsubmit="return handleUpload(event);">
+    html += R"HTML(<div class="upload-form">
+      <form id="uploadForm" onsubmit="handleUpload(event); return false;">
         <input type="file" name="file" id="uploadFile" required>
         <button type="submit">Upload</button>
       </form>
-    </div>)";
+    </div>)HTML";
   }
 
   // File table
@@ -2036,18 +2038,19 @@ bool HttpFileServer::is_mount_point_mounted(const std::string &mount_path) {
 
 // API handlers
 void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
-  // Parse parameters from POST body
-  ApiRequest req;
-  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
-      req.source.empty() || req.destination.empty()) {
+  // Get parameters from POST body
+  auto *source_param = request->getParam("source");
+  auto *dest_param = request->getParam("destination");
+
+  if (!source_param || !dest_param) {
     ESP_LOGW(TAG, "Missing source or destination parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or destination\"}");
     return;
   }
 
   // Convert URI paths to filesystem paths (strips URL prefix)
-  std::string source = this->uri_to_filepath(req.source);
-  std::string destination = this->uri_to_filepath(req.destination);
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
+  std::string destination = this->uri_to_filepath(dest_param->value().c_str());
 
   ESP_LOGI(TAG, "API COPY: %s -> %s", source.c_str(), destination.c_str());
 
@@ -2083,18 +2086,19 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
-  // Parse parameters from POST body
-  ApiRequest req;
-  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
-      req.source.empty() || req.destination.empty()) {
+  // Get parameters from POST body
+  auto *source_param = request->getParam("source");
+  auto *dest_param = request->getParam("destination");
+
+  if (!source_param || !dest_param) {
     ESP_LOGW(TAG, "Missing source or destination parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or destination\"}");
     return;
   }
 
   // Convert URI paths to filesystem paths (strips URL prefix)
-  std::string source = this->uri_to_filepath(req.source);
-  std::string destination = this->uri_to_filepath(req.destination);
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
+  std::string destination = this->uri_to_filepath(dest_param->value().c_str());
 
   ESP_LOGI(TAG, "API MOVE: %s -> %s", source.c_str(), destination.c_str());
 
@@ -2129,18 +2133,19 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 }
 
 void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
-  // Parse parameters from POST body
-  ApiRequest req;
-  if (!this->parse_json_request((const uint8_t *) this->body_buffer_.data(), this->body_buffer_.size(), req) ||
-      req.source.empty() || req.name.empty()) {
+  // Get parameters from POST body
+  auto *source_param = request->getParam("source");
+  auto *name_param = request->getParam("name");
+
+  if (!source_param || !name_param) {
     ESP_LOGW(TAG, "Missing source or name parameter");
     request->send(400, "application/json", "{\"error\":\"Missing source or name\"}");
     return;
   }
 
   // Convert URI path to filesystem path (strips URL prefix)
-  std::string source = this->uri_to_filepath(req.source);
-  std::string new_name = req.name;
+  std::string source = this->uri_to_filepath(source_param->value().c_str());
+  std::string new_name = name_param->value().c_str();
 
   // Build new path (same directory, new name)
   std::string dir_path = source.substr(0, source.find_last_of('/'));
