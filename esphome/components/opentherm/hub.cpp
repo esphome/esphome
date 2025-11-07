@@ -1,4 +1,5 @@
 #include "hub.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
 #include <string>
@@ -192,7 +193,7 @@ void OpenthermHub::loop() {
     return;
   }
 
-  auto cur_time = millis();
+  auto cur_time = App.get_loop_component_start_time();
   auto const cur_mode = this->opentherm_->get_mode();
 
   if (this->handle_error_(cur_mode)) {
@@ -254,7 +255,7 @@ void OpenthermHub::sync_loop_() {
     return;
   }
 
-  auto cur_time = millis();
+  auto cur_time = App.get_loop_component_start_time();
 
   this->check_timings_(cur_time);
 
@@ -342,7 +343,7 @@ void OpenthermHub::start_conversation_() {
   ESP_LOGD(TAG, "Sending request with id %d (%s)", request.id, message_id_to_str((MessageId) request.id));
   debug_data(request);
   // Send the request
-  this->last_conversation_start_ = millis();
+  this->last_conversation_start_ = App.get_loop_component_start_time();
   this->opentherm_->send(request);
 }
 
@@ -364,7 +365,7 @@ void OpenthermHub::read_response_() {
 
 void OpenthermHub::stop_opentherm_() {
   this->opentherm_->stop();
-  this->last_conversation_end_ = millis();
+  this->last_conversation_end_ = App.get_loop_component_start_time();
 }
 
 void OpenthermHub::handle_protocol_error_() {
