@@ -3282,8 +3282,8 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
   }
   FileCloser dst_closer(dst);  // RAII: will close dst on scope exit
 
-  // Use larger buffer for copy/move operations (512KB)
-  constexpr size_t COPY_BUFFER_SIZE = 512 * 1024;
+  // Use larger buffer for copy/move operations (64KB)
+  constexpr size_t COPY_BUFFER_SIZE = 64 * 1024;
   auto buffer = std::make_unique<char[]>(COPY_BUFFER_SIZE);
   size_t bytes_read;
   size_t total_copied = 0;
@@ -3324,8 +3324,8 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     }
 
     // Yield to other tasks periodically to allow web server to respond to progress polls
-    // Yield every 2 buffers (~1MB with 512KB chunks)
-    if (buffer_count % 2 == 0) {
+    // Yield every 16 buffers (~1MB with 64KB chunks)
+    if (buffer_count % 16 == 0) {
       vTaskDelay(0);  // Yield to higher priority tasks only (no time delay)
 
       // Log progress for large files
