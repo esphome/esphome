@@ -250,6 +250,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   void handle_api_dirinfo(AsyncWebServerRequest *request);
   void handle_api_progress(AsyncWebServerRequest *request);
   void handle_api_cancel(AsyncWebServerRequest *request);
+  void handle_api_upload_chunk(AsyncWebServerRequest *request);
   void handle_api_mount(AsyncWebServerRequest *request);
   void handle_api_unmount(AsyncWebServerRequest *request);
   void handle_api_remount(AsyncWebServerRequest *request);

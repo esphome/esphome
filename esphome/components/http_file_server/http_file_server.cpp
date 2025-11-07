@@ -269,6 +269,9 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
   } else if (uri.find(this->url_prefix_ + "/api/cancel") == 0 && request->method() == HTTP_POST) {
     ESP_LOGD(TAG, "API CANCEL endpoint hit");
     this->handle_api_cancel(request);
+  } else if (uri.find(this->url_prefix_ + "/api/upload_chunk") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API UPLOAD_CHUNK endpoint hit");
+    this->handle_api_upload_chunk(request);
   } else if (request->method() == HTTP_GET) {
     // Handle GET request (directory listing or file download)
     std::string filepath = this->uri_to_filepath(uri);
@@ -1488,7 +1491,7 @@ std::string HttpFileServer::generate_html_footer() {
         .catch(error => alert('Error: ' + error));
   }
 
-  function handleUpload(event) {
+  async function handleUpload(event) {
     console.log('[FileServer] handleUpload called, event:', event);
     event.preventDefault();
 
@@ -1509,50 +1512,76 @@ std::string HttpFileServer::generate_html_footer() {
     // Prevent default form submission
     event.stopPropagation();
 
-    // Use FormData for async chunked upload
-    const formData = new FormData();
-    formData.append('file', file, file.name);
+    // Chunked upload configuration
+    const CHUNK_SIZE = 500 * 1024; // 500KB chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-    let uploadUrl = window.location.pathname;
-    if (!uploadUrl.endsWith('/')) {
-      uploadUrl += '/';
-    }
-    // Add file size as query parameter so backend can track progress
-    uploadUrl += '?filesize=' + file.size;
+    console.log('[FileServer] Starting chunked upload: ' + totalChunks + ' chunks of ' + CHUNK_SIZE + ' bytes');
 
-    console.log('[FileServer] Starting upload to:', uploadUrl);
+    try {
+      // Upload each chunk sequentially
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
 
-    fetch(uploadUrl, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include'  // Include authentication if needed
-      // Don't set Content-Type - browser will set it with boundary for multipart/form-data
-    })
-        .then(response =>
-                         {
-                           console.log('[FileServer] Upload response:', response.status, response.statusText);
-                           if (!response.ok) {
-                             return response.text().then(text => { throw new Error('Upload failed: ' + text); });
-                           }
-                           return response.text();
-                         })
-        .then(() =>
-                   {
-                     console.log('[FileServer] Upload complete');
-                     // Upload complete - polling will detect and close modal
-                     setTimeout(() =>
-                                     {
-                                       hideProgressModal();
-                                       alert('File uploaded successfully!');
-                                       location.reload();
-                                     },
-                                500);
-                   })
-        .catch(error => {
-          console.error('[FileServer] Upload error:', error);
-          hideProgressModal();
-          alert('Error: ' + error);
+        console.log('[FileServer] Uploading chunk ' + (chunkIndex + 1) + '/' + totalChunks +
+                    ' (bytes ' + start + '-' + end + ')');
+
+        // Build API URL with query parameters
+        const apiUrl = window.location.pathname.replace(/\/+$/, '') + '/api/upload_chunk' +
+                       '?filename=' + encodeURIComponent(file.name) +
+                       '&chunkIndex=' + chunkIndex +
+                       '&totalChunks=' + totalChunks +
+                       '&path=' + encodeURIComponent(window.location.pathname) +
+                       '&fileSize=' + file.size;
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          body: chunk,
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/octet-stream'
+          }
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error('Chunk ' + (chunkIndex + 1) + ' failed: ' + errorText);
+        }
+
+        const result = await response.json();
+
+        // Check if upload was cancelled
+        if (result.cancelled) {
+          console.log('[FileServer] Upload cancelled by user');
+          hideProgressModal();
+          alert('Upload cancelled');
+          return false;
+        }
+
+        if (!result.success) {
+          throw new Error('Chunk ' + (chunkIndex + 1) + ' upload failed');
+        }
+
+        // Progress is automatically tracked by backend and polled by progress modal
+        console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
+      }
+
+      console.log('[FileServer] All chunks uploaded successfully');
+
+      // Upload complete - give progress modal a moment to show 100%, then reload
+      setTimeout(() => {
+        hideProgressModal();
+        alert('File uploaded successfully!');
+        location.reload();
+      }, 500);
+
+    } catch (error) {
+      console.error('[FileServer] Upload error:', error);
+      hideProgressModal();
+      alert('Error: ' + error.message);
+    }
 
     return false;
   }
@@ -2584,6 +2613,160 @@ void HttpFileServer::handle_api_cancel(AsyncWebServerRequest *request) {
   } else {
     portEXIT_CRITICAL(&this->progress_mutex_);
     request->send(200, "application/json", "{\"success\":false,\"message\":\"No operation in progress\"}");
+  }
+}
+
+void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
+  if (!this->upload_enabled_) {
+    request->send(403, "application/json", "{\"error\":\"Upload is disabled\"}");
+    return;
+  }
+
+  // Get parameters from query string
+  auto *filename_param = request->getParam("filename");
+  auto *chunk_index_param = request->getParam("chunkIndex");
+  auto *total_chunks_param = request->getParam("totalChunks");
+  auto *path_param = request->getParam("path");
+  auto *file_size_param = request->getParam("fileSize");
+
+  if (!filename_param || !chunk_index_param || !total_chunks_param || !path_param || !file_size_param) {
+    request->send(400, "application/json", "{\"error\":\"Missing required parameters\"}");
+    return;
+  }
+
+  std::string filename = filename_param->value().c_str();
+  int chunk_index = std::stoi(chunk_index_param->value().c_str());
+  int total_chunks = std::stoi(total_chunks_param->value().c_str());
+  std::string path = path_param->value().c_str();
+  size_t file_size = std::stoull(file_size_param->value().c_str());
+
+  ESP_LOGD(TAG, "Upload chunk: file=%s, chunk=%d/%d, path=%s, size=%zu", filename.c_str(), chunk_index, total_chunks,
+           path.c_str(), file_size);
+
+  // Convert path to filesystem path
+  std::string dir_path = this->uri_to_filepath(path);
+  std::string upload_path = Path::join(dir_path, filename);
+
+  // Check if cancelled
+  portENTER_CRITICAL(&this->progress_mutex_);
+  bool cancelled = this->progress_.cancelled;
+  portEXIT_CRITICAL(&this->progress_mutex_);
+
+  if (cancelled) {
+    // Clean up
+    if (this->upload_file_) {
+      fclose(this->upload_file_);
+      this->upload_file_ = nullptr;
+      remove(upload_path.c_str());
+      ESP_LOGI(TAG, "Cleaned up cancelled chunked upload: %s", upload_path.c_str());
+    }
+
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.in_progress = false;
+    this->progress_.cancelled = false;
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
+    request->send(200, "application/json", "{\"success\":false,\"cancelled\":true}");
+    return;
+  }
+
+  // First chunk - initialize
+  if (chunk_index == 0) {
+    // Clean up any stale upload state
+    if (this->upload_file_) {
+      ESP_LOGW(TAG, "Closing stale upload file from previous chunked upload");
+      fclose(this->upload_file_);
+      this->upload_file_ = nullptr;
+    }
+
+    // Check if target directory exists and is a directory
+    struct stat file_stat;
+    if (stat(dir_path.c_str(), &file_stat) != 0 || !S_ISDIR(file_stat.st_mode)) {
+      ESP_LOGE(TAG, "Upload target is not a directory: %s", dir_path.c_str());
+      request->send(400, "application/json", "{\"error\":\"Target is not a directory\"}");
+      return;
+    }
+
+    // Open file for writing
+    this->upload_file_ = fopen(upload_path.c_str(), "wb");
+    if (!this->upload_file_) {
+      ESP_LOGE(TAG, "Failed to open file for chunked upload: %s", upload_path.c_str());
+      request->send(500, "application/json", "{\"error\":\"Failed to open file\"}");
+      return;
+    }
+
+    // Initialize progress tracking
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.operation = "upload";
+    this->progress_.source = filename;
+    this->progress_.destination = upload_path;
+    this->progress_.total_bytes = file_size;
+    this->progress_.transferred_bytes = 0;
+    this->progress_.in_progress = true;
+    this->progress_.cancelled = false;
+    this->progress_.start_time = millis();
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
+    this->upload_directory_ = dir_path;
+    this->upload_filename_ = filename;
+
+    ESP_LOGI(TAG, "Started chunked upload: %s (%zu bytes, %d chunks)", upload_path.c_str(), file_size, total_chunks);
+  }
+
+  // Write chunk data from body_buffer_
+  if (!this->upload_file_) {
+    ESP_LOGE(TAG, "Upload file not open for chunk %d", chunk_index);
+    request->send(500, "application/json", "{\"error\":\"Upload not initialized\"}");
+    return;
+  }
+
+  if (!this->body_buffer_.empty()) {
+    size_t written = fwrite(this->body_buffer_.data(), 1, this->body_buffer_.size(), this->upload_file_);
+    if (written != this->body_buffer_.size()) {
+      ESP_LOGE(TAG, "Failed to write chunk %d data", chunk_index);
+      fclose(this->upload_file_);
+      this->upload_file_ = nullptr;
+      remove(upload_path.c_str());
+
+      portENTER_CRITICAL(&this->progress_mutex_);
+      this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+
+      request->send(500, "application/json", "{\"error\":\"Write failed\"}");
+      return;
+    }
+
+    // Update progress
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.transferred_bytes += written;
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
+    ESP_LOGD(TAG, "Wrote chunk %d: %zu bytes (total: %zu/%zu)", chunk_index, written,
+             this->progress_.transferred_bytes, file_size);
+  }
+
+  // Clear body buffer for next chunk
+  this->body_buffer_.clear();
+
+  // Last chunk - finalize
+  if (chunk_index == total_chunks - 1) {
+    if (this->upload_file_) {
+      fclose(this->upload_file_);
+      this->upload_file_ = nullptr;
+      ESP_LOGI(TAG, "Completed chunked upload: %s (%zu bytes)", upload_path.c_str(),
+               this->progress_.transferred_bytes);
+    }
+
+    // Mark progress as complete
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.in_progress = false;
+    this->progress_.cancelled = false;
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
+    request->send(200, "application/json", "{\"success\":true,\"complete\":true}");
+  } else {
+    // Not the last chunk
+    request->send(200, "application/json", "{\"success\":true,\"complete\":false}");
   }
 }
 
