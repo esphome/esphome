@@ -60,7 +60,12 @@ lvgl:
 
 ### Display Dimensions
 
-The LVGL page is designed for **800x480** displays but can be easily adapted:
+Two pre-configured layouts are available:
+
+**Standard Version** - `picture_viewer_lvgl_page.yaml` for **800x480** displays
+**Large Version** - `picture_viewer_lvgl_page_1280x800.yaml` for **1280x800** displays
+
+Both can be easily adapted for other sizes:
 
 ```
 ┌─────────────────────────────────┬───────────┐
@@ -75,6 +80,22 @@ The LVGL page is designed for **800x480** displays but can be easily adapted:
 └─────────────────────────────────┴───────────┘
         ↑ Main Area (650px)
 ```
+
+### Layout Comparison
+
+**800x480 Layout:**
+- Main canvas: 650x400
+- Thumbnail panel: 150px wide
+- Control panel: 80px high
+- Buttons: 70x60
+- 8 thumbnails (120x90)
+
+**1280x800 Layout:**
+- Main canvas: 1040x700
+- Thumbnail panel: 240px wide
+- Control panel: 100px high
+- Buttons: 90x80
+- 10 thumbnails (200x150)
 
 ### Customizing for Different Screen Sizes
 
@@ -101,28 +122,13 @@ lvgl:
             height: 320
 ```
 
-**For 1024x600 displays:**
+**For custom sizes:**
 
-```yaml
-lvgl:
-  pages:
-    - id: photo_viewer_page
-      widgets:
-        - obj:
-            id: main_area
-            width: 824  # 1024 - 200 (thumbnail panel)
-            height: 600
-            widgets:
-              - canvas:
-                  id: photo_canvas
-                  width: 824
-                  height: 500  # 600 - 100 (control panel)
-
-        - obj:
-            id: thumbnail_panel
-            width: 200  # Wider thumbnails
-            height: 600
-```
+Use the following formula:
+- Thumbnail panel: ~18-20% of total width (150-240px)
+- Main area: 80-82% of total width
+- Control panel: ~10-12% of total height
+- Canvas: Main area width × (total height - control panel height)
 
 ## Features Explained
 
