@@ -72,19 +72,19 @@ class APIServer : public Component, public Controller {
   void on_light_update(light::LightState *obj) override;
 #endif
 #ifdef USE_SENSOR
-  void on_sensor_update(sensor::Sensor *obj, float state) override;
+  void on_sensor_update(sensor::Sensor *obj) override;
 #endif
 #ifdef USE_SWITCH
-  void on_switch_update(switch_::Switch *obj, bool state) override;
+  void on_switch_update(switch_::Switch *obj) override;
 #endif
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj) override;
 #endif
 #ifdef USE_CLIMATE
   void on_climate_update(climate::Climate *obj) override;
 #endif
 #ifdef USE_NUMBER
-  void on_number_update(number::Number *obj, float state) override;
+  void on_number_update(number::Number *obj) override;
 #endif
 #ifdef USE_DATETIME_DATE
   void on_date_update(datetime::DateEntity *obj) override;
@@ -96,10 +96,10 @@ class APIServer : public Component, public Controller {
   void on_datetime_update(datetime::DateTimeEntity *obj) override;
 #endif
 #ifdef USE_TEXT
-  void on_text_update(text::Text *obj, const std::string &state) override;
+  void on_text_update(text::Text *obj) override;
 #endif
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
+  void on_select_update(select::Select *obj) override;
 #endif
 #ifdef USE_LOCK
   void on_lock_update(lock::Lock *obj) override;
