@@ -1,0 +1,6 @@
+tftp_server:
+  port: 69
+  root_dir: /
+  access_mode: READ_ONLY
+  max_file_size: 1048576  # 1MB
+  max_sessions: 2
