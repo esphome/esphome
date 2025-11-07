@@ -4,7 +4,8 @@ from __future__ import annotations
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, esp32
-from esphome.const import CONF_ID, CONF_MODEL, CONF_TYPE
+from esphome.const import CONF_ID, CONF_MODEL, CONF_TYPE, CONF_VALUE, CONF_ADDRESS, CONF_LENGTH, CONF_DATA, CONF_MODE
+from esphome import automation
 import re
 
 CODEOWNERS = ["@esphome/core"]
@@ -27,7 +28,15 @@ I2CFram = binary_storage_ns.class_("I2CFram", BinaryStorage, i2c.I2CDevice)
 # LittleFS Mount class
 LittleFSMount = binary_storage_ns.class_("LittleFSMount", cg.Component)
 
-# Configuration keys
+# Automation classes
+ReadAction = binary_storage_ns.class_("ReadAction", automation.Action)
+WriteAction = binary_storage_ns.class_("WriteAction", automation.Action)
+FillAction = binary_storage_ns.class_("FillAction", automation.Action)
+WriteByteAction = binary_storage_ns.class_("WriteByteAction", automation.Action)
+WriteStringAction = binary_storage_ns.class_("WriteStringAction", automation.Action)
+IsReadyCondition = binary_storage_ns.class_("IsReadyCondition", automation.Condition)
+
+# Configuration keys (additional to CONF_* from const)
 CONF_PAGE_SIZE = "page_size"
 CONF_CAPACITY = "capacity"
 CONF_ADDRESSING_BITS = "addressing_bits"
@@ -36,6 +45,11 @@ CONF_AUTO_FORMAT = "auto_format"
 CONF_PARTITION_LABEL = "partition_label"
 CONF_FILESYSTEM = "filesystem"
 CONF_STORAGE_DEVICE = "storage_device"
+
+# Storage modes
+MODE_RAW = "raw"
+MODE_LITTLEFS = "littlefs"
+MODE_BOTH = "both"
 
 
 def validate_bytes(value):
@@ -67,10 +81,16 @@ EEPROM_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(I2CEeprom),
+            # Device configuration
             cv.Optional(CONF_MODEL, default="AT24C256"): cv.string,
             cv.Optional(CONF_CAPACITY): validate_bytes,
             cv.Optional(CONF_PAGE_SIZE): cv.int_range(min=8, max=128),
             cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(8, 9, 10, 11, 16, int=True),
+            # Usage mode: how to use this device
+            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
+                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
+            ),
+            # LittleFS configuration (only used if mode is littlefs or both)
             cv.Optional(CONF_MOUNT_PATH): cv.string,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_PARTITION_LABEL): cv.string,
@@ -85,9 +105,15 @@ FRAM_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(I2CFram),
+            # Device configuration
             cv.Optional(CONF_MODEL, default="MB85RC256"): cv.string,
             cv.Optional(CONF_CAPACITY): validate_bytes,
             cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(9, 11, 16, 32, int=True),
+            # Usage mode: how to use this device
+            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
+                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
+            ),
+            # LittleFS configuration (only used if mode is littlefs or both)
             cv.Optional(CONF_MOUNT_PATH): cv.string,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_PARTITION_LABEL): cv.string,
@@ -113,8 +139,10 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config):
     """Configure binary storage device."""
-    # Add LittleFS ESP-IDF component if filesystem mounting is requested
-    if CONF_MOUNT_PATH in config:
+    mode = config.get(CONF_MODE, MODE_RAW)
+
+    # Add LittleFS ESP-IDF component if filesystem is enabled
+    if mode in [MODE_LITTLEFS, MODE_BOTH]:
         esp32.add_idf_component(name="joltwallet/littlefs", ref="1.14.8")
 
     var = cg.new_Pvariable(config[CONF_ID])
@@ -137,15 +165,21 @@ async def to_code(config):
     if CONF_ADDRESSING_BITS in config:
         cg.add(var.set_addressing_bits(config[CONF_ADDRESSING_BITS]))
 
-    # Setup LittleFS mount if mount_path is specified
-    if CONF_MOUNT_PATH in config:
+    # Setup LittleFS mount if mode requires it
+    if mode in [MODE_LITTLEFS, MODE_BOTH]:
+        # Determine mount path (required for littlefs mode)
+        mount_path = config.get(CONF_MOUNT_PATH)
+        if not mount_path:
+            # Auto-generate mount path from device id
+            mount_path = f"/{config[CONF_ID]}"
+
         mount_var = cg.new_Pvariable(
             cg.RawExpression(f"id({config[CONF_ID]}_mount)"), LittleFSMount
         )
         await cg.register_component(mount_var, config)
 
         cg.add(mount_var.set_storage_device(var))
-        cg.add(mount_var.set_mount_path(config[CONF_MOUNT_PATH]))
+        cg.add(mount_var.set_mount_path(mount_path))
 
         if CONF_AUTO_FORMAT in config:
             cg.add(mount_var.set_auto_format(config[CONF_AUTO_FORMAT]))
@@ -161,3 +195,145 @@ async def to_code(config):
     if "binary_storage_devices" not in CORE.data:
         CORE.data["binary_storage_devices"] = []
     CORE.data["binary_storage_devices"].append(var)
+
+
+# ============================================================================
+# Automation Actions and Conditions
+# ============================================================================
+
+BINARY_STORAGE_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(BinaryStorage),
+    }
+)
+
+
+@automation.register_action(
+    "binary_storage.read",
+    ReadAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(BinaryStorage),
+            cv.Required(CONF_ADDRESS): cv.templatable(cv.uint32_t),
+            cv.Required(CONF_LENGTH): cv.templatable(cv.uint32_t),
+        }
+    ),
+)
+async def binary_storage_read_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
+    cg.add(var.set_address(template_))
+
+    template_ = await cg.templatable(config[CONF_LENGTH], args, cg.uint32)
+    cg.add(var.set_length(template_))
+
+    return var
+
+
+@automation.register_action(
+    "binary_storage.write",
+    WriteAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(BinaryStorage),
+            cv.Required(CONF_ADDRESS): cv.templatable(cv.uint32_t),
+            cv.Required(CONF_DATA): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
+        }
+    ),
+)
+async def binary_storage_write_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
+    cg.add(var.set_address(template_))
+
+    if cg.is_template(config[CONF_DATA]):
+        template_ = await cg.templatable(
+            config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
+        )
+        cg.add(var.set_data_template(template_))
+    else:
+        cg.add(var.set_data(config[CONF_DATA]))
+
+    return var
+
+
+@automation.register_action(
+    "binary_storage.fill",
+    FillAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(BinaryStorage),
+            cv.Optional(CONF_VALUE, default=0xFF): cv.templatable(cv.hex_uint8_t),
+        }
+    ),
+)
+async def binary_storage_fill_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint8)
+    cg.add(var.set_value(template_))
+
+    return var
+
+
+@automation.register_action(
+    "binary_storage.write_byte",
+    WriteByteAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(BinaryStorage),
+            cv.Required(CONF_ADDRESS): cv.templatable(cv.uint32_t),
+            cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint8_t),
+        }
+    ),
+)
+async def binary_storage_write_byte_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
+    cg.add(var.set_address(template_))
+
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint8)
+    cg.add(var.set_value(template_))
+
+    return var
+
+
+@automation.register_action(
+    "binary_storage.write_string",
+    WriteStringAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(BinaryStorage),
+            cv.Required(CONF_ADDRESS): cv.templatable(cv.uint32_t),
+            cv.Required(CONF_VALUE): cv.templatable(cv.string),
+        }
+    ),
+)
+async def binary_storage_write_string_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
+    cg.add(var.set_address(template_))
+
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.std_string)
+    cg.add(var.set_value(template_))
+
+    return var
+
+
+@automation.register_condition(
+    "binary_storage.is_ready",
+    IsReadyCondition,
+    BINARY_STORAGE_ACTION_SCHEMA,
+)
+async def binary_storage_is_ready_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
