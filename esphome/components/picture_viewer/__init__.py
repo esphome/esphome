@@ -85,10 +85,10 @@ async def to_code(config):
     variant = get_esp32_variant()
     if variant == "esp32s2" or variant == "esp32s3":
         # Enable esp_jpeg decoder for S2/S3
-        # Add esp_jpeg as a managed ESP-IDF component
-        add_idf_component(name="espressif/esp_jpeg")
+        # Add esp_jpeg as a managed ESP-IDF component from ESP Component Registry
+        add_idf_component(name="espressif/esp_jpeg", ref="1.3.1")
         cg.add_define("USE_ESP_JPEG_DECODER")
-        _LOGGER.info("Enabled esp_jpeg decoder for %s", variant)
+        _LOGGER.info("Enabled esp_jpeg decoder v1.3.1 for %s", variant)
     elif variant == "esp32p4":
         # Enable hardware JPEG decoder for P4
         cg.add_define("USE_HARDWARE_JPEG_DECODER")
