@@ -319,8 +319,10 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
 
 void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index,
                                   uint8_t *data, size_t len, bool final) {
-  ESP_LOGD(TAG, "handleUpload called: filename='%s', index=%zu, len=%zu, final=%d", filename.c_str(), index, len,
-           final);
+  // Only log at milestones to avoid flooding logs with hundreds of tiny chunk calls
+  if (index == 0 || final || (index % 1048576 == 0)) {  // Log at start, end, and every 1MB
+    ESP_LOGD(TAG, "handleUpload: filename='%s', index=%zu, len=%zu, final=%d", filename.c_str(), index, len, final);
+  }
 
   // Check authentication if enabled
   if (this->auth_enabled_) {
@@ -340,6 +342,13 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
 
   // Get upload directory from request URL
   if (index == 0) {
+    // Clean up any stale upload state from previous failed upload
+    if (this->upload_file_) {
+      ESP_LOGW(TAG, "Closing stale upload file from previous upload");
+      fclose(this->upload_file_);
+      this->upload_file_ = nullptr;
+    }
+
     std::string uri = request->url().c_str();
     ESP_LOGI(TAG, "Upload started: index=0, uri='%s', filename='%s'", uri.c_str(), filename.c_str());
 
@@ -396,6 +405,15 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
       }
       return;
     }
+  }
+
+  // Check if upload_file is null (happens if index != 0 on first call, meaning we missed initialization)
+  if (!this->upload_file_ && index != 0) {
+    ESP_LOGE(TAG, "Upload file not initialized (index=%zu, expected to start at 0). Upload state corrupted.", index);
+    if (final) {
+      request->send(500, "text/plain", "Upload state corrupted - please retry upload");
+    }
+    return;
   }
 
   // Check for cancellation (thread-safe)
