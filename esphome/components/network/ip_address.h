@@ -24,6 +24,15 @@ using ip4_addr_t = in_addr;
 #define ipaddr_aton(x, y) inet_aton((x), (y))
 #endif
 
+#ifdef USE_ZEPHYR_NETWORKING
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/socket.h>
+using ip_addr_t = in_addr;
+using ip4_addr_t = in_addr;
+// Zephyr uses inet_pton instead of inet_aton
+static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET, cp, addr) == 1 ? 1 : 0; }
+#endif
+
 #if USE_ESP32_FRAMEWORK_ARDUINO
 #define arduino_ns Arduino_h
 #elif USE_LIBRETINY
@@ -49,7 +58,57 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+
+  operator ip_addr_t() const { return ip_addr_; }
+
+  bool is_set() { return ip_addr_.s_addr != 0; }
+  bool is_ip4() { return true; }
+  bool is_ip6() { return false; }
+  bool is_multicast() {
+    uint32_t addr = ntohl(ip_addr_.s_addr);
+    return (addr & 0xF0000000) == 0xE0000000;
+  }
   std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
+  bool operator==(const IPAddress &other) const { return ip_addr_.s_addr == other.ip_addr_.s_addr; }
+  bool operator!=(const IPAddress &other) const { return ip_addr_.s_addr != other.ip_addr_.s_addr; }
+  IPAddress &operator+=(uint8_t increase) {
+    uint32_t addr = ntohl(ip_addr_.s_addr);
+    addr += increase;
+    ip_addr_.s_addr = htonl(addr);
+    return *this;
+  }
+
+#elif defined(USE_ZEPHYR_NETWORKING)
+  IPAddress() { ip_addr_.s_addr = 0; }
+  IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
+    this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);
+  }
+  IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+
+  operator ip_addr_t() const { return ip_addr_; }
+
+  bool is_set() { return ip_addr_.s_addr != 0; }
+  bool is_ip4() { return true; }
+  bool is_ip6() { return false; }
+  bool is_multicast() {
+    uint32_t addr = ntohl(ip_addr_.s_addr);
+    return (addr & 0xF0000000) == 0xE0000000;
+  }
+  std::string str() const {
+    char buffer[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &ip_addr_, buffer, sizeof(buffer));
+    return str_lower_case(buffer);
+  }
+  bool operator==(const IPAddress &other) const { return ip_addr_.s_addr == other.ip_addr_.s_addr; }
+  bool operator!=(const IPAddress &other) const { return ip_addr_.s_addr != other.ip_addr_.s_addr; }
+  IPAddress &operator+=(uint8_t increase) {
+    uint32_t addr = ntohl(ip_addr_.s_addr);
+    addr += increase;
+    ip_addr_.s_addr = htonl(addr);
+    return *this;
+  }
+
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
