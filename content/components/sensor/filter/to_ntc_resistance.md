@@ -34,7 +34,7 @@ Then enter these values in the calibration parameter:
           - 14.674kOhm -> 15°C
 ```
 
-The filter determines coefficients for the `Steinhart-Hart`_ equation from the specified
+The filter determines coefficients for the [Steinhart-Hart](https://en.wikipedia.org/wiki/Steinhart%E2%80%93Hart_equation) equation from the specified
 pairs of values which can also be specified directly as an alternative.
 
 ```yaml

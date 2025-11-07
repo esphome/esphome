@@ -8,7 +8,7 @@ params:
 ---
 
 The `senseair` sensor platform allows you to use SenseAir CO_2 sensor
-(`website`_) with ESPHome.
+([website](https://senseair.com/products/size-counts/s8-residential/)) with ESPHome.
 
 {{< img src="senseair_s8-full.jpg" alt="Image" caption="SenseAir S8 CO_2 Sensor." width="50.0%" class="align-center" >}}
 

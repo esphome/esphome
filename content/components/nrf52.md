@@ -71,7 +71,7 @@ There are two ways to reference GPIO pins:
 
 ## DFU (Device Firmware Update)
 
-The ``dfu`` component enables automatic entry into **DFU (Device Firmware Update)** mode by monitoring
+The `dfu` component enables automatic entry into **DFU (Device Firmware Update)** mode by monitoring
 the USB CDC serial connection. When a host opens the port at **1200 baud**, the component triggers
 a reset via a GPIO pin to put the device into DFU mode.
 

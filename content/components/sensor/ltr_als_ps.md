@@ -22,7 +22,7 @@ The family of sensors includes:
 
 The sensors are very similar and share the same datasheet. First two have default I²C address `0x29` and the rest
 have default I²C address `0x23`. The sensors are available on breakout boards from a number of vendors, for
-example `Adafruit`_or `Pimoroni`_.
+example [Adafruit](http://www.adafruit.com/products/5610) or [Pimoroni](https://shop.pimoroni.com/products/ltr-559-light-proximity-sensor-breakout).
 
 Proximity sensors are the same sort of sensors that you find in phones and tablets to disable the screen when you hold
 the device up to your ear. They might be useful for automated turning on or off of displays and control panels. An

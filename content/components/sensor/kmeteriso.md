@@ -9,7 +9,7 @@ params:
 
 The `kmeteriso` sensor platform allows you to use your KMeterISO
 ([product](https://docs.m5stack.com/en/unit/KMeterISO%20Unit),
-`M5Stack`_) K-Type thermocouple temperature sensor with ESPHome.
+[M5Stack](https://docs.m5stack.com/en/unit/KMeterISO%20Unit)) K-Type thermocouple temperature sensor with ESPHome.
 The [I²C](#i2c) is required to be set up in your configuration
 for this sensor to work.
 

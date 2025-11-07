@@ -140,8 +140,7 @@ configuration variables:
 - **green** (*Optional*, percentage, [templatable](#config-templatable)): The green channel of the light.
 - **blue** (*Optional*, percentage, [templatable](#config-templatable)): The blue channel of the light.
 - **white** (*Optional*, percentage, [templatable](#config-templatable)): The brightness of the white channel.
-- **color_temperature** (*Optional*, float, [templatable](#config-templatable)): The color temperature (in `mireds
-  <https://en.wikipedia.org/wiki/Mired>`__ or Kelvin) of the white channel.
+- **color_temperature** (*Optional*, float, [templatable](#config-templatable)): The color temperature (in [mireds](https://en.wikipedia.org/wiki/Mired) or Kelvin) of the white channel.
 
 - **cold_white** (*Optional*, percentage, [templatable](#config-templatable)): The brightness of the cold white
   channel. Cannot be used at the same time as *color_temperature*.

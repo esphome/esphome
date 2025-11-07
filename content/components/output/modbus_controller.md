@@ -39,7 +39,7 @@ The `modbus_controller` platform creates an output from a modbus_controller. The
   Parameters passed into the lambda
 
   - **x** (float or bool): The float value to be sent to the modbus device for `register_type: holding` or the boolean value to be sent to the modbus device for `register_type: coil`
-  - **payload** (``std::vector<uint16_t>&payload``):
+  - **payload** (`std::vector<uint16_t>&payload`):
 
     - for `register_type: holding`  : empty vector for the payload. The lamdba can add 16 bit raw modbus register words.
     - for `register_type: coil`  : empty vector for the payload. If payload is set in the lambda it is sent as a custom command and must include all required bytes for a modbus request

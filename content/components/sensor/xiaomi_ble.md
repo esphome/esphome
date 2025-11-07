@@ -575,8 +575,7 @@ For this, you load the [application](https://zaluthar.github.io/TelinkFlasher.ht
 
 ### Other encrypted devices
 
-- The easiest method (confirmed to work for LYWSD03MMC) is to use the [Telink flasher method](https://github.com/pvvx/ATC_MiThermometer). The accompanying `video
-  <https://www.youtube.com/watch?v=NXKzFG61lNs>`_ shows how to wirelessly flash a LYWSD03MMC, or how to obtain the bind key of the stock firmware
+- The easiest method (confirmed to work for LYWSD03MMC) is to use the [Telink flasher method](https://github.com/pvvx/ATC_MiThermometer). The accompanying [video](https://www.youtube.com/watch?v=NXKzFG61lNs) shows how to wirelessly flash a LYWSD03MMC, or how to obtain the bind key of the stock firmware
   (watch till around 13:10). The custom firmware allows you to change several settings of the device, including the smiley and the advertising interval.
   Follow the instructions on the site using Telink Flasher - best results with a Bluetooth-enabled Android phone. Note that with `pvvx` default settings
   advertisment is set to `Custom` with no encryption. No need for `bind_key` in this case, you can just add the sensors to your ESPHome config as described above.
@@ -634,13 +633,13 @@ You should at least protect your sensors with a custom pairing PIN code. Choose 
 - {{< apiref "xiaomi_lywsd03mmc/xiaomi_ble.h" "xiaomi_lywsd03mmc/xiaomi_ble.h" >}}
 - {{< docref "/components/ethernet" >}}
 - {{< docref "/components/bluetooth_proxy" >}}
-- Passive BLE monitor integration for Home Assistant (ble_monitor custom component) `<https://github.com/custom-components/ble_monitor>`__
+- [Passive BLE monitor integration for Home Assistant (ble_monitor custom component)](https://github.com/custom-components/ble_monitor)
   by [@Magalex2x14](https://github.com/Magalex2x14) and [@Ernst79](https://github.com/Ernst79)
 
-- Custom firmware (PVVX) for the Xiaomi Thermometer LYWSD03MMC `<https://github.com/pvvx/ATC_MiThermometer>`__
-- TeLink flasher application (PVVX) `<https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html>`__
-- Custom firmware (ATC) for the Xiaomi Thermometer LYWSD03MMC `<https://github.com/atc1441/ATC_MiThermometer>`__
-- TeLink flasher application (ATC) `<https://atc1441.github.io/TelinkFlasher.html>`__
-- TeLink flasher application modified for CGDK2 `<https://zaluthar.github.io/TelinkFlasher.html>`__
-- Xiaomi LYWSD03MMC passive sensor readout `<https://github.com/ahpohl/xiaomi_lywsd03mmc>`__ by [@ahpohl](https://github.com/ahpohl)
-- Cloud Tokens Extractor: `<https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor>`__
+- [Custom firmware (PVVX) for the Xiaomi Thermometer LYWSD03MMC](https://github.com/pvvx/ATC_MiThermometer)
+- [TeLink flasher application (PVVX)](https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html)
+- [Custom firmware (ATC) for the Xiaomi Thermometer LYWSD03MMC](https://github.com/atc1441/ATC_MiThermometer)
+- [TeLink flasher application (ATC)](https://atc1441.github.io/TelinkFlasher.html)
+- [TeLink flasher application modified for CGDK2](https://zaluthar.github.io/TelinkFlasher.html)
+- [Xiaomi LYWSD03MMC passive sensor readout](https://github.com/ahpohl/xiaomi_lywsd03mmc) by [@ahpohl](https://github.com/ahpohl)
+- [Cloud Tokens Extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor)

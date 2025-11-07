@@ -679,8 +679,8 @@ on_...:
    The MQTT topic to publish the message.
 
 - **payload** (**Required**, string, [templatable](#config-templatable)): The message content.
-- **qos** (*Optional*, int, [templatable](#config-templatable)): The `Quality of
-   Service <https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels>`__
+- **qos** (*Optional*, int, [templatable](#config-templatable)): The [Quality of
+   Service](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels)
    level of the topic. Defaults to 0.
 
 - **retain** (*Optional*, boolean, [templatable](#config-templatable)): If the published message should

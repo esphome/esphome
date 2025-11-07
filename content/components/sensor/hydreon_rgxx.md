@@ -17,7 +17,7 @@ Supported firmware versions:
 - RG-15: v1.000
 - RG-9: v1.000, v1.100, v1.200
 
-Device FAQ: `<https://rainsensors.com/support/rg-9-rg-15-faq/>`__
+[Device FAQ](https://rainsensors.com/support/rg-9-rg-15-faq/)
 
 {{< img src="hydreon_rg9_full.jpg" alt="Image" caption="Hydreon RG-9 Rain Sensor. Image by [Hydreon](https://rainsensors.com/)." width="50.0%" class="align-center" >}}
 

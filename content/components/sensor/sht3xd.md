@@ -9,8 +9,8 @@ params:
 
 The `sht3xd` sensor platform Temperature+Humidity sensor allows you to use your Sensirion SHT31-D/SHT3x
 ([datasheet](https://cdn-shop.adafruit.com/product-files/2857/Sensirion_Humidity_SHT3x_Datasheet_digital-767294.pdf),
-`Adafruit`_) and SHT85 ([datasheet](https://sensirion.com/media/documents/4B40CEF3/640B2346/Sensirion_Humidity_Sensors_SHT85_Datasheet.pdf),
-`Sensirion`_ ) sensors with Esphome.
+[Adafruit](https://www.adafruit.com/product/2857)) and SHT85 ([datasheet](https://sensirion.com/media/documents/4B40CEF3/640B2346/Sensirion_Humidity_Sensors_SHT85_Datasheet.pdf),
+[Sensirion](https://sensirion.com/products/catalog/SHT85/)) sensors with Esphome.
 The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
 
 {{< img src="temperature-humidity.png" alt="Image" width="80.0%" class="align-center" >}}

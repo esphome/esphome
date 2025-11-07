@@ -8,7 +8,7 @@ params:
 ---
 
 The `mhz19` sensor platform allows you to use MH-Z19 CO_2 and temperature sensors
-(`Revspace`_) with ESPHome.
+([Revspace](https://revspace.nl/MHZ19)) with ESPHome.
 The CO_2 measurement also works with the MH-Z16 and MH-Z14 sensors.
 
 {{< img src="mhz19-full.jpg" alt="Image" caption="MH-Z19 CO_2 and Temperature Sensor." width="50.0%" class="align-center" >}}

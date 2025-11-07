@@ -71,7 +71,7 @@ uart:
 - **rx_full_threshold** (*Optional*, int): ESP32 only. After receiving this number of bytes, the data becomes available for processing.
   The default is calculated at compilation time to be approximately ten milliseconds (about 8 bytes at 9600 baud, 114 bytes at 115200 baud).
   
-- **rx_timeout** (*Optional*, int): ESP32 only. This value specifies a number of bytes used to determine the duration of the timeout. The duration of the timeout is based on the amount of time it would take to receive this number of bytes. In other words, for a given value and baud rate, doubling the baud rate will halve the duration of the timeout. After the timeout has elapsed, the data becomes available for processing. Defaults to ``2``.
+- **rx_timeout** (*Optional*, int): ESP32 only. This value specifies a number of bytes used to determine the duration of the timeout. The duration of the timeout is based on the amount of time it would take to receive this number of bytes. In other words, for a given value and baud rate, doubling the baud rate will halve the duration of the timeout. After the timeout has elapsed, the data becomes available for processing. Defaults to `2`.
 - **data_bits** (*Optional*, int): The number of data bits used on the UART bus. Options: 5 to 8. Defaults to 8.
 - **parity** (*Optional*): The parity used on the UART bus. Options: `NONE`, `EVEN`, `ODD`. Defaults to `NONE`.
 - **stop_bits** (*Optional*, int): The number of stop bits to send. Options: 1, 2. Defaults to 1.

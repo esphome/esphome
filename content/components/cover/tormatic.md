@@ -30,7 +30,7 @@ be supported:
 As the communication with the garage door drive is done using UART, you need to
 have an [UART bus](#uart) in your configuration with the `rx_pin`
 connected unit's USB D- line and the `tx_pin` connected to the USB's D+ line.
-The baud rate should be set to 9600. See `Setup`_ for more detailed
+The baud rate should be set to 9600. See [Setup](#setup) for more detailed
 instructions.
 
 ```yaml

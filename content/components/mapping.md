@@ -47,8 +47,8 @@ You can also map to a class. This is useful when you want to map to a more compl
 ## Using a mapping
 
 A mapping defined in this component can be used in lambdas in other components. The mapping can be accessed using
-the ``id`` function, and the value can be looked up using the ``[]`` operator as per the above example, or the ``get`` function.
-A map may be updated at run time using a lambda call, e.g. ``map.set("key", value)``.
+the `id` function, and the value can be looked up using the `[]` operator as per the above example, or the `get` function.
+A map may be updated at run time using a lambda call, e.g. `map.set("key", value)`.
 
 Maps are stored in RAM, but will use PSRAM if available.
 

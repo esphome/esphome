@@ -134,10 +134,10 @@ typically demodulated by an infrared receiver module (IRM) before reaching the m
 To enable signal demodulation, configure the signal carrier frequency and duty cycle:
 
 - **carrier_duty_percent** (*Optional*, int): The carrier duty cycle for signal demodulation in the RMT peripheral in
-  Hz. Defaults to ``100``.
+  Hz. Defaults to `100`.
 
 - **carrier_frequency** (*Optional*, int): The carrier frequency for signal demodulation in the RMT peripheral in Hz.
-  Defaults to ``0Hz`` (carrier demodulation disabled).
+  Defaults to `0Hz` (carrier demodulation disabled).
 
 > [!NOTE]
 > The dumped **raw** code is sequence of pulse widths (durations in microseconds), positive for on-pulses (mark)

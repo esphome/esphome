@@ -10,7 +10,7 @@ params:
 The `pmsa003i` sensor platform allows you to use your Plantower PMSA003I
 particulate matter sensor
 ([datasheet](https://cdn-shop.adafruit.com/product-files/4632/4505_PMSA003I_series_data_manual_English_V2.6.pdf),
-`Adafruit`_) with ESPHome.
+[Adafruit](https://www.adafruit.com/product/4632)) with ESPHome.
 
 The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
 

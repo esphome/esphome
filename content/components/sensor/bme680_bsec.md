@@ -11,7 +11,7 @@ params:
 
 The `bme680_bsec` sensor platform allows you to use your BME680
 ([datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme680-ds001.pdf),
-`Adafruit`_, `Pimoroni`_) temperature, pressure and humidity and gas sensors with ESPHome via the Bosch Sensortec Environmental Cluster (BSEC)
+[Adafruit](https://www.adafruit.com/product/3660), [Pimoroni](https://shop.pimoroni.com/products/bme680-breakout)) temperature, pressure and humidity and gas sensors with ESPHome via the Bosch Sensortec Environmental Cluster (BSEC)
 software library. The use of Bosch's proprietary algorithms provide an Index for Air Quality (IAQ) measurement derived from the
 gas resistance sensor's response to specific Volatile Organic Compounds (VOC). The BSEC software also provides estimated values
 for CO₂ and Breath Volatile Organic Compounds (b-VOC) using a correlation between VOC and CO₂ in a human's exhaled breath.
@@ -19,7 +19,7 @@ for CO₂ and Breath Volatile Organic Compounds (b-VOC) using a correlation betw
 > [!NOTE]
 >
 > - The BSEC library is only available for use after accepting its software license agreement. By enabling this component,
->   you are explicitly agreeing to the terms of the `BSEC license agreement`_. You must not distribute any compiled firmware
+>   you are explicitly agreeing to the terms of the [BSEC license agreement](https://www.bosch-sensortec.com/media/boschsensortec/downloads/software/bme688_development_software/2024_12/20241219_clickthrough_license_terms_bsec_bme680_bme688_bme690.pdf). You must not distribute any compiled firmware
 >   binaries that include this component.
 >
 > - We recommend using the newer {{< docref "bme68x_bsec2" "bme68x_bsec2" >}} component whenever possible.
@@ -369,11 +369,11 @@ The selected b-VOC gasses are as follows:
 
 | Compound           | Molar fraction |
 | ------------------ | -------------- |
-| `Ethane`_          | 5 ppm          |
-| `Isoprene`_        | 10 ppm         |
-| `Ethanol`_ | 10 ppm |
-| `Acetone`_ | 50 ppm |
-| `Carbon Monoxide`_ | 15 ppm |
+| [Ethane](https://en.wikipedia.org/wiki/Ethane)          | 5 ppm          |
+| [Isoprene](https://en.wikipedia.org/wiki/Isoprene)        | 10 ppm         |
+| [Ethanol](https://en.wikipedia.org/wiki/Ethanol) | 10 ppm |
+| [Acetone](https://en.wikipedia.org/wiki/Acetone) | 50 ppm |
+| [Carbon Monoxide](https://en.wikipedia.org/wiki/Carbon_monoxide) | 15 ppm |
 
 {{< anchor "bsec-calibration" >}}
 
