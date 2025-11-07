@@ -1518,6 +1518,26 @@ std::string HttpFileServer::generate_html_footer() {
 
     console.log('[FileServer] Starting chunked upload: ' + totalChunks + ' chunks of ' + CHUNK_SIZE + ' bytes');
 
+    // Stall detection: Track last progress and check if upload has stalled
+    let lastChunkCompleteTime = Date.now();
+    let lastChunkIndex = -1;
+    const STALL_TIMEOUT_MS = 90000; // 90 seconds without completing a chunk = stalled
+
+    // Start stall detection interval
+    const stallDetectionInterval = setInterval(() => {
+      const timeSinceLastChunk = Date.now() - lastChunkCompleteTime;
+      if (timeSinceLastChunk > STALL_TIMEOUT_MS) {
+        console.error('[FileServer] Upload stalled: No chunk completed in ' +
+                      Math.round(timeSinceLastChunk / 1000) + ' seconds (last: chunk ' +
+                      (lastChunkIndex + 1) + ')');
+        clearInterval(stallDetectionInterval);
+        hideProgressModal();
+        alert('Upload stalled: No progress for ' + Math.round(timeSinceLastChunk / 1000) +
+              ' seconds. Upload cancelled.');
+        location.reload(); // Reload to clean up state
+      }
+    }, 10000); // Check every 10 seconds
+
     try {
       // Upload each chunk sequentially
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
@@ -1583,6 +1603,10 @@ std::string HttpFileServer::generate_html_footer() {
           if (chunkIndex % 50 === 0 || chunkIndex === 0 || chunkIndex === totalChunks - 1) {
             console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
           }
+
+          // Update stall detection - chunk completed successfully
+          lastChunkCompleteTime = Date.now();
+          lastChunkIndex = chunkIndex;
         } catch (fetchError) {
           // No timeout handling - let network errors propagate naturally
           throw fetchError;
@@ -1590,6 +1614,9 @@ std::string HttpFileServer::generate_html_footer() {
       }
 
       console.log('[FileServer] All chunks uploaded successfully');
+
+      // Clear stall detection - upload complete
+      clearInterval(stallDetectionInterval);
 
       // Upload complete - give progress modal a moment to show 100%, then reload
       setTimeout(() => {
@@ -1600,6 +1627,8 @@ std::string HttpFileServer::generate_html_footer() {
 
     } catch (error) {
       console.error('[FileServer] Upload error:', error);
+      // Clear stall detection - upload failed
+      clearInterval(stallDetectionInterval);
       hideProgressModal();
       alert('Error: ' + error.message);
     }
