@@ -28,7 +28,7 @@ MULTI_CONF = True
 
 modbus_server_ns = cg.esphome_ns.namespace("modbus_server")
 ModbusServer = modbus_server_ns.class_(
-    "ModbusServer", cg.PollingComponent, modbus.ModbusDevice
+    "ModbusServer", cg.PollingComponent, modbus.ModbusServerDevice
 )
 
 ServerCourtesyResponse = modbus_server_ns.struct("ServerCourtesyResponse")

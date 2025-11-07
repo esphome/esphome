@@ -17,6 +17,8 @@ Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
 ModbusServer = modbus_ns.class_("ModbusServer", Modbus)
 ModbusClient = modbus_ns.class_("ModbusClient", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
+ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
+ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
 MULTI_CONF = True
 
 CONF_ROLE = "role"
@@ -74,17 +76,6 @@ async def to_code(config):
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
-
-
-def modbus_server_device_schema(default_address):
-    schema = {
-        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusServer),
-    }
-    if default_address is None:
-        schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t
-    else:
-        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.hex_uint8_t
-    return cv.Schema(schema)
 
 
 def modbus_device_schema(default_address):
