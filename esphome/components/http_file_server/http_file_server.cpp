@@ -327,23 +327,25 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
 
     // Open file for writing
     std::string upload_path = Path::join(this->upload_directory_, this->upload_filename_);
-    ESP_LOGI(TAG, "Starting upload: %s", upload_path.c_str());
+    ESP_LOGI(TAG, "Starting async upload: %s", upload_path.c_str());
 
-    // Initialize progress tracking
+    // Initialize progress tracking (thread-safe)
+    portENTER_CRITICAL(&this->progress_mutex_);
     this->progress_.operation = "upload";
     this->progress_.source = filename.c_str();
     this->progress_.destination = upload_path;
-    this->progress_.total_bytes = 0;  // We'll try to get this from Content-Length
+    this->progress_.total_bytes = request->contentLength();
     this->progress_.transferred_bytes = 0;
     this->progress_.in_progress = true;
     this->progress_.start_time = millis();
-
-    // Get content length from request
-    this->progress_.total_bytes = request->contentLength();
+    portEXIT_CRITICAL(&this->progress_mutex_);
 
     this->upload_file_ = fopen(upload_path.c_str(), "wb");
     if (!this->upload_file_) {
-      ESP_LOGE(TAG, "Failed to open file for upload: %s", upload_path.c_str());
+      ESP_LOGE(TAG, "Failed to open file for async upload: %s", upload_path.c_str());
+      portENTER_CRITICAL(&this->progress_mutex_);
+      this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
       if (final) {
         request->send(500, "text/plain", "Failed to create file");
       }
@@ -355,20 +357,24 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
   if (this->upload_file_ && len > 0) {
     size_t written = fwrite(data, 1, len, this->upload_file_);
     if (written != len) {
-      ESP_LOGE(TAG, "Failed to write upload data");
+      ESP_LOGE(TAG, "Failed to write async upload data");
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
+      portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
       if (final) {
         request->send(500, "text/plain", "Failed to write file");
       }
       return;
     }
 
-    // Update progress
+    // Update progress (thread-safe)
+    portENTER_CRITICAL(&this->progress_mutex_);
     if (this->progress_.in_progress) {
       this->progress_.transferred_bytes += written;
     }
+    portEXIT_CRITICAL(&this->progress_mutex_);
   }
 
   // Finalize upload
@@ -376,14 +382,18 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     if (this->upload_file_) {
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
-      ESP_LOGI(TAG, "Upload completed: %s", this->upload_filename_.c_str());
+      ESP_LOGI(TAG, "Async upload completed: %s", this->upload_filename_.c_str());
 
-      // Mark progress as complete
+      // Mark progress as complete (thread-safe)
+      portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
 
       request->send(201, "text/plain", "File uploaded successfully");
     } else {
+      portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
       request->send(500, "text/plain", "Upload failed");
     }
   }
@@ -806,6 +816,7 @@ function pollProgress() {
   // Use XMLHttpRequest instead of fetch for better compatibility with ESP32 web server
   const xhr = new XMLHttpRequest();
   xhr.open('GET', url, true);
+  xhr.withCredentials = true;  // Include authentication credentials
   xhr.timeout = 5000; // 5 second timeout
 
   xhr.onload = function() {
@@ -815,7 +826,9 @@ function pollProgress() {
     consecutiveTimeouts = 0;
 
     if (xhr.status !== 200) {
-      console.error('[FileServer] Bad status:', xhr.status);
+      console.error('[FileServer] Bad status:', xhr.status, 'text:', xhr.responseText);
+      consecutiveTimeouts++;
+      checkTimeoutLimit();
       return;
     }
 
@@ -864,7 +877,7 @@ function pollProgress() {
   };
 
   xhr.onerror = function() {
-    console.error('[FileServer] XHR network error');
+    console.error('[FileServer] XHR network error, status:', xhr.status, 'readyState:', xhr.readyState);
     consecutiveTimeouts++;
     checkTimeoutLimit();
   };
@@ -875,8 +888,16 @@ function pollProgress() {
     checkTimeoutLimit();
   };
 
-  xhr.send();
-  console.log('[FileServer] XHR sent');
+  xhr.onreadystatechange = function() {
+    console.log('[FileServer] XHR readyState changed to:', xhr.readyState, 'status:', xhr.status);
+  };
+
+  try {
+    xhr.send();
+    console.log('[FileServer] XHR sent successfully');
+  } catch (e) {
+    console.error('[FileServer] XHR send failed:', e);
+  }
 }
 
 function checkTimeoutLimit() {
@@ -1265,19 +1286,19 @@ function handleUpload(event) {
   showProgressModal('upload', file.name, window.location.pathname);
   startProgressPolling();
 
-  // Send file as raw binary with filename in URL query parameter
+  // Use FormData for async chunked upload
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+
   let uploadUrl = window.location.pathname;
   if (!uploadUrl.endsWith('/')) {
     uploadUrl += '/';
   }
-  uploadUrl += '?filename=' + encodeURIComponent(file.name);
 
   fetch(uploadUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream'
-    },
-    body: file
+    body: formData
+    // Don't set Content-Type - browser will set it with boundary for multipart/form-data
   })
     .then(response => {
       if (!response.ok) {
