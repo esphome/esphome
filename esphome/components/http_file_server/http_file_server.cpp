@@ -1042,23 +1042,17 @@ async function delete_directory(path) {
 }
 
 function download_file(path, filename) {
-  // Show progress modal
-  showProgressModal('download', filename, path);
-  startProgressPolling();
-
+  // Direct download without progress modal (blocking download prevents progress tracking)
   fetch(path)
     .then(response => response.blob())
     .then(blob => {
-      // Download complete - hide modal and trigger download
-      hideProgressModal();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = filename;
       link.click();
     })
     .catch(error => {
-      hideProgressModal();
-      alert('Error: ' + error);
+      alert('Download error: ' + error);
     });
 }
 
