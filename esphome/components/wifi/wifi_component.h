@@ -218,10 +218,14 @@ class WiFiComponent : public Component {
   WiFiComponent();
 
   void set_sta(const WiFiAP &ap);
-  WiFiAP get_sta() { return this->selected_ap_; }
+  // Returns a copy of the currently selected AP configuration
+  WiFiAP get_sta() const;
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
-  void clear_sta();
+  void clear_sta() {
+    this->sta_.clear();
+    this->selected_sta_index_ = -1;
+  }
 
 #ifdef USE_WIFI_AP
   /** Setup an Access Point that should be created if no connection to a station can be made.
@@ -337,6 +341,29 @@ class WiFiComponent : public Component {
 #endif  // USE_WIFI_AP
 
   void print_connect_params_();
+  WiFiAP build_wifi_ap_from_selected_() const;
+
+  const WiFiAP *get_selected_sta_() const {
+    if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
+      return &this->sta_[this->selected_sta_index_];
+    }
+    return nullptr;
+  }
+
+  void reset_selected_ap_to_first_if_invalid_() {
+    if (this->selected_sta_index_ < 0 || static_cast<size_t>(this->selected_sta_index_) >= this->sta_.size()) {
+      this->selected_sta_index_ = this->sta_.empty() ? -1 : 0;
+    }
+  }
+
+#ifdef USE_WIFI_FAST_CONNECT
+  // Reset state for next fast connect AP attempt
+  // Clears old scan data so the new AP is tried with config only (SSID without specific BSSID/channel)
+  void reset_for_next_ap_attempt_() {
+    this->num_retried_ = 0;
+    this->scan_result_.clear();
+  }
+#endif
 
   void wifi_loop_();
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
@@ -365,7 +392,7 @@ class WiFiComponent : public Component {
   bool is_esp32_improv_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
-  bool load_fast_connect_settings_();
+  bool load_fast_connect_settings_(WiFiAP &params);
   void save_fast_connect_settings_();
 #endif
 
@@ -396,7 +423,6 @@ class WiFiComponent : public Component {
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
-  WiFiAP selected_ap_;
   WiFiAP ap_;
   optional<float> output_power_;
   ESPPreferenceObject pref_;
@@ -414,9 +440,10 @@ class WiFiComponent : public Component {
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   uint8_t num_retried_{0};
-#ifdef USE_WIFI_FAST_CONNECT
-  uint8_t ap_index_{0};
-#endif
+  // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
+  // Used to access password, manual_ip, priority, EAP settings, and hidden flag
+  // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
+  int8_t selected_sta_index_{-1};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
