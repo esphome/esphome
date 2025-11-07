@@ -2053,7 +2053,7 @@ void ListEntitiesEventResponse::dump_to(std::string &out) const {
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "device_class", this->device_class_ref_);
-  for (const auto &it : this->event_types) {
+  for (const auto &it : *this->event_types) {
     dump_field(out, "event_types", it, 4);
   }
 #ifdef USE_DEVICES
