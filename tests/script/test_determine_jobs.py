@@ -70,6 +70,13 @@ def mock_changed_files() -> Generator[Mock, None, None]:
         yield mock
 
 
+@pytest.fixture
+def mock_target_branch_dev() -> Generator[Mock, None, None]:
+    """Mock get_target_branch to return 'dev' for memory impact tests."""
+    with patch.object(determine_jobs, "get_target_branch", return_value="dev") as mock:
+        yield mock
+
+
 @pytest.fixture(autouse=True)
 def clear_determine_jobs_caches() -> None:
     """Clear all cached functions before each test."""
@@ -688,6 +695,7 @@ def test_main_detects_components_with_variant_tests(
 # Tests for detect_memory_impact_config function
 
 
+@pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> None:
     """Test memory impact detection when components share a common platform."""
     # Create test directory structure
@@ -722,6 +730,7 @@ def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> Non
     assert result["use_merged_config"] == "true"
 
 
+@pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
     """Test memory impact detection with core C++ changes (no component changes)."""
     # Create test directory structure with fallback component
@@ -779,6 +788,7 @@ def test_detect_memory_impact_config_core_python_only_changes(tmp_path: Path) ->
     assert result["should_run"] == "false"
 
 
+@pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
     """Test memory impact detection when components have no common platform."""
     # Create test directory structure
@@ -855,6 +865,7 @@ def test_detect_memory_impact_config_no_components_with_tests(tmp_path: Path) ->
     assert result["should_run"] == "false"
 
 
+@pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_includes_base_bus_components(
     tmp_path: Path,
 ) -> None:
@@ -897,6 +908,7 @@ def test_detect_memory_impact_config_includes_base_bus_components(
     assert result["platform"] == "esp32-idf"  # Common platform
 
 
+@pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
     """Test memory impact detection for components with only variant test files.
 
@@ -1125,6 +1137,7 @@ def test_main_core_files_changed_still_detects_components(
     assert len(output["changed_components"]) > 0
 
 
+@pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_filters_incompatible_esp32_on_esp8266(
     tmp_path: Path,
 ) -> None:
@@ -1178,6 +1191,7 @@ def test_detect_memory_impact_config_filters_incompatible_esp32_on_esp8266(
     assert result["use_merged_config"] == "true"
 
 
+@pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_filters_incompatible_esp8266_on_esp32(
     tmp_path: Path,
 ) -> None:
