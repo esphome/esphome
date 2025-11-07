@@ -1294,11 +1294,11 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 #endif
 
 #ifdef USE_EVENT
-void APIConnection::send_event(event::Event *event, const std::string &event_type) {
+void APIConnection::send_event(event::Event *event, const char *event_type) {
   this->schedule_message_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
                           EventResponse::ESTIMATED_SIZE);
 }
-uint16_t APIConnection::try_send_event_response(event::Event *event, const std::string &event_type, APIConnection *conn,
+uint16_t APIConnection::try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                                 uint32_t remaining_size, bool is_single) {
   EventResponse resp;
   resp.set_event_type(StringRef(event_type));
@@ -1833,10 +1833,10 @@ void APIConnection::process_batch_() {
 uint16_t APIConnection::MessageCreator::operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                    bool is_single, uint8_t message_type) const {
 #ifdef USE_EVENT
-  // Special case: EventResponse uses string pointer
+  // Special case: EventResponse uses const char * pointer
   if (message_type == EventResponse::MESSAGE_TYPE) {
     auto *e = static_cast<event::Event *>(entity);
-    return APIConnection::try_send_event_response(e, *data_.string_ptr, conn, remaining_size, is_single);
+    return APIConnection::try_send_event_response(e, data_.const_char_ptr, conn, remaining_size, is_single);
   }
 #endif
 

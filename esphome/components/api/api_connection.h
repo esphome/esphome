@@ -177,7 +177,7 @@ class APIConnection final : public APIServerConnection {
 #endif
 
 #ifdef USE_EVENT
-  void send_event(event::Event *event, const std::string &event_type);
+  void send_event(event::Event *event, const char *event_type);
 #endif
 
 #ifdef USE_UPDATE
@@ -450,7 +450,7 @@ class APIConnection final : public APIServerConnection {
                                                     bool is_single);
 #endif
 #ifdef USE_EVENT
-  static uint16_t try_send_event_response(event::Event *event, const std::string &event_type, APIConnection *conn,
+  static uint16_t try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                           uint32_t remaining_size, bool is_single);
   static uint16_t try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
 #endif
@@ -508,8 +508,8 @@ class APIConnection final : public APIServerConnection {
     // Constructor for function pointer
     MessageCreator(MessageCreatorPtr ptr) { data_.function_ptr = ptr; }
 
-    // Constructor for string state capture
-    explicit MessageCreator(const std::string &str_value) { data_.string_ptr = new std::string(str_value); }
+    // Constructor for const char * (Event types - no allocation needed)
+    explicit MessageCreator(const char *str_value) { data_.const_char_ptr = str_value; }
 
     // No destructor - cleanup must be called explicitly with message_type
 
@@ -537,18 +537,14 @@ class APIConnection final : public APIServerConnection {
 
     // Manual cleanup method - must be called before destruction for string types
     void cleanup(uint8_t message_type) {
-#ifdef USE_EVENT
-      if (message_type == EventResponse::MESSAGE_TYPE && data_.string_ptr != nullptr) {
-        delete data_.string_ptr;
-        data_.string_ptr = nullptr;
-      }
-#endif
+      // Event types use const char * (no cleanup needed - points to flash)
+      // All other types use function pointers (no cleanup needed)
     }
 
    private:
     union Data {
       MessageCreatorPtr function_ptr;
-      std::string *string_ptr;
+      const char *const_char_ptr;
     } data_;  // 4 bytes on 32-bit, 8 bytes on 64-bit - same as before
   };
 
