@@ -4,6 +4,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+// Soft dependency on storage_host
+#if defined(USE_STORAGE_HOST)
+namespace storage_host {
+extern class StorageHost *global_storage_host;
+}
+#endif  // USE_STORAGE_HOST
+
 namespace esphome {
 namespace binary_storage {
 
@@ -167,10 +174,6 @@ bool LittleFSMount::format() {
 void LittleFSMount::register_with_storage_host_() {
 #if defined(USE_STORAGE_HOST)
   // Check if storage_host is available via global accessor (soft dependency)
-  namespace storage_host {
-  extern class StorageHost *global_storage_host;
-  }
-
   if (storage_host::global_storage_host != nullptr) {
     // Storage host exists, register this mount point
     std::string platform = this->storage_->get_device_type();
