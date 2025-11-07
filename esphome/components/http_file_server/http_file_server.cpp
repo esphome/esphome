@@ -1566,6 +1566,13 @@ std::string HttpFileServer::generate_html_footer() {
                        '&path=' + encodeURIComponent(window.location.pathname) +
                        '&fileSize=' + file.size;
 
+        // Log chunk details for debugging (every 50th, first, last, and 170-180 range)
+        if (chunkIndex % 50 === 0 || chunkIndex === 0 || chunkIndex === totalChunks - 1 ||
+            (chunkIndex >= 170 && chunkIndex <= 180)) {
+          console.log('[FileServer] Chunk ' + chunkIndex + ' details: size=' + chunk.size +
+                      ', expected=' + (end - start) + ', start=' + start + ', end=' + end);
+        }
+
         // No timeout - support arbitrarily large files (up to filesystem limits)
         try {
           const response = await fetch(apiUrl, {
@@ -1580,6 +1587,12 @@ std::string HttpFileServer::generate_html_footer() {
 
           if (!response.ok) {
             const errorText = await response.text();
+            console.error('[FileServer] Chunk ' + (chunkIndex + 1) + ' HTTP error:', {
+              status: response.status,
+              statusText: response.statusText,
+              headers: Object.fromEntries(response.headers.entries()),
+              body: errorText
+            });
             throw new Error('Chunk ' + (chunkIndex + 1) + ' failed: ' + errorText);
           }
 
@@ -1594,6 +1607,7 @@ std::string HttpFileServer::generate_html_footer() {
           }
 
           if (!result.success) {
+            console.error('[FileServer] Chunk ' + (chunkIndex + 1) + ' server rejected:', result);
             throw new Error('Chunk ' + (chunkIndex + 1) + ' upload failed');
           }
 
@@ -1601,6 +1615,11 @@ std::string HttpFileServer::generate_html_footer() {
           if (result.complete) {
             if (chunkIndex < totalChunks - 1) {
               // Server says complete but we have more chunks - something went wrong
+              console.error('[FileServer] Server completed upload early:', {
+                chunkIndex: chunkIndex,
+                totalChunks: totalChunks,
+                expected: totalChunks - 1
+              });
               throw new Error('Server completed upload early at chunk ' + (chunkIndex + 1) + '/' + totalChunks);
             }
             console.log('[FileServer] Upload completed by server at final chunk');
@@ -1608,14 +1627,26 @@ std::string HttpFileServer::generate_html_footer() {
 
           // Log progress sparingly to reduce overhead (every 50th chunk, first, and last)
           if (chunkIndex % 50 === 0 || chunkIndex === 0 || chunkIndex === totalChunks - 1) {
-            console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
+            console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded successfully');
           }
 
           // Update stall detection - chunk completed successfully
           lastChunkCompleteTime = Date.now();
           lastChunkIndex = chunkIndex;
         } catch (fetchError) {
-          // No timeout handling - let network errors propagate naturally
+          // Enhanced error logging
+          console.error('[FileServer] Chunk ' + (chunkIndex + 1) + ' fetch error:', {
+            chunkIndex: chunkIndex,
+            totalChunks: totalChunks,
+            chunkSize: chunk.size,
+            byteRange: start + '-' + end,
+            error: fetchError,
+            errorType: fetchError.constructor.name,
+            errorMessage: fetchError.message,
+            errorStack: fetchError.stack,
+            uploadedSoFar: (chunkIndex * CHUNK_SIZE) + ' bytes (' +
+                          Math.round((chunkIndex * CHUNK_SIZE) / (1024 * 1024)) + ' MB)'
+          });
           throw fetchError;
         }
       }
