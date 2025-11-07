@@ -1,7 +1,10 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#include <vector>
+
+#ifdef USE_CONTROLLER_REGISTRY
+
+#include "esphome/core/helpers.h"
 
 // Forward declarations
 namespace esphome {
@@ -234,7 +237,9 @@ class ControllerRegistry {
 #endif
 
  protected:
-  static std::vector<Controller *> controllers;
+  static StaticVector<Controller *, CONTROLLER_REGISTRY_MAX> controllers;
 };
 
 }  // namespace esphome
+
+#endif  // USE_CONTROLLER_REGISTRY

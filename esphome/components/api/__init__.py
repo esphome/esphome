@@ -244,6 +244,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    # Track controller registration for StaticVector sizing
+    CORE.register_controller()
+
     cg.add(var.set_port(config[CONF_PORT]))
     if config[CONF_PASSWORD]:
         cg.add_define("USE_API_PASSWORD")

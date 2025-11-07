@@ -910,6 +910,11 @@ class EsphomeCore:
         """
         self.platform_counts[platform_name] += 1
 
+    def register_controller(self) -> None:
+        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
+        controller_count = self.data.setdefault("controller_registry_count", 0)
+        self.data["controller_registry_count"] = controller_count + 1
+
     @property
     def cpp_main_section(self):
         from esphome.cpp_generator import statement

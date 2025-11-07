@@ -462,6 +462,15 @@ async def _add_platform_defines() -> None:
             cg.add_define(f"USE_{platform_name.upper()}")
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_controller_registry_define() -> None:
+    # Generate StaticVector size for ControllerRegistry
+    controller_count = CORE.data.get("controller_registry_count", 0)
+    if controller_count > 0:
+        cg.add_define("USE_CONTROLLER_REGISTRY")
+        cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)

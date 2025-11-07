@@ -1,9 +1,12 @@
 #include "esphome/core/controller_registry.h"
+
+#ifdef USE_CONTROLLER_REGISTRY
+
 #include "esphome/core/controller.h"
 
 namespace esphome {
 
-std::vector<Controller *> ControllerRegistry::controllers;
+StaticVector<Controller *, CONTROLLER_REGISTRY_MAX> ControllerRegistry::controllers;
 
 void ControllerRegistry::register_controller(Controller *controller) { controllers.push_back(controller); }
 
@@ -168,3 +171,5 @@ void ControllerRegistry::notify_update(update::UpdateEntity *obj) {
 #endif
 
 }  // namespace esphome
+
+#endif  // USE_CONTROLLER_REGISTRY
