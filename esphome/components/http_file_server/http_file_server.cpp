@@ -1536,36 +1536,60 @@ std::string HttpFileServer::generate_html_footer() {
                        '&path=' + encodeURIComponent(window.location.pathname) +
                        '&fileSize=' + file.size;
 
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          body: chunk,
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/octet-stream'
+        // Add timeout (60 seconds per chunk)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            body: chunk,
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/octet-stream'
+            },
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error('Chunk ' + (chunkIndex + 1) + ' failed: ' + errorText);
           }
-        });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error('Chunk ' + (chunkIndex + 1) + ' failed: ' + errorText);
+          const result = await response.json();
+
+          // Check if upload was cancelled
+          if (result.cancelled) {
+            console.log('[FileServer] Upload cancelled by user');
+            hideProgressModal();
+            alert('Upload cancelled');
+            return false;
+          }
+
+          if (!result.success) {
+            throw new Error('Chunk ' + (chunkIndex + 1) + ' upload failed');
+          }
+
+          // Check if server thinks upload is complete
+          if (result.complete) {
+            if (chunkIndex < totalChunks - 1) {
+              // Server says complete but we have more chunks - something went wrong
+              throw new Error('Server completed upload early at chunk ' + (chunkIndex + 1) + '/' + totalChunks);
+            }
+            console.log('[FileServer] Upload completed by server at final chunk');
+          }
+
+          // Progress is automatically tracked by backend and polled by progress modal
+          console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          if (fetchError.name === 'AbortError') {
+            throw new Error('Chunk ' + (chunkIndex + 1) + ' timed out after 60 seconds');
+          }
+          throw fetchError;
         }
-
-        const result = await response.json();
-
-        // Check if upload was cancelled
-        if (result.cancelled) {
-          console.log('[FileServer] Upload cancelled by user');
-          hideProgressModal();
-          alert('Upload cancelled');
-          return false;
-        }
-
-        if (!result.success) {
-          throw new Error('Chunk ' + (chunkIndex + 1) + ' upload failed');
-        }
-
-        // Progress is automatically tracked by backend and polled by progress modal
-        console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
       }
 
       console.log('[FileServer] All chunks uploaded successfully');
