@@ -23,10 +23,8 @@ lvgl:
   log_level: INFO
   color_depth: 16
   buffer_size: 25%
-
   displays:
     - main_display
-
   touchscreens:
     - main_touch
 
@@ -35,7 +33,6 @@ lvgl:
     obj:
       bg_color: 0x000000
       text_color: 0xFFFFFF
-
     btn:
       bg_color: 0x2196F3
       text_color: 0xFFFFFF
@@ -45,7 +42,6 @@ lvgl:
         bg_color: 0x1976D2
       checked:
         bg_color: 0x4CAF50
-
     slider:
       bg_color: 0x424242
       indicator_color: 0x2196F3
@@ -63,7 +59,6 @@ lvgl:
         type: flex
         flex_flow: row
       bg_color: 0x000000
-
       widgets:
         # =====================================================
         # Left Side - Main Display Area (650px wide)
@@ -78,7 +73,6 @@ lvgl:
             layout:
               type: flex
               flex_flow: column
-
             widgets:
               # =====================================================
               # Photo Canvas (650x400)
@@ -104,7 +98,6 @@ lvgl:
                     type: flex
                     flex_flow: row
                     flex_align: space_evenly center
-
                   widgets:
                     # Previous Button
                     - button:
@@ -159,7 +152,6 @@ lvgl:
                           - lambda: |-
                               bool is_fs = id(viewer)->is_fullscreen();
                               id(viewer)->set_fullscreen(!is_fs);
-
                               // Toggle thumbnail panel visibility
                               if (!is_fs) {
                                 // Going fullscreen - hide thumbnails, expand canvas
@@ -216,7 +208,6 @@ lvgl:
               type: flex
               flex_flow: column
               flex_align: start center
-
             widgets:
               # Panel Title
               - label:
@@ -241,7 +232,6 @@ lvgl:
                     type: flex
                     flex_flow: column
                     flex_align: start center
-
                   widgets:
                     # Thumbnail placeholders (you can dynamically create these)
                     # For now, showing 8 static thumbnail slots
@@ -256,7 +246,6 @@ lvgl:
                           - label:
                               text: "1"
                               text_color: 0x888888
-
                     - button:
                         id: thumb_btn_2
                         width: 120
@@ -268,7 +257,6 @@ lvgl:
                           - label:
                               text: "2"
                               text_color: 0x888888
-
                     - button:
                         id: thumb_btn_3
                         width: 120
@@ -280,7 +268,6 @@ lvgl:
                           - label:
                               text: "3"
                               text_color: 0x888888
-
                     - button:
                         id: thumb_btn_4
                         width: 120
@@ -292,7 +279,6 @@ lvgl:
                           - label:
                               text: "4"
                               text_color: 0x888888
-
                     - button:
                         id: thumb_btn_5
                         width: 120
@@ -304,7 +290,6 @@ lvgl:
                           - label:
                               text: "5"
                               text_color: 0x888888
-
                     - button:
                         id: thumb_btn_6
                         width: 120
@@ -316,7 +301,6 @@ lvgl:
                           - label:
                               text: "6"
                               text_color: 0x888888
-
                     - button:
                         id: thumb_btn_7
                         width: 120
@@ -328,7 +312,6 @@ lvgl:
                           - label:
                               text: "7"
                               text_color: 0x888888
-
                     - button:
                         id: thumb_btn_8
                         width: 120
@@ -351,7 +334,6 @@ lvgl:
         type: flex
         flex_flow: column
         flex_align: center center
-
       widgets:
         # Title
         - label:
@@ -373,7 +355,6 @@ lvgl:
               type: flex
               flex_flow: column
               flex_align: start center
-
             widgets:
               # Slideshow Interval Setting
               - label:
@@ -384,7 +365,6 @@ lvgl:
                   width: 560
                   text_align: left
                   pad_bottom: 10
-
               - slider:
                   id: interval_slider
                   width: 560
@@ -412,13 +392,11 @@ lvgl:
                     flex_flow: row
                     flex_align: space_between center
                   pad_all: 10
-
                   widgets:
                     - label:
                         text: "Auto-start slideshow"
                         text_font: montserrat_18
                         text_color: 0xFFFFFF
-
                     - switch:
                         id: autostart_switch
                         on_value:
@@ -460,7 +438,6 @@ interval:
           auto *viewer = id(viewer);
           size_t count = viewer->get_image_count();
           int index = viewer->get_current_index();
-
           char buf[32];
           if (count > 0) {
             snprintf(buf, sizeof(buf), "%d / %zu", index + 1, count);
@@ -468,12 +445,10 @@ interval:
             snprintf(buf, sizeof(buf), "0 / 0");
           }
           lv_label_set_text(id(photo_counter), buf);
-
           // Update play/pause icon
           auto mode = viewer->get_slideshow_mode();
           bool is_playing = (mode == picture_viewer::SlideshowMode::PLAYING);
           lv_label_set_text(id(play_pause_icon), is_playing ? "⏸" : "▶");
-
           // Update play/pause button state
           if (is_playing) {
             lv_obj_add_state(id(btn_play_pause), LV_STATE_CHECKED);
