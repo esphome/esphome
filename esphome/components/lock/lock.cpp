@@ -1,4 +1,5 @@
 #include "lock.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -53,6 +54,7 @@ void Lock::publish_state(LockState state) {
   this->rtc_.save(&this->state);
   ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), lock_state_to_string(state));
   this->state_callback_.call();
+  ControllerRegistry::notify_lock_update(this);
 }
 
 void Lock::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }

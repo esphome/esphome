@@ -1,4 +1,5 @@
 #include "binary_sensor.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -37,6 +38,7 @@ void BinarySensor::send_state_internal(bool new_state) {
   // Note that set_state_ de-dups and will only trigger callbacks if the state has actually changed
   if (this->set_state_(new_state)) {
     ESP_LOGD(TAG, "'%s': New state is %s", this->get_name().c_str(), ONOFF(new_state));
+    ControllerRegistry::notify_binary_sensor_update(this);
   }
 }
 

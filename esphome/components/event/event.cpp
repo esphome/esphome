@@ -1,5 +1,5 @@
 #include "event.h"
-
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -23,6 +23,7 @@ void Event::trigger(const std::string &event_type) {
   last_event_type = found;
   ESP_LOGD(TAG, "'%s' Triggered event '%s'", this->get_name().c_str(), last_event_type->c_str());
   this->event_callback_.call(event_type);
+  ControllerRegistry::notify_event(this);
 }
 
 void Event::add_on_event_callback(std::function<void(const std::string &event_type)> &&callback) {

@@ -1,5 +1,5 @@
 #include "date_entity.h"
-
+#include "esphome/core/controller_registry.h"
 #ifdef USE_DATETIME_DATE
 
 #include "esphome/core/log.h"
@@ -32,6 +32,7 @@ void DateEntity::publish_state() {
   this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending date %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
   this->state_callback_.call();
+  ControllerRegistry::notify_date_update(this);
 }
 
 DateCall DateEntity::make_call() { return DateCall(this); }

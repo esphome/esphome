@@ -1,5 +1,5 @@
 #include "time_entity.h"
-
+#include "esphome/core/controller_registry.h"
 #ifdef USE_DATETIME_TIME
 
 #include "esphome/core/log.h"
@@ -29,6 +29,7 @@ void TimeEntity::publish_state() {
   ESP_LOGD(TAG, "'%s': Sending time %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_,
            this->second_);
   this->state_callback_.call();
+  ControllerRegistry::notify_time_update(this);
 }
 
 TimeCall TimeEntity::make_call() { return TimeCall(this); }

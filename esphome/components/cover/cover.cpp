@@ -1,5 +1,6 @@
 #include "cover.h"
 #include <strings.h>
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -169,6 +170,7 @@ void Cover::publish_state(bool save) {
   ESP_LOGD(TAG, "  Current Operation: %s", cover_operation_to_str(this->current_operation));
 
   this->state_callback_.call();
+  ControllerRegistry::notify_cover_update(this);
 
   if (save) {
     CoverRestoreState restore{};

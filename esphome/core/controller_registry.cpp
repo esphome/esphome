@@ -159,9 +159,9 @@ void ControllerRegistry::notify_alarm_control_panel_update(alarm_control_panel::
 #endif
 
 #ifdef USE_EVENT
-void ControllerRegistry::notify_event(event::Event *obj, const std::string &event_type) {
+void ControllerRegistry::notify_event(event::Event *obj) {
   for (auto *controller : controllers_) {
-    controller->on_event(obj, event_type);
+    controller->on_event(obj);
   }
 }
 #endif

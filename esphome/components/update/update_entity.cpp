@@ -1,5 +1,5 @@
 #include "update_entity.h"
-
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -32,6 +32,7 @@ void UpdateEntity::publish_state() {
 
   this->set_has_state(true);
   this->state_callback_.call();
+  ControllerRegistry::notify_update(this);
 }
 
 }  // namespace update

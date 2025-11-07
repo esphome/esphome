@@ -1,4 +1,5 @@
 #include "fan.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -181,6 +182,7 @@ void Fan::publish_state() {
     ESP_LOGD(TAG, "  Preset Mode: %s", preset);
   }
   this->state_callback_.call();
+  ControllerRegistry::notify_fan_update(this);
   this->save_state_();
 }
 

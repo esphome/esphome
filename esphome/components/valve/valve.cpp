@@ -1,4 +1,5 @@
 #include "valve.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 #include <strings.h>
 
@@ -147,6 +148,7 @@ void Valve::publish_state(bool save) {
   ESP_LOGD(TAG, "  Current Operation: %s", valve_operation_to_str(this->current_operation));
 
   this->state_callback_.call();
+  ControllerRegistry::notify_valve_update(this);
 
   if (save) {
     ValveRestoreState restore{};

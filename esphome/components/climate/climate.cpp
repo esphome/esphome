@@ -1,4 +1,5 @@
 #include "climate.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/macros.h"
 
 namespace esphome {
@@ -463,6 +464,7 @@ void Climate::publish_state() {
 
   // Send state to frontend
   this->state_callback_.call(*this);
+  ControllerRegistry::notify_climate_update(this);
   // Save state
   this->save_state_();
 }

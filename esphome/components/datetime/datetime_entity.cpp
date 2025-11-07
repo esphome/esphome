@@ -1,5 +1,5 @@
 #include "datetime_entity.h"
-
+#include "esphome/core/controller_registry.h"
 #ifdef USE_DATETIME_DATETIME
 
 #include "esphome/core/log.h"
@@ -48,6 +48,7 @@ void DateTimeEntity::publish_state() {
   ESP_LOGD(TAG, "'%s': Sending datetime %04u-%02u-%02u %02d:%02d:%02d", this->get_name().c_str(), this->year_,
            this->month_, this->day_, this->hour_, this->minute_, this->second_);
   this->state_callback_.call();
+  ControllerRegistry::notify_datetime_update(this);
 }
 
 DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }

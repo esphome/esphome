@@ -1,4 +1,5 @@
 #include "text_sensor.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -84,6 +85,7 @@ void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
   this->callback_.call(state);
+  ControllerRegistry::notify_text_sensor_update(this);
 }
 
 }  // namespace text_sensor

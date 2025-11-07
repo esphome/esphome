@@ -69,7 +69,6 @@ namespace esphome {
 
 class Controller {
  public:
-  void setup_controller(bool include_internal = false);
 #ifdef USE_BINARY_SENSOR
   virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj){};
 #endif
@@ -125,7 +124,7 @@ class Controller {
   virtual void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj){};
 #endif
 #ifdef USE_EVENT
-  virtual void on_event(event::Event *obj, const std::string &event_type){};
+  virtual void on_event(event::Event *obj){};
 #endif
 #ifdef USE_UPDATE
   virtual void on_update(update::UpdateEntity *obj){};

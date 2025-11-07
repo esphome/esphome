@@ -1,4 +1,5 @@
 #include "sensor.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -131,6 +132,7 @@ void Sensor::internal_send_state_to_frontend(float state) {
   ESP_LOGD(TAG, "'%s': Sending state %.5f %s with %d decimals of accuracy", this->get_name().c_str(), state,
            this->get_unit_of_measurement_ref().c_str(), this->get_accuracy_decimals());
   this->callback_.call(state);
+  ControllerRegistry::notify_sensor_update(this);
 }
 
 }  // namespace sensor

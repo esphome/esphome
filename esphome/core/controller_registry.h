@@ -248,7 +248,7 @@ class ControllerRegistry {
 
 #ifdef USE_EVENT
   /** Notify all controllers of an event trigger. */
-  static void notify_event(event::Event *obj, const std::string &event_type);
+  static void notify_event(event::Event *obj);
 #endif
 
 #ifdef USE_UPDATE
