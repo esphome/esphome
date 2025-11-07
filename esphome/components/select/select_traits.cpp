@@ -7,8 +7,8 @@ void SelectTraits::set_options(const std::initializer_list<const char *> &option
 
 void SelectTraits::set_options(const FixedVector<const char *> &options) {
   this->options_.init(options.size());
-  for (size_t i = 0; i < options.size(); i++) {
-    this->options_[i] = options[i];
+  for (const auto &opt : options) {
+    this->options_.push_back(opt);
   }
 }
 
