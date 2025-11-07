@@ -348,7 +348,8 @@ API_DISPATCH_UPDATE(media_player::MediaPlayer, media_player)
 #endif
 
 #ifdef USE_EVENT
-// Event is a special case - it reads event_type from obj->get_last_event_type()
+// Event is a special case - unlike other entities with simple state fields,
+// events store their state in a member accessed via obj->get_last_event_type()
 void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
