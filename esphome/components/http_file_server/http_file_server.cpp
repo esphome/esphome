@@ -1518,6 +1518,26 @@ std::string HttpFileServer::generate_html_footer() {
 
     console.log('[FileServer] Starting chunked upload: ' + totalChunks + ' chunks of ' + CHUNK_SIZE + ' bytes');
 
+    // Stall detection: Track last progress and check if upload has stalled
+    let lastChunkCompleteTime = Date.now();
+    let lastChunkIndex = -1;
+    const STALL_TIMEOUT_MS = 90000; // 90 seconds without completing a chunk = stalled
+
+    // Start stall detection interval
+    const stallDetectionInterval = setInterval(() => {
+      const timeSinceLastChunk = Date.now() - lastChunkCompleteTime;
+      if (timeSinceLastChunk > STALL_TIMEOUT_MS) {
+        console.error('[FileServer] Upload stalled: No chunk completed in ' +
+                      Math.round(timeSinceLastChunk / 1000) + ' seconds (last: chunk ' +
+                      (lastChunkIndex + 1) + ')');
+        clearInterval(stallDetectionInterval);
+        hideProgressModal();
+        alert('Upload stalled: No progress for ' + Math.round(timeSinceLastChunk / 1000) +
+              ' seconds. Upload cancelled.');
+        location.reload(); // Reload to clean up state
+      }
+    }, 10000); // Check every 10 seconds
+
     try {
       // Upload each chunk sequentially
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
@@ -1539,10 +1559,7 @@ std::string HttpFileServer::generate_html_footer() {
                        '&path=' + encodeURIComponent(window.location.pathname) +
                        '&fileSize=' + file.size;
 
-        // Add timeout (60 seconds per chunk)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
-
+        // No timeout - support arbitrarily large files (up to filesystem limits)
         try {
           const response = await fetch(apiUrl, {
             method: 'POST',
@@ -1551,11 +1568,8 @@ std::string HttpFileServer::generate_html_footer() {
             headers: {
               'Content-Type': 'application/octet-stream',
               'Connection': 'close'  // Force fresh connection to avoid socket exhaustion
-            },
-            signal: controller.signal
+            }
           });
-
-          clearTimeout(timeoutId);
 
           if (!response.ok) {
             const errorText = await response.text();
@@ -1589,16 +1603,20 @@ std::string HttpFileServer::generate_html_footer() {
           if (chunkIndex % 50 === 0 || chunkIndex === 0 || chunkIndex === totalChunks - 1) {
             console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
           }
+
+          // Update stall detection - chunk completed successfully
+          lastChunkCompleteTime = Date.now();
+          lastChunkIndex = chunkIndex;
         } catch (fetchError) {
-          clearTimeout(timeoutId);
-          if (fetchError.name === 'AbortError') {
-            throw new Error('Chunk ' + (chunkIndex + 1) + ' timed out after 60 seconds');
-          }
+          // No timeout handling - let network errors propagate naturally
           throw fetchError;
         }
       }
 
       console.log('[FileServer] All chunks uploaded successfully');
+
+      // Clear stall detection - upload complete
+      clearInterval(stallDetectionInterval);
 
       // Upload complete - give progress modal a moment to show 100%, then reload
       setTimeout(() => {
@@ -1609,6 +1627,8 @@ std::string HttpFileServer::generate_html_footer() {
 
     } catch (error) {
       console.error('[FileServer] Upload error:', error);
+      // Clear stall detection - upload failed
+      clearInterval(stallDetectionInterval);
       hideProgressModal();
       alert('Error: ' + error.message);
     }
@@ -2671,9 +2691,11 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
   size_t file_size = std::stoull(file_size_param->value().c_str());
 
   // Log only every 50th chunk, first, and last to reduce overhead
-  if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1) {
-    ESP_LOGD(TAG, "Upload chunk: file=%s, chunk=%d/%d, path=%s, size=%zu", filename.c_str(), chunk_index, total_chunks,
-             path.c_str(), file_size);
+  // Also log around potential failure threshold (chunks 170-180)
+  if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1 ||
+      (chunk_index >= 170 && chunk_index <= 180)) {
+    ESP_LOGD(TAG, "Upload chunk: file=%s, chunk=%d/%d, path=%s, size=%zu, free_heap=%zu", filename.c_str(), chunk_index,
+             total_chunks, path.c_str(), file_size, esp_get_free_heap_size());
   }
 
   // Convert path to filesystem path
@@ -2849,9 +2871,20 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
     portEXIT_CRITICAL(&this->progress_mutex_);
 
     // Log only every 50th chunk, first, and last to reduce overhead
-    if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1) {
-      ESP_LOGD(TAG, "Wrote chunk %d: %zu bytes (total: %zu/%zu)", chunk_index, written,
-               this->progress_.transferred_bytes, file_size);
+    // Also log around potential failure threshold (chunks 170-180)
+    if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1 ||
+        (chunk_index >= 170 && chunk_index <= 180)) {
+      ESP_LOGD(TAG, "Wrote chunk %d: %zu bytes (total: %zu/%zu), free_heap=%zu", chunk_index, written,
+               this->progress_.transferred_bytes, file_size, esp_get_free_heap_size());
+    }
+
+    // Flush periodically to ensure data reaches disk (every 10 chunks)
+    // This prevents large amounts of data accumulating in FILE* buffers
+    if (chunk_index % 10 == 0) {
+      int flush_result = fflush(this->upload_file_);
+      if (flush_result != 0) {
+        ESP_LOGE(TAG, "fflush failed at chunk %d: errno=%d", chunk_index, errno);
+      }
     }
   }
 
@@ -2861,6 +2894,8 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
   // Last chunk - finalize
   if (chunk_index == total_chunks - 1) {
     if (this->upload_file_) {
+      // Flush all buffered data before closing to prevent data loss
+      fflush(this->upload_file_);
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
       ESP_LOGI(TAG, "Completed chunked upload: %s (%zu bytes)", upload_path.c_str(),
