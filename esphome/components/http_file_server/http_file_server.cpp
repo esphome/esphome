@@ -282,12 +282,23 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     // Handle POST for file uploads (non-API endpoints)
     ESP_LOGD(TAG, "POST handler - upload for URI: %s", uri.c_str());
 
-    // Check if this is a file upload (has filename query parameter)
-    auto *filename_param = request->getParam("filename");
-    if (filename_param) {
-      this->handle_file_upload(request, filename_param->value().c_str());
+    // Check Content-Type to determine upload method
+    const char *content_type = request->contentType().c_str();
+    ESP_LOGD(TAG, "Content-Type: %s", content_type);
+
+    // If multipart/form-data, let it pass through to handleUpload() callback
+    // If application/octet-stream, use old synchronous handler
+    if (strstr(content_type, "multipart/form-data") != nullptr) {
+      // Multipart upload will be handled by handleUpload() callback - do nothing here
+      ESP_LOGD(TAG, "Multipart upload detected - will be handled by handleUpload() callback");
     } else {
-      request->send(400, "text/plain", "Missing filename parameter");
+      // Old synchronous upload handler for raw binary uploads
+      auto *filename_param = request->getParam("filename");
+      if (filename_param) {
+        this->handle_file_upload(request, filename_param->value().c_str());
+      } else {
+        request->send(400, "text/plain", "Missing filename parameter");
+      }
     }
   } else {
     request->send(405, "application/json", "{\"error\":\"Method not allowed\"}");
@@ -1029,15 +1040,22 @@ async function delete_directory(path) {
 }
 
 function download_file(path, filename) {
+  // Show progress modal
+  showProgressModal('download', filename, path);
+  startProgressPolling();
+
   fetch(path)
     .then(response => response.blob())
     .then(blob => {
+      // Download complete - hide modal and trigger download
+      hideProgressModal();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = filename;
       link.click();
     })
     .catch(error => {
+      hideProgressModal();
       alert('Error: ' + error);
     });
 }
@@ -1536,6 +1554,17 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
   ESP_LOGI(TAG, "Starting file download: %s (size: %zu bytes)", filename.c_str(), file_size);
 
+  // Initialize progress tracking (thread-safe)
+  portENTER_CRITICAL(&this->progress_mutex_);
+  this->progress_.operation = "download";
+  this->progress_.source = filepath;
+  this->progress_.destination = filename;
+  this->progress_.total_bytes = file_size;
+  this->progress_.transferred_bytes = 0;
+  this->progress_.in_progress = true;
+  this->progress_.start_time = millis();
+  portEXIT_CRITICAL(&this->progress_mutex_);
+
   // For files > 16MB, use chunked streaming instead of loading into memory
   const size_t MEMORY_LIMIT = 16 * 1024 * 1024;  // 16MB
   const size_t CHUNK_SIZE = 8192;                 // 8KB chunks for streaming
@@ -1549,13 +1578,27 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
     if (bytes_read != file_size) {
       ESP_LOGE(TAG, "Failed to read file completely");
+      portENTER_CRITICAL(&this->progress_mutex_);
+      this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
       request->send(500, "text/plain", "Failed to read file");
       return;
     }
 
+    // Update progress to 100% before sending
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.transferred_bytes = file_size;
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
     AsyncWebServerResponse *response = request->beginResponse(200, mime_type.c_str(), content);
     response->addHeader("Content-Disposition", content_disposition.c_str());
     request->send(response);
+
+    // Mark progress as complete
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.in_progress = false;
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
     ESP_LOGI(TAG, "Download sent: %zu bytes", bytes_read);
   } else {
     // Large file - use chunked streaming via raw ESP-IDF API
@@ -1595,6 +1638,11 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
       total_sent += bytes_read;
 
+      // Update progress (thread-safe)
+      portENTER_CRITICAL(&this->progress_mutex_);
+      this->progress_.transferred_bytes = total_sent;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+
       // Log progress every ~1MB
       if (total_sent % (1024 * 1024) < CHUNK_SIZE) {
         ESP_LOGD(TAG, "Download progress: %zu / %zu bytes (%.1f%%)", total_sent, file_size,
@@ -1606,6 +1654,11 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     }
 
     fclose(file);
+
+    // Mark progress as complete (thread-safe)
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.in_progress = false;
+    portEXIT_CRITICAL(&this->progress_mutex_);
 
     // Send final empty chunk to signal completion
     if (success) {
