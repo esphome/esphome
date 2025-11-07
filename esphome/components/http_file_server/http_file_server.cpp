@@ -2228,8 +2228,9 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
   }
 
   // Create task parameters
-  bool track_progress = (src_stat.st_size > 1048576);
-  ESP_LOGI(TAG, "Copy: file size %lld bytes, track_progress=%d", (long long) src_stat.st_size, track_progress);
+  // Always track progress for consistent modal behavior (overhead is minimal)
+  bool track_progress = true;
+  ESP_LOGI(TAG, "Copy: file size %lld bytes", (long long) src_stat.st_size);
 
   auto *task_params = new CopyTaskParams{this, source, destination, src_stat.st_size, track_progress};
 
@@ -2276,7 +2277,8 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
   }
 
   // Create task parameters
-  bool track_progress = (src_stat.st_size > 1048576);
+  // Always track progress for consistent modal behavior (overhead is minimal)
+  bool track_progress = true;
 
   auto *task_params = new MoveTaskParams{this, source, destination, src_stat.st_size, track_progress};
 
