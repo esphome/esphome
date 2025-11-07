@@ -266,6 +266,9 @@ class HttpFileServer : public Component, public AsyncWebHandler {
     std::string source;
     std::string destination;
     std::string name;
+    std::string path;
+    std::string mount_point;
+    std::string device;
   };
   bool parse_json_request(const uint8_t *body, size_t body_len, ApiRequest &req);
 
