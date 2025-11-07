@@ -786,7 +786,7 @@ std::string HttpFileServer::generate_html_header(const std::string &title) {
 }
 
 std::string HttpFileServer::generate_html_footer() {
-  return R"(
+  return R"HTML(
 </div>
 <div id="progressModal" class="progress-modal">
   <div class="progress-content">
@@ -815,11 +815,11 @@ std::string HttpFileServer::generate_html_footer() {
     const destEl = document.getElementById('progressDest');
 
     // Set title based on operation type
-    if (operation == = 'copy') {
+    if (operation === 'copy') {
       title.textContent = 'Copying File...';
-    } else if (operation == = 'move') {
+    } else if (operation === 'move') {
       title.textContent = 'Moving File...';
-    } else if (operation == = 'upload') {
+    } else if (operation === 'upload') {
       title.textContent = 'Uploading File...';
     } else {
       title.textContent = 'Processing...';
@@ -850,7 +850,7 @@ std::string HttpFileServer::generate_html_footer() {
   }
 
   function formatBytes(bytes) {
-    if (bytes == = 0)
+    if (bytes === 0)
       return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -892,7 +892,7 @@ std::string HttpFileServer::generate_html_footer() {
       // Reset timeout counter on successful response
       consecutiveTimeouts = 0;
 
-      if (xhr.status != = 200) {
+      if (xhr.status !== 200) {
         console.error('[FileServer] Bad status:', xhr.status, 'text:', xhr.responseText);
         consecutiveTimeouts++;
         checkTimeoutLimit();
@@ -933,7 +933,7 @@ std::string HttpFileServer::generate_html_footer() {
       bar.textContent = percentage.toFixed(1) + '%';
 
       let detailText = '';
-      if (data.operation == = 'delete') {
+      if (data.operation === 'delete') {
         // For delete operations, show item count and current file
         detailText = data.processed_items + ' / ' + data.total_items + ' items';
         if (data.elapsed_ms) {
@@ -1151,7 +1151,7 @@ std::string HttpFileServer::generate_html_footer() {
     const filename = filepath.substring(lastSlashIndex + 1);
 
     const lastDotIndex = filename.lastIndexOf('.');
-    if (lastDotIndex == = -1) {
+    if (lastDotIndex === -1) {
       // No extension
       return filepath + ' (1)';
     } else {
@@ -1273,7 +1273,7 @@ std::string HttpFileServer::generate_html_footer() {
   function rename_file(source) {
     const currentName = source.split('/').pop();
     const newName = prompt('Enter new name:', currentName);
-    if (!newName || newName == = currentName)
+    if (!newName || newName === currentName)
       return;
 
     fetch(API_BASE + '/api/rename', {
@@ -1446,7 +1446,7 @@ std::string HttpFileServer::generate_html_footer() {
 </script>
 </body>
 </html>
-)";
+)HTML";
 }
 
 std::string HttpFileServer::generate_breadcrumb(const std::string &current_path) {
