@@ -1628,7 +1628,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
 }
 
 static std::string get_event_type(event::Event *event) {
-  return (event && event->last_event_type) ? *event->last_event_type : "";
+  return (event && event->get_last_event_type()) ? event->get_last_event_type() : "";
 }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
