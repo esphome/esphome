@@ -1513,7 +1513,7 @@ std::string HttpFileServer::generate_html_footer() {
     event.stopPropagation();
 
     // Chunked upload configuration
-    const CHUNK_SIZE = 64 * 1024; // 64KB chunks for better responsiveness and throughput
+    const CHUNK_SIZE = 256 * 1024; // 256KB chunks for good balance of speed vs responsiveness
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     console.log('[FileServer] Starting chunked upload: ' + totalChunks + ' chunks of ' + CHUNK_SIZE + ' bytes');
@@ -1549,7 +1549,8 @@ std::string HttpFileServer::generate_html_footer() {
             body: chunk,
             credentials: 'include',
             headers: {
-              'Content-Type': 'application/octet-stream'
+              'Content-Type': 'application/octet-stream',
+              'Connection': 'close'  // Force fresh connection to avoid socket exhaustion
             },
             signal: controller.signal
           });
