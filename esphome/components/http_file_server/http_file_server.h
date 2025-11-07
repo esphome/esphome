@@ -203,9 +203,19 @@ class HttpFileServer : public Component, public AsyncWebHandler {
     bool track_progress;
   };
 
+  struct DownloadTaskParams {
+    httpd_req_t *req;
+    std::string filepath;
+    std::string filename;
+    std::string mime_type;
+    size_t file_size;
+    TaskHandle_t caller_task;
+  };
+
   // Static task functions for FreeRTOS
   static void copy_task(void *params);
   static void move_task(void *params);
+  static void download_task(void *params);
 
   // Upload progress tracking
   size_t upload_total_size_{0};

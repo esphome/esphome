@@ -1531,17 +1531,13 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     return;
   }
 
-  // Open the file
-  FILE *file = fopen(filepath.c_str(), "rb");
-  if (!file) {
+  // Get file size
+  struct stat file_stat;
+  if (stat(filepath.c_str(), &file_stat) != 0) {
     request->send(404, "text/plain", "File not found");
     return;
   }
-
-  // Get file size
-  fseek(file, 0, SEEK_END);
-  size_t file_size = ftell(file);
-  fseek(file, 0, SEEK_SET);
+  size_t file_size = file_stat.st_size;
 
   // Set content type based on file extension
   std::string mime_type = Path::mime_type(filepath);
@@ -1550,23 +1546,17 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
   ESP_LOGI(TAG, "Starting file download: %s (size: %zu bytes)", filename.c_str(), file_size);
 
-  // Initialize progress tracking (thread-safe)
-  portENTER_CRITICAL(&this->progress_mutex_);
-  this->progress_.operation = "download";
-  this->progress_.source = filepath;
-  this->progress_.destination = filename;
-  this->progress_.total_bytes = file_size;
-  this->progress_.transferred_bytes = 0;
-  this->progress_.in_progress = true;
-  this->progress_.start_time = millis();
-  portEXIT_CRITICAL(&this->progress_mutex_);
-
-  // For files > 16MB, use chunked streaming instead of loading into memory
+  // For files > 16MB, use FreeRTOS task with chunked streaming
   const size_t MEMORY_LIMIT = 16 * 1024 * 1024;  // 16MB
-  const size_t CHUNK_SIZE = 8192;                 // 8KB chunks for streaming
 
   if (file_size <= MEMORY_LIMIT) {
     // Small file - read into memory at once
+    FILE *file = fopen(filepath.c_str(), "rb");
+    if (!file) {
+      request->send(404, "text/plain", "File not found");
+      return;
+    }
+
     std::string content;
     content.resize(file_size);
     size_t bytes_read = fread(content.data(), 1, file_size, file);
@@ -1574,95 +1564,41 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
     if (bytes_read != file_size) {
       ESP_LOGE(TAG, "Failed to read file completely");
-      portENTER_CRITICAL(&this->progress_mutex_);
-      this->progress_.in_progress = false;
-      portEXIT_CRITICAL(&this->progress_mutex_);
       request->send(500, "text/plain", "Failed to read file");
       return;
     }
-
-    // Update progress to 100% before sending
-    portENTER_CRITICAL(&this->progress_mutex_);
-    this->progress_.transferred_bytes = file_size;
-    portEXIT_CRITICAL(&this->progress_mutex_);
 
     AsyncWebServerResponse *response = request->beginResponse(200, mime_type.c_str(), content);
     response->addHeader("Content-Disposition", content_disposition.c_str());
     request->send(response);
 
-    // Mark progress as complete
-    portENTER_CRITICAL(&this->progress_mutex_);
-    this->progress_.in_progress = false;
-    portEXIT_CRITICAL(&this->progress_mutex_);
-
     ESP_LOGI(TAG, "Download sent: %zu bytes", bytes_read);
   } else {
-    // Large file - use chunked streaming via raw ESP-IDF API
-    ESP_LOGI(TAG, "Large file download, using chunked streaming");
+    // Large file - use FreeRTOS task for non-blocking download
+    ESP_LOGI(TAG, "Large file download, using FreeRTOS task");
 
     // Get raw httpd_req_t
     httpd_req_t *req = static_cast<httpd_req_t *>(*request);
 
-    // Set response headers - browser needs Content-Disposition to trigger download
-    httpd_resp_set_type(req, mime_type.c_str());
-    httpd_resp_set_hdr(req, "Content-Disposition", content_disposition.c_str());
+    // Create task parameters
+    auto *task_params = new DownloadTaskParams{req, filepath, filename, mime_type, file_size, xTaskGetCurrentTaskHandle()};
 
-    // Allocate chunk buffer on heap
-    auto buffer = std::make_unique<uint8_t[]>(CHUNK_SIZE);
-    size_t total_sent = 0;
-    bool success = true;
+    // Create FreeRTOS task for background download (8KB stack, priority 1)
+    BaseType_t result = xTaskCreate(download_task, "http_download", 8192, task_params, 1, nullptr);
 
-    // Send file in chunks
-    while (total_sent < file_size) {
-      App.feed_wdt();  // Feed watchdog for large files
-
-      size_t to_read = std::min(CHUNK_SIZE, file_size - total_sent);
-      size_t bytes_read = fread(buffer.get(), 1, to_read, file);
-
-      if (bytes_read == 0) {
-        ESP_LOGE(TAG, "Failed to read chunk at offset %zu", total_sent);
-        success = false;
-        break;
-      }
-
-      esp_err_t err = httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buffer.get()), bytes_read);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to send chunk: %s", esp_err_to_name(err));
-        success = false;
-        break;
-      }
-
-      total_sent += bytes_read;
-
-      // Update progress (thread-safe)
-      portENTER_CRITICAL(&this->progress_mutex_);
-      this->progress_.transferred_bytes = total_sent;
-      portEXIT_CRITICAL(&this->progress_mutex_);
-
-      // Log progress every ~1MB
-      if (total_sent % (1024 * 1024) < CHUNK_SIZE) {
-        ESP_LOGD(TAG, "Download progress: %zu / %zu bytes (%.1f%%)", total_sent, file_size,
-                 (float) total_sent / file_size * 100.0f);
-      }
-
-      // Yield briefly to other tasks to prevent blocking too long
-      vTaskDelay(1);  // 1 tick = ~10ms, allows other tasks to run
+    if (result != pdPASS) {
+      ESP_LOGE(TAG, "Failed to create download task");
+      delete task_params;
+      request->send(500, "text/plain", "Failed to start download");
+      return;
     }
 
-    fclose(file);
+    ESP_LOGD(TAG, "Download task created, waiting for completion...");
 
-    // Mark progress as complete (thread-safe)
-    portENTER_CRITICAL(&this->progress_mutex_);
-    this->progress_.in_progress = false;
-    portEXIT_CRITICAL(&this->progress_mutex_);
+    // Wait for download task to complete
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-    // Send final empty chunk to signal completion
-    if (success) {
-      httpd_resp_send_chunk(req, nullptr, 0);
-      ESP_LOGI(TAG, "Chunked download complete: %zu bytes", total_sent);
-    } else {
-      ESP_LOGE(TAG, "Chunked download failed at %zu / %zu bytes", total_sent, file_size);
-    }
+    ESP_LOGD(TAG, "Download task finished");
   }
 }
 
@@ -2460,6 +2396,86 @@ void HttpFileServer::move_task(void *params) {
                                          task_params->track_progress);
 
   ESP_LOGI(TAG, "Move task completed");
+
+  // Clean up parameters
+  delete task_params;
+
+  // Delete this task
+  vTaskDelete(nullptr);
+}
+
+void HttpFileServer::download_task(void *params) {
+  auto *task_params = static_cast<DownloadTaskParams *>(params);
+  httpd_req_t *req = task_params->req;
+
+  ESP_LOGI(TAG, "Download task started for %s (size: %zu bytes)", task_params->filename.c_str(), task_params->file_size);
+
+  // Open the file
+  FILE *file = fopen(task_params->filepath.c_str(), "rb");
+  if (!file) {
+    ESP_LOGE(TAG, "Failed to open file for download: %s", task_params->filepath.c_str());
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File not found");
+    // Notify caller task
+    xTaskNotifyGive(task_params->caller_task);
+    delete task_params;
+    vTaskDelete(nullptr);
+    return;
+  }
+
+  // Set response headers
+  std::string content_disposition = "attachment; filename=\"" + task_params->filename + "\"";
+  httpd_resp_set_type(req, task_params->mime_type.c_str());
+  httpd_resp_set_hdr(req, "Content-Disposition", content_disposition.c_str());
+
+  // Send file in chunks
+  const size_t CHUNK_SIZE = 8192;  // 8KB chunks
+  auto buffer = std::make_unique<uint8_t[]>(CHUNK_SIZE);
+  size_t total_sent = 0;
+  bool success = true;
+
+  while (total_sent < task_params->file_size) {
+    App.feed_wdt();  // Feed watchdog for large files
+
+    size_t to_read = std::min(CHUNK_SIZE, task_params->file_size - total_sent);
+    size_t bytes_read = fread(buffer.get(), 1, to_read, file);
+
+    if (bytes_read == 0) {
+      ESP_LOGE(TAG, "Failed to read chunk at offset %zu", total_sent);
+      success = false;
+      break;
+    }
+
+    esp_err_t err = httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buffer.get()), bytes_read);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to send chunk: %s", esp_err_to_name(err));
+      success = false;
+      break;
+    }
+
+    total_sent += bytes_read;
+
+    // Log progress every ~1MB
+    if (total_sent % (1024 * 1024) < CHUNK_SIZE) {
+      ESP_LOGD(TAG, "Download progress: %zu / %zu bytes (%.1f%%)", total_sent, task_params->file_size,
+               (float) total_sent / task_params->file_size * 100.0f);
+    }
+
+    // Yield briefly to other tasks
+    vTaskDelay(1);  // 1 tick = ~10ms
+  }
+
+  fclose(file);
+
+  // Send final empty chunk to signal completion
+  if (success) {
+    httpd_resp_send_chunk(req, nullptr, 0);
+    ESP_LOGI(TAG, "Download task completed: %zu bytes", total_sent);
+  } else {
+    ESP_LOGE(TAG, "Download task failed at %zu / %zu bytes", total_sent, task_params->file_size);
+  }
+
+  // Notify caller task that we're done
+  xTaskNotifyGive(task_params->caller_task);
 
   // Clean up parameters
   delete task_params;
