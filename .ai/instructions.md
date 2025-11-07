@@ -450,7 +450,8 @@ This document provides essential context for AI models interacting with this pro
 
 *   **Public Python API:**
     *   All documented configuration options at [esphome.io](https://esphome.io) are public API.
-    *   Python code is internal unless explicitly documented for external component use.
+    *   Python code in `esphome/core/` actively used by existing core components is considered stable API.
+    *   Other Python code is internal unless explicitly documented for external component use.
 
 *   **Breaking Changes Policy:**
     *   Aim for **6-month deprecation window** when possible
