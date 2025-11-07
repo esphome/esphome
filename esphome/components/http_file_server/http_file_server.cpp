@@ -2049,8 +2049,8 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
   // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
   std::string source_uri, dest_uri;
 
-  auto *source_param = request->getParam("source");  // POST parameter
-  auto *dest_param = request->getParam("destination");
+  auto *source_param = request->getParam("source", true);  // true = POST parameter
+  auto *dest_param = request->getParam("destination", true);
 
   if (source_param && dest_param) {
     source_uri = source_param->value().c_str();
@@ -2111,8 +2111,8 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
   // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
   std::string source_uri, dest_uri;
 
-  auto *source_param = request->getParam("source");  // POST parameter
-  auto *dest_param = request->getParam("destination");
+  auto *source_param = request->getParam("source", true);  // true = POST parameter
+  auto *dest_param = request->getParam("destination", true);
 
   if (source_param && dest_param) {
     source_uri = source_param->value().c_str();
@@ -2172,8 +2172,8 @@ void HttpFileServer::handle_api_rename(AsyncWebServerRequest *request) {
   // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
   std::string source_uri, new_name;
 
-  auto *source_param = request->getParam("source");  // POST parameter
-  auto *name_param = request->getParam("name");
+  auto *source_param = request->getParam("source", true);  // true = POST parameter
+  auto *name_param = request->getParam("name", true);
 
   if (source_param && name_param) {
     source_uri = source_param->value().c_str();
@@ -2222,7 +2222,7 @@ void HttpFileServer::handle_api_mkdir(AsyncWebServerRequest *request) {
   // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
   std::string dir_uri;
 
-  auto *name_param = request->getParam("name");  // POST parameter
+  auto *name_param = request->getParam("name", true);  // true = POST parameter
   if (name_param) {
     dir_uri = name_param->value().c_str();
   } else {
@@ -2263,7 +2263,7 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
   // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
   std::string path_uri;
 
-  auto *path_param = request->getParam("path");  // POST parameter
+  auto *path_param = request->getParam("path", true);  // true = POST parameter
   if (path_param) {
     path_uri = path_param->value().c_str();
   } else {
@@ -2346,7 +2346,7 @@ void HttpFileServer::handle_api_mount(AsyncWebServerRequest *request) {
   // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
   std::string mount_point;
 
-  auto *mount_point_param = request->getParam("mount_point");  // POST parameter
+  auto *mount_point_param = request->getParam("mount_point", true);  // true = POST parameter
   if (mount_point_param) {
     mount_point = mount_point_param->value().c_str();
   } else {
@@ -2378,7 +2378,7 @@ void HttpFileServer::handle_api_unmount(AsyncWebServerRequest *request) {
   // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
   std::string mount_point;
 
-  auto *mount_point_param = request->getParam("mount_point");  // POST parameter
+  auto *mount_point_param = request->getParam("mount_point", true);  // true = POST parameter
   if (mount_point_param) {
     mount_point = mount_point_param->value().c_str();
   } else {
@@ -2410,7 +2410,7 @@ void HttpFileServer::handle_api_remount(AsyncWebServerRequest *request) {
   // Get parameters - try getParam() first (for URL-encoded), then body_buffer_ (for raw POST)
   std::string mount_point;
 
-  auto *mount_point_param = request->getParam("mount_point");  // POST parameter
+  auto *mount_point_param = request->getParam("mount_point", true);  // true = POST parameter
   if (mount_point_param) {
     mount_point = mount_point_param->value().c_str();
   } else {
