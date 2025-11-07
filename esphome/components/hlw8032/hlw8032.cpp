@@ -22,17 +22,15 @@ void HLW8032Component::loop() {
     this->raw_data_index_ = 2;
     this->check_ = 0;
   } else if (this->raw_data_index_ >= 2 && this->raw_data_index_ < 24) {
-    this->raw_data_[this->raw_data_index_] = data;
-    if (this->raw_data_index_ < 23) {
+    this->raw_data_[this->raw_data_index_++] = data;
+    if (this->raw_data_index_ < 24) {
       this->check_ += data;
-    }
-    this->raw_data_index_++;
-    if (this->raw_data_index_ == 24) {
+    } else if (this->raw_data_index_ == 24) {
       if (this->check_ == this->raw_data_[23]) {
         this->parse_data_();
-      } else
+      } else {
         ESP_LOGW(TAG, "Invalid checksum: 0x%02X != 0x%02X", this->check_, this->raw_data_[23]);
-
+      }
       this->raw_data_index_ = 0;
       this->header_found_ = false;
       memset(this->raw_data_, 0, 24);
@@ -95,7 +93,6 @@ void HLW8032Component::parse_data_() {
     power_cycle_exceeds_range = state_reg & (1 << 1);
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   ESP_LOGVV(TAG,
             "Parsed data:\n"
             "  Voltage: Parameter REG 0x%06" PRIX32 ", REG 0x%06" PRIX32 "\n"
@@ -104,7 +101,6 @@ void HLW8032Component::parse_data_() {
             "  Data Update: REG 0x%02" PRIX8 "\n",
             voltage_parameter, voltage_reg, current_parameter, current_reg, power_parameter, power_reg,
             data_update_register);
-#endif
 
   const float current_multiplier = 1 / (this->current_resistor_ * 1000);
 
