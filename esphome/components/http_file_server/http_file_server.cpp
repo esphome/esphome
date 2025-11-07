@@ -64,8 +64,9 @@ void HttpFileServer::loop() {
       this->deferred_mount_op_.mount_point.clear();
 
       ESP_LOGI(TAG, "Executing deferred %s operation for mount point: %s",
-               op_type == DeferredMountOp::MOUNT ? "MOUNT" :
-               op_type == DeferredMountOp::UNMOUNT ? "UNMOUNT" : "REMOUNT",
+               op_type == DeferredMountOp::MOUNT     ? "MOUNT"
+               : op_type == DeferredMountOp::UNMOUNT ? "UNMOUNT"
+                                                     : "REMOUNT",
                mount_point.c_str());
 
       // Execute the deferred operation
@@ -197,7 +198,10 @@ void HttpFileServer::loop() {
 bool HttpFileServer::canHandle(AsyncWebServerRequest *request) const {
   // Handle requests that start with our URL prefix
   std::string uri = request->url().c_str();
-  const char *method_name = (request->method() == HTTP_GET) ? "GET" : (request->method() == HTTP_POST) ? "POST" : (request->method() == HTTP_DELETE) ? "DELETE" : "OTHER";
+  const char *method_name = (request->method() == HTTP_GET)      ? "GET"
+                            : (request->method() == HTTP_POST)   ? "POST"
+                            : (request->method() == HTTP_DELETE) ? "DELETE"
+                                                                 : "OTHER";
 
   ESP_LOGD(TAG, "canHandle called: %s %s (prefix: %s)", method_name, uri.c_str(), this->url_prefix_.c_str());
 
@@ -293,6 +297,7 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     if (content_type.has_value() && content_type.value().find("multipart/form-data") != std::string::npos) {
       // Multipart upload will be handled by handleUpload() callback - do nothing here
       ESP_LOGD(TAG, "Multipart upload detected - will be handled by handleUpload() callback");
+      return;  // Don't send a response here - handleUpload() will send it when final==true
     } else {
       // Old synchronous upload handler for raw binary uploads
       auto *filename_param = request->getParam("filename");
@@ -366,6 +371,34 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     }
   }
 
+  // Check for cancellation (thread-safe)
+  portENTER_CRITICAL(&this->progress_mutex_);
+  bool cancelled = this->progress_.cancelled;
+  portEXIT_CRITICAL(&this->progress_mutex_);
+
+  if (cancelled && this->upload_file_) {
+    ESP_LOGI(TAG, "Upload cancelled by user");
+    fclose(this->upload_file_);
+    this->upload_file_ = nullptr;
+
+    // Delete partial file
+    std::string upload_path = Path::join(this->upload_directory_, this->upload_filename_);
+    if (remove(upload_path.c_str()) == 0) {
+      ESP_LOGI(TAG, "Deleted partial upload file: %s", upload_path.c_str());
+    } else {
+      ESP_LOGE(TAG, "Failed to delete partial upload file: %s (errno: %d)", upload_path.c_str(), errno);
+    }
+
+    portENTER_CRITICAL(&this->progress_mutex_);
+    this->progress_.in_progress = false;
+    portEXIT_CRITICAL(&this->progress_mutex_);
+
+    if (final) {
+      request->send(499, "text/plain", "Upload cancelled");
+    }
+    return;
+  }
+
   // Write data chunk
   if (this->upload_file_ && len > 0) {
     size_t written = fwrite(data, 1, len, this->upload_file_);
@@ -373,6 +406,15 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
       ESP_LOGE(TAG, "Failed to write async upload data");
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
+
+      // Delete partial file on write failure
+      std::string upload_path = Path::join(this->upload_directory_, this->upload_filename_);
+      if (remove(upload_path.c_str()) == 0) {
+        ESP_LOGI(TAG, "Deleted partial upload file after write failure: %s", upload_path.c_str());
+      } else {
+        ESP_LOGE(TAG, "Failed to delete partial upload file: %s (errno: %d)", upload_path.c_str(), errno);
+      }
+
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
       portEXIT_CRITICAL(&this->progress_mutex_);
@@ -725,6 +767,15 @@ std::string HttpFileServer::generate_html_header(const std::string &title) {
       font-size: 0.85rem;
       word-break: break-all;
     }
+    .progress-speed {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #666;
+    }
+    #cancelBtn {
+      margin-top: 1rem;
+      width: 100%;
+    }
   </style>
 </head>
 <body>
@@ -743,600 +794,639 @@ std::string HttpFileServer::generate_html_footer() {
       <div class="progress-bar" id="progressBar">0%</div>
     </div>
     <div class="progress-details" id="progressDetails">Initializing...</div>
+    <div class="progress-speed" id="progressSpeed"></div>
     <div class="progress-file-info">
       <div><strong>From:</strong> <span id="progressSource">-</span></div>
       <div><strong>To:</strong> <span id="progressDest">-</span></div>
     </div>
-  </div>
-</div>
-<script>
-// API base path for this file server instance
-const API_BASE = ')" + this->url_prefix_ + R"(';
-console.log('[FileServer] Script loaded, API_BASE:', API_BASE);
-let progressPollInterval = null;
+    <button id="cancelBtn" class="delete" onclick="cancelOperation()" > Cancel</ button></ div></ div><script>
+             // API base path for this file server instance
+             const API_BASE = ')" + this->url_prefix_ + R"(';
+  console.log('[FileServer] Script loaded, API_BASE:', API_BASE);
+  let progressPollInterval = null;
 
-function showProgressModal(operation, source, destination) {
-  const modal = document.getElementById('progressModal');
-  const title = document.getElementById('progressTitle');
-  const bar = document.getElementById('progressBar');
-  const details = document.getElementById('progressDetails');
-  const sourceEl = document.getElementById('progressSource');
-  const destEl = document.getElementById('progressDest');
-
-  // Set title based on operation type
-  if (operation === 'copy') {
-    title.textContent = 'Copying File...';
-  } else if (operation === 'move') {
-    title.textContent = 'Moving File...';
-  } else if (operation === 'upload') {
-    title.textContent = 'Uploading File...';
-  } else {
-    title.textContent = 'Processing...';
-  }
-
-  bar.style.width = '0%';
-  bar.textContent = '0%';
-  details.textContent = 'Starting operation...';
-  sourceEl.textContent = source;
-
-  // Strip URL prefix from destination if present
-  let cleanDest = destination;
-  if (cleanDest.startsWith(API_BASE)) {
-    cleanDest = cleanDest.substring(API_BASE.length);
-  }
-  destEl.textContent = cleanDest;
-
-  modal.classList.add('active');
-}
-
-function hideProgressModal() {
-  const modal = document.getElementById('progressModal');
-  modal.classList.remove('active');
-  if (progressPollInterval) {
-    clearInterval(progressPollInterval);
-    progressPollInterval = null;
-  }
-}
-
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
-}
-
-function formatTime(ms) {
-  if (ms < 1000) return ms + 'ms';
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return seconds + 's';
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return minutes + 'm ' + remainingSeconds + 's';
-}
-
-let progressPollCount = 0;
-let hasSeenProgress = false;
-let consecutiveTimeouts = 0;
-
-function pollProgress() {
-  console.log('[FileServer] pollProgress() START, count=' + progressPollCount);
-  progressPollCount++;
-
-  const url = API_BASE + '/api/progress';
-  console.log('[FileServer] Polling:', url);
-
-  // Use XMLHttpRequest instead of fetch for better compatibility with ESP32 web server
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET', url, true);
-  xhr.withCredentials = true;  // Include authentication credentials
-  xhr.timeout = 5000; // 5 second timeout
-
-  xhr.onload = function() {
-    console.log('[FileServer] XHR onload, status:', xhr.status, 'response:', xhr.responseText);
-
-    // Reset timeout counter on successful response
-    consecutiveTimeouts = 0;
-
-    if (xhr.status !== 200) {
-      console.error('[FileServer] Bad status:', xhr.status, 'text:', xhr.responseText);
-      consecutiveTimeouts++;
-      checkTimeoutLimit();
-      return;
-    }
-
-    let data;
-    try {
-      data = JSON.parse(xhr.responseText);
-    } catch (e) {
-      console.error('[FileServer] JSON parse error:', e, 'text:', xhr.responseText);
-      return;
-    }
-
-    console.log('[FileServer] Progress update #' + progressPollCount + ':', data);
-
-    if (!data.in_progress) {
-      // Only close if we've seen progress before, or after 10 polls
-      if (hasSeenProgress || progressPollCount > 10) {
-        console.log('[FileServer] Operation complete, closing modal');
-        hideProgressModal();
-        location.reload();
-      } else {
-        console.log('[FileServer] Waiting for operation to start...');
-      }
-      return;
-    }
-
-    // Mark that we've seen progress
-    hasSeenProgress = true;
-
+  function showProgressModal(operation, source, destination) {
+    const modal = document.getElementById('progressModal');
+    const title = document.getElementById('progressTitle');
     const bar = document.getElementById('progressBar');
     const details = document.getElementById('progressDetails');
+    const sourceEl = document.getElementById('progressSource');
+    const destEl = document.getElementById('progressDest');
 
-    const percentage = data.percentage || 0;
-    bar.style.width = percentage + '%';
-    bar.textContent = percentage.toFixed(1) + '%';
-
-    let detailText = formatBytes(data.transferred_bytes) + ' / ' + formatBytes(data.total_bytes);
-    if (data.elapsed_ms) {
-      detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
-    }
-    if (data.remaining_ms) {
-      detailText += ' • Remaining: ' + formatTime(data.remaining_ms);
-    }
-
-    details.textContent = detailText;
-    console.log('[FileServer] Updated progress bar:', percentage.toFixed(1) + '%');
-  };
-
-  xhr.onerror = function() {
-    console.error('[FileServer] XHR network error, status:', xhr.status, 'readyState:', xhr.readyState);
-    consecutiveTimeouts++;
-    checkTimeoutLimit();
-  };
-
-  xhr.ontimeout = function() {
-    console.error('[FileServer] XHR timeout after 5s (consecutive: ' + (consecutiveTimeouts + 1) + ')');
-    consecutiveTimeouts++;
-    checkTimeoutLimit();
-  };
-
-  xhr.onreadystatechange = function() {
-    console.log('[FileServer] XHR readyState changed to:', xhr.readyState, 'status:', xhr.status);
-  };
-
-  try {
-    xhr.send();
-    console.log('[FileServer] XHR sent successfully');
-  } catch (e) {
-    console.error('[FileServer] XHR send failed:', e);
-  }
-}
-
-function checkTimeoutLimit() {
-  // Close modal after 5 consecutive timeouts (25 seconds of no responses)
-  // This handles the case where upload is blocking the server from responding
-  if (consecutiveTimeouts >= 5) {
-    console.warn('[FileServer] Too many consecutive timeouts (' + consecutiveTimeouts + '), closing modal');
-    alert('Progress tracking unavailable - the operation may still be running in the background. Please refresh the page in a few moments.');
-    hideProgressModal();
-  }
-}
-
-function startProgressPolling() {
-  console.log('[FileServer] startProgressPolling called');
-  // Reset progress tracking
-  progressPollCount = 0;
-  hasSeenProgress = false;
-  consecutiveTimeouts = 0;
-
-  if (progressPollInterval) {
-    clearInterval(progressPollInterval);
-  }
-  // Poll every 500ms
-  progressPollInterval = setInterval(pollProgress, 500);
-  console.log('[FileServer] Set interval ID:', progressPollInterval);
-  // First poll after 250ms delay to give backend time to start tracking
-  setTimeout(pollProgress, 250);
-  console.log('[FileServer] Scheduled first poll in 250ms');
-}
-
-function delete_file(path) {
-  if (confirm('Are you sure you want to delete this file?')) {
-    fetch(API_BASE + '/api/delete', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'path=' + encodeURIComponent(path)
-    })
-      .then(response => {
-        if (!response.ok) {
-          return response.text().then(text => {
-            throw new Error('HTTP ' + response.status + ': ' + text);
-          });
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data.success) {
-          alert('File deleted successfully!');
-          location.reload();
-        } else {
-          alert('Delete failed: ' + (data.error || 'Unknown error'));
-        }
-      })
-      .catch(error => {
-        alert('Error: ' + error);
-      });
-  }
-}
-
-async function delete_directory(path) {
-  try {
-    // First do lightweight check if directory is empty
-    const emptyCheck = await fetch(API_BASE + '/api/dirisempty?path=' + encodeURIComponent(path));
-    const emptyInfo = await emptyCheck.json();
-
-    if (emptyInfo.error) {
-      alert('Error checking directory: ' + emptyInfo.error);
-      return;
-    }
-
-    let message;
-    if (emptyInfo.is_empty) {
-      // Fast path for empty directories
-      message = 'Delete empty directory?';
+    // Set title based on operation type
+    if (operation == = 'copy') {
+      title.textContent = 'Copying File...';
+    } else if (operation == = 'move') {
+      title.textContent = 'Moving File...';
+    } else if (operation == = 'upload') {
+      title.textContent = 'Uploading File...';
     } else {
-      // Only count contents if directory is not empty
-      const response = await fetch(API_BASE + '/api/dirinfo?path=' + encodeURIComponent(path));
-      const info = await response.json();
+      title.textContent = 'Processing...';
+    }
 
-      if (info.error) {
-        alert('Error checking directory contents: ' + info.error);
+    bar.style.width = '0%';
+    bar.textContent = '0%';
+    details.textContent = 'Starting operation...';
+    sourceEl.textContent = source;
+
+    // Strip URL prefix from destination if present
+    let cleanDest = destination;
+    if (cleanDest.startsWith(API_BASE)) {
+      cleanDest = cleanDest.substring(API_BASE.length);
+    }
+    destEl.textContent = cleanDest;
+
+    modal.classList.add('active');
+  }
+
+  function hideProgressModal() {
+    const modal = document.getElementById('progressModal');
+    modal.classList.remove('active');
+    if (progressPollInterval) {
+      clearInterval(progressPollInterval);
+      progressPollInterval = null;
+    }
+  }
+
+  function formatBytes(bytes) {
+    if (bytes == = 0)
+      return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+  }
+
+  function formatTime(ms) {
+    if (ms < 1000)
+      return ms + 'ms';
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60)
+      return seconds + 's';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return minutes + 'm ' + remainingSeconds + 's';
+  }
+
+  let progressPollCount = 0;
+  let hasSeenProgress = false;
+  let consecutiveTimeouts = 0;
+
+  function pollProgress() {
+    console.log('[FileServer] pollProgress() START, count=' + progressPollCount);
+    progressPollCount++;
+
+    const url = API_BASE + '/api/progress';
+    console.log('[FileServer] Polling:', url);
+
+    // Use XMLHttpRequest instead of fetch for better compatibility with ESP32 web server
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.withCredentials = true;  // Include authentication credentials
+    xhr.timeout = 5000;          // 5 second timeout
+
+    xhr.onload = function() {
+      console.log('[FileServer] XHR onload, status:', xhr.status, 'response:', xhr.responseText);
+
+      // Reset timeout counter on successful response
+      consecutiveTimeouts = 0;
+
+      if (xhr.status != = 200) {
+        console.error('[FileServer] Bad status:', xhr.status, 'text:', xhr.responseText);
+        consecutiveTimeouts++;
+        checkTimeoutLimit();
         return;
       }
 
-      const dirName = path.split('/').pop();
-      message = 'Delete directory "' + dirName + '" and all its contents?\n\n';
-      message += 'This will delete:\n';
-      if (info.file_count > 0) {
-        message += '- ' + info.file_count + ' file' + (info.file_count > 1 ? 's' : '') + '\n';
+      let data;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch (e) {
+        console.error('[FileServer] JSON parse error:', e, 'text:', xhr.responseText);
+        return;
       }
-      if (info.dir_count > 0) {
-        message += '- ' + info.dir_count + ' subdirector' + (info.dir_count > 1 ? 'ies' : 'y') + '\n';
-      }
-      message += '\nThis action cannot be undone!';
-    }
 
-    if (!confirm(message)) {
+      console.log('[FileServer] Progress update #' + progressPollCount + ':', data);
+
+      if (!data.in_progress) {
+        // Only close if we've seen progress before, or after 10 polls
+        if (hasSeenProgress || progressPollCount > 10) {
+          console.log('[FileServer] Operation complete, closing modal');
+          hideProgressModal();
+          location.reload();
+        } else {
+          console.log('[FileServer] Waiting for operation to start...');
+        }
+        return;
+      }
+
+      // Mark that we've seen progress
+      hasSeenProgress = true;
+
+      const bar = document.getElementById('progressBar');
+      const details = document.getElementById('progressDetails');
+      const speed = document.getElementById('progressSpeed');
+
+      const percentage = data.percentage || 0;
+      bar.style.width = percentage + '%';
+      bar.textContent = percentage.toFixed(1) + '%';
+
+      let detailText = formatBytes(data.transferred_bytes) + ' / ' + formatBytes(data.total_bytes);
+      if (data.elapsed_ms) {
+        detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
+      }
+      if (data.remaining_ms) {
+        detailText += ' • Remaining: ' + formatTime(data.remaining_ms);
+      }
+
+      details.textContent = detailText;
+
+      // Display average speed
+      if (data.avg_speed && data.avg_speed > 0) {
+        speed.textContent = 'Average speed: ' + formatBytes(data.avg_speed) + '/s';
+      } else {
+        speed.textContent = '';
+      }
+
+      console.log('[FileServer] Updated progress bar:', percentage.toFixed(1) + '%');
+    };
+
+    xhr.onerror = function() {
+      console.error('[FileServer] XHR network error, status:', xhr.status, 'readyState:', xhr.readyState);
+      consecutiveTimeouts++;
+      checkTimeoutLimit();
+    };
+
+    xhr.ontimeout = function() {
+      console.error('[FileServer] XHR timeout after 5s (consecutive: ' + (consecutiveTimeouts + 1) + ')');
+      consecutiveTimeouts++;
+      checkTimeoutLimit();
+    };
+
+    xhr.onreadystatechange = function() {
+      console.log('[FileServer] XHR readyState changed to:', xhr.readyState, 'status:', xhr.status);
+    };
+
+    try {
+      xhr.send();
+      console.log('[FileServer] XHR sent successfully');
+    } catch (e) {
+      console.error('[FileServer] XHR send failed:', e);
+    }
+  }
+
+  function checkTimeoutLimit() {
+    // Close modal after 5 consecutive timeouts (25 seconds of no responses)
+    // This handles the case where upload is blocking the server from responding
+    if (consecutiveTimeouts >= 5) {
+      console.warn('[FileServer] Too many consecutive timeouts (' + consecutiveTimeouts + '), closing modal');
+      alert(
+          'Progress tracking unavailable - the operation may still be running in the background. Please refresh the page in a few moments.');
+      hideProgressModal();
+    }
+  }
+
+  function startProgressPolling() {
+    console.log('[FileServer] startProgressPolling called');
+    // Reset progress tracking
+    progressPollCount = 0;
+    hasSeenProgress = false;
+    consecutiveTimeouts = 0;
+
+    if (progressPollInterval) {
+      clearInterval(progressPollInterval);
+    }
+    // Poll every 500ms
+    progressPollInterval = setInterval(pollProgress, 500);
+    console.log('[FileServer] Set interval ID:', progressPollInterval);
+    // First poll after 250ms delay to give backend time to start tracking
+    setTimeout(pollProgress, 250);
+    console.log('[FileServer] Scheduled first poll in 250ms');
+  }
+
+  function cancelOperation() {
+    if (!confirm('Are you sure you want to cancel the current operation?')) {
       return;
     }
 
-    // Perform deletion using API endpoint
-    fetch(API_BASE + '/api/delete', {
+    fetch(API_BASE + '/api/cancel', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(response = > response.json())
+        .then(data = >
+                     {
+                       if (data.success) {
+                         alert('Operation cancelled');
+                         hideProgressModal();
+                         location.reload();
+                       } else {
+                         alert(data.message || 'No operation in progress');
+                       }
+                     })
+        .catch(error = > { alert('Error cancelling operation: ' + error); });
+  }
+
+  function delete_file(path) {
+    if (confirm('Are you sure you want to delete this file?')) {
+      fetch(API_BASE + '/api/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'path=' + encodeURIComponent(path)
+      })
+          .then(response = >
+                           {
+                             if (!response.ok) {
+                               return response.text().then(
+                                   text = > { throw new Error('HTTP ' + response.status + ': ' + text); });
+                             }
+                             return response.json();
+                           })
+          .then(data = >
+                       {
+                         if (data.success) {
+                           alert('File deleted successfully!');
+                           location.reload();
+                         } else {
+                           alert('Delete failed: ' + (data.error || 'Unknown error'));
+                         }
+                       })
+          .catch(error = > { alert('Error: ' + error); });
+    }
+  }
+
+  async function delete_directory(path) {
+    try {
+      // First do lightweight check if directory is empty
+      const emptyCheck = await fetch(API_BASE + '/api/dirisempty?path=' + encodeURIComponent(path));
+      const emptyInfo = await emptyCheck.json();
+
+      if (emptyInfo.error) {
+        alert('Error checking directory: ' + emptyInfo.error);
+        return;
+      }
+
+      let message;
+      if (emptyInfo.is_empty) {
+        // Fast path for empty directories
+        message = 'Delete empty directory?';
+      } else {
+        // Only count contents if directory is not empty
+        const response = await fetch(API_BASE + '/api/dirinfo?path=' + encodeURIComponent(path));
+        const info = await response.json();
+
+        if (info.error) {
+          alert('Error checking directory contents: ' + info.error);
+          return;
+        }
+
+        const dirName = path.split('/').pop();
+        message = 'Delete directory "' + dirName + '" and all its contents?\n\n';
+        message += 'This will delete:\n';
+        if (info.file_count > 0) {
+          message += '- ' + info.file_count + ' file' + (info.file_count > 1 ? 's' : '') + '\n';
+        }
+        if (info.dir_count > 0) {
+          message += '- ' + info.dir_count + ' subdirector' + (info.dir_count > 1 ? 'ies' : 'y') + '\n';
+        }
+        message += '\nThis action cannot be undone!';
+      }
+
+      if (!confirm(message)) {
+        return;
+      }
+
+      // Perform deletion using API endpoint
+      fetch(API_BASE + '/api/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'path=' + encodeURIComponent(path)
+      })
+          .then(response = >
+                           {
+                             if (!response.ok) {
+                               return response.text().then(
+                                   text = > { throw new Error('HTTP ' + response.status + ': ' + text); });
+                             }
+                             return response.json();
+                           })
+          .then(data = >
+                       {
+                         if (data.success) {
+                           alert('Directory deleted successfully!');
+                           location.reload();
+                         } else {
+                           alert('Delete failed: ' + (data.error || 'Unknown error'));
+                         }
+                       })
+          .catch(error = > { alert('Error: ' + error); });
+    } catch (error) {
+      alert('Error: ' + error);
+    }
+  }
+
+  function download_file(path, filename) {
+    // Direct download - just navigate to the URL
+    // The Content-Disposition: attachment header will trigger the browser's save dialog
+    window.location.href = path;
+  }
+
+  // Helper function to suggest a new filename with (1) appended before extension
+  function suggestNewFilename(filepath) {
+    const lastSlashIndex = filepath.lastIndexOf('/');
+    const path = filepath.substring(0, lastSlashIndex + 1);
+    const filename = filepath.substring(lastSlashIndex + 1);
+
+    const lastDotIndex = filename.lastIndexOf('.');
+    if (lastDotIndex == = -1) {
+      // No extension
+      return filepath + ' (1)';
+    } else {
+      const basename = filename.substring(0, lastDotIndex);
+      const extension = filename.substring(lastDotIndex);
+      return path + basename + ' (1)' + extension;
+    }
+  }
+
+  // Helper function to check if a file exists
+  async function fileExists(filepath) {
+    try {
+      const response = await fetch(API_BASE + '/api/exists?path=' + encodeURIComponent(filepath));
+      const data = await response.json();
+      return data.exists;
+    } catch (error) {
+      console.error('Error checking file existence:', error);
+      return false;
+    }
+  }
+
+  // Helper function to handle file copy with existence check
+  async function performCopy(source, destination) {
+    console.log('[FileServer] performCopy called:', source, '->', destination);
+    showProgressModal('copy', source, destination);
+    console.log('[FileServer] Starting progress polling');
+    startProgressPolling();
+
+    fetch(API_BASE + '/api/copy', {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'path=' + encodeURIComponent(path)
+      body: 'source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination)
     })
-      .then(response => {
-        if (!response.ok) {
-          return response.text().then(text => {
-            throw new Error('HTTP ' + response.status + ': ' + text);
-          });
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data.success) {
-          alert('Directory deleted successfully!');
-          location.reload();
-        } else {
-          alert('Delete failed: ' + (data.error || 'Unknown error'));
-        }
-      })
-      .catch(error => {
-        alert('Error: ' + error);
-      });
-  } catch (error) {
-    alert('Error: ' + error);
-  }
-}
-
-function download_file(path, filename) {
-  // Direct download without progress modal (blocking download prevents progress tracking)
-  fetch(path)
-    .then(response => response.blob())
-    .then(blob => {
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      link.click();
-    })
-    .catch(error => {
-      alert('Download error: ' + error);
-    });
-}
-
-// Helper function to suggest a new filename with (1) appended before extension
-function suggestNewFilename(filepath) {
-  const lastSlashIndex = filepath.lastIndexOf('/');
-  const path = filepath.substring(0, lastSlashIndex + 1);
-  const filename = filepath.substring(lastSlashIndex + 1);
-
-  const lastDotIndex = filename.lastIndexOf('.');
-  if (lastDotIndex === -1) {
-    // No extension
-    return filepath + ' (1)';
-  } else {
-    const basename = filename.substring(0, lastDotIndex);
-    const extension = filename.substring(lastDotIndex);
-    return path + basename + ' (1)' + extension;
-  }
-}
-
-// Helper function to check if a file exists
-async function fileExists(filepath) {
-  try {
-    const response = await fetch(API_BASE + '/api/exists?path=' + encodeURIComponent(filepath));
-    const data = await response.json();
-    return data.exists;
-  } catch (error) {
-    console.error('Error checking file existence:', error);
-    return false;
-  }
-}
-
-// Helper function to handle file copy with existence check
-async function performCopy(source, destination) {
-  console.log('[FileServer] performCopy called:', source, '->', destination);
-  showProgressModal('copy', source, destination);
-  console.log('[FileServer] Starting progress polling');
-  startProgressPolling();
-
-  fetch(API_BASE + '/api/copy', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination)
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        // Task started successfully - polling will handle closing modal when done
-        console.log('[FileServer] Copy task started, polling will track progress');
-      } else {
-        hideProgressModal();
-        alert('Copy failed: ' + (data.error || 'Unknown error'));
-      }
-    })
-    .catch(error => {
-      hideProgressModal();
-      alert('Error: ' + error);
-    });
-}
-
-async function copy_file(source) {
-  let destination = prompt('Enter destination path:', source);
-  if (!destination) return;
-
-  // Check if destination exists
-  const exists = await fileExists(destination);
-  if (exists) {
-    const choice = confirm('File already exists. Click OK to overwrite, or Cancel to change the filename.');
-    if (!choice) {
-      // User wants to change filename - suggest new name with (1) appended
-      const suggested = suggestNewFilename(destination);
-      destination = prompt('Enter new destination path:', suggested);
-      if (!destination) return;
-    }
-  }
-
-  performCopy(source, destination);
-}
-
-// Helper function to handle file move with existence check
-async function performMove(source, destination) {
-  showProgressModal('move', source, destination);
-  startProgressPolling();
-
-  fetch(API_BASE + '/api/move', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination)
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        // Task started successfully - polling will handle closing modal when done
-        console.log('[FileServer] Move task started, polling will track progress');
-      } else {
-        hideProgressModal();
-        alert('Move failed: ' + (data.error || 'Unknown error'));
-      }
-    })
-    .catch(error => {
-      hideProgressModal();
-      alert('Error: ' + error);
-    });
-}
-
-async function move_file(source) {
-  let destination = prompt('Enter destination path:', source);
-  if (!destination) return;
-
-  // Check if destination exists
-  const exists = await fileExists(destination);
-  if (exists) {
-    const choice = confirm('File already exists. Click OK to overwrite, or Cancel to change the filename.');
-    if (!choice) {
-      // User wants to change filename - suggest new name with (1) appended
-      const suggested = suggestNewFilename(destination);
-      destination = prompt('Enter new destination path:', suggested);
-      if (!destination) return;
-    }
-  }
-
-  performMove(source, destination);
-}
-function rename_file(source) {
-  const currentName = source.split('/').pop();
-  const newName = prompt('Enter new name:', currentName);
-  if (!newName || newName === currentName) return;
-
-  fetch(API_BASE + '/api/rename', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'source=' + encodeURIComponent(source) + '&name=' + encodeURIComponent(newName)
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('File renamed successfully!');
-        location.reload();
-      } else {
-        alert('Rename failed: ' + (data.error || 'Unknown error'));
-      }
-    })
-    .catch(error => alert('Error: ' + error));
-}
-function create_directory() {
-  const name = prompt('Enter directory name:');
-  if (!name || !name.trim()) return;
-
-  // Create directory in current location
-  let currentPath = window.location.pathname;
-  if (currentPath.endsWith('/')) {
-    currentPath = currentPath.slice(0, -1);
-  }
-  const fullPath = currentPath + '/' + name.trim();
-
-  fetch(API_BASE + '/api/mkdir', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'name=' + encodeURIComponent(fullPath)
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('Directory created successfully!');
-        location.reload();
-      } else {
-        alert('Create directory failed: ' + (data.error || 'Unknown error'));
-      }
-    })
-    .catch(error => alert('Error: ' + error));
-}
-
-function mount_device(mount_point) {
-  if (!confirm('Mount device at ' + mount_point + '?')) return;
-
-  fetch(API_BASE + '/api/mount', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'mount_point=' + encodeURIComponent(mount_point)
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('Device mounted successfully!');
-        location.reload();
-      } else {
-        alert('Mount failed: ' + (data.error || 'Unknown error'));
-      }
-    })
-    .catch(error => alert('Error: ' + error));
-}
-
-function unmount_device(mount_point) {
-  if (!confirm('Unmount device at ' + mount_point + '?')) return;
-
-  fetch(API_BASE + '/api/unmount', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'mount_point=' + encodeURIComponent(mount_point)
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('Device unmounted successfully!');
-        location.reload();
-      } else {
-        alert('Unmount failed: ' + (data.error || 'Unknown error'));
-      }
-    })
-    .catch(error => alert('Error: ' + error));
-}
-
-function remount_device(mount_point) {
-  if (!confirm('Remount device at ' + mount_point + '?')) return;
-
-  fetch(API_BASE + '/api/mount', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'mount_point=' + encodeURIComponent(mount_point)
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('Device remounted successfully!');
-        location.reload();
-      } else {
-        alert('Remount failed: ' + (data.error || 'Unknown error'));
-      }
-    })
-    .catch(error => alert('Error: ' + error));
-}
-
-function handleUpload(event) {
-  event.preventDefault();
-
-  const fileInput = document.getElementById('uploadFile');
-  const file = fileInput.files[0];
-
-  if (!file) {
-    alert('Please select a file');
-    return false;
-  }
-
-  // Show progress modal
-  showProgressModal('upload', file.name, window.location.pathname);
-  startProgressPolling();
-
-  // Use FormData for async chunked upload
-  const formData = new FormData();
-  formData.append('file', file, file.name);
-
-  let uploadUrl = window.location.pathname;
-  if (!uploadUrl.endsWith('/')) {
-    uploadUrl += '/';
-  }
-
-  fetch(uploadUrl, {
-    method: 'POST',
-    body: formData
-    // Don't set Content-Type - browser will set it with boundary for multipart/form-data
-  })
-    .then(response => {
-      if (!response.ok) {
-        return response.text().then(text => {
-          throw new Error('Upload failed: ' + text);
+        .then(response = > response.json())
+        .then(data = >
+                     {
+                       if (data.success) {
+                         // Task started successfully - polling will handle closing modal when done
+                         console.log('[FileServer] Copy task started, polling will track progress');
+                       } else {
+                         hideProgressModal();
+                         alert('Copy failed: ' + (data.error || 'Unknown error'));
+                       }
+                     })
+        .catch(error = > {
+          hideProgressModal();
+          alert('Error: ' + error);
         });
-      }
-      return response.text();
-    })
-    .then(() => {
-      // Upload complete - polling will detect and close modal
-      setTimeout(() => {
-        hideProgressModal();
-        alert('File uploaded successfully!');
-        location.reload();
-      }, 500);
-    })
-    .catch(error => {
-      hideProgressModal();
-      alert('Error: ' + error);
-    });
+  }
 
-  return false;
-}
+  async function copy_file(source) {
+    let destination = prompt('Enter destination path:', source);
+    if (!destination)
+      return;
+
+    // Check if destination exists
+    const exists = await fileExists(destination);
+    if (exists) {
+      const choice = confirm('File already exists. Click OK to overwrite, or Cancel to change the filename.');
+      if (!choice) {
+        // User wants to change filename - suggest new name with (1) appended
+        const suggested = suggestNewFilename(destination);
+        destination = prompt('Enter new destination path:', suggested);
+        if (!destination)
+          return;
+      }
+    }
+
+    performCopy(source, destination);
+  }
+
+  // Helper function to handle file move with existence check
+  async function performMove(source, destination) {
+    showProgressModal('move', source, destination);
+    startProgressPolling();
+
+    fetch(API_BASE + '/api/move', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination)
+    })
+        .then(response = > response.json())
+        .then(data = >
+                     {
+                       if (data.success) {
+                         // Task started successfully - polling will handle closing modal when done
+                         console.log('[FileServer] Move task started, polling will track progress');
+                       } else {
+                         hideProgressModal();
+                         alert('Move failed: ' + (data.error || 'Unknown error'));
+                       }
+                     })
+        .catch(error = > {
+          hideProgressModal();
+          alert('Error: ' + error);
+        });
+  }
+
+  async function move_file(source) {
+    let destination = prompt('Enter destination path:', source);
+    if (!destination)
+      return;
+
+    // Check if destination exists
+    const exists = await fileExists(destination);
+    if (exists) {
+      const choice = confirm('File already exists. Click OK to overwrite, or Cancel to change the filename.');
+      if (!choice) {
+        // User wants to change filename - suggest new name with (1) appended
+        const suggested = suggestNewFilename(destination);
+        destination = prompt('Enter new destination path:', suggested);
+        if (!destination)
+          return;
+      }
+    }
+
+    performMove(source, destination);
+  }
+  function rename_file(source) {
+    const currentName = source.split('/').pop();
+    const newName = prompt('Enter new name:', currentName);
+    if (!newName || newName == = currentName)
+      return;
+
+    fetch(API_BASE + '/api/rename', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'source=' + encodeURIComponent(source) + '&name=' + encodeURIComponent(newName)
+    })
+        .then(response = > response.json())
+        .then(data = >
+                     {
+                       if (data.success) {
+                         alert('File renamed successfully!');
+                         location.reload();
+                       } else {
+                         alert('Rename failed: ' + (data.error || 'Unknown error'));
+                       }
+                     })
+        .catch(error = > alert('Error: ' + error));
+  }
+  function create_directory() {
+    const name = prompt('Enter directory name:');
+    if (!name || !name.trim())
+      return;
+
+    // Create directory in current location
+    let currentPath = window.location.pathname;
+    if (currentPath.endsWith('/')) {
+      currentPath = currentPath.slice(0, -1);
+    }
+    const fullPath = currentPath + '/' + name.trim();
+
+    fetch(API_BASE + '/api/mkdir', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'name=' + encodeURIComponent(fullPath)
+    })
+        .then(response = > response.json())
+        .then(data = >
+                     {
+                       if (data.success) {
+                         alert('Directory created successfully!');
+                         location.reload();
+                       } else {
+                         alert('Create directory failed: ' + (data.error || 'Unknown error'));
+                       }
+                     })
+        .catch(error = > alert('Error: ' + error));
+  }
+
+  function mount_device(mount_point) {
+    if (!confirm('Mount device at ' + mount_point + '?'))
+      return;
+
+    fetch(API_BASE + '/api/mount', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'mount_point=' + encodeURIComponent(mount_point)
+    })
+        .then(response = > response.json())
+        .then(data = >
+                     {
+                       if (data.success) {
+                         alert('Device mounted successfully!');
+                         location.reload();
+                       } else {
+                         alert('Mount failed: ' + (data.error || 'Unknown error'));
+                       }
+                     })
+        .catch(error = > alert('Error: ' + error));
+  }
+
+  function unmount_device(mount_point) {
+    if (!confirm('Unmount device at ' + mount_point + '?'))
+      return;
+
+    fetch(API_BASE + '/api/unmount', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'mount_point=' + encodeURIComponent(mount_point)
+    })
+        .then(response = > response.json())
+        .then(data = >
+                     {
+                       if (data.success) {
+                         alert('Device unmounted successfully!');
+                         location.reload();
+                       } else {
+                         alert('Unmount failed: ' + (data.error || 'Unknown error'));
+                       }
+                     })
+        .catch(error = > alert('Error: ' + error));
+  }
+
+  function remount_device(mount_point) {
+    if (!confirm('Remount device at ' + mount_point + '?'))
+      return;
+
+    fetch(API_BASE + '/api/mount', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'mount_point=' + encodeURIComponent(mount_point)
+    })
+        .then(response = > response.json())
+        .then(data = >
+                     {
+                       if (data.success) {
+                         alert('Device remounted successfully!');
+                         location.reload();
+                       } else {
+                         alert('Remount failed: ' + (data.error || 'Unknown error'));
+                       }
+                     })
+        .catch(error = > alert('Error: ' + error));
+  }
+
+  function handleUpload(event) {
+    event.preventDefault();
+
+    const fileInput = document.getElementById('uploadFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+      alert('Please select a file');
+      return false;
+    }
+
+    // Show progress modal
+    showProgressModal('upload', file.name, window.location.pathname);
+    startProgressPolling();
+
+    // Use FormData for async chunked upload
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+
+    let uploadUrl = window.location.pathname;
+    if (!uploadUrl.endsWith('/')) {
+      uploadUrl += '/';
+    }
+
+    fetch(uploadUrl, {
+      method: 'POST',
+      body: formData
+      // Don't set Content-Type - browser will set it with boundary for multipart/form-data
+    })
+        .then(response = >
+                         {
+                           if (!response.ok) {
+                             return response.text().then(text = > { throw new Error('Upload failed: ' + text); });
+                           }
+                           return response.text();
+                         })
+        .then(() = >
+                   {
+                     // Upload complete - polling will detect and close modal
+                     setTimeout(() = >
+                                     {
+                                       hideProgressModal();
+                                       alert('File uploaded successfully!');
+                                       location.reload();
+                                     },
+                                500);
+                   })
+        .catch(error = > {
+          hideProgressModal();
+          alert('Error: ' + error);
+        });
+
+    return false;
+  }
 </script>
 </body>
 </html>
@@ -1371,7 +1461,8 @@ std::string HttpFileServer::generate_file_row(const FileInfo &info, const std::s
   if (info.is_directory) {
     if (info.is_mount_point && !info.mounted) {
       // Unmounted mount point - show as disabled (not clickable)
-      row += "<span class=\"folder unmounted\" style=\"color: #999; cursor: not-allowed;\">" + info.name + " (unmounted)</span>";
+      row += "<span class=\"folder unmounted\" style=\"color: #999; cursor: not-allowed;\">" + info.name +
+             " (unmounted)</span>";
     } else {
       // Normal directory or mounted mount point
       row += "<a href=\"" + file_uri + "\" class=\"folder\">" + info.name + "</a>";
@@ -1570,6 +1661,8 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
 
     AsyncWebServerResponse *response = request->beginResponse(200, mime_type.c_str(), content);
     response->addHeader("Content-Disposition", content_disposition.c_str());
+    response->addHeader("Content-Length", std::to_string(file_size).c_str());
+    response->addHeader("Cache-Control", "no-cache");
     request->send(response);
 
     ESP_LOGI(TAG, "Download sent: %zu bytes", bytes_read);
@@ -1580,11 +1673,11 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
     // Get raw httpd_req_t
     httpd_req_t *req = static_cast<httpd_req_t *>(*request);
 
-    // Create task parameters
-    auto *task_params = new DownloadTaskParams{req, filepath, filename, mime_type, file_size, xTaskGetCurrentTaskHandle()};
+    // Create task parameters (no caller_task since we won't wait)
+    auto *task_params = new DownloadTaskParams{req, filepath, filename, mime_type, file_size, nullptr};
 
-    // Create FreeRTOS task for background download (8KB stack, priority 1)
-    BaseType_t result = xTaskCreate(download_task, "http_download", 8192, task_params, 1, nullptr);
+    // Create FreeRTOS task for background download (16KB stack for larger buffers, priority 1)
+    BaseType_t result = xTaskCreate(download_task, "http_download", 16384, task_params, 1, nullptr);
 
     if (result != pdPASS) {
       ESP_LOGE(TAG, "Failed to create download task");
@@ -1593,12 +1686,9 @@ void HttpFileServer::handle_file_download(AsyncWebServerRequest *request, const 
       return;
     }
 
-    ESP_LOGD(TAG, "Download task created, waiting for completion...");
-
-    // Wait for download task to complete
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-    ESP_LOGD(TAG, "Download task finished");
+    ESP_LOGI(TAG, "Download task created for %s (%zu bytes) - processing in background", filename.c_str(), file_size);
+    // Don't wait - let the task handle the download independently
+    // The browser will receive the chunked response as the task sends it
   }
 }
 
@@ -1640,8 +1730,8 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   this->progress_.start_time = millis();
   portEXIT_CRITICAL(&this->progress_mutex_);
 
-  ESP_LOGI(TAG, "Starting upload: %s (%zu bytes, handler address: %p)", upload_path.c_str(),
-           request->contentLength(), (void *) this);
+  ESP_LOGI(TAG, "Starting upload: %s (%zu bytes, handler address: %p)", upload_path.c_str(), request->contentLength(),
+           (void *) this);
 
   // Open file for writing
   FILE *file = fopen(upload_path.c_str(), "wb");
@@ -1657,8 +1747,8 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
   // Get raw httpd_req_t to read POST body
   httpd_req_t *req = static_cast<httpd_req_t *>(*request);
   size_t remaining = request->contentLength();
-  const size_t BUFFER_SIZE = 4096;  // Increased from 2KB to 4KB for better performance
-  auto buffer = std::make_unique<uint8_t[]>(BUFFER_SIZE);  // Heap allocation to avoid stack overflow
+  // Use architecture-specific buffer size (4KB/8KB/16KB based on ESP32 variant)
+  auto buffer = std::make_unique<uint8_t[]>(FILE_BUFFER_SIZE);  // Heap allocation to avoid stack overflow
   bool success = true;
 
   ESP_LOGI(TAG, "Reading upload data: %zu bytes total", remaining);
@@ -1669,7 +1759,7 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
     // Feed the watchdog to prevent timeout on large uploads
     App.feed_wdt();
 
-    size_t to_read = (remaining > BUFFER_SIZE) ? BUFFER_SIZE : remaining;
+    size_t to_read = (remaining > FILE_BUFFER_SIZE) ? FILE_BUFFER_SIZE : remaining;
     int received = httpd_req_recv(req, reinterpret_cast<char *>(buffer.get()), to_read);
 
     if (received <= 0) {
@@ -1704,7 +1794,7 @@ void HttpFileServer::handle_file_upload(AsyncWebServerRequest *request, const st
     }
 
     // Log progress every ~50KB
-    if (current_transferred % (50 * 1024) < BUFFER_SIZE) {
+    if (current_transferred % (50 * 1024) < FILE_BUFFER_SIZE) {
       ESP_LOGD(TAG, "Upload progress: %zu / %zu bytes (%.1f%%)", current_transferred, current_total,
                (float) current_transferred / current_total * 100.0f);
     }
@@ -1915,8 +2005,7 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
   auto *task_params = new CopyTaskParams{this, source, destination, src_stat.st_size, track_progress};
 
   // Create FreeRTOS task for background copy (4KB stack, priority 1)
-  BaseType_t result =
-      xTaskCreate(copy_task, "http_copy", 4096, task_params, 1, nullptr);
+  BaseType_t result = xTaskCreate(copy_task, "http_copy", 4096, task_params, 1, nullptr);
 
   if (result == pdPASS) {
     ESP_LOGI(TAG, "Copy task created successfully");
@@ -1963,8 +2052,7 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
   auto *task_params = new MoveTaskParams{this, source, destination, src_stat.st_size, track_progress};
 
   // Create FreeRTOS task for background move (4KB stack, priority 1)
-  BaseType_t result =
-      xTaskCreate(move_task, "http_move", 4096, task_params, 1, nullptr);
+  BaseType_t result = xTaskCreate(move_task, "http_move", 4096, task_params, 1, nullptr);
 
   if (result == pdPASS) {
     ESP_LOGI(TAG, "Move task created successfully");
@@ -2226,6 +2314,22 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
   ESP_LOGD(TAG, "Progress response sent");
 }
 
+void HttpFileServer::handle_api_cancel(AsyncWebServerRequest *request) {
+  ESP_LOGI(TAG, "Cancel request received");
+
+  // Set cancelled flag (thread-safe)
+  portENTER_CRITICAL(&this->progress_mutex_);
+  if (this->progress_.in_progress) {
+    this->progress_.cancelled = true;
+    ESP_LOGI(TAG, "Cancelled %s operation", this->progress_.operation.c_str());
+    portEXIT_CRITICAL(&this->progress_mutex_);
+    request->send(200, "application/json", "{\"success\":true,\"message\":\"Operation cancelled\"}");
+  } else {
+    portEXIT_CRITICAL(&this->progress_mutex_);
+    request->send(200, "application/json", "{\"success\":false,\"message\":\"No operation in progress\"}");
+  }
+}
+
 void HttpFileServer::handle_api_exists(AsyncWebServerRequest *request) {
   // Get path parameter from query string
   auto *path_param = request->getParam("path");
@@ -2408,15 +2512,18 @@ void HttpFileServer::download_task(void *params) {
   auto *task_params = static_cast<DownloadTaskParams *>(params);
   httpd_req_t *req = task_params->req;
 
-  ESP_LOGI(TAG, "Download task started for %s (size: %zu bytes)", task_params->filename.c_str(), task_params->file_size);
+  ESP_LOGI(TAG, "Download task started for %s (size: %zu bytes)", task_params->filename.c_str(),
+           task_params->file_size);
 
   // Open the file
   FILE *file = fopen(task_params->filepath.c_str(), "rb");
   if (!file) {
     ESP_LOGE(TAG, "Failed to open file for download: %s", task_params->filepath.c_str());
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File not found");
-    // Notify caller task
-    xTaskNotifyGive(task_params->caller_task);
+    // Notify caller task if it's waiting
+    if (task_params->caller_task) {
+      xTaskNotifyGive(task_params->caller_task);
+    }
     delete task_params;
     vTaskDelete(nullptr);
     return;
@@ -2424,19 +2531,22 @@ void HttpFileServer::download_task(void *params) {
 
   // Set response headers
   std::string content_disposition = "attachment; filename=\"" + task_params->filename + "\"";
+  std::string content_length = std::to_string(task_params->file_size);
+
   httpd_resp_set_type(req, task_params->mime_type.c_str());
   httpd_resp_set_hdr(req, "Content-Disposition", content_disposition.c_str());
+  httpd_resp_set_hdr(req, "Content-Length", content_length.c_str());
+  httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
 
-  // Send file in chunks
-  const size_t CHUNK_SIZE = 8192;  // 8KB chunks
-  auto buffer = std::make_unique<uint8_t[]>(CHUNK_SIZE);
+  // Use architecture-specific buffer size (4KB/8KB/16KB based on ESP32 variant)
+  auto buffer = std::make_unique<uint8_t[]>(FILE_BUFFER_SIZE);
   size_t total_sent = 0;
   bool success = true;
 
   while (total_sent < task_params->file_size) {
     App.feed_wdt();  // Feed watchdog for large files
 
-    size_t to_read = std::min(CHUNK_SIZE, task_params->file_size - total_sent);
+    size_t to_read = std::min(FILE_BUFFER_SIZE, task_params->file_size - total_sent);
     size_t bytes_read = fread(buffer.get(), 1, to_read, file);
 
     if (bytes_read == 0) {
@@ -2447,21 +2557,24 @@ void HttpFileServer::download_task(void *params) {
 
     esp_err_t err = httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buffer.get()), bytes_read);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to send chunk: %s", esp_err_to_name(err));
+      ESP_LOGI(TAG, "Download cancelled or connection closed at %zu / %zu bytes (%s)", total_sent,
+               task_params->file_size, esp_err_to_name(err));
       success = false;
       break;
     }
 
     total_sent += bytes_read;
 
-    // Log progress every ~1MB
-    if (total_sent % (1024 * 1024) < CHUNK_SIZE) {
-      ESP_LOGD(TAG, "Download progress: %zu / %zu bytes (%.1f%%)", total_sent, task_params->file_size,
-               (float) total_sent / task_params->file_size * 100.0f);
+    // Log progress every ~5MB for less verbose logging
+    if (total_sent % (5 * 1024 * 1024) < FILE_BUFFER_SIZE) {
+      ESP_LOGI(TAG, "Download progress: %zu / %zu MB (%.1f%%)", total_sent / (1024 * 1024),
+               task_params->file_size / (1024 * 1024), (float) total_sent / task_params->file_size * 100.0f);
     }
 
-    // Yield briefly to other tasks
-    vTaskDelay(1);  // 1 tick = ~10ms
+    // Yield every 4 chunks to balance responsiveness and throughput
+    if ((total_sent / FILE_BUFFER_SIZE) % 4 == 0) {
+      vTaskDelay(1);  // 1 tick = ~10ms
+    }
   }
 
   fclose(file);
@@ -2469,13 +2582,17 @@ void HttpFileServer::download_task(void *params) {
   // Send final empty chunk to signal completion
   if (success) {
     httpd_resp_send_chunk(req, nullptr, 0);
-    ESP_LOGI(TAG, "Download task completed: %zu bytes", total_sent);
+    ESP_LOGI(TAG, "Download completed: %zu MB in %.1f seconds", total_sent / (1024 * 1024),
+             (millis() - task_params->file_size) / 1000.0f);  // Approximate timing
   } else {
-    ESP_LOGE(TAG, "Download task failed at %zu / %zu bytes", total_sent, task_params->file_size);
+    ESP_LOGW(TAG, "Download incomplete: %zu / %zu bytes (%.1f%%)", total_sent, task_params->file_size,
+             (float) total_sent / task_params->file_size * 100.0f);
   }
 
-  // Notify caller task that we're done
-  xTaskNotifyGive(task_params->caller_task);
+  // Notify caller task if it's waiting
+  if (task_params->caller_task) {
+    xTaskNotifyGive(task_params->caller_task);
+  }
 
   // Clean up parameters
   delete task_params;
@@ -2536,6 +2653,19 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
            (long long) file_size);
 
   while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, src)) > 0) {
+    // Check for cancellation (thread-safe)
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
+      bool cancelled = this->progress_.cancelled;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+
+      if (cancelled) {
+        ESP_LOGI(TAG, "Copy operation cancelled by user at %zu bytes", total_copied);
+        copy_success = false;
+        break;
+      }
+    }
+
     size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
     if (bytes_written != bytes_read) {
       ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d, %s)", total_copied, errno, strerror(errno));
