@@ -70,6 +70,8 @@ CONFIG_SCHEMA = cv.All(
 @coroutine_with_priority(45.0)
 async def to_code(config):
     cg.add_define("USE_HTTP_FILE_SERVER")
+    cg.add_define("USE_WEBSERVER_OTA")  # Enable multipart upload support
+    cg.add_library("https://github.com/iayanpahwa/multipart-parser-c.git", None)  # Provides multipart_parser.h
 
     # Get web_server_base instance
     web_server_base_var = await cg.get_variable(
