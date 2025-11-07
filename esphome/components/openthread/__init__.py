@@ -181,6 +181,8 @@ async def to_code(config):
     cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
     await cg.register_component(ot, config)
     if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
+        # So we can compile in code in other components, for example http_request
+        cg.add_define("USE_OPENTHREAD_POLL_PERIOD")
         cg.add(ot.set_poll_period(poll_period))
 
     srp = cg.new_Pvariable(config[CONF_SRP_ID])

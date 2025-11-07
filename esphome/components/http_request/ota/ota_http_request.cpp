@@ -11,6 +11,9 @@
 #include "esphome/components/ota/ota_backend_arduino_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
+#ifdef USE_OPENTHREAD_POLL_PERIOD
+#include "esphome/components/openthread/openthread.h"
+#endif
 
 namespace esphome {
 namespace http_request {
@@ -53,7 +56,13 @@ void OtaHttpRequestComponent::flash() {
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
+#ifdef USE_OPENTHREAD_POLL_PERIOD
+  openthread::global_openthread_component->keep_radio_on_during_idle(true);
+#endif
   auto ota_status = this->do_ota_();
+#ifdef USE_OPENTHREAD_POLL_PERIOD
+  openthread::global_openthread_component->keep_radio_on_during_idle(false);
+#endif
 
   switch (ota_status) {
     case ota::OTA_RESPONSE_OK:

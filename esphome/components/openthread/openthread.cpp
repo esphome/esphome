@@ -37,12 +37,13 @@ void OpenThreadComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Device Type: MTD");
   // TBD: Synchronized Sleepy End Device
   if (this->poll_period > 0) {
-    ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
-    uint32_t duration = this->poll_period / 1000;
-    ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 "s", duration);
-  } else {
-    ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
-  }
+#ifdef USE_OPENTHREAD_POLL_PERIOD
+  ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
+  uint32_t duration = this->poll_period_ / 1000;
+  ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 "s", duration);
+#else
+  ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
+#endif
 #endif
 }
 
@@ -269,11 +270,67 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
 
+void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on, bool wait_for_role) {
+  otLinkModeConfig link_mode_config = {0};
+#if CONFIG_OPENTHREAD_FTD
+  link_mode_config.mRxOnWhenIdle = true;
+  link_mode_config.mDeviceType = true;
+  link_mode_config.mNetworkData = true;
+#elif CONFIG_OPENTHREAD_MTD
+#ifdef USE_OPENTHREAD_POLL_PERIOD
+  if (otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period_) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
+  }
+  uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
+  ESP_LOGD(TAG, "Link Polling Period: %d", link_polling_period);
+#endif
+  link_mode_config.mRxOnWhenIdle = (this->poll_period_ == 0 || keep_radio_on);
+  link_mode_config.mDeviceType = false;
+  link_mode_config.mNetworkData = false;
+#endif
+
+  if (otThreadSetLinkMode(esp_openthread_get_instance(), link_mode_config) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
+  }
+  link_mode_config = otThreadGetLinkMode(esp_openthread_get_instance());
+  ESP_LOGD(TAG, "Link Mode Device Type: %s", link_mode_config.mDeviceType ? "true" : "false");
+  ESP_LOGD(TAG, "Link Mode Network Data: %s", link_mode_config.mNetworkData ? "true" : "false");
+  ESP_LOGD(TAG, "Link Mode RX On When Idle: %s", link_mode_config.mRxOnWhenIdle ? "true" : "false");
+
+  if (wait_for_role) {
+    otDeviceRole role = otThreadGetDeviceRole(instance);
+    uint32_t now = millis();
+    while (role < OT_DEVICE_ROLE_CHILD) {
+      // Feed watchdog during to prevent triggering
+      App.feed_wdt(now);
+      yield();
+      delay(10);
+      now = millis();
+    }
+  }
+}
+
 // set_use_address() is guaranteed to be called during component setup by Python code generation,
 // so use_address_ will always be valid when get_use_address() is called - no fallback needed.
 const char *OpenThreadComponent::get_use_address() const { return this->use_address_; }
 
 void OpenThreadComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
+
+#ifdef USE_OPENTHREAD_POLL_PERIOD
+esp_err_t OpenThreadComponent::keep_radio_on_during_idle(bool keep_radio_on) {
+  auto lock = InstanceLock::try_acquire(100);
+  if (!lock) {
+    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected");
+    return ESP_FAIL;
+  }
+  otInstance *instance = lock->get_instance();
+  if (instance == nullptr) {
+    return ESP_FAIL;
+  }
+  this->set_link_mode(instance, keep_radio_on, true);
+  return ESP_OK;
+}
+#endif
 
 }  // namespace openthread
 }  // namespace esphome
