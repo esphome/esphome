@@ -98,22 +98,28 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
 
   TEMPLATABLE_VALUE(uint32_t, time);
 
-  void loop() override { this->check_internal(); }
-  float get_setup_priority() const override { return setup_priority::DATA; }
-  bool check_internal() {
-    bool cond = this->condition_->check();
-    if (!cond)
-      this->last_inactive_ = App.get_loop_component_start_time();
-    return cond;
+  void loop() override {
+    // Safe to use cached time - only called from Application::loop()
+    this->check_internal_(App.get_loop_component_start_time());
   }
 
+  float get_setup_priority() const override { return setup_priority::DATA; }
+
   bool check(const Ts &...x) override {
-    if (!this->check_internal())
+    auto now = millis();
+    if (!this->check_internal_(now))
       return false;
-    return millis() - this->last_inactive_ >= this->time_.value(x...);
+    return now - this->last_inactive_ >= this->time_.value(x...);
   }
 
  protected:
+  bool check_internal_(uint32_t now) {
+    bool cond = this->condition_->check();
+    if (!cond)
+      this->last_inactive_ = now;
+    return cond;
+  }
+
   Condition<> *condition_;
   uint32_t last_inactive_{0};
 };
@@ -424,34 +430,17 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     auto timeout = this->timeout_value_.optional_value(x...);
     this->var_queue_.emplace_front(now, timeout, std::make_tuple(x...));
 
-    // Enable loop now that we have work to do
-    this->enable_loop();
-    this->loop();
+    // Do immediate check with fresh timestamp
+    if (this->process_queue_(now)) {
+      // Only enable loop if we still have pending items
+      this->enable_loop();
+    }
   }
 
   void loop() override {
-    if (this->num_running_ == 0)
-      return;
-
-    auto now = App.get_loop_component_start_time();
-
-    this->var_queue_.remove_if([&](auto &queued) {
-      auto start = std::get<uint32_t>(queued);
-      auto timeout = std::get<optional<uint32_t>>(queued);
-      auto &var = std::get<std::tuple<Ts...>>(queued);
-
-      auto expired = timeout && (now - start) >= *timeout;
-
-      if (!expired && !this->condition_->check_tuple(var)) {
-        return false;
-      }
-
-      this->play_next_tuple_(var);
-      return true;
-    });
-
-    // If queue is now empty, disable loop until next play_complex
-    if (this->var_queue_.empty()) {
+    // Safe to use cached time - only called from Application::loop()
+    if (this->num_running_ > 0 && !this->process_queue_(App.get_loop_component_start_time())) {
+      // If queue is now empty, disable loop until next play_complex
       this->disable_loop();
     }
   }
@@ -467,6 +456,31 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
  protected:
+  // Helper: Process queue, triggering completed items and removing them
+  // Returns true if queue still has pending items
+  bool process_queue_(uint32_t now) {
+    // Process each queued wait_until and remove completed ones
+    this->var_queue_.remove_if([&](auto &queued) {
+      auto start = std::get<uint32_t>(queued);
+      auto timeout = std::get<optional<uint32_t>>(queued);
+      auto &var = std::get<std::tuple<Ts...>>(queued);
+
+      // Check if timeout has expired
+      auto expired = timeout && (now - start) >= *timeout;
+
+      // Keep waiting if not expired and condition not met
+      if (!expired && !this->condition_->check_tuple(var)) {
+        return false;
+      }
+
+      // Condition met or timed out - trigger next action
+      this->play_next_tuple_(var);
+      return true;
+    });
+
+    return !this->var_queue_.empty();
+  }
+
   Condition<Ts...> *condition_;
   std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
 };

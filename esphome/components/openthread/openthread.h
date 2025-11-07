@@ -22,6 +22,7 @@ class OpenThreadComponent : public Component {
  public:
   OpenThreadComponent();
   ~OpenThreadComponent();
+  void dump_config() override;
   void setup() override;
   bool teardown() override;
   float get_setup_priority() const override { return setup_priority::WIFI; }
@@ -35,6 +36,9 @@ class OpenThreadComponent : public Component {
 
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
+#if CONFIG_OPENTHREAD_MTD
+  void set_poll_period(uint32_t poll_period) { this->poll_period = poll_period; }
+#endif
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
@@ -46,6 +50,9 @@ class OpenThreadComponent : public Component {
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
   const char *use_address_{""};
+#if CONFIG_OPENTHREAD_MTD
+  uint32_t poll_period{0};
+#endif
 };
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
