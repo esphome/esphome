@@ -42,7 +42,7 @@ MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 ModbusController = modbus_controller_ns.class_(
-    "ModbusController", cg.PollingComponent, modbus.ModbusDevice
+    "ModbusController", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
@@ -211,7 +211,7 @@ async def to_code(config):
 async def register_modbus_device(var, config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
-    return await modbus.register_modbus_device(var, config)
+    return await modbus.register_modbus_client_device(var, config)
 
 
 def function_code_to_register(function_code):
