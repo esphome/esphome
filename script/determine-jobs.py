@@ -756,11 +756,27 @@ def main() -> None:
     component_test_batches: list[str]
     if changed_components_with_tests:
         tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+
+        # For beta/release branches, group all components for faster CI
+        # (no isolation, all components are groupable)
+        target_branch = get_target_branch()
+        is_release_branch = target_branch and (
+            target_branch.startswith("release") or target_branch.startswith("beta")
+        )
+
+        if is_release_branch:
+            # For beta/release: Don't isolate any components - group everything
+            # This allows components to be merged into single builds
+            batch_directly_changed = set()  # Empty set - no isolation
+        else:
+            # Normal PR: only directly changed components are isolated
+            batch_directly_changed = directly_changed_with_tests
+
         batches, _ = create_intelligent_batches(
             components=changed_components_with_tests,
             tests_dir=tests_dir,
             batch_size=COMPONENT_TEST_BATCH_SIZE,
-            directly_changed=directly_changed_with_tests,
+            directly_changed=batch_directly_changed,
         )
         # Convert batches to space-separated strings for CI matrix
         component_test_batches = [" ".join(batch) for batch in batches]
