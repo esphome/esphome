@@ -3287,26 +3287,14 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
   size_t bytes_read;
   size_t total_copied = 0;
   bool copy_success = true;
-  size_t buffer_count = 0;  // Track buffers for batched progress updates
 
   ESP_LOGI(TAG, "Starting file copy: %s -> %s (size: %lld bytes)", src_path.c_str(), dst_path.c_str(),
            (long long) file_size);
 
   while ((bytes_read = fread(buffer.get(), 1, FILE_BUFFER_SIZE, src)) > 0) {
-    size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
-    if (bytes_written != bytes_read) {
-      ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d, %s)", total_copied, errno, strerror(errno));
-      copy_success = false;
-      break;
-    }
-    total_copied += bytes_written;
-    buffer_count++;
-
-    // Batch progress updates and cancellation checks every 8 buffers (128KB for P4)
-    // Reduces mutex overhead while keeping progress responsive
-    if (track_progress && (buffer_count % 8 == 0)) {
+    // Check for cancellation (thread-safe)
+    if (track_progress) {
       portENTER_CRITICAL(&this->progress_mutex_);
-      this->progress_.transferred_bytes = total_copied;
       bool cancelled = this->progress_.cancelled;
       portEXIT_CRITICAL(&this->progress_mutex_);
 
@@ -3317,24 +3305,32 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       }
     }
 
+    size_t bytes_written = fwrite(buffer.get(), 1, bytes_read, dst);
+    if (bytes_written != bytes_read) {
+      ESP_LOGE(TAG, "Write failed at offset %zu (errno: %d, %s)", total_copied, errno, strerror(errno));
+      copy_success = false;
+      break;
+    }
+    total_copied += bytes_written;
+
+    // Update progress (thread-safe)
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
+      this->progress_.transferred_bytes = total_copied;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+    }
+
     // Yield to other tasks periodically to allow web server to respond to progress polls
     // Yield every 64 buffers (256KB - 1MB depending on platform)
-    if (buffer_count % 64 == 0) {
+    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0) {
       vTaskDelay(1);  // Brief yield to let other tasks run
-
-      // Log progress for large files
-      if (file_size > 0) {
-        ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
-                 (total_copied * 100.0) / file_size);
-      }
     }
-  }
 
-  // Final progress update to ensure we show 100% completion
-  if (track_progress && copy_success) {
-    portENTER_CRITICAL(&this->progress_mutex_);
-    this->progress_.transferred_bytes = total_copied;
-    portEXIT_CRITICAL(&this->progress_mutex_);
+    // Log progress for large files
+    if (total_copied % (FILE_BUFFER_SIZE * 64) == 0 && file_size > 0) {
+      ESP_LOGD(TAG, "Copy progress: %zu / %lld bytes (%.1f%%)", total_copied, (long long) file_size,
+               (total_copied * 100.0) / file_size);
+    }
   }
 
   // Check for read errors
