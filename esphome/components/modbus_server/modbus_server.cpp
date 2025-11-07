@@ -63,12 +63,12 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
   }
 
   std::vector<uint8_t> response;
+  response.push_back(number_of_registers * 2);  // byte count
   for (auto v : sixteen_bit_response) {
     auto decoded_value = decode_value(v);
     response.push_back(decoded_value[0]);
     response.push_back(decoded_value[1]);
   }
-
   this->send(function_code, std::move(response));
 }
 

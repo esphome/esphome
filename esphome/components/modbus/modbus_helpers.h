@@ -34,6 +34,65 @@ inline bool is_function_code_custom(uint8_t function_code) {
           static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
 }
 
+inline uint8_t server_frame_length(const std::vector<uint8_t> &frame) {
+  if (frame.size() < 2)
+    return 0;
+  if (is_function_code_exception(frame[1])) {
+    return 5;  // address(1) + function(1) + exception(1) + CRC(2)
+  }
+  switch (static_cast<ModbusFunctionCode>(frame[1])) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      // address(1) + function(1) + byte count(1) + data + CRC(2)
+      return 5 + (frame.size() > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
+    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+      return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
+    default:
+      return 0;  // unknown length
+  }
+}
+
+inline uint8_t client_frame_length(const std::vector<uint8_t> &frame) {
+  if (frame.size() < 2)
+    return 0;
+  switch (static_cast<ModbusFunctionCode>(frame[1])) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      return 8;  // address(1) + function(1) + start address(2) + quantity(2) + CRC(2)
+    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+      return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+      // address(1) + function(1) + start address(2) + quantity(2) + byte count(1) + data + CRC(2)
+      return 9 + (frame.size() > 6 ? std::min(frame[6], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
+    default:
+      return 0;  // unknown length
+  }
+}
+
+inline uint8_t server_frame_data_offset(const std::vector<uint8_t> &frame) {
+  if (frame.size() < 2)
+    return 0;
+  switch (static_cast<ModbusFunctionCode>(frame[1])) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      return 3;  // address(1) + function(1) + byte count(1) + data + CRC(2)
+  }
+  return 2;
+}
+
+inline uint8_t client_frame_data_offset(const std::vector<uint8_t> &) { return 2; }
+
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
   U_WORD = 0x1,   // 1 Register unsigned

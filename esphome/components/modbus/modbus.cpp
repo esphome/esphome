@@ -144,17 +144,18 @@ void ModbusServer::parse_modbus_byte_(uint8_t byte) {
   }
 }
 
-// TODO: Clean up the function - it's quite long and has some repeated code paths.
 bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
-  size_t at = this->rx_buffer_.size();
-  if (at >= MAX_FRAME_SIZE) {
+  if (this->rx_buffer_.size() >= MAX_FRAME_SIZE) {
     ESP_LOGW(TAG, "RX buffer exceeded max frame size of %d bytes", MAX_FRAME_SIZE);
     return false;
   }
   this->rx_buffer_.push_back(byte);
+  size_t size = this->rx_buffer_.size();
 
-  // Smallest possible frame is 5 bytes: address(1) + function(1) + exception(1) + CRC(2)
-  if (at < 4)
+  if (size < MIN_SERVER_FRAME_SIZE)
+    return true;
+
+  if (size < server_frame_length(this->rx_buffer_))
     return true;
 
   const uint8_t *raw = &this->rx_buffer_[0];
@@ -162,54 +163,29 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
   uint8_t address = raw[0];
   uint8_t function_code = raw[1];
 
-  uint8_t data_len = raw[2];
-  uint8_t data_offset = 3;
+  uint8_t frame_length = server_frame_length(this->rx_buffer_);
 
   if (is_function_code_custom(function_code)) {
-    // Handle user-defined function, since we don't know how big this ought to be,
-    // ideally we should delegate the entire length detection to whatever handler is
-    // installed, but wait, there is the CRC, and if we get a hit there is a good
-    // chance that this is a complete message ... admittedly there is a small chance is
-    // isn't but that is quite small given the purpose of the CRC in the first place
-
-    data_offset = 2;
-    data_len = at - 2;
-
-    uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
-
-    if (computed_crc != remote_crc)
+    // Custom functions could be any length - we have to rely on the CRC to determine completeness.
+    // If a CRC match is never found, the buffer will eventually overflow and be cleared.
+    if (crc16(raw, size) != 0)
       return true;
 
     ESP_LOGD(TAG, "User-defined function %02X found", function_code);
+    frame_length = size;
 
   } else {
-    // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
-    if (is_function_code_write(function_code)) {
-      data_offset = 2;
-      data_len = 4;
-    }
-
-    // Error ( msb indicates error )
-    // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] exception code, Byte[3-4] crc
-    if (is_function_code_exception(function_code)) {
-      data_offset = 2;
-      data_len = 1;
-    }
-
-    // Byte 3+data_len: CRC_LO (over all bytes)
-    if (at <= data_offset + data_len)
+    if (size < frame_length)
       return true;
 
-    // Byte data_offset+len+1: CRC_HI (over all bytes)
-    uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
-    if (computed_crc != remote_crc) {
+    if (crc16(raw, frame_length) != 0) {
       return false;
     }
   }
 
-  std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
+  // We have a valid frame
+  uint8_t data_offset = server_frame_data_offset(this->rx_buffer_);
+  std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + frame_length - 2);
 
   this->clear_rx_buffer_("parse succeeded");
 
@@ -219,83 +195,51 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
 }
 
 bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
-  size_t at = this->rx_buffer_.size();
-  if (at >= MAX_FRAME_SIZE) {
+  if (this->rx_buffer_.size() >= MAX_FRAME_SIZE) {
     ESP_LOGW(TAG, "RX buffer exceeded max frame size of %d bytes", MAX_FRAME_SIZE);
     return false;
   }
   if (byte.has_value())
     this->rx_buffer_.push_back(byte.value());
-  else if (at > 0)
-    at--;  // we're being called to re-parse existing buffer
 
-  if (at < 4)
+  size_t size = this->rx_buffer_.size();
+
+  if (size < MIN_CLIENT_FRAME_SIZE)
     return true;
+
+  if (size < client_frame_length(this->rx_buffer_))
+    return true;
+
   const uint8_t *raw = &this->rx_buffer_[0];
 
   uint8_t address = raw[0];
   uint8_t function_code = raw[1];
 
-  if (this->expecting_peer_response_ != 0 && address != this->expecting_peer_response_) {
-    ESP_LOGVV(TAG, "Received frame with address %d while expecting response from %d. Assume new client command.",
-              address, this->expecting_peer_response_);
-    this->expecting_peer_response_ = 0;
-  }
-
-  uint8_t data_len = raw[2];
-  uint8_t data_offset = 3;
+  uint8_t frame_length = client_frame_length(this->rx_buffer_);
 
   if (is_function_code_custom(function_code)) {
-    // Handle user-defined function, since we don't know how big this ought to be,
-    // ideally we should delegate the entire length detection to whatever handler is
-    // installed, but wait, there is the CRC, and if we get a hit there is a good
-    // chance that this is a complete message ... admittedly there is a small chance is
-    // isn't but that is quite small given the purpose of the CRC in the first place
-
-    data_offset = 2;
-    data_len = at - 2;
-
-    uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
-
-    if (computed_crc != remote_crc)
+    // Custom functions could be any length - we have to rely on the CRC to determine completeness.
+    // If a CRC match is never found, the buffer will eventually overflow and be cleared.
+    if (crc16(raw, size) != 0)
       return true;
 
     ESP_LOGD(TAG, "User-defined function %02X found", function_code);
+    frame_length = size;
 
   } else {
-    // data starts at 2 and length is 4 for read registers commands
-
-    if (is_function_code_read(function_code) || function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
-      data_offset = 2;
-      data_len = 4;
-    } else if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-      if (at < 6) {
-        return true;
-      }
-      data_offset = 2;
-      // starting address (2 bytes) + quantity of registers (2 bytes) + byte count itself (1 byte) + actual byte count
-      data_len = 2 + 2 + 1 + raw[6];
-    }
-
-    // Byte 3+data_len: CRC_LO (over all bytes)
-    if (at <= data_offset + data_len)
+    if (size < frame_length)
       return true;
 
-    // Byte data_offset+len+1: CRC_HI (over all bytes)
-    uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = get_data<uint16_t>(this->rx_buffer_, data_offset + data_len);
-    if (computed_crc != remote_crc) {
+    if (crc16(raw, frame_length) != 0) {
       // Don't log CRC errors for expected responses from peers - we'll try again first
       if (this->expecting_peer_response_ == 0) {
         ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
-        ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
       }
       return false;
     }
   }
-
-  std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
+  uint8_t data_offset = client_frame_data_offset(this->rx_buffer_);
+  std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + frame_length - 2);
 
   this->clear_rx_buffer_("parse succeeded");
 
@@ -334,7 +278,7 @@ void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t functio
     } else {  // We have a valid device waiting for this response
 
       // Is it an error response?
-      if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
+      if (is_function_code_exception(function_code)) {
         uint8_t exception = data[0];
         ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
                  exception, address, millis() - this->last_send_);
