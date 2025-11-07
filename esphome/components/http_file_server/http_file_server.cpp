@@ -2785,30 +2785,36 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
       // Allocate buffer for chunk data
       chunk_buffer = std::make_unique<uint8_t[]>(content_len);
 
-      // Read chunk data from HTTP request
-      int received = httpd_req_recv(req, reinterpret_cast<char *>(chunk_buffer.get()), content_len);
-      if (received <= 0) {
-        ESP_LOGE(TAG, "Failed to receive chunk %d data: httpd_req_recv returned %d", chunk_index, received);
-        fclose(this->upload_file_);
-        this->upload_file_ = nullptr;
+      // Read chunk data from HTTP request in a loop (httpd_req_recv may return partial reads)
+      size_t total_received = 0;
+      while (total_received < content_len) {
+        int ret = httpd_req_recv(req, reinterpret_cast<char *>(chunk_buffer.get()) + total_received,
+                                 content_len - total_received);
+        if (ret <= 0) {
+          ESP_LOGE(TAG, "Failed to receive chunk %d data: httpd_req_recv returned %d after %zu/%zu bytes", chunk_index,
+                   ret, total_received, content_len);
+          fclose(this->upload_file_);
+          this->upload_file_ = nullptr;
 
-        if (remove(upload_path.c_str()) == 0) {
-          ESP_LOGI(TAG, "Deleted partial upload file after receive failure: %s", upload_path.c_str());
-        } else {
-          ESP_LOGE(TAG, "Failed to delete partial upload file: %s (errno: %d)", upload_path.c_str(), errno);
+          if (remove(upload_path.c_str()) == 0) {
+            ESP_LOGI(TAG, "Deleted partial upload file after receive failure: %s", upload_path.c_str());
+          } else {
+            ESP_LOGE(TAG, "Failed to delete partial upload file: %s (errno: %d)", upload_path.c_str(), errno);
+          }
+
+          portENTER_CRITICAL(&this->progress_mutex_);
+          this->progress_.in_progress = false;
+          this->progress_.cancelled = false;
+          portEXIT_CRITICAL(&this->progress_mutex_);
+
+          request->send(500, "application/json", "{\"error\":\"Failed to receive chunk data\"}");
+          return;
         }
-
-        portENTER_CRITICAL(&this->progress_mutex_);
-        this->progress_.in_progress = false;
-        this->progress_.cancelled = false;
-        portEXIT_CRITICAL(&this->progress_mutex_);
-
-        request->send(500, "application/json", "{\"error\":\"Failed to receive chunk data\"}");
-        return;
+        total_received += ret;
       }
 
       data_ptr = chunk_buffer.get();
-      bytes_to_write = received;
+      bytes_to_write = total_received;
     }
   }
 
