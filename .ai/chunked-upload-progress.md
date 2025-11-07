@@ -177,15 +177,21 @@ while (total_received < content_len) {
   - Fix must be implemented within http_file_server component only
   - Cannot change core timeouts, limits, or configurations
 
-- **Potential Solutions (within http_file_server only)**:
-  1. **Adaptive chunk sizing**: Use larger chunks for large files to reduce request count
-     - Example: <5MB = 256KB, 5-50MB = 1MB, >50MB = 2MB chunks
-     - 55MB file with 2MB chunks = ~28 requests (well under 170 limit)
-  2. **Request throttling**: Add small delays between chunks to allow cleanup
-  3. **Hybrid approach**: Start with small chunks, increase size dynamically
-  4. **Connection management**: Add explicit cleanup signals or keep-alive strategy
+- **Solution Implemented: Inter-Chunk Delay**:
+  - Added 100ms delay between chunk uploads to allow MCU resource cleanup
+  - Prevents resource exhaustion by giving ESP32 time to:
+    - Fully close previous connections (despite `Connection: close` header)
+    - Free allocated memory and buffers
+    - Handle other system tasks and interrupts
+    - Reset network stack state
+  - Performance impact: ~30% overhead (21s delay for 215 chunks, 70s base upload time)
+  - Acceptable trade-off to prevent complete upload failure
+  - Implementation entirely within http_file_server component (no core changes)
 
-  **Waiting for diagnostic output before implementing solution**
+- **Future Potential Optimizations** (if delay alone insufficient):
+  1. **Adaptive chunk sizing**: Larger chunks for large files (fewer requests)
+  2. **Dynamic delay**: Increase delay for larger files
+  3. **Hybrid approach**: Combine delay + larger chunks for optimal balance
 
 ## Performance Metrics
 - **Current Upload Speed**: ~800 KB/s
