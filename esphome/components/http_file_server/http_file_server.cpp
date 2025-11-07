@@ -932,22 +932,37 @@ std::string HttpFileServer::generate_html_footer() {
       bar.style.width = percentage + '%';
       bar.textContent = percentage.toFixed(1) + '%';
 
-      let detailText = formatBytes(data.transferred_bytes) + ' / ' + formatBytes(data.total_bytes);
-      if (data.elapsed_ms) {
-        detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
-      }
-      if (data.remaining_ms) {
-        detailText += ' • Remaining: ' + formatTime(data.remaining_ms);
+      let detailText = '';
+      if (data.operation == = 'delete') {
+        // For delete operations, show item count and current file
+        detailText = data.processed_items + ' / ' + data.total_items + ' items';
+        if (data.elapsed_ms) {
+          detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
+        }
+        // Show current file being deleted
+        if (data.current_file) {
+          speed.textContent = 'Deleting: ' + data.current_file;
+        } else {
+          speed.textContent = '';
+        }
+      } else {
+        // For byte-based operations (copy, move, upload)
+        detailText = formatBytes(data.transferred_bytes) + ' / ' + formatBytes(data.total_bytes);
+        if (data.elapsed_ms) {
+          detailText += ' • Elapsed: ' + formatTime(data.elapsed_ms);
+        }
+        if (data.remaining_ms) {
+          detailText += ' • Remaining: ' + formatTime(data.remaining_ms);
+        }
+        // Display average speed
+        if (data.avg_speed && data.avg_speed > 0) {
+          speed.textContent = 'Average speed: ' + formatBytes(data.avg_speed) + '/s';
+        } else {
+          speed.textContent = '';
+        }
       }
 
       details.textContent = detailText;
-
-      // Display average speed
-      if (data.avg_speed && data.avg_speed > 0) {
-        speed.textContent = 'Average speed: ' + formatBytes(data.avg_speed) + '/s';
-      } else {
-        speed.textContent = '';
-      }
 
       console.log('[FileServer] Updated progress bar:', percentage.toFixed(1) + '%');
     };
@@ -1871,7 +1886,7 @@ void HttpFileServer::count_directory_contents(const std::string &path, int &file
   closedir(dir);
 }
 
-bool HttpFileServer::recursive_delete_directory(const std::string &path) {
+bool HttpFileServer::recursive_delete_directory(const std::string &path, bool track_progress) {
   DIR *dir = opendir(path.c_str());
   if (!dir) {
     ESP_LOGE(TAG, "Cannot open directory for deletion: %s (errno: %d)", path.c_str(), errno);
@@ -1889,8 +1904,8 @@ bool HttpFileServer::recursive_delete_directory(const std::string &path) {
   closedir(dir);
 
   // Determine if we should log each file deletion
-  bool log_each_file = (file_count > 5);
-  if (log_each_file) {
+  bool log_each_file = (file_count > 5) || track_progress;
+  if (log_each_file && !track_progress) {
     ESP_LOGI(TAG, "Deleting directory with %zu files: %s (will log each file)", file_count, path.c_str());
   }
 
@@ -1903,6 +1918,19 @@ bool HttpFileServer::recursive_delete_directory(const std::string &path) {
 
   bool success = true;
   while ((entry = readdir(dir)) != nullptr) {
+    // Check for cancellation
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
+      bool cancelled = this->progress_.cancelled;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+
+      if (cancelled) {
+        ESP_LOGI(TAG, "Delete operation cancelled by user");
+        closedir(dir);
+        return false;
+      }
+    }
+
     // Skip . and ..
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
       continue;
@@ -1913,11 +1941,18 @@ bool HttpFileServer::recursive_delete_directory(const std::string &path) {
     if (stat(entry_path.c_str(), &entry_stat) == 0) {
       if (S_ISDIR(entry_stat.st_mode)) {
         // Recursively delete subdirectory
-        if (!this->recursive_delete_directory(entry_path)) {
+        if (!this->recursive_delete_directory(entry_path, track_progress)) {
           success = false;
           break;
         }
       } else {
+        // Update progress with current file
+        if (track_progress) {
+          portENTER_CRITICAL(&this->progress_mutex_);
+          this->progress_.current_file = entry_path;
+          portEXIT_CRITICAL(&this->progress_mutex_);
+        }
+
         // Delete file
         if (log_each_file) {
           ESP_LOGI(TAG, "Deleting file: %s", entry_path.c_str());
@@ -1926,6 +1961,13 @@ bool HttpFileServer::recursive_delete_directory(const std::string &path) {
           ESP_LOGE(TAG, "Failed to delete file: %s (errno: %d, %s)", entry_path.c_str(), errno, strerror(errno));
           success = false;
           break;
+        }
+
+        // Update progress counter
+        if (track_progress) {
+          portENTER_CRITICAL(&this->progress_mutex_);
+          this->progress_.processed_items++;
+          portEXIT_CRITICAL(&this->progress_mutex_);
         }
       }
     }
@@ -1938,6 +1980,13 @@ bool HttpFileServer::recursive_delete_directory(const std::string &path) {
     if (rmdir(path.c_str()) != 0) {
       ESP_LOGE(TAG, "Failed to delete directory: %s (errno: %d, %s)", path.c_str(), errno, strerror(errno));
       return false;
+    }
+
+    // Update progress for the directory
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
+      this->progress_.processed_items++;
+      portEXIT_CRITICAL(&this->progress_mutex_);
     }
   }
 
@@ -2161,9 +2210,40 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
 
   bool success = false;
   if (S_ISDIR(file_stat.st_mode)) {
+    // Count files/directories first
+    int file_count = 0;
+    int dir_count = 0;
+    this->count_directory_contents(filepath, file_count, dir_count);
+    int total_items = file_count + dir_count;
+
+    // Initialize progress tracking for large deletions (>5 items)
+    bool track_progress = (total_items > 5);
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
+      this->progress_.operation = "delete";
+      this->progress_.source = filepath;
+      this->progress_.destination = "";
+      this->progress_.current_file = "";
+      this->progress_.total_items = total_items;
+      this->progress_.processed_items = 0;
+      this->progress_.in_progress = true;
+      this->progress_.cancelled = false;
+      this->progress_.start_time = millis();
+      portEXIT_CRITICAL(&this->progress_mutex_);
+      ESP_LOGI(TAG, "Deleting directory recursively: %s (%d files, %d dirs)", filepath.c_str(), file_count, dir_count);
+    } else {
+      ESP_LOGI(TAG, "Deleting directory recursively: %s", filepath.c_str());
+    }
+
     // Recursive directory deletion
-    ESP_LOGI(TAG, "Deleting directory recursively: %s", filepath.c_str());
-    success = this->recursive_delete_directory(filepath);
+    success = this->recursive_delete_directory(filepath, track_progress);
+
+    // Clear progress tracking
+    if (track_progress) {
+      portENTER_CRITICAL(&this->progress_mutex_);
+      this->progress_.in_progress = false;
+      portEXIT_CRITICAL(&this->progress_mutex_);
+    }
   } else {
     // Single file deletion
     ESP_LOGI(TAG, "Deleting file: %s", filepath.c_str());
@@ -2254,8 +2334,11 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
   std::string operation = this->progress_.operation;
   std::string source = this->progress_.source;
   std::string destination = this->progress_.destination;
+  std::string current_file = this->progress_.current_file;
   size_t total_bytes = this->progress_.total_bytes;
   size_t transferred_bytes = this->progress_.transferred_bytes;
+  int total_items = this->progress_.total_items;
+  int processed_items = this->progress_.processed_items;
   uint32_t start_time = this->progress_.start_time;
 
   // Auto-clear stuck operations (timeout after 5 minutes with no progress updates)
@@ -2277,34 +2360,68 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
     json += ",\"operation\":\"" + operation + "\"";
     json += ",\"source\":\"" + source + "\"";
     json += ",\"destination\":\"" + destination + "\"";
-    json += ",\"total_bytes\":" + std::to_string(total_bytes);
-    json += ",\"transferred_bytes\":" + std::to_string(transferred_bytes);
 
-    // Calculate progress percentage
-    float percentage = 0.0;
-    if (total_bytes > 0) {
-      percentage = (transferred_bytes * 100.0) / total_bytes;
+    // For delete operations, include item-based progress
+    if (operation == "delete") {
+      json += ",\"total_items\":" + std::to_string(total_items);
+      json += ",\"processed_items\":" + std::to_string(processed_items);
+      if (!current_file.empty()) {
+        json += ",\"current_file\":\"" + current_file + "\"";
+      }
+
+      // Calculate percentage based on items
+      float percentage = 0.0;
+      if (total_items > 0) {
+        percentage = (processed_items * 100.0) / total_items;
+      }
+
+      // Format percentage with 1 decimal place
+      char percent_buf[16];
+      snprintf(percent_buf, sizeof(percent_buf), "%.1f", percentage);
+      json += ",\"percentage\":" + std::string(percent_buf);
+    } else {
+      // For byte-based operations (copy, move, upload)
+      json += ",\"total_bytes\":" + std::to_string(total_bytes);
+      json += ",\"transferred_bytes\":" + std::to_string(transferred_bytes);
+
+      // Calculate progress percentage
+      float percentage = 0.0;
+      if (total_bytes > 0) {
+        percentage = (transferred_bytes * 100.0) / total_bytes;
+      }
+
+      // Format percentage with 1 decimal place
+      char percent_buf[16];
+      snprintf(percent_buf, sizeof(percent_buf), "%.1f", percentage);
+      json += ",\"percentage\":" + std::string(percent_buf);
     }
-
-    // Format percentage with 1 decimal place
-    char percent_buf[16];
-    snprintf(percent_buf, sizeof(percent_buf), "%.1f", percentage);
-    json += ",\"percentage\":" + std::string(percent_buf);
 
     // Calculate elapsed time
     uint32_t elapsed_ms = millis() - start_time;
     json += ",\"elapsed_ms\":" + std::to_string(elapsed_ms);
 
-    // Estimate remaining time if we have progress
-    if (transferred_bytes > 0 && total_bytes > 0) {
+    // Calculate average speed (bytes per second)
+    if (elapsed_ms > 0 && transferred_bytes > 0) {
+      // Convert to bytes/sec: (transferred_bytes * 1000) / elapsed_ms
+      // Use 64-bit arithmetic to avoid overflow
+      uint64_t avg_speed = ((uint64_t) transferred_bytes * 1000) / elapsed_ms;
+      json += ",\"avg_speed\":" + std::to_string(avg_speed);
+    }
+
+    // Estimate remaining time if we have progress (only for byte-based operations)
+    if (operation != "delete" && transferred_bytes > 0 && total_bytes > 0) {
       // Use 64-bit arithmetic to avoid overflow when multiplying elapsed_ms * total_bytes
       uint64_t total_estimated_ms = ((uint64_t) elapsed_ms * total_bytes) / transferred_bytes;
       uint64_t remaining_ms = total_estimated_ms > elapsed_ms ? total_estimated_ms - elapsed_ms : 0;
       json += ",\"remaining_ms\":" + std::to_string(remaining_ms);
     }
 
-    ESP_LOGD(TAG, "Progress poll: %s operation, %.1f%% (%zu/%zu bytes)", operation.c_str(), percentage,
-             transferred_bytes, total_bytes);
+    // Log progress
+    if (operation == "delete") {
+      ESP_LOGD(TAG, "Progress poll: delete operation, %d/%d items", processed_items, total_items);
+    } else {
+      ESP_LOGD(TAG, "Progress poll: %s operation, %zu/%zu bytes", operation.c_str(), transferred_bytes, total_bytes);
+    }
   } else {
     ESP_LOGD(TAG, "Progress poll: no operation in progress");
   }

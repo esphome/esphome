@@ -256,7 +256,7 @@ class HttpFileServer : public Component, public AsyncWebHandler {
   // Directory helpers
   bool is_directory_empty(const std::string &path);
   void count_directory_contents(const std::string &path, int &file_count, int &dir_count);
-  bool recursive_delete_directory(const std::string &path);
+  bool recursive_delete_directory(const std::string &path, bool track_progress = false);
 
   // Mount status helper
   bool is_mount_point_mounted(const std::string &mount_path);
