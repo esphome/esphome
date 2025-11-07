@@ -1539,10 +1539,7 @@ std::string HttpFileServer::generate_html_footer() {
                        '&path=' + encodeURIComponent(window.location.pathname) +
                        '&fileSize=' + file.size;
 
-        // Add timeout (60 seconds per chunk)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
-
+        // No timeout - support arbitrarily large files (up to filesystem limits)
         try {
           const response = await fetch(apiUrl, {
             method: 'POST',
@@ -1551,11 +1548,8 @@ std::string HttpFileServer::generate_html_footer() {
             headers: {
               'Content-Type': 'application/octet-stream',
               'Connection': 'close'  // Force fresh connection to avoid socket exhaustion
-            },
-            signal: controller.signal
+            }
           });
-
-          clearTimeout(timeoutId);
 
           if (!response.ok) {
             const errorText = await response.text();
@@ -1590,10 +1584,7 @@ std::string HttpFileServer::generate_html_footer() {
             console.log('[FileServer] Chunk ' + (chunkIndex + 1) + '/' + totalChunks + ' uploaded');
           }
         } catch (fetchError) {
-          clearTimeout(timeoutId);
-          if (fetchError.name === 'AbortError') {
-            throw new Error('Chunk ' + (chunkIndex + 1) + ' timed out after 60 seconds');
-          }
+          // No timeout handling - let network errors propagate naturally
           throw fetchError;
         }
       }
