@@ -2537,7 +2537,9 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
   json += "}";
 
   ESP_LOGD(TAG, "Sending progress JSON response (%zu bytes): %s", json.length(), json.c_str());
-  request->send(200, "application/json", json.c_str());
+  AsyncWebServerResponse *response = request->beginResponse(200, "application/json", json.c_str());
+  response->addHeader("Access-Control-Allow-Credentials", "true");
+  request->send(response);
   ESP_LOGD(TAG, "Progress response sent");
 }
 
