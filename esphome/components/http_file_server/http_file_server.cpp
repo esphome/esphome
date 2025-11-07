@@ -3324,7 +3324,7 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
     // Yield to other tasks periodically to allow web server to respond to progress polls
     // Yield every 64 buffers (256KB - 1MB depending on platform)
     if (buffer_count % 64 == 0) {
-      vTaskDelay(1);  // Brief yield to let other tasks run
+      vTaskDelay(0);  // Yield to higher priority tasks only (no time delay)
 
       // Log progress for large files
       if (file_size > 0) {
