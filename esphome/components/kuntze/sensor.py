@@ -21,7 +21,7 @@ CODEOWNERS = ["@ssieb"]
 AUTO_LOAD = ["modbus"]
 
 kuntze_ns = cg.esphome_ns.namespace("kuntze")
-Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusDevice)
+Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusClientDevice)
 
 CONF_DIS1 = "dis1"
 CONF_DIS2 = "dis2"
@@ -86,6 +86,13 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
+
+
+def _final_validate(config):
+    return modbus.final_validate_modbus_device("kuntze", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

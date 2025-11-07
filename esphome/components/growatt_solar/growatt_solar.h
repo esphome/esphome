@@ -17,7 +17,7 @@ enum GrowattProtocolVersion {
   RTU2,
 };
 
-class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
+class GrowattSolar : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void loop() override;
   void update() override;

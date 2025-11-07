@@ -45,7 +45,7 @@ CODEOWNERS = ["@leeuwte"]
 
 growatt_solar_ns = cg.esphome_ns.namespace("growatt_solar")
 GrowattSolar = growatt_solar_ns.class_(
-    "GrowattSolar", cg.PollingComponent, modbus.ModbusDevice
+    "GrowattSolar", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 PHASE_SENSORS = {
@@ -154,6 +154,13 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("10s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
+
+
+def _final_validate(config):
+    return modbus.final_validate_modbus_device("growatt_solar", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

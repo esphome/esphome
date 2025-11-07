@@ -46,7 +46,7 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVARh"
 
 selec_meter_ns = cg.esphome_ns.namespace("selec_meter")
 SelecMeter = selec_meter_ns.class_(
-    "SelecMeter", cg.PollingComponent, modbus.ModbusDevice
+    "SelecMeter", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 SENSORS = {
@@ -153,6 +153,13 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("10s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
+
+
+def _final_validate(config):
+    return modbus.final_validate_modbus_device("selec_meter", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
