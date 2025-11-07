@@ -266,6 +266,9 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_api_dirinfo(request);
   } else if (uri.find(this->url_prefix_ + "/api/progress") == 0 && request->method() == HTTP_GET) {
     this->handle_api_progress(request);
+  } else if (uri.find(this->url_prefix_ + "/api/cancel") == 0 && request->method() == HTTP_POST) {
+    ESP_LOGD(TAG, "API CANCEL endpoint hit");
+    this->handle_api_cancel(request);
   } else if (request->method() == HTTP_GET) {
     // Handle GET request (directory listing or file download)
     std::string filepath = this->uri_to_filepath(uri);
@@ -349,14 +352,20 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     std::string upload_path = Path::join(this->upload_directory_, this->upload_filename_);
     ESP_LOGI(TAG, "Starting async upload: %s", upload_path.c_str());
 
+    // Get expected file size from query parameter (if provided by JavaScript)
+    size_t expected_size = 0;
+    auto *filesize_param = request->getParam("filesize");
+    if (filesize_param) {
+      expected_size = std::stoul(filesize_param->value().c_str());
+      ESP_LOGI(TAG, "Expected upload size: %zu bytes", expected_size);
+    }
+
     // Initialize progress tracking (thread-safe)
-    // Note: We can't use request->contentLength() because it includes multipart overhead
-    // Instead, we'll track actual file bytes and show "Progress tracking unavailable" until complete
     portENTER_CRITICAL(&this->progress_mutex_);
     this->progress_.operation = "upload";
     this->progress_.source = filename.c_str();
     this->progress_.destination = upload_path;
-    this->progress_.total_bytes = 0;  // Unknown until upload completes
+    this->progress_.total_bytes = expected_size;  // Use expected size from JavaScript
     this->progress_.transferred_bytes = 0;
     this->progress_.in_progress = true;
     this->progress_.cancelled = false;
@@ -1423,6 +1432,8 @@ std::string HttpFileServer::generate_html_footer() {
     if (!uploadUrl.endsWith('/')) {
       uploadUrl += '/';
     }
+    // Add file size as query parameter so backend can track progress
+    uploadUrl += '?filesize=' + file.size;
 
     console.log('[FileServer] Starting upload to:', uploadUrl);
 
