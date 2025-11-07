@@ -2550,7 +2550,23 @@ void HttpFileServer::handle_api_progress(AsyncWebServerRequest *request) {
 
   ESP_LOGD(TAG, "Sending progress JSON response (%zu bytes): %s", json.length(), json.c_str());
   AsyncWebServerResponse *response = request->beginResponse(200, "application/json", json);
+
+  // CORS headers for XHR with credentials - required even for same-origin requests
   response->addHeader("Access-Control-Allow-Credentials", "true");
+  // Get origin from Host header (same-origin case) or reflect Origin header
+  auto origin_header = request->get_header("Origin");
+  if (origin_header.has_value()) {
+    // Reflect the Origin header back for CORS
+    response->addHeader("Access-Control-Allow-Origin", origin_header.value().c_str());
+  } else {
+    // Construct origin from Host header for same-origin requests
+    auto host_header = request->get_header("Host");
+    if (host_header.has_value()) {
+      std::string origin = "http://" + host_header.value();
+      response->addHeader("Access-Control-Allow-Origin", origin.c_str());
+    }
+  }
+
   request->send(response);
   ESP_LOGD(TAG, "Progress response sent");
 }
