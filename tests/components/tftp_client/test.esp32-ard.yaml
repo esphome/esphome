@@ -1,0 +1,5 @@
+tftp_client:
+  - id: my_tftp
+    server: 192.168.1.100
+    port: 69
+    mount_path: /tftp/server1
