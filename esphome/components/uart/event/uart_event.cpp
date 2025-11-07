@@ -8,18 +8,11 @@ namespace uart {
 
 static const char *const TAG = "uart.event";
 
-void UARTEvent::setup() {
-  buffer_.clear();
-}
+void UARTEvent::setup() { buffer_.clear(); }
 
-void UARTEvent::dump_config() {
-  LOG_EVENT("", "UART Event", this);
-}
+void UARTEvent::dump_config() { LOG_EVENT("", "UART Event", this); }
 
-void UARTEvent::loop() {
-  read_data();
-}
-
+void UARTEvent::loop() { read_data(); }
 
 void UARTEvent::add_event_matcher(const std::string &event_name, const std::string &match_string) {
   std::vector<uint8_t> data(match_string.begin(), match_string.end());
@@ -36,7 +29,6 @@ void UARTEvent::add_event_matcher(const std::string &event_name, const std::vect
   }
 }
 
-
 void UARTEvent::read_data() {
   while (available()) {
     uint8_t data;
@@ -45,15 +37,13 @@ void UARTEvent::read_data() {
 
     bool match_found = false;
     for (const auto &matcher : this->matchers_) {
-      const auto& match_data = matcher.binary_data;
-      
+      const auto &match_data = matcher.binary_data;
+
       if (this->buffer_.size() < match_data.size()) {
         continue;
       }
 
-      if (std::equal(match_data.begin(), match_data.end(),
-                     this->buffer_.end() - match_data.size())) {
-        
+      if (std::equal(match_data.begin(), match_data.end(), this->buffer_.end() - match_data.size())) {
         this->trigger(matcher.event_name);
         this->buffer_.clear();
         match_found = true;
@@ -67,6 +57,5 @@ void UARTEvent::read_data() {
   }
 }
 
-
-} // namespace uart
-} // namespace esphome
+}  // namespace uart
+}  // namespace esphome
