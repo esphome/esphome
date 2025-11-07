@@ -585,26 +585,22 @@ For this, you load the [application](https://zaluthar.github.io/TelinkFlasher.ht
   the key will not change again until the device is removed and re-added in the Xiaomi app.
 
   - The easiest method to retrieve the bindkey from the cloud is to use the
+    [Cloud Tokens Extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor), written by one of Home Assistant users.
+    If you prefer to not use the executable, read [the Home Assistant Documentation](https://www.home-assistant.io/integrations/xiaomi_miio/#xiaomi-cloud-tokens-extractor).
 
-      [Cloud Tokens Extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor), written by one of Home Assistant users.
-      If you prefer to not use the executable, read [the Home Assistant Documentation](https://www.home-assistant.io/integrations/xiaomi_miio/#xiaomi-cloud-tokens-extractor).
+  - Another option is to use a SSL packet sniffer. It can be setup on either an Android phone or the iPhone. Instructions how to obtain the
+    key using Android can be found in [in this tutorial](https://github.com/ahpohl/xiaomi_lywsd03mmc) on GitHub.
+    Instructions how to obtain the key using an iPhone can be found in
+    [custom-components/sensor.mitemp_bt](https://github.com/custom-components/sensor.mitemp_bt/blob/master/faq.md#my-sensors-ble-advertisements-are-encrypted-how-can-i-get-the-key)
+    on GitHub. Once the traffic between the Mi Home app and the Xiaomi servers has been recorded, the bind key will show in clear text:
 
-  - Another option is to use a SSL packet sniffer. It can be setup on either an Android phone or the iPhone. A good choice for Android is the
+    ```text
+    packet: POST /app/device/bltbind
 
-      [Remote PCAP](https://play.google.com/store/apps/details?id=com.egorovandreyrm.pcapremote&hl=en) in combination with
-      [Wireshark](https://www.wireshark.org/). A tutorial on how to setup the Remote PCAP packet sniffer can be found
-      [in this tutorial](https://egorovandreyrm.com/pcap-remote-tutorial/) and in [ahpohl/xiaomi_lywsd03mmc](https://github.com/ahpohl/xiaomi_lywsd03mmc) on GitHub.
-      Instructions how to obtain the key using an iPhone can be found in
-      [custom-components/sensor.mitemp_bt](https://github.com/custom-components/sensor.mitemp_bt/blob/master/faq.md#my-sensors-ble-advertisements-are-encrypted-how-can-i-get-the-key)
-      on GitHub. Once the traffic between the Mi Home app and the Xiaomi servers has been recorded, the bind key will show in clear text:
+    "data" = "{"did":"blt.3.129q4nasgeg00","token":"20c665a7ff82a5bfb5eefc36","props":[{"type":"prop","key":"bind_key","value":"cfc7cc892f4e32f7a733086cf3443cb0"},   {"type":"prop","key":"smac","value":XX:XX:XX:XX:XX:XX}]}"
+    ```
 
-      ```text
-      packet: POST /app/device/bltbind
-
-      "data" = "{"did":"blt.3.129q4nasgeg00","token":"20c665a7ff82a5bfb5eefc36","props":[{"type":"prop","key":"bind_key","value":"cfc7cc892f4e32f7a733086cf3443cb0"},   {"type":"prop","key":"smac","value":XX:XX:XX:XX:XX:XX}]}"
-      ```
-
-      The `bind_key` is the 32 digits "value" item in the above output which needs to be inserted into the config file.
+    The `bind_key` is the 32 digits "value" item in the above output which needs to be inserted into the config file.
 
 ## Improving reception performance
 

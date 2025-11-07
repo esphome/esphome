@@ -83,7 +83,7 @@ Then, just compile and flash the ESP32.
 
 When everything is set up correctly, you should see a show up using your iBeacon scanner of choice. On iPhones,
 this should already work from the Bluetooth screen (not tested), on Android, you will need to use an app like
-["Beacon Scanner"](https://play.google.com/store/apps/details?id=com.bridou_n.beaconscanner) by Nicolas Bridoux.
+["nRF Connect for Mobile"](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp).
 
 For using these beacons to track the location of your phone, you will need to use another app. For example, I used
 [this guide by the owntracks](https://owntracks.org/booklet/features/beacons/) app to let my Home Automation system
