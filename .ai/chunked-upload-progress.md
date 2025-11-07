@@ -144,12 +144,14 @@ while (total_received < content_len) {
   - JavaScript File API reads file as 47MB when actual file is 55MB
   - Uploaded file is only 44MB (loss of 11MB from actual file)
 
-- **CRITICAL FINDING - Chunk Size Dependency**:
+- **CRITICAL FINDING - Request Count Limit**:
   - **Different chunk sizes result in different abort positions**
-  - Example: 256KB chunks → stops at 44MB
-  - Example: Larger chunks → stops at 30MB
-  - **This rules out**: Timeout issues, fixed byte limits
-  - **This suggests**: Issue related to number of HTTP requests/connections
+  - Example: 256KB chunks → stops at 44MB (~170 requests)
+  - Example: Larger chunks → stops at 30MB (fewer requests)
+  - **Small files work perfectly**: 1MB file (~4 chunks) uploads successfully with no corruption
+  - **This rules out**: Timeout issues, fixed byte limits, implementation flaws
+  - **This confirms**: Issue is related to number of HTTP requests/connections
+  - **Estimated limit**: Approximately 170-180 HTTP requests before failure
 
 - **File Size Discrepancy**:
   - Actual file on disk: 55MB
@@ -174,6 +176,16 @@ while (total_received < content_len) {
   - **DO NOT modify core components** (web_server_idf, web_server_base, etc.)
   - Fix must be implemented within http_file_server component only
   - Cannot change core timeouts, limits, or configurations
+
+- **Potential Solutions (within http_file_server only)**:
+  1. **Adaptive chunk sizing**: Use larger chunks for large files to reduce request count
+     - Example: <5MB = 256KB, 5-50MB = 1MB, >50MB = 2MB chunks
+     - 55MB file with 2MB chunks = ~28 requests (well under 170 limit)
+  2. **Request throttling**: Add small delays between chunks to allow cleanup
+  3. **Hybrid approach**: Start with small chunks, increase size dynamically
+  4. **Connection management**: Add explicit cleanup signals or keep-alive strategy
+
+  **Waiting for diagnostic output before implementing solution**
 
 ## Performance Metrics
 - **Current Upload Speed**: ~800 KB/s
