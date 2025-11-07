@@ -2,13 +2,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"  // For App.feed_wdt()
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <dirent.h>
 #include <errno.h>
 #include <algorithm>
 
 // Include yield function for ESP32/ESP8266
 #ifdef ESP32
+#include <sys/statvfs.h>  // statvfs is ESP32-specific
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #define yield() taskYIELD()
