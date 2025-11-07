@@ -38,6 +38,29 @@ A complete, production-ready binary storage system for ESPHome with three major 
 - **Speed**: Up to 40MHz SPI (faster than I2C)
 - **Best For**: High-speed frequent writes, real-time logging
 
+### ✅ SPI Flash with QSPI Support
+- **Models**: W25Q, MX25, AT25 series (same chips as SPI Flash)
+- **Quad Mode**: **4x faster reads** using 4 data lines
+- **Write Time**: ~3ms per page (same as standard SPI)
+- **Read Speed**: Up to 80MHz (vs 20MHz standard)
+- **Best For**: Performance-critical reads, firmware storage with fast boot
+
+### ✅ SPI MRAM (Magnetoresistive RAM)
+- **Models**: Everspin MR25H series (up to 4Mbit)
+- **Write Endurance**: Unlimited cycles (magnetic storage!)
+- **Write Time**: Instant (<1μs)
+- **Speed**: Up to 40MHz SPI
+- **Temperature**: Industrial grade (-40°C to +125°C)
+- **Best For**: Industrial/automotive, extreme environments
+
+### ✅ OneWire EEPROM
+- **Models**: DS2431 (1KB), DS2433 (4KB), DS28E07 (1KB)
+- **Write Endurance**: 100,000 cycles
+- **Write Time**: ~10ms per page
+- **GPIO Usage**: **Only 1 pin!** (+ ground)
+- **Unique ID**: 64-bit ROM ID per device
+- **Best For**: GPIO-constrained projects, distributed sensors
+
 ---
 
 ## Key Features
@@ -313,10 +336,14 @@ esphome/components/binary_storage/
 ├── i2c_eeprom.cpp
 ├── i2c_fram.h                   # I2C FRAM implementation
 ├── i2c_fram.cpp
-├── spi_flash.h                  # SPI Flash implementation
+├── spi_flash.h                  # SPI Flash implementation (with QSPI support)
 ├── spi_flash.cpp
 ├── spi_fram.h                   # SPI FRAM implementation
 ├── spi_fram.cpp
+├── spi_mram.h                   # SPI MRAM implementation
+├── spi_mram.cpp
+├── onewire_eeprom.h             # OneWire EEPROM implementation
+├── onewire_eeprom.cpp
 ├── littlefs_mount.h             # LittleFS mounting
 ├── littlefs_mount.cpp
 └── automation.h                 # Automation actions/conditions
@@ -333,13 +360,17 @@ Documentation:
 
 ## Statistics
 
-- **~5,500 lines** of C++ code
-- **~400 lines** of Python code
-- **~1,700 lines** of documentation
-- **4 device types** implemented (I2C EEPROM, I2C FRAM, SPI Flash, SPI FRAM)
+- **~9,000 lines** of C++ code
+- **~500 lines** of Python code
+- **~2,000 lines** of documentation
+- **7 device types** implemented:
+  - I2C EEPROM, I2C FRAM
+  - SPI Flash (with QSPI support), SPI FRAM, SPI MRAM
+  - OneWire EEPROM
 - **5 automation actions**
 - **1 condition**
 - **3 access modes** (raw, littlefs, both)
+- **3 bus types** (I2C, SPI, OneWire)
 - **100% documented**
 
 ---

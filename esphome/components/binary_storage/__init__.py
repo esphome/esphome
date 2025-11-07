@@ -4,8 +4,18 @@ from __future__ import annotations
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, spi, esp32
-from esphome.const import CONF_ID, CONF_MODEL, CONF_TYPE, CONF_VALUE, CONF_ADDRESS, CONF_LENGTH, CONF_DATA, CONF_MODE
-from esphome import automation
+from esphome.const import (
+    CONF_ID,
+    CONF_MODEL,
+    CONF_TYPE,
+    CONF_VALUE,
+    CONF_ADDRESS,
+    CONF_LENGTH,
+    CONF_DATA,
+    CONF_MODE,
+    CONF_PIN,
+)
+from esphome import automation, pins
 import re
 
 CODEOWNERS = ["@esphome/core"]
@@ -41,6 +51,17 @@ SPIFram = binary_storage_ns.class_(
     cg.Parented.template(spi.SPIComponent),
 )
 
+# SPI MRAM class
+SPIMRAM = binary_storage_ns.class_(
+    "SPIMRAM",
+    BinaryStorage,
+    spi.SPIDevice,
+    cg.Parented.template(spi.SPIComponent),
+)
+
+# OneWire EEPROM class
+OneWireEEPROM = binary_storage_ns.class_("OneWireEEPROM", BinaryStorage)
+
 # LittleFS Mount class
 LittleFSMount = binary_storage_ns.class_("LittleFSMount", cg.Component)
 
@@ -63,6 +84,7 @@ CONF_FILESYSTEM = "filesystem"
 CONF_STORAGE_DEVICE = "storage_device"
 CONF_ERASE_SIZE = "erase_size"
 CONF_JEDEC_ID = "jedec_id"
+CONF_QUAD_MODE = "quad_mode"
 
 # Storage modes
 MODE_RAW = "raw"
@@ -152,6 +174,7 @@ SPI_FLASH_SCHEMA = (
             cv.Optional(CONF_PAGE_SIZE): cv.int_range(min=256, max=256),  # Standard: 256 bytes
             cv.Optional(CONF_ERASE_SIZE): cv.one_of(4096, 32768, 65536, int=True),  # 4KB, 32KB, 64KB
             cv.Optional(CONF_JEDEC_ID): cv.hex_uint32_t,
+            cv.Optional(CONF_QUAD_MODE, default=False): cv.boolean,  # Enable Quad SPI (4x faster reads)
             # Usage mode: how to use this device
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
@@ -189,6 +212,53 @@ SPI_FRAM_SCHEMA = (
     .extend(spi.spi_device_schema(cs_pin_required=True))
 )
 
+# SPI MRAM Configuration Schema
+SPI_MRAM_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SPIMRAM),
+            # Device configuration
+            cv.Optional(CONF_MODEL, default="MR25H256"): cv.string,
+            cv.Optional(CONF_CAPACITY): validate_bytes,
+            cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(16, 24, int=True),
+            # Usage mode: how to use this device
+            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
+                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
+            ),
+            # LittleFS configuration (only used if mode is littlefs or both)
+            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
+            cv.Optional(CONF_PARTITION_LABEL): cv.string,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(spi.spi_device_schema(cs_pin_required=True))
+)
+
+# OneWire EEPROM Configuration Schema
+ONEWIRE_EEPROM_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(OneWireEEPROM),
+            # Device configuration
+            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_MODEL, default="DS2431"): cv.string,
+            cv.Optional(CONF_CAPACITY): validate_bytes,
+            cv.Optional(CONF_PAGE_SIZE): cv.int_range(min=8, max=32),
+            cv.Optional(CONF_ADDRESS): cv.hex_uint64_t,  # ROM ID if multiple devices
+            # Usage mode: how to use this device
+            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
+                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
+            ),
+            # LittleFS configuration (only used if mode is littlefs or both)
+            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
+            cv.Optional(CONF_PARTITION_LABEL): cv.string,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
+
 # Typed schema for device selection
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -199,6 +269,10 @@ CONFIG_SCHEMA = cv.typed_schema(
         "SPI_FLASH": SPI_FLASH_SCHEMA,
         "FLASH": SPI_FLASH_SCHEMA,
         "SPI_FRAM": SPI_FRAM_SCHEMA,
+        "SPI_MRAM": SPI_MRAM_SCHEMA,
+        "MRAM": SPI_MRAM_SCHEMA,
+        "ONEWIRE_EEPROM": ONEWIRE_EEPROM_SCHEMA,
+        "ONEWIRE": ONEWIRE_EEPROM_SCHEMA,
     },
     key=CONF_TYPE,
     default_type="EEPROM",
@@ -218,10 +292,19 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    # Register as I2C or SPI device
-    is_spi = device_type in ["SPI_FLASH", "FLASH", "SPI_FRAM"]
+    # Register as I2C, SPI, or OneWire device
+    is_spi = device_type in ["SPI_FLASH", "FLASH", "SPI_FRAM", "SPI_MRAM", "MRAM"]
+    is_onewire = device_type in ["ONEWIRE_EEPROM", "ONEWIRE"]
+
     if is_spi:
         await spi.register_spi_device(var, config)
+    elif is_onewire:
+        # Configure OneWire pin
+        pin = await cg.gpio_pin_expression(config[CONF_PIN])
+        cg.add(var.set_pin(pin))
+        # Set ROM address if specified
+        if CONF_ADDRESS in config:
+            cg.add(var.set_address(config[CONF_ADDRESS]))
     else:
         await i2c.register_i2c_device(var, config)
 
@@ -244,6 +327,10 @@ async def to_code(config):
     # Set JEDEC ID if specified (Flash only)
     if CONF_JEDEC_ID in config:
         cg.add(var.set_jedec_id(config[CONF_JEDEC_ID]))
+
+    # Set quad mode if specified (Flash only)
+    if CONF_QUAD_MODE in config:
+        cg.add(var.set_quad_mode(config[CONF_QUAD_MODE]))
 
     # Set addressing bits if specified
     if CONF_ADDRESSING_BITS in config:

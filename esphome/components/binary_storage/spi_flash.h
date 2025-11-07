@@ -61,6 +61,16 @@ class SPIFlash : public BinaryStorage, public spi::SPIDevice<spi::BIT_ORDER_MSB_
    */
   void set_sector_size(uint32_t sector_size) { this->sector_size_ = sector_size; }
 
+  /**
+   * @brief Enable/disable Quad SPI mode for faster reads
+   *
+   * Quad SPI uses 4 data lines instead of 1, providing 4x faster read performance.
+   * Most modern flash chips support this (W25Q, MX25, etc.)
+   *
+   * @param enable true to enable quad mode, false for standard SPI
+   */
+  void set_quad_mode(bool enable) { this->quad_mode_ = enable; }
+
   //========================================================================
   // BinaryStorage Interface
   //========================================================================
@@ -155,6 +165,7 @@ class SPIFlash : public BinaryStorage, public spi::SPIDevice<spi::BIT_ORDER_MSB_
   uint32_t page_size_{256};      // Standard page size
   uint32_t sector_size_{4096};   // Standard sector size (4KB)
   uint32_t jedec_id_{0};
+  bool quad_mode_{false};        // Quad SPI mode for faster reads
 
   //========================================================================
   // SPI Flash Commands (JEDEC standard)
@@ -181,7 +192,11 @@ class SPIFlash : public BinaryStorage, public spi::SPIDevice<spi::BIT_ORDER_MSB_
   static constexpr uint8_t CMD_FAST_READ = 0x0B;
   static constexpr uint8_t CMD_READ_UNIQUE_ID = 0x4B;
 
-  // Status register bits
+  // Quad SPI commands (4x faster reads)
+  static constexpr uint8_t CMD_FAST_READ_QUAD_OUTPUT = 0x6B;  // Address on 1 line, data on 4 lines
+  static constexpr uint8_t CMD_FAST_READ_QUAD_IO = 0xEB;      // Address and data on 4 lines
+
+  // Status register 1 bits
   static constexpr uint8_t STATUS_BUSY = 0x01;      // Write in progress
   static constexpr uint8_t STATUS_WEL = 0x02;       // Write enable latch
   static constexpr uint8_t STATUS_BP0 = 0x04;       // Block protect bit 0
@@ -190,6 +205,9 @@ class SPIFlash : public BinaryStorage, public spi::SPIDevice<spi::BIT_ORDER_MSB_
   static constexpr uint8_t STATUS_TB = 0x20;        // Top/bottom protect
   static constexpr uint8_t STATUS_SEC = 0x40;       // Sector protect
   static constexpr uint8_t STATUS_SRP = 0x80;       // Status register protect
+
+  // Status register 2 bits (Winbond/Macronix)
+  static constexpr uint8_t STATUS2_QE = 0x02;       // Quad Enable (bit 1 of SR2)
 
   //========================================================================
   // Internal Helpers
@@ -201,6 +219,31 @@ class SPIFlash : public BinaryStorage, public spi::SPIDevice<spi::BIT_ORDER_MSB_
    * @return Status register value
    */
   uint8_t read_status_register();
+
+  /**
+   * @brief Read status register 2 (for quad enable bit)
+   *
+   * @return Status register 2 value
+   */
+  uint8_t read_status_register2();
+
+  /**
+   * @brief Enable quad mode in status register
+   *
+   * Sets the QE (Quad Enable) bit in status register 2
+   *
+   * @return true on success
+   */
+  bool enable_quad_mode();
+
+  /**
+   * @brief Disable quad mode in status register
+   *
+   * Clears the QE (Quad Enable) bit in status register 2
+   *
+   * @return true on success
+   */
+  bool disable_quad_mode();
 
   /**
    * @brief Wait for flash to become ready (not busy)
