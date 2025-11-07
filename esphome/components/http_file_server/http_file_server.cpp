@@ -1504,6 +1504,13 @@ std::string HttpFileServer::generate_html_footer() {
     }
 
     console.log('[FileServer] File selected:', file.name, 'size:', file.size);
+    console.log('[FileServer] File object details:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: new Date(file.lastModified).toISOString(),
+      lastModifiedDate: file.lastModifiedDate ? file.lastModifiedDate.toISOString() : 'N/A'
+    });
 
     // Show progress modal
     showProgressModal('upload', file.name, window.location.pathname);
