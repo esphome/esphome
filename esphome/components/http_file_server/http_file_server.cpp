@@ -2311,13 +2311,6 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
-  // Check if destination directory is writable
-  std::string dest_dir = Path::dirname(destination);
-  if (!this->is_directory_writable(dest_dir)) {
-    request->send(403, "application/json", "{\"error\":\"Destination directory is not writable\"}");
-    return;
-  }
-
   // Check if another operation is already in progress
   portENTER_CRITICAL(&this->progress_mutex_);
   bool already_in_progress = this->progress_.in_progress;
@@ -2376,13 +2369,6 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
 
   if (S_ISDIR(src_stat.st_mode)) {
     request->send(400, "application/json", "{\"error\":\"Directory move not supported\"}");
-    return;
-  }
-
-  // Check if destination directory is writable
-  std::string dest_dir = Path::dirname(destination);
-  if (!this->is_directory_writable(dest_dir)) {
-    request->send(403, "application/json", "{\"error\":\"Destination directory is not writable\"}");
     return;
   }
 
@@ -2843,12 +2829,6 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
     if (stat(dir_path.c_str(), &file_stat) != 0 || !S_ISDIR(file_stat.st_mode)) {
       ESP_LOGE(TAG, "Upload target is not a directory: %s", dir_path.c_str());
       request->send(400, "application/json", "{\"error\":\"Target is not a directory\"}");
-      return;
-    }
-
-    // Check if directory is writable
-    if (!this->is_directory_writable(dir_path)) {
-      request->send(403, "application/json", "{\"error\":\"Upload directory is not writable\"}");
       return;
     }
 
