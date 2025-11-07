@@ -1,0 +1,411 @@
+substitutions:
+  name: "picture-viewer"
+  friendly_name: "Picture Viewer"
+  # Adjust these for your hardware
+  photo_directory: "/sd/photos"
+  slideshow_interval: "5s"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  platformio_options:
+    board_build.flash_mode: qio
+    board_build.psram_type: opi
+    board_build.memory_type: qspi_qspi
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: ESP32S3
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      # Enable PSRAM for image buffers
+      CONFIG_SPIRAM_MODE_OCT: y
+      CONFIG_SPIRAM: y
+      CONFIG_ESP32S3_SPIRAM_SUPPORT: y
+      # Enable esp_jpeg decoder (faster than JPEGDec on S2/S3)
+      CONFIG_ESP_JPEG_DECODE_ENABLED: y
+
+# Required for picture viewer
+logger:
+  level: DEBUG
+
+# Storage host with file manager for dynamic image loading
+storage_host:
+  id: storage
+  mounts:
+    - path: /sd
+      platform: sd_mmc
+  file_managers:
+    # Watch photos directory for changes
+    - id: photo_monitor
+      storage_host_id: storage
+      watch_directory: ${photo_directory}
+      scan_interval: 10s
+      patterns:
+        - "*.jpg"
+        - "*.jpeg"
+        - "*.JPG"
+        - "*.JPEG"
+      min_size: 1024  # Skip tiny files
+      on_file_added:
+        - lambda: |-
+            ESP_LOGI("photos", "New photo added: %s", x.filename.c_str());
+            // Refresh picture viewer image list
+            id(viewer)->refresh_images();
+            // If no image currently displayed, show the new one
+            if (id(viewer)->get_current_index() < 0) {
+              id(viewer)->show_image(0);
+            }
+      on_file_deleted:
+        - lambda: |-
+            ESP_LOGI("photos", "Photo deleted: %s", x.filename.c_str());
+            // Refresh picture viewer image list
+            id(viewer)->refresh_images();
+            // If deleted image was currently displayed, show next
+            int current = id(viewer)->get_current_index();
+            if (current >= id(viewer)->get_image_count()) {
+              if (id(viewer)->get_image_count() > 0) {
+                id(viewer)->show_image(0);
+              }
+            }
+      on_directory_changed:
+        - lambda: |-
+            ESP_LOGI("photos", "Photo directory changed: %zu total", x.file_count);
+            // Update UI with new count
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d / %zu",
+                     id(viewer)->get_current_index() + 1, x.file_count);
+            lv_label_set_text(id(info_label), buf);
+
+# SD card setup (adjust pins for your board)
+sd_mmc:
+  - id: sd_card
+    clk_pin: GPIO36
+    cmd_pin: GPIO35
+    data_pins:
+      - GPIO37
+      - GPIO38
+      - GPIO39
+      - GPIO40
+    bus_width: 4
+
+# Display setup (example for ST7789 320x480)
+spi:
+  clk_pin: GPIO12
+  mosi_pin: GPIO11
+
+display:
+  - platform: st7789v
+    id: main_display
+    model: Custom
+    height: 480
+    width: 320
+    offset_height: 0
+    offset_width: 0
+    cs_pin: GPIO10
+    dc_pin: GPIO8
+    reset_pin: GPIO9
+    rotation: 270
+    update_interval: never  # LVGL handles updates
+    auto_clear_enabled: false
+
+# Touchscreen (example for FT5x06)
+touchscreen:
+  - platform: ft5x06
+    id: main_touch
+    on_touch:
+      - lambda: |-
+          ESP_LOGD("touch", "x=%d, y=%d", touch.x, touch.y);
+
+# LVGL Configuration
+lvgl:
+  log_level: INFO
+  color_depth: 16
+  buffer_size: 25%
+  displays:
+    - main_display
+  touchscreens:
+    - main_touch
+
+  # Define theme
+  theme:
+    btn:
+      bg_color: 0x2196F3
+      text_color: 0xFFFFFF
+      pressed:
+        bg_color: 0x1976D2
+
+  # Top-level pages
+  pages:
+    # Main page (default)
+    - id: main_page
+      skip: false
+      layout:
+        type: flex
+        flex_flow: row
+      widgets:
+        # Main area (left) - contains image canvas and controls
+        - obj:
+            id: main_area
+            width: 650  # 800 - 150 (thumbnail panel width)
+            height: 480
+            layout:
+              type: flex
+              flex_flow: column
+            widgets:
+              # Image canvas (main display area)
+              - canvas:
+                  id: photo_canvas
+                  width: 650
+                  height: 400
+                  bg_color: 0x000000
+
+              # Control panel at bottom
+              - obj:
+                  id: control_panel
+                  width: 650
+                  height: 80
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align: space_evenly center
+                  widgets:
+                    # Previous button
+                    - button:
+                        id: btn_previous
+                        width: 80
+                        height: 60
+                        on_click:
+                          - lambda: id(viewer)->previous_image();
+                        widgets:
+                          - label:
+                              text: "◄"
+                              text_font: montserrat_32
+
+                    # Play/Pause button
+                    - button:
+                        id: btn_play_pause
+                        width: 80
+                        height: 60
+                        checkable: true
+                        on_click:
+                          - lambda: id(viewer)->toggle_slideshow();
+                        widgets:
+                          - label:
+                              id: play_pause_label
+                              text: "▶"
+                              text_font: montserrat_32
+
+                    # Next button
+                    - button:
+                        id: btn_next
+                        width: 80
+                        height: 60
+                        on_click:
+                          - lambda: id(viewer)->next_image();
+                        widgets:
+                          - label:
+                              text: "►"
+                              text_font: montserrat_32
+
+                    # Fullscreen button
+                    - button:
+                        id: btn_fullscreen
+                        width: 80
+                        height: 60
+                        on_click:
+                          - lambda: |-
+                              bool is_fs = id(viewer)->is_fullscreen();
+                              id(viewer)->set_fullscreen(!is_fs);
+                              // Toggle thumbnail panel visibility
+                              lv_obj_set_hidden(id(thumbnail_panel), !is_fs);
+                              // Resize main area
+                              if (!is_fs) {
+                                lv_obj_set_width(id(main_area), 800);
+                              } else {
+                                lv_obj_set_width(id(main_area), 650);
+                              }
+                        widgets:
+                          - label:
+                              text: "⛶"
+                              text_font: montserrat_32
+
+                    # Info label (shows current index / total)
+                    - label:
+                        id: info_label
+                        text: "0 / 0"
+                        width: 100
+                        text_align: center
+
+        # Thumbnail panel (right)
+        - obj:
+            id: thumbnail_panel
+            width: 150
+            height: 480
+            bg_color: 0x1E1E1E
+            layout:
+              type: flex
+              flex_flow: column
+              flex_align: start center
+            widgets:
+              # Title
+              - label:
+                  text: "Photos"
+                  width: 150
+                  text_align: center
+                  text_color: 0xFFFFFF
+
+              # Thumbnail list (max 10, scrollable)
+              - obj:
+                  id: thumbnail_list
+                  width: 150
+                  height: 440
+                  scrollable: true
+                  layout:
+                    type: flex
+                    flex_flow: column
+                    flex_align: start center
+
+    # Settings page (for slideshow configuration)
+    - id: settings_page
+      skip: true
+      layout:
+        type: flex
+        flex_flow: column
+        flex_align: center center
+      widgets:
+        - label:
+            text: "Slideshow Settings"
+            text_font: montserrat_24
+
+        - obj:
+            width: 600
+            height: 300
+            layout:
+              type: flex
+              flex_flow: column
+            widgets:
+              # Interval slider
+              - label:
+                  text: "Interval (seconds)"
+                  id: interval_label
+              - slider:
+                  id: interval_slider
+                  width: 500
+                  min_value: 1
+                  max_value: 60
+                  value: 5
+                  on_value:
+                    - lambda: |-
+                        int seconds = x;
+                        id(viewer)->set_slideshow_interval_runtime(seconds * 1000);
+                        char buf[32];
+                        snprintf(buf, sizeof(buf), "Interval: %d s", seconds);
+                        lv_label_set_text(id(interval_label), buf);
+
+              # Back button
+              - button:
+                  width: 200
+                  height: 60
+                  on_click:
+                    - lvgl.page.show: main_page
+                  widgets:
+                    - label:
+                        text: "Back"
+
+# Picture viewer component
+picture_viewer:
+  id: viewer
+  file_manager_id: photo_monitor
+  canvas_id: photo_canvas
+  display_id: main_display
+  watch_directory: ${photo_directory}
+  slideshow_interval: ${slideshow_interval}
+  # Thumbnail configuration (ESP32-P4 only, auto-disabled on other platforms)
+  enable_thumbnails: true
+  thumbnail_width: 120
+  thumbnail_height: 90
+
+# Example automations
+interval:
+  # Update info label every second
+  - interval: 1s
+    then:
+      - lambda: |-
+          auto *viewer = id(viewer);
+          size_t count = viewer->get_image_count();
+          int index = viewer->get_current_index();
+          char buf[32];
+          snprintf(buf, sizeof(buf), "%d / %zu", index + 1, count);
+          lv_label_set_text(id(info_label), buf);
+
+          // Update play/pause icon
+          bool is_playing = viewer->get_slideshow_mode() == picture_viewer::SlideshowMode::PLAYING;
+          lv_label_set_text(id(play_pause_label), is_playing ? "⏸" : "▶");
+
+# Optional: Add buttons for physical controls
+binary_sensor:
+  # Example: Physical button to go to next image
+  - platform: gpio
+    id: physical_next_btn
+    pin:
+      number: GPIO0
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_press:
+      - lambda: id(viewer)->next_image();
+
+  # Example: Physical button to start/stop slideshow
+  - platform: gpio
+    id: physical_play_btn
+    pin:
+      number: GPIO1
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_press:
+      - lambda: id(viewer)->toggle_slideshow();
+
+# Optional: Expose controls via Home Assistant
+api:
+  services:
+    # Service to show specific image
+    - service: show_image
+      variables:
+        index: int
+      then:
+        - lambda: id(viewer)->show_image(index);
+
+    # Service to start slideshow
+    - service: start_slideshow
+      then:
+        - lambda: id(viewer)->start_slideshow();
+
+    # Service to stop slideshow
+    - service: stop_slideshow
+      then:
+        - lambda: id(viewer)->stop_slideshow();
+
+    # Service to set slideshow interval
+    - service: set_interval
+      variables:
+        seconds: int
+      then:
+        - lambda: id(viewer)->set_slideshow_interval_runtime(seconds * 1000);
+
+    # Service to refresh image list
+    - service: refresh_images
+      then:
+        - lambda: id(viewer)->refresh_images();
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+ota:
+  - platform: esphome
