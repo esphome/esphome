@@ -106,7 +106,6 @@ async def to_code(config):
         cg.add(var.set_auth(config[CONF_USERNAME], config[CONF_PASSWORD]))
 
     # Register USB MSC devices for mount/unmount API
-    from esphome.core import CORE
     import logging
 
     _LOGGER = logging.getLogger(__name__)
