@@ -21,6 +21,9 @@ BinaryStorage = binary_storage_ns.class_("BinaryStorage", cg.Component)
 # I2C EEPROM class
 I2CEeprom = binary_storage_ns.class_("I2CEeprom", BinaryStorage, i2c.I2CDevice)
 
+# I2C FRAM class
+I2CFram = binary_storage_ns.class_("I2CFram", BinaryStorage, i2c.I2CDevice)
+
 # Configuration keys
 CONF_PAGE_SIZE = "page_size"
 CONF_CAPACITY = "capacity"
@@ -66,11 +69,27 @@ EEPROM_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x50))
 )
 
+# FRAM Configuration Schema
+FRAM_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(I2CFram),
+            cv.Optional(CONF_MODEL, default="MB85RC256"): cv.string,
+            cv.Optional(CONF_CAPACITY): validate_bytes,
+            cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(9, 11, 16, 32, int=True),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(i2c.i2c_device_schema(0x50))
+)
+
 # Typed schema for device selection
 CONFIG_SCHEMA = cv.typed_schema(
     {
         "EEPROM": EEPROM_SCHEMA,
         "I2C_EEPROM": EEPROM_SCHEMA,
+        "FRAM": FRAM_SCHEMA,
+        "I2C_FRAM": FRAM_SCHEMA,
     },
     key=CONF_TYPE,
     default_type="EEPROM",
