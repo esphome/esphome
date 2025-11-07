@@ -104,7 +104,7 @@ async def to_code(config):
         _LOGGER.info("Enabled hardware JPEG decoder for %s", variant)
     else:
         # Use JPEGDec library as fallback
-        cg.add_library("JPEGDecoder", "1.8.0")
+        cg.add_library("bodmer/JPEGDecoder", "1.8.0")
         cg.add_define("USE_JPEGDEC")
         _LOGGER.info("Using JPEGDec library for %s", variant)
 
