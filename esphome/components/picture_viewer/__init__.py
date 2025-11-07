@@ -80,13 +80,13 @@ async def to_code(config):
     cg.add(var.set_thumbnail_height(config[CONF_THUMBNAIL_HEIGHT]))
 
     # Add defines based on platform
-    from esphome.components.esp32 import get_esp32_variant
+    from esphome.components.esp32 import get_esp32_variant, add_idf_component
 
     variant = get_esp32_variant()
     if variant == "esp32s2" or variant == "esp32s3":
         # Enable esp_jpeg decoder for S2/S3
-        # esp_jpeg is a managed component in ESP-IDF v5.1+, no sdkconfig needed
-        cg.add_library("esp_jpeg", None)  # Built into ESP-IDF
+        # Add esp_jpeg as a managed ESP-IDF component
+        add_idf_component(name="espressif/esp_jpeg")
         cg.add_define("USE_ESP_JPEG_DECODER")
         _LOGGER.info("Enabled esp_jpeg decoder for %s", variant)
     elif variant == "esp32p4":
