@@ -133,12 +133,16 @@ class UpdateEntity;
  * This singleton registry allows Controllers (APIServer, WebServer) to receive
  * entity state change notifications without storing per-entity callbacks.
  *
- * Instead of each entity maintaining a list of controller callbacks (32 bytes overhead),
+ * Instead of each entity maintaining controller callbacks (32 bytes overhead per entity),
  * entities call ControllerRegistry::notify_*_update() which iterates the small list
  * of registered controllers (typically 2: API and WebServer).
  *
+ * Controllers read state directly from entities using existing accessors (obj->state, etc.)
+ * rather than receiving it as callback parameters that were being ignored anyway.
+ *
  * Memory savings: 32 bytes per entity (2 controllers × 16 bytes std::function overhead)
- * For 80 entities: 2,560 bytes saved
+ * Typical config (25 entities): ~780 bytes saved
+ * Large config (80 entities): ~2,540 bytes saved
  */
 class ControllerRegistry {
  public:
@@ -149,110 +153,83 @@ class ControllerRegistry {
    */
   static void register_controller(Controller *controller);
 
-  /** Unregister a controller (rarely used).
-   *
-   * Controllers are typically never unregistered in ESPHome's lifecycle,
-   * but this is provided for completeness and testing.
-   */
-  static void unregister_controller(Controller *controller);
-
 #ifdef USE_BINARY_SENSOR
-  /** Notify all controllers of a binary sensor state update. */
   static void notify_binary_sensor_update(binary_sensor::BinarySensor *obj);
 #endif
 
 #ifdef USE_FAN
-  /** Notify all controllers of a fan state update. */
   static void notify_fan_update(fan::Fan *obj);
 #endif
 
 #ifdef USE_LIGHT
-  /** Notify all controllers of a light state update. */
   static void notify_light_update(light::LightState *obj);
 #endif
 
 #ifdef USE_SENSOR
-  /** Notify all controllers of a sensor state update. */
   static void notify_sensor_update(sensor::Sensor *obj);
 #endif
 
 #ifdef USE_SWITCH
-  /** Notify all controllers of a switch state update. */
   static void notify_switch_update(switch_::Switch *obj);
 #endif
 
 #ifdef USE_COVER
-  /** Notify all controllers of a cover state update. */
   static void notify_cover_update(cover::Cover *obj);
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  /** Notify all controllers of a text sensor state update. */
   static void notify_text_sensor_update(text_sensor::TextSensor *obj);
 #endif
 
 #ifdef USE_CLIMATE
-  /** Notify all controllers of a climate state update. */
   static void notify_climate_update(climate::Climate *obj);
 #endif
 
 #ifdef USE_NUMBER
-  /** Notify all controllers of a number state update. */
   static void notify_number_update(number::Number *obj);
 #endif
 
 #ifdef USE_DATETIME_DATE
-  /** Notify all controllers of a date entity state update. */
   static void notify_date_update(datetime::DateEntity *obj);
 #endif
 
 #ifdef USE_DATETIME_TIME
-  /** Notify all controllers of a time entity state update. */
   static void notify_time_update(datetime::TimeEntity *obj);
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-  /** Notify all controllers of a datetime entity state update. */
   static void notify_datetime_update(datetime::DateTimeEntity *obj);
 #endif
 
 #ifdef USE_TEXT
-  /** Notify all controllers of a text entity state update. */
   static void notify_text_update(text::Text *obj);
 #endif
 
 #ifdef USE_SELECT
-  /** Notify all controllers of a select entity state update. */
   static void notify_select_update(select::Select *obj);
 #endif
 
 #ifdef USE_LOCK
-  /** Notify all controllers of a lock state update. */
   static void notify_lock_update(lock::Lock *obj);
 #endif
 
 #ifdef USE_VALVE
-  /** Notify all controllers of a valve state update. */
   static void notify_valve_update(valve::Valve *obj);
 #endif
 
 #ifdef USE_MEDIA_PLAYER
-  /** Notify all controllers of a media player state update. */
   static void notify_media_player_update(media_player::MediaPlayer *obj);
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  /** Notify all controllers of an alarm control panel state update. */
   static void notify_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj);
 #endif
 
 #ifdef USE_EVENT
-  /** Notify all controllers of an event trigger. */
   static void notify_event(event::Event *obj);
 #endif
 
 #ifdef USE_UPDATE
-  /** Notify all controllers of an update entity state update. */
   static void notify_update(update::UpdateEntity *obj);
 #endif
 

@@ -7,13 +7,6 @@ std::vector<Controller *> ControllerRegistry::controllers_;
 
 void ControllerRegistry::register_controller(Controller *controller) { controllers_.push_back(controller); }
 
-void ControllerRegistry::unregister_controller(Controller *controller) {
-  auto it = std::find(controllers_.begin(), controllers_.end(), controller);
-  if (it != controllers_.end()) {
-    controllers_.erase(it);
-  }
-}
-
 #ifdef USE_BINARY_SENSOR
 void ControllerRegistry::notify_binary_sensor_update(binary_sensor::BinarySensor *obj) {
   for (auto *controller : controllers_) {
