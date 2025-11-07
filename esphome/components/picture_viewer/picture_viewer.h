@@ -195,8 +195,8 @@ class PictureViewer : public Component {
   bool load_jpeg_(const std::string &path, std::vector<uint8_t> &rgb565_data, int &width, int &height,
                   int target_width = 0, int target_height = 0);
 
-  /// Decode JPEG using esp_jpeg (ESP-IDF S2/S3)
-#ifdef USE_ESP_IDF
+  /// Decode JPEG using esp_jpeg (ESP32-S2/S3)
+#ifdef USE_ESP_JPEG_DECODER
   bool decode_jpeg_esp_(const std::vector<uint8_t> &jpeg_data, std::vector<uint8_t> &rgb565_data, int &width,
                         int &height, int target_width = 0, int target_height = 0);
 #endif
