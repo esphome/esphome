@@ -2873,6 +2873,12 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
       ESP_LOGD(TAG, "Wrote chunk %d: %zu bytes (total: %zu/%zu)", chunk_index, written,
                this->progress_.transferred_bytes, file_size);
     }
+
+    // Flush periodically to ensure data reaches disk (every 10 chunks)
+    // This prevents large amounts of data accumulating in FILE* buffers
+    if (chunk_index % 10 == 0) {
+      fflush(this->upload_file_);
+    }
   }
 
   // Clear body buffer for next chunk
@@ -2881,6 +2887,8 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
   // Last chunk - finalize
   if (chunk_index == total_chunks - 1) {
     if (this->upload_file_) {
+      // Flush all buffered data before closing to prevent data loss
+      fflush(this->upload_file_);
       fclose(this->upload_file_);
       this->upload_file_ = nullptr;
       ESP_LOGI(TAG, "Completed chunked upload: %s (%zu bytes)", upload_path.c_str(),
