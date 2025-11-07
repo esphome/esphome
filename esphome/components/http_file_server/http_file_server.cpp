@@ -270,7 +270,7 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     ESP_LOGD(TAG, "API CANCEL endpoint hit");
     this->handle_api_cancel(request);
   } else if (uri.find(this->url_prefix_ + "/api/upload_chunk") == 0 && request->method() == HTTP_POST) {
-    ESP_LOGD(TAG, "API UPLOAD_CHUNK endpoint hit");
+    ESP_LOGD(TAG, "API UPLOAD_CHUNK endpoint hit, body_buffer size: %zu", this->body_buffer_.size());
     this->handle_api_upload_chunk(request);
   } else if (request->method() == HTTP_GET) {
     // Handle GET request (directory listing or file download)
