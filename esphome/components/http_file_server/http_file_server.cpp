@@ -482,11 +482,11 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     portEXIT_CRITICAL(&this->progress_mutex_);
 
     // Yield CPU periodically to allow web server to handle other requests (like progress API)
-    // This follows the ESP-IDF multipart upload pattern (see web_server_idf/web_server_idf.cpp)
+    // Longer yield time (100ms) but less frequent (every 128KB instead of 16KB)
     this->upload_bytes_since_yield_ += written;
-    static constexpr size_t YIELD_INTERVAL_BYTES = 16 * 1024;  // 16KB - same as ESP-IDF multipart handler
+    static constexpr size_t YIELD_INTERVAL_BYTES = 128 * 1024;  // 128KB between yields
     if (this->upload_bytes_since_yield_ >= YIELD_INTERVAL_BYTES) {
-      vTaskDelay(1);  // Brief yield to let other tasks run (including /api/progress requests)
+      vTaskDelay(10);  // Yield for ~100ms to give httpd time to send progress responses
       this->upload_bytes_since_yield_ = 0;
     }
   }
@@ -1003,8 +1003,8 @@ std::string HttpFileServer::generate_html_footer() {
       } else {
         stallCount++;
         console.log('[FileServer] No progress detected, stall count:', stallCount);
-        // Only abort if stalled for 20 consecutive polls (10 seconds with no progress)
-        if (stallCount >= 20) {
+        // Only abort if stalled for 5 consecutive polls (10 seconds with no progress at 2s interval)
+        if (stallCount >= 5) {
           console.warn('[FileServer] Operation appears stalled, calling cancel and closing modal');
           // Call cancel API to clean up partial files and reset backend state
           fetch(API_BASE + '/api/cancel', {method: 'POST'})
@@ -1111,12 +1111,12 @@ std::string HttpFileServer::generate_html_footer() {
     if (progressPollInterval) {
       clearInterval(progressPollInterval);
     }
-    // Poll every 500ms
-    progressPollInterval = setInterval(pollProgress, 500);
+    // Poll every 2 seconds (reduced from 500ms to minimize httpd socket/connection load)
+    progressPollInterval = setInterval(pollProgress, 2000);
     console.log('[FileServer] Set interval ID:', progressPollInterval);
-    // First poll after 250ms delay to give backend time to start tracking
-    setTimeout(pollProgress, 250);
-    console.log('[FileServer] Scheduled first poll in 250ms');
+    // First poll after 500ms delay to give backend time to start tracking
+    setTimeout(pollProgress, 500);
+    console.log('[FileServer] Scheduled first poll in 500ms');
   }
 
   function cancelOperation() {
