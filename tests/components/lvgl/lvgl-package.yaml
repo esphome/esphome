@@ -113,9 +113,10 @@ lvgl:
       title: Messagebox
       bg_color: 0xffff
       widgets:
-        - label:
-            text: Hello Msgbox
-            id: msgbox_label
+        # Test single widget without list
+        label:
+          text: Hello Msgbox
+          id: msgbox_label
       body:
         text: This is a sample messagebox
         bg_color: 0x808080
@@ -190,7 +191,7 @@ lvgl:
           args: ['lv_event_code_name_for(event->code).c_str()']
       skip: true
       layout:
-        type: flex
+        type: Flex
         pad_row: 4
         pad_column: 4px
         flex_align_main: center
@@ -257,8 +258,31 @@ lvgl:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
             align: bottom_mid
+        - label:
+            id: setup_lambda_label
+            # Test lambda in widget property during setup (LvContext)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              char buf[32];
+              snprintf(buf, sizeof(buf), "Setup: %d", 42);
+              return std::string(buf);
+            align: top_mid
             text_font: space16
-        - obj:
+        - label:
+            id: chip_info_label
+            # Test complex setup lambda (real-world pattern)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              // Test conditional compilation and string formatting
+              char buf[64];
+              #ifdef USE_ESP_IDF
+              snprintf(buf, sizeof(buf), "IDF: v%d.%d", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR);
+              #else
+              snprintf(buf, sizeof(buf), "Arduino");
+              #endif
+              return std::string(buf);
+            align: top_left
+        - container:
             align: center
             arc_opa: COVER
             arc_color: 0xFF0000
@@ -391,6 +415,7 @@ lvgl:
               - buttons:
                   - id: button_e
         - button:
+            layout: 2x1
             id: button_button
             width: 20%
             height: 10%
@@ -407,8 +432,13 @@ lvgl:
             checked:
               bg_color: 0x000000
             widgets:
-              - label:
-                  text: Button
+              # Test parse a dict instead of list
+              label:
+                text: Button
+                align: bottom_right
+              image:
+                src: cat_image
+                align: top_left
             on_click:
               - lvgl.widget.focus: spin_up
               - lvgl.widget.focus: next
@@ -516,6 +546,7 @@ lvgl:
                       - logger.log: "tile 1 is now showing"
             tiles:
               - id: tile_1
+                layout: vertical
                 row: 0
                 column: 0
                 dir: ALL
@@ -531,6 +562,7 @@ lvgl:
                       bg_color: 0x000000
 
     - id: page2
+      layout: vertical
       widgets:
         - canvas:
             id: canvas_id
@@ -694,6 +726,12 @@ lvgl:
                 - logger.log:
                     format: "Spinbox value is %f"
                     args: [x]
+                - lvgl.label.update:
+                    id: hello_label
+                    text:
+                      format: "value is %.1f now"
+                      args: [x]
+                      if_nan: "Value unknown"
         - button:
             styles: spin_button
             id: spin_down
@@ -831,7 +869,7 @@ lvgl:
                 width: 100%
                 pad_all: 8
                 layout:
-                  type: grid
+                  type: GRid
                   grid_row_align: end
                   grid_rows: [25px, fr(1), content]
                   grid_columns: [40, fr(1), fr(1)]
@@ -982,6 +1020,7 @@ lvgl:
                                 r_mod: -20
                                 opa: 0%
     - id: page3
+      layout: Horizontal
       widgets:
         - keyboard:
             id: lv_keyboard

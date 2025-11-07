@@ -52,11 +52,11 @@ class KeyCollector : public Component {
 };
 
 template<typename... Ts> class EnableAction : public Action<Ts...>, public Parented<KeyCollector> {
-  void play(Ts... x) override { this->parent_->set_enabled(true); }
+  void play(const Ts &...x) override { this->parent_->set_enabled(true); }
 };
 
 template<typename... Ts> class DisableAction : public Action<Ts...>, public Parented<KeyCollector> {
-  void play(Ts... x) override { this->parent_->set_enabled(false); }
+  void play(const Ts &...x) override { this->parent_->set_enabled(false); }
 };
 
 }  // namespace key_collector

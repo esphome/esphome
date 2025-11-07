@@ -40,6 +40,10 @@ enum OnBootRestoreFrom : uint8_t {
 };
 
 struct ThermostatClimateTimer {
+  ThermostatClimateTimer() = default;
+  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started, std::function<void()> func)
+      : active(active), time(time), started(started), func(std::move(func)) {}
+
   bool active;
   uint32_t time;
   uint32_t started;
@@ -195,7 +199,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Change to a provided preset setting; will reset temperature, mode, fan, and swing modes accordingly
   void change_preset_(climate::ClimatePreset preset);
   /// Change to a provided custom preset setting; will reset temperature, mode, fan, and swing modes accordingly
-  void change_custom_preset_(const std::string &custom_preset);
+  void change_custom_preset_(const char *custom_preset);
 
   /// Applies the temperature, mode, fan, and swing modes of the provided config.
   /// This is agnostic of custom vs built in preset

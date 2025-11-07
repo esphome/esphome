@@ -270,8 +270,8 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
-  this->rpc_response_->set_value(ByteBuffer::wrap(response));
+void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &&response) {
+  this->rpc_response_->set_value(std::move(response));
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
 }
@@ -409,10 +409,8 @@ void ESP32ImprovComponent::check_wifi_connection_() {
       }
     }
 #endif
-    // Pass to build_rpc_response using vector constructor from iterators to avoid extra copies
-    std::vector<uint8_t> data = improv::build_rpc_response(
-        improv::WIFI_SETTINGS, std::vector<std::string>(url_strings, url_strings + url_count));
-    this->send_response_(data);
+    this->send_response_(improv::build_rpc_response(improv::WIFI_SETTINGS,
+                                                    std::vector<std::string>(url_strings, url_strings + url_count)));
   } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
     ESP_LOGD(TAG, "WiFi provisioned externally");
   }

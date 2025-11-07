@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_FAMILY,
     CONF_GROUP,
     CONF_ID,
+    CONF_INDEX,
     CONF_INVERTED,
     CONF_LEVEL,
     CONF_MAGNITUDE,
@@ -614,6 +615,49 @@ async def dooya_action(var, config, args):
     cg.add(var.set_button(template_))
     template_ = await cg.templatable(config[CONF_CHECK], args, cg.uint8)
     cg.add(var.set_check(template_))
+
+
+# Dyson
+DysonData, DysonBinarySensor, DysonTrigger, DysonAction, DysonDumper = declare_protocol(
+    "Dyson"
+)
+DYSON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.hex_uint16_t,
+        cv.Optional(CONF_INDEX, default=0xFF): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("dyson", DysonBinarySensor, DYSON_SCHEMA)
+def dyson_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DysonData,
+                ("code", config[CONF_CODE]),
+                ("index", config[CONF_INDEX]),
+            )
+        )
+    )
+
+
+@register_trigger("dyson", DysonTrigger, DysonData)
+def dyson_trigger(var, config):
+    pass
+
+
+@register_dumper("dyson", DysonDumper)
+def dyson_dumper(var, config):
+    pass
+
+
+@register_action("dyson", DysonAction, DYSON_SCHEMA)
+async def dyson_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint16)
+    cg.add(var.set_code(template_))
+    template_ = await cg.templatable(config[CONF_INDEX], args, cg.uint8)
+    cg.add(var.set_index(template_))
 
 
 # JVC
