@@ -319,14 +319,19 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
 
 void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index,
                                   uint8_t *data, size_t len, bool final) {
+  ESP_LOGD(TAG, "handleUpload called: filename='%s', index=%zu, len=%zu, final=%d", filename.c_str(), index, len,
+           final);
+
   // Check authentication if enabled
   if (this->auth_enabled_) {
     if (!request->authenticate(this->username_.c_str(), this->password_.c_str())) {
+      ESP_LOGW(TAG, "Upload authentication failed");
       return;
     }
   }
 
   if (!this->upload_enabled_) {
+    ESP_LOGW(TAG, "Upload disabled in configuration");
     if (final) {
       request->send(403, "text/plain", "File upload is disabled");
     }
@@ -336,12 +341,17 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
   // Get upload directory from request URL
   if (index == 0) {
     std::string uri = request->url().c_str();
+    ESP_LOGI(TAG, "Upload started: index=0, uri='%s', filename='%s'", uri.c_str(), filename.c_str());
+
     this->upload_directory_ = this->uri_to_filepath(uri);
     this->upload_filename_ = filename.c_str();
+
+    ESP_LOGD(TAG, "Upload directory: %s", this->upload_directory_.c_str());
 
     // Check if target is a directory
     struct stat file_stat;
     if (stat(this->upload_directory_.c_str(), &file_stat) != 0 || !S_ISDIR(file_stat.st_mode)) {
+      ESP_LOGE(TAG, "Upload target is not a directory: %s (errno: %d)", this->upload_directory_.c_str(), errno);
       if (final) {
         request->send(400, "text/plain", "Upload target must be a directory");
       }
@@ -357,7 +367,9 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
     auto *filesize_param = request->getParam("filesize");
     if (filesize_param) {
       expected_size = std::stoul(filesize_param->value().c_str());
-      ESP_LOGI(TAG, "Expected upload size: %zu bytes", expected_size);
+      ESP_LOGI(TAG, "Expected upload size from query param: %zu bytes", expected_size);
+    } else {
+      ESP_LOGW(TAG, "No filesize query parameter found in upload request");
     }
 
     // Initialize progress tracking (thread-safe)
@@ -377,6 +389,7 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
       ESP_LOGE(TAG, "Failed to open file for async upload: %s", upload_path.c_str());
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      this->progress_.cancelled = false;  // Reset cancelled flag after handling
       portEXIT_CRITICAL(&this->progress_mutex_);
       if (final) {
         request->send(500, "text/plain", "Failed to create file");
@@ -405,6 +418,7 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
 
     portENTER_CRITICAL(&this->progress_mutex_);
     this->progress_.in_progress = false;
+    this->progress_.cancelled = false;  // Reset cancelled flag after handling
     portEXIT_CRITICAL(&this->progress_mutex_);
 
     if (final) {
@@ -431,6 +445,7 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
 
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      this->progress_.cancelled = false;  // Reset cancelled flag after handling
       portEXIT_CRITICAL(&this->progress_mutex_);
       if (final) {
         request->send(500, "text/plain", "Failed to write file");
@@ -456,12 +471,14 @@ void HttpFileServer::handleUpload(AsyncWebServerRequest *request, const Platform
       // Mark progress as complete (thread-safe)
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      this->progress_.cancelled = false;  // Reset cancelled flag after handling
       portEXIT_CRITICAL(&this->progress_mutex_);
 
       request->send(201, "text/plain", "File uploaded successfully");
     } else {
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      this->progress_.cancelled = false;  // Reset cancelled flag after handling
       portEXIT_CRITICAL(&this->progress_mutex_);
       request->send(500, "text/plain", "Upload failed");
     }
@@ -886,6 +903,9 @@ std::string HttpFileServer::generate_html_footer() {
   let progressPollCount = 0;
   let hasSeenProgress = false;
   let consecutiveTimeouts = 0;
+  let lastTransferredBytes = 0;
+  let lastProcessedItems = 0;
+  let stallCount = 0;  // Count polls with no progress change
 
   function pollProgress() {
     console.log('[FileServer] pollProgress() START, count=' + progressPollCount);
@@ -937,6 +957,38 @@ std::string HttpFileServer::generate_html_footer() {
 
       // Mark that we've seen progress
       hasSeenProgress = true;
+
+      // Check if progress is actually advancing (not stalled)
+      let progressMade = false;
+      if (data.operation === 'delete') {
+        progressMade = (data.processed_items > lastProcessedItems);
+        lastProcessedItems = data.processed_items;
+      } else {
+        progressMade = (data.transferred_bytes > lastTransferredBytes);
+        lastTransferredBytes = data.transferred_bytes;
+      }
+
+      if (progressMade) {
+        stallCount = 0;  // Reset stall counter when progress is made
+      } else {
+        stallCount++;
+        console.log('[FileServer] No progress detected, stall count:', stallCount);
+        // Only abort if stalled for 20 consecutive polls (10 seconds with no progress)
+        if (stallCount >= 20) {
+          console.warn('[FileServer] Operation appears stalled, calling cancel and closing modal');
+          // Call cancel API to clean up partial files and reset backend state
+          fetch(API_BASE + '/api/cancel', {method: 'POST'})
+              .then(() => {
+                console.log('[FileServer] Cancel request sent');
+              })
+              .catch(error => {
+                console.error('[FileServer] Cancel request failed:', error);
+              });
+          hideProgressModal();
+          alert('Operation appears to have stalled and has been cancelled. Please refresh the page.');
+          return;
+        }
+      }
 
       const bar = document.getElementById('progressBar');
       const details = document.getElementById('progressDetails');
@@ -1022,6 +1074,9 @@ std::string HttpFileServer::generate_html_footer() {
     progressPollCount = 0;
     hasSeenProgress = false;
     consecutiveTimeouts = 0;
+    lastTransferredBytes = 0;
+    lastProcessedItems = 0;
+    stallCount = 0;
 
     if (progressPollInterval) {
       clearInterval(progressPollInterval);
@@ -2276,6 +2331,7 @@ void HttpFileServer::handle_api_delete(AsyncWebServerRequest *request) {
     if (track_progress) {
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      this->progress_.cancelled = false;  // Reset cancelled flag after handling
       portEXIT_CRITICAL(&this->progress_mutex_);
     }
   } else {
@@ -2884,6 +2940,7 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       portENTER_CRITICAL(&this->progress_mutex_);
       if (this->progress_.operation == "copy") {
         this->progress_.in_progress = false;
+        this->progress_.cancelled = false;  // Reset cancelled flag after handling
       }
       portEXIT_CRITICAL(&this->progress_mutex_);
     }
@@ -2893,8 +2950,11 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
              total_copied, (long long) file_size);
 
     // Clean up partial file
-    if (remove(dst_path.c_str()) != 0) {
-      ESP_LOGE(TAG, "Failed to remove partial destination file (errno: %d, %s)", errno, strerror(errno));
+    if (remove(dst_path.c_str()) == 0) {
+      ESP_LOGI(TAG, "Deleted partial destination file: %s", dst_path.c_str());
+    } else {
+      ESP_LOGE(TAG, "Failed to remove partial destination file: %s (errno: %d, %s)", dst_path.c_str(), errno,
+               strerror(errno));
     }
 
     // Clear progress tracking on failure (unless perform_file_move will handle it)
@@ -2902,6 +2962,7 @@ bool HttpFileServer::perform_file_copy(const std::string &src_path, const std::s
       portENTER_CRITICAL(&this->progress_mutex_);
       if (this->progress_.operation == "copy") {
         this->progress_.in_progress = false;
+        this->progress_.cancelled = false;  // Reset cancelled flag after handling
       }
       portEXIT_CRITICAL(&this->progress_mutex_);
     }
@@ -2932,6 +2993,7 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.transferred_bytes = file_size;
       this->progress_.in_progress = false;
+      this->progress_.cancelled = false;  // Reset cancelled flag after handling
       portEXIT_CRITICAL(&this->progress_mutex_);
     }
     return true;
@@ -2947,6 +3009,7 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
         if (track_progress) {
           portENTER_CRITICAL(&this->progress_mutex_);
           this->progress_.in_progress = false;
+          this->progress_.cancelled = false;  // Reset cancelled flag after handling
           portEXIT_CRITICAL(&this->progress_mutex_);
         }
         return true;
@@ -2957,6 +3020,7 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
         if (track_progress) {
           portENTER_CRITICAL(&this->progress_mutex_);
           this->progress_.in_progress = false;
+          this->progress_.cancelled = false;  // Reset cancelled flag after handling
           portEXIT_CRITICAL(&this->progress_mutex_);
         }
         return true;
@@ -2965,6 +3029,7 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
       if (track_progress) {
         portENTER_CRITICAL(&this->progress_mutex_);
         this->progress_.in_progress = false;
+        this->progress_.cancelled = false;  // Reset cancelled flag after handling
         portEXIT_CRITICAL(&this->progress_mutex_);
       }
     }
@@ -2974,6 +3039,7 @@ bool HttpFileServer::perform_file_move(const std::string &src_path, const std::s
     if (track_progress) {
       portENTER_CRITICAL(&this->progress_mutex_);
       this->progress_.in_progress = false;
+      this->progress_.cancelled = false;  // Reset cancelled flag after handling
       portEXIT_CRITICAL(&this->progress_mutex_);
     }
   }
