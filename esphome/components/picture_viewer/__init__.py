@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PictureViewer),
         cv.Optional(CONF_FILE_MANAGER_ID): cv.use_id(cg.Component),  # FileManager
-        cv.Optional(CONF_CANVAS_ID): cv.use_id(cg.Component),  # LVGL Canvas
+        cv.Optional(CONF_CANVAS_ID): cv.string,  # LVGL Canvas - widget ID as string
         cv.Optional(CONF_DISPLAY_ID): cv.use_id(cg.Component),  # Display
         cv.Required(CONF_WATCH_DIRECTORY): cv.string,
         cv.Optional(
@@ -62,10 +62,9 @@ async def to_code(config):
         fm = await cg.get_variable(config[CONF_FILE_MANAGER_ID])
         cg.add(var.set_file_manager(fm))
 
-    # Link LVGL canvas if provided
+    # Link LVGL canvas if provided (pass as string - LVGL uses its own ID system)
     if CONF_CANVAS_ID in config:
-        canvas = await cg.get_variable(config[CONF_CANVAS_ID])
-        cg.add(var.set_canvas(canvas))
+        cg.add(var.set_canvas_id(config[CONF_CANVAS_ID]))
 
     # Link display if provided
     if CONF_DISPLAY_ID in config:

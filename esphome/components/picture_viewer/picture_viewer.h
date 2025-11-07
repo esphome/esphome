@@ -80,7 +80,7 @@ class PictureViewer : public Component {
 #endif
 
 #ifdef USE_LVGL
-  void set_canvas(lvgl::LvglCanvas *canvas) { this->canvas_ = canvas; }
+  void set_canvas_id(const std::string &canvas_id) { this->canvas_id_ = canvas_id; }
   void set_display(display::Display *display) { this->display_ = display; }
 #endif
 
@@ -152,7 +152,7 @@ class PictureViewer : public Component {
 #endif
 
 #ifdef USE_LVGL
-  lvgl::LvglCanvas *canvas_{nullptr};
+  std::string canvas_id_;  // LVGL canvas widget ID
   display::Display *display_{nullptr};
 #endif
 
