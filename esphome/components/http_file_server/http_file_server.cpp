@@ -283,12 +283,14 @@ void HttpFileServer::handleRequest(AsyncWebServerRequest *request) {
     ESP_LOGD(TAG, "POST handler - upload for URI: %s", uri.c_str());
 
     // Check Content-Type to determine upload method
-    const char *content_type = request->contentType().c_str();
-    ESP_LOGD(TAG, "Content-Type: %s", content_type);
+    auto content_type = request->get_header("Content-Type");
+    if (content_type.has_value()) {
+      ESP_LOGD(TAG, "Content-Type: %s", content_type.value().c_str());
+    }
 
     // If multipart/form-data, let it pass through to handleUpload() callback
     // If application/octet-stream, use old synchronous handler
-    if (strstr(content_type, "multipart/form-data") != nullptr) {
+    if (content_type.has_value() && content_type.value().find("multipart/form-data") != std::string::npos) {
       // Multipart upload will be handled by handleUpload() callback - do nothing here
       ESP_LOGD(TAG, "Multipart upload detected - will be handled by handleUpload() callback");
     } else {
