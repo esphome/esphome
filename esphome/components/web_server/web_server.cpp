@@ -1649,7 +1649,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
   }
   if (start_config == DETAIL_ALL) {
     JsonArray event_types = root["event_types"].to<JsonArray>();
-    for (auto const &event_type : obj->get_event_types()) {
+    for (const char *event_type : obj->get_event_types()) {
       event_types.add(event_type);
     }
     root["device_class"] = obj->get_device_class_ref();

@@ -8,11 +8,11 @@ namespace event {
 static const char *const TAG = "event";
 
 void Event::trigger(const std::string &event_type) {
-  // Linear search - faster than std::set for small datasets (1-5 items typical)
-  const std::string *found = nullptr;
-  for (const auto &type : this->types_) {
-    if (type == event_type) {
-      found = &type;
+  // Linear search with strcmp - faster than std::set for small datasets (1-5 items typical)
+  const char *found = nullptr;
+  for (const char *type : this->types_) {
+    if (strcmp(type, event_type.c_str()) == 0) {
+      found = type;
       break;
     }
   }
@@ -20,8 +20,8 @@ void Event::trigger(const std::string &event_type) {
     ESP_LOGE(TAG, "'%s': invalid event type for trigger(): %s", this->get_name().c_str(), event_type.c_str());
     return;
   }
-  last_event_type = found;
-  ESP_LOGD(TAG, "'%s' Triggered event '%s'", this->get_name().c_str(), last_event_type->c_str());
+  this->last_event_type = found;
+  ESP_LOGD(TAG, "'%s' Triggered event '%s'", this->get_name().c_str(), this->last_event_type);
   this->event_callback_.call(event_type);
 }
 
