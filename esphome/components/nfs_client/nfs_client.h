@@ -16,6 +16,11 @@
 #include <memory>
 #include <map>
 
+// Optional storage_host integration (soft dependency)
+#if defined(USE_STORAGE_HOST)
+#include "esphome/components/storage_host/network_storage.h"
+#endif
+
 namespace esphome {
 namespace nfs_client {
 
@@ -324,7 +329,12 @@ class RPCClient {
  *     gid: 1000  # Optional, default 0
  * @endcode
  */
-class NFSClient : public Component {
+class NFSClient : public Component
+#if defined(USE_STORAGE_HOST)
+                  ,
+                  public storage_host::NetworkStorage
+#endif
+{
  public:
   NFSClient() = default;
   ~NFSClient() override;
@@ -375,6 +385,27 @@ class NFSClient : public Component {
 
   // File info
   bool get_file_attributes(const std::string &path, NFSFileAttr &attr);
+
+#if defined(USE_STORAGE_HOST)
+  //========================================================================
+  // NetworkStorage Interface Overrides
+  //========================================================================
+
+  // Connection management
+  bool is_connected() const override { return this->mounted_; }
+  const char *get_protocol() const override { return "nfs"; }
+
+  // File operations (already implemented above, just marked as override)
+  bool read_file(const std::string &path, std::vector<uint8_t> &data) override;
+  bool write_file(const std::string &path, const uint8_t *data, size_t length) override;
+  bool delete_file(const std::string &path) override;
+  bool file_exists(const std::string &path) override;
+
+  // Directory operations with NetworkStorage::DirEntry conversion
+  bool list_directory(const std::string &path, std::vector<storage_host::NetworkStorage::DirEntry> &entries) override;
+  bool create_directory(const std::string &path) override;
+  bool delete_directory(const std::string &path) override;
+#endif
 
  protected:
   //========================================================================

@@ -309,13 +309,13 @@ void NFSClient::dump_config() {
 void NFSClient::register_with_storage_host() {
 #if defined(USE_STORAGE_HOST)
   if (storage_host::global_storage_host != nullptr) {
-    storage_host::global_storage_host->register_mount(this->mount_path_, "nfs");
-    ESP_LOGI(TAG, "Registered NFS mount with storage_host: %s", this->mount_path_.c_str());
+    storage_host::global_storage_host->register_network_storage(this);
+    ESP_LOGI(TAG, "Registered NFS network storage with storage_host: %s", this->mount_path_.c_str());
   } else {
-    ESP_LOGD(TAG, "storage_host not available, skipping mount registration");
+    ESP_LOGD(TAG, "storage_host not available, skipping network storage registration");
   }
 #else
-  ESP_LOGD(TAG, "storage_host component not compiled, mount registration disabled");
+  ESP_LOGD(TAG, "storage_host component not compiled, network storage registration disabled");
 #endif  // USE_STORAGE_HOST
 }
 
@@ -1268,6 +1268,30 @@ bool NFSClient::get_file_attributes(const std::string &path, NFSFileAttr &attr) 
   NFSFileHandle fh;
   return this->resolve_path_(path, fh, attr);
 }
+
+#if defined(USE_STORAGE_HOST)
+// NetworkStorage interface override - converts NFSDirEntry to NetworkStorage::DirEntry
+bool NFSClient::list_directory(const std::string &path, std::vector<storage_host::NetworkStorage::DirEntry> &entries) {
+  // Call existing NFS-specific list_directory
+  std::vector<NFSDirEntry> nfs_entries;
+  if (!this->list_directory(path, nfs_entries)) {
+    return false;
+  }
+
+  // Convert NFSDirEntry to NetworkStorage::DirEntry
+  entries.clear();
+  entries.reserve(nfs_entries.size());
+  for (const auto &nfs_entry : nfs_entries) {
+    storage_host::NetworkStorage::DirEntry entry;
+    entry.name = nfs_entry.name;
+    entry.size = nfs_entry.size;
+    entry.is_directory = nfs_entry.is_directory;
+    entries.push_back(entry);
+  }
+
+  return true;
+}
+#endif
 
 }  // namespace nfs_client
 }  // namespace esphome

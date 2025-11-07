@@ -4,6 +4,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
+// Forward declaration for storage_host::NetworkStorage (soft dependency)
+#if defined(USE_STORAGE_HOST)
+#include "esphome/components/storage_host/network_storage.h"
+#endif
+
 #ifdef USE_ESP_IDF
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
@@ -323,7 +328,12 @@ struct SMB2DirEntry {
  *     domain: WORKGROUP  # Optional
  * @endcode
  */
-class SMBClient : public Component {
+class SMBClient : public Component
+#if defined(USE_STORAGE_HOST)
+                  ,
+                  public storage_host::NetworkStorage
+#endif
+{
  public:
   SMBClient() = default;
   ~SMBClient() override;
@@ -378,6 +388,28 @@ class SMBClient : public Component {
   bool list_directory(const std::string &path, std::vector<SMB2DirEntry> &entries);
   bool create_directory(const std::string &path);
   bool delete_directory(const std::string &path);
+
+  //========================================================================
+  // NetworkStorage Interface Implementation (when USE_STORAGE_HOST is defined)
+  //========================================================================
+
+#if defined(USE_STORAGE_HOST)
+  // NetworkStorage interface overrides
+  bool is_connected() const override { return this->connected_; }
+  const std::string &get_mount_path() const override { return this->mount_path_; }
+  const char *get_protocol() const override { return "smb"; }
+
+  // File operations (already implemented above, just marked as override)
+  bool read_file(const std::string &path, std::vector<uint8_t> &data) override;
+  bool write_file(const std::string &path, const uint8_t *data, size_t length) override;
+  bool delete_file(const std::string &path) override;
+  bool file_exists(const std::string &path) override;
+
+  // Directory operations with NetworkStorage::DirEntry conversion
+  bool list_directory(const std::string &path, std::vector<storage_host::NetworkStorage::DirEntry> &entries) override;
+  bool create_directory(const std::string &path) override;
+  bool delete_directory(const std::string &path) override;
+#endif
 
  protected:
   //========================================================================

@@ -313,13 +313,13 @@ void SMBClient::dump_config() {
 void SMBClient::register_with_storage_host() {
 #if defined(USE_STORAGE_HOST)
   if (storage_host::global_storage_host != nullptr) {
-    storage_host::global_storage_host->register_mount(this->mount_path_, "smb");
-    ESP_LOGI(TAG, "Registered SMB mount with storage_host: %s", this->mount_path_.c_str());
+    storage_host::global_storage_host->register_network_storage(this);
+    ESP_LOGI(TAG, "Registered SMB network storage with storage_host: %s", this->mount_path_.c_str());
   } else {
-    ESP_LOGD(TAG, "storage_host not available, skipping mount registration");
+    ESP_LOGD(TAG, "storage_host not available, skipping network storage registration");
   }
 #else
-  ESP_LOGD(TAG, "storage_host component not compiled, mount registration disabled");
+  ESP_LOGD(TAG, "storage_host component not compiled, network storage registration disabled");
 #endif  // USE_STORAGE_HOST
 }
 
@@ -1972,6 +1972,31 @@ bool SMBClient::delete_directory(const std::string &path) {
   ESP_LOGI(TAG, "Successfully deleted directory");
   return true;
 }
+
+#if defined(USE_STORAGE_HOST)
+// NetworkStorage interface override - converts SMB2DirEntry to NetworkStorage::DirEntry
+bool SMBClient::list_directory(const std::string &path,
+                                std::vector<storage_host::NetworkStorage::DirEntry> &entries) {
+  // Call existing SMB-specific list_directory
+  std::vector<SMB2DirEntry> smb_entries;
+  if (!this->list_directory(path, smb_entries)) {
+    return false;
+  }
+
+  // Convert SMB2DirEntry to NetworkStorage::DirEntry
+  entries.clear();
+  entries.reserve(smb_entries.size());
+  for (const auto &smb_entry : smb_entries) {
+    storage_host::NetworkStorage::DirEntry entry;
+    entry.name = smb_entry.filename;
+    entry.size = smb_entry.file_size;
+    entry.is_directory = smb_entry.is_directory();
+    entries.push_back(entry);
+  }
+
+  return true;
+}
+#endif
 
 }  // namespace smb_client
 }  // namespace esphome

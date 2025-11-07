@@ -65,6 +65,11 @@ void StorageHost::dump_config() {
   for (const auto &node : this->device_nodes_) {
     ESP_LOGCONFIG(TAG, "    - %s (type: %s)", node.path.c_str(), node.device_type.c_str());
   }
+  ESP_LOGCONFIG(TAG, "  Network Storage: %zu", this->network_storage_.size());
+  for (const auto *storage : this->network_storage_) {
+    ESP_LOGCONFIG(TAG, "    - %s (protocol: %s, connected: %s)", storage->get_mount_path().c_str(),
+                  storage->get_protocol(), storage->is_connected() ? "yes" : "no");
+  }
 }
 
 void StorageHost::register_mount(const std::string &path, const std::string &platform) {
@@ -115,6 +120,115 @@ DeviceNode *StorageHost::find_device_node(const std::string &path) {
     }
   }
   return nullptr;
+}
+
+// =====================================================
+// Network Storage Management
+// =====================================================
+
+void StorageHost::register_network_storage(NetworkStorage *storage) {
+  if (storage == nullptr) {
+    ESP_LOGW(TAG, "Attempted to register null network storage");
+    return;
+  }
+
+  this->network_storage_.push_back(storage);
+  ESP_LOGD(TAG, "Registered network storage: %s (protocol: %s, mount: %s)", storage->get_protocol(),
+           storage->get_protocol(), storage->get_mount_path().c_str());
+}
+
+NetworkStorage *StorageHost::find_network_storage_for_path(const std::string &path) {
+  // Find the network storage with the longest matching mount path
+  NetworkStorage *best_match = nullptr;
+  size_t best_length = 0;
+
+  for (auto *storage : this->network_storage_) {
+    const std::string &mount_path = storage->get_mount_path();
+    if (path.compare(0, mount_path.length(), mount_path) == 0) {
+      if (mount_path.length() > best_length) {
+        best_match = storage;
+        best_length = mount_path.length();
+      }
+    }
+  }
+
+  return best_match;
+}
+
+bool StorageHost::is_network_path(const std::string &path) const {
+  for (const auto *storage : this->network_storage_) {
+    const std::string &mount_path = storage->get_mount_path();
+    if (path.compare(0, mount_path.length(), mount_path) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// =====================================================
+// Network Storage File Operations
+// =====================================================
+
+bool StorageHost::network_file_exists(const std::string &path) {
+  NetworkStorage *storage = this->find_network_storage_for_path(path);
+  if (storage != nullptr && storage->is_connected()) {
+    return storage->file_exists(path);
+  }
+  return false;
+}
+
+bool StorageHost::network_read_file(const std::string &path, std::vector<uint8_t> &data) {
+  NetworkStorage *storage = this->find_network_storage_for_path(path);
+  if (storage != nullptr && storage->is_connected()) {
+    return storage->read_file(path, data);
+  }
+  ESP_LOGW(TAG, "No connected network storage found for path: %s", path.c_str());
+  return false;
+}
+
+bool StorageHost::network_write_file(const std::string &path, const uint8_t *data, size_t length) {
+  NetworkStorage *storage = this->find_network_storage_for_path(path);
+  if (storage != nullptr && storage->is_connected()) {
+    return storage->write_file(path, data, length);
+  }
+  ESP_LOGW(TAG, "No connected network storage found for path: %s", path.c_str());
+  return false;
+}
+
+bool StorageHost::network_delete_file(const std::string &path) {
+  NetworkStorage *storage = this->find_network_storage_for_path(path);
+  if (storage != nullptr && storage->is_connected()) {
+    return storage->delete_file(path);
+  }
+  ESP_LOGW(TAG, "No connected network storage found for path: %s", path.c_str());
+  return false;
+}
+
+bool StorageHost::network_list_directory(const std::string &path, std::vector<NetworkStorage::DirEntry> &entries) {
+  NetworkStorage *storage = this->find_network_storage_for_path(path);
+  if (storage != nullptr && storage->is_connected()) {
+    return storage->list_directory(path, entries);
+  }
+  ESP_LOGW(TAG, "No connected network storage found for path: %s", path.c_str());
+  return false;
+}
+
+bool StorageHost::network_create_directory(const std::string &path) {
+  NetworkStorage *storage = this->find_network_storage_for_path(path);
+  if (storage != nullptr && storage->is_connected()) {
+    return storage->create_directory(path);
+  }
+  ESP_LOGW(TAG, "No connected network storage found for path: %s", path.c_str());
+  return false;
+}
+
+bool StorageHost::network_delete_directory(const std::string &path) {
+  NetworkStorage *storage = this->find_network_storage_for_path(path);
+  if (storage != nullptr && storage->is_connected()) {
+    return storage->delete_directory(path);
+  }
+  ESP_LOGW(TAG, "No connected network storage found for path: %s", path.c_str());
+  return false;
 }
 
 bool StorageHost::file_exists(const std::string &path) {

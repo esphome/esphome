@@ -11,6 +11,7 @@
 #include "esphome/core/optional.h"
 #include "esphome/components/image/image.h"
 #include "esphome/components/display/display.h"
+#include "network_storage.h"
 
 // Image decoder configuration for ESP-IDF
 #ifdef ESP_IDF_VERSION
@@ -67,6 +68,9 @@ static constexpr size_t MAX_MOUNT_POINTS = 8;
 // Maximum number of device nodes (binary_storage devices in /dev)
 static constexpr size_t MAX_DEVICE_NODES = 16;
 
+// Maximum number of network storage backends (NFS, SMB, FTP, etc.)
+static constexpr size_t MAX_NETWORK_STORAGE = 4;
+
 // =====================================================
 // StorageHost - Main Storage Class
 // =====================================================
@@ -96,9 +100,27 @@ class StorageHost : public Component {
   bool is_device_node(const std::string &path) const;
   DeviceNode *find_device_node(const std::string &path);
 
+  // Network storage management (NFS, SMB, FTP, etc.)
+  void register_network_storage(NetworkStorage *storage);
+  const esphome::StaticVector<NetworkStorage *, MAX_NETWORK_STORAGE> &get_network_storage() const {
+    return this->network_storage_;
+  }
+  NetworkStorage *find_network_storage_for_path(const std::string &path);
+  bool is_network_path(const std::string &path) const;
+
+  // Network storage file operations (use network backend if available, fallback to POSIX)
+  bool network_file_exists(const std::string &path);
+  bool network_read_file(const std::string &path, std::vector<uint8_t> &data);
+  bool network_write_file(const std::string &path, const uint8_t *data, size_t length);
+  bool network_delete_file(const std::string &path);
+  bool network_list_directory(const std::string &path, std::vector<NetworkStorage::DirEntry> &entries);
+  bool network_create_directory(const std::string &path);
+  bool network_delete_directory(const std::string &path);
+
  protected:
   esphome::StaticVector<MountEntry, MAX_MOUNT_POINTS> mounts_;
   esphome::StaticVector<DeviceNode, MAX_DEVICE_NODES> device_nodes_;
+  esphome::StaticVector<NetworkStorage *, MAX_NETWORK_STORAGE> network_storage_;
 };
 
 // Global accessor for soft dependency pattern
