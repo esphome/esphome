@@ -20,7 +20,7 @@ class UARTEvent :public event::Event
     std::vector<uint8_t> binary_data;
   };
 
-  void read_data();
+  void read_data_();
   std::vector<EventMatcher> matchers_;
   std::vector<uint8_t> buffer_;
   size_t max_matcher_len_ = 0;

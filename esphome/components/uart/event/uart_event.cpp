@@ -17,7 +17,7 @@ void UARTEvent::dump_config() {
 }
 
 void UARTEvent::loop() {
-  read_data();
+  read_data_();
 }
 
 
@@ -37,7 +37,7 @@ void UARTEvent::add_event_matcher(const std::string &event_name, const std::vect
 }
 
 
-void UARTEvent::read_data() {
+void UARTEvent::read_data_() {
   while (available()) {
     uint8_t data;
     read_byte(&data);
