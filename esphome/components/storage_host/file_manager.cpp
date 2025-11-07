@@ -233,6 +233,9 @@ void FileManager::perform_scan_() {
           ESP_LOGD(TAG, "File added: %s", info.filename.c_str());
           change_info.added.push_back(info);
           this->file_added_callbacks_.call(info);
+          for (auto *trigger : this->file_added_triggers_) {
+            trigger->trigger(info);
+          }
         }
       } else {
         // Check if modified
@@ -240,6 +243,9 @@ void FileManager::perform_scan_() {
           ESP_LOGD(TAG, "File modified: %s", info.filename.c_str());
           change_info.modified.push_back(info);
           this->file_modified_callbacks_.call(info);
+          for (auto *trigger : this->file_modified_triggers_) {
+            trigger->trigger(info);
+          }
         }
       }
     }
@@ -252,6 +258,9 @@ void FileManager::perform_scan_() {
           ESP_LOGD(TAG, "File deleted: %s", info.filename.c_str());
           change_info.deleted.push_back(info);
           this->file_deleted_callbacks_.call(info);
+          for (auto *trigger : this->file_deleted_triggers_) {
+            trigger->trigger(info);
+          }
         }
       }
     }
@@ -266,6 +275,9 @@ void FileManager::perform_scan_() {
       ESP_LOGD(TAG, "Directory changed: %s (added: %zu, modified: %zu, deleted: %zu)", this->watch_directory_.c_str(),
                change_info.added.size(), change_info.modified.size(), change_info.deleted.size());
       this->directory_changed_callbacks_.call(change_info);
+      for (auto *trigger : this->directory_changed_triggers_) {
+        trigger->trigger(change_info);
+      }
     }
 
     this->initial_scan_done_ = true;

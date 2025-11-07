@@ -107,7 +107,12 @@ class FileManager : public Component {
   void set_min_size(uint64_t size) { this->min_size_ = size; }
   void set_max_size(uint64_t size) { this->max_size_ = size; }
 
-  // Trigger registration
+  // Trigger registration (for automation)
+  void add_on_file_added_callback(FileAddedTrigger *trigger) { this->file_added_triggers_.push_back(trigger); }
+  void add_on_file_modified_callback(FileModifiedTrigger *trigger) { this->file_modified_triggers_.push_back(trigger); }
+  void add_on_file_deleted_callback(FileDeletedTrigger *trigger) { this->file_deleted_triggers_.push_back(trigger); }
+
+  // Callback registration (for lambdas)
   void add_on_file_added_callback(std::function<void(FileInfo)> &&callback) {
     this->file_added_callbacks_.add(std::move(callback));
   }
@@ -116,6 +121,9 @@ class FileManager : public Component {
   }
   void add_on_file_deleted_callback(std::function<void(FileInfo)> &&callback) {
     this->file_deleted_callbacks_.add(std::move(callback));
+  }
+  void add_on_directory_changed_callback(DirectoryChangedTrigger *trigger) {
+    this->directory_changed_triggers_.push_back(trigger);
   }
   void add_on_directory_changed_callback(std::function<void(DirectoryChangeInfo)> &&callback) {
     this->directory_changed_callbacks_.add(std::move(callback));
@@ -161,6 +169,12 @@ class FileManager : public Component {
   std::map<std::string, FileInfo> directory_state_;  // Current known files (key: full path)
   uint32_t last_scan_time_{0};
   bool initial_scan_done_{false};
+
+  // Automation triggers
+  std::vector<FileAddedTrigger *> file_added_triggers_;
+  std::vector<FileModifiedTrigger *> file_modified_triggers_;
+  std::vector<FileDeletedTrigger *> file_deleted_triggers_;
+  std::vector<DirectoryChangedTrigger *> directory_changed_triggers_;
 
   // Callbacks
   CallbackManager<void(FileInfo)> file_added_callbacks_;

@@ -63,7 +63,7 @@ enum class SlideshowMode {
 class PictureViewer : public Component {
  public:
   PictureViewer() = default;
-  ~PictureViewer() override;
+  ~PictureViewer();
 
   // Component lifecycle
   void setup() override;
