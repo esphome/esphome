@@ -2691,9 +2691,11 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
   size_t file_size = std::stoull(file_size_param->value().c_str());
 
   // Log only every 50th chunk, first, and last to reduce overhead
-  if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1) {
-    ESP_LOGD(TAG, "Upload chunk: file=%s, chunk=%d/%d, path=%s, size=%zu", filename.c_str(), chunk_index, total_chunks,
-             path.c_str(), file_size);
+  // Also log around potential failure threshold (chunks 170-180)
+  if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1 ||
+      (chunk_index >= 170 && chunk_index <= 180)) {
+    ESP_LOGD(TAG, "Upload chunk: file=%s, chunk=%d/%d, path=%s, size=%zu, free_heap=%zu", filename.c_str(), chunk_index,
+             total_chunks, path.c_str(), file_size, esp_get_free_heap_size());
   }
 
   // Convert path to filesystem path
@@ -2869,15 +2871,20 @@ void HttpFileServer::handle_api_upload_chunk(AsyncWebServerRequest *request) {
     portEXIT_CRITICAL(&this->progress_mutex_);
 
     // Log only every 50th chunk, first, and last to reduce overhead
-    if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1) {
-      ESP_LOGD(TAG, "Wrote chunk %d: %zu bytes (total: %zu/%zu)", chunk_index, written,
-               this->progress_.transferred_bytes, file_size);
+    // Also log around potential failure threshold (chunks 170-180)
+    if (chunk_index % 50 == 0 || chunk_index == 0 || chunk_index == total_chunks - 1 ||
+        (chunk_index >= 170 && chunk_index <= 180)) {
+      ESP_LOGD(TAG, "Wrote chunk %d: %zu bytes (total: %zu/%zu), free_heap=%zu", chunk_index, written,
+               this->progress_.transferred_bytes, file_size, esp_get_free_heap_size());
     }
 
     // Flush periodically to ensure data reaches disk (every 10 chunks)
     // This prevents large amounts of data accumulating in FILE* buffers
     if (chunk_index % 10 == 0) {
-      fflush(this->upload_file_);
+      int flush_result = fflush(this->upload_file_);
+      if (flush_result != 0) {
+        ESP_LOGE(TAG, "fflush failed at chunk %d: errno=%d", chunk_index, errno);
+      }
     }
   }
 
