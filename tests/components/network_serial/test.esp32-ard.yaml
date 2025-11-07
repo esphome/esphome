@@ -1,0 +1,12 @@
+network_serial:
+  - id: my_serial
+    host: 192.168.1.100
+    port: 2217
+    baudrate: 115200
+    data_bits: 8
+    parity: NONE
+    stop_bits: 1
+    flow_control: HARDWARE
+    dtr: true
+    rts: true
+    device_node: /dev/ttyNET0
