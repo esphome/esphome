@@ -1,0 +1,5 @@
+nfs_client:
+  - id: nas_mount
+    server: nas.local
+    export: /mnt/share
+    mount_path: /nfs/server1

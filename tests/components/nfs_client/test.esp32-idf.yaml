@@ -1,0 +1,8 @@
+nfs_client:
+  - id: my_nfs
+    server: 192.168.1.100
+    export: /volume1/data
+    port: 2049
+    mount_path: /nfs/nas
+    uid: 1000
+    gid: 1000
