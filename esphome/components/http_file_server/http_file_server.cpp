@@ -2285,9 +2285,22 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     return;
   }
 
+  // Check if another operation is already in progress
+  portENTER_CRITICAL(&this->progress_mutex_);
+  bool already_in_progress = this->progress_.in_progress;
+  std::string current_operation = this->progress_.operation;
+  portEXIT_CRITICAL(&this->progress_mutex_);
+
+  if (already_in_progress) {
+    ESP_LOGW(TAG, "Cannot start copy: %s operation already in progress", current_operation.c_str());
+    request->send(409, "application/json", "{\"error\":\"Another operation is already in progress\"}");
+    return;
+  }
+
   // Create task parameters
-  bool track_progress = (src_stat.st_size > 1048576);
-  ESP_LOGI(TAG, "Copy: file size %lld bytes, track_progress=%d", (long long) src_stat.st_size, track_progress);
+  // Always track progress for consistent modal behavior (overhead is minimal)
+  bool track_progress = true;
+  ESP_LOGI(TAG, "Copy: file size %lld bytes, free_heap=%zu", (long long) src_stat.st_size, esp_get_free_heap_size());
 
   auto *task_params = new CopyTaskParams{this, source, destination, src_stat.st_size, track_progress};
 
@@ -2298,7 +2311,7 @@ void HttpFileServer::handle_api_copy(AsyncWebServerRequest *request) {
     ESP_LOGI(TAG, "Copy task created successfully");
     request->send(200, "application/json", "{\"success\":true}");
   } else {
-    ESP_LOGE(TAG, "Failed to create copy task");
+    ESP_LOGE(TAG, "Failed to create copy task (heap: %zu)", esp_get_free_heap_size());
     delete task_params;
     request->send(500, "application/json", "{\"error\":\"Failed to start copy operation\"}");
   }
@@ -2333,8 +2346,21 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     return;
   }
 
+  // Check if another operation is already in progress
+  portENTER_CRITICAL(&this->progress_mutex_);
+  bool already_in_progress = this->progress_.in_progress;
+  std::string current_operation = this->progress_.operation;
+  portEXIT_CRITICAL(&this->progress_mutex_);
+
+  if (already_in_progress) {
+    ESP_LOGW(TAG, "Cannot start move: %s operation already in progress", current_operation.c_str());
+    request->send(409, "application/json", "{\"error\":\"Another operation is already in progress\"}");
+    return;
+  }
+
   // Create task parameters
-  bool track_progress = (src_stat.st_size > 1048576);
+  // Always track progress for consistent modal behavior (overhead is minimal)
+  bool track_progress = true;
 
   auto *task_params = new MoveTaskParams{this, source, destination, src_stat.st_size, track_progress};
 
@@ -2345,7 +2371,7 @@ void HttpFileServer::handle_api_move(AsyncWebServerRequest *request) {
     ESP_LOGI(TAG, "Move task created successfully");
     request->send(200, "application/json", "{\"success\":true}");
   } else {
-    ESP_LOGE(TAG, "Failed to create move task");
+    ESP_LOGE(TAG, "Failed to create move task (heap: %zu)", esp_get_free_heap_size());
     delete task_params;
     request->send(500, "application/json", "{\"error\":\"Failed to start move operation\"}");
   }
