@@ -1519,16 +1519,11 @@ std::string HttpFileServer::generate_html_footer() {
     // Prevent default form submission
     event.stopPropagation();
 
-    // Helper function for delays (gives MCU time to clean up resources between requests)
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
     // Chunked upload configuration
     const CHUNK_SIZE = 256 * 1024; // 256KB chunks for good balance of speed vs responsiveness
-    const INTER_CHUNK_DELAY_MS = 100; // 100ms delay between chunks to allow MCU cleanup
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-    console.log('[FileServer] Starting chunked upload: ' + totalChunks + ' chunks of ' + CHUNK_SIZE + ' bytes' +
-                ' (with ' + INTER_CHUNK_DELAY_MS + 'ms delay between chunks)');
+    console.log('[FileServer] Starting chunked upload: ' + totalChunks + ' chunks of ' + CHUNK_SIZE + ' bytes');
 
     // Stall detection: Track last progress and check if upload has stalled
     let lastChunkCompleteTime = Date.now();
@@ -1638,12 +1633,6 @@ std::string HttpFileServer::generate_html_footer() {
           // Update stall detection - chunk completed successfully
           lastChunkCompleteTime = Date.now();
           lastChunkIndex = chunkIndex;
-
-          // Delay between chunks (except after last chunk) to give MCU time to clean up resources
-          // This prevents resource exhaustion when uploading large files with many chunks
-          if (chunkIndex < totalChunks - 1) {
-            await sleep(INTER_CHUNK_DELAY_MS);
-          }
         } catch (fetchError) {
           // Enhanced error logging
           console.error('[FileServer] Chunk ' + (chunkIndex + 1) + ' fetch error:', {
