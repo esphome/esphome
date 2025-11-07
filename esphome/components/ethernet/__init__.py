@@ -156,7 +156,7 @@ MANUAL_IP_SCHEMA = cv.Schema(
 
 LLDP_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_ENABLED, default=False): cv.boolean,
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
         cv.Optional(CONF_PORT): cv.string_strict,
         cv.Optional(CONF_SYSTEM_NAME): cv.string_strict,
         cv.Optional(CONF_SYSTEM_DESCRIPTION): cv.string_strict,
@@ -425,7 +425,7 @@ async def to_code(config):
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
-    if CONF_LLDP in config and config[CONF_LLDP][CONF_ENABLED]:
+    if (lldp_config := config.get(CONF_LLDP)) and lldp_config[CONF_ENABLED]:
         # Include L2TAP for sending raw packets
         add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP", True)
 
@@ -436,14 +436,14 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP_RX_QUEUE_SIZE", 1)
 
         cg.add_define("USE_ETHERNET_LLDP")
-        cg.add(var.set_lldp_tx_fast_count(config[CONF_LLDP][CONF_TX_FAST_COUNT]))
-        cg.add(var.set_lldp_tx_interval(config[CONF_LLDP][CONF_TX_INTERVAL]))
-        cg.add(var.set_lldp_tx_hold(config[CONF_LLDP][CONF_TX_HOLD]))
-        if port := config[CONF_LLDP].get(CONF_PORT):
+        cg.add(var.set_lldp_tx_fast_count(lldp_config[CONF_TX_FAST_COUNT]))
+        cg.add(var.set_lldp_tx_interval(lldp_config[CONF_TX_INTERVAL]))
+        cg.add(var.set_lldp_tx_hold(lldp_config[CONF_TX_HOLD]))
+        if port := lldp_config.get(CONF_PORT):
             cg.add(var.set_lldp_port(port))
-        if system_name := config[CONF_LLDP].get(CONF_SYSTEM_NAME):
+        if system_name := lldp_config.get(CONF_SYSTEM_NAME):
             cg.add(var.set_lldp_system_name(system_name))
-        if system_description := config[CONF_LLDP].get(CONF_SYSTEM_DESCRIPTION):
+        if system_description := lldp_config.get(CONF_SYSTEM_DESCRIPTION):
             cg.add(var.set_lldp_system_description(system_description))
 
     if CORE.using_arduino:
