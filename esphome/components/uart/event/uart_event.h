@@ -11,9 +11,7 @@
 namespace esphome {
 namespace uart {
 
-class UARTEvent :public event::Event
-                         ,public UARTDevice
-                         ,public Component{
+class UARTEvent : public event::Event, public UARTDevice, public Component {
  protected:
   struct EventMatcher {
     std::string event_name;
@@ -24,7 +22,7 @@ class UARTEvent :public event::Event
   std::vector<EventMatcher> matchers_;
   std::vector<uint8_t> buffer_;
   size_t max_matcher_len_ = 0;
-  
+
  public:
   void setup() override;
   void loop() override;
@@ -34,5 +32,5 @@ class UARTEvent :public event::Event
   void add_event_matcher(const std::string &event_name, const std::vector<uint8_t> &match_binary);
 };
 
-} // namespace uart
-} // namespace esphome
+}  // namespace uart
+}  // namespace esphome
