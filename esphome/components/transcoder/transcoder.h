@@ -71,9 +71,10 @@ class Transcoder : public Component {
 #if defined(USE_HARDWARE_JPEG_DECODER)
   /**
    * @brief Get hardware JPEG decoder handle (ESP32-P4)
-   * @return Pointer to JPEG decoder handle, or nullptr if not available
+   * Lazily initializes decoder on first access (like old storage_image code)
+   * @return Pointer to JPEG decoder handle, or nullptr if initialization fails
    */
-  jpeg_decoder_handle_t get_jpeg_decoder() { return this->jpeg_decoder_; }
+  jpeg_decoder_handle_t get_jpeg_decoder();
 
   /**
    * @brief Check if JPEG decoder is available
