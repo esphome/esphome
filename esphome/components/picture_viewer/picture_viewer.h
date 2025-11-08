@@ -25,6 +25,7 @@
 #ifdef USE_HARDWARE_JPEG_DECODER
 // ESP32-P4: Use hardware JPEG decoder
 #include "driver/jpeg_decode.h"
+#include "driver/jpeg_types.h"
 #endif
 
 #ifdef USE_JPEGDEC

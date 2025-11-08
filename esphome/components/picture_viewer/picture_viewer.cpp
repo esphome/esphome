@@ -445,11 +445,10 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
   // Copy input data to aligned buffer
   memcpy(aligned_input, jpeg_data.data(), input_size);
 
-  // Configure decoder
-  jpeg_decode_cfg_t decode_cfg = {
-      .output_format = JPEG_DECODE_OUT_FORMAT_RGB565,
-      .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB,
-  };
+  // Configure decoder - use zero-init pattern to avoid struct corruption
+  jpeg_decode_cfg_t decode_cfg = {};
+  decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
+  decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
 
   // Debug: Log all parameters before decode
   ESP_LOGI(TAG, "[DECODE DEBUG] Decoder handle: %p", this->hw_decoder_);
