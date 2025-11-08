@@ -422,6 +422,7 @@ void FileManager::scan_directory_(const std::string &path, std::vector<FileInfo>
 bool FileManager::get_file_info_(const std::string &path, FileInfo &info) {
   struct stat st;
   if (stat(path.c_str(), &st) != 0) {
+    ESP_LOGD(TAG, "stat() failed for path: '%s' (errno: %d)", path.c_str(), errno);
     return false;
   }
 
@@ -431,6 +432,8 @@ bool FileManager::get_file_info_(const std::string &path, FileInfo &info) {
   info.size = st.st_size;
   info.modified_time = st.st_mtime;
   info.is_directory = S_ISDIR(st.st_mode);
+
+  ESP_LOGV(TAG, "stat('%s'): size=%llu, is_dir=%d", path.c_str(), (unsigned long long)st.st_size, S_ISDIR(st.st_mode));
 
   return true;
 }
