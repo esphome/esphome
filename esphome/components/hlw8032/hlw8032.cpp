@@ -106,39 +106,31 @@ void HLW8032Component::parse_data_() {
   float voltage = 0.0f;
   if (have_voltage && voltage_reg) {
     voltage = float(voltage_parameter) * this->voltage_divider_ / float(voltage_reg);
-    if (this->voltage_sensor_ != nullptr) {
-      this->voltage_sensor_->publish_state(voltage);
-    }
+  }
+  if (this->voltage_sensor_ != nullptr) {
+    this->voltage_sensor_->publish_state(voltage);
   }
 
   float power = 0.0f;
-  if (power_cycle_exceeds_range) {
-    // Datasheet: power cycle exceeding range means active power is 0
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(0.0f);
-    }
-  } else if (have_power && power_reg) {
+  if (have_power && power_reg && !power_cycle_exceeds_range) {
     power = (float(power_parameter) / float(power_reg)) * this->voltage_divider_ * current_multiplier;
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(power);
-    }
+  }
+  if (this->power_sensor_ != nullptr) {
+    this->power_sensor_->publish_state(power);
   }
 
   float current = 0.0f;
   if (have_current && current_reg) {
     current = float(current_parameter) * current_multiplier / float(current_reg);
-    if (this->current_sensor_ != nullptr) {
-      this->current_sensor_->publish_state(current);
-    }
+  }
+  if (this->current_sensor_ != nullptr) {
+    this->current_sensor_->publish_state(current);
   }
 
+  float pf = NAN;
+  const float apparent_power = voltage * current;
   if (have_voltage && have_current) {
-    const float apparent_power = voltage * current;
-    if (this->apparent_power_sensor_ != nullptr) {
-      this->apparent_power_sensor_->publish_state(apparent_power);
-    }
-    if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
-      float pf = NAN;
+    if (have_power || power_cycle_exceeds_range) {
       if (apparent_power > 0) {
         pf = power / apparent_power;
         if (pf < 0 || pf > 1) {
@@ -149,8 +141,13 @@ void HLW8032Component::parse_data_() {
         // No load, report ideal power factor
         pf = 1.0f;
       }
-      this->power_factor_sensor_->publish_state(pf);
     }
+  }
+  if (this->apparent_power_sensor_ != nullptr) {
+    this->apparent_power_sensor_->publish_state(apparent_power);
+  }
+  if (this->power_factor_sensor_ != nullptr) {
+    this->power_factor_sensor_->publish_state(pf);
   }
 }
 
