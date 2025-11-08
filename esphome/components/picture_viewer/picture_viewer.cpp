@@ -65,7 +65,9 @@ void PictureViewer::setup() {
     return;
   }
 
-  ESP_LOGI(TAG, "Using transcoder for JPEG decoding");
+  // Get and log decoder handle to verify it's valid
+  jpeg_decoder_handle_t test_handle = this->transcoder_->get_jpeg_decoder();
+  ESP_LOGI(TAG, "Using transcoder for JPEG decoding (decoder handle: %p)", test_handle);
 #else
 #ifdef USE_JPEGDEC
   // Initialize JPEGDec library (fallback when transcoder not available)
@@ -450,6 +452,11 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
   ESP_LOGI(TAG, "[PIC_INFO DEBUG] sizeof(pic_info)=%zu, width=%d, height=%d",
            sizeof(pic_info), pic_info.width, pic_info.height);
 
+  // Log the raw bytes of pic_info to see all fields
+  const uint32_t *pic_info_raw = reinterpret_cast<const uint32_t *>(&pic_info);
+  ESP_LOGI(TAG, "[PIC_INFO RAW] field[0]=%u, field[1]=%u, field[2]=%u",
+           pic_info_raw[0], pic_info_raw[1], pic_info_raw[2]);
+
   width = pic_info.width;
   height = pic_info.height;
 
@@ -500,9 +507,8 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
            ((uintptr_t)aligned_input % 16 == 0) ? "YES" : "NO");
   ESP_LOGI(TAG, "[DECODE DEBUG] Output buffer: %p (size: %u, aligned: %s)", aligned_output, output_size,
            ((uintptr_t)aligned_output % 16 == 0) ? "YES" : "NO");
-  ESP_LOGI(TAG, "[DECODE DEBUG] Config: output_format=0x%08x (%u), rgb_order=%d, conv_std=%d",
-           current_dir->jpeg_output_format, current_dir->jpeg_output_format,
-           current_dir->jpeg_rgb_order, current_dir->jpeg_color_space);
+  ESP_LOGI(TAG, "[DECODE DEBUG] decode_cfg fields: output_format=%d, rgb_order=%d, conv_std=%d",
+           decode_cfg.output_format, decode_cfg.rgb_order, decode_cfg.conv_std);
   ESP_LOGI(TAG, "[DECODE DEBUG] Image dimensions: %dx%d", width, height);
 
   // Decode
