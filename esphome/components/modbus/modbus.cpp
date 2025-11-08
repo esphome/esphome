@@ -500,9 +500,12 @@ void ModbusServer::send_raw(const std::vector<uint8_t> &payload) {
   }
   std::vector<uint8_t> frame = this->add_crc_to_payload_(payload);
 
-  // TODO: Make sure this is delayed until tx is unblocked
-  delay(5);
-  this->send_frame_(frame);
+  const uint32_t now = millis();
+  if (now - this->last_modbus_byte_ < this->frame_delay_ms_)
+    this->set_timeout("send_frame", (this->frame_delay_ms_ - (now - this->last_modbus_byte_)),
+                      [this, frame] { this->send_frame_(frame); });
+  else
+    this->send_frame_(frame);
 }
 
 const std::vector<uint8_t> Modbus::add_crc_to_payload_(const std::vector<uint8_t> &payload) {
