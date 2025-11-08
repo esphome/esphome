@@ -20,8 +20,8 @@ except ImportError:
     lv_canvas_t = None
 
 CODEOWNERS = ["@esphome/core"]
-DEPENDENCIES = ["transcoder"]
-AUTO_LOAD = []
+DEPENDENCIES = []
+AUTO_LOAD = ["transcoder"]
 
 # Namespaces
 picture_viewer_ns = cg.esphome_ns.namespace("picture_viewer")
