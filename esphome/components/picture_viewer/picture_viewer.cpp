@@ -467,13 +467,6 @@ void PictureViewer::update_canvas_() {
     return;
   }
 
-  // Get canvas buffer
-  lv_canvas_ext_t *ext = (lv_canvas_ext_t *) lv_obj_get_ext_attr(this->canvas_);
-  if (ext == nullptr || ext->dsc.data == nullptr) {
-    ESP_LOGE(TAG, "Canvas buffer not initialized");
-    return;
-  }
-
   // Get canvas dimensions
   lv_coord_t canvas_width = lv_obj_get_width(this->canvas_);
   lv_coord_t canvas_height = lv_obj_get_height(this->canvas_);
