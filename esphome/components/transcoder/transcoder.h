@@ -32,9 +32,9 @@
 
 #ifdef USE_HARDWARE_H264_DECODER
 // ESP32-P4: Hardware H.264 codec
-// Note: H.264 driver headers - these may need to be updated based on ESP-IDF version
-// As of ESP-IDF 5.3, H.264 support is available but headers may vary
-#include "driver/h264_types.h"
+// Note: H.264 hardware exists on P4 but ESP-IDF driver headers not yet available
+// Placeholder for future implementation when ESP-IDF provides stable H.264 API
+// Expected in future ESP-IDF versions (5.4+)
 #endif
 
 namespace esphome {
