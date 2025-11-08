@@ -1,9 +1,9 @@
 substitutions:
-  scl_pin: GPIO16
-  sda_pin: GPIO13
-  clk_pin: GPIO17
-  mosi_pin: GPIO2
   dc_pin: GPIO15
   cs_pin: GPIO5
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
 <<: !include common.yaml
