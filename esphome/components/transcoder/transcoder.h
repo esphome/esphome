@@ -61,6 +61,7 @@ enum class CodecType {
  */
 class Transcoder : public Component {
  public:
+  Transcoder();
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
