@@ -18,11 +18,24 @@ Transcoder::Transcoder() { global_transcoder = this; }
 void Transcoder::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Transcoder...");
 
-  // Note: JPEG decoder now uses lazy initialization (created on first use)
-  // This matches the old storage_image behavior and ensures hardware is ready
+  // Initialize JPEG Decoder (only if requested by components)
 #ifdef TRANSCODER_ENABLE_JPEG_DECODER
-#ifdef USE_ESP_JPEG_DECODER
-  // ESP32-S2/S3: esp_jpeg decoder can be marked ready immediately
+#ifdef USE_HARDWARE_JPEG_DECODER
+  // ESP32-P4: Hardware JPEG decoder
+  jpeg_decode_engine_cfg_t decode_eng_cfg = {};
+  decode_eng_cfg.intr_priority = 0;
+  decode_eng_cfg.timeout_ms = 200;
+
+  esp_err_t ret = jpeg_new_decoder_engine(&decode_eng_cfg, &this->jpeg_decoder_);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to create hardware JPEG decoder: %s", esp_err_to_name(ret));
+    this->mark_failed();
+    return;
+  }
+  ESP_LOGI(TAG, "Hardware JPEG decoder initialized (ESP32-P4)");
+
+#elif defined(USE_ESP_JPEG_DECODER)
+  // ESP32-S2/S3: esp_jpeg decoder
   this->esp_jpeg_decoder_initialized_ = true;
   ESP_LOGI(TAG, "ESP-JPEG decoder ready (ESP32-S2/S3)");
 #endif
@@ -92,33 +105,6 @@ void Transcoder::setup() {
 
   ESP_LOGCONFIG(TAG, "Transcoder setup complete");
 }
-
-// Lazy initialization for JPEG decoder (matches old storage_image behavior)
-// Note: Implementation not guarded to ensure it's always available when header declares it
-#ifdef USE_HARDWARE_JPEG_DECODER
-jpeg_decoder_handle_t Transcoder::get_jpeg_decoder() {
-  // Return existing decoder if already initialized
-  if (this->jpeg_decoder_ != nullptr) {
-    return this->jpeg_decoder_;
-  }
-
-  // Initialize decoder on first use (after all hardware is ready)
-  ESP_LOGI(TAG, "Lazy-initializing hardware JPEG decoder (ESP32-P4)...");
-
-  jpeg_decode_engine_cfg_t decode_eng_cfg = {};
-  decode_eng_cfg.intr_priority = 0;
-  decode_eng_cfg.timeout_ms = 200;
-
-  esp_err_t ret = jpeg_new_decoder_engine(&decode_eng_cfg, &this->jpeg_decoder_);
-  if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to create hardware JPEG decoder: %s", esp_err_to_name(ret));
-    return nullptr;
-  }
-
-  ESP_LOGI(TAG, "Hardware JPEG decoder initialized successfully (handle: %p)", this->jpeg_decoder_);
-  return this->jpeg_decoder_;
-}
-#endif  // USE_HARDWARE_JPEG_DECODER
 
 void Transcoder::dump_config() {
   ESP_LOGCONFIG(TAG, "Transcoder:");
