@@ -173,6 +173,6 @@ async def to_code(config):
                 "H.264 codec requested but only available on ESP32-P4/S3 (current: %s)", variant
             )
 
-    # Set global transcoder accessor
+    # Set global transcoder accessor using the var we created
     cg.add_define("USE_TRANSCODER")
-    cg.add(cg.RawExpression("esphome::transcoder::global_transcoder = id(transcoder_instance)"))
+    cg.add(cg.RawStatement(f"esphome::transcoder::global_transcoder = {var};"))
