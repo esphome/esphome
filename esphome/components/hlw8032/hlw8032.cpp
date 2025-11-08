@@ -7,74 +7,107 @@ namespace esphome::hlw8032 {
 
 static const char *const TAG = "hlw8032";
 
+static constexpr uint8_t STATE_REG_OFFSET = 0;
+static constexpr uint8_t VOLTAGE_PARAM_OFFSET = 2;
+static constexpr uint8_t VOLTAGE_REG_OFFSET = 5;
+static constexpr uint8_t CURRENT_PARAM_OFFSET = 8;
+static constexpr uint8_t CURRENT_REG_OFFSET = 11;
+static constexpr uint8_t POWER_PARAM_OFFSET = 14;
+static constexpr uint8_t POWER_REG_OFFSET = 17;
+static constexpr uint8_t DATA_UPDATE_REG_OFFSET = 20;
+static constexpr uint8_t CHECKSUM_REG_OFFSET = 23;
+static constexpr uint8_t PARAM_REG_USABLE_BIT = (1 << 0);
+static constexpr uint8_t POWER_OVERFLOW_BIT = (1 << 1);
+static constexpr uint8_t CURRENT_OVERFLOW_BIT = (1 << 2);
+static constexpr uint8_t VOLTAGE_OVERFLOW_BIT = (1 << 3);
+static constexpr uint8_t HAVE_POWER_BIT = (1 << 4);
+static constexpr uint8_t HAVE_CURRENT_BIT = (1 << 5);
+static constexpr uint8_t HAVE_VOLTAGE_BIT = (1 << 6);
+static constexpr uint8_t CHECK_REG = 0x5A;
+static constexpr uint8_t STATE_REG_CORRECTION_FUNC_NORMAL = 0x55;
+static constexpr uint8_t STATE_REG_CORRECTION_FUNC_FAIL = 0xAA;
+static constexpr uint8_t STATE_REG_CORRECTION_MASK = 0xF0;
+static constexpr uint8_t STATE_REG_OVERFLOW_MASK = 0xF;
+static constexpr uint8_t PACKET_LENGTH = 24;
+
 void HLW8032Component::loop() {
   if (!this->available())
     return;
 
   uint8_t data = this->read();
 
-  if (((data == 0x55) || (data == 0xaa) || (data & 0xf0)) && !this->header_found_) {
+  if (((data == STATE_REG_CORRECTION_FUNC_NORMAL) || (data == STATE_REG_CORRECTION_FUNC_FAIL) ||
+       ((data & STATE_REG_CORRECTION_MASK) == STATE_REG_CORRECTION_MASK)) &&
+      !this->header_found_) {
     this->header_found_ = true;
     this->raw_data_[0] = data;
-  } else if (data == 0x5A && this->header_found_) {
+  } else if (data == CHECK_REG && this->header_found_) {
     this->raw_data_[1] = data;
     this->raw_data_index_ = 2;
     this->check_ = 0;
-  } else if (this->raw_data_index_ >= 2 && this->raw_data_index_ < 24) {
+  } else if (this->raw_data_index_ >= 2 && this->raw_data_index_ < PACKET_LENGTH) {
     this->raw_data_[this->raw_data_index_++] = data;
-    if (this->raw_data_index_ < 24) {
+    if (this->raw_data_index_ < PACKET_LENGTH) {
       this->check_ += data;
-    } else if (this->raw_data_index_ == 24) {
-      if (this->check_ == this->raw_data_[23]) {
+    } else if (this->raw_data_index_ == PACKET_LENGTH) {
+      if (this->check_ == this->raw_data_[CHECKSUM_REG_OFFSET]) {
         this->parse_data_();
       } else {
-        ESP_LOGW(TAG, "Invalid checksum: 0x%02X != 0x%02X", this->check_, this->raw_data_[23]);
+        ESP_LOGW(TAG, "Invalid checksum: 0x%02X != 0x%02X", this->check_, this->raw_data_[CHECKSUM_REG_OFFSET]);
       }
       this->raw_data_index_ = 0;
       this->header_found_ = false;
-      memset(this->raw_data_, 0, 24);
+      memset(this->raw_data_, 0, PACKET_LENGTH);
     }
   }
 }
 
 void HLW8032Component::parse_data_() {
   // Parse header
-  uint8_t state_reg = this->raw_data_[0];
+  uint8_t state_reg = this->raw_data_[STATE_REG_OFFSET];
 
-  if (state_reg == 0xAA) {
-    ESP_LOGE(TAG, "Function of error correction fails.");
+  if (state_reg == STATE_REG_CORRECTION_FUNC_FAIL) {
+    ESP_LOGE(TAG, "The chip's function of error correction fails.");
     return;
   }
 
   // Parse data frame
-  uint32_t voltage_parameter = encode_uint24(this->raw_data_[2], this->raw_data_[3], this->raw_data_[4]);
-  uint32_t voltage_reg = encode_uint24(this->raw_data_[5], this->raw_data_[6], this->raw_data_[7]);
-  uint32_t current_parameter = encode_uint24(this->raw_data_[8], this->raw_data_[9], this->raw_data_[10]);
-  uint32_t current_reg = encode_uint24(this->raw_data_[11], this->raw_data_[12], this->raw_data_[13]);
-  uint32_t power_parameter = encode_uint24(this->raw_data_[14], this->raw_data_[15], this->raw_data_[16]);
-  uint32_t power_reg = encode_uint24(this->raw_data_[17], this->raw_data_[18], this->raw_data_[19]);
+  uint32_t voltage_parameter =
+      encode_uint24(this->raw_data_[VOLTAGE_PARAM_OFFSET], this->raw_data_[VOLTAGE_PARAM_OFFSET + 1],
+                    this->raw_data_[VOLTAGE_PARAM_OFFSET + 2]);
+  uint32_t voltage_reg = encode_uint24(this->raw_data_[VOLTAGE_REG_OFFSET], this->raw_data_[VOLTAGE_REG_OFFSET + 1],
+                                       this->raw_data_[VOLTAGE_REG_OFFSET + 2]);
+  uint32_t current_parameter =
+      encode_uint24(this->raw_data_[CURRENT_PARAM_OFFSET], this->raw_data_[CURRENT_PARAM_OFFSET + 1],
+                    this->raw_data_[CURRENT_PARAM_OFFSET + 2]);
+  uint32_t current_reg = encode_uint24(this->raw_data_[CURRENT_REG_OFFSET], this->raw_data_[CURRENT_REG_OFFSET + 1],
+                                       this->raw_data_[CURRENT_REG_OFFSET + 2]);
+  uint32_t power_parameter = encode_uint24(this->raw_data_[POWER_PARAM_OFFSET], this->raw_data_[POWER_PARAM_OFFSET + 1],
+                                           this->raw_data_[POWER_PARAM_OFFSET + 2]);
+  uint32_t power_reg = encode_uint24(this->raw_data_[POWER_REG_OFFSET], this->raw_data_[POWER_REG_OFFSET + 1],
+                                     this->raw_data_[POWER_REG_OFFSET + 2]);
 
-  uint8_t data_update_register = this->raw_data_[20];
+  uint8_t data_update_register = this->raw_data_[DATA_UPDATE_REG_OFFSET];
 
-  bool have_power = data_update_register & (1 << 4);
-  bool have_current = data_update_register & (1 << 5);
-  bool have_voltage = data_update_register & (1 << 6);
+  bool have_power = data_update_register & HAVE_POWER_BIT;
+  bool have_current = data_update_register & HAVE_CURRENT_BIT;
+  bool have_voltage = data_update_register & HAVE_VOLTAGE_BIT;
 
   bool power_cycle_exceeds_range = false;
   bool parameter_regs_usable = true;
 
-  if ((state_reg & 0xF0) == 0xF0) {
-    if (state_reg & 0xF) {
-      if (state_reg & (1 << 3)) {
+  if ((state_reg & STATE_REG_CORRECTION_MASK) == STATE_REG_CORRECTION_MASK) {
+    if (state_reg & STATE_REG_OVERFLOW_MASK) {
+      if (state_reg & VOLTAGE_OVERFLOW_BIT) {
         have_voltage = false;
       }
-      if (state_reg & (1 << 2)) {
+      if (state_reg & CURRENT_OVERFLOW_BIT) {
         have_current = false;
       }
-      if (state_reg & (1 << 1)) {
+      if (state_reg & POWER_OVERFLOW_BIT) {
         have_power = false;
       }
-      if (state_reg & (1 << 0)) {
+      if (state_reg & PARAM_REG_USABLE_BIT) {
         parameter_regs_usable = false;
       }
 
@@ -91,7 +124,7 @@ void HLW8032Component::parse_data_() {
         return;
       }
     }
-    power_cycle_exceeds_range = state_reg & (1 << 1);
+    power_cycle_exceeds_range = have_power;
   }
 
   ESP_LOGVV(TAG,
