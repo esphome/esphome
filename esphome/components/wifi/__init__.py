@@ -54,6 +54,10 @@ AUTO_LOAD = ["network"]
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 
+# Maximum number of WiFi networks that can be configured
+# Limited to 127 because selected_sta_index_ is int8_t in C++
+MAX_WIFI_NETWORKS = 127
+
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
 ManualIP = wifi_ns.struct("ManualIP")
@@ -260,7 +264,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(WiFiComponent),
-            cv.Optional(CONF_NETWORKS): cv.ensure_list(WIFI_NETWORK_STA),
+            cv.Optional(CONF_NETWORKS): cv.All(
+                cv.ensure_list(WIFI_NETWORK_STA), cv.Length(max=MAX_WIFI_NETWORKS)
+            ),
             cv.Optional(CONF_SSID): cv.ssid,
             cv.Optional(CONF_PASSWORD): validate_password,
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,

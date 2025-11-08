@@ -324,7 +324,7 @@ void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
                 "  Address: %s:%u",
-                network::get_use_address().c_str(), this->base_->get_port());
+                network::get_use_address(), this->base_->get_port());
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
@@ -1188,7 +1188,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->select_json(obj, obj->state, detail);
+      std::string data = this->select_json(obj, obj->has_state() ? obj->current_option() : "", detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1208,12 +1208,14 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::select_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->state, DETAIL_STATE);
+  auto *obj = (select::Select *) (source);
+  return web_server->select_json(obj, obj->has_state() ? obj->current_option() : "", DETAIL_STATE);
 }
 std::string WebServer::select_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->state, DETAIL_ALL);
+  auto *obj = (select::Select *) (source);
+  return web_server->select_json(obj, obj->has_state() ? obj->current_option() : "", DETAIL_ALL);
 }
-std::string WebServer::select_json(select::Select *obj, const std::string &value, JsonDetail start_config) {
+std::string WebServer::select_json(select::Select *obj, const char *value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -1626,7 +1628,8 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
 }
 
 static std::string get_event_type(event::Event *event) {
-  return (event && event->last_event_type) ? *event->last_event_type : "";
+  const char *last_type = event ? event->get_last_event_type() : nullptr;
+  return last_type ? last_type : "";
 }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
@@ -1647,7 +1650,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
   }
   if (start_config == DETAIL_ALL) {
     JsonArray event_types = root["event_types"].to<JsonArray>();
-    for (auto const &event_type : obj->get_event_types()) {
+    for (const char *event_type : obj->get_event_types()) {
       event_types.add(event_type);
     }
     root["device_class"] = obj->get_device_class_ref();

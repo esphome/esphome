@@ -14,7 +14,7 @@ enum TemplateValveRestoreMode {
   VALVE_RESTORE_AND_CALL,
 };
 
-class TemplateValve : public valve::Valve, public Component {
+class TemplateValve final : public valve::Valve, public Component {
  public:
   TemplateValve();
 
