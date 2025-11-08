@@ -77,8 +77,10 @@ void ModbusServer::loop() {
     }
     // Try re-parse. This catches situations where we attempted to parse a long server response (which didn't arrive)
     // and in the process captured another client request into the buffer
-    if (!this->parse_modbus_client_byte_(std::nullopt)) {
-      clear_rx_buffer_("timeout after partial response", true);
+    size_t size = this->rx_buffer_.size();
+    this->parse_modbus_client_byte_(std::nullopt);
+    if (this->rx_buffer_.size() == size) {
+      this->clear_rx_buffer_("timeout after partial response", true);
     }
   }
 }
