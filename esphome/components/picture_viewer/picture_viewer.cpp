@@ -457,14 +457,123 @@ void PictureViewer::resize_image_(const std::vector<uint8_t> &src_data, int src_
 
 void PictureViewer::update_canvas_() {
 #ifdef USE_LVGL
-  if (this->canvas_id_.empty()) {
-    ESP_LOGW(TAG, "Canvas ID not set");
+  if (this->canvas_ == nullptr) {
+    ESP_LOGW(TAG, "Canvas not set");
     return;
   }
 
-  // TODO: Update LVGL canvas with current_image_data_
-  // This requires LVGL integration to find the canvas widget and update it
-  ESP_LOGD(TAG, "Updating canvas: %s", this->canvas_id_.c_str());
+  if (this->current_image_data_ == nullptr) {
+    ESP_LOGW(TAG, "No image data to display");
+    return;
+  }
+
+  // Get canvas buffer
+  lv_canvas_ext_t *ext = (lv_canvas_ext_t *) lv_obj_get_ext_attr(this->canvas_);
+  if (ext == nullptr || ext->dsc.data == nullptr) {
+    ESP_LOGE(TAG, "Canvas buffer not initialized");
+    return;
+  }
+
+  // Get canvas dimensions
+  lv_coord_t canvas_width = lv_obj_get_width(this->canvas_);
+  lv_coord_t canvas_height = lv_obj_get_height(this->canvas_);
+
+  ESP_LOGD(TAG, "Canvas: %dx%d, Image: %dx%d, Fit mode: %d", canvas_width, canvas_height, this->current_image_width_,
+           this->current_image_height_, static_cast<int>(this->fit_mode_));
+
+  // Calculate drawing dimensions and position based on fit mode
+  int draw_x = 0, draw_y = 0;
+  int draw_width = this->current_image_width_;
+  int draw_height = this->current_image_height_;
+
+  switch (this->fit_mode_) {
+    case ImageFitMode::SCALE_TO_FIT: {
+      // Scale to fit, maintain aspect ratio
+      float scale_x = static_cast<float>(canvas_width) / this->current_image_width_;
+      float scale_y = static_cast<float>(canvas_height) / this->current_image_height_;
+      float scale = std::min(scale_x, scale_y);
+
+      draw_width = static_cast<int>(this->current_image_width_ * scale);
+      draw_height = static_cast<int>(this->current_image_height_ * scale);
+
+      // Center in canvas
+      draw_x = (canvas_width - draw_width) / 2;
+      draw_y = (canvas_height - draw_height) / 2;
+
+      // Clear canvas with black background
+      lv_canvas_fill_bg(this->canvas_, lv_color_black(), LV_OPA_COVER);
+      break;
+    }
+
+    case ImageFitMode::SCALE_TO_FILL: {
+      // Scale to fill, maintain aspect ratio, may crop
+      float scale_x = static_cast<float>(canvas_width) / this->current_image_width_;
+      float scale_y = static_cast<float>(canvas_height) / this->current_image_height_;
+      float scale = std::max(scale_x, scale_y);
+
+      draw_width = static_cast<int>(this->current_image_width_ * scale);
+      draw_height = static_cast<int>(this->current_image_height_ * scale);
+
+      // Center in canvas (may be cropped)
+      draw_x = (canvas_width - draw_width) / 2;
+      draw_y = (canvas_height - draw_height) / 2;
+      break;
+    }
+
+    case ImageFitMode::STRETCH: {
+      // Stretch to fill canvas, ignore aspect ratio
+      draw_width = canvas_width;
+      draw_height = canvas_height;
+      draw_x = 0;
+      draw_y = 0;
+      break;
+    }
+
+    case ImageFitMode::CENTER: {
+      // Center without scaling
+      draw_x = (canvas_width - this->current_image_width_) / 2;
+      draw_y = (canvas_height - this->current_image_height_) / 2;
+
+      // Clear canvas with black background
+      lv_canvas_fill_bg(this->canvas_, lv_color_black(), LV_OPA_COVER);
+      break;
+    }
+  }
+
+  // Need to scale/copy the image data to canvas if dimensions don't match
+  if (draw_width == this->current_image_width_ && draw_height == this->current_image_height_) {
+    // Direct copy - no scaling needed
+    lv_img_dsc_t img_dsc;
+    img_dsc.header.always_zero = 0;
+    img_dsc.header.w = this->current_image_width_;
+    img_dsc.header.h = this->current_image_height_;
+    img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;  // RGB565
+    img_dsc.data_size = this->current_image_size_;
+    img_dsc.data = this->current_image_data_;
+
+    lv_canvas_draw_img(this->canvas_, draw_x, draw_y, &img_dsc, nullptr);
+  } else {
+    // Need to scale the image
+    std::vector<uint8_t> scaled_data;
+    this->resize_image_(std::vector<uint8_t>(this->current_image_data_,
+                                              this->current_image_data_ + this->current_image_size_),
+                        this->current_image_width_, this->current_image_height_, scaled_data, draw_width, draw_height);
+
+    lv_img_dsc_t img_dsc;
+    img_dsc.header.always_zero = 0;
+    img_dsc.header.w = draw_width;
+    img_dsc.header.h = draw_height;
+    img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;  // RGB565
+    img_dsc.data_size = scaled_data.size();
+    img_dsc.data = scaled_data.data();
+
+    lv_canvas_draw_img(this->canvas_, draw_x, draw_y, &img_dsc, nullptr);
+  }
+
+  // Invalidate canvas to trigger redraw
+  lv_obj_invalidate(this->canvas_);
+
+  ESP_LOGD(TAG, "Canvas updated successfully");
 #endif
 }
 
@@ -497,11 +606,17 @@ bool PictureViewer::generate_thumbnail_(ImageEntry &entry) {
 
 void PictureViewer::update_canvas_dimensions_() {
 #ifdef USE_LVGL
-  // TODO: Get canvas dimensions from LVGL widget
-  // For now, use defaults
-  if (this->canvas_width_ == 0 || this->canvas_height_ == 0) {
-    this->canvas_width_ = 800;
-    this->canvas_height_ = 480;
+  if (this->canvas_ != nullptr) {
+    this->canvas_width_ = lv_obj_get_width(this->canvas_);
+    this->canvas_height_ = lv_obj_get_height(this->canvas_);
+    ESP_LOGD(TAG, "Canvas dimensions: %dx%d", this->canvas_width_, this->canvas_height_);
+  } else {
+    // Fallback to defaults if canvas not set
+    if (this->canvas_width_ == 0 || this->canvas_height_ == 0) {
+      this->canvas_width_ = 800;
+      this->canvas_height_ = 480;
+      ESP_LOGW(TAG, "Canvas not set, using default dimensions: %dx%d", this->canvas_width_, this->canvas_height_);
+    }
   }
 #endif
 }

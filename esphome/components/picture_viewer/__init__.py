@@ -23,6 +23,13 @@ PictureViewer = picture_viewer_ns.class_("PictureViewer", cg.Component)
 
 # Enums
 SlideshowMode = picture_viewer_ns.enum("SlideshowMode")
+ImageFitMode = picture_viewer_ns.enum("ImageFitMode")
+IMAGE_FIT_MODES = {
+    "SCALE_TO_FIT": ImageFitMode.SCALE_TO_FIT,
+    "SCALE_TO_FILL": ImageFitMode.SCALE_TO_FILL,
+    "STRETCH": ImageFitMode.STRETCH,
+    "CENTER": ImageFitMode.CENTER,
+}
 
 # Configuration keys
 CONF_FILE_MANAGER_ID = "file_manager_id"
@@ -33,6 +40,7 @@ CONF_SLIDESHOW_INTERVAL = "slideshow_interval"
 CONF_ENABLE_THUMBNAILS = "enable_thumbnails"
 CONF_THUMBNAIL_WIDTH = "thumbnail_width"
 CONF_THUMBNAIL_HEIGHT = "thumbnail_height"
+CONF_FIT_MODE = "fit_mode"
 
 # Component configuration
 CONFIG_SCHEMA = cv.Schema(
@@ -48,6 +56,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ENABLE_THUMBNAILS, default=True): cv.boolean,
         cv.Optional(CONF_THUMBNAIL_WIDTH, default=120): cv.int_range(min=32, max=320),
         cv.Optional(CONF_THUMBNAIL_HEIGHT, default=90): cv.int_range(min=32, max=240),
+        cv.Optional(CONF_FIT_MODE, default="SCALE_TO_FIT"): cv.enum(
+            IMAGE_FIT_MODES, upper=True
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -62,9 +73,19 @@ async def to_code(config):
         fm = await cg.get_variable(config[CONF_FILE_MANAGER_ID])
         cg.add(var.set_file_manager(fm))
 
-    # Link LVGL canvas if provided (pass as string - LVGL uses its own ID system)
+    # Link LVGL canvas if provided
     if CONF_CANVAS_ID in config:
-        cg.add(var.set_canvas_id(config[CONF_CANVAS_ID]))
+        canvas_id = config[CONF_CANVAS_ID]
+        cg.add(var.set_canvas_id(canvas_id))
+        # Generate lambda to pass the canvas object pointer at runtime
+        # The canvas_id becomes a C++ global variable of type lv_obj_t*
+        cg.add_lambda(
+            f"""
+            if ({canvas_id} != nullptr) {{
+                id({config[CONF_ID]})->set_canvas({canvas_id});
+            }}
+            """
+        )
 
     # Link display if provided
     if CONF_DISPLAY_ID in config:
@@ -77,6 +98,7 @@ async def to_code(config):
     cg.add(var.set_enable_thumbnails(config[CONF_ENABLE_THUMBNAILS]))
     cg.add(var.set_thumbnail_width(config[CONF_THUMBNAIL_WIDTH]))
     cg.add(var.set_thumbnail_height(config[CONF_THUMBNAIL_HEIGHT]))
+    cg.add(var.set_fit_mode(config[CONF_FIT_MODE]))
 
     # Add defines based on platform
     from esphome.components.esp32 import get_esp32_variant, add_idf_component

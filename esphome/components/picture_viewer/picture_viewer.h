@@ -56,6 +56,14 @@ enum class SlideshowMode {
   PAUSED,
 };
 
+// Image fit mode for canvas display
+enum class ImageFitMode {
+  SCALE_TO_FIT,   // Scale to fit canvas, maintain aspect ratio (may have black bars)
+  SCALE_TO_FILL,  // Scale to fill canvas, maintain aspect ratio (may crop)
+  STRETCH,        // Stretch to fill canvas, ignore aspect ratio
+  CENTER,         // Center image, no scaling
+};
+
 // =====================================================
 // PictureViewer Component
 // =====================================================
@@ -81,6 +89,7 @@ class PictureViewer : public Component {
 
 #ifdef USE_LVGL
   void set_canvas_id(const std::string &canvas_id) { this->canvas_id_ = canvas_id; }
+  void set_canvas(lv_obj_t *canvas) { this->canvas_ = canvas; }
   void set_display(display::Display *display) { this->display_ = display; }
 #endif
 
@@ -89,6 +98,7 @@ class PictureViewer : public Component {
   void set_thumbnail_width(int width) { this->thumbnail_width_ = width; }
   void set_thumbnail_height(int height) { this->thumbnail_height_ = height; }
   void set_enable_thumbnails(bool enable) { this->enable_thumbnails_ = enable; }
+  void set_fit_mode(ImageFitMode mode) { this->fit_mode_ = mode; }
 
   // =====================================================
   // Picture Control API
@@ -152,7 +162,8 @@ class PictureViewer : public Component {
 #endif
 
 #ifdef USE_LVGL
-  std::string canvas_id_;  // LVGL canvas widget ID
+  std::string canvas_id_;  // LVGL canvas widget ID (for debugging)
+  lv_obj_t *canvas_{nullptr};  // LVGL canvas object pointer
   display::Display *display_{nullptr};
 #endif
 
@@ -161,6 +172,7 @@ class PictureViewer : public Component {
   int thumbnail_width_{120};
   int thumbnail_height_{90};
   bool enable_thumbnails_{true};
+  ImageFitMode fit_mode_{ImageFitMode::SCALE_TO_FIT};  // Default: scale to fit
 
   // State
   std::vector<ImageEntry> images_;
