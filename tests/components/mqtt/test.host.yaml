@@ -1,0 +1,124 @@
+network:
+
+time:
+  platform: host
+
+mqtt:
+  broker: "192.168.178.84"
+  port: 1883
+  username: debug
+  password: debug
+  enable_on_boot: false
+  clean_session: true
+  client_id: someclient
+  use_abbreviations: false
+  discovery: true
+  discovery_retain: false
+  discovery_prefix: discovery
+  discovery_unique_id_generator: legacy
+  topic_prefix: helloworld
+  log_topic:
+    topic: helloworld/hi
+    level: INFO
+  birth_message:
+  will_message:
+  shutdown_message:
+    topic: topic/to/send/to
+    payload: hi
+    qos: 2
+    retain: true
+  keepalive: 60s
+  reboot_timeout: 60s
+  on_message:
+    - topic: my/custom/topic
+      qos: 0
+      then:
+        - lambda: >-
+            ESP_LOGD("main", "Got message %s", x.c_str());
+  on_json_message:
+    topic: the/topic
+    then:
+      - logger.log: on_json_message
+  on_connect:
+    - mqtt.publish:
+        topic: some/topic
+        payload: Hello
+  on_disconnect:
+    - mqtt.publish:
+        topic: some/topic
+        payload: Good-bye
+
+binary_sensor:
+  - platform: template
+    id: some_binary_sensor
+    name: Garage Door Open
+    state_topic: some/topic/binary_sensor
+    qos: 2
+    lambda: |-
+      return false;
+
+button:
+  - platform: template
+    name: "Template Button"
+    state_topic: some/topic/button
+    qos: 2
+    on_press:
+      - mqtt.disable
+      - mqtt.enable
+      - mqtt.publish:
+          topic: some/topic/button
+          payload: Hello
+          qos: 2
+          retain: true
+
+sensor:
+  - platform: template
+    name: Template Sensor
+    id: template_sens
+    lambda: |-
+      return 42.0;
+    update_interval: 60s
+    on_value:
+      - mqtt.publish:
+          topic: some/topic/sensor
+          payload: Hello
+          qos: 2
+          retain: true
+  - platform: mqtt_subscribe
+    name: MQTT Subscribe Sensor
+    topic: mqtt/topic
+    id: the_sensor
+    qos: 2
+    on_value:
+      - mqtt.publish_json:
+          topic: the/topic
+          payload: |-
+            root["key"] = id(template_sens).state;
+            root["greeting"] = "Hello World";
+
+switch:
+  - platform: template
+    name: Template Switch
+    state_topic: some/topic/switch
+    qos: 2
+    lambda: |-
+      return false;
+    turn_on_action:
+      - logger.log: turn_on_action
+    turn_off_action:
+      - logger.log: turn_off_action
+
+text_sensor:
+  - platform: template
+    name: Template Text Sensor
+    id: tts_text
+    state_topic: some/topic/text_sensor
+    qos: 2
+  - platform: mqtt_subscribe
+    name: MQTT Subscribe Text
+    topic: some/topic/text_sensor
+    qos: 2
+    on_value:
+      - text_sensor.template.publish:
+          id: tts_text
+          state: Hello World
