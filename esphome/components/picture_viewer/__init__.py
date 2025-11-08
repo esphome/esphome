@@ -11,6 +11,14 @@ from esphome.const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Import LVGL canvas type for proper widget ID validation
+try:
+    from esphome.components.lvgl.widgets.canvas import lv_canvas_t
+    LVGL_AVAILABLE = True
+except ImportError:
+    LVGL_AVAILABLE = False
+    lv_canvas_t = None
+
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = []
 AUTO_LOAD = []
@@ -47,7 +55,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PictureViewer),
         cv.Optional(CONF_FILE_MANAGER_ID): cv.use_id(cg.Component),  # FileManager
-        cv.Optional(CONF_CANVAS_ID): cv.string,  # LVGL Canvas - widget ID as string
+        cv.Optional(CONF_CANVAS_ID): cv.use_id(lv_canvas_t) if LVGL_AVAILABLE else cv.invalid("LVGL not available"),  # LVGL Canvas widget
         cv.Optional(CONF_DISPLAY_ID): cv.use_id(cg.Component),  # Display
         cv.Required(CONF_WATCH_DIRECTORY): cv.string,
         cv.Optional(
@@ -75,13 +83,11 @@ async def to_code(config):
 
     # Link LVGL canvas if provided
     if CONF_CANVAS_ID in config:
-        canvas_id = config[CONF_CANVAS_ID]
-        cg.add(var.set_canvas_id(canvas_id))
-        # Note: The canvas object pointer needs to be set after LVGL initialization
-        # User should add to their config:
-        # lvgl:
-        #   on_ready:
-        #     - lambda: id(picture_viewer_id)->set_canvas(photo_canvas);
+        canvas = await cg.get_variable(config[CONF_CANVAS_ID])
+        # Store canvas ID for debugging
+        cg.add(var.set_canvas_id(str(config[CONF_CANVAS_ID])))
+        # Set the canvas object pointer (canvas.obj is the lv_obj_t*)
+        cg.add(var.set_canvas(canvas.obj))
 
     # Link display if provided
     if CONF_DISPLAY_ID in config:
