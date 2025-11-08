@@ -20,6 +20,18 @@ namespace picture_viewer {
 
 static const char *const TAG = "picture_viewer";
 
+#ifdef USE_HARDWARE_JPEG_DECODER
+// Compile-time diagnostic: Check what value the enum actually has
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#pragma message("JPEG_DECODE_OUT_FORMAT_RGB565 = " TOSTRING(JPEG_DECODE_OUT_FORMAT_RGB565))
+#ifdef ESP_COLOR_FOURCC_RGB16_BE
+#pragma message("ESP_COLOR_FOURCC_RGB16_BE defined")
+#else
+#pragma message("ESP_COLOR_FOURCC_RGB16_BE NOT defined!")
+#endif
+#endif
+
 // =====================================================
 // Component Lifecycle
 // =====================================================
