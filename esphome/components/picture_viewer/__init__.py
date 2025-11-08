@@ -77,15 +77,9 @@ async def to_code(config):
     if CONF_CANVAS_ID in config:
         canvas_id = config[CONF_CANVAS_ID]
         cg.add(var.set_canvas_id(canvas_id))
-        # Generate lambda to pass the canvas object pointer at runtime
         # The canvas_id becomes a C++ global variable of type lv_obj_t*
-        cg.add_lambda(
-            f"""
-            if ({canvas_id} != nullptr) {{
-                id({config[CONF_ID]})->set_canvas({canvas_id});
-            }}
-            """
-        )
+        # Set the canvas pointer - this will be added to setup() function
+        cg.add(cg.RawStatement(f"id({config[CONF_ID]})->set_canvas({canvas_id});"))
 
     # Link display if provided
     if CONF_DISPLAY_ID in config:
