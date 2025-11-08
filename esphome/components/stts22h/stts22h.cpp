@@ -11,8 +11,8 @@ static const uint8_t CTRL_REG = 0x04;
 static const uint8_t TEMPERATURE_REG = 0x06;
 
 // CTRL_REG flags
-static const uint8_t LOW_ODR_CTRL_ENABLE_FLAG = 0x80;   // Flag to enable low ODR mode in CTRL_REG
-static const uint8_t AUTO_INC_CTRL_ENABLE_FLAG = 0x08;  // Flag to enable auto increment in CTRL_REG
+static const uint8_t LOW_ODR_CTRL_ENABLE_FLAG = 0x80;  // Flag to enable low ODR mode in CTRL_REG
+static const uint8_t FREERUN_CTRL_ENABLE_FLAG = 0x04;  // Flag to enable FREERUN mode in CTRL_REG
 
 static const uint8_t WHOAMI_STTS22H_IDENTIFICATION = 0xA0;  // ID value of STTS22H in WHOAMI_REG
 
@@ -35,11 +35,10 @@ void STTS22HComponent::update() {
 
   float temperature = this->read_temperature_();
   if (std::isnan(temperature)) {
-    ESP_LOGW(TAG, "Temperature is NaN");
+    ESP_LOGW(TAG, "Temperature is NaN. Skipping publish.");
     return;
   }
 
-  ESP_LOGI(TAG, "Is published");
   this->publish_state(temperature);
 }
 
@@ -67,7 +66,7 @@ float STTS22HComponent::read_temperature_() {
   return temperature_value;
 }
 
-/// @brief Reads the harcoded ID whih identifies device on the bus as STTS22H sensor.
+/// @brief Reads the harcoded ID which identifies device on the bus as STTS22H sensor.
 /// @return
 bool STTS22HComponent::is_stts22h_sensor_() {
   uint8_t whoami_value[1];
@@ -85,15 +84,24 @@ bool STTS22HComponent::is_stts22h_sensor_() {
 }
 
 void STTS22HComponent::initialize_sensor_() {
+  // Read current CTRL_REG configuration
   uint8_t ctrl_value[1];
   if (this->read_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
-  // Enable low ODR mode and auto increment in CTRL_REG
-  // Enable auto increment of register address in CTRL_REG
-  ctrl_value[0] = ctrl_value[0] | AUTO_INC_CTRL_ENABLE_FLAG | LOW_ODR_CTRL_ENABLE_FLAG;
+  // Enable low ODR mode.
+  // Before low ODR mode can be used,
+  // FREERUN bit must be cleared (see sensor documentation)
+  ctrl_value[0] = ctrl_value[0] & ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
+  if (this->write_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
+    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    return;
+  }
+
+  // Enable LOW ODR mode
+  ctrl_value[0] = ctrl_value[0] | LOW_ODR_CTRL_ENABLE_FLAG;  // Set LOW ODR bit
   if (this->write_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
