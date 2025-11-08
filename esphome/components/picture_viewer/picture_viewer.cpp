@@ -447,6 +447,8 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
   }
 
   ESP_LOGD(TAG, "JPEG dimensions: %dx%d", pic_info.width, pic_info.height);
+  ESP_LOGI(TAG, "[PIC_INFO DEBUG] sizeof(pic_info)=%zu, width=%d, height=%d",
+           sizeof(pic_info), pic_info.width, pic_info.height);
 
   width = pic_info.width;
   height = pic_info.height;
@@ -483,13 +485,16 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
     return false;
   }
 
-  // Configure decoder using current directory's YAML-configured values
+  // Configure decoder - try hardcoded values matching old working code exactly
   jpeg_decode_cfg_t decode_cfg = {};
-  decode_cfg.output_format = static_cast<jpeg_dec_output_format_t>(current_dir->jpeg_output_format);
-  decode_cfg.rgb_order = static_cast<jpeg_dec_rgb_element_order_t>(current_dir->jpeg_rgb_order);
-  decode_cfg.conv_std = static_cast<jpeg_yuv_rgb_conv_std_t>(current_dir->jpeg_color_space);
+  decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;  // Use constant like old code
+  decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;      // RGB (value 0)
+  // conv_std left as 0 (default) like old code
 
-  // Debug: Log all parameters before decode
+  ESP_LOGI(TAG, "[HARDCODE TEST] Using hardcoded decode_cfg matching old working code");
+
+  // Debug: Log struct size and all parameters
+  ESP_LOGI(TAG, "[DECODE DEBUG] sizeof(jpeg_decode_cfg_t) = %zu bytes", sizeof(jpeg_decode_cfg_t));
   ESP_LOGI(TAG, "[DECODE DEBUG] Decoder handle: %p", hw_decoder);
   ESP_LOGI(TAG, "[DECODE DEBUG] Input buffer: %p (size: %u, aligned: %s)", aligned_input, input_size,
            ((uintptr_t)aligned_input % 16 == 0) ? "YES" : "NO");
