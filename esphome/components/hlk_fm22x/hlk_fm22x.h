@@ -142,7 +142,7 @@ class FaceScanMatchedTrigger : public Trigger<int16_t, std::string> {
  public:
   explicit FaceScanMatchedTrigger(HlkFm22xComponent *parent) {
     parent->add_on_face_scan_matched_callback(
-        [this](int16_t face_id, std::string name) { this->trigger(face_id, std::move(name)); });
+        [this](int16_t face_id, const std::string &name) { this->trigger(face_id, name); });
   }
 };
 
