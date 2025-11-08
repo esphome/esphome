@@ -201,8 +201,8 @@ class FileManager : public Component {
   /// Compare two file states to detect modifications
   bool file_modified_(const FileInfo &old_info, const FileInfo &new_info) const;
 
-  /// Create FileInfo from file path
-  bool get_file_info_(const std::string &path, FileInfo &info);
+  /// Create FileInfo from file path (strips mount point for VFS routing)
+  bool get_file_info_(const std::string &path, const std::string &mount_point, FileInfo &info);
 
   /// Extract filename from full path
   std::string get_filename_(const std::string &path) const;

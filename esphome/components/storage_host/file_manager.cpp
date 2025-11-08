@@ -170,8 +170,10 @@ void FileManager::scan_now() { this->perform_scan_(); }
 void FileManager::perform_scan_() {
   // Single file watch mode
   if (!this->watch_file_.empty()) {
+    // Get mount point for single file
+    std::string mount_point = this->storage_host_ ? this->storage_host_->find_mount_for_path(this->watch_file_) : "";
     FileInfo info;
-    bool exists = this->get_file_info_(this->watch_file_, info);
+    bool exists = this->get_file_info_(this->watch_file_, mount_point, info);
 
     auto it = this->directory_state_.find(this->watch_file_);
     bool was_tracked = it != this->directory_state_.end();
@@ -406,9 +408,9 @@ void FileManager::scan_directory_(const std::string &path, std::vector<FileInfo>
     }
     full_path += filename;
 
-    // Get file info
+    // Get file info (pass mount point for VFS routing)
     FileInfo info;
-    if (this->get_file_info_(full_path, info)) {
+    if (this->get_file_info_(full_path, mount_point, info)) {
       // Check filters
       if (this->passes_filters_(info)) {
         files.push_back(info);
@@ -419,21 +421,34 @@ void FileManager::scan_directory_(const std::string &path, std::vector<FileInfo>
   closedir(dir);
 }
 
-bool FileManager::get_file_info_(const std::string &path, FileInfo &info) {
+bool FileManager::get_file_info_(const std::string &path, const std::string &mount_point, FileInfo &info) {
+  // Strip mount point prefix to get VFS-relative path
+  // Example: path="/usb/jpg/3.jpg", mount="/usb" -> vfs_path="/jpg/3.jpg"
+  std::string vfs_path = path;
+  if (!mount_point.empty() && path.compare(0, mount_point.length(), mount_point) == 0) {
+    vfs_path = path.substr(mount_point.length());
+    // Ensure path starts with /
+    if (vfs_path.empty() || vfs_path[0] != '/') {
+      vfs_path = "/" + vfs_path;
+    }
+  }
+
   struct stat st;
-  if (stat(path.c_str(), &st) != 0) {
-    ESP_LOGD(TAG, "stat() failed for path: '%s' (errno: %d)", path.c_str(), errno);
+  if (stat(vfs_path.c_str(), &st) != 0) {
+    ESP_LOGD(TAG, "stat() failed for vfs_path: '%s' (full: '%s', mount: '%s', errno: %d)",
+             vfs_path.c_str(), path.c_str(), mount_point.c_str(), errno);
     return false;
   }
 
-  info.path = path;
+  info.path = path;  // Store full path with mount point
   info.filename = this->get_filename_(path);
   info.directory = this->get_directory_(path);
   info.size = st.st_size;
   info.modified_time = st.st_mtime;
   info.is_directory = S_ISDIR(st.st_mode);
 
-  ESP_LOGV(TAG, "stat('%s'): size=%llu, is_dir=%d", path.c_str(), (unsigned long long)st.st_size, S_ISDIR(st.st_mode));
+  ESP_LOGV(TAG, "stat('%s'): size=%llu, is_dir=%d (vfs_path='%s', mount='%s')",
+           path.c_str(), (unsigned long long)st.st_size, S_ISDIR(st.st_mode), vfs_path.c_str(), mount_point.c_str());
 
   return true;
 }
