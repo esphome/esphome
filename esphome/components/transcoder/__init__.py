@@ -152,22 +152,26 @@ async def to_code(config):
 
     # ========== H.264 Codec Support ==========
     if h264_needed:
-        if variant_lower == "esp32p4":
-            # ESP32-P4: Hardware H.264 codec
-            # Note: As of ESP-IDF 5.3, hardware exists but driver API not yet available
-            # We'll add defines for future implementation
+        if variant_lower in ("esp32p4", "esp32s3"):
+            # ESP32-P4: Hardware H.264 encoder + Software decoder
+            # ESP32-S3: Software H.264 encoder/decoder
+            # Use esp_h264 from ESP Component Registry
+            add_idf_component(name="espressif/esp_h264", ref="1.1.2")
+
             if CODEC_H264_DECODER in requirements:
-                cg.add_define("USE_HARDWARE_H264_DECODER")
+                cg.add_define("USE_ESP_H264_DECODER")
                 cg.add_define("TRANSCODER_ENABLE_H264_DECODER")
             if CODEC_H264_ENCODER in requirements:
-                cg.add_define("USE_HARDWARE_H264_ENCODER")
+                cg.add_define("USE_ESP_H264_ENCODER")
                 cg.add_define("TRANSCODER_ENABLE_H264_ENCODER")
             cg.add_define("TRANSCODER_H264_AVAILABLE")
-            _LOGGER.warning(
-                "H.264 codec enabled for %s - hardware available but ESP-IDF driver API pending", variant
-            )
+
+            hw_type = "Hardware (P4)" if variant_lower == "esp32p4" else "Software (S3)"
+            _LOGGER.info("Enabled esp_h264 codec v1.1.2 for %s - %s", variant, hw_type)
         else:
-            _LOGGER.error("H.264 codec requested but only available on ESP32-P4 (current: %s)", variant)
+            _LOGGER.error(
+                "H.264 codec requested but only available on ESP32-P4/S3 (current: %s)", variant
+            )
 
     # Set global transcoder accessor
     cg.add_define("USE_TRANSCODER")

@@ -59,22 +59,45 @@ void Transcoder::setup() {
 
   // Initialize H.264 Decoder (only if requested by components)
 #ifdef TRANSCODER_ENABLE_H264_DECODER
-#ifdef USE_HARDWARE_H264_DECODER
-  // ESP32-P4: Hardware H.264 decoder
-  // Note: Actual initialization will be added when ESP-IDF provides stable H.264 driver API
-  // As of ESP-IDF 5.3, H.264 hardware support exists but API may not be finalized
-  this->h264_decoder_initialized_ = false;
-  ESP_LOGW(TAG, "H.264 decoder: Hardware available but driver API pending (ESP32-P4)");
+#ifdef USE_ESP_H264_DECODER
+  // ESP32-P4: Hardware encoder + Software decoder
+  // ESP32-S3: Software encoder/decoder
+  // Using esp_h264 v1.1.2 from ESP Component Registry
+  esp_h264_dec_config_t dec_config = {};
+  dec_config.pic_num = 3;  // Number of reference pictures
+  dec_config.timeout = 200;  // Match JPEG timeout
+
+  ret = esp_h264_dec_open(&dec_config, &this->h264_decoder_);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to create H.264 decoder: %s", esp_err_to_name(ret));
+    // Don't mark as failed - decoder is optional
+  } else {
+    ESP_LOGI(TAG, "H.264 decoder initialized");
+  }
 #endif
 #endif
 
   // Initialize H.264 Encoder (only if requested by components)
 #ifdef TRANSCODER_ENABLE_H264_ENCODER
-#ifdef USE_HARDWARE_H264_ENCODER
-  // ESP32-P4: Hardware H.264 encoder
-  // Note: Actual initialization will be added when ESP-IDF provides stable H.264 driver API
-  this->h264_encoder_initialized_ = false;
-  ESP_LOGW(TAG, "H.264 encoder: Hardware available but driver API pending (ESP32-P4)");
+#ifdef USE_ESP_H264_ENCODER
+  // ESP32-P4: Hardware encoder
+  // ESP32-S3: Software encoder
+  // Using esp_h264 v1.1.2 from ESP Component Registry
+  esp_h264_enc_config_t enc_config = {};
+  enc_config.width = 640;  // Default resolution (will be reconfigured by component)
+  enc_config.height = 480;
+  enc_config.fps = 30;
+  enc_config.gop = 30;
+  enc_config.bitrate = 1000000;  // 1 Mbps
+  enc_config.timeout = 200;
+
+  ret = esp_h264_enc_open(&enc_config, &this->h264_encoder_);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to create H.264 encoder: %s", esp_err_to_name(ret));
+    // Don't mark as failed - encoder is optional
+  } else {
+    ESP_LOGI(TAG, "H.264 encoder initialized");
+  }
 #endif
 #endif
 
@@ -114,16 +137,26 @@ void Transcoder::dump_config() {
 
   // Report H.264 Decoder status (only if enabled)
 #ifdef TRANSCODER_ENABLE_H264_DECODER
-  ESP_LOGCONFIG(TAG, "  H.264 Decoder: %s (driver API pending)",
-                this->is_h264_decoder_available() ? "Ready" : "Hardware available");
-  ESP_LOGCONFIG(TAG, "    Type: Hardware (ESP32-P4)");
+  ESP_LOGCONFIG(TAG, "  H.264 Decoder: %s",
+                this->is_h264_decoder_available() ? "Available" : "Not available");
+#ifdef USE_ESP_H264_DECODER
+  ESP_LOGCONFIG(TAG, "    Type: esp_h264 v1.1.2 (ESP32-P4/S3)");
+  if (this->h264_decoder_) {
+    ESP_LOGCONFIG(TAG, "    Handle: %p", this->h264_decoder_);
+  }
+#endif
 #endif
 
   // Report H.264 Encoder status (only if enabled)
 #ifdef TRANSCODER_ENABLE_H264_ENCODER
-  ESP_LOGCONFIG(TAG, "  H.264 Encoder: %s (driver API pending)",
-                this->is_h264_encoder_available() ? "Ready" : "Hardware available");
-  ESP_LOGCONFIG(TAG, "    Type: Hardware (ESP32-P4)");
+  ESP_LOGCONFIG(TAG, "  H.264 Encoder: %s",
+                this->is_h264_encoder_available() ? "Available" : "Not available");
+#ifdef USE_ESP_H264_ENCODER
+  ESP_LOGCONFIG(TAG, "    Type: esp_h264 v1.1.2 (ESP32-P4/S3)");
+  if (this->h264_encoder_) {
+    ESP_LOGCONFIG(TAG, "    Handle: %p", this->h264_encoder_);
+  }
+#endif
 #endif
 }
 

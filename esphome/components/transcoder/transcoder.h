@@ -30,11 +30,13 @@
 #include "hal/color_types.h"
 #endif
 
-#ifdef USE_HARDWARE_H264_DECODER
-// ESP32-P4: Hardware H.264 codec
-// Note: H.264 hardware exists on P4 but ESP-IDF driver headers not yet available
-// Placeholder for future implementation when ESP-IDF provides stable H.264 API
-// Expected in future ESP-IDF versions (5.4+)
+#if defined(USE_ESP_H264_DECODER) || defined(USE_ESP_H264_ENCODER)
+// ESP32-P4: Hardware H.264 encoder + Software decoder
+// ESP32-S3: Software H.264 encoder/decoder
+// Use esp_h264 from ESP Component Registry
+#include "esp_h264_dec.h"
+#include "esp_h264_enc_single.h"
+#include "esp_h264_types.h"
 #endif
 
 namespace esphome {
@@ -107,22 +109,32 @@ class Transcoder : public Component {
 
   // ========== H.264 Decoder API ==========
 
-#ifdef USE_HARDWARE_H264_DECODER
+#ifdef USE_ESP_H264_DECODER
   /**
-   * @brief Check if H.264 decoder is available (ESP32-P4)
-   * Note: Actual H.264 API will be added once ESP-IDF provides stable headers
+   * @brief Get H.264 decoder handle
+   * @return Pointer to decoder handle, or nullptr if not available
    */
-  bool is_h264_decoder_available() { return this->h264_decoder_initialized_; }
+  esp_h264_dec_handle_t get_h264_decoder() { return this->h264_decoder_; }
+
+  /**
+   * @brief Check if H.264 decoder is available
+   */
+  bool is_h264_decoder_available() { return this->h264_decoder_ != nullptr; }
 #endif
 
   // ========== H.264 Encoder API ==========
 
-#ifdef USE_HARDWARE_H264_ENCODER
+#ifdef USE_ESP_H264_ENCODER
   /**
-   * @brief Check if H.264 encoder is available (ESP32-P4)
-   * Note: Actual H.264 API will be added once ESP-IDF provides stable headers
+   * @brief Get H.264 encoder handle
+   * @return Pointer to encoder handle, or nullptr if not available
    */
-  bool is_h264_encoder_available() { return this->h264_encoder_initialized_; }
+  esp_h264_enc_handle_t get_h264_encoder() { return this->h264_encoder_; }
+
+  /**
+   * @brief Check if H.264 encoder is available
+   */
+  bool is_h264_encoder_available() { return this->h264_encoder_ != nullptr; }
 #endif
 
  protected:
@@ -142,15 +154,13 @@ class Transcoder : public Component {
 #endif
 
   // H.264 Decoder state
-#ifdef USE_HARDWARE_H264_DECODER
-  bool h264_decoder_initialized_{false};
-  // Actual decoder handle will be added when ESP-IDF headers are available
+#ifdef USE_ESP_H264_DECODER
+  esp_h264_dec_handle_t h264_decoder_{nullptr};
 #endif
 
   // H.264 Encoder state
-#ifdef USE_HARDWARE_H264_ENCODER
-  bool h264_encoder_initialized_{false};
-  // Actual encoder handle will be added when ESP-IDF headers are available
+#ifdef USE_ESP_H264_ENCODER
+  esp_h264_enc_handle_t h264_encoder_{nullptr};
 #endif
 };
 
