@@ -13,6 +13,8 @@ static const char *const TAG = "transcoder";
 // Global transcoder instance
 Transcoder *global_transcoder = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+Transcoder::Transcoder() { global_transcoder = this; }
+
 void Transcoder::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Transcoder...");
 
