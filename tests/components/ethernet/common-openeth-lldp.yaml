@@ -1,7 +1,6 @@
 ethernet:
   type: OPENETH
   lldp:
-    enabled: true
     port: "test-port"
     system_name: "test-system"
     system_description: "test-description"

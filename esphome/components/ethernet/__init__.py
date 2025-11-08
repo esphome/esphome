@@ -2,7 +2,6 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLED
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
@@ -156,7 +155,6 @@ MANUAL_IP_SCHEMA = cv.Schema(
 
 LLDP_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
         cv.Optional(CONF_PORT): cv.string_strict,
         cv.Optional(CONF_SYSTEM_NAME): cv.string_strict,
         cv.Optional(CONF_SYSTEM_DESCRIPTION): cv.string_strict,
@@ -425,7 +423,7 @@ async def to_code(config):
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
-    if (lldp_config := config.get(CONF_LLDP)) and lldp_config[CONF_ENABLED]:
+    if lldp_config := config.get(CONF_LLDP):
         # Include L2TAP for sending raw packets
         add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP", True)
 
