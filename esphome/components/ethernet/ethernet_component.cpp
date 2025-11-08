@@ -442,8 +442,8 @@ void EthernetComponent::dump_config() {
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
 #ifdef USE_ETHERNET_LLDP
-  ESP_LOGCONFIG(TAG, "Ethernet LLDP:");
   ESP_LOGCONFIG(TAG,
+                "Ethernet LLDP:\n"
                 "  Port: %s\n"
                 "  System Name: %s\n"
                 "  System Description: %s\n"
