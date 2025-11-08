@@ -94,6 +94,7 @@ void Transcoder::setup() {
 }
 
 // Lazy initialization for JPEG decoder (matches old storage_image behavior)
+// Note: Implementation not guarded to ensure it's always available when header declares it
 #ifdef USE_HARDWARE_JPEG_DECODER
 jpeg_decoder_handle_t Transcoder::get_jpeg_decoder() {
   // Return existing decoder if already initialized
@@ -117,7 +118,7 @@ jpeg_decoder_handle_t Transcoder::get_jpeg_decoder() {
   ESP_LOGI(TAG, "Hardware JPEG decoder initialized successfully (handle: %p)", this->jpeg_decoder_);
   return this->jpeg_decoder_;
 }
-#endif
+#endif  // USE_HARDWARE_JPEG_DECODER
 
 void Transcoder::dump_config() {
   ESP_LOGCONFIG(TAG, "Transcoder:");
