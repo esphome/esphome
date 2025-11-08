@@ -77,9 +77,11 @@ async def to_code(config):
     if CONF_CANVAS_ID in config:
         canvas_id = config[CONF_CANVAS_ID]
         cg.add(var.set_canvas_id(canvas_id))
-        # The canvas_id becomes a C++ global variable of type lv_obj_t*
-        # Set the canvas pointer - this will be added to setup() function
-        cg.add(cg.RawStatement(f"id({config[CONF_ID]})->set_canvas({canvas_id});"))
+        # Note: The canvas object pointer needs to be set after LVGL initialization
+        # User should add to their config:
+        # lvgl:
+        #   on_ready:
+        #     - lambda: id(picture_viewer_id)->set_canvas(photo_canvas);
 
     # Link display if provided
     if CONF_DISPLAY_ID in config:
