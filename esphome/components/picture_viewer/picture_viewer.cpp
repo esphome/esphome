@@ -268,19 +268,41 @@ void PictureViewer::scan_directory_() {
   }
 
   const auto &directory_state = this->file_manager_->get_directory_state();
+  ESP_LOGD(TAG, "FileManager has %zu total files", directory_state.size());
+  ESP_LOGD(TAG, "Scanning for JPEGs in watch_directory: '%s'", this->watch_directory_.c_str());
+
+  size_t jpeg_count = 0;
+  size_t matched_count = 0;
+
   for (const auto &[path, file] : directory_state) {
+    ESP_LOGV(TAG, "Examining file: path='%s', filename='%s'", file.path.c_str(), file.filename.c_str());
+
+    // Filter by directory first (if watch_directory is set)
+    if (!this->watch_directory_.empty()) {
+      // Check if file path starts with watch_directory
+      if (file.path.find(this->watch_directory_) != 0) {
+        ESP_LOGV(TAG, "  Skipping - not in watch_directory");
+        continue;
+      }
+    }
+
     // Filter JPEG files
     std::string lower_filename = file.filename;
     std::transform(lower_filename.begin(), lower_filename.end(), lower_filename.begin(), ::tolower);
 
     if (lower_filename.ends_with(".jpg") || lower_filename.ends_with(".jpeg")) {
+      jpeg_count++;
+      ESP_LOGD(TAG, "  Found JPEG: %s (size: %zu bytes)", file.filename.c_str(), file.size);
       ImageEntry entry;
       entry.path = file.path;
       entry.filename = file.filename;
       entry.size = file.size;
       this->images_.push_back(entry);
+      matched_count++;
     }
   }
+
+  ESP_LOGD(TAG, "Scan complete: %zu JPEGs found, %zu matched filters", jpeg_count, matched_count);
 
   // Sort by filename
   std::sort(this->images_.begin(), this->images_.end(),
