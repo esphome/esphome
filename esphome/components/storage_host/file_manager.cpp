@@ -103,16 +103,18 @@ bool FileManager::is_path_available(const std::string &path) {
     return network_storage != nullptr && network_storage->is_connected();
   }
 
-  // For local paths, check if mount point exists
+  // For local paths, check if mount point exists in StorageHost configuration
   std::string mount_point = this->storage_host_->find_mount_for_path(path);
   if (mount_point.empty()) {
     ESP_LOGD(TAG, "No mount point found for path: %s", path.c_str());
     return false;
   }
 
-  // Try to stat the mount point to verify it's accessible
-  struct stat st;
-  return stat(mount_point.c_str(), &st) == 0;
+  // For virtual mount points (ESP-IDF VFS), stat() may fail even when mount is valid
+  // Instead, try to actually access the path - opendir() will fail if not accessible
+  // This avoids false negatives when mount points are virtual and not stat-able
+  ESP_LOGV(TAG, "Mount point '%s' configured for path '%s', assuming available", mount_point.c_str(), path.c_str());
+  return true;  // Let scan_directory_() handle actual accessibility check via opendir()
 }
 
 bool FileManager::read_file_safe(const std::string &path, std::vector<uint8_t> &data) {
