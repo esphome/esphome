@@ -104,7 +104,7 @@ void HLW8032Component::parse_data_() {
   const float current_multiplier = 1 / (this->current_resistor_ * 1000);
 
   float voltage = 0.0f;
-  if (have_voltage) {
+  if (have_voltage && voltage_reg) {
     voltage = float(voltage_parameter) * this->voltage_divider_ / float(voltage_reg);
     if (this->voltage_sensor_ != nullptr) {
       this->voltage_sensor_->publish_state(voltage);
@@ -117,7 +117,7 @@ void HLW8032Component::parse_data_() {
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(0.0f);
     }
-  } else if (have_power) {
+  } else if (have_power && power_reg) {
     power = (float(power_parameter) / float(power_reg)) * this->voltage_divider_ * current_multiplier;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
@@ -125,7 +125,7 @@ void HLW8032Component::parse_data_() {
   }
 
   float current = 0.0f;
-  if (have_current) {
+  if (have_current && current_reg) {
     current = float(current_parameter) * current_multiplier / float(current_reg);
     if (this->current_sensor_ != nullptr) {
       this->current_sensor_->publish_state(current);
