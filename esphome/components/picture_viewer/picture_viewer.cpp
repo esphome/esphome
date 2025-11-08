@@ -451,12 +451,24 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
       .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB,
   };
 
+  // Debug: Log all parameters before decode
+  ESP_LOGI(TAG, "[DECODE DEBUG] Decoder handle: %p", this->hw_decoder_);
+  ESP_LOGI(TAG, "[DECODE DEBUG] Input buffer: %p (size: %u, aligned: %s)", aligned_input, input_size,
+           ((uintptr_t)aligned_input % 16 == 0) ? "YES" : "NO");
+  ESP_LOGI(TAG, "[DECODE DEBUG] Output buffer: %p (size: %u, aligned: %s)", aligned_output, output_size,
+           ((uintptr_t)aligned_output % 16 == 0) ? "YES" : "NO");
+  ESP_LOGI(TAG, "[DECODE DEBUG] Config: output_format=%d, rgb_order=%d", decode_cfg.output_format,
+           decode_cfg.rgb_order);
+  ESP_LOGI(TAG, "[DECODE DEBUG] Image dimensions: %dx%d", width, height);
+
   // Decode
   ret = jpeg_decoder_process(this->hw_decoder_, &decode_cfg, aligned_input, input_size, aligned_output, output_size,
                              &output_size);
 
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Hardware JPEG decode failed: %s", esp_err_to_name(ret));
+    ESP_LOGE(TAG, "Hardware JPEG decode failed: %s (error code: %d)", esp_err_to_name(ret), ret);
+    ESP_LOGE(TAG, "[DECODE DEBUG] Failed with decoder=%p, in=%p, in_size=%u, out=%p, out_size=%u", this->hw_decoder_,
+             aligned_input, input_size, aligned_output, output_size);
     free(aligned_input);
     free(aligned_output);
     return false;
