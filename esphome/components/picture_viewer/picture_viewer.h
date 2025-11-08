@@ -200,8 +200,8 @@ class PictureViewer : public Component {
   // Internal Methods
   // =====================================================
 
-  /// Scan directory for images
-  void scan_directory_();
+  /// Scan directory for images from provided file list
+  void scan_directory_(const std::vector<storage_host::FileInfo> &files);
 
   /// Load JPEG file and decode
   bool load_jpeg_(const std::string &path, std::vector<uint8_t> &rgb565_data, int &width, int &height,

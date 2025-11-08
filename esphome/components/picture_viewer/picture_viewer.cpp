@@ -69,6 +69,15 @@ void PictureViewer::setup() {
   ESP_LOGI(TAG, "JPEGDec library initialized");
 #endif
 
+  // Register callback with file_manager if available
+#ifdef USE_STORAGE_HOST
+  if (this->file_manager_ != nullptr) {
+    this->file_manager_->add_on_directory_changed_callback(
+        [this](const storage_host::DirectoryChangeInfo &info) { this->on_directory_changed_(info); });
+    ESP_LOGI(TAG, "Registered directory change callback with file_manager");
+  }
+#endif
+
   // Scan directory for images
   if (!this->watch_directory_.empty()) {
     this->refresh_images();
@@ -236,8 +245,23 @@ void PictureViewer::refresh_images() {
   this->images_.clear();
   this->current_index_ = -1;
 
-  // Scan directory
-  this->scan_directory_();
+  // Get files from file_manager and scan
+#ifdef USE_STORAGE_HOST
+  if (this->file_manager_ != nullptr) {
+    const auto &directory_state = this->file_manager_->get_directory_state();
+    // Convert map values to vector
+    std::vector<storage_host::FileInfo> files;
+    files.reserve(directory_state.size());
+    for (const auto &[path, file] : directory_state) {
+      files.push_back(file);
+    }
+    this->scan_directory_(files);
+  } else {
+    ESP_LOGW(TAG, "No file_manager available");
+  }
+#else
+  ESP_LOGW(TAG, "Storage host support not available");
+#endif
 
   ESP_LOGI(TAG, "Found %zu images", this->images_.size());
 }
@@ -260,21 +284,14 @@ void PictureViewer::set_fullscreen(bool fullscreen) {
 // Internal Methods
 // =====================================================
 
-void PictureViewer::scan_directory_() {
+void PictureViewer::scan_directory_(const std::vector<storage_host::FileInfo> &files) {
 #ifdef USE_STORAGE_HOST
-  if (this->file_manager_ == nullptr) {
-    ESP_LOGW(TAG, "File manager not set");
-    return;
-  }
-
-  const auto &directory_state = this->file_manager_->get_directory_state();
-  ESP_LOGD(TAG, "FileManager has %zu total files", directory_state.size());
-  ESP_LOGD(TAG, "Scanning for JPEGs in watch_directory: '%s'", this->watch_directory_.c_str());
+  ESP_LOGD(TAG, "Scanning %zu files for JPEGs in watch_directory: '%s'", files.size(), this->watch_directory_.c_str());
 
   size_t jpeg_count = 0;
   size_t matched_count = 0;
 
-  for (const auto &[path, file] : directory_state) {
+  for (const auto &file : files) {
     ESP_LOGV(TAG, "Examining file: path='%s', filename='%s'", file.path.c_str(), file.filename.c_str());
 
     // Filter by directory first (if watch_directory is set)
@@ -292,7 +309,8 @@ void PictureViewer::scan_directory_() {
 
     if (lower_filename.ends_with(".jpg") || lower_filename.ends_with(".jpeg")) {
       jpeg_count++;
-      ESP_LOGD(TAG, "  Found JPEG: %s (size: %zu bytes)", file.filename.c_str(), file.size);
+      ESP_LOGD(TAG, "  Found JPEG: %s (size: %llu bytes)", file.filename.c_str(),
+               (unsigned long long)file.size);
       ImageEntry entry;
       entry.path = file.path;
       entry.filename = file.filename;
@@ -307,6 +325,21 @@ void PictureViewer::scan_directory_() {
   // Sort by filename
   std::sort(this->images_.begin(), this->images_.end(),
             [](const ImageEntry &a, const ImageEntry &b) { return a.filename < b.filename; });
+#endif
+}
+
+void PictureViewer::on_directory_changed_(const storage_host::DirectoryChangeInfo &info) {
+#ifdef USE_STORAGE_HOST
+  ESP_LOGI(TAG, "Directory changed callback: %s (%zu files)", info.path.c_str(), info.files.size());
+
+  // Clear existing images
+  this->images_.clear();
+  this->current_index_ = -1;
+
+  // Scan the new file list
+  this->scan_directory_(info.files);
+
+  ESP_LOGI(TAG, "After directory change: %zu images found", this->images_.size());
 #endif
 }
 
