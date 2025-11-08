@@ -1648,9 +1648,7 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
   // O(n) but optimized for RAM and not performance.
   for (auto &item : items) {
     if (item.entity == entity && item.message_type == message_type) {
-      // Clean up old creator before replacing
-      item.creator.cleanup(message_type);
-      // Move assign the new creator
+      // Replace with new creator
       item.creator = std::move(creator);
       return;
     }
@@ -1820,7 +1818,7 @@ void APIConnection::process_batch_() {
 
   // Handle remaining items more efficiently
   if (items_processed < this->deferred_batch_.size()) {
-    // Remove processed items from the beginning with proper cleanup
+    // Remove processed items from the beginning
     this->deferred_batch_.remove_front(items_processed);
     // Reschedule for remaining items
     this->schedule_batch_();
