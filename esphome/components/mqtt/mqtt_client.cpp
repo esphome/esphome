@@ -11,8 +11,10 @@
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
+#ifndef USE_HOST
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#endif
 #include "mqtt_component.h"
 
 #ifdef USE_API
@@ -96,6 +98,7 @@ void MQTTClientComponent::send_device_info_() {
   this->publish_json(
       topic,
       [](JsonObject root) {
+#ifndef USE_HOST
         uint8_t index = 0;
         for (auto &ip : network::get_ip_addresses()) {
           if (ip.is_set()) {
@@ -103,6 +106,7 @@ void MQTTClientComponent::send_device_info_() {
             index++;
           }
         }
+#endif
         root["name"] = App.get_name();
         if (!App.get_friendly_name().empty()) {
           root["friendly_name"] = App.get_friendly_name();
@@ -181,6 +185,16 @@ bool MQTTClientComponent::can_proceed() {
 }
 
 void MQTTClientComponent::start_dnslookup_() {
+#ifdef USE_HOST
+  // Host platform: Paho MQTT handles DNS internally, skip to connect
+  for (auto &subscription : this->subscriptions_) {
+    subscription.subscribed = false;
+    subscription.resubscribe_timeout = 0;
+  }
+  this->dns_resolved_ = true;
+  this->start_connect_();
+  return;
+#else
   for (auto &subscription : this->subscriptions_) {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
@@ -224,6 +238,7 @@ void MQTTClientComponent::start_dnslookup_() {
 
   this->state_ = MQTT_CLIENT_RESOLVING_ADDRESS;
   this->connect_begin_ = millis();
+#endif /* USE_HOST */
 }
 void MQTTClientComponent::check_dnslookup_() {
   if (!this->dns_resolved_ && millis() - this->connect_begin_ > 20000) {

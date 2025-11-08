@@ -55,6 +55,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -316,7 +317,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_HOST]),
     _consume_mqtt_sockets,
 )
 
@@ -341,6 +342,15 @@ async def to_code(config):
     if CORE.is_esp8266 or CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+
+    # Add Paho MQTT C library for host platform
+    if CORE.is_host:
+        # Use system-installed paho-mqtt library
+        cg.add_build_flag("-DUSE_HOST")
+        cg.add_build_flag("-lpaho-mqtt3c")
+        # Add linker flag for LDFLAGS as well
+        cg.add_platformio_option("build_flags", ["-lpaho-mqtt3c"])
+        cg.add_platformio_option("build_unflags", [])
 
     # MQTT on ESP32 uses wake_loop_threadsafe() to wake the main loop from the MQTT event handler
     # This enables low-latency MQTT event processing instead of waiting for select() timeout
