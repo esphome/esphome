@@ -1295,8 +1295,8 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 
 #ifdef USE_EVENT
 void APIConnection::send_event(event::Event *event, const char *event_type) {
-  this->schedule_message_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
-                          EventResponse::ESTIMATED_SIZE);
+  this->send_message_smart_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
+                            EventResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                                 uint32_t remaining_size, bool is_single) {
