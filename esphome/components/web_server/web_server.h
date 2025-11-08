@@ -410,7 +410,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   static std::string select_state_json_generator(WebServer *web_server, void *source);
   static std::string select_all_json_generator(WebServer *web_server, void *source);
   /// Dump the select state with its value as a JSON string.
-  std::string select_json(select::Select *obj, const std::string &value, JsonDetail start_config);
+  std::string select_json(select::Select *obj, const char *value, JsonDetail start_config);
 #endif
 
 #ifdef USE_CLIMATE
