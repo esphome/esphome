@@ -304,11 +304,16 @@ void FileManager::scan_directory_(const std::string &path, std::vector<FileInfo>
 
       // Build FileInfo from network entry
       FileInfo info;
-      info.path = entry.path;
+      // Build full path from directory path + filename
+      info.path = path;
+      if (!info.path.empty() && info.path.back() != '/') {
+        info.path += '/';
+      }
+      info.path += entry.name;
       info.filename = entry.name;
       info.directory = path;
       info.size = entry.size;
-      info.modified_time = entry.modified_time;
+      info.modified_time = 0;  // Network entries don't provide modification time
       info.is_directory = entry.is_directory;
 
       // Check filters

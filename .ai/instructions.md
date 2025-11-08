@@ -80,6 +80,45 @@ This document provides essential context for AI models interacting with this pro
 
 **Never act on assumptions. System reminders about file modifications are NOT permission to act.**
 
+### Verify Before Code Generation
+
+**ABSOLUTE RULE: Never assume or invent method names, field names, or function signatures. Always verify actual definitions before writing code.**
+
+*   **The Problem:**
+    *   Assuming a struct has fields that don't exist (e.g., `entry.path` when only `entry.name` exists)
+    *   Inventing method names without checking the actual API
+    *   Guessing function signatures instead of reading the header file
+    *   This causes compilation errors that waste significant time to fix
+
+*   **Required behavior:**
+    1.  **READ** the actual struct/class definition before accessing fields
+    2.  **VERIFY** method names exist in the header file before calling them
+    3.  **CHECK** function signatures match before using them
+    4.  **USE** Grep or Read tools to confirm API details
+    5.  **NEVER** write code based on assumptions about what "should" exist
+
+*   **Example of what NOT to do:**
+    ```cpp
+    // WRONG - assuming fields exist without checking
+    info.path = entry.path;              // entry.path doesn't exist!
+    info.modified_time = entry.modified_time;  // entry.modified_time doesn't exist!
+    ```
+
+*   **Correct approach:**
+    ```cpp
+    // 1. First: Grep for the actual struct definition
+    // 2. Verify it only has: name, size, is_directory
+    // 3. Then write correct code:
+    info.path = path + "/" + entry.name;  // Build path from available fields
+    info.modified_time = 0;               // Set sensible default for missing field
+    ```
+
+*   **Why this matters:**
+    *   Compilation errors take much longer to fix than taking 10 seconds to verify
+    *   Each failed compile wastes the user's time and hardware resources
+    *   Shows lack of care and attention to detail
+    *   Erodes trust when preventable errors occur
+
 ### Core Principle
 
 **The time waste is not in the user teaching boundaries - it's in the AI violating those boundaries and forcing the user to stop everything to correct violations.**
