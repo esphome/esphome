@@ -19,6 +19,11 @@ except ImportError:
     LVGL_AVAILABLE = False
     lv_canvas_t = None
 
+# Register codec requirements with transcoder
+from esphome.components.transcoder import require_jpeg_decoder
+
+require_jpeg_decoder()  # Picture viewer only needs JPEG decoder, not encoder
+
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = []
 AUTO_LOAD = ["transcoder"]

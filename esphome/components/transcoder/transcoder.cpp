@@ -16,7 +16,8 @@ Transcoder *global_transcoder = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-
 void Transcoder::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Transcoder...");
 
-  // Initialize JPEG Decoder
+  // Initialize JPEG Decoder (only if requested by components)
+#ifdef TRANSCODER_ENABLE_JPEG_DECODER
 #ifdef USE_HARDWARE_JPEG_DECODER
   // ESP32-P4: Hardware JPEG decoder
   jpeg_decode_engine_cfg_t decode_eng_cfg = {};
@@ -36,15 +37,17 @@ void Transcoder::setup() {
   this->esp_jpeg_decoder_initialized_ = true;
   ESP_LOGI(TAG, "ESP-JPEG decoder ready (ESP32-S2/S3)");
 #endif
+#endif
 
-  // Initialize JPEG Encoder
+  // Initialize JPEG Encoder (only if requested by components)
+#ifdef TRANSCODER_ENABLE_JPEG_ENCODER
 #ifdef USE_HARDWARE_JPEG_ENCODER
   // ESP32-P4: Hardware JPEG encoder
   jpeg_encode_engine_cfg_t encode_eng_cfg = {};
   encode_eng_cfg.intr_priority = 0;
   encode_eng_cfg.timeout_ms = 200;
 
-  ret = jpeg_new_encoder_engine(&encode_eng_cfg, &this->jpeg_encoder_);
+  esp_err_t ret = jpeg_new_encoder_engine(&encode_eng_cfg, &this->jpeg_encoder_);
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to create hardware JPEG encoder: %s", esp_err_to_name(ret));
     // Don't mark as failed - encoder is optional
@@ -52,8 +55,10 @@ void Transcoder::setup() {
     ESP_LOGI(TAG, "Hardware JPEG encoder initialized (ESP32-P4)");
   }
 #endif
+#endif
 
-  // Initialize H.264 Decoder
+  // Initialize H.264 Decoder (only if requested by components)
+#ifdef TRANSCODER_ENABLE_H264_DECODER
 #ifdef USE_HARDWARE_H264_DECODER
   // ESP32-P4: Hardware H.264 decoder
   // Note: Actual initialization will be added when ESP-IDF provides stable H.264 driver API
@@ -61,13 +66,16 @@ void Transcoder::setup() {
   this->h264_decoder_initialized_ = false;
   ESP_LOGW(TAG, "H.264 decoder: Hardware available but driver API pending (ESP32-P4)");
 #endif
+#endif
 
-  // Initialize H.264 Encoder
+  // Initialize H.264 Encoder (only if requested by components)
+#ifdef TRANSCODER_ENABLE_H264_ENCODER
 #ifdef USE_HARDWARE_H264_ENCODER
   // ESP32-P4: Hardware H.264 encoder
   // Note: Actual initialization will be added when ESP-IDF provides stable H.264 driver API
   this->h264_encoder_initialized_ = false;
   ESP_LOGW(TAG, "H.264 encoder: Hardware available but driver API pending (ESP32-P4)");
+#endif
 #endif
 
   ESP_LOGCONFIG(TAG, "Transcoder setup complete");
@@ -76,8 +84,8 @@ void Transcoder::setup() {
 void Transcoder::dump_config() {
   ESP_LOGCONFIG(TAG, "Transcoder:");
 
-  // Report JPEG Decoder status
-#ifdef TRANSCODER_JPEG_AVAILABLE
+  // Report JPEG Decoder status (only if enabled)
+#ifdef TRANSCODER_ENABLE_JPEG_DECODER
   ESP_LOGCONFIG(TAG, "  JPEG Decoder: %s",
                 this->is_jpeg_decoder_available() ? "Available" : "Not available");
 #ifdef USE_HARDWARE_JPEG_DECODER
@@ -87,39 +95,35 @@ void Transcoder::dump_config() {
   }
 #elif defined(USE_ESP_JPEG_DECODER)
   ESP_LOGCONFIG(TAG, "    Type: ESP-JPEG (ESP32-S2/S3)");
+#elif defined(USE_JPEGDEC)
+  ESP_LOGCONFIG(TAG, "    Type: JPEGDec (fallback)");
 #endif
-#else
-  ESP_LOGCONFIG(TAG, "  JPEG Decoder: Not supported on this platform");
 #endif
 
-  // Report JPEG Encoder status
-#ifdef USE_HARDWARE_JPEG_ENCODER
+  // Report JPEG Encoder status (only if enabled)
+#ifdef TRANSCODER_ENABLE_JPEG_ENCODER
   ESP_LOGCONFIG(TAG, "  JPEG Encoder: %s",
                 this->is_jpeg_encoder_available() ? "Available" : "Not available");
+#ifdef USE_HARDWARE_JPEG_ENCODER
   ESP_LOGCONFIG(TAG, "    Type: Hardware (ESP32-P4)");
   if (this->jpeg_encoder_) {
     ESP_LOGCONFIG(TAG, "    Handle: %p", this->jpeg_encoder_);
   }
-#else
-  ESP_LOGCONFIG(TAG, "  JPEG Encoder: Not supported on this platform");
+#endif
 #endif
 
-  // Report H.264 Decoder status
-#ifdef TRANSCODER_H264_AVAILABLE
+  // Report H.264 Decoder status (only if enabled)
+#ifdef TRANSCODER_ENABLE_H264_DECODER
   ESP_LOGCONFIG(TAG, "  H.264 Decoder: %s (driver API pending)",
                 this->is_h264_decoder_available() ? "Ready" : "Hardware available");
   ESP_LOGCONFIG(TAG, "    Type: Hardware (ESP32-P4)");
-#else
-  ESP_LOGCONFIG(TAG, "  H.264 Decoder: Not supported on this platform");
 #endif
 
-  // Report H.264 Encoder status
-#ifdef USE_HARDWARE_H264_ENCODER
+  // Report H.264 Encoder status (only if enabled)
+#ifdef TRANSCODER_ENABLE_H264_ENCODER
   ESP_LOGCONFIG(TAG, "  H.264 Encoder: %s (driver API pending)",
                 this->is_h264_encoder_available() ? "Ready" : "Hardware available");
   ESP_LOGCONFIG(TAG, "    Type: Hardware (ESP32-P4)");
-#else
-  ESP_LOGCONFIG(TAG, "  H.264 Encoder: Not supported on this platform");
 #endif
 }
 
