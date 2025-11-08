@@ -46,8 +46,8 @@ IMAGE_FIT_MODES = {
 
 # JPEG decoder configuration enums
 JPEG_RGB_ORDER = {
-    "RGB": 0,  # Big endian
-    "BGR": 1,  # Little endian
+    "BGR": 0,  # Little endian
+    "RGB": 1,  # Big endian
 }
 
 JPEG_COLOR_SPACE = {
@@ -79,7 +79,7 @@ CONF_JPEG_OUTPUT_FORMAT = "jpeg_output_format"
 # Directory configuration schema
 DIRECTORY_SCHEMA = cv.Schema({
     cv.Required(CONF_PATH): cv.string,
-    cv.Optional(CONF_JPEG_RGB_ORDER, default="RGB"): cv.enum(JPEG_RGB_ORDER, upper=True),  # Changed default to RGB
+    cv.Optional(CONF_JPEG_RGB_ORDER, default="BGR"): cv.enum(JPEG_RGB_ORDER, upper=True),
     cv.Optional(CONF_JPEG_COLOR_SPACE, default="BT601"): cv.enum(JPEG_COLOR_SPACE, upper=True),
     cv.Optional(CONF_JPEG_OUTPUT_FORMAT, default="RGB565"): cv.enum(JPEG_OUTPUT_FORMAT, upper=True),
 })
