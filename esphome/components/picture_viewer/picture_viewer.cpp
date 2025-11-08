@@ -9,6 +9,11 @@
 #include "esp_heap_caps.h"
 #endif
 
+#ifdef USE_HARDWARE_JPEG_DECODER
+#include "driver/jpeg_decode.h"
+#include "driver/jpeg_types.h"
+#endif
+
 namespace esphome {
 namespace picture_viewer {
 
