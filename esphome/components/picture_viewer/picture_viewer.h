@@ -29,7 +29,7 @@ class PictureViewer;
 // Directory configuration with per-directory JPEG decoder settings
 struct DirectoryConfig {
   std::string path;
-  int jpeg_rgb_order{1};        // Default: BGR (little endian)
+  int jpeg_rgb_order{0};        // Default: RGB (big endian)
   int jpeg_color_space{0};      // Default: BT601
   uint32_t jpeg_output_format{0x02000002};  // Default: RGB565
 };
