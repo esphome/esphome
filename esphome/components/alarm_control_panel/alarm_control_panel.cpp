@@ -1,8 +1,9 @@
-#include <utility>
-#include "esphome/core/defines.h"
-
 #include "alarm_control_panel.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
+
+#include <utility>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"

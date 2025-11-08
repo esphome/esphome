@@ -1,7 +1,9 @@
 #include "cover.h"
 #include "esphome/core/defines.h"
-#include <strings.h>
 #include "esphome/core/controller_registry.h"
+
+#include <strings.h>
+
 #include "esphome/core/log.h"
 
 namespace esphome {
