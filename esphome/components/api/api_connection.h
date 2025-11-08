@@ -700,7 +700,7 @@ class APIConnection final : public APIServerConnection {
           this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
         // Log the message in verbose mode
-        this->log_proto_message_(entity, std::move(creator), message_type);
+        this->log_proto_message_(entity, creator, message_type);
 #endif
         return true;
       }
