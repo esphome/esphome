@@ -10,6 +10,7 @@
 #endif
 
 #ifdef USE_HARDWARE_JPEG_DECODER
+#include "hal/color_types.h"
 #include "driver/jpeg_decode.h"
 #include "driver/jpeg_types.h"
 #endif
