@@ -3,8 +3,7 @@
 #include <cinttypes>
 #include <iomanip>
 
-namespace esphome {
-namespace hlw8032 {
+namespace esphome::hlw8032 {
 
 static const char *const TAG = "hlw8032";
 
@@ -167,5 +166,4 @@ void HLW8032Component::dump_config() {
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
 }
-}  // namespace hlw8032
-}  // namespace esphome
+}  // namespace esphome::hlw8032
