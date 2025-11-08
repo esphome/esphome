@@ -285,16 +285,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
  * @return float value of data
  */
 inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  int64_t number = payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
-
-  float float_value;
-  if (value_type_is_float(item.sensor_value_type)) {
-    float_value = bit_cast<float>(static_cast<uint32_t>(number));
-  } else {
-    float_value = static_cast<float>(number);
-  }
-
-  return float_value;
+  return payload_to_float(data, item.sensor_value_type, item.offset, item.bitmask);
 }
 
 }  // namespace modbus_controller

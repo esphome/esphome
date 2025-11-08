@@ -168,7 +168,7 @@ inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_t
       break;
   }
 }
-// TODO: Not used anywhere
+
 inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
   switch (reg_type) {
     case ModbusRegisterType::COIL:
@@ -310,7 +310,11 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
  */
 int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
                           uint32_t bitmask);
-
+/** Convert float to vector<uint8_t> response payload.
+ * @param value value to convert
+ * @param value_type  defines if 16/32/64 bits or FP32 is used
+ * @return data payload with data
+ */
 inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
   int64_t val;
 
@@ -323,6 +327,24 @@ inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value
   std::vector<uint16_t> data;
   number_to_payload(data, val, value_type);
   return data;
+}
+/** Convert vector<uint8_t> response payload to float.
+ * @param data payload with data
+ * @param item SensorItem object
+ * @return float value of data
+ */
+inline float payload_to_float(const std::vector<uint8_t> &data, SensorValueType value_type, uint8_t offset,
+                              uint32_t bitmask) {
+  int64_t number = payload_to_number(data, value_type, offset, bitmask);
+
+  float float_value;
+  if (value_type_is_float(value_type)) {
+    float_value = bit_cast<float>(static_cast<uint32_t>(number));
+  } else {
+    float_value = static_cast<float>(number);
+  }
+
+  return float_value;
 }
 
 }  // namespace helpers
