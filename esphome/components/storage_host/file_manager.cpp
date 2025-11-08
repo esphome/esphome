@@ -422,33 +422,38 @@ void FileManager::scan_directory_(const std::string &path, std::vector<FileInfo>
 }
 
 bool FileManager::get_file_info_(const std::string &path, const std::string &mount_point, FileInfo &info) {
-  // Strip mount point prefix to get VFS-relative path
-  // Example: path="/usb/jpg/3.jpg", mount="/usb" -> vfs_path="/jpg/3.jpg"
-  std::string vfs_path = path;
-  if (!mount_point.empty() && path.compare(0, mount_point.length(), mount_point) == 0) {
-    vfs_path = path.substr(mount_point.length());
-    // Ensure path starts with /
-    if (vfs_path.empty() || vfs_path[0] != '/') {
-      vfs_path = "/" + vfs_path;
-    }
-  }
-
-  struct stat st;
-  if (stat(vfs_path.c_str(), &st) != 0) {
-    ESP_LOGD(TAG, "stat() failed for vfs_path: '%s' (full: '%s', mount: '%s', errno: %d)",
-             vfs_path.c_str(), path.c_str(), mount_point.c_str(), errno);
+  // Use fopen/fseek/ftell for file size - works reliably through VFS layer
+  FILE *file = fopen(path.c_str(), "rb");
+  if (file == nullptr) {
+    ESP_LOGD(TAG, "fopen() failed for path: '%s' (mount: '%s', errno: %d)",
+             path.c_str(), mount_point.c_str(), errno);
     return false;
   }
 
-  info.path = path;  // Store full path with mount point
+  // Get file size
+  if (fseek(file, 0, SEEK_END) != 0) {
+    fclose(file);
+    ESP_LOGD(TAG, "fseek() failed for path: '%s'", path.c_str());
+    return false;
+  }
+
+  long size = ftell(file);
+  fclose(file);
+
+  if (size < 0) {
+    ESP_LOGD(TAG, "ftell() returned negative size for path: '%s'", path.c_str());
+    return false;
+  }
+
+  info.path = path;
   info.filename = this->get_filename_(path);
   info.directory = this->get_directory_(path);
-  info.size = st.st_size;
-  info.modified_time = st.st_mtime;
-  info.is_directory = S_ISDIR(st.st_mode);
+  info.size = static_cast<uint64_t>(size);
+  info.modified_time = 0;  // fopen doesn't give modification time
+  info.is_directory = false;  // fopen only works on files
 
-  ESP_LOGV(TAG, "stat('%s'): size=%llu, is_dir=%d (vfs_path='%s', mount='%s')",
-           path.c_str(), (unsigned long long)st.st_size, S_ISDIR(st.st_mode), vfs_path.c_str(), mount_point.c_str());
+  ESP_LOGV(TAG, "File size for '%s': %llu bytes (mount='%s')",
+           path.c_str(), (unsigned long long)info.size, mount_point.c_str());
 
   return true;
 }
