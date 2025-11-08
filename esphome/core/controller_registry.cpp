@@ -10,11 +10,19 @@ StaticVector<Controller *, CONTROLLER_REGISTRY_MAX> ControllerRegistry::controll
 
 void ControllerRegistry::register_controller(Controller *controller) { controllers.push_back(controller); }
 
-// Macro for registry notification dispatch - iterates registered controllers and calls their handler
+// Macro for standard registry notification dispatch - calls on_<entity_name>_update()
 #define CONTROLLER_REGISTRY_NOTIFY(entity_type, entity_name) \
   void ControllerRegistry::notify_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
     for (auto *controller : controllers) { \
       controller->on_##entity_name##_update(obj); \
+    } \
+  }
+
+// Macro for entities where controller method has no "_update" suffix (Event, Update)
+#define CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(entity_type, entity_name) \
+  void ControllerRegistry::notify_##entity_name(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+    for (auto *controller : controllers) { \
+      controller->on_##entity_name(obj); \
     } \
   }
 
@@ -91,24 +99,15 @@ CONTROLLER_REGISTRY_NOTIFY(alarm_control_panel::AlarmControlPanel, alarm_control
 #endif
 
 #ifdef USE_EVENT
-// Event is a special case - notify_event() calls on_event() (no "_update" suffix)
-void ControllerRegistry::notify_event(event::Event *obj) {
-  for (auto *controller : controllers) {
-    controller->on_event(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(event::Event, event)
 #endif
 
 #ifdef USE_UPDATE
-// Update is a special case - notify_update() calls on_update() (no "_update" suffix)
-void ControllerRegistry::notify_update(update::UpdateEntity *obj) {
-  for (auto *controller : controllers) {
-    controller->on_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(update::UpdateEntity, update)
 #endif
 
 #undef CONTROLLER_REGISTRY_NOTIFY
+#undef CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX
 
 }  // namespace esphome
 
