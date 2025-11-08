@@ -65,7 +65,8 @@ JPEG_OUTPUT_FORMAT = {
 CONF_FILE_MANAGER_ID = "file_manager_id"
 CONF_CANVAS_ID = "canvas_id"
 CONF_DISPLAY_ID = "display_id"
-CONF_WATCH_DIRECTORY = "watch_directory"
+CONF_DIRECTORIES = "directories"
+CONF_PATH = "path"
 CONF_SLIDESHOW_INTERVAL = "slideshow_interval"
 CONF_ENABLE_THUMBNAILS = "enable_thumbnails"
 CONF_THUMBNAIL_WIDTH = "thumbnail_width"
@@ -75,6 +76,14 @@ CONF_JPEG_RGB_ORDER = "jpeg_rgb_order"
 CONF_JPEG_COLOR_SPACE = "jpeg_color_space"
 CONF_JPEG_OUTPUT_FORMAT = "jpeg_output_format"
 
+# Directory configuration schema
+DIRECTORY_SCHEMA = cv.Schema({
+    cv.Required(CONF_PATH): cv.string,
+    cv.Optional(CONF_JPEG_RGB_ORDER, default="BGR"): cv.enum(JPEG_RGB_ORDER, upper=True),
+    cv.Optional(CONF_JPEG_COLOR_SPACE, default="BT601"): cv.enum(JPEG_COLOR_SPACE, upper=True),
+    cv.Optional(CONF_JPEG_OUTPUT_FORMAT, default="RGB565"): cv.enum(JPEG_OUTPUT_FORMAT, upper=True),
+})
+
 # Component configuration
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -82,7 +91,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_FILE_MANAGER_ID): cv.use_id(cg.Component),  # FileManager
         cv.Optional(CONF_CANVAS_ID): cv.use_id(lv_canvas_t) if LVGL_AVAILABLE else cv.invalid("LVGL not available"),  # LVGL Canvas widget
         cv.Optional(CONF_DISPLAY_ID): cv.use_id(cg.Component),  # Display
-        cv.Required(CONF_WATCH_DIRECTORY): cv.string,
+        cv.Required(CONF_DIRECTORIES): cv.All(cv.ensure_list(DIRECTORY_SCHEMA), cv.Length(min=1)),
         cv.Optional(
             CONF_SLIDESHOW_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
@@ -91,15 +100,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_THUMBNAIL_HEIGHT, default=90): cv.int_range(min=32, max=240),
         cv.Optional(CONF_FIT_MODE, default="SCALE_TO_FIT"): cv.enum(
             IMAGE_FIT_MODES, upper=True
-        ),
-        cv.Optional(CONF_JPEG_RGB_ORDER, default="BGR"): cv.enum(
-            JPEG_RGB_ORDER, upper=True
-        ),
-        cv.Optional(CONF_JPEG_COLOR_SPACE, default="BT601"): cv.enum(
-            JPEG_COLOR_SPACE, upper=True
-        ),
-        cv.Optional(CONF_JPEG_OUTPUT_FORMAT, default="RGB565"): cv.enum(
-            JPEG_OUTPUT_FORMAT, upper=True
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -129,17 +129,22 @@ async def to_code(config):
         cg.add(var.set_display(display))
 
     # Configuration
-    cg.add(var.set_watch_directory(config[CONF_WATCH_DIRECTORY]))
     cg.add(var.set_slideshow_interval(config[CONF_SLIDESHOW_INTERVAL]))
     cg.add(var.set_enable_thumbnails(config[CONF_ENABLE_THUMBNAILS]))
     cg.add(var.set_thumbnail_width(config[CONF_THUMBNAIL_WIDTH]))
     cg.add(var.set_thumbnail_height(config[CONF_THUMBNAIL_HEIGHT]))
     cg.add(var.set_fit_mode(config[CONF_FIT_MODE]))
 
-    # JPEG decoder configuration
-    cg.add(var.set_jpeg_rgb_order(config[CONF_JPEG_RGB_ORDER]))
-    cg.add(var.set_jpeg_color_space(config[CONF_JPEG_COLOR_SPACE]))
-    cg.add(var.set_jpeg_output_format(config[CONF_JPEG_OUTPUT_FORMAT]))
+    # Add directories with per-directory JPEG decoder configuration
+    for dir_config in config[CONF_DIRECTORIES]:
+        cg.add(
+            var.add_directory(
+                dir_config[CONF_PATH],
+                dir_config[CONF_JPEG_RGB_ORDER],
+                dir_config[CONF_JPEG_COLOR_SPACE],
+                dir_config[CONF_JPEG_OUTPUT_FORMAT],
+            )
+        )
 
     # Link to transcoder component (handles all decoder initialization)
     # The transcoder dependency ensures it's initialized before picture_viewer

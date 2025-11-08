@@ -95,9 +95,11 @@ void PictureViewer::setup() {
   }
 #endif
 
-  // Scan directory for images
-  if (!this->watch_directory_.empty()) {
+  // Scan directory for images if directories are configured
+  if (!this->directories_.empty()) {
     this->refresh_images();
+  } else {
+    ESP_LOGW(TAG, "No directories configured");
   }
 
   ESP_LOGCONFIG(TAG, "Picture Viewer setup complete");
@@ -116,7 +118,13 @@ void PictureViewer::loop() {
 
 void PictureViewer::dump_config() {
   ESP_LOGCONFIG(TAG, "Picture Viewer:");
-  ESP_LOGCONFIG(TAG, "  Watch Directory: %s", this->watch_directory_.c_str());
+  ESP_LOGCONFIG(TAG, "  Directories: %zu", this->directories_.size());
+  for (size_t i = 0; i < this->directories_.size(); i++) {
+    const auto &dir = this->directories_[i];
+    ESP_LOGCONFIG(TAG, "    [%zu] %s (RGB:%d, CS:%d, Fmt:0x%08x)%s",
+                  i, dir.path.c_str(), dir.jpeg_rgb_order, dir.jpeg_color_space, dir.jpeg_output_format,
+                  (i == this->current_directory_index_) ? " <- CURRENT" : "");
+  }
   ESP_LOGCONFIG(TAG, "  Image Count: %zu", this->images_.size());
   ESP_LOGCONFIG(TAG, "  Slideshow Interval: %u ms", this->slideshow_interval_ms_);
   ESP_LOGCONFIG(TAG, "  Thumbnails: %s", this->enable_thumbnails_ ? "enabled" : "disabled");
@@ -256,7 +264,13 @@ void PictureViewer::toggle_slideshow() {
 }
 
 void PictureViewer::refresh_images() {
-  ESP_LOGI(TAG, "Refreshing image list from: %s", this->watch_directory_.c_str());
+  const DirectoryConfig *current_dir = this->get_current_directory();
+  if (current_dir == nullptr) {
+    ESP_LOGW(TAG, "No current directory configured");
+    return;
+  }
+
+  ESP_LOGI(TAG, "Refreshing image list from: %s", current_dir->path.c_str());
 
   // Clear existing images
   this->images_.clear();
@@ -303,7 +317,13 @@ void PictureViewer::set_fullscreen(bool fullscreen) {
 
 void PictureViewer::scan_directory_(const std::vector<storage_host::FileInfo> &files) {
 #ifdef USE_STORAGE_HOST
-  ESP_LOGD(TAG, "Scanning %zu files for JPEGs in watch_directory: '%s'", files.size(), this->watch_directory_.c_str());
+  const DirectoryConfig *current_dir = this->get_current_directory();
+  if (current_dir == nullptr) {
+    ESP_LOGW(TAG, "No current directory configured for scanning");
+    return;
+  }
+
+  ESP_LOGD(TAG, "Scanning %zu files for JPEGs in directory: '%s'", files.size(), current_dir->path.c_str());
 
   size_t jpeg_count = 0;
   size_t matched_count = 0;
@@ -311,11 +331,11 @@ void PictureViewer::scan_directory_(const std::vector<storage_host::FileInfo> &f
   for (const auto &file : files) {
     ESP_LOGV(TAG, "Examining file: path='%s', filename='%s'", file.path.c_str(), file.filename.c_str());
 
-    // Filter by directory first (if watch_directory is set)
-    if (!this->watch_directory_.empty()) {
-      // Check if file path starts with watch_directory
-      if (file.path.find(this->watch_directory_) != 0) {
-        ESP_LOGV(TAG, "  Skipping - not in watch_directory");
+    // Filter by current directory
+    if (!current_dir->path.empty()) {
+      // Check if file path starts with current directory
+      if (file.path.find(current_dir->path) != 0) {
+        ESP_LOGV(TAG, "  Skipping - not in current directory");
         continue;
       }
     }
@@ -464,11 +484,20 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
   // Copy input data to aligned buffer
   memcpy(aligned_input, jpeg_data.data(), input_size);
 
-  // Configure decoder using YAML-configured values
+  // Get current directory's JPEG decoder configuration
+  const DirectoryConfig *current_dir = this->get_current_directory();
+  if (current_dir == nullptr) {
+    ESP_LOGE(TAG, "No current directory configured for JPEG decoding");
+    free(aligned_input);
+    free(aligned_output);
+    return false;
+  }
+
+  // Configure decoder using current directory's YAML-configured values
   jpeg_decode_cfg_t decode_cfg = {};
-  decode_cfg.output_format = static_cast<jpeg_dec_output_format_t>(this->jpeg_output_format_);
-  decode_cfg.rgb_order = static_cast<jpeg_dec_rgb_element_order_t>(this->jpeg_rgb_order_);
-  decode_cfg.conv_std = static_cast<jpeg_yuv_rgb_conv_std_t>(this->jpeg_color_space_);
+  decode_cfg.output_format = static_cast<jpeg_dec_output_format_t>(current_dir->jpeg_output_format);
+  decode_cfg.rgb_order = static_cast<jpeg_dec_rgb_element_order_t>(current_dir->jpeg_rgb_order);
+  decode_cfg.conv_std = static_cast<jpeg_yuv_rgb_conv_std_t>(current_dir->jpeg_color_space);
 
   // Debug: Log all parameters before decode
   ESP_LOGI(TAG, "[DECODE DEBUG] Decoder handle: %p", hw_decoder);
@@ -477,7 +506,8 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
   ESP_LOGI(TAG, "[DECODE DEBUG] Output buffer: %p (size: %u, aligned: %s)", aligned_output, output_size,
            ((uintptr_t)aligned_output % 16 == 0) ? "YES" : "NO");
   ESP_LOGI(TAG, "[DECODE DEBUG] Config: output_format=0x%08x (%u), rgb_order=%d, conv_std=%d",
-           this->jpeg_output_format_, this->jpeg_output_format_, this->jpeg_rgb_order_, this->jpeg_color_space_);
+           current_dir->jpeg_output_format, current_dir->jpeg_output_format,
+           current_dir->jpeg_rgb_order, current_dir->jpeg_color_space);
   ESP_LOGI(TAG, "[DECODE DEBUG] Image dimensions: %dx%d", width, height);
 
   // Decode
@@ -793,6 +823,30 @@ uint8_t *PictureViewer::allocate_image_buffer_(size_t size) {
     ESP_LOGD(TAG, "Allocated %zu bytes in heap", size);
   }
   return buffer;
+}
+
+// =====================================================
+// Directory Management
+// =====================================================
+
+bool PictureViewer::set_current_directory(size_t index) {
+  if (index >= this->directories_.size()) {
+    ESP_LOGE(TAG, "Directory index %zu out of range (have %zu directories)", index, this->directories_.size());
+    return false;
+  }
+
+  if (index == this->current_directory_index_) {
+    ESP_LOGD(TAG, "Already on directory %zu", index);
+    return true;
+  }
+
+  ESP_LOGI(TAG, "Switching from directory %zu (%s) to %zu (%s)",
+           this->current_directory_index_, this->directories_[this->current_directory_index_].path.c_str(),
+           index, this->directories_[index].path.c_str());
+
+  this->current_directory_index_ = index;
+  this->refresh_images();  // Reload images from new directory
+  return true;
 }
 
 // =====================================================

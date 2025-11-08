@@ -26,6 +26,14 @@ namespace picture_viewer {
 // Forward declarations
 class PictureViewer;
 
+// Directory configuration with per-directory JPEG decoder settings
+struct DirectoryConfig {
+  std::string path;
+  int jpeg_rgb_order{1};        // Default: BGR (little endian)
+  int jpeg_color_space{0};      // Default: BT601
+  uint32_t jpeg_output_format{0x02000002};  // Default: RGB565
+};
+
 // Image information
 struct ImageEntry {
   std::string path;
@@ -85,17 +93,38 @@ class PictureViewer : public Component {
   void set_display(display::Display *display) { this->display_ = display; }
 #endif
 
-  void set_watch_directory(const std::string &path) { this->watch_directory_ = path; }
   void set_slideshow_interval(uint32_t interval_ms) { this->slideshow_interval_ms_ = interval_ms; }
   void set_thumbnail_width(int width) { this->thumbnail_width_ = width; }
   void set_thumbnail_height(int height) { this->thumbnail_height_ = height; }
   void set_enable_thumbnails(bool enable) { this->enable_thumbnails_ = enable; }
   void set_fit_mode(ImageFitMode mode) { this->fit_mode_ = mode; }
 
-  // JPEG decoder configuration
-  void set_jpeg_rgb_order(int order) { this->jpeg_rgb_order_ = order; }
-  void set_jpeg_color_space(int color_space) { this->jpeg_color_space_ = color_space; }
-  void set_jpeg_output_format(uint32_t format) { this->jpeg_output_format_ = format; }
+  // Directory configuration
+  void add_directory(const std::string &path, int rgb_order, int color_space, uint32_t output_format) {
+    DirectoryConfig dir;
+    dir.path = path;
+    dir.jpeg_rgb_order = rgb_order;
+    dir.jpeg_color_space = color_space;
+    dir.jpeg_output_format = output_format;
+    this->directories_.push_back(dir);
+  }
+
+  // Switch to a different directory by index
+  bool set_current_directory(size_t index);
+
+  // Get current directory
+  const DirectoryConfig *get_current_directory() const {
+    if (this->current_directory_index_ < this->directories_.size()) {
+      return &this->directories_[this->current_directory_index_];
+    }
+    return nullptr;
+  }
+
+  // Get directory count
+  size_t get_directory_count() const { return this->directories_.size(); }
+
+  // Get current directory index
+  size_t get_current_directory_index() const { return this->current_directory_index_; }
 
   // =====================================================
   // Picture Control API
@@ -168,17 +197,15 @@ class PictureViewer : public Component {
   display::Display *display_{nullptr};
 #endif
 
-  std::string watch_directory_;
+  // Directories with per-directory JPEG decoder settings
+  std::vector<DirectoryConfig> directories_;
+  size_t current_directory_index_{0};
+
   uint32_t slideshow_interval_ms_{5000};  // Default: 5 seconds
   int thumbnail_width_{120};
   int thumbnail_height_{90};
   bool enable_thumbnails_{true};
   ImageFitMode fit_mode_{ImageFitMode::SCALE_TO_FIT};  // Default: scale to fit
-
-  // JPEG decoder configuration
-  int jpeg_rgb_order_{1};        // Default: BGR (little endian)
-  int jpeg_color_space_{0};      // Default: BT601
-  uint32_t jpeg_output_format_{0x02000002};  // Default: RGB565
 
   // State
   std::vector<ImageEntry> images_;
