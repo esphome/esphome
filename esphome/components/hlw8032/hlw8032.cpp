@@ -79,11 +79,13 @@ void HLW8032Component::parse_data_() {
       }
 
       ESP_LOGW(TAG,
-               "Reports: (0x%02X)"
-               "%s%s%s%s",
-               state_reg, !have_voltage ? "\n  Voltage REG overflows." : "",
-               !have_current ? "\n  Current REG overflows." : "", !have_power ? "\n  Power REG overflows." : "",
-               !parameter_regs_usable ? "\n  Voltage/Current/Power Parameter REGs not usable." : "");
+               "Reports: (0x%02X)\n"
+               "  Voltage REG overflows: %s\n"
+               "  Current REG overflows: %s\n"
+               "  Power REG overflows: %s\n"
+               "  Voltage/Current/Power Parameter REGs not usable: %s\n",
+               state_reg, YESNO(!have_voltage), YESNO(!have_current), YESNO(!have_power),
+               YESNO(!parameter_regs_usable));
 
       if (!parameter_regs_usable) {
         return;
