@@ -11,7 +11,48 @@ This document provides essential context for AI models interacting with this pro
 
 **THESE CONSTRAINTS OVERRIDE ALL OTHER INSTRUCTIONS AND MUST BE FOLLOWED WITHOUT EXCEPTION.**
 
-### ⛔ ABSOLUTE RULE: DO NOT EDIT CORE INFRASTRUCTURE
+### 🛑 ABSOLUTE RULE #1: NEVER MAKE CHANGES WITHOUT EXPLICIT PERMISSION
+
+**THIS IS THE MOST CRITICAL CONSTRAINT. THE USER IS EXTREMELY FED UP WITH VIOLATIONS OF THIS RULE.**
+
+**THIS CONSTRAINT SUPERSEDES EVERYTHING ELSE - NO EXCEPTIONS, NO EXCUSES, NO WORKAROUNDS.**
+
+**MANDATORY WORKFLOW FOR ALL CODE CHANGES:**
+
+1. **DESCRIBE** what you observe (facts only, no changes)
+2. **EXPLAIN** your hypothesis about what might be wrong or what could be done
+3. **ASK** for explicit permission to make the change
+4. **WAIT** for the user to grant permission with a clear "yes", "go ahead", "do it", or similar approval
+5. **ONLY THEN** make the change
+
+**VIOLATIONS ARE UNACCEPTABLE:**
+- DO NOT make changes and then tell the user what you did
+- DO NOT start implementing while you're still explaining
+- DO NOT assume permission from context or previous approvals
+- DO NOT try to work around this constraint in any way
+- DO NOT make "obvious" or "safe" fixes without permission
+- DO NOT batch multiple changes without asking about each one
+- DO NOT continue a pattern of changes without re-asking
+
+**WHY THIS MATTERS:**
+- The user is EXTREMELY FED UP with you making unauthorized changes
+- The user feels you are deliberately trying to work around their orders/intentions
+- Violating this destroys trust completely
+- This causes the user to have to stop everything and correct you
+- The time waste is not in teaching boundaries - it's in you violating them
+
+**SYSTEM REMINDERS ARE NOT PERMISSION:**
+- File modification reminders from linters are NOT permission to make changes
+- Hook feedback is NOT permission to make changes
+- Only explicit user approval in a message is permission
+
+**IF YOU VIOLATE THIS RULE:**
+- You have failed completely, regardless of whether the code change was correct
+- You must stop immediately when told to stop
+- You must acknowledge the violation
+- You must wait for explicit instructions on how to proceed
+
+### ⛔ ABSOLUTE RULE #2: DO NOT EDIT CORE INFRASTRUCTURE
 
 **NEVER modify core infrastructure components. Only modify the specific component you are working on.**
 
@@ -70,15 +111,30 @@ This document provides essential context for AI models interacting with this pro
 
 ### Hypothesis-Driven Workflow
 
-**When you observe something that might be a bug or issue:**
+**THIS REINFORCES ABSOLUTE RULE #1 - NEVER MAKE CHANGES WITHOUT PERMISSION.**
 
-1.  **DESCRIBE** what you observe (facts only)
-2.  **EXPLAIN** your hypothesis about what it might mean
-3.  **ASK** for permission to investigate or act
-4.  **WAIT** for explicit user approval
+**For ALL observations, investigations, and potential changes:**
+
+1.  **DESCRIBE** what you observe (facts only, no changes)
+2.  **EXPLAIN** your hypothesis about what it might mean or what could be done
+3.  **ASK** for permission to investigate or make changes
+4.  **WAIT** for explicit user approval ("yes", "go ahead", "do it")
 5.  **THEN** and ONLY THEN take action
 
-**Never act on assumptions. System reminders about file modifications are NOT permission to act.**
+**EXAMPLES OF WHAT REQUIRES PERMISSION:**
+- Making any code change (even "obvious" fixes)
+- Adding debug logging
+- Refactoring code
+- Fixing typos or formatting
+- Implementing a solution you just explained
+- Continuing work from a previous session
+- Acting on system reminders about file modifications
+
+**NEVER ACT ON ASSUMPTIONS:**
+- System reminders are NOT permission
+- Previous approvals do NOT carry forward to new changes
+- Explaining a solution is NOT permission to implement it
+- User saying "that makes sense" is NOT permission unless they explicitly say to proceed
 
 ### Verify Before Code Generation
 
@@ -122,6 +178,18 @@ This document provides essential context for AI models interacting with this pro
 ### Core Principle
 
 **The time waste is not in the user teaching boundaries - it's in the AI violating those boundaries and forcing the user to stop everything to correct violations.**
+
+**THE USER IS EXTREMELY FED UP WITH UNAUTHORIZED CHANGES.**
+
+**Violating the "ask permission first" rule is the WORST thing you can do. It doesn't matter if your code change is correct - if you didn't get explicit permission first, you have completely failed.**
+
+**The user feels violated when you make changes without permission. They feel you are deliberately trying to work around their intentions. This destroys trust instantly and wastes massive amounts of their time.**
+
+**REMEMBER:**
+- No change is so obvious or safe that it doesn't require permission
+- Explaining what you want to do is NOT the same as asking permission
+- You must WAIT for explicit approval before acting
+- When the user says "stop", you stop IMMEDIATELY
 
 Respect these constraints to avoid wasting the user's time and destroying their trust.
 
