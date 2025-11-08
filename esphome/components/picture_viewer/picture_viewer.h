@@ -12,26 +12,13 @@
 #include "esphome/components/storage_host/file_manager.h"
 #endif
 
+#ifdef USE_TRANSCODER
+#include "esphome/components/transcoder/transcoder.h"
+#endif
+
 #include <string>
 #include <vector>
 #include <memory>
-
-// JPEG decoder selection
-#ifdef USE_ESP_JPEG_DECODER
-// ESP32-S2/S3: Use esp_jpeg decoder from ESP Component Registry
-#include "esp_jpeg_dec.h"
-#endif
-
-#ifdef USE_HARDWARE_JPEG_DECODER
-// ESP32-P4: Use hardware JPEG decoder
-#include "driver/jpeg_decode.h"
-#include "driver/jpeg_types.h"
-#endif
-
-#ifdef USE_JPEGDEC
-// Other platforms: Use JPEGDec library
-#include <JPEGDEC.h>
-#endif
 
 namespace esphome {
 namespace picture_viewer {
@@ -86,6 +73,10 @@ class PictureViewer : public Component {
 
 #ifdef USE_STORAGE_HOST
   void set_file_manager(storage_host::FileManager *fm) { this->file_manager_ = fm; }
+#endif
+
+#ifdef USE_TRANSCODER
+  void set_transcoder(transcoder::Transcoder *tc) { this->transcoder_ = tc; }
 #endif
 
 #ifdef USE_LVGL
@@ -162,6 +153,10 @@ class PictureViewer : public Component {
   storage_host::FileManager *file_manager_{nullptr};
 #endif
 
+#ifdef USE_TRANSCODER
+  transcoder::Transcoder *transcoder_{nullptr};
+#endif
+
 #ifdef USE_LVGL
   std::string canvas_id_;  // LVGL canvas widget ID (for debugging)
   lv_obj_t *canvas_{nullptr};  // LVGL canvas object pointer
@@ -218,7 +213,6 @@ class PictureViewer : public Component {
 #ifdef USE_HARDWARE_JPEG_DECODER
   bool decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data, std::vector<uint8_t> &rgb565_data, int &width,
                               int &height, int target_width = 0, int target_height = 0);
-  jpeg_decoder_handle_t hw_decoder_{nullptr};
 #endif
 
   /// Decode JPEG using JPEGDec library (fallback)

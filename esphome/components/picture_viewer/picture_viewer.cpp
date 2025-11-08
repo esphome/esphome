@@ -31,12 +31,7 @@ PictureViewer::~PictureViewer() {
     this->next_image_data_ = nullptr;
   }
 
-#ifdef USE_HARDWARE_JPEG_DECODER
-  if (this->hw_decoder_ != nullptr) {
-    jpeg_del_decoder_engine(this->hw_decoder_);
-    this->hw_decoder_ = nullptr;
-  }
-#endif
+  // Note: Don't delete transcoder's decoder - transcoder owns it
 
 #ifdef USE_JPEGDEC
   if (this->jpeg_decoder_ != nullptr) {
@@ -49,25 +44,28 @@ PictureViewer::~PictureViewer() {
 void PictureViewer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Picture Viewer...");
 
-#ifdef USE_HARDWARE_JPEG_DECODER
-  // Initialize hardware JPEG decoder for ESP32-P4
-  jpeg_decode_engine_cfg_t decode_eng_cfg = {
-      .intr_priority = 0,
-      .timeout_ms = 200,
-  };
-  esp_err_t ret = jpeg_new_decoder_engine(&decode_eng_cfg, &this->hw_decoder_);
-  if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to create hardware JPEG decoder: %s", esp_err_to_name(ret));
+#ifdef USE_TRANSCODER
+  // Verify transcoder is available
+  if (this->transcoder_ == nullptr) {
+    ESP_LOGE(TAG, "Transcoder component not set");
     this->mark_failed();
     return;
   }
-  ESP_LOGI(TAG, "Hardware JPEG decoder initialized");
-#endif
 
+  // Verify JPEG decoder is available in transcoder
+  if (!this->transcoder_->is_jpeg_decoder_available()) {
+    ESP_LOGE(TAG, "JPEG decoder not available in transcoder");
+    this->mark_failed();
+    return;
+  }
+
+  ESP_LOGI(TAG, "Using transcoder for JPEG decoding");
+#else
 #ifdef USE_JPEGDEC
-  // Initialize JPEGDec library
+  // Initialize JPEGDec library (fallback when transcoder not available)
   this->jpeg_decoder_ = new JPEGDEC();
   ESP_LOGI(TAG, "JPEGDec library initialized");
+#endif
 #endif
 
   // Register callback with file_manager if available
@@ -406,10 +404,13 @@ bool PictureViewer::decode_jpeg_esp_(const std::vector<uint8_t> &jpeg_data, std:
 #ifdef USE_HARDWARE_JPEG_DECODER
 bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data, std::vector<uint8_t> &rgb565_data,
                                            int &width, int &height, int target_width, int target_height) {
-  if (this->hw_decoder_ == nullptr) {
-    ESP_LOGE(TAG, "Hardware JPEG decoder not initialized");
+  if (this->transcoder_ == nullptr || !this->transcoder_->is_jpeg_decoder_available()) {
+    ESP_LOGE(TAG, "Hardware JPEG decoder not available in transcoder");
     return false;
   }
+
+  // Get decoder handle from transcoder
+  jpeg_decoder_handle_t hw_decoder = this->transcoder_->get_jpeg_decoder();
 
   // Get image info
   jpeg_decode_picture_info_t pic_info = {};
@@ -451,7 +452,7 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
   decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
 
   // Debug: Log all parameters before decode
-  ESP_LOGI(TAG, "[DECODE DEBUG] Decoder handle: %p", this->hw_decoder_);
+  ESP_LOGI(TAG, "[DECODE DEBUG] Decoder handle: %p", hw_decoder);
   ESP_LOGI(TAG, "[DECODE DEBUG] Input buffer: %p (size: %u, aligned: %s)", aligned_input, input_size,
            ((uintptr_t)aligned_input % 16 == 0) ? "YES" : "NO");
   ESP_LOGI(TAG, "[DECODE DEBUG] Output buffer: %p (size: %u, aligned: %s)", aligned_output, output_size,
@@ -461,12 +462,12 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
   ESP_LOGI(TAG, "[DECODE DEBUG] Image dimensions: %dx%d", width, height);
 
   // Decode
-  ret = jpeg_decoder_process(this->hw_decoder_, &decode_cfg, aligned_input, input_size, aligned_output, output_size,
+  ret = jpeg_decoder_process(hw_decoder, &decode_cfg, aligned_input, input_size, aligned_output, output_size,
                              &output_size);
 
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Hardware JPEG decode failed: %s (error code: %d)", esp_err_to_name(ret), ret);
-    ESP_LOGE(TAG, "[DECODE DEBUG] Failed with decoder=%p, in=%p, in_size=%u, out=%p, out_size=%u", this->hw_decoder_,
+    ESP_LOGE(TAG, "[DECODE DEBUG] Failed with decoder=%p, in=%p, in_size=%u, out=%p, out_size=%u", hw_decoder,
              aligned_input, input_size, aligned_output, output_size);
     free(aligned_input);
     free(aligned_output);

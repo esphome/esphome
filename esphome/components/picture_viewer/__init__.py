@@ -20,7 +20,7 @@ except ImportError:
     lv_canvas_t = None
 
 CODEOWNERS = ["@esphome/core"]
-DEPENDENCIES = []
+DEPENDENCIES = ["transcoder"]
 AUTO_LOAD = []
 
 # Namespaces
@@ -102,34 +102,10 @@ async def to_code(config):
     cg.add(var.set_thumbnail_height(config[CONF_THUMBNAIL_HEIGHT]))
     cg.add(var.set_fit_mode(config[CONF_FIT_MODE]))
 
-    # Add defines based on platform
-    from esphome.components.esp32 import get_esp32_variant, add_idf_component
+    # Link to transcoder component (handles all decoder initialization)
+    # The transcoder dependency ensures it's initialized before picture_viewer
+    cg.add(var.set_transcoder(cg.RawExpression("esphome::transcoder::global_transcoder")))
 
-    variant = get_esp32_variant()
-    variant_lower = variant.lower() if variant else ""
-
-    _LOGGER.info("Detected ESP32 variant: %s", variant)
-
-    if variant_lower in ("esp32s2", "esp32-s2"):
-        # Enable esp_jpeg decoder for S2/S3
-        # Add esp_jpeg as a managed ESP-IDF component from ESP Component Registry
-        add_idf_component(name="espressif/esp_jpeg", ref="1.3.1")
-        cg.add_define("USE_ESP_JPEG_DECODER")
-        _LOGGER.info("Enabled esp_jpeg decoder v1.3.1 for %s", variant)
-    elif variant_lower in ("esp32s3", "esp32-s3"):
-        # Enable esp_jpeg decoder for S2/S3
-        # Add esp_jpeg as a managed ESP-IDF component from ESP Component Registry
-        add_idf_component(name="espressif/esp_jpeg", ref="1.3.1")
-        cg.add_define("USE_ESP_JPEG_DECODER")
-        _LOGGER.info("Enabled esp_jpeg decoder v1.3.1 for %s", variant)
-    elif variant_lower in ("esp32p4", "esp32-p4"):
-        # Enable hardware JPEG decoder for P4
-        cg.add_define("USE_HARDWARE_JPEG_DECODER")
-        _LOGGER.info("Enabled hardware JPEG decoder for %s", variant)
-    else:
-        # Use JPEGDec library as fallback
-        cg.add_library("bodmer/JPEGDecoder", "1.8.0")
-        cg.add_define("USE_JPEGDEC")
-        _LOGGER.info("Using JPEGDec library for %s", variant)
+    _LOGGER.info("Picture viewer configured to use transcoder component")
 
     return var
