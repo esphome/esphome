@@ -38,7 +38,7 @@ void ModbusClient::loop() {
   // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
-  if (millis() - this->last_modbus_byte_ > timeout) {
+  if (this->rx_buffer_.size() > 0 && millis() - this->last_modbus_byte_ > timeout) {
     clear_rx_buffer_("timeout after partial response", true);
   }
 
@@ -69,18 +69,17 @@ void ModbusServer::loop() {
       (uint16_t) this->frame_delay_ms_,
       (uint16_t) (this->rx_buffer_.size() > this->parent_->get_rx_full_threshold() - 1 ? this->long_rx_buffer_delay_ms_
                                                                                        : 0));
-  // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
-  // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
-  // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
-  // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
-  // So in this component we don't use any cached timestamp values to avoid these annoying bugs
-  if (millis() - this->last_modbus_byte_ > timeout) {
-    if (this->rx_buffer_.size() > 0 && this->expecting_peer_response_ != 0) {
+
+  if (this->rx_buffer_.size() > 0 && millis() - this->last_modbus_byte_ > timeout) {
+    if (this->expecting_peer_response_ != 0) {
       ESP_LOGV(TAG, "Stop waiting for peer response from %d", this->expecting_peer_response_);
       this->expecting_peer_response_ = 0;
-      this->parse_modbus_client_byte_(std::nullopt);  // try re-parse
-    } else
+    }
+    // Try re-parse. This catches situations where we attempted to parse a long server response (which didn't arrive)
+    // and in the process captured another client request into the buffer
+    if (!this->parse_modbus_client_byte_(std::nullopt)) {
       clear_rx_buffer_("timeout after partial response", true);
+    }
   }
 }
 
@@ -187,7 +186,7 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
   uint8_t data_offset = server_frame_data_offset(this->rx_buffer_);
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + frame_length - 2);
 
-  this->clear_rx_buffer_("parse succeeded");
+  this->clear_rx_buffer_("parse succeeded", false, frame_length);
 
   this->process_modbus_server_frame_(address, function_code, data);
 
@@ -241,7 +240,7 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
   uint8_t data_offset = client_frame_data_offset(this->rx_buffer_);
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + frame_length - 2);
 
-  this->clear_rx_buffer_("parse succeeded");
+  this->clear_rx_buffer_("parse succeeded", false, frame_length);
 
   this->process_modbus_client_frame_(address, function_code, data);
 
@@ -514,17 +513,22 @@ const std::vector<uint8_t> Modbus::add_crc_to_payload_(const std::vector<uint8_t
   return data;
 }
 
-void Modbus::clear_rx_buffer_(const std::string &reason, bool warn) {
-  size_t at = this->rx_buffer_.size();
-  if (at > 0) {
+void Modbus::clear_rx_buffer_(const std::string &reason, bool warn, size_t bytes_to_clear) {
+  size_t bytes = this->rx_buffer_.size();
+  if (bytes_to_clear > 0 && bytes >= bytes_to_clear)
+    bytes = bytes_to_clear;
+  if (bytes > 0) {
     if (warn) {
-      ESP_LOGW(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, reason.c_str(),
+      ESP_LOGW(TAG, "Clearing buffer of %d bytes - %s %dms after last send", bytes, reason.c_str(),
                millis() - this->last_send_);
     } else {
-      ESP_LOGV(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, reason.c_str(),
+      ESP_LOGV(TAG, "Clearing buffer of %d bytes - %s %dms after last send", bytes, reason.c_str(),
                millis() - this->last_send_);
     }
-    this->rx_buffer_.clear();
+    if (bytes == this->rx_buffer_.size())
+      this->rx_buffer_.clear();
+    else
+      this->rx_buffer_.erase(this->rx_buffer_.begin(), this->rx_buffer_.begin() + bytes);
   }
 }
 

@@ -34,7 +34,7 @@ class Modbus : public uart::UARTDevice, public Component {
   bool parse_modbus_server_byte_(uint8_t byte);
   virtual void process_modbus_server_frame_(uint8_t address, uint8_t function_code,
                                             const std::vector<uint8_t> &data) = 0;
-  void clear_rx_buffer_(const std::string &reason, bool warn = false);
+  void clear_rx_buffer_(const std::string &reason, bool warn = false, size_t bytes_to_clear = 0);
   void send_frame_(const std::vector<uint8_t> &payload);
   static const std::vector<uint8_t> add_crc_to_payload_(const std::vector<uint8_t> &payload);
 
