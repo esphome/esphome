@@ -52,11 +52,12 @@ void PictureViewer::setup() {
 #ifdef USE_HARDWARE_JPEG_DECODER
   // Initialize hardware JPEG decoder for ESP32-P4
   jpeg_decode_engine_cfg_t decode_eng_cfg = {
-      .timeout_ms = 40,
+      .intr_priority = 0,
+      .timeout_ms = 200,
   };
   esp_err_t ret = jpeg_new_decoder_engine(&decode_eng_cfg, &this->hw_decoder_);
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to create hardware JPEG decoder: %d", ret);
+    ESP_LOGE(TAG, "Failed to create hardware JPEG decoder: %s", esp_err_to_name(ret));
     this->mark_failed();
     return;
   }
