@@ -44,6 +44,23 @@ IMAGE_FIT_MODES = {
     "CENTER": ImageFitMode.CENTER,
 }
 
+# JPEG decoder configuration enums
+JPEG_RGB_ORDER = {
+    "RGB": 0,  # Big endian
+    "BGR": 1,  # Little endian
+}
+
+JPEG_COLOR_SPACE = {
+    "BT601": 0,
+    "BT709": 1,
+}
+
+JPEG_OUTPUT_FORMAT = {
+    "RGB888": 0x02000000,  # COLOR_TYPE_ID(COLOR_SPACE_RGB, COLOR_PIXEL_RGB888)
+    "RGB565": 0x02000002,  # COLOR_TYPE_ID(COLOR_SPACE_RGB, COLOR_PIXEL_RGB565)
+    "GRAY": 0x03000000,    # COLOR_TYPE_ID(COLOR_SPACE_GRAY, COLOR_PIXEL_GRAY8)
+}
+
 # Configuration keys
 CONF_FILE_MANAGER_ID = "file_manager_id"
 CONF_CANVAS_ID = "canvas_id"
@@ -54,6 +71,9 @@ CONF_ENABLE_THUMBNAILS = "enable_thumbnails"
 CONF_THUMBNAIL_WIDTH = "thumbnail_width"
 CONF_THUMBNAIL_HEIGHT = "thumbnail_height"
 CONF_FIT_MODE = "fit_mode"
+CONF_JPEG_RGB_ORDER = "jpeg_rgb_order"
+CONF_JPEG_COLOR_SPACE = "jpeg_color_space"
+CONF_JPEG_OUTPUT_FORMAT = "jpeg_output_format"
 
 # Component configuration
 CONFIG_SCHEMA = cv.Schema(
@@ -71,6 +91,15 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_THUMBNAIL_HEIGHT, default=90): cv.int_range(min=32, max=240),
         cv.Optional(CONF_FIT_MODE, default="SCALE_TO_FIT"): cv.enum(
             IMAGE_FIT_MODES, upper=True
+        ),
+        cv.Optional(CONF_JPEG_RGB_ORDER, default="BGR"): cv.enum(
+            JPEG_RGB_ORDER, upper=True
+        ),
+        cv.Optional(CONF_JPEG_COLOR_SPACE, default="BT601"): cv.enum(
+            JPEG_COLOR_SPACE, upper=True
+        ),
+        cv.Optional(CONF_JPEG_OUTPUT_FORMAT, default="RGB565"): cv.enum(
+            JPEG_OUTPUT_FORMAT, upper=True
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -106,6 +135,11 @@ async def to_code(config):
     cg.add(var.set_thumbnail_width(config[CONF_THUMBNAIL_WIDTH]))
     cg.add(var.set_thumbnail_height(config[CONF_THUMBNAIL_HEIGHT]))
     cg.add(var.set_fit_mode(config[CONF_FIT_MODE]))
+
+    # JPEG decoder configuration
+    cg.add(var.set_jpeg_rgb_order(config[CONF_JPEG_RGB_ORDER]))
+    cg.add(var.set_jpeg_color_space(config[CONF_JPEG_COLOR_SPACE]))
+    cg.add(var.set_jpeg_output_format(config[CONF_JPEG_OUTPUT_FORMAT]))
 
     # Link to transcoder component (handles all decoder initialization)
     # The transcoder dependency ensures it's initialized before picture_viewer

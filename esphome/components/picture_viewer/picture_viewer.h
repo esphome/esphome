@@ -92,6 +92,11 @@ class PictureViewer : public Component {
   void set_enable_thumbnails(bool enable) { this->enable_thumbnails_ = enable; }
   void set_fit_mode(ImageFitMode mode) { this->fit_mode_ = mode; }
 
+  // JPEG decoder configuration
+  void set_jpeg_rgb_order(int order) { this->jpeg_rgb_order_ = order; }
+  void set_jpeg_color_space(int color_space) { this->jpeg_color_space_ = color_space; }
+  void set_jpeg_output_format(uint32_t format) { this->jpeg_output_format_ = format; }
+
   // =====================================================
   // Picture Control API
   // =====================================================
@@ -169,6 +174,11 @@ class PictureViewer : public Component {
   int thumbnail_height_{90};
   bool enable_thumbnails_{true};
   ImageFitMode fit_mode_{ImageFitMode::SCALE_TO_FIT};  // Default: scale to fit
+
+  // JPEG decoder configuration
+  int jpeg_rgb_order_{1};        // Default: BGR (little endian)
+  int jpeg_color_space_{0};      // Default: BT601
+  uint32_t jpeg_output_format_{0x02000002};  // Default: RGB565
 
   // State
   std::vector<ImageEntry> images_;

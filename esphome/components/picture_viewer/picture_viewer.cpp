@@ -464,11 +464,11 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
   // Copy input data to aligned buffer
   memcpy(aligned_input, jpeg_data.data(), input_size);
 
-  // Configure decoder
+  // Configure decoder using YAML-configured values
   jpeg_decode_cfg_t decode_cfg = {};
-  decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
-  decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;  // Try BGR (little endian)
-  decode_cfg.conv_std = JPEG_YUV_RGB_CONV_STD_BT601;       // Explicitly set BT601
+  decode_cfg.output_format = static_cast<jpeg_dec_output_format_t>(this->jpeg_output_format_);
+  decode_cfg.rgb_order = static_cast<jpeg_dec_rgb_element_order_t>(this->jpeg_rgb_order_);
+  decode_cfg.conv_std = static_cast<jpeg_yuv_rgb_conv_std_t>(this->jpeg_color_space_);
 
   // Debug: Log all parameters before decode
   ESP_LOGI(TAG, "[DECODE DEBUG] Decoder handle: %p", hw_decoder);
@@ -476,8 +476,8 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
            ((uintptr_t)aligned_input % 16 == 0) ? "YES" : "NO");
   ESP_LOGI(TAG, "[DECODE DEBUG] Output buffer: %p (size: %u, aligned: %s)", aligned_output, output_size,
            ((uintptr_t)aligned_output % 16 == 0) ? "YES" : "NO");
-  ESP_LOGI(TAG, "[DECODE DEBUG] Config: output_format=%d, rgb_order=%d, conv_std=%d", decode_cfg.output_format,
-           decode_cfg.rgb_order, decode_cfg.conv_std);
+  ESP_LOGI(TAG, "[DECODE DEBUG] Config: output_format=0x%08x (%u), rgb_order=%d, conv_std=%d",
+           this->jpeg_output_format_, this->jpeg_output_format_, this->jpeg_rgb_order_, this->jpeg_color_space_);
   ESP_LOGI(TAG, "[DECODE DEBUG] Image dimensions: %dx%d", width, height);
 
   // Decode
