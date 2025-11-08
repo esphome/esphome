@@ -410,33 +410,73 @@ bool PictureViewer::decode_jpeg_hardware_(const std::vector<uint8_t> &jpeg_data,
     return false;
   }
 
+  // Get image info
   jpeg_decode_picture_info_t pic_info = {};
-  esp_err_t ret =
-      jpeg_decoder_get_info(jpeg_data.data(), static_cast<uint32_t>(jpeg_data.size()), &pic_info);
+  esp_err_t ret = jpeg_decoder_get_info(jpeg_data.data(), static_cast<uint32_t>(jpeg_data.size()), &pic_info);
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to get JPEG info: %d", ret);
+    ESP_LOGE(TAG, "Failed to get JPEG info: %s", esp_err_to_name(ret));
     return false;
   }
+
+  ESP_LOGD(TAG, "JPEG dimensions: %dx%d", pic_info.width, pic_info.height);
 
   width = pic_info.width;
   height = pic_info.height;
 
-  // Allocate output buffer for RGB565
-  size_t output_size = width * height * 2;  // RGB565 = 2 bytes per pixel
-  rgb565_data.resize(output_size);
+  // Calculate buffer sizes
+  uint32_t input_size = jpeg_data.size();
+  uint32_t output_size = width * height * 2;  // RGB565 = 2 bytes per pixel
 
+  // Allocate 16-byte aligned buffers (hardware requirement)
+  uint8_t *aligned_input = (uint8_t *) heap_caps_aligned_alloc(16, input_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!aligned_input) {
+    ESP_LOGE(TAG, "Failed to allocate aligned input buffer (%u bytes)", input_size);
+    return false;
+  }
+
+  uint8_t *aligned_output = (uint8_t *) heap_caps_aligned_alloc(16, output_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!aligned_output) {
+    ESP_LOGE(TAG, "Failed to allocate aligned output buffer (%u bytes)", output_size);
+    free(aligned_input);
+    return false;
+  }
+
+  // Copy input data to aligned buffer
+  memcpy(aligned_input, jpeg_data.data(), input_size);
+
+  // Configure decoder
   jpeg_decode_cfg_t decode_cfg = {
       .output_format = JPEG_DECODE_OUT_FORMAT_RGB565,
       .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB,
   };
 
-  ret = jpeg_decoder_process(this->hw_decoder_, &decode_cfg, jpeg_data.data(),
-                             static_cast<uint32_t>(jpeg_data.size()), rgb565_data.data(),
-                             static_cast<uint32_t>(output_size), nullptr);
+  // Decode
+  ret = jpeg_decoder_process(this->hw_decoder_, &decode_cfg, aligned_input, input_size, aligned_output, output_size,
+                             &output_size);
+
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Hardware JPEG decode failed: %d", ret);
+    ESP_LOGE(TAG, "Hardware JPEG decode failed: %s", esp_err_to_name(ret));
+    free(aligned_input);
+    free(aligned_output);
     return false;
   }
+
+  ESP_LOGD(TAG, "Hardware decode completed, output size: %u bytes", output_size);
+
+  // Byte-swap RGB565 for correct endianness
+  uint16_t *pixels = (uint16_t *) aligned_output;
+  size_t pixel_count = output_size / 2;
+  for (size_t i = 0; i < pixel_count; i++) {
+    pixels[i] = (pixels[i] << 8) | (pixels[i] >> 8);
+  }
+
+  // Copy to output vector
+  rgb565_data.resize(output_size);
+  memcpy(rgb565_data.data(), aligned_output, output_size);
+
+  // Free aligned buffers
+  free(aligned_input);
+  free(aligned_output);
 
   ESP_LOGD(TAG, "Decoded JPEG using hardware decoder: %dx%d", width, height);
   return true;
