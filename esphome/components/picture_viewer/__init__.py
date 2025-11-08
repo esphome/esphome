@@ -30,8 +30,8 @@ picture_viewer_ns = cg.esphome_ns.namespace("picture_viewer")
 PictureViewer = picture_viewer_ns.class_("PictureViewer", cg.Component)
 
 # Enums
-SlideshowMode = picture_viewer_ns.enum("SlideshowMode")
-ImageFitMode = picture_viewer_ns.enum("ImageFitMode")
+SlideshowMode = picture_viewer_ns.enum("SlideshowMode", is_class=True)
+ImageFitMode = picture_viewer_ns.enum("ImageFitMode", is_class=True)
 IMAGE_FIT_MODES = {
     "SCALE_TO_FIT": ImageFitMode.SCALE_TO_FIT,
     "SCALE_TO_FILL": ImageFitMode.SCALE_TO_FILL,
