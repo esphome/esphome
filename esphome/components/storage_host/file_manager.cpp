@@ -228,20 +228,12 @@ void FileManager::perform_scan_() {
         if (this->initial_scan_done_) {
           ESP_LOGD(TAG, "File added: %s", info.filename.c_str());
           change_info.added.push_back(info);
-          this->file_added_callbacks_.call(info);
-          for (auto *trigger : this->file_added_triggers_) {
-            trigger->trigger(info);
-          }
         }
       } else {
         // Check if modified
         if (this->file_modified_(it->second, info)) {
           ESP_LOGD(TAG, "File modified: %s", info.filename.c_str());
           change_info.modified.push_back(info);
-          this->file_modified_callbacks_.call(info);
-          for (auto *trigger : this->file_modified_triggers_) {
-            trigger->trigger(info);
-          }
         }
       }
     }
@@ -253,17 +245,37 @@ void FileManager::perform_scan_() {
         if (this->initial_scan_done_) {
           ESP_LOGD(TAG, "File deleted: %s", info.filename.c_str());
           change_info.deleted.push_back(info);
-          this->file_deleted_callbacks_.call(info);
-          for (auto *trigger : this->file_deleted_triggers_) {
-            trigger->trigger(info);
-          }
         }
       }
     }
 
-    // Update state
+    // Update state BEFORE firing callbacks so callbacks see the new state
     this->directory_state_ = current_map;
     change_info.files = current_files;
+
+    // Fire individual file callbacks AFTER state is updated
+    if (this->initial_scan_done_) {
+      for (const auto &info : change_info.added) {
+        this->file_added_callbacks_.call(info);
+        for (auto *trigger : this->file_added_triggers_) {
+          trigger->trigger(info);
+        }
+      }
+
+      for (const auto &info : change_info.modified) {
+        this->file_modified_callbacks_.call(info);
+        for (auto *trigger : this->file_modified_triggers_) {
+          trigger->trigger(info);
+        }
+      }
+
+      for (const auto &info : change_info.deleted) {
+        this->file_deleted_callbacks_.call(info);
+        for (auto *trigger : this->file_deleted_triggers_) {
+          trigger->trigger(info);
+        }
+      }
+    }
 
     // Fire directory changed callback if any changes occurred
     if (this->initial_scan_done_ &&
