@@ -203,13 +203,7 @@ void FileManager::perform_scan_() {
 
   // Directory watch mode
   if (!this->watch_directory_.empty()) {
-    // Check if directory is available
-    if (!this->is_path_available(this->watch_directory_)) {
-      ESP_LOGD(TAG, "Directory not available: %s", this->watch_directory_.c_str());
-      return;
-    }
-
-    // Scan directory
+    // Scan directory (scan_directory_() will handle mount point validation and graceful failure)
     std::vector<FileInfo> current_files;
     this->scan_directory_(this->watch_directory_, current_files);
 
@@ -287,8 +281,47 @@ void FileManager::perform_scan_() {
 }
 
 void FileManager::scan_directory_(const std::string &path, std::vector<FileInfo> &files) {
+  if (this->storage_host_ == nullptr) {
+    ESP_LOGD(TAG, "StorageHost not available");
+    return;
+  }
+
+  // Check if this is virtual root - list mount points
+  bool is_virtual_root = (path.empty() || path == "/");
+  if (is_virtual_root) {
+    ESP_LOGD(TAG, "Listing mount points from virtual root");
+    const auto &mounts = this->storage_host_->get_mounts();
+    for (const auto &mount : mounts) {
+      FileInfo info;
+      info.path = mount.path;
+      info.filename = mount.path.substr(1);  // Remove leading slash
+      if (info.filename.empty()) {
+        info.filename = "root";
+      }
+      info.directory = "/";
+      info.size = 0;
+      info.modified_time = 0;
+      info.is_directory = true;
+
+      // Check if pattern matches (mount points should match "*" pattern)
+      if (this->matches_pattern_(info.filename)) {
+        files.push_back(info);
+      }
+    }
+    return;
+  }
+
+  // Parse path to extract mount point
+  std::string mount_point = this->storage_host_->find_mount_for_path(path);
+  if (mount_point.empty()) {
+    ESP_LOGD(TAG, "No mount point found for path: %s", path.c_str());
+    return;
+  }
+
+  ESP_LOGV(TAG, "Found mount point '%s' for path '%s'", mount_point.c_str(), path.c_str());
+
   // Check if this is a network path - use StorageHost methods for proper routing
-  if (this->storage_host_ && this->storage_host_->is_network_path(path)) {
+  if (this->storage_host_->is_network_path(path)) {
     // Use network storage backend
     std::vector<NetworkStorage::DirEntry> entries;
     if (!this->storage_host_->network_list_directory(path, entries)) {
@@ -327,7 +360,7 @@ void FileManager::scan_directory_(const std::string &path, std::vector<FileInfo>
   // Local filesystem access - use opendir()
   DIR *dir = opendir(path.c_str());
   if (dir == nullptr) {
-    ESP_LOGD(TAG, "Failed to open directory: %s (errno: %d)", path.c_str(), errno);
+    ESP_LOGD(TAG, "Failed to open directory: %s (errno: %d, mount: %s)", path.c_str(), errno, mount_point.c_str());
     return;
   }
 
