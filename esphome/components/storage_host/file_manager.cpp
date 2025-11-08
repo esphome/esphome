@@ -277,9 +277,18 @@ void FileManager::perform_scan_() {
       }
     }
 
-    // Fire directory changed callback if any changes occurred
-    if (this->initial_scan_done_ &&
-        (!change_info.added.empty() || !change_info.modified.empty() || !change_info.deleted.empty())) {
+    // Fire directory changed callback if any changes occurred OR on first scan
+    bool has_changes = (!change_info.added.empty() || !change_info.modified.empty() || !change_info.deleted.empty());
+    if (!this->initial_scan_done_) {
+      // First scan - notify with initial file list (even if empty)
+      ESP_LOGD(TAG, "Initial directory scan complete: %s (%zu files)", this->watch_directory_.c_str(),
+               change_info.file_count);
+      this->directory_changed_callbacks_.call(change_info);
+      for (auto *trigger : this->directory_changed_triggers_) {
+        trigger->trigger(change_info);
+      }
+    } else if (has_changes) {
+      // Subsequent scans - only notify if changes detected
       ESP_LOGD(TAG, "Directory changed: %s (added: %zu, modified: %zu, deleted: %zu)", this->watch_directory_.c_str(),
                change_info.added.size(), change_info.modified.size(), change_info.deleted.size());
       this->directory_changed_callbacks_.call(change_info);
