@@ -294,6 +294,7 @@ async def to_code(config):
 
     if config[CONF_TYPE] == MIPI_CSI:
         add_idf_component(name="espressif/esp_cam_sensor", ref="1.5.1")
+        cg.add_build_flag("-DUSE_CSI_CAMERA_SENSOR")
         # Experimental features required for camera sensors that output RAW10/RAW12
         # and for the ISP to output RGB888
         add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)

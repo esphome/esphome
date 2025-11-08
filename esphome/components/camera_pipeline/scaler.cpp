@@ -31,8 +31,13 @@ camera::ProcessorError Scaler::process_pixels_base(camera::CameraImageSpec *inpu
   this->cfg_.scale_res = {static_cast<int16_t>(output_spec_.width), static_cast<int16_t>(output_spec_.height)};
   this->cfg_.in_pixel_fmt = to_internal_(input_spec->format);
   this->cfg_.filter_type = this->to_internal_(algorithm_);
-  if (!this->handle_)
+  if (!this->handle_) {
     esp_imgfx_scale_open(&this->cfg_, &this->handle_);
+    if (this->algorithm_ == DOWN_RESAMPLE &&
+        (input_spec->width < output_spec_.width || input_spec->height < output_spec_.height))
+      ESP_LOGE(TAG, "%s: requires input (%ux%u) > output (%ux%u). Use %s.", to_string(this->algorithm_),
+               input_spec->width, input_spec->height, output_spec_.width, output_spec_.height, to_string(BILINEAR));
+  }
 
   if (!this->handle_)
     return camera::PROCESSOR_ERROR_CONFIGURATION;

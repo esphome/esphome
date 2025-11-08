@@ -157,11 +157,15 @@ void Pipeline::log_config() {
 }
 
 Processor *Pipeline::find_next_(Processor *current) {
+  // Deep-first search.
+  // Does the current processor have a direct child ?
   auto it = this->links_.find(current);
   if (it != this->links_.end() && !it->second.empty())
     return it->second.front();
 
+  // Walk upwards and find the next sibling.
   while (true) {
+    // Did we reach the root ?
     auto parent_it = this->parents_.find(current);
     if (parent_it == this->parents_.end())
       return nullptr;
@@ -171,6 +175,7 @@ Processor *Pipeline::find_next_(Processor *current) {
     if (link_it == this->links_.end())
       return nullptr;
 
+    // Get the next sibling.
     auto &children = this->links_[parent];
     auto pos = std::find(children.begin(), children.end(), current);
     auto next = pos;
@@ -178,6 +183,7 @@ Processor *Pipeline::find_next_(Processor *current) {
     if (pos != children.end() && next != children.end())
       return *next;
 
+    // Move up one node and retry.
     current = parent;
   }
 }

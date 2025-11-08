@@ -1,4 +1,5 @@
-#ifdef USE_ESP32_VARIANT_ESP32P4
+#if USE_ESP32_VARIANT_ESP32P4 && USE_CSI_CAMERA_SENSOR
+
 #include "csi_camera_sensor.h"
 
 #include "esp_cache.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32_VARIANT_ESP32P4
+#if USE_ESP32_VARIANT_ESP32P4 && USE_CSI_CAMERA_SENSOR
 
 #include "esphome/components/camera/buffer_pool.h"
 #include "esphome/components/camera/ram_allocator_cache_aligned.h"
