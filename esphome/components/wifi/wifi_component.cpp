@@ -46,8 +46,10 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   switch (phase) {
     case WiFiRetryPhase::INITIAL_CONNECT:
       return LOG_STR("INITIAL_CONNECT");
+#ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
       return LOG_STR("FAST_CONNECT_CYCLING");
+#endif
     case WiFiRetryPhase::SCAN_CONNECTING:
       return LOG_STR("SCAN_CONNECTING");
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
@@ -404,7 +406,9 @@ WiFiAP WiFiComponent::build_params_for_current_phase_() {
 
   switch (this->retry_phase_) {
     case WiFiRetryPhase::INITIAL_CONNECT:
+#ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
+#endif
       // Fast connect phases: use config-only (no scan results)
       // BSSID/channel from config if user specified them, otherwise empty
       break;
@@ -882,6 +886,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // No more fast_connect APs (or fast_connect disabled), fall back to scan
       return WiFiRetryPhase::SCAN_CONNECTING;
 
+#ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
       if (this->num_retried_ < 3) {
         return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Keep retrying
@@ -894,6 +899,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         // Exhausted, need to scan
         return WiFiRetryPhase::SCAN_CONNECTING;
       }
+#endif
 
     case WiFiRetryPhase::SCAN_CONNECTING:
       if (this->num_retried_ < 3) {
@@ -967,21 +973,21 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
 
   // Phase-specific setup
   switch (new_phase) {
+#ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
       // Move to next configured AP
       this->selected_sta_index_++;
-#ifdef USE_WIFI_FAST_CONNECT
       this->reset_for_next_ap_attempt_();
-#else
-      this->num_retried_ = 0;
-      this->scan_result_.clear();
-#endif
       break;
+#endif
 
     case WiFiRetryPhase::SCAN_CONNECTING:
       // Transitioning to scan-based connection from fast_connect phases
-      if (this->retry_phase_ == WiFiRetryPhase::INITIAL_CONNECT ||
-          this->retry_phase_ == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
+      if (this->retry_phase_ == WiFiRetryPhase::INITIAL_CONNECT
+#ifdef USE_WIFI_FAST_CONNECT
+          || this->retry_phase_ == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS
+#endif
+      ) {
         ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
         this->selected_sta_index_ = 0;
         this->scan_result_index_ = 0;

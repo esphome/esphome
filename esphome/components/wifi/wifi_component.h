@@ -103,8 +103,10 @@ enum class WiFiSTAConnectStatus : int {
 enum class WiFiRetryPhase : uint8_t {
   /// Initial connection attempt (varies based on fast_connect setting)
   INITIAL_CONNECT,
+#ifdef USE_WIFI_FAST_CONNECT
   /// Fast connect mode: cycling through configured APs (config-only, no scan)
   FAST_CONNECT_CYCLING_APS,
+#endif
   /// Scan-based: connecting to best AP from scan results
   SCAN_CONNECTING,
   /// Mesh fallback: trying next BSSID with same SSID after auth failure
