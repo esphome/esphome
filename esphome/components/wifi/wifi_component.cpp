@@ -158,7 +158,8 @@ void WiFiComponent::restart_adapter() {
   ESP_LOGW(TAG, "Restarting adapter");
   this->wifi_mode_(false, {});
   delay(100);  // NOLINT
-  this->retry_hidden_ = false;
+  // Reset connection phase to initial state
+  this->connection_phase_ = WiFiConnectionPhase::INITIAL_ATTEMPT;
   // Clear scan results - adapter restart invalidates them
   this->scan_result_.clear();
   this->set_scan_result_index_and_reset_retries_(0);
@@ -407,11 +408,18 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
+  // Determine the appropriate max retry threshold for logging
+  // When handling auth failures with same-SSID fallback, use lower threshold
+  // Otherwise use the normal adapter restart threshold
+  uint8_t max_retries = wifi_sta_connect_auth_failed() ? RETRY_THRESHOLD_AUTH_FALLBACK : RETRY_THRESHOLD_RESTART;
+
+  // Log connection attempt with retry counter for debugging
   if (ap.get_bssid().has_value()) {
-    ESP_LOGI(TAG, "Connecting to " LOG_SECRET("'%s' (%s)"), ap.get_ssid().c_str(),
-             format_mac_address_pretty(ap.get_bssid()->data()).c_str());
+    ESP_LOGI(TAG, "Connecting to " LOG_SECRET("'%s' (%s)") " (attempt %u/%u)", ap.get_ssid().c_str(),
+             format_mac_address_pretty(ap.get_bssid()->data()).c_str(), this->num_retried_ + 1, max_retries);
   } else {
-    ESP_LOGI(TAG, "Connecting to " LOG_SECRET("'%s'"), ap.get_ssid().c_str());
+    ESP_LOGI(TAG, "Connecting to " LOG_SECRET("'%s'") " (attempt %u/%u)", ap.get_ssid().c_str(), this->num_retried_ + 1,
+             max_retries);
   }
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG, "Connection Params:");
@@ -748,10 +756,12 @@ void WiFiComponent::check_connecting_finished() {
     // Warn if we had to retry with hidden network mode for a network that's not marked hidden
     // Only warn if we actually connected without scan data (SSID only), not if scan succeeded on retry
     if (const WiFiAP *config = this->get_selected_sta_();
-        this->retry_hidden_ && config && !config->get_hidden() && this->scan_result_.empty()) {
+        this->connection_phase_ == WiFiConnectionPhase::RETRYING_WITH_HIDDEN && config && !config->get_hidden() &&
+        this->scan_result_.empty()) {
       ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config->get_ssid().c_str());
     }
-    this->retry_hidden_ = false;
+    // Reset connection phase on successful connection
+    this->connection_phase_ = WiFiConnectionPhase::INITIAL_ATTEMPT;
 
     this->print_connect_params_();
 
@@ -883,27 +893,56 @@ bool WiFiComponent::select_next_ap_with_same_ssid_() {
 }
 
 void WiFiComponent::retry_with_hidden_or_restart_() {
-  // Normal scan-based retry logic: try hidden networks, then restart if still failing
-  if (this->num_retried_ > RETRY_THRESHOLD_RESTART) {
-    // If retry failed for more than threshold times, restart adapter to clear any stuck state
-    this->restart_adapter();
-  } else {
-    // Try hidden networks after initial retries
-    ESP_LOGD(TAG, "Retrying with hidden networks");
-    this->retry_hidden_ = true;
-    this->num_retried_++;
+  // Execute action based on connection phase
+  // This is called from retry_connect() after determine_next_connection_phase_()
+  switch (this->connection_phase_) {
+    case WiFiConnectionPhase::RETRYING_WITH_HIDDEN:
+      ESP_LOGD(TAG, "Retrying with hidden networks");
+      // Connection phase tracks that we're in hidden retry mode
+      this->num_retried_++;
+      break;
+
+    case WiFiConnectionPhase::RESTARTING_ADAPTER:
+      // If retry failed for more than threshold times, restart adapter to clear any stuck state
+      this->restart_adapter();
+      break;
+
+    default:
+      // Fallback for unexpected phase
+      if (this->num_retried_ > RETRY_THRESHOLD_RESTART) {
+        this->restart_adapter();
+      } else {
+        this->connection_phase_ = WiFiConnectionPhase::RETRYING_WITH_HIDDEN;
+        this->num_retried_++;
+      }
+      break;
   }
 }
 
 void WiFiComponent::retry_or_scan_() {
-  // After cooldown: either retry with hidden networks or start scanning
-  if (this->retry_hidden_) {
-    // Retry with hidden networks - use config-only (no BSSID/channel from scan)
-    this->reset_selected_ap_to_first_if_invalid_();
-    WiFiAP params = this->build_wifi_ap_from_selected_();
-    this->start_connecting(params, false);
-  } else {
-    this->start_scanning();
+  // After COOLDOWN: execute the appropriate action based on connection phase
+  // This is called from loop() when COOLDOWN timer expires
+
+  // Determine what we should do next
+  WiFiConnectionPhase phase = this->determine_next_connection_phase_();
+  this->connection_phase_ = phase;
+
+  switch (phase) {
+    case WiFiConnectionPhase::RETRYING_WITH_HIDDEN:
+      // Retry with hidden networks - use config-only (no BSSID/channel from scan)
+      this->reset_selected_ap_to_first_if_invalid_();
+      {
+        WiFiAP params = this->build_wifi_ap_from_selected_();
+        this->start_connecting(params, false);
+      }
+      break;
+
+    case WiFiConnectionPhase::SCANNING:
+    case WiFiConnectionPhase::INITIAL_ATTEMPT:
+    default:
+      // Start scanning (or rescan if we don't have good results)
+      this->start_scanning();
+      break;
   }
 }
 
@@ -914,7 +953,56 @@ void WiFiComponent::set_scan_result_index_and_reset_retries_(uint8_t index) {
   this->num_retried_ = 0;
 }
 
+WiFiConnectionPhase WiFiComponent::determine_next_connection_phase_() {
+  // Check if captive portal or improv is active - if so, just retry
+  if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+    return WiFiConnectionPhase::RETRYING_SAME_AP;
+  }
+
+  // Check if we have enough retries to take action
+  bool enough_retries = (this->num_retried_ > 3 || this->error_from_callback_);
+
+  // PHASE 1: Check for mesh network auth failure (highest priority)
+  // Try next AP with same SSID after 3 retries if auth failed
+  if (wifi_sta_connect_auth_failed() && this->num_retried_ >= RETRY_THRESHOLD_AUTH_FALLBACK) {
+    // Only if we have scan results available
+    if (!this->scan_result_.empty()) {
+      return WiFiConnectionPhase::TRYING_NEXT_SAME_SSID_AP;
+    }
+  }
+
+  // If not enough retries yet, just increment and retry same AP
+  if (!enough_retries) {
+    return WiFiConnectionPhase::RETRYING_SAME_AP;
+  }
+
+#ifdef USE_WIFI_FAST_CONNECT
+  // PHASE 2: Handle fast_connect mode transitions
+  if (!this->fast_connect_exhausted_) {
+    if (this->trying_loaded_ap_) {
+      // Fast connect saved AP failed, try first configured AP
+      return WiFiConnectionPhase::INITIAL_ATTEMPT;  // Will cycle to first configured AP
+    } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
+      // Exhausted all configured APs in fast_connect mode
+      return WiFiConnectionPhase::FAST_CONNECT_EXHAUSTED;
+    } else {
+      // Try next configured AP in fast_connect mode
+      return WiFiConnectionPhase::INITIAL_ATTEMPT;  // Will cycle to next configured AP
+    }
+  }
+#endif
+
+  // PHASE 3: Normal retry logic (fast_connect exhausted or not using fast_connect)
+  // Check if we should retry with hidden flag or restart adapter
+  if (this->num_retried_ > RETRY_THRESHOLD_RESTART) {
+    return WiFiConnectionPhase::RESTARTING_ADAPTER;
+  } else {
+    return WiFiConnectionPhase::RETRYING_WITH_HIDDEN;
+  }
+}
+
 void WiFiComponent::retry_connect() {
+  // Decrease priority of current BSSID (if configured with specific BSSID)
   if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid()) {
     auto bssid = *config->get_bssid();
     float priority = this->get_sta_priority(bssid);
@@ -923,88 +1011,93 @@ void WiFiComponent::retry_connect() {
 
   delay(10);
 
-  // MESH NETWORK AUTHENTICATION FAILURE HANDLING
-  // When connecting to mesh networks (multiple APs with same SSID), some APs may be rogue or have
-  // authentication issues. After 3 retries on one AP, try the next AP with the same SSID instead of
-  // cycling to a different network. This handles:
-  // - Rogue APs with incorrect configuration
-  // - Weak APs at edge of range causing handshake timeouts
-  // - Mesh networks where some APs are temporarily unavailable
-  //
-  // Requirements for fallback:
-  // - Authentication failure detected (4-way handshake timeout, auth expired, etc.)
-  // - At least 3 retry attempts on current AP (avoids giving up on transient failures)
-  // - Scan results available with other APs using same SSID
-  //
-  // If no scan results available (e.g., fast_connect mode), fallback is deferred until after
-  // all configured networks are tried, at which point a scan will be triggered (see below).
-  //
-  // This only updates scan_result_index_ - connection happens at single point below
-  bool selected_next_same_ssid_ap = false;
-  if (wifi_sta_connect_auth_failed() && this->num_retried_ >= RETRY_THRESHOLD_AUTH_FALLBACK) {
-    // Select next AP with same SSID (updates scan_result_index_ if found)
-    // Also clears the auth failure flag - we've handled it
-    selected_next_same_ssid_ap = this->select_next_ap_with_same_ssid_();
-  }
+  // Determine next connection phase using state machine
+  this->connection_phase_ = this->determine_next_connection_phase_();
 
-  // Skip normal retry logic if we successfully selected a different AP to try
-  if (!selected_next_same_ssid_ap && !this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
-      (this->num_retried_ > 3 || this->error_from_callback_)) {
+  // Execute phase-specific logic
+  switch (this->connection_phase_) {
+    case WiFiConnectionPhase::RETRYING_SAME_AP:
+      // Just increment retry counter and try again
+      this->num_retried_++;
+      break;
+
+    case WiFiConnectionPhase::TRYING_NEXT_SAME_SSID_AP: {
+      // MESH NETWORK AUTHENTICATION FAILURE HANDLING
+      // Try next AP with same SSID (mesh network fallback)
+      bool found = this->select_next_ap_with_same_ssid_();
+      if (found) {
+        // Found next same-SSID AP - force immediate connection (skip COOLDOWN)
+        // select_next_ap_with_same_ssid_() already updated scan_result_index_ and reset num_retried_
+        this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
+      } else {
+        // No more same-SSID APs, fall back to normal retry logic
+        this->connection_phase_ = WiFiConnectionPhase::RETRYING_WITH_HIDDEN;
+        this->retry_with_hidden_or_restart_();
+      }
+      break;
+    }
+
+    case WiFiConnectionPhase::RETRYING_WITH_HIDDEN:
+      // Try with hidden network flag or restart adapter
+      this->retry_with_hidden_or_restart_();
+      break;
+
+    case WiFiConnectionPhase::RESTARTING_ADAPTER:
+      // Handled by retry_with_hidden_or_restart_()
+      this->retry_with_hidden_or_restart_();
+      break;
+
+    case WiFiConnectionPhase::FAST_CONNECT_EXHAUSTED:
 #ifdef USE_WIFI_FAST_CONNECT
-    // Fast connect mode: try saved credentials, then cycle through configured networks
-    if (!this->fast_connect_exhausted_) {
-      // Still in fast_connect mode
-      if (this->trying_loaded_ap_) {
-        // First try: loaded AP from fast_connect failed
-        this->trying_loaded_ap_ = false;
-        this->selected_sta_index_ = 0;  // Retry from the first configured AP
-        this->reset_for_next_ap_attempt_();
-      } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
-        // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
-        // Exhausted all configured networks in fast_connect mode
+      // Transition from fast_connect to scan-based mode
+      ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
+      this->fast_connect_exhausted_ = true;
+      this->selected_sta_index_ = 0;
+      this->set_scan_result_index_and_reset_retries_(0);
+      this->connection_phase_ = WiFiConnectionPhase::SCANNING;
+      this->start_scanning();
+      return;
+#endif
+      break;
 
-        // Permanently disable fast_connect and fall back to normal scan-based connection flow
-        // This enables:
-        // - Intelligent AP selection based on signal strength
-        // - Same-SSID mesh network fallback on auth failures
-        // - Full scan result visibility for debugging
-        ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
-        this->fast_connect_exhausted_ = true;
+    case WiFiConnectionPhase::INITIAL_ATTEMPT:
+#ifdef USE_WIFI_FAST_CONNECT
+      // Cycle to next configured AP (fast_connect mode)
+      if (this->trying_loaded_ap_) {
+        // Fast connect saved AP failed, try first configured AP
+        this->trying_loaded_ap_ = false;
         this->selected_sta_index_ = 0;
-        this->set_scan_result_index_and_reset_retries_(0);
-        this->retry_hidden_ = false;
-        // Start scanning immediately - no need to wait since we're just switching modes
-        this->start_scanning();
-        return;
       } else {
         // Try next configured network
         this->selected_sta_index_++;
-        this->reset_for_next_ap_attempt_();
       }
-    } else {
-      // Fast connect exhausted, use normal retry logic (same as non-fast_connect)
-      this->retry_with_hidden_or_restart_();
-    }
-#else
-    // Normal path (non-fast_connect): use scan-based retries with hidden network support
-    this->retry_with_hidden_or_restart_();
+      this->reset_for_next_ap_attempt_();
 #endif
-  } else {
-    this->num_retried_++;
+      break;
+
+    case WiFiConnectionPhase::SCANNING:
+      // Should not reach here - scanning is handled elsewhere
+      break;
   }
+
   this->error_from_callback_ = false;
+
+  // Single connection point - all phases converge here
+  // State machine ensures we only connect if we're in the right state
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
 
-    // Single connection point - reads state variables set by retry logic above
-    // When scan results available, use scan_result_index_ (set by try_next_ap_with_same_ssid_() or wifi_scan_done())
-    // When no scan results, build_wifi_ap_from_selected_() will use config-only connection
+    // Build connection parameters from current state
+    // - For TRYING_NEXT_SAME_SSID_AP: use updated scan_result_index_
+    // - For fast_connect modes: use config-only (no scan results)
+    // - For normal retry: use current scan_result_index_ or config-only
     WiFiAP params = this->build_wifi_ap_from_selected_(this->scan_result_index_);
     this->start_connecting(params, true);
     return;
   }
 
+  // Not in CONNECTING state - go to COOLDOWN
   this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
   this->action_started_ = millis();
 }
