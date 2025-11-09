@@ -704,11 +704,10 @@ void WiFiComponent::start_scanning() {
   if (!a.get_matches() && b.get_matches())
     return false;
 
-  if (a.get_matches() && b.get_matches()) {
+  if (a.get_matches() && b.get_matches() && a.get_priority() != b.get_priority()) {
     // Check priority first (tracks connection failures via priority degradation)
     // Priority is decreased when a BSSID fails to connect, so lower priority = previously failed
-    if (a.get_priority() != b.get_priority())
-      return a.get_priority() > b.get_priority();
+    return a.get_priority() > b.get_priority();
   }
 
   // Both don't match - sort by signal strength
