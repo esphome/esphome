@@ -827,7 +827,9 @@ void WiFiComponent::check_scanning_finished() {
 
   if (!found_match) {
     ESP_LOGW(TAG, "No matching network found");
-    this->retry_connect();
+    // No scan results matched our configured networks - transition directly to hidden mode
+    // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
+    this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING, WiFiRetryPhase::SCAN_WITH_HIDDEN);
     return;
   }
 
