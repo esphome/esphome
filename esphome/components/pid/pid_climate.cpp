@@ -41,14 +41,14 @@ void PIDClimate::setup() {
   }
 }
 void PIDClimate::control(const climate::ClimateCall &call) {
-    esphome::climate::ClimateMode oldMode = this->mode;
+  esphome::climate::ClimateMode oldMode = this->mode;
   if (call.get_mode().has_value())
     this->mode = *call.get_mode();
   if (call.get_target_temperature().has_value())
     this->target_temperature = *call.get_target_temperature();
 
   // If switching to off or frost protect mode, set output immediately
-  if (this->mode == climate::CLIMATE_MODE_OFF || this->mode == climate::CLIMATE_MODE_FROST_PROTECT) {
+  if (this->mode == climate::CLIMATE_MODE_OFF) {
     this->write_output_(0.0f);
   } else if (oldMode == climate::CLIMATE_MODE_OFF) {
     this->controller_.reset_accumulated_integral();
@@ -113,14 +113,14 @@ void PIDClimate::write_output_(float value) {
 
   // Update action variable for user feedback what's happening
   climate::ClimateAction new_action;
-  if (this->supports_cool_() && value < 0) {
+  if (this->mode == climate::CLIMATE_MODE_FROST_PROTECT) {
+    new_action = climate::CLIMATE_ACTION_FROST_PROTECT;
+  } else if (this->supports_cool_() && value < 0) {
     new_action = climate::CLIMATE_ACTION_COOLING;
   } else if (this->supports_heat_() && value > 0) {
     new_action = climate::CLIMATE_ACTION_HEATING;
   } else if (this->mode == climate::CLIMATE_MODE_OFF) {
     new_action = climate::CLIMATE_ACTION_OFF;
-  } else if (this->mode == climate::CLIMATE_MODE_FROST_PROTECT) {
-    new_action = climate::CLIMATE_ACTION_FROST_PROTECT;
   } else {
     new_action = climate::CLIMATE_ACTION_IDLE;
   }
@@ -160,17 +160,18 @@ void PIDClimate::update_pid_() {
     this->write_output_(0.0);
   } else if (this->mode == climate::CLIMATE_MODE_FROST_PROTECT) {
     this->controller_.reset_accumulated_integral();
-    if (last_frost_protect_ + 40*60*1000 < millis()) {
-        last_frost_protect_ = millis();
-    } else if (last_frost_protect_ + 30*60*1000 < millis()) {
-        this->write_output_(1);
-    } else {
-        this->write_output_(0.0);
+    if (last_frost_protect_ + 30 * 60 * 1000 < millis()) {  // 30 mins after last valve open
+      last_frost_protect_ = millis();
+    } else if (last_frost_protect_ + 5 * 60 * 1000 > millis()) {  // up to 5 mins after opening
+      this->write_output_(1);
+    } else {  // rest of time
+      ESP_LOGI(TAG, "%i minutes since last ice protect flush", (millis() - last_frost_protect_) / (1000 * 60));
+      this->write_output_(0.0);
     }
   } else {
     if ((this->mode == climate::CLIMATE_MODE_HEAT || this->mode == climate::CLIMATE_MODE_HEAT_COOL) && value > 0) {
-        // this also protects against frost
-        last_frost_protect_ = millis();
+      // this also protects against frost
+      last_frost_protect_ = millis();
     }
     this->write_output_(value);
   }
