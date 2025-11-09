@@ -12,7 +12,6 @@ from ..defines import (
 from ..helpers import add_lv_use
 from ..lv_validation import animated, get_start_value, lv_float
 from ..lvcode import lv
-from ..schemas import register_lvgl_widget
 from ..types import LvNumber, NumberType
 from . import Widget
 from .lv_bar import CONF_BAR
@@ -62,9 +61,3 @@ class SliderType(NumberType):
 
 
 slider_spec = SliderType()
-
-
-@register_lvgl_widget(slider_spec)
-async def slider_to_code(w, config):
-    """Code generation for slider widget - registered via decorator"""
-    return await slider_spec.to_code(w, config)

@@ -41,7 +41,6 @@ from ..lv_validation import (
     size,
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr, lv_obj
-from ..schemas import register_lvgl_widget
 from ..types import LvType, ObjUpdateAction
 from . import Widget, WidgetType, get_widgets
 from .arc import CONF_ARC
@@ -284,12 +283,6 @@ class MeterType(WidgetType):
 
 
 meter_spec = MeterType()
-
-
-@register_lvgl_widget(meter_spec)
-async def meter_to_code(w, config):
-    """Code generation for meter widget - registered via decorator"""
-    return await meter_spec.to_code(w, config)
 
 
 @automation.register_action(

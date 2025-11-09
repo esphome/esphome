@@ -5,7 +5,6 @@ from esphome.cpp_types import std_string
 
 from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
 from ..helpers import add_lv_use, lvgl_components_required
-from ..schemas import register_lvgl_widget
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType, get_widgets
 from .textarea import CONF_TEXTAREA, lv_textarea_t
@@ -55,9 +54,3 @@ class KeyboardType(WidgetType):
 
 
 keyboard_spec = KeyboardType()
-
-
-@register_lvgl_widget(keyboard_spec)
-async def keyboard_to_code(w, config):
-    """Code generation for keyboard widget - registered via decorator"""
-    return await keyboard_spec.to_code(w, config)

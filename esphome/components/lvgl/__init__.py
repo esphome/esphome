@@ -1,4 +1,6 @@
+import importlib
 import logging
+import pkgutil
 
 from esphome.automation import build_automation, validate_automation
 import esphome.codegen as cg
@@ -25,7 +27,7 @@ from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
-from . import defines as df, helpers, lv_validation as lvalid
+from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import disp_update, focused_widgets, refreshed_widgets
 from .defines import add_define
 from .encoders import (
@@ -59,39 +61,13 @@ from .types import (
     lv_style_t,
     lvgl_ns,
 )
-
-# Import widget modules to trigger @register_lvgl_widget decorators
-from .widgets import (  # noqa: F401
+from .widgets import (
     LvScrActType,
     Widget,
     add_widgets,
-    animimg,
-    arc,
-    button,
-    buttonmatrix,
-    canvas,
-    checkbox,
-    container,
-    dropdown,
     get_scr_act,
-    img,
-    keyboard,
-    label,
-    led,
-    line,
-    lv_bar,
-    meter,
-    qrcode,
-    roller,
     set_obj_properties,
-    slider,
-    spinbox,
-    spinner,
     styles_used,
-    switch,
-    tabview,
-    textarea,
-    tileview,
 )
 
 # Import only what we actually use directly in this file
@@ -103,16 +79,20 @@ from .widgets.page import (  # page_spec used in LVGL_SCHEMA
     page_spec,
 )
 
+# Widget registration happens via WidgetType.__init__ in individual widget files
+# The imports below trigger creation of the widget types
+# Action registration (lvgl.{widget}.update) happens automatically
+# in the WidgetType.__init__ method
+
+for module_info in pkgutil.iter_modules(widgets.__path__):
+    importlib.import_module(f".widgets.{module_info.name}", package=__package__)
+
 DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]
 AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
 LOGGER = logging.getLogger(__name__)
 
-# Widget registration happens via decorators in individual widget files
-# The imports above trigger the @register_lvgl_widget decorators
-# Action registration (lvgl.{widget}.update) happens automatically
-# in register_lvgl_widget() decorator
 
 SIMPLE_TRIGGERS = (
     df.CONF_ON_PAUSE,
@@ -297,8 +277,9 @@ async def to_code(configs):
         displays = [
             await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]
         ]
+        comp_id = config[CONF_ID]
         lv_component = cg.new_Pvariable(
-            config[CONF_ID],
+            comp_id,
             displays,
             frac,
             config[df.CONF_FULL_REFRESH],
@@ -306,7 +287,9 @@ async def to_code(configs):
             config[df.CONF_RESUME_ON_INPUT],
         )
         await cg.register_component(lv_component, config)
-        Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
+        Widget.create(
+            comp_id, lv_component, LvScrActType(f"{comp_id}->get_scr_act()"), config
+        )
 
         lv_scr_act = get_scr_act(lv_component)
         async with LvContext():
@@ -377,23 +360,23 @@ def add_hello_world(config):
     return config
 
 
-def _theme_schema():
-    """Generate theme schema with lazy widget type evaluation.
-
-    This ensures that external components can register widgets before
-    the theme schema is built during validation.
+class ThemeSchema:
+    """
+    Singleton pattern for delayed evaluation
     """
 
-    def validator(value):
-        schema = cv.Schema(
-            {
-                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-                for name, w in WIDGET_TYPES.items()
-            }
-        )
-        return schema(value)
+    _schema = None
 
-    return validator
+    @classmethod
+    def __call__(cls, value):
+        if cls._schema is None:
+            cls._schema = cv.Schema(
+                {
+                    cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
+                    for name, w in WIDGET_TYPES.items()
+                }
+            )
+        return cls._schema(value)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation
@@ -448,7 +431,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,
-                cv.Optional(df.CONF_THEME): _theme_schema(),
+                cv.Optional(df.CONF_THEME): ThemeSchema(),
                 cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
                 cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
                 cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,

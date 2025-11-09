@@ -6,7 +6,7 @@ from esphome.cpp_generator import MockObjClass
 from ..defines import CONF_MAIN
 from ..lv_validation import lv_color, lv_text
 from ..lvcode import LocalVariable, lv, lv_expr
-from ..schemas import TEXT_SCHEMA, register_lvgl_widget
+from ..schemas import TEXT_SCHEMA
 from ..types import WidgetType, lv_obj_t
 from . import Widget
 
@@ -49,9 +49,3 @@ class QrCodeType(WidgetType):
 
 
 qr_code_spec = QrCodeType()
-
-
-@register_lvgl_widget(qr_code_spec)
-async def qr_code_to_code(w, config):
-    """Code generation for qr_code widget - registered via decorator"""
-    return await qr_code_spec.to_code(w, config)

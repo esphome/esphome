@@ -4,7 +4,6 @@ from esphome.const import CONF_BRIGHTNESS, CONF_COLOR, CONF_LED
 from ..defines import CONF_MAIN
 from ..lv_validation import lv_brightness, lv_color
 from ..lvcode import lv
-from ..schemas import register_lvgl_widget
 from ..types import LvType
 from . import Widget, WidgetType
 
@@ -28,9 +27,3 @@ class LedType(WidgetType):
 
 
 led_spec = LedType()
-
-
-@register_lvgl_widget(led_spec)
-async def led_to_code(w, config):
-    """Code generation for led widget - registered via decorator"""
-    return await led_spec.to_code(w, config)

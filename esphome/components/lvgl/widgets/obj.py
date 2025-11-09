@@ -1,5 +1,4 @@
 from ..defines import CONF_MAIN, CONF_OBJ, CONF_SCROLLBAR
-from ..schemas import register_lvgl_widget
 from ..types import WidgetType, lv_obj_t
 
 
@@ -18,9 +17,3 @@ class ObjType(WidgetType):
 
 
 obj_spec = ObjType()
-
-
-@register_lvgl_widget(obj_spec)
-async def obj_to_code(w, config):
-    """Code generation for obj widget - registered via decorator"""
-    return await obj_spec.to_code(w, config)

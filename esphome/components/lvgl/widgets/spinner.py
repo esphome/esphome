@@ -4,7 +4,6 @@ from esphome.cpp_generator import MockObjClass
 from ..defines import CONF_ARC_LENGTH, CONF_INDICATOR, CONF_MAIN, CONF_SPIN_TIME
 from ..lv_validation import lv_angle_degrees, lv_milliseconds
 from ..lvcode import lv_expr
-from ..schemas import register_lvgl_widget
 from ..types import LvType
 from . import Widget, WidgetType
 from .arc import CONF_ARC
@@ -42,9 +41,3 @@ class SpinnerType(WidgetType):
 
 
 spinner_spec = SpinnerType()
-
-
-@register_lvgl_widget(spinner_spec)
-async def spinner_to_code(w, config):
-    """Code generation for spinner widget - registered via decorator"""
-    return await spinner_spec.to_code(w, config)

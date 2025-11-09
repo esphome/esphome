@@ -14,7 +14,6 @@ from ..defines import (
 from ..helpers import lvgl_components_required
 from ..lv_validation import animated, lv_int, lv_text, option_string
 from ..lvcode import lv_add
-from ..schemas import register_lvgl_widget
 from ..types import LvSelect
 from . import WidgetType
 from .label import CONF_LABEL
@@ -83,9 +82,3 @@ class RollerType(WidgetType):
 
 
 roller_spec = RollerType()
-
-
-@register_lvgl_widget(roller_spec)
-async def roller_to_code(w, config):
-    """Code generation for roller widget - registered via decorator"""
-    return await roller_spec.to_code(w, config)

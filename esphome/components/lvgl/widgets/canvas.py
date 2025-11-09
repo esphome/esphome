@@ -34,13 +34,7 @@ from ..lv_validation import (
     size,
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
-from ..schemas import (
-    STYLE_PROPS,
-    STYLE_REMAP,
-    TEXT_SCHEMA,
-    point_schema,
-    register_lvgl_widget,
-)
+from ..schemas import STYLE_PROPS, STYLE_REMAP, TEXT_SCHEMA, point_schema
 from ..types import LvType, ObjUpdateAction, WidgetType
 from . import Widget, get_widgets
 from .line import lv_point_t, process_coord
@@ -91,12 +85,6 @@ class CanvasType(WidgetType):
 
 
 canvas_spec = CanvasType()
-
-
-@register_lvgl_widget(canvas_spec)
-async def canvas_to_code(w, config):
-    """Code generation for canvas widget - registered via decorator"""
-    return await canvas_spec.to_code(w, config)
 
 
 @automation.register_action(

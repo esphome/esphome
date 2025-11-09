@@ -10,7 +10,7 @@ from ..defines import (
     LV_LONG_MODES,
 )
 from ..lv_validation import lv_bool, lv_text
-from ..schemas import TEXT_SCHEMA, register_lvgl_widget
+from ..schemas import TEXT_SCHEMA
 from ..types import LvText, WidgetType
 from . import Widget
 
@@ -39,9 +39,3 @@ class LabelType(WidgetType):
 
 
 label_spec = LabelType()
-
-
-@register_lvgl_widget(label_spec)
-async def label_to_code(w, config):
-    """Code generation for label widget - registered via decorator"""
-    return await label_spec.to_code(w, config)

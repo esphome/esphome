@@ -22,7 +22,6 @@ from ..defines import (
 )
 from ..lv_validation import get_start_value, lv_angle_degrees, lv_float, lv_int
 from ..lvcode import lv, lv_expr, lv_obj
-from ..schemas import register_lvgl_widget
 from ..types import LvNumber, NumberType
 from . import Widget
 
@@ -85,9 +84,3 @@ class ArcType(NumberType):
 
 
 arc_spec = ArcType()
-
-
-@register_lvgl_widget(arc_spec)
-async def arc_to_code(w, config):
-    """Code generation for arc widget - registered via decorator"""
-    return await arc_spec.to_code(w, config)

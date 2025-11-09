@@ -17,7 +17,7 @@ from ..defines import (
 )
 from ..lv_validation import animated, lv_int, lv_pct
 from ..lvcode import lv, lv_assign, lv_expr, lv_obj, lv_Pvariable
-from ..schemas import container_schema, register_lvgl_widget
+from ..schemas import container_schema
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
 from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 from .obj import obj_spec
@@ -89,12 +89,6 @@ class TileviewType(WidgetType):
 
 
 tileview_spec = TileviewType()
-
-
-@register_lvgl_widget(tileview_spec)
-async def tileview_to_code(w, config):
-    """Code generation for tileview widget - registered via decorator"""
-    return await tileview_spec.to_code(w, config)
 
 
 def tile_select_validate(config):

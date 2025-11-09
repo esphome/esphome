@@ -13,7 +13,7 @@ from ..defines import (
     CONF_TEXTAREA_PLACEHOLDER,
 )
 from ..lv_validation import lv_bool, lv_int, lv_text
-from ..schemas import TEXT_SCHEMA, register_lvgl_widget
+from ..schemas import TEXT_SCHEMA
 from ..types import LvText
 from . import Widget, WidgetType
 
@@ -63,9 +63,3 @@ class TextareaType(WidgetType):
 
 
 textarea_spec = TextareaType()
-
-
-@register_lvgl_widget(textarea_spec)
-async def textarea_to_code(w, config):
-    """Code generation for textarea widget - registered via decorator"""
-    return await textarea_spec.to_code(w, config)

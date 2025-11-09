@@ -11,7 +11,6 @@ from ..defines import (
 )
 from ..lv_validation import animated, lv_int
 from ..lvcode import lv
-from ..schemas import register_lvgl_widget
 from ..types import LvNumber, NumberType
 from . import Widget
 
@@ -75,9 +74,3 @@ class BarType(NumberType):
 
 
 bar_spec = BarType()
-
-
-@register_lvgl_widget(bar_spec)
-async def bar_to_code(w, config):
-    """Code generation for bar widget - registered via decorator"""
-    return await bar_spec.to_code(w, config)

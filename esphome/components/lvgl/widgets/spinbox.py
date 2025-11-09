@@ -16,7 +16,6 @@ from ..defines import (
 )
 from ..lv_validation import lv_bool, lv_float
 from ..lvcode import lv
-from ..schemas import register_lvgl_widget
 from ..types import LvNumber, ObjUpdateAction
 from . import Widget, WidgetType, get_widgets
 from .label import CONF_LABEL
@@ -134,12 +133,6 @@ class SpinboxType(WidgetType):
 
 
 spinbox_spec = SpinboxType()
-
-
-@register_lvgl_widget(spinbox_spec)
-async def spinbox_to_code(w, config):
-    """Code generation for spinbox widget - registered via decorator"""
-    return await spinbox_spec.to_code(w, config)
 
 
 @automation.register_action(

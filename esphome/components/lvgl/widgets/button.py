@@ -1,7 +1,6 @@
 from esphome.const import CONF_BUTTON
 
 from ..defines import CONF_MAIN
-from ..schemas import register_lvgl_widget
 from ..types import LvBoolean, WidgetType
 
 lv_button_t = LvBoolean("lv_btn_t")
@@ -19,9 +18,3 @@ class ButtonType(WidgetType):
 
 
 button_spec = ButtonType()
-
-
-@register_lvgl_widget(button_spec)
-async def button_to_code(w, config):
-    """Code generation for button widget - registered via decorator"""
-    return await button_spec.to_code(w, config)

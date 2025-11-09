@@ -7,7 +7,6 @@ from ..defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
 from ..helpers import lvgl_components_required
 from ..lv_validation import lv_image_list, lv_milliseconds
 from ..lvcode import lv
-from ..schemas import register_lvgl_widget
 from ..types import LvType, ObjUpdateAction
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
@@ -73,12 +72,6 @@ class AnimimgType(WidgetType):
 
 
 animimg_spec = AnimimgType()
-
-
-@register_lvgl_widget(animimg_spec)
-async def animimg_to_code(w, config):
-    """Code generation for animimg widget - registered via decorator"""
-    return await animimg_spec.to_code(w, config)
 
 
 @automation.register_action(

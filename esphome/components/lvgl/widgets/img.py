@@ -12,7 +12,6 @@ from ..defines import (
 )
 from ..lv_validation import lv_angle, lv_bool, lv_image, size, zoom
 from ..lvcode import lv
-from ..schemas import register_lvgl_widget
 from ..types import lv_img_t
 from . import Widget, WidgetType
 from .label import CONF_LABEL
@@ -85,9 +84,3 @@ class ImgType(WidgetType):
 
 
 img_spec = ImgType()
-
-
-@register_lvgl_widget(img_spec)
-async def img_to_code(w, config):
-    """Code generation for img widget - registered via decorator"""
-    return await img_spec.to_code(w, config)

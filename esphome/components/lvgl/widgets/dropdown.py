@@ -16,7 +16,7 @@ from ..defines import (
 from ..helpers import lvgl_components_required
 from ..lv_validation import lv_int, lv_text, option_string
 from ..lvcode import LocalVariable, lv, lv_add, lv_expr
-from ..schemas import part_schema, register_lvgl_widget
+from ..schemas import part_schema
 from ..types import LvCompound, LvSelect, LvType, lv_obj_t
 from . import Widget, WidgetType, set_obj_properties
 from .label import CONF_LABEL
@@ -91,9 +91,3 @@ class DropdownType(WidgetType):
 
 
 dropdown_spec = DropdownType()
-
-
-@register_lvgl_widget(dropdown_spec)
-async def dropdown_to_code(w, config):
-    """Code generation for dropdown widget - registered via decorator"""
-    return await dropdown_spec.to_code(w, config)

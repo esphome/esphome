@@ -5,7 +5,7 @@ from esphome.core import Lambda
 
 from ..defines import CONF_MAIN, call_lambda
 from ..lvcode import lv_add
-from ..schemas import point_schema, register_lvgl_widget
+from ..schemas import point_schema
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType
 
@@ -50,9 +50,3 @@ class LineType(WidgetType):
 
 
 line_spec = LineType()
-
-
-@register_lvgl_widget(line_spec)
-async def line_to_code(w, config):
-    """Code generation for line widget - registered via decorator"""
-    return await line_spec.to_code(w, config)
