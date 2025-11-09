@@ -440,3 +440,45 @@ This document provides essential context for AI models interacting with this pro
     *   **Python:** When adding a new Python dependency, add it to the appropriate `requirements*.txt` file and `pyproject.toml`.
     *   **C++ / PlatformIO:** When adding a new C++ dependency, add it to `platformio.ini` and use `cg.add_library`.
     *   **Build Flags:** Use `cg.add_build_flag(...)` to add compiler flags.
+
+## 8. Public API and Breaking Changes
+
+*   **Public C++ API:**
+    *   **Components**: Only documented features at [esphome.io](https://esphome.io) are public API. Undocumented `public` members are internal.
+    *   **Core/Base Classes** (`esphome/core/`, `Component`, `Sensor`, etc.): All `public` members are public API.
+    *   **Components with Global Accessors** (`global_api_server`, etc.): All `public` members are public API (except config setters).
+
+*   **Public Python API:**
+    *   All documented configuration options at [esphome.io](https://esphome.io) are public API.
+    *   Python code in `esphome/core/` actively used by existing core components is considered stable API.
+    *   Other Python code is internal unless explicitly documented for external component use.
+
+*   **Breaking Changes Policy:**
+    *   Aim for **6-month deprecation window** when possible
+    *   Clean breaks allowed for: signature changes, deep refactorings, resource constraints
+    *   Must document migration path in PR description (generates release notes)
+    *   Blog post required for core/base class changes or significant architectural changes
+    *   Full details: https://developers.esphome.io/contributing/code/#public-api-and-breaking-changes
+
+*   **Breaking Change Checklist:**
+    - [ ] Clear justification (RAM/flash savings, architectural improvement)
+    - [ ] Explored non-breaking alternatives
+    - [ ] Added deprecation warnings if possible (use `ESPDEPRECATED` macro for C++)
+    - [ ] Documented migration path in PR description with before/after examples
+    - [ ] Updated all internal usage and esphome-docs
+    - [ ] Tested backward compatibility during deprecation period
+
+*   **Deprecation Pattern (C++):**
+    ```cpp
+    // Remove before 2026.6.0
+    ESPDEPRECATED("Use new_method() instead. Removed in 2026.6.0", "2025.12.0")
+    void old_method() { this->new_method(); }
+    ```
+
+*   **Deprecation Pattern (Python):**
+    ```python
+    # Remove before 2026.6.0
+    if CONF_OLD_KEY in config:
+        _LOGGER.warning(f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0")
+        config[CONF_NEW_KEY] = config.pop(CONF_OLD_KEY)  # Auto-migrate
+    ```
