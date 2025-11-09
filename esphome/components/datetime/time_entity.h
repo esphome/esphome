@@ -103,7 +103,7 @@ template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Pare
  public:
   TEMPLATABLE_VALUE(ESPTime, time)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
 
     if (this->time_.has_value()) {

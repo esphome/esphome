@@ -174,7 +174,7 @@ static uint8_t calc_checksum(void *data, size_t size) {
 static int get_firmware_int(const char *version_string) {
   std::string version_str = version_string;
   if (version_str[0] == 'v') {
-    version_str = version_str.substr(1);
+    version_str.erase(0, 1);
   }
   version_str.erase(remove(version_str.begin(), version_str.end(), '.'), version_str.end());
   int version_integer = stoi(version_str);

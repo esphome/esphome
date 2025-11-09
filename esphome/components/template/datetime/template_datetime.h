@@ -14,7 +14,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateDateTime : public datetime::DateTimeEntity, public PollingComponent {
+class TemplateDateTime final : public datetime::DateTimeEntity, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 

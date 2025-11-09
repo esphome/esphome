@@ -143,7 +143,7 @@ class PN532OnFinishedWriteTrigger : public Trigger<> {
 
 template<typename... Ts> class PN532IsWritingCondition : public Condition<Ts...>, public Parented<PN532> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_writing(); }
+  bool check(const Ts &...x) override { return this->parent_->is_writing(); }
 };
 
 }  // namespace pn532

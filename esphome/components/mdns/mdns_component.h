@@ -76,7 +76,6 @@ class MDNSComponent : public Component {
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
 #endif
-  std::string hostname_;
   void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services);
 };
 
