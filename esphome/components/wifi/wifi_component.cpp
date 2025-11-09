@@ -984,15 +984,13 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
         return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;
       }
-#else
-      // Fast connect disabled: do normal retries
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
-        return WiFiRetryPhase::INITIAL_CONNECT;  // Keep retrying
-      }
-#endif
-
-      // No more fast_connect APs (or retries exhausted), fall back to scan
+      // No more fast_connect APs, fall back to scan
       return WiFiRetryPhase::SCAN_CONNECTING;
+#else
+      // Fast connect disabled: INITIAL_CONNECT phase should not be reached
+      // (we skip straight to scanning when fast_connect is disabled)
+      return WiFiRetryPhase::SCAN_CONNECTING;
+#endif
 
 #ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
