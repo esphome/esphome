@@ -446,7 +446,7 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
   // - It then finds which sta_[i] config matches scan_result_[0]
   // - Sets selected_sta_index_ = i to record that matching config
-  // This sync holds until scan_result_ is cleared (e.g., after connection or in reset_for_next_ap_attempt_())
+  // This sync holds until scan_result_ is cleared (e.g., after connection or when advancing to next AP)
   if (!this->scan_result_.empty()) {
     // Override with scan data - network is visible
     if (!this->scan_result_[0].get_matches()) {
@@ -1031,9 +1031,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   switch (new_phase) {
 #ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-      // Move to next configured AP
+      // Move to next configured AP - clear old scan data so new AP is tried with config only
       this->selected_sta_index_++;
-      this->reset_for_next_ap_attempt_();
+      this->num_retried_ = 0;
+      this->scan_result_.clear();
       break;
 #endif
 
@@ -1126,9 +1127,10 @@ void WiFiComponent::retry_connect() {
 #ifdef USE_WIFI_FAST_CONNECT
     if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
       // Fast connect: always advance to next AP (no retries per AP)
+      // Clear old scan data so new AP is tried with config only
       this->selected_sta_index_++;
-      this->reset_for_next_ap_attempt_();
       this->num_retried_ = 0;
+      this->scan_result_.clear();
       advanced_to_next_target = true;
       ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
     } else
