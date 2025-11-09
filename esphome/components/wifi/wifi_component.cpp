@@ -1039,14 +1039,16 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
 
     case WiFiRetryPhase::SCAN_CONNECTING:
       // Transitioning to scan-based connection
-      if (old_phase == WiFiRetryPhase::INITIAL_CONNECT
 #ifdef USE_WIFI_FAST_CONNECT
-          || old_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS
-#endif
-      ) {
+      if (old_phase == WiFiRetryPhase::INITIAL_CONNECT || old_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
         ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
         this->selected_sta_index_ = 0;
       }
+#else
+      if (old_phase == WiFiRetryPhase::INITIAL_CONNECT) {
+        this->selected_sta_index_ = 0;
+      }
+#endif
       // Trigger scan if we don't have scan results OR if looping back from SCAN_WITH_HIDDEN
       if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN ||
           old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
