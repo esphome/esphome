@@ -1137,13 +1137,16 @@ void WiFiComponent::retry_connect() {
   }
 #endif
 
-  // SCAN_WITH_HIDDEN: advance to next configured SSID if staying in phase
-  if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && next_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN) {
-    // Advance to next configured SSID
-    this->selected_sta_index_++;
-    this->reset_for_next_ap_attempt_();
-    this->num_retried_ = 0;
-    ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+  // SCAN_WITH_HIDDEN: advance to next configured SSID if we've exhausted retries and phase stays the same
+  if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && next_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN &&
+      this->num_retried_ + 1 >= WIFI_RETRY_COUNT_HIDDEN) {
+    // Exhausted retries on current SSID, advance to next configured SSID
+    if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
+      this->selected_sta_index_++;
+      this->reset_for_next_ap_attempt_();
+      this->num_retried_ = 0;
+      ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    }
   }
 
   // Track current indices for detecting changes
