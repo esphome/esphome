@@ -251,7 +251,7 @@ INPUTER_SCHEMA = BASE_WITH_AUTOMATION(Inputer).extend(
         {
             cv.GenerateID(): cv.declare_id(Inputer),
             cv.GenerateID(CONF_CAMERA_SENSOR_ID): cv.use_id(Sensor),
-            cv.Optional(CONF_RETRIES, default=10): cv.int_range(0, 100),
+            cv.Optional(CONF_RETRIES, default=100): cv.Any(0, 100),
         }
     )
 )
