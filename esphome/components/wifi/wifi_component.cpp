@@ -63,10 +63,10 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   }
 }
 
-static constexpr uint8_t WIFI_RETRY_COUNT_STANDARD = 3;
-static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 5;
-static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;    // 1 attempt in fast_connect mode
-static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 2;  // 2 attempts before trying next BSSID
+static constexpr uint8_t WIFI_RETRY_COUNT_SCAN_CONNECTING = 2;  // 2 attempts before trying next BSSID
+static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 3;           // 3 attempts with hidden flag
+static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;     // 1 attempt in fast_connect mode
+static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 2;   // 2 attempts before trying next BSSID
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
@@ -75,12 +75,13 @@ static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
       return WIFI_RETRY_COUNT_FAST_CONNECT;
 #endif
+    case WiFiRetryPhase::SCAN_CONNECTING:
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      return WIFI_RETRY_COUNT_BSSID_FALLBACK;
+      return WIFI_RETRY_COUNT_SCAN_CONNECTING;
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
       return WIFI_RETRY_COUNT_HIDDEN;
     default:
-      return WIFI_RETRY_COUNT_STANDARD;
+      return WIFI_RETRY_COUNT_SCAN_CONNECTING;
   }
 }
 
@@ -89,6 +90,25 @@ static void apply_scan_result_to_params(WiFiAP &params, const WiFiScanResult &sc
   params.set_ssid(scan.get_ssid());
   params.set_bssid(scan.get_bssid());
   params.set_channel(scan.get_channel());
+}
+
+/// Check if there's another BSSID with the same SSID in scan results (read-only check)
+/// Returns true if found, false otherwise (does not modify state)
+bool WiFiComponent::has_next_bssid_with_same_ssid_() const {
+  if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size()) {
+    return false;
+  }
+
+  const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
+
+  // Search for next AP with same SSID
+  for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
+    if (this->scan_result_[i].get_ssid() == current_ssid) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /// Advance to the next BSSID with the same SSID in scan results
@@ -958,22 +978,13 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 #endif
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_SCAN_CONNECTING) {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
       }
 
       // Auth failure + have other same-SSID APs available? Try mesh fallback
-      if (wifi_sta_connect_auth_failed() && !this->scan_result_.empty() &&
-          this->scan_result_index_ < this->scan_result_.size()) {
-        // scan_result_ contains multiple SSIDs - search for next AP with same SSID
-        const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
-
-        // Look for next AP with same SSID (mesh fallback)
-        for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-          if (this->scan_result_[i].get_ssid() == current_ssid) {
-            return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;
-          }
-        }
+      if (wifi_sta_connect_auth_failed() && this->has_next_bssid_with_same_ssid_()) {
+        return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;
       }
 
       // No mesh fallback available, try with hidden flag
@@ -1033,7 +1044,7 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
 #endif
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      // Transitioning to scan-based connection from fast_connect phases
+      // Transitioning to scan-based connection
       if (this->retry_phase_ == WiFiRetryPhase::INITIAL_CONNECT
 #ifdef USE_WIFI_FAST_CONNECT
           || this->retry_phase_ == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS
@@ -1043,8 +1054,9 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         this->selected_sta_index_ = 0;
         this->scan_result_index_ = 0;
       }
-      // Trigger scan if we don't have scan results
-      if (this->scan_result_.empty()) {
+      // Trigger scan if we don't have scan results OR if looping back from SCAN_WITH_HIDDEN
+      if (this->scan_result_.empty() || this->retry_phase_ == WiFiRetryPhase::SCAN_WITH_HIDDEN ||
+          this->retry_phase_ == WiFiRetryPhase::RESTARTING_ADAPTER) {
         this->start_scanning();
       }
       break;
