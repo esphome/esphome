@@ -65,9 +65,15 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
 
 static constexpr uint8_t WIFI_RETRY_COUNT_STANDARD = 3;
 static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 5;
+static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;  // No retries in fast_connect mode
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
+#ifdef USE_WIFI_FAST_CONNECT
+    case WiFiRetryPhase::INITIAL_CONNECT:
+    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
+      return WIFI_RETRY_COUNT_FAST_CONNECT;
+#endif
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
       return WIFI_RETRY_COUNT_HIDDEN;
     default:
@@ -896,31 +902,28 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 
   switch (this->retry_phase_) {
     case WiFiRetryPhase::INITIAL_CONNECT:
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
-        return WiFiRetryPhase::INITIAL_CONNECT;  // Keep retrying
-      }
-
 #ifdef USE_WIFI_FAST_CONNECT
-      // Fast connect enabled: try next configured AP or fall back to scan
+      // Fast connect enabled: no retries, just try next configured AP or fall back to scan
       if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
         return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;
       }
+#else
+      // Fast connect disabled: do normal retries
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
+        return WiFiRetryPhase::INITIAL_CONNECT;  // Keep retrying
+      }
 #endif
 
-      // No more fast_connect APs (or fast_connect disabled), fall back to scan
+      // No more fast_connect APs (or retries exhausted), fall back to scan
       return WiFiRetryPhase::SCAN_CONNECTING;
 
 #ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
-        return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Keep retrying
-      }
-
-      // Can we try next configured AP?
+      // Fast connect: no retries, just try next configured AP or fall back to scan
       if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
         return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Move to next AP
       } else {
-        // Exhausted, need to scan
+        // Exhausted all configured APs, fall back to scan
         return WiFiRetryPhase::SCAN_CONNECTING;
       }
 #endif
