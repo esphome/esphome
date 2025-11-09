@@ -184,11 +184,23 @@ void WiFiComponent::loop() {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
         if (millis() - this->action_started_ > 5000) {
 #ifdef USE_WIFI_FAST_CONNECT
-          // Safety check: Ensure selected_sta_index_ is valid before retrying
-          // (should already be set by retry_connect(), but check for robustness)
-          this->reset_selected_ap_to_first_if_invalid_();
-          WiFiAP params = this->build_wifi_ap_from_selected_();
-          this->start_connecting(params, false);
+          // When fast_connect is exhausted, behave like non-fast_connect mode
+          if (this->fast_connect_exhausted_) {
+            if (this->retry_hidden_) {
+              this->reset_selected_ap_to_first_if_invalid_();
+              WiFiAP params = this->build_wifi_ap_from_selected_();
+              this->start_connecting(params, false);
+            } else {
+              this->start_scanning();
+            }
+          } else {
+            // Still in fast_connect mode - always try connecting with config data
+            // Safety check: Ensure selected_sta_index_ is valid before retrying
+            // (should already be set by retry_connect(), but check for robustness)
+            this->reset_selected_ap_to_first_if_invalid_();
+            WiFiAP params = this->build_wifi_ap_from_selected_();
+            this->start_connecting(params, false);
+          }
 #else
           if (this->retry_hidden_) {
             this->reset_selected_ap_to_first_if_invalid_();
@@ -815,24 +827,31 @@ void WiFiComponent::check_connecting_finished() {
   this->retry_connect();
 }
 
-bool WiFiComponent::try_next_ap_with_same_ssid_() {
+void WiFiComponent::select_next_ap_with_same_ssid_() {
   // MESH NETWORK AP FALLBACK
-  // Try to connect to the next available AP with the same SSID after authentication failure.
+  // Select the next available AP with the same SSID after authentication failure.
   // This is used for mesh networks where multiple APs share the same SSID.
   //
   // Preconditions:
   // - scan_result_ must be populated (from initial scan or triggered scan)
   // - scan_result_index_ points to current/last tried AP
-  // - Must have at least one more scan result to try
+  //
+  // Postconditions:
+  // - Always clears the auth failure flag
+  // - If next AP found: scan_result_index_ points to it, num_retried_ reset to 0
+  // - If no next AP: scan_result_index_ unchanged
+
+  // Always clear the auth failure flag - we're handling it now
+  wifi_sta_clear_auth_failed();
 
   // Check if scan results are available and we haven't exhausted them
   if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size() - 1) {
-    return false;
+    return;
   }
 
   const WiFiAP *current_config = this->get_selected_sta_();
   if (!current_config) {
-    return false;
+    return;
   }
 
   const std::string &current_ssid = current_config->get_ssid();
@@ -852,8 +871,9 @@ bool WiFiComponent::try_next_ap_with_same_ssid_() {
       continue;
     }
 
-    // Found next AP with same SSID - update index and reset retry counter
+    // Found next AP with same SSID - update scan_result_index_ and reset retry counter
     // Note: selected_sta_index_ stays the same (same SSID = same config entry)
+    // Connection will be attempted at the single connection point in retry_connect()
     this->scan_result_index_ = i;
     this->num_retried_ = 0;  // Give new AP fresh retry attempts
 
@@ -863,17 +883,24 @@ bool WiFiComponent::try_next_ap_with_same_ssid_() {
 
     ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s' (%s)") " RSSI: %d dB", scan_res.get_ssid().c_str(),
              bssid_s, scan_res.get_rssi());
-
-    // Build connection parameters using the specific scan result index
-    // selected_sta_index_ already points to correct config (same SSID)
-    WiFiAP params = this->build_wifi_ap_from_selected_(i);
-    this->start_connecting(params, this->retry_hidden_);
-    return true;  // Successfully moved to next AP
+    return;
   }
 
   // No more APs with same SSID found
   ESP_LOGD(TAG, "No more APs with SSID " LOG_SECRET("'%s'") " to try", current_ssid.c_str());
-  return false;
+}
+
+void WiFiComponent::retry_with_hidden_or_restart_() {
+  // Normal scan-based retry logic: try hidden networks, then restart if still failing
+  if (this->num_retried_ > RETRY_THRESHOLD_RESTART) {
+    // If retry failed for more than threshold times, restart adapter to clear any stuck state
+    this->restart_adapter();
+  } else {
+    // Try hidden networks after initial retries
+    ESP_LOGD(TAG, "Retrying with hidden networks");
+    this->retry_hidden_ = true;
+    this->num_retried_++;
+  }
 }
 
 void WiFiComponent::retry_connect() {
@@ -900,13 +927,12 @@ void WiFiComponent::retry_connect() {
   //
   // If no scan results available (e.g., fast_connect mode), fallback is deferred until after
   // all configured networks are tried, at which point a scan will be triggered (see below).
+  //
+  // This only updates scan_result_index_ - connection happens at single point below
   if (wifi_sta_connect_auth_failed() && this->num_retried_ >= RETRY_THRESHOLD_AUTH_FALLBACK) {
-    if (this->try_next_ap_with_same_ssid_()) {
-      wifi_sta_clear_auth_failed();  // Clear flag after successful fallback
-      return;                        // Successfully moved to next AP, don't continue to network cycling
-    }
-    // No more APs with same SSID to try, clear flag and continue with normal retry logic
-    wifi_sta_clear_auth_failed();
+    // Select next AP with same SSID (updates scan_result_index_ if found)
+    // Also clears the auth failure flag - we've handled it
+    this->select_next_ap_with_same_ssid_();
   }
 
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
@@ -933,7 +959,8 @@ void WiFiComponent::retry_connect() {
         this->fast_connect_exhausted_ = true;
         this->selected_sta_index_ = 0;
         this->num_retried_ = 0;
-        this->start_scanning();  // Use normal scan-based flow from now on
+        // Don't call start_scanning() here - let state machine handle it in loop()
+        // State will transition to COOLDOWN, then SCANNING will be triggered automatically
       } else {
         // Try next configured network
         this->selected_sta_index_++;
@@ -941,27 +968,11 @@ void WiFiComponent::retry_connect() {
       }
     } else {
       // Fast connect exhausted, use normal retry logic (same as non-fast_connect)
-      if (this->num_retried_ > RETRY_THRESHOLD_RESTART) {
-        // If retry failed for more than 5 times, let's restart STA
-        this->restart_adapter();
-      } else {
-        // Try hidden networks after 3 failed retries
-        ESP_LOGD(TAG, "Retrying with hidden networks");
-        this->retry_hidden_ = true;
-        this->num_retried_++;
-      }
+      this->retry_with_hidden_or_restart_();
     }
 #else
     // Normal path (non-fast_connect): use scan-based retries with hidden network support
-    if (this->num_retried_ > RETRY_THRESHOLD_RESTART) {
-      // If retry failed for more than 5 times, let's restart STA
-      this->restart_adapter();
-    } else {
-      // Try hidden networks after 3 failed retries
-      ESP_LOGD(TAG, "Retrying with hidden networks");
-      this->retry_hidden_ = true;
-      this->num_retried_++;
-    }
+    this->retry_with_hidden_or_restart_();
 #endif
   } else {
     this->num_retried_++;
@@ -970,7 +981,11 @@ void WiFiComponent::retry_connect() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
-    WiFiAP params = this->build_wifi_ap_from_selected_();
+
+    // Single connection point - reads state variables set by retry logic above
+    // When scan results available, use scan_result_index_ (set by try_next_ap_with_same_ssid_() or wifi_scan_done())
+    // When no scan results, build_wifi_ap_from_selected_() will use config-only connection
+    WiFiAP params = this->build_wifi_ap_from_selected_(this->scan_result_index_);
     this->start_connecting(params, true);
     return;
   }

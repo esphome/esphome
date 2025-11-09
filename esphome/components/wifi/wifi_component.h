@@ -342,7 +342,8 @@ class WiFiComponent : public Component {
 
   void print_connect_params_();
   WiFiAP build_wifi_ap_from_selected_(optional<uint8_t> scan_result_index = {}) const;
-  bool try_next_ap_with_same_ssid_();
+  void select_next_ap_with_same_ssid_();
+  void retry_with_hidden_or_restart_();
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
