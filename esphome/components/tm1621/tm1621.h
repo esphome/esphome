@@ -3,13 +3,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/components/display/display.h"
 
 namespace esphome {
 namespace tm1621 {
 
 class TM1621Display;
 
-using tm1621_writer_t = std::function<void(TM1621Display &)>;
+using tm1621_writer_t = display::DisplayWriter<TM1621Display>;
 
 class TM1621Display : public PollingComponent {
  public:
@@ -59,7 +60,7 @@ class TM1621Display : public PollingComponent {
   GPIOPin *cs_pin_;
   GPIOPin *read_pin_;
   GPIOPin *write_pin_;
-  optional<tm1621_writer_t> writer_{};
+  tm1621_writer_t writer_{};
   char row_[2][12];
   uint8_t state_;
   uint8_t device_;

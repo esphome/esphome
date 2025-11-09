@@ -102,7 +102,7 @@ CONFIG_SCHEMA = cv.Any(
             str: PACKAGE_SCHEMA,
         }
     ),
-    cv.ensure_list(PACKAGE_SCHEMA),
+    [PACKAGE_SCHEMA],
 )
 
 
