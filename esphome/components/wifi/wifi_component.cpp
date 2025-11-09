@@ -42,8 +42,9 @@ namespace wifi {
 
 static const char *const TAG = "wifi";
 
-// Extern declaration for platform-specific authentication failure flag
-extern bool s_sta_connect_auth_failed;
+// Platform-specific functions to access authentication failure flag
+bool wifi_sta_connect_auth_failed();
+void wifi_sta_clear_auth_failed();
 
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
@@ -869,13 +870,13 @@ void WiFiComponent::retry_connect() {
 
   // Try next AP with same SSID if authentication failed after retries
   // This handles rogue APs and mesh network issues while still retrying same AP for transient failures
-  if (s_sta_connect_auth_failed && this->num_retried_ >= 3) {
+  if (wifi_sta_connect_auth_failed() && this->num_retried_ >= 3) {
     if (this->try_next_ap_with_same_ssid_()) {
-      s_sta_connect_auth_failed = false;  // Clear flag after successful fallback
-      return;                             // Successfully moved to next AP, don't continue to network cycling
+      wifi_sta_clear_auth_failed();  // Clear flag after successful fallback
+      return;                        // Successfully moved to next AP, don't continue to network cycling
     }
     // If no more APs with same SSID, clear flag and fall through to network cycling
-    s_sta_connect_auth_failed = false;
+    wifi_sta_clear_auth_failed();
   }
 
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&

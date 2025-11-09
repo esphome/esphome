@@ -61,6 +61,9 @@ static bool s_sta_connect_auth_failed = false;  // NOLINT(cppcoreguidelines-avoi
 static bool s_sta_connecting = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_wifi_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+bool wifi_sta_connect_auth_failed() { return s_sta_connect_auth_failed; }
+void wifi_sta_clear_auth_failed() { s_sta_connect_auth_failed = false; }
+
 struct IDFWiFiEvent {
   esp_event_base_t event_base;
   int32_t event_id;

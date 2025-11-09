@@ -23,6 +23,9 @@ static const char *const TAG = "wifi_lt";
 static bool s_sta_connecting = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_auth_failed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+bool wifi_sta_connect_auth_failed() { return s_sta_connect_auth_failed; }
+void wifi_sta_clear_auth_failed() { s_sta_connect_auth_failed = false; }
+
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
   bool current_sta = current_mode & 0b01;
