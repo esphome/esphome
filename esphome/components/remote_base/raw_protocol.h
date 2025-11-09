@@ -44,19 +44,18 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
  public:
   void set_code_template(RawTimings (*func)(Ts...)) {
     this->code_.func = func;
-    this->static_ = false;
+    this->len_ = -1;
   }
   void set_code_static(const int32_t *code, size_t len) {
-    this->code_.static_code.data = code;
-    this->code_.static_code.len = len;
-    this->static_ = true;
+    this->code_.data = code;
+    this->len_ = len;
   }
   TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    if (this->static_) {
-      for (size_t i = 0; i < this->code_.static_code.len; i++) {
-        auto val = this->code_.static_code.data[i];
+    if (this->len_ >= 0) {
+      for (size_t i = 0; i < static_cast<size_t>(this->len_); i++) {
+        auto val = this->code_.data[i];
         if (val < 0) {
           dst->space(static_cast<uint32_t>(-val));
         } else {
@@ -70,13 +69,10 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
   }
 
  protected:
-  bool static_{true};
+  ssize_t len_{-1};
   union Code {
     RawTimings (*func)(Ts...);
-    struct {
-      const int32_t *data;
-      size_t len;
-    } static_code;
+    const int32_t *data;
   } code_;
 };
 
