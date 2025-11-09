@@ -94,6 +94,22 @@ enum class WiFiSTAConnectStatus : int {
   ERROR_CONNECT_FAILED,
 };
 
+/// Tracks the current retry strategy/phase for WiFi connection attempts
+enum class WiFiRetryPhase : uint8_t {
+  /// Initial connection attempt (varies based on fast_connect setting)
+  INITIAL_CONNECT,
+  /// Fast connect mode: cycling through configured APs (config-only, no scan)
+  FAST_CONNECT_CYCLING_APS,
+  /// Scan-based: connecting to best AP from scan results
+  SCAN_CONNECTING,
+  /// Mesh fallback: trying next BSSID with same SSID after auth failure
+  SCAN_NEXT_SAME_SSID,
+  /// Retrying with hidden network flag
+  SCAN_WITH_HIDDEN,
+  /// Restarting WiFi adapter to clear stuck state
+  RESTARTING_ADAPTER,
+};
+
 /// Struct for setting static IPs in WiFiComponent.
 struct ManualIP {
   network::IPAddress static_ip;
@@ -342,6 +358,12 @@ class WiFiComponent : public Component {
 
   void print_connect_params_();
   WiFiAP build_wifi_ap_from_selected_() const;
+  WiFiAP build_params_for_current_phase_();
+
+  /// Determine next retry phase based on current state and failure conditions
+  WiFiRetryPhase determine_next_phase_();
+  /// Transition to a new retry phase with logging
+  void transition_to_phase_(WiFiRetryPhase new_phase);
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
@@ -443,6 +465,7 @@ class WiFiComponent : public Component {
   // Group all 8-bit values together
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
+  WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
