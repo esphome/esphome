@@ -980,28 +980,14 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
   switch (this->retry_phase_) {
     case WiFiRetryPhase::INITIAL_CONNECT:
 #ifdef USE_WIFI_FAST_CONNECT
-      // Fast connect enabled: no retries, just try next configured AP or fall back to scan
-      if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-        return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;
-      }
-      // No more fast_connect APs, fall back to scan
-      return WiFiRetryPhase::SCAN_CONNECTING;
-#else
-      // Fast connect disabled: INITIAL_CONNECT phase should not be reached
-      // (we skip straight to scanning when fast_connect is disabled)
-      return WiFiRetryPhase::SCAN_CONNECTING;
-#endif
-
-#ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-      // Fast connect: no retries, just try next configured AP or fall back to scan
+      // INITIAL_CONNECT and FAST_CONNECT_CYCLING_APS: no retries, try next AP or fall back to scan
       if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
         return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Move to next AP
-      } else {
-        // Exhausted all configured APs, fall back to scan
-        return WiFiRetryPhase::SCAN_CONNECTING;
       }
 #endif
+      // No more APs to try, fall back to scan
+      return WiFiRetryPhase::SCAN_CONNECTING;
 
     case WiFiRetryPhase::SCAN_CONNECTING:
       // If scan found no matching networks, skip to hidden network mode
