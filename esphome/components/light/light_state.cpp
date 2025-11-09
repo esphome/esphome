@@ -1,9 +1,8 @@
+#include "light_state.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
-
 #include "light_output.h"
-#include "light_state.h"
 #include "transformers.h"
 
 namespace esphome {

@@ -10,165 +10,104 @@ StaticVector<Controller *, CONTROLLER_REGISTRY_MAX> ControllerRegistry::controll
 
 void ControllerRegistry::register_controller(Controller *controller) { controllers.push_back(controller); }
 
-#ifdef USE_BINARY_SENSOR
-void ControllerRegistry::notify_binary_sensor_update(binary_sensor::BinarySensor *obj) {
-  for (auto *controller : controllers) {
-    controller->on_binary_sensor_update(obj);
+// Macro for standard registry notification dispatch - calls on_<entity_name>_update()
+#define CONTROLLER_REGISTRY_NOTIFY(entity_type, entity_name) \
+  void ControllerRegistry::notify_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+    for (auto *controller : controllers) { \
+      controller->on_##entity_name##_update(obj); \
+    } \
   }
-}
+
+// Macro for entities where controller method has no "_update" suffix (Event, Update)
+#define CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(entity_type, entity_name) \
+  void ControllerRegistry::notify_##entity_name(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+    for (auto *controller : controllers) { \
+      controller->on_##entity_name(obj); \
+    } \
+  }
+
+#ifdef USE_BINARY_SENSOR
+CONTROLLER_REGISTRY_NOTIFY(binary_sensor::BinarySensor, binary_sensor)
 #endif
 
 #ifdef USE_FAN
-void ControllerRegistry::notify_fan_update(fan::Fan *obj) {
-  for (auto *controller : controllers) {
-    controller->on_fan_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(fan::Fan, fan)
 #endif
 
 #ifdef USE_LIGHT
-void ControllerRegistry::notify_light_update(light::LightState *obj) {
-  for (auto *controller : controllers) {
-    controller->on_light_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(light::LightState, light)
 #endif
 
 #ifdef USE_SENSOR
-void ControllerRegistry::notify_sensor_update(sensor::Sensor *obj) {
-  for (auto *controller : controllers) {
-    controller->on_sensor_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(sensor::Sensor, sensor)
 #endif
 
 #ifdef USE_SWITCH
-void ControllerRegistry::notify_switch_update(switch_::Switch *obj) {
-  for (auto *controller : controllers) {
-    controller->on_switch_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(switch_::Switch, switch)
 #endif
 
 #ifdef USE_COVER
-void ControllerRegistry::notify_cover_update(cover::Cover *obj) {
-  for (auto *controller : controllers) {
-    controller->on_cover_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(cover::Cover, cover)
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void ControllerRegistry::notify_text_sensor_update(text_sensor::TextSensor *obj) {
-  for (auto *controller : controllers) {
-    controller->on_text_sensor_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(text_sensor::TextSensor, text_sensor)
 #endif
 
 #ifdef USE_CLIMATE
-void ControllerRegistry::notify_climate_update(climate::Climate *obj) {
-  for (auto *controller : controllers) {
-    controller->on_climate_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(climate::Climate, climate)
 #endif
 
 #ifdef USE_NUMBER
-void ControllerRegistry::notify_number_update(number::Number *obj) {
-  for (auto *controller : controllers) {
-    controller->on_number_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(number::Number, number)
 #endif
 
 #ifdef USE_DATETIME_DATE
-void ControllerRegistry::notify_date_update(datetime::DateEntity *obj) {
-  for (auto *controller : controllers) {
-    controller->on_date_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(datetime::DateEntity, date)
 #endif
 
 #ifdef USE_DATETIME_TIME
-void ControllerRegistry::notify_time_update(datetime::TimeEntity *obj) {
-  for (auto *controller : controllers) {
-    controller->on_time_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(datetime::TimeEntity, time)
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-void ControllerRegistry::notify_datetime_update(datetime::DateTimeEntity *obj) {
-  for (auto *controller : controllers) {
-    controller->on_datetime_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(datetime::DateTimeEntity, datetime)
 #endif
 
 #ifdef USE_TEXT
-void ControllerRegistry::notify_text_update(text::Text *obj) {
-  for (auto *controller : controllers) {
-    controller->on_text_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(text::Text, text)
 #endif
 
 #ifdef USE_SELECT
-void ControllerRegistry::notify_select_update(select::Select *obj) {
-  for (auto *controller : controllers) {
-    controller->on_select_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(select::Select, select)
 #endif
 
 #ifdef USE_LOCK
-void ControllerRegistry::notify_lock_update(lock::Lock *obj) {
-  for (auto *controller : controllers) {
-    controller->on_lock_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(lock::Lock, lock)
 #endif
 
 #ifdef USE_VALVE
-void ControllerRegistry::notify_valve_update(valve::Valve *obj) {
-  for (auto *controller : controllers) {
-    controller->on_valve_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(valve::Valve, valve)
 #endif
 
 #ifdef USE_MEDIA_PLAYER
-void ControllerRegistry::notify_media_player_update(media_player::MediaPlayer *obj) {
-  for (auto *controller : controllers) {
-    controller->on_media_player_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(media_player::MediaPlayer, media_player)
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-void ControllerRegistry::notify_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  for (auto *controller : controllers) {
-    controller->on_alarm_control_panel_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
 
 #ifdef USE_EVENT
-void ControllerRegistry::notify_event(event::Event *obj) {
-  for (auto *controller : controllers) {
-    controller->on_event(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(event::Event, event)
 #endif
 
 #ifdef USE_UPDATE
-void ControllerRegistry::notify_update(update::UpdateEntity *obj) {
-  for (auto *controller : controllers) {
-    controller->on_update(obj);
-  }
-}
+CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(update::UpdateEntity, update)
 #endif
+
+#undef CONTROLLER_REGISTRY_NOTIFY
+#undef CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX
 
 }  // namespace esphome
 
