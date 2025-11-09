@@ -487,10 +487,6 @@ class WiFiComponent : public Component {
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
 
-  // Index into scan_result_ vector for AP fallback (mesh networks)
-  // Tracks which scan result we're currently trying (0 = strongest signal)
-  uint8_t scan_result_index_{0};
-
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */

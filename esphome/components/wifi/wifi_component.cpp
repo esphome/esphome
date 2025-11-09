@@ -469,9 +469,9 @@ WiFiAP WiFiComponent::build_params_for_current_phase_() {
       break;
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      // Scan-based phase: use scan results if available
-      if (this->scan_result_index_ < this->scan_result_.size()) {
-        apply_scan_result_to_params(params, this->scan_result_[this->scan_result_index_]);
+      // Scan-based phase: always use best scan result (index 0 - highest priority after sorting)
+      if (!this->scan_result_.empty()) {
+        apply_scan_result_to_params(params, this->scan_result_[0]);
       }
       break;
 
@@ -953,17 +953,9 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying same BSSID
       }
 
-      // Exhausted retries on current BSSID - check if there are more BSSIDs to try
-      // Look for next BSSID with non-negative priority (haven't given up on it yet)
-      for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-        if (this->scan_result_[i].get_matches() && this->scan_result_[i].get_priority() >= 0.0f) {
-          // Found another BSSID to try - advance to it
-          this->scan_result_index_ = i;
-          return WiFiRetryPhase::SCAN_CONNECTING;
-        }
-      }
-
-      // No more BSSIDs with non-negative priority - try with hidden flag
+      // Exhausted retries on current BSSID (scan_result_[0])
+      // Its priority has been decreased, so on next scan it will be sorted lower
+      // and we'll try the next best BSSID. For now, try hidden mode.
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
@@ -1026,7 +1018,6 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhas
       ) {
         ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
         this->selected_sta_index_ = 0;
-        this->scan_result_index_ = 0;
       }
       // Trigger scan if we don't have scan results OR if looping back from SCAN_WITH_HIDDEN
       if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN ||
@@ -1054,9 +1045,9 @@ void WiFiComponent::retry_connect() {
   optional<bssid_t> failed_bssid;
 
   // Determine which BSSID we tried to connect to
-  if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && this->scan_result_index_ < this->scan_result_.size()) {
-    // Scan-based phase: use BSSID from scan results
-    failed_bssid = this->scan_result_[this->scan_result_index_].get_bssid();
+  if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
+    // Scan-based phase: always use best result (index 0)
+    failed_bssid = this->scan_result_[0].get_bssid();
   } else if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid()) {
     // Config has specific BSSID (fast_connect or user-specified)
     failed_bssid = *config->get_bssid();
@@ -1069,8 +1060,8 @@ void WiFiComponent::retry_connect() {
 
     // Get SSID for logging
     std::string ssid;
-    if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && this->scan_result_index_ < this->scan_result_.size()) {
-      ssid = this->scan_result_[this->scan_result_index_].get_ssid();
+    if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
+      ssid = this->scan_result_[0].get_ssid();
     } else if (const WiFiAP *config = this->get_selected_sta_()) {
       ssid = config->get_ssid();
     }
@@ -1083,7 +1074,6 @@ void WiFiComponent::retry_connect() {
 
   // Determine next retry phase based on current state
   WiFiRetryPhase current_phase = this->retry_phase_;
-  size_t current_bssid_index = this->scan_result_index_;
   WiFiRetryPhase next_phase = this->determine_next_phase_();
 
   // Handle phase transitions
@@ -1115,11 +1105,6 @@ void WiFiComponent::retry_connect() {
       this->num_retried_ = 0;
       advanced_to_next_target = true;
       ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-    } else if (this->scan_result_index_ != current_bssid_index) {
-      // Scan-based phases: BSSID changed (advanced by determine_next_phase_)
-      this->num_retried_ = 0;
-      advanced_to_next_target = true;
-      ESP_LOGD(TAG, "Advanced to next BSSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
     }
 
     // If we didn't advance AP/SSID/BSSID, increment retry counter
