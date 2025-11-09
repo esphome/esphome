@@ -158,11 +158,10 @@ void WiFiComponent::restart_adapter() {
   ESP_LOGW(TAG, "Restarting adapter");
   this->wifi_mode_(false, {});
   delay(100);  // NOLINT
-  this->num_retried_ = 0;
   this->retry_hidden_ = false;
   // Clear scan results - adapter restart invalidates them
   this->scan_result_.clear();
-  this->scan_result_index_ = 0;
+  this->set_scan_result_index_and_reset_retries_(0);
 }
 
 void WiFiComponent::loop() {
@@ -685,7 +684,7 @@ void WiFiComponent::check_scanning_finished() {
   insertion_sort_scan_results(this->scan_result_);
 
   // Reset scan result index for new scan - start with strongest AP
-  this->scan_result_index_ = 0;
+  this->set_scan_result_index_and_reset_retries_(0);
 
   for (auto &res : this->scan_result_) {
     log_scan_result(res);
@@ -862,8 +861,7 @@ void WiFiComponent::select_next_ap_with_same_ssid_() {
     // Found next AP with same SSID - update scan_result_index_ and reset retry counter
     // Note: selected_sta_index_ stays the same (same SSID = same config entry)
     // Connection will be attempted at the single connection point in retry_connect()
-    this->scan_result_index_ = i;
-    this->num_retried_ = 0;  // Give new AP fresh retry attempts
+    this->set_scan_result_index_and_reset_retries_(i);
 
     char bssid_s[18];
     auto bssid = scan_res.get_bssid();
@@ -900,6 +898,13 @@ void WiFiComponent::retry_or_scan_() {
   } else {
     this->start_scanning();
   }
+}
+
+void WiFiComponent::set_scan_result_index_and_reset_retries_(uint8_t index) {
+  // Helper to update scan result index and reset retry counter
+  // Should be called whenever selecting a different AP to try
+  this->scan_result_index_ = index;
+  this->num_retried_ = 0;
 }
 
 void WiFiComponent::retry_connect() {
@@ -957,9 +962,13 @@ void WiFiComponent::retry_connect() {
         ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
         this->fast_connect_exhausted_ = true;
         this->selected_sta_index_ = 0;
-        this->num_retried_ = 0;
-        // Don't call start_scanning() here - let state machine handle it in loop()
+        this->set_scan_result_index_and_reset_retries_(0);
+        this->retry_hidden_ = false;
+        // Skip the single connection point below - need to scan first
         // State will transition to COOLDOWN, then SCANNING will be triggered automatically
+        this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+        this->action_started_ = millis();
+        return;
       } else {
         // Try next configured network
         this->selected_sta_index_++;

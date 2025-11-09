@@ -345,6 +345,7 @@ class WiFiComponent : public Component {
   void select_next_ap_with_same_ssid_();
   void retry_with_hidden_or_restart_();
   void retry_or_scan_();
+  void set_scan_result_index_and_reset_retries_(uint8_t index);
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
