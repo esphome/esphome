@@ -20,11 +20,6 @@ namespace wifi {
 
 static const char *const TAG = "wifi_pico_w";
 
-static bool s_sta_connect_auth_failed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-bool wifi_sta_connect_auth_failed() { return s_sta_connect_auth_failed; }
-void wifi_sta_clear_auth_failed() { s_sta_connect_auth_failed = false; }
-
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   if (sta.has_value()) {
     if (sta.value()) {
@@ -107,15 +102,9 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
     case CYW43_LINK_NOIP:
       return WiFiSTAConnectStatus::CONNECTING;
     case CYW43_LINK_UP:
-      // Clear auth failure flag on successful connection
-      s_sta_connect_auth_failed = false;
       return WiFiSTAConnectStatus::CONNECTED;
-    case CYW43_LINK_BADAUTH:
-      // Authentication failure detected (wrong password, etc.)
-      s_sta_connect_auth_failed = true;
-      return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
     case CYW43_LINK_FAIL:
-      // Generic failure - could be auth-related or transient
+    case CYW43_LINK_BADAUTH:
       return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
     case CYW43_LINK_NONET:
       return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;

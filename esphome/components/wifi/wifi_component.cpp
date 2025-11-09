@@ -61,9 +61,10 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   }
 }
 
-static constexpr uint8_t WIFI_RETRY_COUNT_PER_BSSID = 1;  // 1 attempt per BSSID (priority system tracks failures)
-static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 2;   // 2 attempts per SSID (hidden network mode)
-static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;     // 1 attempt per AP (fast_connect mode)
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_BSSID =
+    2;  // 2 attempts per BSSID (handles transient auth failures after scan)
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 2;  // 2 attempts per SSID (hidden network mode)
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;    // 1 attempt per AP (fast_connect mode)
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {

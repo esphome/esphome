@@ -43,15 +43,11 @@ namespace wifi {
 
 static const char *const TAG = "wifi_esp8266";
 
-static bool s_sta_connected = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_got_ip = false;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_not_found = false;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_error = false;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_auth_failed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connecting = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-bool wifi_sta_connect_auth_failed() { return s_sta_connect_auth_failed; }
-void wifi_sta_clear_auth_failed() { s_sta_connect_auth_failed = false; }
+static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
@@ -510,21 +506,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-
-      // Classify disconnect reason for appropriate handling
-      bool is_auth_failure = (it.reason == REASON_AUTH_FAIL || it.reason == REASON_AUTH_EXPIRE ||
-                              it.reason == REASON_4WAY_HANDSHAKE_TIMEOUT || it.reason == REASON_HANDSHAKE_TIMEOUT ||
-                              it.reason == REASON_802_1X_AUTH_FAILED || it.reason == REASON_MIC_FAILURE);
-
       if (it.reason == REASON_NO_AP_FOUND) {
-        ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " reason='Probe Request Unsuccessful'", buf);
+        ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
         s_sta_connect_not_found = true;
       } else {
-        ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                  format_mac_address_pretty(it.bssid).c_str(), LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
-        if (is_auth_failure) {
-          s_sta_connect_auth_failed = true;
-        }
         s_sta_connect_error = true;
       }
       s_sta_connected = false;
@@ -551,8 +538,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(), format_ip_addr(it.gw).c_str(),
                format_ip_addr(it.mask).c_str());
       s_sta_got_ip = true;
-      // Clear auth failure flag on successful connection
-      s_sta_connect_auth_failed = false;
       break;
     }
     case EVENT_STAMODE_DHCP_TIMEOUT: {
