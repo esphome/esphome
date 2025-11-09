@@ -91,6 +91,29 @@ static void apply_scan_result_to_params(WiFiAP &params, const WiFiScanResult &sc
   params.set_channel(scan.get_channel());
 }
 
+/// Try to find the next BSSID with the same SSID in scan results
+/// Returns true if found and advances scan_result_index_, false otherwise
+bool WiFiComponent::try_find_next_bssid_with_same_ssid_() {
+  if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size()) {
+    return false;
+  }
+
+  const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
+
+  // Search for next AP with same SSID
+  for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
+    if (this->scan_result_[i].get_ssid() == current_ssid) {
+      this->scan_result_index_ = i;
+      this->num_retried_ = 0;
+      wifi_sta_clear_auth_failed();
+      ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s'"), current_ssid.c_str());
+      return true;
+    }
+  }
+
+  return false;
+}
+
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
   switch (type) {
@@ -961,21 +984,9 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying current AP
       }
 
-      // Can we try another same-SSID AP?
-      if (!this->scan_result_.empty() && this->scan_result_index_ < this->scan_result_.size()) {
-        const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
-
-        // Search for next AP with same SSID (scan_result_ contains multiple SSIDs)
-        for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-          if (this->scan_result_[i].get_ssid() == current_ssid) {
-            // Found next BSSID - advance index and reset counter here
-            this->scan_result_index_ = i;
-            this->num_retried_ = 0;
-            wifi_sta_clear_auth_failed();
-            ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s'"), current_ssid.c_str());
-            return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Stay in phase but with new BSSID
-          }
-        }
+      // Try to find another same-SSID AP
+      if (this->try_find_next_bssid_with_same_ssid_()) {
+        return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Stay in phase but with new BSSID
       }
 
       // No more same-SSID APs, try with hidden flag
@@ -1043,8 +1054,11 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      // BSSID advancement is handled in determine_next_phase_() before returning to this phase
-      // No additional setup needed here
+      // Advance to next BSSID with same SSID when first entering this phase
+      // If no next BSSID found, just skip - determine_next_phase_() will handle transition
+      if (!this->try_find_next_bssid_with_same_ssid_()) {
+        ESP_LOGD(TAG, "No more same-SSID APs available");
+      }
       break;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:

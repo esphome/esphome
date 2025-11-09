@@ -371,6 +371,9 @@ class WiFiComponent : public Component {
   WiFiRetryPhase determine_next_phase_();
   /// Transition to a new retry phase with logging
   void transition_to_phase_(WiFiRetryPhase new_phase);
+  /// Try to find the next BSSID with the same SSID in scan results
+  /// Returns true if found and advances scan_result_index_, false otherwise
+  bool try_find_next_bssid_with_same_ssid_();
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
