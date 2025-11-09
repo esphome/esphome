@@ -91,9 +91,9 @@ static void apply_scan_result_to_params(WiFiAP &params, const WiFiScanResult &sc
   params.set_channel(scan.get_channel());
 }
 
-/// Try to find the next BSSID with the same SSID in scan results
-/// Returns true if found and advances scan_result_index_, false otherwise
-bool WiFiComponent::try_find_next_bssid_with_same_ssid_() {
+/// Advance to the next BSSID with the same SSID in scan results
+/// Returns true if found and advanced, false if no more BSSIDs available
+bool WiFiComponent::advance_to_next_bssid_with_same_ssid_() {
   if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size()) {
     return false;
   }
@@ -984,8 +984,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying current AP
       }
 
-      // Try to find another same-SSID AP
-      if (this->try_find_next_bssid_with_same_ssid_()) {
+      // Try to advance to another same-SSID AP
+      if (this->advance_to_next_bssid_with_same_ssid_()) {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Stay in phase but with new BSSID
       }
 
@@ -1016,10 +1016,6 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 }
 
 void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
-  if (new_phase == this->retry_phase_) {
-    return;  // No transition
-  }
-
   ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)),
            LOG_STR_ARG(retry_phase_to_log_string(new_phase)));
 
@@ -1056,7 +1052,7 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
       // Advance to next BSSID with same SSID when first entering this phase
       // If no next BSSID found, just skip - determine_next_phase_() will handle transition
-      if (!this->try_find_next_bssid_with_same_ssid_()) {
+      if (!this->advance_to_next_bssid_with_same_ssid_()) {
         ESP_LOGD(TAG, "No more same-SSID APs available");
       }
       break;
