@@ -573,8 +573,8 @@ jobs:
       - name: Cache apt packages
         uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
         with:
-          packages: libsdl2-dev
-          version: 1.0
+          packages: libsdl2-dev libpaho-mqtt-dev
+          version: 1.1
 
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
