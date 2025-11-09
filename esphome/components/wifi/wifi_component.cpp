@@ -130,12 +130,15 @@ void WiFiComponent::start() {
 
 #ifdef USE_WIFI_FAST_CONNECT
     WiFiAP params;
-    this->trying_loaded_ap_ = this->load_fast_connect_settings_(params);
-    if (!this->trying_loaded_ap_) {
+    bool loaded_fast_connect = this->load_fast_connect_settings_(params);
+    if (!loaded_fast_connect) {
       // FAST CONNECT FALLBACK: No saved settings available
       // Use first config (will use SSID from config)
       this->selected_sta_index_ = 0;
       params = this->build_wifi_ap_from_selected_();
+      this->retry_phase_ = WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;
+    } else {
+      this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     }
     this->start_connecting(params, false);
 #else
@@ -902,39 +905,13 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
       }
 
-      // Auth failure + have other same-SSID APs?
-      if (wifi_sta_connect_auth_failed() && !this->scan_result_.empty() &&
-          this->scan_result_index_ < this->scan_result_.size()) {
-        // Check if we have more APs with the same SSID (scan_result_ may have multiple SSIDs)
-        const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
-        // Search for next AP with same SSID
-        for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-          if (this->scan_result_[i].get_ssid() == current_ssid) {
-            return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;
-          }
-        }
-      }
-
-      // Try hidden
+      // TODO: Add mesh fallback when platform-specific auth failure detection is implemented
+      // For now, just try with hidden flag after retries exhausted
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      if (this->num_retried_ < 3) {
-        return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying
-      }
-
-      // Can we try another same-SSID AP?
-      if (!this->scan_result_.empty() && this->scan_result_index_ < this->scan_result_.size()) {
-        const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
-        // Search for next AP with same SSID (scan_result_ may have multiple SSIDs)
-        for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-          if (this->scan_result_[i].get_ssid() == current_ssid) {
-            return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Try next BSSID
-          }
-        }
-      }
-
-      // No more, try hidden
+      // TODO: This phase requires auth failure detection from platform code
+      // For now, just fall through to hidden
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
@@ -974,16 +951,13 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      // Mark fast_connect as exhausted if we're transitioning from fast_connect phases
-#ifdef USE_WIFI_FAST_CONNECT
+      // Transitioning to scan-based connection from fast_connect phases
       if (this->retry_phase_ == WiFiRetryPhase::INITIAL_CONNECT ||
           this->retry_phase_ == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
         ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
-        this->fast_connect_exhausted_ = true;
         this->selected_sta_index_ = 0;
         this->scan_result_index_ = 0;
       }
-#endif
       // Trigger scan if we don't have scan results
       if (this->scan_result_.empty()) {
         this->start_scanning();

@@ -471,15 +471,16 @@ class WiFiComponent : public Component {
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
+
+  // Index into scan_result_ vector for AP fallback (mesh networks)
+  // Tracks which scan result we're currently trying (0 = strongest signal)
+  uint8_t scan_result_index_{0};
+
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
 
   // Group all boolean values together
-#ifdef USE_WIFI_FAST_CONNECT
-  bool trying_loaded_ap_{false};
-#endif
-  bool retry_hidden_{false};
   bool has_ap_{false};
   bool handled_connected_state_{false};
   bool error_from_callback_{false};
