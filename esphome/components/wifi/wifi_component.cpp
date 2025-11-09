@@ -900,13 +900,41 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
       }
 
-      // TODO: Add mesh fallback when platform-specific auth failure detection is implemented
-      // For now, just try with hidden flag after retries exhausted
+      // Auth failure + have other same-SSID APs available? Try mesh fallback
+      if (wifi_sta_connect_auth_failed() && !this->scan_result_.empty() &&
+          this->scan_result_index_ < this->scan_result_.size()) {
+        // scan_result_ contains multiple SSIDs - search for next AP with same SSID
+        const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
+
+        // Look for next AP with same SSID (mesh fallback)
+        for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
+          if (this->scan_result_[i].get_ssid() == current_ssid) {
+            return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;
+          }
+        }
+      }
+
+      // No mesh fallback available, try with hidden flag
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      // TODO: This phase requires auth failure detection from platform code
-      // For now, just fall through to hidden
+      if (this->num_retried_ < 3) {
+        return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying current AP
+      }
+
+      // Can we try another same-SSID AP?
+      if (!this->scan_result_.empty() && this->scan_result_index_ < this->scan_result_.size()) {
+        const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
+
+        // Search for next AP with same SSID (scan_result_ contains multiple SSIDs)
+        for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
+          if (this->scan_result_[i].get_ssid() == current_ssid) {
+            return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Try next BSSID
+          }
+        }
+      }
+
+      // No more same-SSID APs, try with hidden flag
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
@@ -973,6 +1001,7 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
           if (this->scan_result_[i].get_ssid() == current_ssid) {
             this->scan_result_index_ = i;
             this->num_retried_ = 0;
+            wifi_sta_clear_auth_failed();  // Clear auth failure flag when moving to next AP
             ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s'"), current_ssid.c_str());
             break;
           }
