@@ -92,18 +92,16 @@ static void apply_scan_result_to_params(WiFiAP &params, const WiFiScanResult &sc
   params.set_channel(scan.get_channel());
 }
 
-/// Check if there's another BSSID with the same SSID in scan results (read-only check)
+/// Check if there's another matching BSSID in scan results (read-only check)
 /// Returns true if found, false otherwise (does not modify state)
-bool WiFiComponent::has_next_bssid_with_same_ssid_() const {
+bool WiFiComponent::has_next_matching_bssid_() const {
   if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size()) {
     return false;
   }
 
-  const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
-
-  // Search for next AP with same SSID
+  // Check if there's any matching AP after current index
   for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-    if (this->scan_result_[i].get_ssid() == current_ssid) {
+    if (this->scan_result_[i].get_matches()) {
       return true;
     }
   }
@@ -111,19 +109,17 @@ bool WiFiComponent::has_next_bssid_with_same_ssid_() const {
   return false;
 }
 
-/// Advance to the next BSSID with the same SSID in scan results
+/// Advance to the next matching BSSID in scan results (any configured SSID)
 /// Returns true if found and advanced, false if no more BSSIDs available
 /// @param reset_counter If true, resets num_retried_ to 0 (used when staying in same phase)
-bool WiFiComponent::advance_to_next_bssid_with_same_ssid_(bool reset_counter) {
+bool WiFiComponent::advance_to_next_matching_bssid_(bool reset_counter) {
   if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size()) {
     return false;
   }
 
-  const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
-
-  // Search for next AP with same SSID
+  // Search for next matching AP (any configured SSID)
   for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-    if (this->scan_result_[i].get_ssid() == current_ssid) {
+    if (this->scan_result_[i].get_matches()) {
       this->scan_result_index_ = i;
       if (reset_counter) {
         this->num_retried_ = 0;
@@ -990,8 +986,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
       }
 
-      // Auth failure + have other same-SSID APs available? Try mesh fallback
-      if (wifi_sta_connect_auth_failed() && this->has_next_bssid_with_same_ssid_()) {
+      // Auth failure + have other matching APs available? Try next BSSID
+      if (wifi_sta_connect_auth_failed() && this->has_next_matching_bssid_()) {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;
       }
 
@@ -1003,8 +999,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying current AP
       }
 
-      // Try to advance to another same-SSID AP
-      if (this->advance_to_next_bssid_with_same_ssid_(false)) {
+      // Try to advance to another matching AP
+      if (this->advance_to_next_matching_bssid_(false)) {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Stay in phase but with new BSSID
       }
 
@@ -1081,11 +1077,11 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhas
       break;
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      // Advance to next BSSID with same SSID when first entering this phase
+      // Advance to next matching BSSID when first entering this phase
       // Don't reset counter - transition_to_phase_() already did that
       // If no next BSSID found, just skip - determine_next_phase_() will handle transition
-      if (!this->advance_to_next_bssid_with_same_ssid_(false)) {
-        ESP_LOGD(TAG, "No more same-SSID APs available");
+      if (!this->advance_to_next_matching_bssid_(false)) {
+        ESP_LOGD(TAG, "No more matching APs available");
       }
       break;
 

@@ -372,13 +372,13 @@ class WiFiComponent : public Component {
   /// Transition to a new retry phase with logging
   /// Returns true if a scan was started (caller should wait), false otherwise
   bool transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhase new_phase);
-  /// Check if there's another BSSID with the same SSID in scan results (read-only)
+  /// Check if there's another matching BSSID in scan results (read-only)
   /// Returns true if found, false otherwise (does not modify state)
-  bool has_next_bssid_with_same_ssid_() const;
-  /// Advance to the next BSSID with the same SSID in scan results
+  bool has_next_matching_bssid_() const;
+  /// Advance to the next matching BSSID in scan results (any configured SSID)
   /// Returns true if found and advanced, false if no more BSSIDs available
   /// @param reset_counter If true, resets num_retried_ to 0 (used when staying in same phase)
-  bool advance_to_next_bssid_with_same_ssid_(bool reset_counter);
+  bool advance_to_next_matching_bssid_(bool reset_counter);
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
