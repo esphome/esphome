@@ -63,6 +63,18 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   }
 }
 
+static constexpr uint8_t WIFI_RETRY_COUNT_STANDARD = 3;
+static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 5;
+
+static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
+  switch (phase) {
+    case WiFiRetryPhase::SCAN_WITH_HIDDEN:
+      return WIFI_RETRY_COUNT_HIDDEN;
+    default:
+      return WIFI_RETRY_COUNT_STANDARD;
+  }
+}
+
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
   switch (type) {
@@ -883,7 +895,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 
   switch (this->retry_phase_) {
     case WiFiRetryPhase::INITIAL_CONNECT:
-      if (this->num_retried_ < 3) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
         return WiFiRetryPhase::INITIAL_CONNECT;  // Keep retrying
       }
 
@@ -899,7 +911,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 
 #ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-      if (this->num_retried_ < 3) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
         return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Keep retrying
       }
 
@@ -913,7 +925,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 #endif
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      if (this->num_retried_ < 3) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
       }
 
@@ -935,7 +947,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      if (this->num_retried_ < 3) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying current AP
       }
 
@@ -955,7 +967,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      if (this->num_retried_ < 5) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_HIDDEN) {
         return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Keep retrying
       }
 
@@ -1054,8 +1066,8 @@ void WiFiComponent::retry_connect() {
   } else {
     // Staying in same phase, just increment retry counter
     this->num_retried_++;
-    ESP_LOGD(TAG, "Retry attempt %u/3 in phase %s", this->num_retried_,
-             LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
+             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
   }
 
   this->error_from_callback_ = false;
