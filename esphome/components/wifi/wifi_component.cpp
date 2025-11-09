@@ -819,7 +819,7 @@ void WiFiComponent::check_connecting_finished() {
   this->retry_connect();
 }
 
-void WiFiComponent::select_next_ap_with_same_ssid_() {
+bool WiFiComponent::select_next_ap_with_same_ssid_() {
   // MESH NETWORK AP FALLBACK
   // Select the next available AP with the same SSID after authentication failure.
   // This is used for mesh networks where multiple APs share the same SSID.
@@ -830,20 +830,20 @@ void WiFiComponent::select_next_ap_with_same_ssid_() {
   //
   // Postconditions:
   // - Always clears the auth failure flag
-  // - If next AP found: scan_result_index_ points to it, num_retried_ reset to 0
-  // - If no next AP: scan_result_index_ unchanged
+  // - Returns true if next AP found: scan_result_index_ points to it, num_retried_ reset to 0
+  // - Returns false if no next AP: scan_result_index_ unchanged
 
   // Always clear the auth failure flag - we're handling it now
   wifi_sta_clear_auth_failed();
 
   // Check if scan results are available and we haven't exhausted them
   if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size() - 1) {
-    return;
+    return false;
   }
 
   const WiFiAP *current_config = this->get_selected_sta_();
   if (!current_config) {
-    return;
+    return false;
   }
 
   const std::string &current_ssid = current_config->get_ssid();
@@ -874,11 +874,12 @@ void WiFiComponent::select_next_ap_with_same_ssid_() {
 
     ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s' (%s)") " RSSI: %d dB", scan_res.get_ssid().c_str(),
              bssid_s, scan_res.get_rssi());
-    return;
+    return true;
   }
 
   // No more APs with same SSID found
   ESP_LOGD(TAG, "No more APs with SSID " LOG_SECRET("'%s'") " to try", current_ssid.c_str());
+  return false;
 }
 
 void WiFiComponent::retry_with_hidden_or_restart_() {
@@ -939,13 +940,15 @@ void WiFiComponent::retry_connect() {
   // all configured networks are tried, at which point a scan will be triggered (see below).
   //
   // This only updates scan_result_index_ - connection happens at single point below
+  bool selected_next_same_ssid_ap = false;
   if (wifi_sta_connect_auth_failed() && this->num_retried_ >= RETRY_THRESHOLD_AUTH_FALLBACK) {
     // Select next AP with same SSID (updates scan_result_index_ if found)
     // Also clears the auth failure flag - we've handled it
-    this->select_next_ap_with_same_ssid_();
+    selected_next_same_ssid_ap = this->select_next_ap_with_same_ssid_();
   }
 
-  if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
+  // Skip normal retry logic if we successfully selected a different AP to try
+  if (!selected_next_same_ssid_ap && !this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
       (this->num_retried_ > 3 || this->error_from_callback_)) {
 #ifdef USE_WIFI_FAST_CONNECT
     // Fast connect mode: try saved credentials, then cycle through configured networks
