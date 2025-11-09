@@ -186,13 +186,7 @@ void WiFiComponent::loop() {
 #ifdef USE_WIFI_FAST_CONNECT
           // When fast_connect is exhausted, behave like non-fast_connect mode
           if (this->fast_connect_exhausted_) {
-            if (this->retry_hidden_) {
-              this->reset_selected_ap_to_first_if_invalid_();
-              WiFiAP params = this->build_wifi_ap_from_selected_();
-              this->start_connecting(params, false);
-            } else {
-              this->start_scanning();
-            }
+            this->retry_or_scan_();
           } else {
             // Still in fast_connect mode - always try connecting with config data
             // Safety check: Ensure selected_sta_index_ is valid before retrying
@@ -202,13 +196,7 @@ void WiFiComponent::loop() {
             this->start_connecting(params, false);
           }
 #else
-          if (this->retry_hidden_) {
-            this->reset_selected_ap_to_first_if_invalid_();
-            WiFiAP params = this->build_wifi_ap_from_selected_();
-            this->start_connecting(params, false);
-          } else {
-            this->start_scanning();
-          }
+          this->retry_or_scan_();
 #endif
         }
         break;
@@ -900,6 +888,17 @@ void WiFiComponent::retry_with_hidden_or_restart_() {
     ESP_LOGD(TAG, "Retrying with hidden networks");
     this->retry_hidden_ = true;
     this->num_retried_++;
+  }
+}
+
+void WiFiComponent::retry_or_scan_() {
+  // After cooldown: either retry with hidden networks or start scanning
+  if (this->retry_hidden_) {
+    this->reset_selected_ap_to_first_if_invalid_();
+    WiFiAP params = this->build_wifi_ap_from_selected_();
+    this->start_connecting(params, false);
+  } else {
+    this->start_scanning();
   }
 }
 
