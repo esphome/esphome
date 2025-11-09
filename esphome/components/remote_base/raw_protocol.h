@@ -44,11 +44,11 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
  public:
   void set_code_template(RawTimings (*func)(Ts...)) {
     this->code_.func = func;
-    this->len_ = -1;
+    this->len_ = -1;  // Sentinel value indicates template mode
   }
   void set_code_static(const int32_t *code, size_t len) {
     this->code_.data = code;
-    this->len_ = len;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
   TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
 
@@ -69,7 +69,7 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
   }
 
  protected:
-  ssize_t len_{-1};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
   union Code {
     RawTimings (*func)(Ts...);
     const int32_t *data;
