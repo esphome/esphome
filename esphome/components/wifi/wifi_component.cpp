@@ -950,11 +950,20 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
 
       if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_BSSID) {
-        return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
+        return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying same BSSID
       }
 
-      // Failed to connect, try with hidden flag
-      // Priority system will handle trying different BSSIDs on next scan cycle
+      // Exhausted retries on current BSSID - check if there are more BSSIDs to try
+      // Look for next BSSID with non-negative priority (haven't given up on it yet)
+      for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
+        if (this->scan_result_[i].get_matches() && this->scan_result_[i].get_priority() >= 0.0f) {
+          // Found another BSSID to try - advance to it
+          this->scan_result_index_ = i;
+          return WiFiRetryPhase::SCAN_CONNECTING;
+        }
+      }
+
+      // No more BSSIDs with non-negative priority - try with hidden flag
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
