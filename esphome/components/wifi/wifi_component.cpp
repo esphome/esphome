@@ -1138,6 +1138,7 @@ void WiFiComponent::retry_connect() {
 #endif
 
   // SCAN_WITH_HIDDEN: advance to next configured SSID if we've exhausted retries and phase stays the same
+  bool advanced_ssid = false;
   if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && next_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN &&
       this->num_retried_ + 1 >= WIFI_RETRY_COUNT_HIDDEN) {
     // Exhausted retries on current SSID, advance to next configured SSID
@@ -1145,6 +1146,7 @@ void WiFiComponent::retry_connect() {
       this->selected_sta_index_++;
       this->reset_for_next_ap_attempt_();
       this->num_retried_ = 0;
+      advanced_ssid = true;
       ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
     }
   }
@@ -1166,6 +1168,9 @@ void WiFiComponent::retry_connect() {
       // Advanced to new BSSID - reset counter
       this->num_retried_ = 0;
       ESP_LOGD(TAG, "Advanced to next BSSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    } else if (advanced_ssid) {
+      // Advanced to next SSID in SCAN_WITH_HIDDEN - counter already reset, don't increment
+      // (already logged "Advanced to next SSID" above)
     } else if (current_phase != WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
       // Same phase, same BSSID/AP - increment retry counter
       // (fast connect cycling was already handled above, scan with hidden SSID advancement handled above)
