@@ -64,7 +64,7 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
 }
 
 static constexpr uint8_t WIFI_RETRY_COUNT_SCAN_CONNECTING = 2;  // 2 attempts before trying next BSSID
-static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 3;           // 3 attempts with hidden flag
+static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 2;           // 2 attempts with hidden flag
 static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;     // 1 attempt in fast_connect mode
 static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 2;   // 2 attempts before trying next BSSID
 
