@@ -216,12 +216,11 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   TEMPLATABLE_VALUE(bool, auto_message_id)
   void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
     this->data_.func = func;
-    this->static_ = false;
+    this->len_ = -1;  // Sentinel value indicates template mode
   }
   void set_data_static(const uint8_t *data, size_t len) {
-    this->data_.static_data.ptr = data;
-    this->data_.static_data.len = len;
-    this->static_ = true;
+    this->data_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     ABBWelcomeData data;
@@ -233,9 +232,11 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
     data.set_message_id(this->message_id_.value(x...));
     data.auto_message_id = this->auto_message_id_.value(x...);
     std::vector<uint8_t> data_vec;
-    if (this->static_) {
-      data_vec.assign(this->data_.static_data.ptr, this->data_.static_data.ptr + this->data_.static_data.len);
+    if (this->len_ >= 0) {
+      // Static mode: copy from flash to vector
+      data_vec.assign(this->data_.data, this->data_.data + this->len_);
     } else {
+      // Template mode: call function
       data_vec = this->data_.func(x...);
     }
     data.set_data(data_vec);
@@ -244,13 +245,10 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   }
 
  protected:
-  bool static_{true};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
   union Data {
-    std::vector<uint8_t> (*func)(Ts...);
-    struct {
-      const uint8_t *ptr;
-      size_t len;
-    } static_data;
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
   } data_;
 };
 
