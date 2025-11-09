@@ -449,7 +449,15 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   // This sync holds until scan_result_ is cleared (e.g., after connection or in reset_for_next_ap_attempt_())
   if (!this->scan_result_.empty()) {
     // Override with scan data - network is visible
-    apply_scan_result_to_params(params, this->scan_result_[0]);
+    if (!this->scan_result_[0].get_matches()) {
+      ESP_LOGW(TAG,
+               "Selected AP config (SSID='%s') does not match best scan result (SSID='%s'); "
+               "using config values only",
+               config->get_ssid().c_str(), this->scan_result_[0].get_ssid().c_str());
+    } else {
+      // Apply best scan result to params
+      apply_scan_result_to_params(params, this->scan_result_[0]);
+    }
   } else if (params.get_hidden()) {
     // Hidden network - clear BSSID and channel even if set in config
     // There might be multiple hidden networks with same SSID but we can't know which is correct
