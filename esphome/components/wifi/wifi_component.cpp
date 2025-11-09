@@ -158,18 +158,25 @@ void WiFiComponent::start() {
 #ifdef USE_WIFI_FAST_CONNECT
     WiFiAP params;
     bool loaded_fast_connect = this->load_fast_connect_settings_(params);
-    if (!loaded_fast_connect) {
-      // FAST CONNECT FALLBACK: No saved settings available
-      // Use first config (will use SSID from config)
-      this->selected_sta_index_ = 0;
-      params = this->build_wifi_ap_from_selected_();
-      ESP_LOGI(TAG, "Starting WiFi with fast_connect (no saved data), trying '%s'", params.get_ssid().c_str());
+    if (!loaded_fast_connect && this->sta_.size() <= 1) {
+      // FAST CONNECT DISABLED: No saved data and only one (or zero) configured AP
+      // Skip fast_connect and go straight to scanning
+      ESP_LOGI(TAG, "Starting WiFi with scan-based connection (no fast_connect data)");
+      this->start_scanning();
     } else {
-      ESP_LOGI(TAG, "Starting WiFi with fast_connect (saved credentials), trying '%s'", params.get_ssid().c_str());
+      // FAST CONNECT ENABLED: Either have saved data OR multiple configured APs to try
+      if (!loaded_fast_connect) {
+        // No saved settings available - use first config (will use SSID from config)
+        this->selected_sta_index_ = 0;
+        params = this->build_wifi_ap_from_selected_();
+        ESP_LOGI(TAG, "Starting WiFi with fast_connect (no saved data), trying '%s'", params.get_ssid().c_str());
+      } else {
+        ESP_LOGI(TAG, "Starting WiFi with fast_connect (saved credentials), trying '%s'", params.get_ssid().c_str());
+      }
+      // Always start with INITIAL_CONNECT phase when using fast_connect
+      this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
+      this->start_connecting(params, false);
     }
-    // Always start with INITIAL_CONNECT phase when using fast_connect
-    this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
-    this->start_connecting(params, false);
 #else
     ESP_LOGI(TAG, "Starting WiFi with scan-based connection");
     this->start_scanning();
@@ -895,11 +902,6 @@ void WiFiComponent::check_connecting_finished() {
 }
 
 WiFiRetryPhase WiFiComponent::determine_next_phase_() {
-  // Check if captive portal or improv is active - stay in current phase
-  if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
-    return this->retry_phase_;
-  }
-
   switch (this->retry_phase_) {
     case WiFiRetryPhase::INITIAL_CONNECT:
 #ifdef USE_WIFI_FAST_CONNECT
@@ -973,6 +975,12 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
       if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_HIDDEN) {
         return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Keep retrying
+      }
+
+      // If captive portal/improv is active, loop back to scanning instead of restarting
+      // This keeps trying to connect in case WiFi comes back up
+      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+        return WiFiRetryPhase::SCAN_CONNECTING;
       }
 
       // Restart adapter
