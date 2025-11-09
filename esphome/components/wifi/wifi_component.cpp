@@ -892,8 +892,9 @@ void WiFiComponent::retry_with_hidden_or_restart_() {
 void WiFiComponent::retry_or_scan_() {
   // After cooldown: either retry with hidden networks or start scanning
   if (this->retry_hidden_) {
+    // Retry with hidden networks - use config-only (no BSSID/channel from scan)
     this->reset_selected_ap_to_first_if_invalid_();
-    WiFiAP params = this->build_wifi_ap_from_selected_(this->scan_result_index_);
+    WiFiAP params = this->build_wifi_ap_from_selected_();
     this->start_connecting(params, false);
   } else {
     this->start_scanning();
