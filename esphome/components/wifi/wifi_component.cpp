@@ -1029,27 +1029,25 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // Exhausted retries on current BSSID (scan_result_[0])
       // Its priority has been decreased, so on next scan it will be sorted lower
       // and we'll try the next best BSSID.
-      // If we saw this network in scan results, we KNOW it's not hidden - skip hidden mode and rescan
-      if (!this->scan_result_.empty() && this->scan_result_[0].get_matches()) {
-        return WiFiRetryPhase::SCAN_CONNECTING;  // Rescan to try next BSSID
-      }
-      // Otherwise try hidden mode
+      // Always try hidden mode first - it will skip visible SSIDs and return to scanning
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
-        return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Keep retrying same SSID
-      }
+      // If no hidden SSIDs to try (selected_sta_index_ == -1), skip directly to rescan
+      if (this->selected_sta_index_ >= 0) {
+        if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
+          return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Keep retrying same SSID
+        }
 
-      // Exhausted retries on current SSID - check if there are more SSIDs to try
-      if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-        // More SSIDs available - stay in SCAN_WITH_HIDDEN, advance will happen in retry_connect()
-        return WiFiRetryPhase::SCAN_WITH_HIDDEN;
+        // Exhausted retries on current SSID - check if there are more potentially hidden SSIDs to try
+        if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
+          // More SSIDs available - stay in SCAN_WITH_HIDDEN, advance will happen in retry_connect()
+          return WiFiRetryPhase::SCAN_WITH_HIDDEN;
+        }
       }
-
-      // Exhausted all SSIDs - restart adapter and scan again
-      // If captive portal/improv is active, loop back to scanning instead of restarting
-      // This keeps trying to connect in case WiFi comes back up
+      // Exhausted all potentially hidden SSIDs - rescan to try next BSSID
+      // If captive portal/improv is active, keep rescanning
+      // Otherwise restart adapter to clear any stuck state
       if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
         return WiFiRetryPhase::SCAN_CONNECTING;
       }
