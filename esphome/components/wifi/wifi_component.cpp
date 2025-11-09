@@ -1110,6 +1110,40 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
            ssid.c_str(), format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
 }
 
+void WiFiComponent::advance_to_next_target_or_increment_retry_() {
+  WiFiRetryPhase current_phase = this->retry_phase_;
+  bool advanced_to_next_target = false;
+
+  // Check if we need to advance to next AP/SSID within the same phase
+#ifdef USE_WIFI_FAST_CONNECT
+  if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
+    // Fast connect: always advance to next AP (no retries per AP)
+    this->selected_sta_index_++;
+    this->num_retried_ = 0;
+    advanced_to_next_target = true;
+    ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+  } else
+#endif
+
+      if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID &&
+          this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
+    // Hidden mode: exhausted retries on current SSID, advance to next
+    this->selected_sta_index_++;
+    this->num_retried_ = 0;
+    advanced_to_next_target = true;
+    ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+  }
+
+  // If we didn't advance AP/SSID/BSSID, increment retry counter
+  if (!advanced_to_next_target &&
+      // Don't increment if we're in a scan phase with no valid targets
+      !this->needs_scan_results_()) {
+    this->num_retried_++;
+    ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
+             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+  }
+}
+
 void WiFiComponent::retry_connect() {
   this->log_and_adjust_priority_for_failed_connect_();
 
@@ -1125,38 +1159,7 @@ void WiFiComponent::retry_connect() {
   }
 
   if (next_phase == current_phase) {
-    // Staying in same phase - handle AP/SSID cycling or retry counter increment
-    bool advanced_to_next_target = false;
-
-    // Check if we need to advance to next AP/SSID within the same phase
-#ifdef USE_WIFI_FAST_CONNECT
-    if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
-      // Fast connect: always advance to next AP (no retries per AP)
-      this->selected_sta_index_++;
-      this->num_retried_ = 0;
-      advanced_to_next_target = true;
-      ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-    } else
-#endif
-
-        if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID &&
-            this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-      // Hidden mode: exhausted retries on current SSID, advance to next
-      this->selected_sta_index_++;
-      this->num_retried_ = 0;
-      advanced_to_next_target = true;
-      ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-    }
-
-    // If we didn't advance AP/SSID/BSSID, increment retry counter
-    if (!advanced_to_next_target &&
-        // Don't increment if we're in a scan phase with no valid targets
-        !this->needs_scan_results_()) {
-      this->num_retried_++;
-      ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
-               get_max_retries_for_phase(this->retry_phase_),
-               LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-    }
+    this->advance_to_next_target_or_increment_retry_();
   }
 
   this->error_from_callback_ = false;

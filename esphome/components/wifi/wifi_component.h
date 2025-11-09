@@ -370,6 +370,9 @@ class WiFiComponent : public Component {
   bool needs_scan_results_() const;
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
+  /// Advance to next target (AP/SSID) within current phase, or increment retry counter
+  /// Called when staying in the same phase after a failed connection attempt
+  void advance_to_next_target_or_increment_retry_();
   /// Start initial connection - either scan or connect directly to hidden networks
   void start_initial_connection_();
   const WiFiAP *get_selected_sta_() const {
