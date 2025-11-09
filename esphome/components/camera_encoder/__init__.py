@@ -11,12 +11,10 @@ AUTO_LOAD = ["camera"]
 CONF_BUFFER_EXPAND_SIZE = "buffer_expand_size"
 CONF_ENCODER_BUFFER_ID = "encoder_buffer_id"
 CONF_QUALITY = "quality"
-CONF_MCU_COUNT = "mcu_count"
 CONF_SUBSAMPLING = "subsampling"
 
 ESP32_CAMERA_ENCODER = "esp32_camera"
 ACCELERATED_JPEG = "accelerated_jpeg"
-BITBANK2_ENCODER = "bitbank2"
 
 camera_ns = cg.esphome_ns.namespace("camera")
 camera_encoder_ns = cg.esphome_ns.namespace("camera_encoder")
@@ -26,11 +24,7 @@ BufferImpl = camera_ns.class_("BufferImpl")
 Encoder = camera_ns.class_("Encoder")
 
 ESP32CameraJPEGEncoder = camera_encoder_ns.class_("ESP32CameraJPEGEncoder", Encoder)
-
 AcceleratedJPEGEncoder = camera_encoder_ns.class_("AcceleratedJPEGEncoder", Encoder)
-
-Bitbank2Encoder = camera_encoder_ns.class_("Bitbank2JPEGEncoder", Encoder)
-Bitbank2Quality = camera_encoder_ns.enum("Bitbank2Quality")
 
 BUFFER_SIZE_1MB = 1024 * 1024
 MAX_JPEG_BUFFER_SIZE_2MB = 2 * BUFFER_SIZE_1MB
@@ -72,41 +66,10 @@ ACCELERATED_JPEG_SCHEMA = cv.All(
     only_on_variant(supported=[VARIANT_ESP32P4]),
 )
 
-CONF_BITBANK2_SUBSAMPLING_SELECTS = {
-    "444": Subsampling.SUBSAMPLING_444,
-    "420": Subsampling.SUBSAMPLING_420,
-}
-CONF_BITBANK2_QUALITY_SELECTS = {
-    "BEST": Bitbank2Quality.QUALITY_BEST,
-    "HIGH": Bitbank2Quality.QUALITY_HIGH,
-    "MED": Bitbank2Quality.QUALITY_MED,
-    "LOW": Bitbank2Quality.QUALITY_LOW,
-}
-BITBANK2_ENCODER_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Bitbank2Encoder),
-        cv.Optional(CONF_QUALITY, default="HIGH"): cv.enum(
-            CONF_BITBANK2_QUALITY_SELECTS, upper=True
-        ),
-        cv.Optional(CONF_SUBSAMPLING, default="444"): cv.enum(
-            CONF_BITBANK2_SUBSAMPLING_SELECTS, upper=True
-        ),
-        cv.Optional(CONF_MCU_COUNT, default=0): cv.int_range(0),
-        cv.Optional(CONF_BUFFER_SIZE, default=4096): cv.Any(
-            0, cv.int_range(1024, MAX_JPEG_BUFFER_SIZE_2MB)
-        ),
-        cv.Optional(CONF_BUFFER_EXPAND_SIZE, default=1024): cv.int_range(
-            0, MAX_JPEG_BUFFER_SIZE_2MB
-        ),
-        cv.GenerateID(CONF_ENCODER_BUFFER_ID): cv.declare_id(BufferImpl),
-    }
-)
-
 CONFIG_SCHEMA = cv.typed_schema(
     {
         ESP32_CAMERA_ENCODER: ESP32_CAMERA_ENCODER_SCHEMA,
         ACCELERATED_JPEG: ACCELERATED_JPEG_SCHEMA,
-        BITBANK2_ENCODER: BITBANK2_ENCODER_SCHEMA,
     },
     default_type=ESP32_CAMERA_ENCODER,
 )
@@ -129,16 +92,6 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_SUBSAMPLING],
             config[CONF_TIMEOUT],
         )
-    if config[CONF_TYPE] == BITBANK2_ENCODER:
-        cg.add_build_flag("-DUSE_BITBANK2_JPEG_ENCODER")
-        cg.add_library("dt-art1/jpegenc-pio", "1.0.0")
-        var = cg.new_Pvariable(
-            config[CONF_ID],
-            config[CONF_QUALITY],
-            config[CONF_SUBSAMPLING],
-            config[CONF_MCU_COUNT],
-        )
-        cg.add(var.set_buffer_expand_size(config[CONF_BUFFER_EXPAND_SIZE]))
 
     buffer = cg.new_Pvariable(config[CONF_ENCODER_BUFFER_ID])
     cg.add(buffer.set_buffer_size(config[CONF_BUFFER_SIZE]))
