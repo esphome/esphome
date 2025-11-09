@@ -1170,14 +1170,13 @@ void WiFiComponent::retry_connect() {
     }
 
     // If we didn't advance AP/SSID/BSSID, increment retry counter
-    if (!counter_managed) {
-      // Don't increment if we're in a scan phase with no valid targets
-      if (!needs_scan_results(current_phase, this->scan_result_)) {
-        this->num_retried_++;
-        ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
-                 get_max_retries_for_phase(this->retry_phase_),
-                 LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-      }
+    if (!counter_managed &&
+        // Don't increment if we're in a scan phase with no valid targets
+        !needs_scan_results(current_phase, this->scan_result_)) {
+      this->num_retried_++;
+      ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
+               get_max_retries_for_phase(this->retry_phase_),
+               LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
     }
   }
 
