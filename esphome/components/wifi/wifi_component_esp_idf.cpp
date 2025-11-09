@@ -736,13 +736,13 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
          it.reason == WIFI_REASON_802_1X_AUTH_FAILED || it.reason == WIFI_REASON_MIC_FAILURE);
 
     if (it.reason == WIFI_REASON_NO_AP_FOUND) {
-      ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+      ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " reason='Probe Request Unsuccessful'", buf);
       s_sta_connect_not_found = true;
     } else if (it.reason == WIFI_REASON_ROAMING) {
-      ESP_LOGI(TAG, "Disconnected ssid='%s' reason='Station Roaming'", buf);
+      ESP_LOGI(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " reason='Station Roaming'", buf);
       return;
     } else {
-      ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+      ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " bssid=" LOG_SECRET("(%s)") " reason='%s'", buf,
                format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
       if (is_auth_failure) {
         s_sta_connect_auth_failed = true;
