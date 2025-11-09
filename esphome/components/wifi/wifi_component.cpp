@@ -61,10 +61,20 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   }
 }
 
-static constexpr uint8_t WIFI_RETRY_COUNT_PER_BSSID =
-    2;  // 2 attempts per BSSID (handles transient auth failures after scan)
-static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 1;  // 1 attempt per SSID (hidden network mode)
-static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;    // 1 attempt per AP (fast_connect mode)
+// 2 attempts per BSSID in SCAN_CONNECTING phase
+// Rationale: This is the ONLY phase where we decrease BSSID priority, so we must be very sure.
+// Auth failures are common immediately after scan due to WiFi stack state transitions.
+// Trying twice filters out false positives and prevents unnecessarily marking a good BSSID as bad.
+// After 2 genuine failures, priority degradation ensures we skip this BSSID on subsequent scans.
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_BSSID = 2;
+
+// 1 attempt per SSID in SCAN_WITH_HIDDEN phase
+// Rationale: Try hidden mode once, then rescan to get next best BSSID via priority system
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 1;
+
+// 1 attempt per AP in fast_connect mode (INITIAL_CONNECT and FAST_CONNECT_CYCLING_APS)
+// Rationale: Fast connect prioritizes speed - try each AP once to find a working one quickly
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
