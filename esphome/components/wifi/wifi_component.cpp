@@ -138,12 +138,12 @@ void WiFiComponent::start() {
       // Use first config (will use SSID from config)
       this->selected_sta_index_ = 0;
       params = this->build_wifi_ap_from_selected_();
-      this->retry_phase_ = WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;
       ESP_LOGI(TAG, "Starting WiFi with fast_connect (no saved data), trying '%s'", params.get_ssid().c_str());
     } else {
-      this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
       ESP_LOGI(TAG, "Starting WiFi with fast_connect (saved credentials), trying '%s'", params.get_ssid().c_str());
     }
+    // Always start with INITIAL_CONNECT phase when using fast_connect
+    this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->start_connecting(params, false);
 #else
     ESP_LOGI(TAG, "Starting WiFi with scan-based connection");
