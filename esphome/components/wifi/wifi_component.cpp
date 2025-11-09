@@ -129,7 +129,6 @@ bool WiFiComponent::advance_to_next_bssid_with_same_ssid_(bool reset_counter) {
         this->num_retried_ = 0;
       }
       wifi_sta_clear_auth_failed();
-      ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s'"), current_ssid.c_str());
       return true;
     }
   }
@@ -999,7 +998,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
 
       // Try to advance to another same-SSID AP
-      if (this->advance_to_next_bssid_with_same_ssid_(true)) {
+      if (this->advance_to_next_bssid_with_same_ssid_(false)) {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Stay in phase but with new BSSID
       }
 
@@ -1029,7 +1028,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
   return WiFiRetryPhase::SCAN_CONNECTING;
 }
 
-void WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhase new_phase) {
+bool WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhase new_phase) {
   ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(old_phase)),
            LOG_STR_ARG(retry_phase_to_log_string(new_phase)));
 
@@ -1061,6 +1060,7 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhas
       if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN ||
           old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
         this->start_scanning();
+        return true;  // Started scan, wait for completion
       }
       break;
 
@@ -1080,6 +1080,8 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhas
     default:
       break;
   }
+
+  return false;  // Did not start scan, can proceed with connection
 }
 
 void WiFiComponent::retry_connect() {
@@ -1094,13 +1096,22 @@ void WiFiComponent::retry_connect() {
 
   // Determine next retry phase based on current state
   WiFiRetryPhase current_phase = this->retry_phase_;
+  size_t current_bssid_index = this->scan_result_index_;
   WiFiRetryPhase next_phase = this->determine_next_phase_();
+  bool bssid_changed = (this->scan_result_index_ != current_bssid_index);
 
   // Transition to new phase if needed
   if (next_phase != current_phase) {
-    this->transition_to_phase_(current_phase, next_phase);
+    bool started_scan = this->transition_to_phase_(current_phase, next_phase);
+    if (started_scan) {
+      return;  // Wait for scan to complete
+    }
+  } else if (bssid_changed) {
+    // Staying in same phase but advanced to new BSSID - reset counter
+    this->num_retried_ = 0;
+    ESP_LOGD(TAG, "Advanced to next BSSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
   } else {
-    // Staying in same phase, just increment retry counter
+    // Staying in same phase with same BSSID - increment retry counter
     this->num_retried_++;
     ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
              get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
