@@ -92,6 +92,17 @@ static void apply_scan_result_to_params(WiFiAP &params, const WiFiScanResult &sc
   params.set_channel(scan.get_channel());
 }
 
+/// Check if we need valid scan results for a phase but don't have any
+/// Returns true if the phase requires scan results but they're missing or don't match
+static bool needs_scan_results(WiFiRetryPhase phase, const std::vector<WiFiScanResult> &scan_results) {
+  // Only scan-based phases need scan results
+  if (phase != WiFiRetryPhase::SCAN_CONNECTING && phase != WiFiRetryPhase::SCAN_NEXT_SAME_SSID) {
+    return false;
+  }
+  // Need scan if we have no results or no matching networks
+  return scan_results.empty() || !scan_results[0].get_matches();
+}
+
 /// Check if there's another matching BSSID in scan results (read-only check)
 /// Returns true if found, false otherwise (does not modify state)
 bool WiFiComponent::has_next_matching_bssid_() const {
@@ -278,11 +289,7 @@ void WiFiComponent::loop() {
           this->reset_selected_ap_to_first_if_invalid_();
 
           // Check if we need to trigger a scan first
-          bool need_scan = (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING ||
-                            this->retry_phase_ == WiFiRetryPhase::SCAN_NEXT_SAME_SSID) &&
-                           (this->scan_result_.empty() || !this->scan_result_[0].get_matches());
-
-          if (need_scan) {
+          if (needs_scan_results(this->retry_phase_, this->scan_result_)) {
             // Need scan results or no matching networks found - scan/rescan
             ESP_LOGD(TAG, "Scanning required for phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
             this->start_scanning();
@@ -1122,66 +1129,50 @@ void WiFiComponent::retry_connect() {
 
   // Determine next retry phase based on current state
   WiFiRetryPhase current_phase = this->retry_phase_;
+  size_t current_bssid_index = this->scan_result_index_;
   WiFiRetryPhase next_phase = this->determine_next_phase_();
 
-  // Special handling for phases that cycle through configured APs
-  // This must happen BEFORE the phase transition logic
-#ifdef USE_WIFI_FAST_CONNECT
-  if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS &&
-      next_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
-    // Advance to next configured AP
-    this->selected_sta_index_++;
-    this->reset_for_next_ap_attempt_();
-    this->num_retried_ = 0;
-    ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-  }
-#endif
-
-  // SCAN_WITH_HIDDEN: advance to next configured SSID if we've exhausted retries and phase stays the same
-  bool advanced_ssid = false;
-  if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && next_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN &&
-      this->num_retried_ + 1 >= WIFI_RETRY_COUNT_HIDDEN) {
-    // Exhausted retries on current SSID, advance to next configured SSID
-    if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-      this->selected_sta_index_++;
-      this->reset_for_next_ap_attempt_();
-      this->num_retried_ = 0;
-      advanced_ssid = true;
-      ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-    }
-  }
-
-  // Track current indices for detecting changes
-  size_t current_bssid_index = this->scan_result_index_;
-
-  // Transition to new phase if needed
+  // Handle phase transitions
   if (next_phase != current_phase) {
     bool started_scan = this->transition_to_phase_(current_phase, next_phase);
     if (started_scan) {
       return;  // Wait for scan to complete
     }
+    // Phase changed, counter already reset by transition_to_phase_()
   } else {
-    // Staying in same phase - check if we advanced to new BSSID (in scan phases)
-    bool bssid_changed = (this->scan_result_index_ != current_bssid_index);
+    // Staying in same phase - handle AP/SSID cycling or retry counter increment
+    bool counter_managed = false;
 
-    if (bssid_changed) {
-      // Advanced to new BSSID - reset counter
+    // Check if we need to advance to next AP/SSID within the same phase
+#ifdef USE_WIFI_FAST_CONNECT
+    if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
+      // Fast connect: always advance to next AP (no retries per AP)
+      this->selected_sta_index_++;
+      this->reset_for_next_ap_attempt_();
       this->num_retried_ = 0;
+      counter_managed = true;
+      ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    } else
+#endif
+        if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_HIDDEN &&
+            this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
+      // Hidden mode: exhausted retries on current SSID, advance to next
+      this->selected_sta_index_++;
+      this->reset_for_next_ap_attempt_();
+      this->num_retried_ = 0;
+      counter_managed = true;
+      ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    } else if (this->scan_result_index_ != current_bssid_index) {
+      // Scan-based phases: BSSID changed (advanced by determine_next_phase_)
+      this->num_retried_ = 0;
+      counter_managed = true;
       ESP_LOGD(TAG, "Advanced to next BSSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-    } else if (advanced_ssid) {
-      // Advanced to next SSID in SCAN_WITH_HIDDEN - counter already reset, don't increment
-      // (already logged "Advanced to next SSID" above)
-    } else if (current_phase != WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
-      // Same phase, same BSSID/AP - increment retry counter
-      // (fast connect cycling was already handled above, scan with hidden SSID advancement handled above)
-      //
-      // Don't increment if we're in a scan phase and have no valid scan results to connect to
-      // (this happens when scan completes but finds no matching networks)
-      bool have_valid_scan_target =
-          (current_phase != WiFiRetryPhase::SCAN_CONNECTING && current_phase != WiFiRetryPhase::SCAN_NEXT_SAME_SSID) ||
-          (!this->scan_result_.empty() && this->scan_result_[0].get_matches());
+    }
 
-      if (have_valid_scan_target) {
+    // If we didn't advance AP/SSID/BSSID, increment retry counter
+    if (!counter_managed) {
+      // Don't increment if we're in a scan phase with no valid targets
+      if (!needs_scan_results(current_phase, this->scan_result_)) {
         this->num_retried_++;
         ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
                  get_max_retries_for_phase(this->retry_phase_),
