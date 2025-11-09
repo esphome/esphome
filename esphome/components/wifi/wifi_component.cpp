@@ -1164,15 +1164,6 @@ void WiFiComponent::retry_connect() {
 
   this->error_from_callback_ = false;
 
-  // Check if we need scan results but don't have valid ones
-  if (this->needs_scan_results_()) {
-    ESP_LOGD(TAG, "No valid scan results, skipping connection attempt");
-    // Skip to phase transition logic (will trigger scan or move to next phase)
-    WiFiRetryPhase next_phase = this->determine_next_phase_();
-    this->transition_to_phase_(next_phase);
-    return;
-  }
-
   // Execute phase-specific connection logic
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
