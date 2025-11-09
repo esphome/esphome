@@ -1,0 +1,110 @@
+esphome:
+  name: test_device
+  on_boot:
+    - lambda: |-
+        ESP_LOGD("test", "Host preferences test starting");
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+
+preferences:
+  flash_write_interval: 0s  # Disable automatic saving for test control
+
+switch:
+  - platform: template
+    name: "Test Switch"
+    id: test_switch
+    optimistic: true
+    restore_mode: DISABLED  # Don't auto-restore for test control
+
+number:
+  - platform: template
+    name: "Test Number"
+    id: test_number
+    min_value: 0
+    max_value: 100
+    step: 0.1
+    optimistic: true
+    restore_value: false  # Don't auto-restore for test control
+
+button:
+  - platform: template
+    name: "Save Preferences"
+    on_press:
+      - lambda: |-
+          // Save current values to preferences
+          ESPPreferenceObject switch_pref = global_preferences->make_preference<bool>(0x1234);
+          ESPPreferenceObject number_pref = global_preferences->make_preference<float>(0x5678);
+
+          bool switch_value = id(test_switch).state;
+          float number_value = id(test_number).state;
+
+          if (switch_pref.save(&switch_value)) {
+            ESP_LOGI("test", "Preference saved: key=switch, value=%.1f", switch_value ? 1.0 : 0.0);
+          }
+          if (number_pref.save(&number_value)) {
+            ESP_LOGI("test", "Preference saved: key=number, value=%.1f", number_value);
+          }
+
+          // Force sync to disk
+          global_preferences->sync();
+
+  - platform: template
+    name: "Load Preferences"
+    on_press:
+      - lambda: |-
+          // Load values from preferences
+          ESPPreferenceObject switch_pref = global_preferences->make_preference<bool>(0x1234);
+          ESPPreferenceObject number_pref = global_preferences->make_preference<float>(0x5678);
+
+          // Also try to load non-existent preferences (tests our fix)
+          ESPPreferenceObject fake_pref1 = global_preferences->make_preference<uint32_t>(0x9999);
+          ESPPreferenceObject fake_pref2 = global_preferences->make_preference<uint32_t>(0xAAAA);
+
+          bool switch_value = false;
+          float number_value = 0.0;
+          uint32_t fake_value = 0;
+          int loaded_count = 0;
+
+          // These should not exist and shouldn't create map entries
+          fake_pref1.load(&fake_value);
+          fake_pref2.load(&fake_value);
+
+          if (switch_pref.load(&switch_value)) {
+            id(test_switch).publish_state(switch_value);
+            ESP_LOGI("test", "Preference loaded: key=switch, value=%.1f", switch_value ? 1.0 : 0.0);
+            loaded_count++;
+          } else {
+            ESP_LOGW("test", "Failed to load switch preference");
+          }
+
+          if (number_pref.load(&number_value)) {
+            id(test_number).publish_state(number_value);
+            ESP_LOGI("test", "Preference loaded: key=number, value=%.1f", number_value);
+            loaded_count++;
+          } else {
+            ESP_LOGW("test", "Failed to load number preference");
+          }
+
+          // Log completion message for the test to detect
+          ESP_LOGI("test", "Final load test: loaded %d preferences successfully", loaded_count);
+
+  - platform: template
+    name: "Verify Preferences"
+    on_press:
+      - lambda: |-
+          // Verify current values match what we expect
+          bool switch_value = id(test_switch).state;
+          float number_value = id(test_number).state;
+
+          // After loading, switch should be true (1.0) and number should be 42.5
+          if (switch_value == true && number_value == 42.5) {
+            ESP_LOGI("test", "Preferences verified: values match!");
+          } else {
+            ESP_LOGE("test", "Preferences mismatch: switch=%d, number=%.1f",
+                     switch_value, number_value);
+          }

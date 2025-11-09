@@ -1,0 +1,18 @@
+sensor:
+  - platform: mlx90393
+    i2c_id: i2c_bus
+    oversampling: 3
+    gain: 1X
+    temperature_compensation: true
+    x_axis:
+      name: mlxxaxis
+      resolution: DIV_2
+    y_axis:
+      name: mlxyaxis
+      resolution: DIV_1
+    z_axis:
+      name: mlxzaxis
+      resolution: DIV_2
+    temperature:
+      name: mlxtemp
+      oversampling: 2

@@ -1,10 +1,8 @@
-from esphome.components import time
-from esphome import automation
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.components import uart
-from esphome.const import CONF_ID, CONF_TIME_ID, CONF_TRIGGER_ID, CONF_SENSOR_DATAPOINT
+from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TIME_ID, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["uart"]
 

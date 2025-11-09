@@ -4,17 +4,15 @@ sensor:
     lambda: |-
       if (millis() > 10000) {
         return 0.6;
-      } else {
-        return 0.0;
       }
+      return 0.0;
   - platform: template
     id: template_temperature2
     lambda: |-
       if (millis() > 20000) {
         return 0.8;
-      } else {
-        return 0.0;
       }
+      return 0.0;
   - platform: combination
     type: kalman
     name: Kalman-filtered temperature

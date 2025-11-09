@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import mcp23x08_base, mcp23xxx_base, spi
 import esphome.config_validation as cv
-from esphome.components import spi, mcp23x08_base, mcp23xxx_base
 from esphome.const import CONF_ID
 
 AUTO_LOAD = ["mcp23x08_base"]
@@ -27,6 +27,6 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = await mcp23xxx_base.register_mcp23xxx(config)
+    var = await mcp23xxx_base.register_mcp23xxx(config, mcp23x08_base.NUM_PINS)
     cg.add(var.set_device_address(config[CONF_DEVICEADDRESS]))
     await spi.register_spi_device(var, config)

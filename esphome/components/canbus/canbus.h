@@ -70,17 +70,31 @@ class Canbus : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
-  void send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
-                 const std::vector<uint8_t> &data);
-  void send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                          const std::vector<uint8_t> &data);
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
     // for backwards compatibility only
-    this->send_data(can_id, use_extended_id, false, data);
+    return this->send_data(can_id, use_extended_id, false, data);
   }
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
 
   void add_trigger(CanbusTrigger *trigger);
+  /**
+   * Add a callback to be called when a CAN message is received. All received messages
+   * are passed to the callback without filtering.
+   *
+   * The callback function receives:
+   * - can_id of the received data
+   * - extended_id True if the can_id is an extended id
+   * - rtr If this is a remote transmission request
+   * - data The message data
+   */
+  void add_callback(
+      std::function<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)> callback) {
+    this->callback_manager_.add(std::move(callback));
+  }
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
@@ -88,10 +102,12 @@ class Canbus : public Component {
   uint32_t can_id_;
   bool use_extended_id_;
   CanSpeed bit_rate_;
+  CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
+      callback_manager_{};
 
-  virtual bool setup_internal();
-  virtual Error send_message(struct CanFrame *frame);
-  virtual Error read_message(struct CanFrame *frame);
+  virtual bool setup_internal() = 0;
+  virtual Error send_message(struct CanFrame *frame) = 0;
+  virtual Error read_message(struct CanFrame *frame) = 0;
 };
 
 template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
@@ -113,7 +129,7 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
     this->remote_transmission_request_ = remote_transmission_request;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
     auto use_extended_id =
         this->use_extended_id_.has_value() ? *this->use_extended_id_ : this->parent_->use_extended_id_;

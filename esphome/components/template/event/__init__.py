@@ -1,9 +1,6 @@
-import esphome.config_validation as cv
-
-from esphome.components import event
-
 import esphome.codegen as cg
-
+from esphome.components import event
+import esphome.config_validation as cv
 from esphome.const import CONF_EVENT_TYPES
 
 from .. import template_ns

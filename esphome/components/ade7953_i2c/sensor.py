@@ -1,8 +1,7 @@
 import esphome.codegen as cg
+from esphome.components import ade7953_base, i2c
 import esphome.config_validation as cv
-from esphome.components import i2c, ade7953_base
 from esphome.const import CONF_ID
-
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["ade7953_base"]

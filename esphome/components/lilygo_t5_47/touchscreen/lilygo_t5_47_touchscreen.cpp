@@ -24,7 +24,6 @@ static const uint8_t READ_TOUCH[1] = {0x07};
   }
 
 void LilygoT547Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Lilygo T5 4.7 Touchscreen...");
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
 

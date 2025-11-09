@@ -1,20 +1,20 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
-
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_COUNTS,
     CONF_DIELECTRIC_CONSTANT,
-    CONF_TEMPERATURE,
+    CONF_ID,
     CONF_MOISTURE,
+    CONF_PERMITTIVITY,
+    CONF_TEMPERATURE,
     CONF_VOLTAGE,
-    ICON_WATER_PERCENT,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
     UNIT_CELSIUS,
+    UNIT_EMPTY,
     UNIT_PERCENT,
     UNIT_VOLT,
 )
@@ -34,7 +34,10 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_DIELECTRIC_CONSTANT): sensor.sensor_schema(
+            cv.Optional(CONF_DIELECTRIC_CONSTANT): cv.invalid(
+                "Use 'permittivity' instead"
+            ),
+            cv.Optional(CONF_PERMITTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 accuracy_decimals=2,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -77,9 +80,9 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_COUNTS])
         cg.add(var.set_counts_sensor(sens))
 
-    if CONF_DIELECTRIC_CONSTANT in config:
-        sens = await sensor.new_sensor(config[CONF_DIELECTRIC_CONSTANT])
-        cg.add(var.set_dielectric_constant_sensor(sens))
+    if CONF_PERMITTIVITY in config:
+        sens = await sensor.new_sensor(config[CONF_PERMITTIVITY])
+        cg.add(var.set_permittivity_sensor(sens))
 
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])

@@ -1,7 +1,7 @@
-import esphome.codegen as cg
 from esphome import automation
-import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PH,
@@ -123,5 +123,4 @@ UFIRE_ISE_RESET_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(UFireISEComponent
 )
 async def ufire_ise_reset_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)

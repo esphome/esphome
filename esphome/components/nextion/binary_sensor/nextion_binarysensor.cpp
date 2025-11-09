@@ -16,7 +16,7 @@ void NextionBinarySensor::process_bool(const std::string &variable_name, bool st
 
   if (this->variable_name_ == variable_name) {
     this->publish_state(state);
-    ESP_LOGD(TAG, "Processed binarysensor \"%s\" state %s", variable_name.c_str(), state ? "ON" : "OFF");
+    ESP_LOGD(TAG, "Binary sensor: %s=%s", variable_name.c_str(), ONOFF(state));
   }
 }
 
@@ -44,7 +44,7 @@ void NextionBinarySensor::set_state(bool state, bool publish, bool send_to_nexti
     return;
 
   if (send_to_nextion) {
-    if (this->nextion_->is_sleeping() || !this->visible_) {
+    if (this->nextion_->is_sleeping() || !this->component_flags_.visible) {
       this->needs_to_send_update_ = true;
     } else {
       this->needs_to_send_update_ = false;
@@ -56,13 +56,12 @@ void NextionBinarySensor::set_state(bool state, bool publish, bool send_to_nexti
     this->publish_state(state);
   } else {
     this->state = state;
-    this->has_state_ = true;
+    this->set_has_state(true);
   }
 
   this->update_component_settings();
 
-  ESP_LOGN(TAG, "Wrote state for sensor \"%s\" state %s", this->variable_name_.c_str(),
-           ONOFF(this->variable_name_.c_str()));
+  ESP_LOGN(TAG, "Write: %s=%s", this->variable_name_.c_str(), ONOFF(this->state));
 }
 
 }  // namespace nextion

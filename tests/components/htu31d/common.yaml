@@ -1,9 +1,8 @@
-i2c:
-
 sensor:
   - platform: htu31d
+    i2c_id: i2c_bus
     temperature:
-      name: Living Room Temperature 7
+      name: Living Room Temperature
     humidity:
-      name: Living Room Humidity 7
+      name: Living Room Humidity
     update_interval: 15s

@@ -3,3 +3,52 @@ esp32_ble_tracker:
 ble_client:
   - mac_address: 01:02:03:04:05:06
     id: test_blec
+    on_connect:
+      - ble_client.ble_write:
+          id: test_blec
+          service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+          characteristic_uuid: "abcd1235-abcd-1234-abcd-abcd12345678"
+          value: !lambda |-
+            return std::vector<uint8_t>{0x01, 0x02, 0x03};
+      - ble_client.ble_write:
+          id: test_blec
+          service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+          characteristic_uuid: "abcd1235-abcd-1234-abcd-abcd12345678"
+          value: [0x04, 0x05, 0x06]
+    on_passkey_request:
+      - ble_client.passkey_reply:
+          id: test_blec
+          passkey: !lambda |-
+            return 123456;
+      - ble_client.passkey_reply:
+          id: test_blec
+          passkey: 654321
+    on_numeric_comparison_request:
+      - ble_client.numeric_comparison_reply:
+          id: test_blec
+          accept: !lambda |-
+            return true;
+      - ble_client.numeric_comparison_reply:
+          id: test_blec
+          accept: false
+
+sensor:
+  - platform: ble_client
+    ble_client_id: test_blec
+    type: characteristic
+    id: test_sensor_lambda
+    name: "BLE Sensor with Lambda"
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd1236-abcd-1234-abcd-abcd12345678"
+    lambda: |-
+      if (x.size() >= 2) {
+        return (float)(x[0] | (x[1] << 8)) / 100.0;
+      }
+      return NAN;
+  - platform: ble_client
+    ble_client_id: test_blec
+    type: characteristic
+    id: test_sensor_no_lambda
+    name: "BLE Sensor without Lambda"
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd1237-abcd-1234-abcd-abcd12345678"

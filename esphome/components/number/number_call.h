@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "number_traits.h"
 
 namespace esphome {
@@ -33,6 +34,10 @@ class NumberCall {
   NumberCall &with_cycle(bool cycle);
 
  protected:
+  void log_perform_warning_(const LogString *message);
+  void log_perform_warning_value_range_(const LogString *comparison, const LogString *limit_type, float val,
+                                        float limit);
+
   Number *const parent_;
   NumberOperation operation_{NUMBER_OP_NONE};
   optional<float> value_;

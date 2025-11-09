@@ -1,17 +1,17 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor, sensirion_common
 from esphome.const import (
+    CONF_HUMIDITY,
     CONF_ID,
     CONF_TEMPERATURE,
-    CONF_HUMIDITY,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_THERMOMETER,
+    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
-    ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
 )
 
 CODEOWNERS = ["@sjtrny"]

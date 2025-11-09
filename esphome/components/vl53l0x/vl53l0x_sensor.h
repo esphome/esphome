@@ -30,7 +30,6 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void setup() override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void update() override;
 
   void loop() override;
@@ -39,6 +38,7 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void set_long_range(bool long_range) { long_range_ = long_range; }
   void set_timeout_us(uint32_t timeout_us) { this->timeout_us_ = timeout_us; }
   void set_enable_pin(GPIOPin *enable) { this->enable_pin_ = enable; }
+  void set_timing_budget(uint32_t timing_budget) { this->measurement_timing_budget_us_ = timing_budget; }
 
  protected:
   uint32_t get_measurement_timing_budget_();
@@ -59,7 +59,7 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   float signal_rate_limit_;
   bool long_range_;
   GPIOPin *enable_pin_{nullptr};
-  uint32_t measurement_timing_budget_us_;
+  uint32_t measurement_timing_budget_us_{0};
   bool initiated_read_{false};
   bool waiting_for_interrupt_{false};
   uint8_t stop_variable_;

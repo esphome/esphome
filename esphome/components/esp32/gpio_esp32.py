@@ -31,8 +31,7 @@ def esp32_validate_gpio_pin(value):
         )
     if 9 <= value <= 10:
         _LOGGER.warning(
-            "Pin %s (9-10) might already be used by the "
-            "flash interface in QUAD IO flash mode.",
+            "Pin %s (9-10) might already be used by the flash interface in QUAD IO flash mode.",
             value,
         )
     if value in (24, 28, 29, 30, 31):

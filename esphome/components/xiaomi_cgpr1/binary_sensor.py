@@ -1,20 +1,20 @@
 import esphome.codegen as cg
+from esphome.components import binary_sensor, esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BINDKEY,
+    CONF_IDLE_TIME,
+    CONF_ILLUMINANCE,
     CONF_MAC_ADDRESS,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    UNIT_PERCENT,
-    CONF_IDLE_TIME,
-    CONF_ILLUMINANCE,
-    UNIT_MINUTE,
-    UNIT_LUX,
     ICON_TIMELAPSE,
+    UNIT_LUX,
+    UNIT_MINUTE,
+    UNIT_PERCENT,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]

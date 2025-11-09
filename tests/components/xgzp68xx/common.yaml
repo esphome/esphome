@@ -1,0 +1,9 @@
+sensor:
+  - platform: xgzp68xx
+    i2c_id: i2c_bus
+    k_value: 4096
+    temperature:
+      name: Pressure Temperature
+    pressure:
+      name: Differential pressure
+      oversampling: 1024x

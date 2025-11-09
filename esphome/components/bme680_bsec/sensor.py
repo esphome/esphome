@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAS_RESISTANCE,
     CONF_HUMIDITY,
@@ -15,6 +15,8 @@ from esphome.const import (
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ICON_GAS_CYLINDER,
     ICON_GAUGE,
+    ICON_THERMOMETER,
+    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
@@ -22,19 +24,16 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from . import (
-    BME680BSECComponent,
-    CONF_BME680_BSEC_ID,
-    SAMPLE_RATE_OPTIONS,
-)
+
+from . import CONF_BME680_BSEC_ID, SAMPLE_RATE_OPTIONS, BME680BSECComponent
 
 DEPENDENCIES = ["bme680_bsec"]
 
-CONF_IAQ = "iaq"
-CONF_CO2_EQUIVALENT = "co2_equivalent"
 CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
-UNIT_IAQ = "IAQ"
+CONF_CO2_EQUIVALENT = "co2_equivalent"
+CONF_IAQ = "iaq"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
+UNIT_IAQ = "IAQ"
 
 TYPES = [
     CONF_TEMPERATURE,
@@ -52,6 +51,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_BME680_BSEC_ID): cv.use_id(BME680BSECComponent),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
+            icon=ICON_THERMOMETER,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
@@ -68,6 +68,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
+            icon=ICON_WATER_PERCENT,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_HUMIDITY,
             state_class=STATE_CLASS_MEASUREMENT,

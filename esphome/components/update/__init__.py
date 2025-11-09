@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_FORCE_UPDATE,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_WEB_SERVER,
@@ -13,8 +14,9 @@ from esphome.const import (
     DEVICE_CLASS_FIRMWARE,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@jesserockz"]
 IS_PLATFORM_COMPONENT = True
@@ -38,7 +40,7 @@ DEVICE_CLASSES = [
 
 CONF_ON_UPDATE_AVAILABLE = "on_update_available"
 
-UPDATE_SCHEMA = (
+_UPDATE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -56,8 +58,34 @@ UPDATE_SCHEMA = (
 )
 
 
+_UPDATE_SCHEMA.add_extra(entity_duplicate_validator("update"))
+
+
+def update_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    icon: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_DEVICE_CLASS, device_class, cv.one_of(*DEVICE_CLASSES, lower=True)),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _UPDATE_SCHEMA.extend(schema)
+
+
 async def setup_update_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "update")
 
     if device_class_config := config.get(CONF_DEVICE_CLASS):
         cg.add(var.set_device_class(device_class_config))
@@ -81,6 +109,7 @@ async def register_update(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_update(var))
+    CORE.register_platform_component("update", var)
     await setup_update_core_(var, config)
 
 
@@ -90,9 +119,8 @@ async def new_update(config):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_UPDATE")
     cg.add_global(update_ns.using)
 
 

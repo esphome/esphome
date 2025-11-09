@@ -1,0 +1,23 @@
+esphome:
+  name: scheduler-bulk-cleanup
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  services:
+    - service: trigger_bulk_cleanup
+      then:
+        - lambda: |-
+            auto component = id(bulk_cleanup_component);
+            component->trigger_bulk_cleanup();
+
+scheduler_bulk_cleanup_component:
+  id: bulk_cleanup_component

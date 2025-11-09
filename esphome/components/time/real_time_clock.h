@@ -20,11 +20,24 @@ class RealTimeClock : public PollingComponent {
  public:
   explicit RealTimeClock();
 
+#ifdef USE_TIME_TIMEZONE
   /// Set the time zone.
-  void set_timezone(const std::string &tz) { this->timezone_ = tz; }
+  void set_timezone(const std::string &tz) {
+    this->timezone_ = tz;
+    this->apply_timezone_();
+  }
+
+  /// Set the time zone from raw buffer, only if it differs from the current one.
+  void set_timezone(const char *tz, size_t len) {
+    if (this->timezone_.length() != len || memcmp(this->timezone_.c_str(), tz, len) != 0) {
+      this->timezone_.assign(tz, len);
+      this->apply_timezone_();
+    }
+  }
 
   /// Get the time zone currently in use.
   std::string get_timezone() { return this->timezone_; }
+#endif
 
   /// Get the time in the currently defined timezone.
   ESPTime now() { return ESPTime::from_epoch_local(this->timestamp_now()); }
@@ -35,9 +48,7 @@ class RealTimeClock : public PollingComponent {
   /// Get the current time as the UTC epoch since January 1st 1970.
   time_t timestamp_now() { return ::time(nullptr); }
 
-  void call_setup() override;
-
-  void add_on_time_sync_callback(std::function<void()> callback) {
+  void add_on_time_sync_callback(std::function<void()> &&callback) {
     this->time_sync_callback_.add(std::move(callback));
   };
 
@@ -45,8 +56,10 @@ class RealTimeClock : public PollingComponent {
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 
+#ifdef USE_TIME_TIMEZONE
   std::string timezone_{};
   void apply_timezone_();
+#endif
 
   CallbackManager<void()> time_sync_callback_;
 };
@@ -54,7 +67,7 @@ class RealTimeClock : public PollingComponent {
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
  public:
   TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
-  bool check(Ts... x) override { return this->parent_->now().is_valid(); }
+  bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
 
  protected:
   RealTimeClock *parent_;

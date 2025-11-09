@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
@@ -22,8 +23,10 @@ class PM1006Component : public PollingComponent, public uart::UARTDevice {
  protected:
   optional<bool> check_byte_() const;
   void parse_data_();
-  uint16_t get_16_bit_uint_(uint8_t start_index) const;
   uint8_t pm1006_checksum_(const uint8_t *command_data, uint8_t length) const;
+  uint16_t get_16_bit_uint_(uint8_t start_index) const {
+    return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);
+  }
 
   sensor::Sensor *pm_2_5_sensor_{nullptr};
 

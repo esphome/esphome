@@ -1,0 +1,3 @@
+modbus:
+  id: mod_bus1
+  flow_control_pin: ${flow_control_pin}

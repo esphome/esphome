@@ -1,6 +1,7 @@
 #include "feedback_cover.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace feedback {
@@ -257,7 +258,7 @@ void FeedbackCover::loop() {
 
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Recompute position every loop cycle
   this->recompute_position_();

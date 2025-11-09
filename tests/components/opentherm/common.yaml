@@ -170,4 +170,4 @@ switch:
     otc_active:
       name: "Boiler Outside temperature compensation active"
     ch2_active:
-      name: "Boiler Central Heating 2 active"
+      name: "Boiler Central Heating 2 active status"

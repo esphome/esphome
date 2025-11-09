@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ROWS
 from esphome.components.key_provider import KeyProvider
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ITEMS, CONF_TEXT, CONF_WIDTH
@@ -15,11 +16,10 @@ from ..defines import (
     CONF_ONE_CHECKED,
     CONF_PAD_COLUMN,
     CONF_PAD_ROW,
-    CONF_ROWS,
     CONF_SELECTED,
 )
 from ..helpers import lvgl_components_required
-from ..lv_validation import key_code, lv_bool, pixels
+from ..lv_validation import key_code, lv_bool, padding
 from ..lvcode import lv, lv_add, lv_expr
 from ..schemas import automation_schema
 from ..types import (
@@ -59,8 +59,8 @@ BUTTONMATRIX_BUTTON_SCHEMA = cv.Schema(
 BUTTONMATRIX_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ONE_CHECKED, default=False): lv_bool,
-        cv.Optional(CONF_PAD_ROW): pixels,
-        cv.Optional(CONF_PAD_COLUMN): pixels,
+        cv.Optional(CONF_PAD_ROW): padding,
+        cv.Optional(CONF_PAD_COLUMN): padding,
         cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
         cv.Required(CONF_ROWS): cv.ensure_list(
             cv.Schema(
@@ -193,7 +193,7 @@ class ButtonMatrixType(WidgetType):
     async def to_code(self, w: Widget, config):
         lvgl_components_required.add("BUTTONMATRIX")
         if CONF_ROWS not in config:
-            return []
+            return
         text_list, ctrl_list, width_list, key_list = await get_button_data(
             config[CONF_ROWS], w
         )
@@ -250,7 +250,7 @@ async def button_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config[CONF_ID])
     assert all(isinstance(w, MatrixButton) for w in widgets)
 
-    async def do_button_update(w: MatrixButton):
+    async def do_button_update(w):
         if (width := config.get(CONF_WIDTH)) is not None:
             lv.btnmatrix_set_btn_width(w.obj, w.index, width)
         if config.get(CONF_SELECTED):
@@ -275,5 +275,5 @@ async def button_update_to_code(config, action_id, template_arg, args):
                 )
 
     return await action_to_code(
-        widgets, do_button_update, action_id, template_arg, args
+        widgets, do_button_update, action_id, template_arg, args, config
     )

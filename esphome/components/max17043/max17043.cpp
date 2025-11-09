@@ -22,7 +22,7 @@ void MAX17043Component::update() {
 
   if (this->voltage_sensor_ != nullptr) {
     if (!this->read_byte_16(MAX17043_VCELL, &raw_voltage)) {
-      this->status_set_warning("Unable to read MAX17043_VCELL");
+      this->status_set_warning(LOG_STR("Unable to read MAX17043_VCELL"));
     } else {
       float voltage = (1.25 * (float) (raw_voltage >> 4)) / 1000.0;
       this->voltage_sensor_->publish_state(voltage);
@@ -31,7 +31,7 @@ void MAX17043Component::update() {
   }
   if (this->battery_remaining_sensor_ != nullptr) {
     if (!this->read_byte_16(MAX17043_SOC, &raw_percent)) {
-      this->status_set_warning("Unable to read MAX17043_SOC");
+      this->status_set_warning(LOG_STR("Unable to read MAX17043_SOC"));
     } else {
       float percent = (float) ((raw_percent >> 8) + 0.003906f * (raw_percent & 0x00ff));
       this->battery_remaining_sensor_->publish_state(percent);
@@ -41,8 +41,6 @@ void MAX17043Component::update() {
 }
 
 void MAX17043Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX17043...");
-
   uint16_t config_reg;
   if (this->write(&MAX17043_CONFIG, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
@@ -76,7 +74,7 @@ void MAX17043Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX17043:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MAX17043 failed");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Battery Voltage", this->voltage_sensor_);

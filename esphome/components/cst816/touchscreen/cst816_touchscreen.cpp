@@ -1,4 +1,5 @@
 #include "cst816_touchscreen.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace cst816 {
@@ -34,19 +35,9 @@ void CST816Touchscreen::continue_setup_() {
   if (this->y_raw_max_ == this->y_raw_min_) {
     this->y_raw_max_ = this->display_->get_native_height();
   }
-  ESP_LOGCONFIG(TAG, "CST816 Touchscreen setup complete");
-}
-
-void CST816Touchscreen::update_button_state_(bool state) {
-  if (this->button_touched_ == state)
-    return;
-  this->button_touched_ = state;
-  for (auto *listener : this->button_listeners_)
-    listener->update_button(state);
 }
 
 void CST816Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CST816 Touchscreen...");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
@@ -68,18 +59,13 @@ void CST816Touchscreen::update_touches() {
   }
   uint8_t num_of_touches = data[REG_TOUCH_NUM] & 3;
   if (num_of_touches == 0) {
-    this->update_button_state_(false);
     return;
   }
 
   uint16_t x = encode_uint16(data[REG_XPOS_HIGH] & 0xF, data[REG_XPOS_LOW]);
   uint16_t y = encode_uint16(data[REG_YPOS_HIGH] & 0xF, data[REG_YPOS_LOW]);
   ESP_LOGV(TAG, "Read touch %d/%d", x, y);
-  if (x >= this->x_raw_max_) {
-    this->update_button_state_(true);
-  } else {
-    this->add_raw_touch_position_(0, x, y);
-  }
+  this->add_raw_touch_position_(0, x, y);
 }
 
 void CST816Touchscreen::dump_config() {
@@ -87,6 +73,10 @@ void CST816Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG,
+                "  X Raw Min: %d, X Raw Max: %d\n"
+                "  Y Raw Min: %d, Y Raw Max: %d",
+                this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_);
   const char *name;
   switch (this->chip_id_) {
     case CST820_CHIP_ID:

@@ -1,14 +1,10 @@
-spi:
-  - id: spi_adc128s102
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+substitutions:
+  clk_pin: GPIO0
+  mosi_pin: GPIO2
+  miso_pin: GPIO16
+  cs_pin: GPIO15
 
-adc128s102:
-  cs_pin: 15
-  id: adc128s102_adc
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
 
-sensor:
-  - platform: adc128s102
-    id: adc128s102_channel_0
-    channel: 0
+<<: !include common.yaml

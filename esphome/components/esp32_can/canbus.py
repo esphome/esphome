@@ -1,3 +1,5 @@
+import math
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import canbus
@@ -22,6 +24,8 @@ from esphome.const import (
 
 CODEOWNERS = ["@Sympatron"]
 DEPENDENCIES = ["esp32"]
+
+CONF_TX_ENQUEUE_TIMEOUT = "tx_enqueue_timeout"
 
 esp32_can_ns = cg.esphome_ns.namespace("esp32_can")
 esp32_can = esp32_can_ns.class_("ESP32Can", CanbusComponent)
@@ -84,8 +88,18 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
         cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_RX_QUEUE_LEN): cv.uint32_t,
         cv.Optional(CONF_TX_QUEUE_LEN): cv.uint32_t,
+        cv.Optional(CONF_TX_ENQUEUE_TIMEOUT): cv.positive_time_period_milliseconds,
     }
 )
+
+
+def get_default_tx_enqueue_timeout(bit_rate):
+    bit_rate_numeric = canbus.get_rate(bit_rate)
+    bits_per_packet = 140  # ~max CAN message length
+    ms_per_packet = bits_per_packet / bit_rate_numeric * 1000
+    return int(
+        max(min(math.ceil(10 * ms_per_packet), 1000), 1)
+    )  # ~10 packet lengths, min 1ms, max 1000ms
 
 
 async def to_code(config):
@@ -98,3 +112,10 @@ async def to_code(config):
         cg.add(var.set_rx_queue_len(rx_queue_len))
     if (tx_queue_len := config.get(CONF_TX_QUEUE_LEN)) is not None:
         cg.add(var.set_tx_queue_len(tx_queue_len))
+
+    if CONF_TX_ENQUEUE_TIMEOUT in config:
+        tx_enqueue_timeout_ms = config[CONF_TX_ENQUEUE_TIMEOUT].total_milliseconds
+    else:
+        tx_enqueue_timeout_ms = get_default_tx_enqueue_timeout(config[CONF_BIT_RATE])
+
+    cg.add(var.set_tx_enqueue_timeout_ms(tx_enqueue_timeout_ms))

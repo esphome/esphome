@@ -44,7 +44,6 @@ enum LTR390RESOLUTION {
 
 class LTR390Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -77,7 +76,6 @@ class LTR390Component : public PollingComponent, public i2c::I2CDevice {
   LTR390GAIN gain_uv_;
   LTR390RESOLUTION res_als_;
   LTR390RESOLUTION res_uv_;
-  float sensitivity_uv_;
   float wfac_;
 
   sensor::Sensor *light_sensor_{nullptr};
