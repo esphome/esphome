@@ -372,6 +372,9 @@ class WiFiComponent : public Component {
   /// Transition to a new retry phase with logging
   /// Returns true if a scan was started (caller should wait), false otherwise
   bool transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhase new_phase);
+  /// Check if we need valid scan results for the current phase but don't have any
+  /// Returns true if the phase requires scan results but they're missing or don't match
+  bool needs_scan_results_() const;
   /// Check if there's another matching BSSID in scan results (read-only)
   /// Returns true if found, false otherwise (does not modify state)
   bool has_next_matching_bssid_() const;

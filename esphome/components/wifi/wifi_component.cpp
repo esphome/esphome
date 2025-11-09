@@ -92,15 +92,14 @@ static void apply_scan_result_to_params(WiFiAP &params, const WiFiScanResult &sc
   params.set_channel(scan.get_channel());
 }
 
-/// Check if we need valid scan results for a phase but don't have any
-/// Returns true if the phase requires scan results but they're missing or don't match
-static bool needs_scan_results(WiFiRetryPhase phase, const std::vector<WiFiScanResult> &scan_results) {
+bool WiFiComponent::needs_scan_results_() const {
   // Only scan-based phases need scan results
-  if (phase != WiFiRetryPhase::SCAN_CONNECTING && phase != WiFiRetryPhase::SCAN_NEXT_SAME_SSID) {
+  if (this->retry_phase_ != WiFiRetryPhase::SCAN_CONNECTING &&
+      this->retry_phase_ != WiFiRetryPhase::SCAN_NEXT_SAME_SSID) {
     return false;
   }
   // Need scan if we have no results or no matching networks
-  return scan_results.empty() || !scan_results[0].get_matches();
+  return this->scan_result_.empty() || !this->scan_result_[0].get_matches();
 }
 
 /// Check if there's another matching BSSID in scan results (read-only check)
@@ -289,7 +288,7 @@ void WiFiComponent::loop() {
           this->reset_selected_ap_to_first_if_invalid_();
 
           // Check if we need to trigger a scan first
-          if (needs_scan_results(this->retry_phase_, this->scan_result_)) {
+          if (this->needs_scan_results_()) {
             // Need scan results or no matching networks found - scan/rescan
             ESP_LOGD(TAG, "Scanning required for phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
             this->start_scanning();
@@ -1172,7 +1171,7 @@ void WiFiComponent::retry_connect() {
     // If we didn't advance AP/SSID/BSSID, increment retry counter
     if (!counter_reset &&
         // Don't increment if we're in a scan phase with no valid targets
-        !needs_scan_results(current_phase, this->scan_result_)) {
+        !this->needs_scan_results_()) {
       this->num_retried_++;
       ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
                get_max_retries_for_phase(this->retry_phase_),
