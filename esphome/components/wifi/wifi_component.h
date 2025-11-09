@@ -63,11 +63,6 @@ struct SavedWifiFastConnectSettings {
   int8_t ap_index;
 } PACKED;  // NOLINT
 
-// Platform-specific auth failure tracking functions
-// Implemented in wifi_component_esp8266.cpp, wifi_component_esp_idf.cpp, wifi_component_libretiny.cpp
-bool wifi_sta_connect_auth_failed();
-void wifi_sta_clear_auth_failed();
-
 enum WiFiComponentState : uint8_t {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
