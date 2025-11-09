@@ -6,19 +6,6 @@
 namespace esphome {
 namespace bm8563 {
 
-struct BM8563TimeTypeDef {
-  int8_t hours;
-  int8_t minutes;
-  int8_t seconds;
-};
-
-struct BM8563DateTypeDef {
-  int8_t day;
-  int8_t week;
-  int8_t month;
-  int16_t year;
-};
-
 class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -30,19 +17,16 @@ class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
   void start_timer(uint32_t timer_s);
 
  private:
-  bool get_volt_low_();
+  void get_time_(ESPTime &time);
+  void get_date_(ESPTime &time);
 
-  void get_time_(BM8563TimeTypeDef *b_m8563_time_struct);
-  void get_date_(BM8563DateTypeDef *b_m8563_date_struct);
-
-  void set_time_(BM8563TimeTypeDef *b_m8563_time_struct);
-  void set_date_(BM8563DateTypeDef *b_m8563_date_struct);
+  void set_time_(const ESPTime &time);
+  void set_date_(const ESPTime &time);
 
   void set_timer_irq_(uint32_t duration_s);
   void clear_irq_();
   void disable_irq_();
 
-  void write_reg_(uint8_t reg, uint8_t data);
   uint8_t read_reg_(uint8_t reg);
 
   uint8_t bcd2_to_byte_(uint8_t value);
