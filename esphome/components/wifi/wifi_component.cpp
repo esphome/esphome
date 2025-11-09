@@ -837,11 +837,10 @@ void WiFiComponent::check_scanning_finished() {
     ESP_LOGW(TAG, "No matching network found");
     // No scan results matched our configured networks - transition directly to hidden mode
     // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
-    this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING, WiFiRetryPhase::SCAN_WITH_HIDDEN);
+    this->transition_to_phase_(this->retry_phase_, WiFiRetryPhase::SCAN_WITH_HIDDEN);
     // Now start connection attempt in hidden mode
-    WiFiAP params = this->build_wifi_ap_from_selected_();
-    this->start_connecting(params, false);
-    return;
+  } else {
+    this->transition_to_phase_(this->retry_phase_, WiFiRetryPhase::SCAN_CONNECTING);
   }
 
   yield();
@@ -849,7 +848,6 @@ void WiFiComponent::check_scanning_finished() {
   WiFiAP params = this->build_wifi_ap_from_selected_();
   // Ensure we're in SCAN_CONNECTING phase when connecting with scan results
   // (needed when scan was started directly without transition_to_phase_, e.g., initial scan)
-  this->retry_phase_ = WiFiRetryPhase::SCAN_CONNECTING;
   this->start_connecting(params, false);
 }
 
