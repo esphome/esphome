@@ -1029,9 +1029,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
   return WiFiRetryPhase::SCAN_CONNECTING;
 }
 
-void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
-  WiFiRetryPhase old_phase = this->retry_phase_;
-
+void WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhase new_phase) {
   ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(old_phase)),
            LOG_STR_ARG(retry_phase_to_log_string(new_phase)));
 
@@ -1095,11 +1093,12 @@ void WiFiComponent::retry_connect() {
   delay(10);
 
   // Determine next retry phase based on current state
+  WiFiRetryPhase current_phase = this->retry_phase_;
   WiFiRetryPhase next_phase = this->determine_next_phase_();
 
   // Transition to new phase if needed
-  if (next_phase != this->retry_phase_) {
-    this->transition_to_phase_(next_phase);
+  if (next_phase != current_phase) {
+    this->transition_to_phase_(current_phase, next_phase);
   } else {
     // Staying in same phase, just increment retry counter
     this->num_retried_++;
