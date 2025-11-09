@@ -11,28 +11,35 @@ namespace udp {
 
 template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Parented<UDPComponent> {
  public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
+  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->data_.func = func;
     this->static_ = false;
   }
-  void set_data_static(const std::vector<uint8_t> &data) {
-    this->data_static_ = data;
+
+  void set_data_static(const uint8_t *data, size_t len) {
+    this->data_.static_data.ptr = data;
+    this->data_.static_data.len = len;
     this->static_ = true;
   }
 
   void play(const Ts &...x) override {
     if (this->static_) {
-      this->parent_->send_packet(this->data_static_);
+      this->parent_->send_packet(this->data_.static_data.ptr, this->data_.static_data.len);
     } else {
-      auto val = this->data_func_(x...);
+      auto val = this->data_.func(x...);
       this->parent_->send_packet(val);
     }
   }
 
  protected:
-  bool static_{false};
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
+  bool static_{true};
+  union Data {
+    std::vector<uint8_t> (*func)(Ts...);
+    struct {
+      const uint8_t *ptr;
+      size_t len;
+    } static_data;
+  } data_;
 };
 
 }  // namespace udp
