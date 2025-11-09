@@ -508,14 +508,19 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
-  // Log connection attempt at INFO level
+  // Log connection attempt at INFO level with priority
   if (ap.get_bssid().has_value()) {
-    ESP_LOGI(TAG, "Connecting to '%s' " LOG_SECRET("(%s)") " (attempt %u/%u in phase %s)...", ap.get_ssid().c_str(),
-             format_mac_address_pretty(ap.get_bssid().value().data()).c_str(), this->num_retried_ + 1,
-             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    float priority = this->get_sta_priority(ap.get_bssid().value());
+    ESP_LOGI(
+        TAG,
+        "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %.1f, attempt %u/%u in phase %s)...",
+        ap.get_ssid().c_str(), format_mac_address_pretty(ap.get_bssid().value().data()).c_str(), priority,
+        this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
+        LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
   } else {
-    ESP_LOGI(TAG, "Connecting to '%s' (attempt %u/%u in phase %s)...", ap.get_ssid().c_str(), this->num_retried_ + 1,
-             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    ESP_LOGI(TAG, "Connecting to " LOG_SECRET("'%s'") " (attempt %u/%u in phase %s)...", ap.get_ssid().c_str(),
+             this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
+             LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
   }
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
