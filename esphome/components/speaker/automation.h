@@ -12,32 +12,30 @@ template<typename... Ts> class PlayAction : public Action<Ts...>, public Parente
  public:
   void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
     this->data_.func = func;
-    this->static_ = false;
+    this->len_ = -1;  // Sentinel value indicates template mode
   }
 
   void set_data_static(const uint8_t *data, size_t len) {
-    this->data_.static_data.ptr = data;
-    this->data_.static_data.len = len;
-    this->static_ = true;
+    this->data_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
 
   void play(const Ts &...x) override {
-    if (this->static_) {
-      this->parent_->play(this->data_.static_data.ptr, this->data_.static_data.len);
+    if (this->len_ >= 0) {
+      // Static mode: pass pointer directly to play(const uint8_t *, size_t)
+      this->parent_->play(this->data_.data, static_cast<size_t>(this->len_));
     } else {
+      // Template mode: call function and pass vector to play(const std::vector<uint8_t> &)
       auto val = this->data_.func(x...);
       this->parent_->play(val);
     }
   }
 
  protected:
-  bool static_{true};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
   union Data {
-    std::vector<uint8_t> (*func)(Ts...);
-    struct {
-      const uint8_t *ptr;
-      size_t len;
-    } static_data;
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
   } data_;
 };
 
