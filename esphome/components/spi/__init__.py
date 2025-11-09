@@ -61,7 +61,7 @@ SPI_DATA_RATE_OPTIONS = {
     75e3: SPIDataRate.DATA_RATE_75KHZ,
     1e3: SPIDataRate.DATA_RATE_1KHZ,
 }
-SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
+SPI_DATA_RATE_SCHEMA = cv.Any(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
 
 SPI_MODE_OPTIONS = {
     "MODE0": SPIMode.MODE0,
@@ -410,7 +410,7 @@ async def register_spi_device(var, config):
         pin = await cg.gpio_pin_expression(cs_pin)
         cg.add(var.set_cs_pin(pin))
     if data_rate := config.get(CONF_DATA_RATE):
-        cg.add(var.set_data_rate(data_rate))
+        cg.add(var.set_data_rate(int(data_rate)))
     if spi_mode := config.get(CONF_SPI_MODE):
         cg.add(var.set_mode(spi_mode))
     if release_device := config.get(CONF_RELEASE_DEVICE):

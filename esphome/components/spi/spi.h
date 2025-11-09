@@ -304,6 +304,10 @@ class SPIDelegateBitBash : public SPIDelegate {
   SPIClockPhase clock_phase_;
 
   void HOT cycle_clock_() {
+    if (this->data_rate_ <= 1000) {
+      delay(1000 / this->data_rate_);
+      return;
+    }
     while (this->last_transition_ - arch_get_cpu_cycle_count() < this->wait_cycle_)
       continue;
     this->last_transition_ += this->wait_cycle_;
