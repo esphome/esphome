@@ -214,7 +214,7 @@ void WiFiComponent::loop() {
             WiFiAP params = this->build_params_for_current_phase_();
             if (params.get_bssid().has_value()) {
               ESP_LOGI(TAG, "Connecting to '%s' " LOG_SECRET("(%s)") " (attempt %u in phase %s)...",
-                       params.get_ssid().c_str(), format_mac_address_pretty(params.get_bssid()->data()).c_str(),
+                       params.get_ssid().c_str(), format_mac_address_pretty(params.get_bssid().value().data()).c_str(),
                        this->num_retried_ + 1, LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
             } else {
               ESP_LOGI(TAG, "Connecting to '%s' (attempt %u in phase %s)...", params.get_ssid().c_str(),
@@ -1072,7 +1072,7 @@ void WiFiComponent::retry_connect() {
     // Log connection attempt with details
     if (params.get_bssid().has_value()) {
       ESP_LOGI(TAG, "Connecting to '%s' " LOG_SECRET("(%s)") " (attempt %u in phase %s)...", params.get_ssid().c_str(),
-               format_mac_address_pretty(params.get_bssid()->data()).c_str(), this->num_retried_ + 1,
+               format_mac_address_pretty(params.get_bssid().value().data()).c_str(), this->num_retried_ + 1,
                LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
     } else {
       ESP_LOGI(TAG, "Connecting to '%s' (attempt %u in phase %s)...", params.get_ssid().c_str(), this->num_retried_ + 1,
