@@ -746,10 +746,8 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
     ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
              res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
              LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-    ESP_LOGD(TAG,
-             "    Channel: %u\n"
-             "    RSSI: %d dB",
-             res.get_channel(), res.get_rssi());
+    ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4.1f", res.get_channel(), res.get_rssi(),
+             res.get_priority());
   } else {
     ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
              LOG_STR_ARG(get_signal_bars(res.get_rssi())));
