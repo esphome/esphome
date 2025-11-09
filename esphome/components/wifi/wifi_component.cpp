@@ -971,7 +971,13 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Keep retrying same SSID
       }
 
-      // Failed with hidden mode, restart adapter and scan again
+      // Exhausted retries on current SSID - check if there are more SSIDs to try
+      if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
+        // More SSIDs available - stay in SCAN_WITH_HIDDEN, advance will happen in retry_connect()
+        return WiFiRetryPhase::SCAN_WITH_HIDDEN;
+      }
+
+      // Exhausted all SSIDs - restart adapter and scan again
       // If captive portal/improv is active, loop back to scanning instead of restarting
       // This keeps trying to connect in case WiFi comes back up
       if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
@@ -1032,6 +1038,13 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhas
           old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
         this->start_scanning();
         return true;  // Started scan, wait for completion
+      }
+      break;
+
+    case WiFiRetryPhase::SCAN_WITH_HIDDEN:
+      // Starting hidden mode - reset to first SSID to try all configured networks
+      if (old_phase == WiFiRetryPhase::SCAN_CONNECTING) {
+        this->selected_sta_index_ = 0;
       }
       break;
 
