@@ -408,10 +408,10 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   if (ap.get_bssid().has_value()) {
-    ESP_LOGI(TAG, "Connecting to '%s' (%s)", ap.get_ssid().c_str(),
+    ESP_LOGI(TAG, "Connecting to " LOG_SECRET("'%s' (%s)"), ap.get_ssid().c_str(),
              format_mac_address_pretty(ap.get_bssid()->data()).c_str());
   } else {
-    ESP_LOGI(TAG, "Connecting to '%s'", ap.get_ssid().c_str());
+    ESP_LOGI(TAG, "Connecting to " LOG_SECRET("'%s'"), ap.get_ssid().c_str());
   }
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG, "Connection Params:");
