@@ -873,18 +873,13 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
 
 #ifdef USE_WIFI_FAST_CONNECT
-      if (!this->fast_connect_exhausted_) {
-        // Can we try next configured AP?
-        if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-          return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;
-        } else {
-          // Exhausted fast_connect, need to scan
-          return WiFiRetryPhase::SCAN_CONNECTING;
-        }
+      // Fast connect enabled: try next configured AP or fall back to scan
+      if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
+        return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;
       }
 #endif
 
-      // fast_connect disabled or exhausted
+      // No more fast_connect APs (or fast_connect disabled), fall back to scan
       return WiFiRetryPhase::SCAN_CONNECTING;
 
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
@@ -947,7 +942,12 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
       // Move to next configured AP
       this->selected_sta_index_++;
+#ifdef USE_WIFI_FAST_CONNECT
       this->reset_for_next_ap_attempt_();
+#else
+      this->num_retried_ = 0;
+      this->scan_result_.clear();
+#endif
       break;
 
     case WiFiRetryPhase::SCAN_CONNECTING:
