@@ -253,8 +253,7 @@ void WiFiComponent::restart_adapter() {
   ESP_LOGW(TAG, "Restarting adapter");
   this->wifi_mode_(false, {});
   delay(100);  // NOLINT
-  this->num_retried_ = 0;
-  this->retry_phase_ = WiFiRetryPhase::SCAN_CONNECTING;
+  // Don't set retry_phase_ or num_retried_ here - state machine handles transitions
 }
 
 void WiFiComponent::loop() {
