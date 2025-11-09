@@ -838,6 +838,9 @@ void WiFiComponent::check_scanning_finished() {
     // No scan results matched our configured networks - transition directly to hidden mode
     // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
     this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING, WiFiRetryPhase::SCAN_WITH_HIDDEN);
+    // Now start connection attempt in hidden mode
+    WiFiAP params = this->build_wifi_ap_from_selected_();
+    this->start_connecting(params, false);
     return;
   }
 
