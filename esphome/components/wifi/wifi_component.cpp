@@ -714,8 +714,39 @@ void WiFiComponent::start_scanning() {
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
 }
 
-// Helper function for WiFi scan result comparison
-// Returns true if 'a' should be placed before 'b' in the sorted order
+/// Comparator for WiFi scan result sorting - determines which network should be tried first
+/// Returns true if 'a' should be placed before 'b' in the sorted order (a is "better" than b)
+///
+/// Sorting logic (in priority order):
+/// 1. Matching networks always ranked before non-matching networks
+/// 2. For matching networks: Priority first (CRITICAL - tracks failure history)
+/// 3. RSSI as tiebreaker for equal priority or non-matching networks
+///
+/// WHY PRIORITY MUST BE CHECKED FIRST:
+/// The priority field tracks connection failure history via priority degradation:
+/// - Initial priority: 0.0 (from config or default)
+/// - Each connection failure: priority -= 1.0 (becomes -1.0, -2.0, -3.0, etc.)
+/// - Failed BSSIDs sorted lower → naturally try different BSSID on next scan
+///
+/// This enables automatic BSSID cycling for various real-world failure scenarios:
+/// - Crashed/hung AP (visible but not responding)
+/// - Misconfigured mesh node (accepts auth but no DHCP/routing)
+/// - Capacity limits (AP refuses new clients)
+/// - Rogue AP (same SSID, wrong password or malicious)
+/// - Intermittent hardware issues (flaky radio, overheating)
+///
+/// Example mesh network: 3 APs with same SSID "home", all at priority 0.0 initially
+/// - Try strongest BSSID A (sorted by RSSI) → fails → priority A becomes -1.0
+/// - Next scan: BSSID B and C (priority 0.0) sorted BEFORE A (priority -1.0)
+/// - Try next strongest BSSID B → succeeds or fails and gets deprioritized
+/// - System naturally cycles through all BSSIDs via priority degradation
+/// - Eventually finds working AP or tries all options before restarting adapter
+///
+/// If we checked RSSI first (Bug in PR #9963):
+/// - Same failed BSSID would keep being selected if it has strongest signal
+/// - Device stuck connecting to crashed AP with -30dBm while working AP at -50dBm ignored
+/// - Priority degradation would be useless
+/// - Mesh networks would never recover from single AP failure
 [[nodiscard]] inline static bool wifi_scan_result_is_better(const WiFiScanResult &a, const WiFiScanResult &b) {
   // Matching networks always come before non-matching
   if (a.get_matches() && !b.get_matches())
@@ -1078,6 +1109,19 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   return false;  // Did not start scan, can proceed with connection
 }
 
+/// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
+/// This function identifies which BSSID was attempted (from scan results or config),
+/// decreases its priority by 1.0 to discourage future attempts, and logs the change.
+///
+/// The priority degradation system ensures that failed BSSIDs are automatically sorted
+/// lower in subsequent scans, naturally cycling through different APs without explicit
+/// BSSID tracking within a scan cycle.
+///
+/// Priority sources:
+/// - SCAN_CONNECTING phase: Uses BSSID from scan_result_[0] (best match after sorting)
+/// - Other phases: Uses BSSID from config if explicitly specified by user or fast_connect
+///
+/// If no BSSID is available (SSID-only connection), priority adjustment is skipped.
 void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   // Determine which BSSID we tried to connect to
   optional<bssid_t> failed_bssid;
@@ -1111,6 +1155,16 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
            ssid.c_str(), format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
 }
 
+/// Handle target advancement or retry counter increment when staying in the same phase
+/// This function is called when a connection attempt fails and determine_next_phase_() indicates
+/// we should stay in the current phase. It decides whether to:
+/// - Advance to the next target (AP in fast_connect, SSID in hidden mode)
+/// - Or increment the retry counter to try the same target again
+///
+/// Phase-specific behavior:
+/// - FAST_CONNECT_CYCLING_APS: Always advance to next AP (no retries per AP)
+/// - SCAN_WITH_HIDDEN: Advance to next SSID after exhausting retries on current SSID
+/// - Other phases: Increment retry counter (will retry same target)
 void WiFiComponent::advance_to_next_target_or_increment_retry_() {
   WiFiRetryPhase current_phase = this->retry_phase_;
   bool advanced_to_next_target = false;
