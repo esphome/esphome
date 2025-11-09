@@ -102,6 +102,20 @@ bool WiFiComponent::needs_scan_results_() const {
   return this->scan_result_.empty() || !this->scan_result_[0].get_matches();
 }
 
+void WiFiComponent::start_initial_connection_() {
+  // If all networks are configured as hidden, skip scanning and go straight to hidden mode
+  if (this->all_networks_hidden_()) {
+    ESP_LOGI(TAG, "Starting WiFi with hidden network mode (all networks configured as hidden)");
+    this->selected_sta_index_ = 0;
+    this->retry_phase_ = WiFiRetryPhase::SCAN_WITH_HIDDEN;
+    WiFiAP params = this->build_wifi_ap_from_selected_();
+    this->start_connecting(params, false);
+  } else {
+    ESP_LOGI(TAG, "Starting WiFi with scan-based connection");
+    this->start_scanning();
+  }
+}
+
 /// Check if there's another matching BSSID in scan results (read-only check)
 /// Returns true if found, false otherwise (does not modify state)
 bool WiFiComponent::has_next_matching_bssid_() const {
@@ -214,9 +228,8 @@ void WiFiComponent::start() {
     bool loaded_fast_connect = this->load_fast_connect_settings_(params);
     if (!loaded_fast_connect && this->sta_.size() <= 1) {
       // FAST CONNECT DISABLED: No saved data and only one (or zero) configured AP
-      // Skip fast_connect and go straight to scanning
-      ESP_LOGI(TAG, "Starting WiFi with scan-based connection (no fast_connect data)");
-      this->start_scanning();
+      // Skip fast_connect and go straight to initial connection (scan or hidden mode)
+      this->start_initial_connection_();
     } else {
       // FAST CONNECT ENABLED: Either have saved data OR multiple configured APs to try
       if (!loaded_fast_connect) {
@@ -232,8 +245,7 @@ void WiFiComponent::start() {
       this->start_connecting(params, false);
     }
 #else
-    ESP_LOGI(TAG, "Starting WiFi with scan-based connection");
-    this->start_scanning();
+    this->start_initial_connection_();
 #endif
 #ifdef USE_WIFI_AP
   } else if (this->has_ap()) {
@@ -288,12 +300,12 @@ void WiFiComponent::loop() {
           this->reset_selected_ap_to_first_if_invalid_();
 
           // Check if we need to trigger a scan first
-          if (this->needs_scan_results_()) {
+          if (this->needs_scan_results_() && !this->all_networks_hidden_()) {
             // Need scan results or no matching networks found - scan/rescan
             ESP_LOGD(TAG, "Scanning required for phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
             this->start_scanning();
           } else {
-            // Have everything we need to connect
+            // Have everything we need to connect (or all networks are hidden, skip scanning)
             WiFiAP params = this->build_params_for_current_phase_();
             this->start_connecting(params, false);
           }

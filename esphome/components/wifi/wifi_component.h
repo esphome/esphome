@@ -375,6 +375,8 @@ class WiFiComponent : public Component {
   /// Check if we need valid scan results for the current phase but don't have any
   /// Returns true if the phase requires scan results but they're missing or don't match
   bool needs_scan_results_() const;
+  /// Start initial connection - either scan or connect directly to hidden networks
+  void start_initial_connection_();
   /// Check if there's another matching BSSID in scan results (read-only)
   /// Returns true if found, false otherwise (does not modify state)
   bool has_next_matching_bssid_() const;
@@ -394,6 +396,16 @@ class WiFiComponent : public Component {
     if (this->selected_sta_index_ < 0 || static_cast<size_t>(this->selected_sta_index_) >= this->sta_.size()) {
       this->selected_sta_index_ = this->sta_.empty() ? -1 : 0;
     }
+  }
+
+  bool all_networks_hidden_() const {
+    if (this->sta_.empty())
+      return false;
+    for (const auto &ap : this->sta_) {
+      if (!ap.get_hidden())
+        return false;
+    }
+    return true;
   }
 
 #ifdef USE_WIFI_FAST_CONNECT
