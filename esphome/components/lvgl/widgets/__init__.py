@@ -265,8 +265,6 @@ async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
     if not config:
         return []
     if not isinstance(config, list):
-        if isinstance(config, ID):
-            config = {CONF_ID: config}
         config = [config]
     return [await get_widget_(c[id]) for c in config if id in c]
 
