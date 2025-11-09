@@ -364,7 +364,7 @@ class WiFiComponent : public Component {
   WiFiRetryPhase determine_next_phase_();
   /// Transition to a new retry phase with logging
   /// Returns true if a scan was started (caller should wait), false otherwise
-  bool transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhase new_phase);
+  bool transition_to_phase_(WiFiRetryPhase new_phase);
   /// Check if we need valid scan results for the current phase but don't have any
   /// Returns true if the phase requires scan results but they're missing or don't match
   bool needs_scan_results_() const;

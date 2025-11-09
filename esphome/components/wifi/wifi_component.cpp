@@ -837,10 +837,10 @@ void WiFiComponent::check_scanning_finished() {
     ESP_LOGW(TAG, "No matching network found");
     // No scan results matched our configured networks - transition directly to hidden mode
     // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
-    this->transition_to_phase_(this->retry_phase_, WiFiRetryPhase::SCAN_WITH_HIDDEN);
+    this->transition_to_phase_(WiFiRetryPhase::SCAN_WITH_HIDDEN);
     // Now start connection attempt in hidden mode
   } else {
-    this->transition_to_phase_(this->retry_phase_, WiFiRetryPhase::SCAN_CONNECTING);
+    this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING);
   }
 
   yield();
@@ -1007,17 +1007,23 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
   return WiFiRetryPhase::SCAN_CONNECTING;
 }
 
-/// Transition from one retry phase to another with logging and phase-specific setup
-/// This function handles the actual state change from old_phase to new_phase, including:
+/// Transition from current retry phase to a new phase with logging and phase-specific setup
+/// This function handles the actual state change, including:
 /// - Logging the phase transition
 /// - Resetting the retry counter
 /// - Performing phase-specific initialization (e.g., advancing AP index, starting scans)
 ///
-/// @param old_phase The phase we're transitioning FROM
 /// @param new_phase The phase we're transitioning TO
 /// @return true if an async scan was started (caller should wait for completion)
 ///         false if no scan started (caller can proceed with connection attempt)
-bool WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhase new_phase) {
+bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
+  WiFiRetryPhase old_phase = this->retry_phase_;
+
+  // No-op if staying in same phase
+  if (old_phase == new_phase) {
+    return false;
+  }
+
   ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(old_phase)),
            LOG_STR_ARG(retry_phase_to_log_string(new_phase)));
 
@@ -1108,14 +1114,13 @@ void WiFiComponent::retry_connect() {
   WiFiRetryPhase current_phase = this->retry_phase_;
   WiFiRetryPhase next_phase = this->determine_next_phase_();
 
-  // Handle phase transitions
-  if (next_phase != current_phase) {
-    bool started_scan = this->transition_to_phase_(current_phase, next_phase);
-    if (started_scan) {
-      return;  // Wait for scan to complete
-    }
-    // Phase changed, counter already reset by transition_to_phase_()
-  } else {
+  // Handle phase transitions (transition_to_phase_ handles same-phase no-op internally)
+  bool started_scan = this->transition_to_phase_(next_phase);
+  if (started_scan) {
+    return;  // Wait for scan to complete
+  }
+
+  if (next_phase == current_phase) {
     // Staying in same phase - handle AP/SSID cycling or retry counter increment
     bool advanced_to_next_target = false;
 
@@ -1157,9 +1162,7 @@ void WiFiComponent::retry_connect() {
     ESP_LOGD(TAG, "No valid scan results, skipping connection attempt");
     // Skip to phase transition logic (will trigger scan or move to next phase)
     WiFiRetryPhase next_phase = this->determine_next_phase_();
-    if (next_phase != this->retry_phase_) {
-      this->transition_to_phase_(this->retry_phase_, next_phase);
-    }
+    this->transition_to_phase_(next_phase);
     return;
   }
 
