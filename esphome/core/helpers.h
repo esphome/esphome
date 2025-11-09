@@ -12,6 +12,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <concepts>
 
 #include "esphome/core/optional.h"
 
@@ -248,6 +249,8 @@ template<typename T> class FixedVector {
   }
 
   // Allocate capacity - can be called multiple times to reinit
+  // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
+  // Direct assignment via operator[] does NOT update the size counter.
   void init(size_t n) {
     cleanup_();
     reset_();
@@ -1167,7 +1170,20 @@ template<class T> class RAMAllocator {
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
-/// @}
+/**
+ * Functions to constrain the range of arithmetic values.
+ */
+
+template<std::totally_ordered T> T clamp_at_least(T value, T min) {
+  if (value < min)
+    return min;
+  return value;
+}
+template<std::totally_ordered T> T clamp_at_most(T value, T max) {
+  if (value > max)
+    return max;
+  return value;
+}
 
 /// @name Internal functions
 ///@{
