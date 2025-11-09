@@ -52,8 +52,6 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
 #endif
     case WiFiRetryPhase::SCAN_CONNECTING:
       return LOG_STR("SCAN_CONNECTING");
-    case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      return LOG_STR("SCAN_NEXT_BSSID");
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
       return LOG_STR("SCAN_HIDDEN");
     case WiFiRetryPhase::RESTARTING_ADAPTER:
@@ -63,7 +61,7 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   }
 }
 
-static constexpr uint8_t WIFI_RETRY_COUNT_PER_BSSID = 2;  // 2 attempts per BSSID (scan-based phases)
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_BSSID = 1;  // 1 attempt per BSSID (priority system tracks failures)
 static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 2;   // 2 attempts per SSID (hidden network mode)
 static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;     // 1 attempt per AP (fast_connect mode)
 
@@ -76,11 +74,10 @@ static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
       // INITIAL_CONNECT and FAST_CONNECT_CYCLING_APS both use 1 attempt per AP (fast_connect mode)
       return WIFI_RETRY_COUNT_PER_AP;
     case WiFiRetryPhase::SCAN_CONNECTING:
-    case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      // Scan-based phases: 2 attempts per BSSID before moving to next
+      // Scan-based phase: 1 attempt per BSSID (priority system tracks failures)
       return WIFI_RETRY_COUNT_PER_BSSID;
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      // Hidden network mode: 2 attempts per SSID before moving to next
+      // Hidden network mode: 2 attempts per SSID
       return WIFI_RETRY_COUNT_PER_SSID;
     default:
       return WIFI_RETRY_COUNT_PER_BSSID;
@@ -95,9 +92,8 @@ static void apply_scan_result_to_params(WiFiAP &params, const WiFiScanResult &sc
 }
 
 bool WiFiComponent::needs_scan_results_() const {
-  // Only scan-based phases need scan results
-  if (this->retry_phase_ != WiFiRetryPhase::SCAN_CONNECTING &&
-      this->retry_phase_ != WiFiRetryPhase::SCAN_NEXT_SAME_SSID) {
+  // Only SCAN_CONNECTING phase needs scan results
+  if (this->retry_phase_ != WiFiRetryPhase::SCAN_CONNECTING) {
     return false;
   }
   // Need scan if we have no results or no matching networks
@@ -116,46 +112,6 @@ void WiFiComponent::start_initial_connection_() {
     ESP_LOGI(TAG, "Starting WiFi with scan-based connection");
     this->start_scanning();
   }
-}
-
-/// Check if there's another matching BSSID in scan results (read-only check)
-/// Returns true if found, false otherwise (does not modify state)
-bool WiFiComponent::has_next_matching_bssid_() const {
-  if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size()) {
-    return false;
-  }
-
-  // Check if there's any matching AP after current index
-  for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-    if (this->scan_result_[i].get_matches()) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/// Advance to the next matching BSSID in scan results (any configured SSID)
-/// Returns true if found and advanced, false if no more BSSIDs available
-/// @param reset_counter If true, resets num_retried_ to 0 (used when staying in same phase)
-bool WiFiComponent::advance_to_next_matching_bssid_(bool reset_counter) {
-  if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size()) {
-    return false;
-  }
-
-  // Search for next matching AP (any configured SSID)
-  for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-    if (this->scan_result_[i].get_matches()) {
-      this->scan_result_index_ = i;
-      if (reset_counter) {
-        this->num_retried_ = 0;
-      }
-      wifi_sta_clear_auth_failed();
-      return true;
-    }
-  }
-
-  return false;
 }
 
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -512,8 +468,7 @@ WiFiAP WiFiComponent::build_params_for_current_phase_() {
       break;
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-    case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      // Scan-based phases: use scan results if available
+      // Scan-based phase: use scan results if available
       if (this->scan_result_index_ < this->scan_result_.size()) {
         apply_scan_result_to_params(params, this->scan_result_[this->scan_result_index_]);
       }
@@ -744,16 +699,13 @@ void WiFiComponent::start_scanning() {
     return false;
 
   if (a.get_matches() && b.get_matches()) {
-    // For APs with the same SSID, always prefer stronger signal
-    // This helps with mesh networks and multiple APs
-    if (a.get_ssid() == b.get_ssid()) {
-      return a.get_rssi() > b.get_rssi();
-    }
-
-    // For different SSIDs, check priority first
+    // Check priority first (tracks connection failures via priority degradation)
+    // Priority is decreased when a BSSID fails to connect, so lower priority = previously failed
     if (a.get_priority() != b.get_priority())
       return a.get_priority() > b.get_priority();
+
     // If priorities are equal, prefer stronger signal
+    // This helps with mesh networks and multiple APs with same SSID
     return a.get_rssi() > b.get_rssi();
   }
 
@@ -999,25 +951,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
       }
 
-      // Auth failure + have other matching APs available? Try next BSSID
-      if (wifi_sta_connect_auth_failed() && this->has_next_matching_bssid_()) {
-        return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;
-      }
-
-      // No mesh fallback available, try with hidden flag
-      return WiFiRetryPhase::SCAN_WITH_HIDDEN;
-
-    case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_BSSID) {
-        return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying current AP
-      }
-
-      // Try to advance to another matching AP
-      if (this->advance_to_next_matching_bssid_(false)) {
-        return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Stay in phase but with new BSSID
-      }
-
-      // No more matching APs, try with hidden flag
+      // Failed to connect, try with hidden flag
+      // Priority system will handle trying different BSSIDs on next scan cycle
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
@@ -1025,12 +960,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Keep retrying same SSID
       }
 
-      // Exhausted retries for current SSID - try next configured SSID if available
-      if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-        return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Stay in phase, will advance to next SSID
-      }
-
-      // Exhausted all configured SSIDs - check if we should loop back or restart
+      // Failed with hidden mode, restart adapter and scan again
       // If captive portal/improv is active, loop back to scanning instead of restarting
       // This keeps trying to connect in case WiFi comes back up
       if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
@@ -1092,15 +1022,6 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhas
           old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
         this->start_scanning();
         return true;  // Started scan, wait for completion
-      }
-      break;
-
-    case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      // Advance to next matching BSSID when first entering this phase
-      // Don't reset counter - transition_to_phase_() already did that
-      // If no next BSSID found, just skip - determine_next_phase_() will handle transition
-      if (!this->advance_to_next_matching_bssid_(false)) {
-        ESP_LOGD(TAG, "No more matching APs available");
       }
       break;
 

@@ -109,8 +109,6 @@ enum class WiFiRetryPhase : uint8_t {
 #endif
   /// Scan-based: connecting to best AP from scan results
   SCAN_CONNECTING,
-  /// Mesh fallback: trying next matching BSSID (any configured SSID) after auth failure
-  SCAN_NEXT_SAME_SSID,
   /// Retrying with hidden network flag
   SCAN_WITH_HIDDEN,
   /// Restarting WiFi adapter to clear stuck state
@@ -377,14 +375,6 @@ class WiFiComponent : public Component {
   bool needs_scan_results_() const;
   /// Start initial connection - either scan or connect directly to hidden networks
   void start_initial_connection_();
-  /// Check if there's another matching BSSID in scan results (read-only)
-  /// Returns true if found, false otherwise (does not modify state)
-  bool has_next_matching_bssid_() const;
-  /// Advance to the next matching BSSID in scan results (any configured SSID)
-  /// Returns true if found and advanced, false if no more BSSIDs available
-  /// @param reset_counter If true, resets num_retried_ to 0 (used when staying in same phase)
-  bool advance_to_next_matching_bssid_(bool reset_counter);
-
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
       return &this->sta_[this->selected_sta_index_];
