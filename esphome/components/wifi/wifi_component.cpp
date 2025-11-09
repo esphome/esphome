@@ -42,6 +42,10 @@ namespace wifi {
 
 static const char *const TAG = "wifi";
 
+// Retry thresholds
+static constexpr uint8_t RETRY_THRESHOLD_AUTH_FALLBACK = 3;  // Retries before trying next AP with same SSID
+static constexpr uint8_t RETRY_THRESHOLD_RESTART = 5;        // Retries before restarting adapter
+
 // Platform-specific functions to access authentication failure flag
 bool wifi_sta_connect_auth_failed();
 void wifi_sta_clear_auth_failed();
@@ -156,6 +160,9 @@ void WiFiComponent::restart_adapter() {
   delay(100);  // NOLINT
   this->num_retried_ = 0;
   this->retry_hidden_ = false;
+  // Clear scan results - adapter restart invalidates them
+  this->scan_result_.clear();
+  this->scan_result_index_ = 0;
 }
 
 void WiFiComponent::loop() {
@@ -809,7 +816,16 @@ void WiFiComponent::check_connecting_finished() {
 }
 
 bool WiFiComponent::try_next_ap_with_same_ssid_() {
-  // Only attempt fallback if we have scan results and haven't exhausted them
+  // MESH NETWORK AP FALLBACK
+  // Try to connect to the next available AP with the same SSID after authentication failure.
+  // This is used for mesh networks where multiple APs share the same SSID.
+  //
+  // Preconditions:
+  // - scan_result_ must be populated (from initial scan or triggered scan)
+  // - scan_result_index_ points to current/last tried AP
+  // - Must have at least one more scan result to try
+
+  // Check if scan results are available and we haven't exhausted them
   if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size() - 1) {
     return false;
   }
@@ -821,24 +837,25 @@ bool WiFiComponent::try_next_ap_with_same_ssid_() {
 
   const std::string &current_ssid = current_config->get_ssid();
 
-  // Look for next scan result with same SSID
+  // Search through remaining scan results for next AP with same SSID
   for (uint8_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
     const WiFiScanResult &scan_res = this->scan_result_[i];
 
-    // Stop if we've passed all matching networks
+    // Optimization: scan results are sorted by priority/RSSI with matching networks first
+    // Once we hit non-matching networks, we can stop searching
     if (!scan_res.get_matches()) {
       break;
     }
 
-    // Skip if this scan result has a different SSID
+    // Skip scan results with different SSID
     if (scan_res.get_ssid() != current_ssid) {
       continue;
     }
 
-    // Found another AP with same SSID
-    // No need to update selected_sta_index_ - same SSID means same config entry
+    // Found next AP with same SSID - update index and reset retry counter
+    // Note: selected_sta_index_ stays the same (same SSID = same config entry)
     this->scan_result_index_ = i;
-    this->num_retried_ = 0;  // Reset retry counter for new AP
+    this->num_retried_ = 0;  // Give new AP fresh retry attempts
 
     char bssid_s[18];
     auto bssid = scan_res.get_bssid();
@@ -868,42 +885,75 @@ void WiFiComponent::retry_connect() {
 
   delay(10);
 
-  // Try next AP with same SSID if authentication failed after retries
-  // This handles rogue APs and mesh network issues while still retrying same AP for transient failures
-  if (wifi_sta_connect_auth_failed() && this->num_retried_ >= 3) {
+  // MESH NETWORK AUTHENTICATION FAILURE HANDLING
+  // When connecting to mesh networks (multiple APs with same SSID), some APs may be rogue or have
+  // authentication issues. After 3 retries on one AP, try the next AP with the same SSID instead of
+  // cycling to a different network. This handles:
+  // - Rogue APs with incorrect configuration
+  // - Weak APs at edge of range causing handshake timeouts
+  // - Mesh networks where some APs are temporarily unavailable
+  //
+  // Requirements for fallback:
+  // - Authentication failure detected (4-way handshake timeout, auth expired, etc.)
+  // - At least 3 retry attempts on current AP (avoids giving up on transient failures)
+  // - Scan results available with other APs using same SSID
+  //
+  // If no scan results available (e.g., fast_connect mode), fallback is deferred until after
+  // all configured networks are tried, at which point a scan will be triggered (see below).
+  if (wifi_sta_connect_auth_failed() && this->num_retried_ >= RETRY_THRESHOLD_AUTH_FALLBACK) {
     if (this->try_next_ap_with_same_ssid_()) {
       wifi_sta_clear_auth_failed();  // Clear flag after successful fallback
       return;                        // Successfully moved to next AP, don't continue to network cycling
     }
-    // If no more APs with same SSID, clear flag and fall through to network cycling
+    // No more APs with same SSID to try, clear flag and continue with normal retry logic
     wifi_sta_clear_auth_failed();
   }
 
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
       (this->num_retried_ > 3 || this->error_from_callback_)) {
 #ifdef USE_WIFI_FAST_CONNECT
-    // No empty check needed - YAML validation requires at least one network for fast_connect
-    if (this->trying_loaded_ap_) {
-      this->trying_loaded_ap_ = false;
-      this->selected_sta_index_ = 0;  // Retry from the first configured AP
-      this->reset_for_next_ap_attempt_();
-    } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
-      // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
-      // Exhausted all configured APs, restart adapter and cycle back to first
-      // Restart clears any stuck WiFi driver state
-      // Each AP is tried with config data only (SSID + optional BSSID/channel if user configured them)
-      // Typically SSID only, which triggers ESP-IDF internal scanning
-      ESP_LOGW(TAG, "No more APs to try");
-      this->selected_sta_index_ = 0;
-      this->reset_for_next_ap_attempt_();
-      this->restart_adapter();
+    // Fast connect mode: try saved credentials, then cycle through configured networks
+    if (!this->fast_connect_exhausted_) {
+      // Still in fast_connect mode
+      if (this->trying_loaded_ap_) {
+        // First try: loaded AP from fast_connect failed
+        this->trying_loaded_ap_ = false;
+        this->selected_sta_index_ = 0;  // Retry from the first configured AP
+        this->reset_for_next_ap_attempt_();
+      } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
+        // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
+        // Exhausted all configured networks in fast_connect mode
+
+        // Permanently disable fast_connect and fall back to normal scan-based connection flow
+        // This enables:
+        // - Intelligent AP selection based on signal strength
+        // - Same-SSID mesh network fallback on auth failures
+        // - Full scan result visibility for debugging
+        ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
+        this->fast_connect_exhausted_ = true;
+        this->selected_sta_index_ = 0;
+        this->num_retried_ = 0;
+        this->start_scanning();  // Use normal scan-based flow from now on
+      } else {
+        // Try next configured network
+        this->selected_sta_index_++;
+        this->reset_for_next_ap_attempt_();
+      }
     } else {
-      // Try next AP
-      this->selected_sta_index_++;
-      this->reset_for_next_ap_attempt_();
+      // Fast connect exhausted, use normal retry logic (same as non-fast_connect)
+      if (this->num_retried_ > RETRY_THRESHOLD_RESTART) {
+        // If retry failed for more than 5 times, let's restart STA
+        this->restart_adapter();
+      } else {
+        // Try hidden networks after 3 failed retries
+        ESP_LOGD(TAG, "Retrying with hidden networks");
+        this->retry_hidden_ = true;
+        this->num_retried_++;
+      }
     }
 #else
-    if (this->num_retried_ > 5) {
+    // Normal path (non-fast_connect): use scan-based retries with hidden network support
+    if (this->num_retried_ > RETRY_THRESHOLD_RESTART) {
       // If retry failed for more than 5 times, let's restart STA
       this->restart_adapter();
     } else {
