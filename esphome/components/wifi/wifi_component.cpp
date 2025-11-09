@@ -835,8 +835,7 @@ void WiFiComponent::check_scanning_finished() {
     // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
     this->transition_to_phase_(WiFiRetryPhase::SCAN_WITH_HIDDEN);
     // Now start connection attempt in hidden mode
-  }
-  elif (this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING)) {
+  } else if (this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING)) {
     return;  // scan started, wait for next loop iteration
   }
 
