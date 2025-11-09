@@ -65,8 +65,8 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
 
 static constexpr uint8_t WIFI_RETRY_COUNT_STANDARD = 3;
 static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 5;
-static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;    // No retries in fast_connect mode
-static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 2;  // 1 attempt + 1 retry before trying next BSSID
+static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;    // 1 attempt in fast_connect mode
+static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 2;  // 2 attempts before trying next BSSID
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
@@ -809,6 +809,7 @@ void WiFiComponent::check_scanning_finished() {
   yield();
 
   WiFiAP params = this->build_wifi_ap_from_selected_();
+  this->retry_phase_ = WiFiRetryPhase::SCAN_CONNECTING;
   this->start_connecting(params, false);
 }
 
