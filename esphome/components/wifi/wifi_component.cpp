@@ -75,6 +75,13 @@ static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   }
 }
 
+static void apply_scan_result_to_params(WiFiAP &params, const WiFiScanResult &scan) {
+  params.set_hidden(false);
+  params.set_ssid(scan.get_ssid());
+  params.set_bssid(scan.get_bssid());
+  params.set_channel(scan.get_channel());
+}
+
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
   switch (type) {
@@ -396,11 +403,7 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
   // This sync holds until scan_result_ is cleared (e.g., after connection or in reset_for_next_ap_attempt_())
   if (!this->scan_result_.empty()) {
     // Override with scan data - network is visible
-    const WiFiScanResult &scan = this->scan_result_[0];
-    params.set_hidden(false);
-    params.set_ssid(scan.get_ssid());
-    params.set_bssid(scan.get_bssid());
-    params.set_channel(scan.get_channel());
+    apply_scan_result_to_params(params, this->scan_result_[0]);
   } else if (params.get_hidden()) {
     // Hidden network - clear BSSID and channel even if set in config
     // There might be multiple hidden networks with same SSID but we can't know which is correct
@@ -433,11 +436,7 @@ WiFiAP WiFiComponent::build_params_for_current_phase_() {
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
       // Scan-based phases: use scan results if available
       if (this->scan_result_index_ < this->scan_result_.size()) {
-        const WiFiScanResult &scan = this->scan_result_[this->scan_result_index_];
-        params.set_hidden(false);
-        params.set_ssid(scan.get_ssid());
-        params.set_bssid(scan.get_bssid());
-        params.set_channel(scan.get_channel());
+        apply_scan_result_to_params(params, this->scan_result_[this->scan_result_index_]);
       }
       break;
 
@@ -474,11 +473,21 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
+  // Log connection attempt at INFO level
+  if (ap.get_bssid().has_value()) {
+    ESP_LOGI(TAG, "Connecting to '%s' " LOG_SECRET("(%s)") " (attempt %u/%u in phase %s)...", ap.get_ssid().c_str(),
+             format_mac_address_pretty(ap.get_bssid().value().data()).c_str(), this->num_retried_ + 1,
+             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+  } else {
+    ESP_LOGI(TAG, "Connecting to '%s' (attempt %u/%u in phase %s)...", ap.get_ssid().c_str(), this->num_retried_ + 1,
+             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+  }
+
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG, "Connection Params:");
   ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
   if (ap.get_bssid().has_value()) {
-    ESP_LOGV(TAG, "  BSSID: %s", format_mac_address_pretty(ap.get_bssid().value().data()).c_str());
+    ESP_LOGV(TAG, "  BSSID: %s", format_mac_address_pretty(ap.get_bssid()->data()).c_str());
   } else {
     ESP_LOGV(TAG, "  BSSID: Not Set");
   }
@@ -519,16 +528,6 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   }
   ESP_LOGV(TAG, "  Hidden: %s", YESNO(ap.get_hidden()));
 #endif
-
-  // Log connection attempt at INFO level
-  if (ap.get_bssid().has_value()) {
-    ESP_LOGI(TAG, "Connecting to '%s' " LOG_SECRET("(%s)") " (attempt %u/%u in phase %s)...", ap.get_ssid().c_str(),
-             format_mac_address_pretty(ap.get_bssid().value().data()).c_str(), this->num_retried_ + 1,
-             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-  } else {
-    ESP_LOGI(TAG, "Connecting to '%s' (attempt %u/%u in phase %s)...", ap.get_ssid().c_str(), this->num_retried_ + 1,
-             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-  }
 
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
