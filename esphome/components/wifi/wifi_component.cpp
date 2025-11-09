@@ -1127,14 +1127,13 @@ void WiFiComponent::retry_connect() {
 #ifdef USE_WIFI_FAST_CONNECT
     if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
       // Fast connect: always advance to next AP (no retries per AP)
-      // Clear old scan data so new AP is tried with config only
       this->selected_sta_index_++;
       this->num_retried_ = 0;
-      this->scan_result_.clear();
       advanced_to_next_target = true;
       ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
     } else
 #endif
+
         if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID &&
             this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
       // Hidden mode: exhausted retries on current SSID, advance to next
