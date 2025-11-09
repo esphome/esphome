@@ -964,7 +964,12 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         // Search for next AP with same SSID (scan_result_ contains multiple SSIDs)
         for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
           if (this->scan_result_[i].get_ssid() == current_ssid) {
-            return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Try next BSSID
+            // Found next BSSID - advance index and reset counter here
+            this->scan_result_index_ = i;
+            this->num_retried_ = 0;
+            wifi_sta_clear_auth_failed();
+            ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s'"), current_ssid.c_str());
+            return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Stay in phase but with new BSSID
           }
         }
       }
