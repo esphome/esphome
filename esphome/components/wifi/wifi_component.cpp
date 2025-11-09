@@ -1219,12 +1219,9 @@ void WiFiComponent::retry_connect() {
 
   this->error_from_callback_ = false;
 
-  // Execute phase-specific connection logic
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
-
-    // Build connection params based on current phase
     WiFiAP params = this->build_params_for_current_phase_();
     this->start_connecting(params, true);
     return;
