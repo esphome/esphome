@@ -50,19 +50,15 @@ static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid
 static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
-static esp_netif_t *s_ap_netif = nullptr;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-#endif                                          // USE_WIFI_AP
-static bool s_sta_started = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connected = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_ap_started = false;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_not_found = false;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_error = false;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_auth_failed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connecting = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_wifi_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-bool wifi_sta_connect_auth_failed() { return s_sta_connect_auth_failed; }
-void wifi_sta_clear_auth_failed() { s_sta_connect_auth_failed = false; }
+static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif                                        // USE_WIFI_AP
+static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_ap_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 struct IDFWiFiEvent {
   esp_event_base_t event_base;
@@ -728,25 +724,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     assert(it.ssid_len <= 32);
     memcpy(buf, it.ssid, it.ssid_len);
     buf[it.ssid_len] = '\0';
-
-    // Classify disconnect reason for appropriate handling
-    bool is_auth_failure =
-        (it.reason == WIFI_REASON_AUTH_FAIL || it.reason == WIFI_REASON_AUTH_EXPIRE ||
-         it.reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT || it.reason == WIFI_REASON_HANDSHAKE_TIMEOUT ||
-         it.reason == WIFI_REASON_802_1X_AUTH_FAILED || it.reason == WIFI_REASON_MIC_FAILURE);
-
     if (it.reason == WIFI_REASON_NO_AP_FOUND) {
-      ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " reason='Probe Request Unsuccessful'", buf);
+      ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       s_sta_connect_not_found = true;
     } else if (it.reason == WIFI_REASON_ROAMING) {
-      ESP_LOGI(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " reason='Station Roaming'", buf);
+      ESP_LOGI(TAG, "Disconnected ssid='%s' reason='Station Roaming'", buf);
       return;
     } else {
-      ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " bssid=" LOG_SECRET("(%s)") " reason='%s'", buf,
+      ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
-      if (is_auth_failure) {
-        s_sta_connect_auth_failed = true;
-      }
       s_sta_connect_error = true;
     }
     s_sta_connected = false;
@@ -761,8 +747,6 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
              format_ip4_addr(it.ip_info.gw).c_str());
     this->got_ipv4_address_ = true;
-    // Clear auth failure flag on successful connection
-    s_sta_connect_auth_failed = false;
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {

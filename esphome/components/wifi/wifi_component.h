@@ -94,24 +94,6 @@ enum class WiFiSTAConnectStatus : int {
   ERROR_CONNECT_FAILED,
 };
 
-/// Tracks the current phase of the connection retry state machine
-enum class WiFiConnectionPhase : uint8_t {
-  /// Initial connection attempt (fast_connect mode or first scan-based attempt)
-  INITIAL_ATTEMPT,
-  /// Retrying same AP (incrementing retry counter)
-  RETRYING_SAME_AP,
-  /// Trying next AP with same SSID (mesh network fallback after auth failure)
-  TRYING_NEXT_SAME_SSID_AP,
-  /// Retrying with hidden network flag
-  RETRYING_WITH_HIDDEN,
-  /// Restarting WiFi adapter after too many failures
-  RESTARTING_ADAPTER,
-  /// Scanning for networks (either initial or after failures)
-  SCANNING,
-  /// Fast connect exhausted, transitioning to scan mode
-  FAST_CONNECT_EXHAUSTED,
-};
-
 /// Struct for setting static IPs in WiFiComponent.
 struct ManualIP {
   network::IPAddress static_ip;
@@ -359,14 +341,7 @@ class WiFiComponent : public Component {
 #endif  // USE_WIFI_AP
 
   void print_connect_params_();
-  WiFiAP build_wifi_ap_from_selected_(optional<uint8_t> scan_result_index = {}) const;
-  bool select_next_ap_with_same_ssid_();
-  void retry_with_hidden_or_restart_();
-  void retry_or_scan_();
-  void set_scan_result_index_and_reset_retries_(uint8_t index);
-
-  /// Determine the next connection phase based on current state and failure conditions
-  WiFiConnectionPhase determine_next_connection_phase_();
+  WiFiAP build_wifi_ap_from_selected_() const;
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
@@ -468,15 +443,11 @@ class WiFiComponent : public Component {
   // Group all 8-bit values together
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
-  WiFiConnectionPhase connection_phase_{WiFiConnectionPhase::INITIAL_ATTEMPT};
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
-  // Index into scan_result_ vector for AP fallback on authentication failure
-  // Tracks which scan result we're currently trying (0 = strongest signal)
-  uint8_t scan_result_index_{0};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
@@ -484,8 +455,8 @@ class WiFiComponent : public Component {
   // Group all boolean values together
 #ifdef USE_WIFI_FAST_CONNECT
   bool trying_loaded_ap_{false};
-  bool fast_connect_exhausted_{false};  // Set to true once fast_connect has been fully exhausted
 #endif
+  bool retry_hidden_{false};
   bool has_ap_{false};
   bool handled_connected_state_{false};
   bool error_from_callback_{false};

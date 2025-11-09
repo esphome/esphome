@@ -20,11 +20,7 @@ namespace wifi {
 
 static const char *const TAG = "wifi_lt";
 
-static bool s_sta_connecting = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_auth_failed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-bool wifi_sta_connect_auth_failed() { return s_sta_connect_auth_failed; }
-void wifi_sta_clear_auth_failed() { s_sta_connect_auth_failed = false; }
+static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
@@ -294,21 +290,11 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-
-      // Classify disconnect reason for appropriate handling
-      bool is_auth_failure =
-          (it.reason == WIFI_REASON_AUTH_FAIL || it.reason == WIFI_REASON_AUTH_EXPIRE ||
-           it.reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT || it.reason == WIFI_REASON_HANDSHAKE_TIMEOUT ||
-           it.reason == WIFI_REASON_802_1X_AUTH_FAILED || it.reason == WIFI_REASON_MIC_FAILURE);
-
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
-        ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " reason='Probe Request Unsuccessful'", buf);
+        ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       } else {
-        ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " bssid=" LOG_SECRET("(%s)") " reason='%s'", buf,
+        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                  format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
-        if (is_auth_failure) {
-          s_sta_connect_auth_failed = true;
-        }
       }
 
       uint8_t reason = it.reason;
@@ -341,8 +327,6 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(WiFi.localIP()).c_str(),
                format_ip4_addr(WiFi.gatewayIP()).c_str());
       s_sta_connecting = false;
-      // Clear auth failure flag on successful connection
-      s_sta_connect_auth_failed = false;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
