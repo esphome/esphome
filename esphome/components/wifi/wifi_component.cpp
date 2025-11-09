@@ -1106,7 +1106,8 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhas
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
       this->restart_adapter();
-      break;
+      // Return true to indicate we should wait (go to COOLDOWN) instead of immediately connecting
+      return true;
 
     default:
       break;
