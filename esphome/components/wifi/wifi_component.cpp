@@ -816,19 +816,16 @@ void WiFiComponent::check_scanning_finished() {
   // matches that network and record it in selected_sta_index_. This keeps the two indices
   // synchronized so build_wifi_ap_from_selected_() can safely use both to build connection parameters.
   const WiFiScanResult &scan_res = this->scan_result_[0];
-  if (!scan_res.get_matches()) {
-    this->transition_to_phase_(WiFiRetryPhase::SCAN_WITH_HIDDEN);
-    return;
-  }
-
   bool found_match = false;
-  for (size_t i = 0; i < this->sta_.size(); i++) {
-    if (scan_res.matches(this->sta_[i])) {
-      // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
-      // No overflow check needed - YAML validation prevents >127 networks
-      this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
-      found_match = true;
-      break;
+  if (scan_res.get_matches()) {
+    for (size_t i = 0; i < this->sta_.size(); i++) {
+      if (scan_res.matches(this->sta_[i])) {
+        // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
+        // No overflow check needed - YAML validation prevents >127 networks
+        this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
+        found_match = true;
+        break;
+      }
     }
   }
 
