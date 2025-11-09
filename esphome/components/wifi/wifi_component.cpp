@@ -65,7 +65,8 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
 
 static constexpr uint8_t WIFI_RETRY_COUNT_STANDARD = 3;
 static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 5;
-static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;  // No retries in fast_connect mode
+static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;    // No retries in fast_connect mode
+static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 1;  // Only 1 retry before trying next BSSID
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
@@ -74,6 +75,8 @@ static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
       return WIFI_RETRY_COUNT_FAST_CONNECT;
 #endif
+    case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
+      return WIFI_RETRY_COUNT_BSSID_FALLBACK;
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
       return WIFI_RETRY_COUNT_HIDDEN;
     default:
@@ -953,7 +956,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_STANDARD) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_BSSID_FALLBACK) {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying current AP
       }
 
@@ -1039,20 +1042,8 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      // Find next BSSID with same SSID (scan_result_ contains multiple SSIDs)
-      if (!this->scan_result_.empty() && this->scan_result_index_ < this->scan_result_.size()) {
-        const auto &current_ssid = this->scan_result_[this->scan_result_index_].get_ssid();
-        // Search for next AP with same SSID
-        for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
-          if (this->scan_result_[i].get_ssid() == current_ssid) {
-            this->scan_result_index_ = i;
-            this->num_retried_ = 0;
-            wifi_sta_clear_auth_failed();  // Clear auth failure flag when moving to next AP
-            ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s'"), current_ssid.c_str());
-            break;
-          }
-        }
-      }
+      // BSSID advancement is handled in determine_next_phase_() before returning to this phase
+      // No additional setup needed here
       break;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
