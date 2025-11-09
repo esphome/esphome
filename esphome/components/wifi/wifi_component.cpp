@@ -139,11 +139,14 @@ void WiFiComponent::start() {
       this->selected_sta_index_ = 0;
       params = this->build_wifi_ap_from_selected_();
       this->retry_phase_ = WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;
+      ESP_LOGI(TAG, "Starting WiFi with fast_connect (no saved data), trying '%s'", params.get_ssid().c_str());
     } else {
       this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
+      ESP_LOGI(TAG, "Starting WiFi with fast_connect (saved credentials), trying '%s'", params.get_ssid().c_str());
     }
     this->start_connecting(params, false);
 #else
+    ESP_LOGI(TAG, "Starting WiFi with scan-based connection");
     this->start_scanning();
 #endif
 #ifdef USE_WIFI_AP
@@ -204,10 +207,13 @@ void WiFiComponent::loop() {
                this->retry_phase_ == WiFiRetryPhase::SCAN_NEXT_SAME_SSID) &&
               this->scan_result_.empty()) {
             // Need scan results but don't have them
+            ESP_LOGD(TAG, "Scanning required for phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
             this->start_scanning();
           } else {
             // Have everything we need to connect
             WiFiAP params = this->build_params_for_current_phase_();
+            ESP_LOGI(TAG, "Connecting to '%s' (attempt %u in phase %s)...", params.get_ssid().c_str(),
+                     this->num_retried_ + 1, LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
             this->start_connecting(params, false);
           }
         }
@@ -1043,6 +1049,8 @@ void WiFiComponent::retry_connect() {
   } else {
     // Staying in same phase, just increment retry counter
     this->num_retried_++;
+    ESP_LOGD(TAG, "Retry attempt %u/3 in phase %s", this->num_retried_,
+             LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
   }
 
   this->error_from_callback_ = false;
@@ -1054,6 +1062,11 @@ void WiFiComponent::retry_connect() {
 
     // Build connection params based on current phase
     WiFiAP params = this->build_params_for_current_phase_();
+
+    // Log connection attempt with details
+    ESP_LOGI(TAG, "Connecting to '%s' (attempt %u in phase %s)...", params.get_ssid().c_str(), this->num_retried_ + 1,
+             LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+
     this->start_connecting(params, true);
     return;
   }
