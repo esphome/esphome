@@ -1030,7 +1030,9 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 }
 
 void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
-  ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)),
+  WiFiRetryPhase old_phase = this->retry_phase_;
+
+  ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(old_phase)),
            LOG_STR_ARG(retry_phase_to_log_string(new_phase)));
 
   this->retry_phase_ = new_phase;
@@ -1048,9 +1050,9 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
 
     case WiFiRetryPhase::SCAN_CONNECTING:
       // Transitioning to scan-based connection
-      if (this->retry_phase_ == WiFiRetryPhase::INITIAL_CONNECT
+      if (old_phase == WiFiRetryPhase::INITIAL_CONNECT
 #ifdef USE_WIFI_FAST_CONNECT
-          || this->retry_phase_ == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS
+          || old_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS
 #endif
       ) {
         ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
@@ -1058,8 +1060,8 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         this->scan_result_index_ = 0;
       }
       // Trigger scan if we don't have scan results OR if looping back from SCAN_WITH_HIDDEN
-      if (this->scan_result_.empty() || this->retry_phase_ == WiFiRetryPhase::SCAN_WITH_HIDDEN ||
-          this->retry_phase_ == WiFiRetryPhase::RESTARTING_ADAPTER) {
+      if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN ||
+          old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
         this->start_scanning();
       }
       break;
