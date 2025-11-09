@@ -279,10 +279,12 @@ void WiFiComponent::loop() {
           this->reset_selected_ap_to_first_if_invalid_();
 
           // Check if we need to trigger a scan first
-          if ((this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING ||
-               this->retry_phase_ == WiFiRetryPhase::SCAN_NEXT_SAME_SSID) &&
-              this->scan_result_.empty()) {
-            // Need scan results but don't have them
+          bool need_scan = (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING ||
+                            this->retry_phase_ == WiFiRetryPhase::SCAN_NEXT_SAME_SSID) &&
+                           (this->scan_result_.empty() || !this->scan_result_[0].get_matches());
+
+          if (need_scan) {
+            // Need scan results or no matching networks found - scan/rescan
             ESP_LOGD(TAG, "Scanning required for phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
             this->start_scanning();
           } else {
@@ -984,6 +986,11 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 #endif
 
     case WiFiRetryPhase::SCAN_CONNECTING:
+      // If scan found no matching networks, skip to hidden network mode
+      if (!this->scan_result_.empty() && !this->scan_result_[0].get_matches()) {
+        return WiFiRetryPhase::SCAN_WITH_HIDDEN;
+      }
+
       if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_SCAN_CONNECTING) {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
       }
