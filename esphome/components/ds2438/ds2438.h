@@ -13,26 +13,25 @@ static const uint8_t DALLAS_COMMAND_START_TCONVERSION = 0xB4;
 static const uint8_t DALLAS_COMMAND_RECALL_MEMORY = 0xB8;
 
 class DS2438BatterySensor : public DS248xSensor {
-public:
+ public:
   bool setup_sensor();
-  void set_temperature_sensor(Sensor* sensor) { temperature_sensor_ = sensor; }
-  void set_voltage_sensor(Sensor* sensor) { voltage_sensor_ = sensor; }
-  void set_current_sensor(Sensor* sensor) { current_sensor_ = sensor; }
+  void set_temperature_sensor(Sensor *sensor) { temperature_sensor_ = sensor; }
+  void set_voltage_sensor(Sensor *sensor) { voltage_sensor_ = sensor; }
+  void set_current_sensor(Sensor *sensor) { current_sensor_ = sensor; }
 
   bool update();
   void add_conversion_commands(std::set<uint8_t> &commands);
 
-protected:
+ protected:
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
 
-private:
+ private:
   void updateTemp();
   void updateVoltage();
   void updateCurrent();
-
 };
 
-}
-}
+}  // namespace ds2438
+}  // namespace esphome

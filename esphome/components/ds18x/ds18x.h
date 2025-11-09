@@ -15,7 +15,7 @@ class DS18xTemperatureSensor : public DS248xSensor {
   uint8_t get_resolution() const;
   /// Set the resolution for this sensor.
   void set_resolution(uint8_t resolution);
-  
+
   float get_temp_c();
   float get_value();
 
@@ -25,8 +25,8 @@ class DS18xTemperatureSensor : public DS248xSensor {
   void add_conversion_commands(std::set<uint8_t> &commands);
 
  protected:
-   uint8_t resolution_;
+  uint8_t resolution_;
 };
 
-}
-}
+}  // namespace ds18x
+}  // namespace esphome

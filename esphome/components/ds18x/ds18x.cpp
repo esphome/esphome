@@ -7,27 +7,26 @@ static const char *const TAG = "ds18x";
 using namespace esphome::ds18x;
 using namespace esphome::ds248x;
 
-bool DS18xTemperatureSensor::update()
-{
-    bool res = this->read_scratch_pad();
+bool DS18xTemperatureSensor::update() {
+  bool res = this->read_scratch_pad();
 
-    if (!res) {
-      ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", this->get_name().c_str());
-      this->publish_state(NAN);
-      this->parent_->status_set_warning();
-      return false;
-    }
-    if (!this->check_scratch_pad()) {
-      this->publish_state(NAN);
-      this->parent_->status_set_warning();
-      return false;
-    }
+  if (!res) {
+    ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", this->get_name().c_str());
+    this->publish_state(NAN);
+    this->parent_->status_set_warning();
+    return false;
+  }
+  if (!this->check_scratch_pad()) {
+    this->publish_state(NAN);
+    this->parent_->status_set_warning();
+    return false;
+  }
 
-    float value = this->get_value();
-    ESP_LOGD(TAG, "'%s': Got value=%.1f", this->get_name().c_str(), value);
-    this->publish_state(value);
+  float value = this->get_value();
+  ESP_LOGD(TAG, "'%s': Got value=%.1f", this->get_name().c_str(), value);
+  this->publish_state(value);
 
-    return true;
+  return true;
 }
 
 bool DS18xTemperatureSensor::setup_sensor() {
@@ -57,10 +56,9 @@ bool DS18xTemperatureSensor::setup_sensor() {
       break;
   }
 
-
   if (this->scratch_pad_[4] == resolution_register_val)
     return true;
-  this->scratch_pad_[4] = resolution_register_val; // update
+  this->scratch_pad_[4] = resolution_register_val;  // update
 
   if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {
     // DS18S20 doesn't support resolution.
@@ -79,7 +77,7 @@ bool DS18xTemperatureSensor::setup_sensor() {
   this->write_to_wire(this->scratch_pad_[2]);  // high alarm temp
   this->write_to_wire(this->scratch_pad_[3]);  // low alarm temp
   this->write_to_wire(this->scratch_pad_[4]);  // resolution
-  
+
   result = this->reset_devices();
   if (!result) {
     ESP_LOGE(TAG, "Reset failed");
@@ -103,8 +101,7 @@ bool DS18xTemperatureSensor::setup_sensor() {
 uint8_t DS18xTemperatureSensor::get_resolution() const { return this->resolution_; }
 void DS18xTemperatureSensor::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
 
-void DS18xTemperatureSensor::add_conversion_commands(std::set<uint8_t> &commands)
-{
+void DS18xTemperatureSensor::add_conversion_commands(std::set<uint8_t> &commands) {
   commands.insert(DALLAS_COMMAND_START_CONVERSION);
 }
 
@@ -118,7 +115,4 @@ float DS18xTemperatureSensor::get_temp_c() {
   return temp / 128.0f;
 }
 
-float DS18xTemperatureSensor::get_value()
-{
-    return get_temp_c();
-}
+float DS18xTemperatureSensor::get_value() { return get_temp_c(); }
