@@ -376,7 +376,8 @@ class WiFiComponent : public Component {
   bool has_next_bssid_with_same_ssid_() const;
   /// Advance to the next BSSID with the same SSID in scan results
   /// Returns true if found and advanced, false if no more BSSIDs available
-  bool advance_to_next_bssid_with_same_ssid_();
+  /// @param reset_counter If true, resets num_retried_ to 0 (used when staying in same phase)
+  bool advance_to_next_bssid_with_same_ssid_(bool reset_counter);
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {

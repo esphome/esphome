@@ -113,7 +113,8 @@ bool WiFiComponent::has_next_bssid_with_same_ssid_() const {
 
 /// Advance to the next BSSID with the same SSID in scan results
 /// Returns true if found and advanced, false if no more BSSIDs available
-bool WiFiComponent::advance_to_next_bssid_with_same_ssid_() {
+/// @param reset_counter If true, resets num_retried_ to 0 (used when staying in same phase)
+bool WiFiComponent::advance_to_next_bssid_with_same_ssid_(bool reset_counter) {
   if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size()) {
     return false;
   }
@@ -124,7 +125,9 @@ bool WiFiComponent::advance_to_next_bssid_with_same_ssid_() {
   for (size_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
     if (this->scan_result_[i].get_ssid() == current_ssid) {
       this->scan_result_index_ = i;
-      this->num_retried_ = 0;
+      if (reset_counter) {
+        this->num_retried_ = 0;
+      }
       wifi_sta_clear_auth_failed();
       ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s'"), current_ssid.c_str());
       return true;
@@ -996,7 +999,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
 
       // Try to advance to another same-SSID AP
-      if (this->advance_to_next_bssid_with_same_ssid_()) {
+      if (this->advance_to_next_bssid_with_same_ssid_(true)) {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Stay in phase but with new BSSID
       }
 
@@ -1063,8 +1066,9 @@ void WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
       // Advance to next BSSID with same SSID when first entering this phase
+      // Don't reset counter - transition_to_phase_() already did that
       // If no next BSSID found, just skip - determine_next_phase_() will handle transition
-      if (!this->advance_to_next_bssid_with_same_ssid_()) {
+      if (!this->advance_to_next_bssid_with_same_ssid_(false)) {
         ESP_LOGD(TAG, "No more same-SSID APs available");
       }
       break;
