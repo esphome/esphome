@@ -1,0 +1,19 @@
+esphome:
+  on_boot:
+    then:
+      - servo.write:
+          id: test_servo
+          level: -100.0%
+      - servo.detach: test_servo
+
+output:
+  - platform: ${output_platform}
+    id: servo_output_1
+    pin: ${pin}
+
+servo:
+  id: test_servo
+  output: servo_output_1
+  restore: true
+  min_level: 4%
+  max_level: 8%

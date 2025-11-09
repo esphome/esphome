@@ -1,0 +1,19 @@
+display:
+  - platform: ili9xxx
+    id: qr_code_main_lcd
+    model: ili9342
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${reset_pin}
+    invert_colors: false
+    lambda: |-
+      // Draw a QR code in the center of the screen
+      auto scale = 2;
+      auto size = id(qr_code_homepage_qr).get_size() * scale;
+      auto x = (it.get_width() / 2) - (size / 2);
+      auto y = (it.get_height() / 2) - (size / 2);
+      it.qr_code(x, y, id(qr_code_homepage_qr), Color(255,255,255), scale);
+
+qr_code:
+  - id: qr_code_homepage_qr
+    value: https://esphome.io/index.html

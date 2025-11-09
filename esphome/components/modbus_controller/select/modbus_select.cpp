@@ -28,8 +28,9 @@ void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
 
     if (map_it != this->mapping_.cend()) {
       size_t idx = std::distance(this->mapping_.cbegin(), map_it);
-      new_state = this->traits.get_options()[idx];
-      ESP_LOGV(TAG, "Found option %s for value %lld", new_state->c_str(), value);
+      ESP_LOGV(TAG, "Found option %s for value %lld", this->option_at(idx), value);
+      this->publish_state(idx);
+      return;
     } else {
       ESP_LOGE(TAG, "No option found for mapping %lld", value);
     }
@@ -40,17 +41,16 @@ void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
   }
 }
 
-void ModbusSelect::control(const std::string &value) {
-  auto options = this->traits.get_options();
-  auto opt_it = std::find(options.cbegin(), options.cend(), value);
-  size_t idx = std::distance(options.cbegin(), opt_it);
-  optional<int64_t> mapval = this->mapping_[idx];
-  ESP_LOGD(TAG, "Found value %lld for option '%s'", *mapval, value.c_str());
+void ModbusSelect::control(size_t index) {
+  optional<int64_t> mapval = this->mapping_[index];
+  const char *option = this->option_at(index);
+  ESP_LOGD(TAG, "Found value %lld for option '%s'", *mapval, option);
 
   std::vector<uint16_t> data;
 
   if (this->write_transform_func_.has_value()) {
-    auto val = (*this->write_transform_func_)(this, value, *mapval, data);
+    // Transform func requires string parameter for backward compatibility
+    auto val = (*this->write_transform_func_)(this, std::string(option), *mapval, data);
     if (val.has_value()) {
       mapval = *val;
       ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
@@ -83,7 +83,7 @@ void ModbusSelect::control(const std::string &value) {
   this->parent_->queue_command(write_cmd);
 
   if (this->optimistic_)
-    this->publish_state(value);
+    this->publish_state(index);
 }
 
 }  // namespace modbus_controller

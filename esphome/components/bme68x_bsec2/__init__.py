@@ -16,7 +16,7 @@ CODEOWNERS = ["@neffs", "@kbx81"]
 
 DOMAIN = "bme68x_bsec2"
 
-BSEC2_LIBRARY_VERSION = "v1.8.2610"
+BSEC2_LIBRARY_VERSION = "1.10.2610"
 
 CONF_ALGORITHM_OUTPUT = "algorithm_output"
 CONF_BME68X_BSEC2_ID = "bme68x_bsec2_id"
@@ -139,13 +139,12 @@ CONFIG_SCHEMA_BASE = (
             cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
                 VOLTAGE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"
             ): cv.positive_time_period_minutes,
         },
     )
-    .add_extra(cv.only_with_arduino)
     .add_extra(validate_bme68x)
     .add_extra(download_bme68x_blob)
 )
@@ -179,11 +178,13 @@ async def to_code_base(config):
     bsec2_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     cg.add(var.set_bsec2_configuration(bsec2_arr, len(rhs)))
 
-    # Although this component does not use SPI, the BSEC2 library requires the SPI library
-    cg.add_library("SPI", None)
+    # Although this component does not use SPI, the BSEC2 Arduino library requires the SPI library
+    if core.CORE.using_arduino:
+        cg.add_library("SPI", None)
     cg.add_library(
         "BME68x Sensor library",
-        "1.1.40407",
+        "1.3.40408",
+        "https://github.com/boschsensortec/Bosch-BME68x-Library",
     )
     cg.add_library(
         "BSEC2 Software Library",

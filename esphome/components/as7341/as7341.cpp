@@ -8,7 +8,6 @@ namespace as7341 {
 static const char *const TAG = "as7341";
 
 void AS7341Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AS7341...");
   LOG_I2C_DEVICE(this);
 
   // Verify device ID
@@ -38,12 +37,14 @@ void AS7341Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AS7341:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AS7341 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Gain: %u", get_gain());
-  ESP_LOGCONFIG(TAG, "  ATIME: %u", get_atime());
-  ESP_LOGCONFIG(TAG, "  ASTEP: %u", get_astep());
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %u\n"
+                "  ATIME: %u\n"
+                "  ASTEP: %u",
+                get_gain(), get_atime(), get_astep());
 
   LOG_SENSOR("  ", "F1", this->f1_);
   LOG_SENSOR("  ", "F2", this->f2_);

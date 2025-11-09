@@ -3,13 +3,16 @@ from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_MOVE_THRESHOLD,
+    CONF_STILL_THRESHOLD,
     DEVICE_CLASS_DISTANCE,
-    UNIT_SECOND,
     ENTITY_CATEGORY_CONFIG,
     ICON_MOTION_SENSOR,
-    ICON_TIMELAPSE,
     ICON_SCALE,
+    ICON_TIMELAPSE,
+    UNIT_SECOND,
 )
+
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
 LD2420TimeoutNumber = ld2420_ns.class_("LD2420TimeoutNumber", number.Number)
@@ -30,8 +33,6 @@ LD2420StillThresholdNumbers = ld2420_ns.class_(
 )
 CONF_MIN_GATE_DISTANCE = "min_gate_distance"
 CONF_MAX_GATE_DISTANCE = "max_gate_distance"
-CONF_STILL_THRESHOLD = "still_threshold"
-CONF_MOVE_THRESHOLD = "move_threshold"
 CONF_GATE_MOVE_SENSITIVITY = "gate_move_sensitivity"
 CONF_GATE_STILL_SENSITIVITY = "gate_still_sensitivity"
 CONF_GATE_SELECT = "gate_select"

@@ -1,6 +1,7 @@
 #include "feedback_cover.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace feedback {
@@ -121,7 +122,8 @@ void FeedbackCover::set_close_sensor(binary_sensor::BinarySensor *close_feedback
 void FeedbackCover::set_open_endstop(binary_sensor::BinarySensor *open_endstop) {
   this->open_endstop_ = open_endstop;
   open_endstop->add_on_state_callback([this](bool state) {
-    if (state && this->current_trigger_operation_ == COVER_OPERATION_OPENING && this->start_dir_time_ - millis() > 2000) {
+    if (state && this->current_trigger_operation_ == COVER_OPERATION_OPENING &&
+        this->start_dir_time_ - millis() > 2000) {
       this->endstop_reached_(true);
     }
   });
@@ -130,7 +132,8 @@ void FeedbackCover::set_open_endstop(binary_sensor::BinarySensor *open_endstop) 
 void FeedbackCover::set_close_endstop(binary_sensor::BinarySensor *close_endstop) {
   this->close_endstop_ = close_endstop;
   close_endstop->add_on_state_callback([this](bool state) {
-    if (state && this->current_trigger_operation_ == COVER_OPERATION_CLOSING && this->start_dir_time_ - millis() > 2000) {
+    if (state && this->current_trigger_operation_ == COVER_OPERATION_CLOSING &&
+        this->start_dir_time_ - millis() > 2000) {
       this->endstop_reached_(false);
     }
   });
@@ -229,7 +232,8 @@ void FeedbackCover::loop() {
       if (calibration_step_ % 2 == 0) {
         if (calibration_step_ > 1) {
           calibration_open_dur_ += endstop_dur_ * 1000;
-          ESP_LOGD(TAG, "calibrating %s active [%d], starting close measurement", this->name_.c_str(), calibration_step_);
+          ESP_LOGD(TAG, "calibrating %s active [%d], starting close measurement", this->name_.c_str(),
+                   calibration_step_);
         } else {
           ESP_LOGD(TAG, "calibrating %s active [0]: initing valve", this->name_.c_str());
         }
@@ -245,7 +249,8 @@ void FeedbackCover::loop() {
           open_duration_ = calibration_open_dur_ / (calibration_step_ / 2);
           ESP_LOGD(TAG, "calibrating %s done: measured open duration = %dms", this->name_.c_str(), open_duration_);
         } else {
-          ESP_LOGD(TAG, "calibrating %s active [%d]: starting open measurement", this->name_.c_str(), calibration_step_);
+          ESP_LOGD(TAG, "calibrating %s active [%d]: starting open measurement", this->name_.c_str(),
+                   calibration_step_);
           this->start_direction_(COVER_OPERATION_OPENING);
         }
       }
@@ -254,10 +259,9 @@ void FeedbackCover::loop() {
     return;
   }
 
-
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Recompute position every loop cycle
   this->recompute_position_();
@@ -289,7 +293,8 @@ void FeedbackCover::loop() {
 }
 
 void FeedbackCover::control(const CoverCall &call) {
-  if (this->calibration_active_) return;
+  if (this->calibration_active_)
+    return;
   // stop action logic
   if (call.get_stop()) {
     this->start_direction_(COVER_OPERATION_IDLE);
@@ -355,12 +360,14 @@ bool FeedbackCover::is_at_target_() const {
   switch (this->current_trigger_operation_) {
     case COVER_OPERATION_OPENING:
       if (this->target_position_ >= COVER_OPEN && this->open_endstop_ != nullptr && !this->open_endstop_->state)
-        // if we go to fully opened and have an endstop, then approximated position will be ignored until endstop reached
+        // if we go to fully opened and have an endstop, then approximated position will be ignored until endstop
+        // reached
         return false;
       return this->position >= this->target_position_;
     case COVER_OPERATION_CLOSING:
       if (this->target_position_ <= COVER_CLOSED && this->close_endstop_ != nullptr && !this->close_endstop_->state)
-        // if we go to fully closed and have an endstop, then approximated position will be ignored until endstop reached
+        // if we go to fully closed and have an endstop, then approximated position will be ignored until endstop
+        // reached
         return false;
       return this->position <= this->target_position_;
     case COVER_OPERATION_IDLE:
@@ -381,7 +388,8 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
       trig = this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
-      if (this->target_position_ < 1 && this->target_position_ * 100 < this->position * 100 + 1) return;  
+      if (this->target_position_ < 1 && this->target_position_ * 100 < this->position * 100 + 1)
+        return;
       this->last_operation_ = dir;
       trig = this->open_trigger_;
 #ifdef USE_BINARY_SENSOR
@@ -389,7 +397,8 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
 #endif
       break;
     case COVER_OPERATION_CLOSING:
-      if (this->target_position_ > 0 && this->target_position_ * 100 > this->position * 100 - 1) return;
+      if (this->target_position_ > 0 && this->target_position_ * 100 > this->position * 100 - 1)
+        return;
       this->last_operation_ = dir;
       trig = this->close_trigger_;
 #ifdef USE_BINARY_SENSOR

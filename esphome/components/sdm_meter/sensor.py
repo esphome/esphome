@@ -1,21 +1,23 @@
-from esphome.components.atm90e32.sensor import CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C
 import esphome.codegen as cg
+from esphome.components import modbus, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, modbus
 from esphome.const import (
     CONF_ACTIVE_POWER,
     CONF_APPARENT_POWER,
     CONF_CURRENT,
     CONF_EXPORT_ACTIVE_ENERGY,
     CONF_EXPORT_REACTIVE_ENERGY,
-    CONF_TOTAL_POWER,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_IMPORT_ACTIVE_ENERGY,
     CONF_IMPORT_REACTIVE_ENERGY,
+    CONF_PHASE_A,
     CONF_PHASE_ANGLE,
+    CONF_PHASE_B,
+    CONF_PHASE_C,
     CONF_POWER_FACTOR,
     CONF_REACTIVE_POWER,
+    CONF_TOTAL_POWER,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,

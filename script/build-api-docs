@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DOXYGEN_VERSION="1.12.0"
+DOXYGEN_TAG="Release_${DOXYGEN_VERSION//./_}"
+
+DOXYGEN_PATH="doxygen"
+
+download_doxygen() {
+  TEMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "$TEMP_DIR"' EXIT
+  pushd "$TEMP_DIR" >/dev/null
+  echo "downloading doxygen..."
+  curl -o doxygen.tar.gz -L "https://github.com/doxygen/doxygen/releases/download/${DOXYGEN_TAG}/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+  tar -xzf doxygen.tar.gz
+  rm doxygen.tar.gz
+  DOXYGEN_PATH="$TEMP_DIR/doxygen-${DOXYGEN_VERSION}/bin/doxygen"
+  popd >/dev/null
+  echo "doxygen downloaded successfully"
+}
+
+# if doxygen command not found or version not as above, download it
+if command -v doxygen &>/dev/null; then
+  DOXYGEN_VERSION_INSTALLED=$(doxygen --version)
+  if [[ $DOXYGEN_VERSION_INSTALLED != $DOXYGEN_VERSION ]]; then
+    echo "doxygen version $DOXYGEN_VERSION_INSTALLED found, but not the expected version $DOXYGEN_VERSION"
+    download_doxygen
+  else
+    echo "doxygen version $DOXYGEN_VERSION_INSTALLED found, using it"
+  fi
+else
+  download_doxygen
+fi
+
+exec $DOXYGEN_PATH

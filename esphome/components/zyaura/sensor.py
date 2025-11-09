@@ -1,22 +1,22 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_CLOCK_PIN,
-    CONF_DATA_PIN,
     CONF_CO2,
-    CONF_TEMPERATURE,
+    CONF_DATA_PIN,
     CONF_HUMIDITY,
+    CONF_ID,
+    CONF_TEMPERATURE,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
     ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_PARTS_PER_MILLION,
+    UNIT_PERCENT,
 )
 from esphome.cpp_helpers import gpio_pin_expression
 

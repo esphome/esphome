@@ -7,7 +7,7 @@ namespace text {
 static const char *const TAG = "text";
 
 void Text::publish_state(const std::string &state) {
-  this->has_state_ = true;
+  this->set_has_state(true);
   this->state = state;
   if (this->traits.get_mode() == TEXT_MODE_PASSWORD) {
     ESP_LOGD(TAG, "'%s': Sending state " LOG_SECRET("'%s'"), this->get_name().c_str(), state.c_str());

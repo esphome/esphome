@@ -1,19 +1,20 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import i2c
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
-    CONF_NUMBER,
-    CONF_MODE,
     CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
     CONF_OUTPUT,
     CONF_PULLUP,
 )
 
 CODEOWNERS = ["@Mat931"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["gpio_expander"]
 MULTI_CONF = True
 pca6416a_ns = cg.esphome_ns.namespace("pca6416a")
 

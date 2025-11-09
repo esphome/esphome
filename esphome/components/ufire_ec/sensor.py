@@ -122,5 +122,4 @@ UFIRE_EC_RESET_SCHEMA = cv.Schema(
 )
 async def ufire_ec_reset_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)

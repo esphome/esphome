@@ -1,0 +1,4 @@
+sensor:
+  - platform: mcp9808
+    i2c_id: i2c_bus
+    name: MCP9808 Temperature

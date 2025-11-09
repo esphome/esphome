@@ -1,11 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import ds248x, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_VOLT,

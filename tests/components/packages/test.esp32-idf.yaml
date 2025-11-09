@@ -1,0 +1,13 @@
+packages:
+  sensor:
+    sensor:
+      - platform: template
+        id: inline_sensor
+  local: !include package.yaml
+  shorthand: github://esphome/esphome/tests/components/template/common.yaml@dev
+  github:
+    url: https://github.com/esphome/esphome
+    path: tests/components/absolute_humidity
+    file: common.yaml
+    ref: dev
+    refresh: 1d

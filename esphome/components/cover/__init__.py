@@ -5,6 +5,8 @@ from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_OPEN,
@@ -30,8 +32,9 @@ from esphome.const import (
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.cpp_generator import MockObjClass
 
 IS_PLATFORM_COMPONENT = True
 
@@ -89,12 +92,11 @@ CoverClosedTrigger = cover_ns.class_(
 
 CONF_ON_CLOSED = "on_closed"
 
-COVER_SCHEMA = (
+_COVER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(Cover),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
             cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
@@ -124,8 +126,33 @@ COVER_SCHEMA = (
 )
 
 
+_COVER_SCHEMA.add_extra(entity_duplicate_validator("cover"))
+
+
+def cover_schema(
+    class_: MockObjClass,
+    *,
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {
+        cv.GenerateID(): cv.declare_id(class_),
+    }
+
+    for key, default, validator in [
+        (CONF_DEVICE_CLASS, device_class, cv.one_of(*DEVICE_CLASSES, lower=True)),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _COVER_SCHEMA.extend(schema)
+
+
 async def setup_cover_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "cover")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
@@ -160,7 +187,14 @@ async def register_cover(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_cover(var))
+    CORE.register_platform_component("cover", var)
     await setup_cover_core_(var, config)
+
+
+async def new_cover(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_cover(var, config)
+    return var
 
 
 COVER_ACTION_SCHEMA = maybe_simple_id(
@@ -189,9 +223,9 @@ async def cover_stop_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action("cover.toggle", ToggleAction, COVER_ACTION_SCHEMA)
-def cover_toggle_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def cover_toggle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -224,7 +258,6 @@ async def cover_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_COVER")
     cg.add_global(cover_ns.using)

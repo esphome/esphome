@@ -1,10 +1,4 @@
-i2c:
-  - id: i2c_sen0321
-    scl: 16
-    sda: 17
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
-sensor:
-  - platform: sen0321
-    name: Workshop Ozone Sensor
-    id: sen0321_ozone
-    update_interval: 10s
+<<: !include common.yaml

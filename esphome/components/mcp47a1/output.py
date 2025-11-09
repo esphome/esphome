@@ -1,6 +1,6 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.components import output, i2c
+from esphome.components import i2c, output
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@jesserockz"]

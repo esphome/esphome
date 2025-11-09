@@ -1,13 +1,9 @@
 # initially based off of TMP117 component
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import (
-    CONF_MODEL,
-    DEVICE_CLASS_WIND_SPEED,
-    STATE_CLASS_MEASUREMENT,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_MODEL, DEVICE_CLASS_WIND_SPEED, STATE_CLASS_MEASUREMENT
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@kahrendt"]

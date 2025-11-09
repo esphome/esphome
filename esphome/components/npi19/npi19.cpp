@@ -1,7 +1,7 @@
 #include "npi19.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace npi19 {
@@ -11,18 +11,14 @@ static const char *const TAG = "npi19";
 static const uint8_t READ_COMMAND = 0xAC;
 
 void NPI19Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up NPI19...");
-
   uint16_t raw_temperature(0);
   uint16_t raw_pressure(0);
   i2c::ErrorCode err = this->read_(raw_temperature, raw_pressure);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGCONFIG(TAG, "    I2C Communication Failed...");
+    ESP_LOGCONFIG(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
-
-  ESP_LOGCONFIG(TAG, "    Success...");
 }
 
 void NPI19Component::dump_config() {
@@ -37,7 +33,7 @@ float NPI19Component::get_setup_priority() const { return setup_priority::DATA; 
 
 i2c::ErrorCode NPI19Component::read_(uint16_t &raw_temperature, uint16_t &raw_pressure) {
   // initiate data read from device
-  i2c::ErrorCode w_err = write(&READ_COMMAND, sizeof(READ_COMMAND), true);
+  i2c::ErrorCode w_err = write(&READ_COMMAND, sizeof(READ_COMMAND));
   if (w_err != i2c::ERROR_OK) {
     return w_err;
   }
@@ -90,7 +86,7 @@ void NPI19Component::update() {
   i2c::ErrorCode err = this->read_(raw_temperature, raw_pressure);
 
   if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "I2C Communication Failed");
+    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }

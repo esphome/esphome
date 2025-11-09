@@ -1,0 +1,13 @@
+<<: !include common.yaml
+
+light:
+  - platform: ${light_platform}
+    id: led_matrix_32x8
+    default_transition_length: 500ms
+    chipset: ws2812
+    rgb_order: GRB
+    num_leds: 256
+    pin: ${pin}
+    effects:
+      - e131:
+          universe: 1

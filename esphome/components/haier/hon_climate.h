@@ -178,7 +178,7 @@ class HonClimate : public HaierClimateBase {
   int extra_control_packet_bytes_{0};
   int extra_sensors_packet_bytes_{4};
   int status_message_header_size_{0};
-  int real_control_packet_size_{sizeof(hon_protocol::HaierPacketControl)};
+  size_t real_control_packet_size_{sizeof(hon_protocol::HaierPacketControl)};
   int real_sensors_packet_size_{sizeof(hon_protocol::HaierPacketSensors) + 4};
   HonControlMethod control_method_;
   std::queue<haier_protocol::HaierMessage> control_messages_queue_;

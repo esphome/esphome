@@ -15,7 +15,7 @@ namespace wled {
 
 class WLEDLightEffect : public light::AddressableLightEffect {
  public:
-  WLEDLightEffect(const std::string &name);
+  WLEDLightEffect(const char *name);
 
   void start() override;
   void stop() override;

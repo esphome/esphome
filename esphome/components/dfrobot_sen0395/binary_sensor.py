@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_MOTION
+
 from . import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component
 
 DEPENDENCIES = ["dfrobot_sen0395"]

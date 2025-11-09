@@ -1,0 +1,4 @@
+climate:
+  - platform: whynter
+    name: Whynter Climate
+    transmitter_id: xmitr

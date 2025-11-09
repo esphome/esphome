@@ -57,6 +57,7 @@ ColorOrder = display.display_ns.enum("ColorMode")
 
 MODELS = {
     "GC9A01A": ili9xxx_ns.class_("ILI9XXXGC9A01A", ILI9XXXDisplay),
+    "GC9D01N": ili9xxx_ns.class_("ILI9XXXGC9D01N", ILI9XXXDisplay),
     "M5STACK": ili9xxx_ns.class_("ILI9XXXM5Stack", ILI9XXXDisplay),
     "M5CORE": ili9xxx_ns.class_("ILI9XXXM5CORE", ILI9XXXDisplay),
     "TFT_2.4": ili9xxx_ns.class_("ILI9XXXILI9341", ILI9XXXDisplay),
@@ -137,9 +138,10 @@ def _validate(config):
     ]:
         raise cv.Invalid("Selected model can't run on ESP8266.")
 
-    if model == "CUSTOM":
-        if CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config:
-            raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
+    if model == "CUSTOM" and (
+        CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config
+    ):
+        raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
 
     return config
 

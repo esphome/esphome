@@ -36,7 +36,7 @@ void MQTTAlarmControlPanelComponent::setup() {
     } else if (strcasecmp(payload.c_str(), "TRIGGERED") == 0) {
       call.triggered();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
     }
     call.perform();
   });
@@ -45,13 +45,18 @@ void MQTTAlarmControlPanelComponent::setup() {
 void MQTTAlarmControlPanelComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT alarm_control_panel '%s':", this->alarm_control_panel_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true)
-  ESP_LOGCONFIG(TAG, "  Supported Features: %" PRIu32, this->alarm_control_panel_->get_supported_features());
-  ESP_LOGCONFIG(TAG, "  Requires Code to Disarm: %s", YESNO(this->alarm_control_panel_->get_requires_code()));
-  ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", YESNO(this->alarm_control_panel_->get_requires_code_to_arm()));
+  ESP_LOGCONFIG(TAG,
+                "  Supported Features: %" PRIu32 "\n"
+                "  Requires Code to Disarm: %s\n"
+                "  Requires Code To Arm: %s",
+                this->alarm_control_panel_->get_supported_features(),
+                YESNO(this->alarm_control_panel_->get_requires_code()),
+                YESNO(this->alarm_control_panel_->get_requires_code_to_arm()));
 }
 
 void MQTTAlarmControlPanelComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  JsonArray supported_features = root.createNestedArray(MQTT_SUPPORTED_FEATURES);
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  JsonArray supported_features = root[MQTT_SUPPORTED_FEATURES].to<JsonArray>();
   const uint32_t acp_supported_features = this->alarm_control_panel_->get_supported_features();
   if (acp_supported_features & ACP_FEAT_ARM_AWAY) {
     supported_features.add("arm_away");

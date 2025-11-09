@@ -15,6 +15,7 @@ namespace mopeka_std_check {
 enum SensorType {
   STANDARD = 0x02,
   XL = 0x03,
+  STANDARD_ALT = 0x44,
   ETRAILER = 0x46,
 };
 
@@ -48,7 +49,6 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_level(sensor::Sensor *level) { this->level_ = level; };
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; };

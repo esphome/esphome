@@ -76,7 +76,6 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   /// Unit of measurement is "pulses/min".
   void setup() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
  protected:

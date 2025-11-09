@@ -17,9 +17,9 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MOTION,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@nohat"]
 IS_PLATFORM_COMPONENT = True
@@ -41,7 +41,7 @@ EventTrigger = event_ns.class_("EventTrigger", automation.Trigger.template())
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-EVENT_SCHEMA = (
+_EVENT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -58,19 +58,20 @@ EVENT_SCHEMA = (
     )
 )
 
-_UNDEF = object()
+
+_EVENT_SCHEMA.add_extra(entity_duplicate_validator("event"))
 
 
 def event_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass = cv.UNDEFINED,
     *,
-    icon: str = _UNDEF,
-    entity_category: str = _UNDEF,
-    device_class: str = _UNDEF,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
-    if class_ is not _UNDEF:
+    if class_ is not cv.UNDEFINED:
         schema[cv.GenerateID()] = cv.declare_id(class_)
 
     for key, default, validator in [
@@ -78,14 +79,14 @@ def event_schema(
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
     ]:
-        if default is not _UNDEF:
+        if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return EVENT_SCHEMA.extend(schema)
+    return _EVENT_SCHEMA.extend(schema)
 
 
 async def setup_event_core_(var, config, *, event_types: list[str]):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "event")
 
     for conf in config.get(CONF_ON_EVENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -110,6 +111,7 @@ async def register_event(var, config, *, event_types: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_event(var))
+    CORE.register_platform_component("event", var)
     await setup_event_core_(var, config, event_types=event_types)
 
 
@@ -136,7 +138,6 @@ async def event_fire_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_EVENT")
     cg.add_global(event_ns.using)

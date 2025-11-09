@@ -1,8 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import i2c
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSOR,
     CONF_CHANNEL,
@@ -13,6 +12,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OUTPUT,
 )
+import esphome.final_validate as fv
 
 CONF_TOUCH_THRESHOLD = "touch_threshold"
 CONF_RELEASE_THRESHOLD = "release_threshold"
@@ -56,12 +56,13 @@ def _final_validate(config):
         for binary_sensor in binary_sensors:
             if binary_sensor.get(CONF_MPR121_ID) == config[CONF_ID]:
                 max_touch_channel = max(max_touch_channel, binary_sensor[CONF_CHANNEL])
-    if max_touch_channel_in_config := config.get(CONF_MAX_TOUCH_CHANNEL):
-        if max_touch_channel != max_touch_channel_in_config:
-            raise cv.Invalid(
-                "Max touch channel must equal the highest binary sensor channel or be removed for auto calculation",
-                path=[CONF_MAX_TOUCH_CHANNEL],
-            )
+    if (
+        max_touch_channel_in_config := config.get(CONF_MAX_TOUCH_CHANNEL)
+    ) and max_touch_channel != max_touch_channel_in_config:
+        raise cv.Invalid(
+            "Max touch channel must equal the highest binary sensor channel or be removed for auto calculation",
+            path=[CONF_MAX_TOUCH_CHANNEL],
+        )
     path = fconf.get_path_for_id(config[CONF_ID])[:-1]
     this_config = fconf.get_config_for_path(path)
     this_config[CONF_MAX_TOUCH_CHANNEL] = max_touch_channel
