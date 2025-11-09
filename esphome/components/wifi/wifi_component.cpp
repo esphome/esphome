@@ -709,10 +709,6 @@ void WiFiComponent::start_scanning() {
     // Priority is decreased when a BSSID fails to connect, so lower priority = previously failed
     if (a.get_priority() != b.get_priority())
       return a.get_priority() > b.get_priority();
-
-    // If priorities are equal, prefer stronger signal
-    // This helps with mesh networks and multiple APs with same SSID
-    return a.get_rssi() > b.get_rssi();
   }
 
   // Both don't match - sort by signal strength
