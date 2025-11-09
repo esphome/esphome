@@ -4,7 +4,7 @@
 namespace esphome {
 namespace bm8563 {
 
-static const char *const TAG = "BM8563";
+static const char *const TAG = "bm8563";
 
 static const uint8_t CONTROL_STATUS_2_REG = 0x01;
 
@@ -37,6 +37,9 @@ void BM8563::write_time() {
     return;
   }
 
+  ESP_LOGD(TAG, "Writing time: %i-%i-%i %i, %i:%i:%i", now.year, now.month, now.day_of_month, now.day_of_week, now.hour,
+           now.minute, now.second);
+
   this->set_time_(now);
   this->set_date_(now);
 }
@@ -45,7 +48,8 @@ void BM8563::read_time() {
   ESPTime rtc_time;
   this->get_time_(rtc_time);
   this->get_date_(rtc_time);
-  ESP_LOGD(TAG, "BM8563: %i-%i-%i %i, %i:%i:%i", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
+  rtc_time.day_of_year = 1;  // unused by recalc_timestamp_utc, but needs to be valid
+  ESP_LOGD(TAG, "Read time: %i-%i-%i %i, %i:%i:%i", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
            rtc_time.day_of_week, rtc_time.hour, rtc_time.minute, rtc_time.second);
 
   rtc_time.recalc_timestamp_utc(false);
