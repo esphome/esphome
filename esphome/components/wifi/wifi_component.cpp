@@ -970,10 +970,8 @@ void WiFiComponent::retry_connect() {
         this->selected_sta_index_ = 0;
         this->set_scan_result_index_and_reset_retries_(0);
         this->retry_hidden_ = false;
-        // Skip the single connection point below - need to scan first
-        // State will transition to COOLDOWN, then SCANNING will be triggered automatically
-        this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
-        this->action_started_ = millis();
+        // Start scanning immediately - no need to wait since we're just switching modes
+        this->start_scanning();
         return;
       } else {
         // Try next configured network
