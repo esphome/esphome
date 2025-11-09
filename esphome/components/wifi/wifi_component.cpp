@@ -42,6 +42,9 @@ namespace wifi {
 
 static const char *const TAG = "wifi";
 
+// Extern declaration for platform-specific authentication failure flag
+extern bool s_sta_connect_auth_failed;
+
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
   switch (type) {
@@ -344,20 +347,25 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->selected_sta_index_ = 0;
 }
 
-WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
+WiFiAP WiFiComponent::build_wifi_ap_from_selected_(optional<uint8_t> scan_result_index) const {
   // PRECONDITION: selected_sta_index_ must be valid (ensured by all callers)
   const WiFiAP *config = this->get_selected_sta_();
   assert(config != nullptr);
   WiFiAP params = *config;
 
+  // Determine which scan result to use:
+  // - If explicit index provided (fallback scenario), use that
+  // - Otherwise use scan_result_[0] (normal scenario)
   // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync after wifi_scan_done():
   // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
   // - It then finds which sta_[i] config matches scan_result_[0]
   // - Sets selected_sta_index_ = i to record that matching config
   // This sync holds until scan_result_ is cleared (e.g., after connection or in reset_for_next_ap_attempt_())
-  if (!this->scan_result_.empty()) {
+  const uint8_t index = scan_result_index.value_or(0);
+
+  if (index < this->scan_result_.size()) {
     // Override with scan data - network is visible
-    const WiFiScanResult &scan = this->scan_result_[0];
+    const WiFiScanResult &scan = this->scan_result_[index];
     params.set_hidden(false);
     params.set_ssid(scan.get_ssid());
     params.set_bssid(scan.get_bssid());
@@ -668,6 +676,9 @@ void WiFiComponent::check_scanning_finished() {
   // Sort scan results using insertion sort for better memory efficiency
   insertion_sort_scan_results(this->scan_result_);
 
+  // Reset scan result index for new scan - start with strongest AP
+  this->scan_result_index_ = 0;
+
   for (auto &res : this->scan_result_) {
     log_scan_result(res);
   }
@@ -796,6 +807,57 @@ void WiFiComponent::check_connecting_finished() {
   this->retry_connect();
 }
 
+bool WiFiComponent::try_next_ap_with_same_ssid_() {
+  // Only attempt fallback if we have scan results and haven't exhausted them
+  if (this->scan_result_.empty() || this->scan_result_index_ >= this->scan_result_.size() - 1) {
+    return false;
+  }
+
+  const WiFiAP *current_config = this->get_selected_sta_();
+  if (!current_config) {
+    return false;
+  }
+
+  const std::string &current_ssid = current_config->get_ssid();
+
+  // Look for next scan result with same SSID
+  for (uint8_t i = this->scan_result_index_ + 1; i < this->scan_result_.size(); i++) {
+    const WiFiScanResult &scan_res = this->scan_result_[i];
+
+    // Stop if we've passed all matching networks
+    if (!scan_res.get_matches()) {
+      break;
+    }
+
+    // Skip if this scan result has a different SSID
+    if (scan_res.get_ssid() != current_ssid) {
+      continue;
+    }
+
+    // Found another AP with same SSID
+    // No need to update selected_sta_index_ - same SSID means same config entry
+    this->scan_result_index_ = i;
+    this->num_retried_ = 0;  // Reset retry counter for new AP
+
+    char bssid_s[18];
+    auto bssid = scan_res.get_bssid();
+    format_mac_addr_upper(bssid.data(), bssid_s);
+
+    ESP_LOGI(TAG, "Trying next AP with same SSID: " LOG_SECRET("'%s' (%s)") " RSSI: %d dB", scan_res.get_ssid().c_str(),
+             bssid_s, scan_res.get_rssi());
+
+    // Build connection parameters using the specific scan result index
+    // selected_sta_index_ already points to correct config (same SSID)
+    WiFiAP params = this->build_wifi_ap_from_selected_(i);
+    this->start_connecting(params, this->retry_hidden_);
+    return true;  // Successfully moved to next AP
+  }
+
+  // No more APs with same SSID found
+  ESP_LOGD(TAG, "No more APs with SSID " LOG_SECRET("'%s'") " to try", current_ssid.c_str());
+  return false;
+}
+
 void WiFiComponent::retry_connect() {
   if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid()) {
     auto bssid = *config->get_bssid();
@@ -804,6 +866,18 @@ void WiFiComponent::retry_connect() {
   }
 
   delay(10);
+
+  // Try next AP with same SSID if authentication failed after retries
+  // This handles rogue APs and mesh network issues while still retrying same AP for transient failures
+  if (s_sta_connect_auth_failed && this->num_retried_ >= 3) {
+    if (this->try_next_ap_with_same_ssid_()) {
+      s_sta_connect_auth_failed = false;  // Clear flag after successful fallback
+      return;                             // Successfully moved to next AP, don't continue to network cycling
+    }
+    // If no more APs with same SSID, clear flag and fall through to network cycling
+    s_sta_connect_auth_failed = false;
+  }
+
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
       (this->num_retried_ > 3 || this->error_from_callback_)) {
 #ifdef USE_WIFI_FAST_CONNECT

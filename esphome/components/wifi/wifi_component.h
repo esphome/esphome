@@ -341,7 +341,8 @@ class WiFiComponent : public Component {
 #endif  // USE_WIFI_AP
 
   void print_connect_params_();
-  WiFiAP build_wifi_ap_from_selected_() const;
+  WiFiAP build_wifi_ap_from_selected_(optional<uint8_t> scan_result_index = {}) const;
+  bool try_next_ap_with_same_ssid_();
 
   const WiFiAP *get_selected_sta_() const {
     if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size()) {
@@ -448,6 +449,9 @@ class WiFiComponent : public Component {
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
+  // Index into scan_result_ vector for AP fallback on authentication failure
+  // Tracks which scan result we're currently trying (0 = strongest signal)
+  uint8_t scan_result_index_{0};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
