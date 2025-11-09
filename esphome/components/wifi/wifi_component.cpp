@@ -817,8 +817,7 @@ void WiFiComponent::check_scanning_finished() {
   // synchronized so build_wifi_ap_from_selected_() can safely use both to build connection parameters.
   const WiFiScanResult &scan_res = this->scan_result_[0];
   if (!scan_res.get_matches()) {
-    ESP_LOGW(TAG, "No matching network found");
-    this->retry_connect();
+    this->transition_to_phase_(WiFiRetryPhase::SCAN_WITH_HIDDEN);
     return;
   }
 
