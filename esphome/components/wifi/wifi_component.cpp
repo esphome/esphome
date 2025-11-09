@@ -1166,10 +1166,9 @@ void WiFiComponent::retry_connect() {
       // Advanced to new BSSID - reset counter
       this->num_retried_ = 0;
       ESP_LOGD(TAG, "Advanced to next BSSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-    } else if (current_phase != WiFiRetryPhase::FAST_CONNECT_CYCLING_APS &&
-               current_phase != WiFiRetryPhase::SCAN_WITH_HIDDEN) {
-      // Same phase, same BSSID/AP, not in phases that cycle through APs - increment retry counter
-      // (fast connect cycling and scan with hidden were already handled above)
+    } else if (current_phase != WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
+      // Same phase, same BSSID/AP - increment retry counter
+      // (fast connect cycling was already handled above, scan with hidden SSID advancement handled above)
       //
       // Don't increment if we're in a scan phase and have no valid scan results to connect to
       // (this happens when scan completes but finds no matching networks)
