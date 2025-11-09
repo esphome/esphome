@@ -107,15 +107,14 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
 
   void set_value_template(std::vector<uint8_t> (*func)(Ts...)) {
-    this->value_.template_func = func;
-    this->has_simple_value_ = false;
+    this->value_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
   }
 
   // Store pointer to static data in flash (no RAM copy)
   void set_value_simple(const uint8_t *data, size_t len) {
-    this->value_.simple_data.ptr = data;
-    this->value_.simple_data.len = len;
-    this->has_simple_value_ = true;
+    this->value_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
 
   void play(const Ts &...x) override {}
@@ -124,10 +123,12 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
     this->num_running_++;
     this->var_ = std::make_tuple(x...);
     std::vector<uint8_t> value;
-    if (this->has_simple_value_) {
-      value.assign(this->value_.simple_data.ptr, this->value_.simple_data.ptr + this->value_.simple_data.len);
+    if (this->len_ >= 0) {
+      // Static mode: copy from flash to vector
+      value.assign(this->value_.data, this->value_.data + this->len_);
     } else {
-      value = this->value_.template_func(x...);
+      // Template mode: call function
+      value = this->value_.func(x...);
     }
     // on write failure, continue the automation chain rather than stopping so that e.g. disconnect can work.
     if (!write(value))
@@ -202,13 +203,10 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
 
  private:
   BLEClient *ble_client_;
-  bool has_simple_value_{true};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
   union Value {
-    std::vector<uint8_t> (*template_func)(Ts...);
-    struct {
-      const uint8_t *ptr;
-      size_t len;
-    } simple_data;
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
   } value_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;

@@ -136,10 +136,16 @@ button:
         address: 0x00
         command: 0x0B
   - platform: template
-    name: RC5 Raw
+    name: RC5 Raw static
     on_press:
       remote_transmitter.transmit_raw:
         code: [1000, -1000]
+  - platform: template
+    name: RC5 Raw lambda
+    on_press:
+      remote_transmitter.transmit_raw:
+        code: !lambda |-
+          return {(int32_t)id(test_number).state * 100, -1000};
   - platform: template
     name: AEHA
     id: eaha_hitachi_climate_power_on
