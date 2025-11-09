@@ -368,6 +368,12 @@ class WiFiComponent : public Component {
   /// Check if we need valid scan results for the current phase but don't have any
   /// Returns true if the phase requires scan results but they're missing or don't match
   bool needs_scan_results_() const;
+  /// Check if an SSID was seen in the most recent scan results
+  /// Used to skip hidden mode for SSIDs we know are visible
+  bool ssid_was_seen_in_scan_(const std::string &ssid) const;
+  /// Find next SSID that wasn't in scan results (might be hidden)
+  /// Returns index of next potentially hidden SSID, or -1 if none found
+  int8_t find_next_hidden_sta_(int8_t start_index);
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
   /// Advance to next target (AP/SSID) within current phase, or increment retry counter

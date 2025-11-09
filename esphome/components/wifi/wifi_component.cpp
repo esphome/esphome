@@ -111,6 +111,31 @@ bool WiFiComponent::needs_scan_results_() const {
   return this->scan_result_.empty() || !this->scan_result_[0].get_matches();
 }
 
+bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
+  for (const auto &scan : this->scan_result_) {
+    if (scan.get_ssid() == ssid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
+  // Find next SSID that wasn't in scan results (might be hidden)
+  // Start searching from start_index + 1
+  for (size_t i = start_index + 1; i < this->sta_.size(); i++) {
+    if (!this->ssid_was_seen_in_scan_(this->sta_[i].get_ssid())) {
+      ESP_LOGD(TAG, "Found potentially hidden SSID " LOG_SECRET("'%s'") " at index %d",
+               this->sta_[i].get_ssid().c_str(), static_cast<int>(i));
+      return static_cast<int8_t>(i);
+    }
+    ESP_LOGD(TAG, "Skipping SSID " LOG_SECRET("'%s'") " - was visible in scan results (not hidden)",
+             this->sta_[i].get_ssid().c_str());
+  }
+  // No hidden SSIDs found
+  return -1;
+}
+
 void WiFiComponent::start_initial_connection_() {
   // If all networks are configured as hidden, skip scanning and go straight to hidden mode
   if (this->all_networks_hidden_()) {
@@ -1003,7 +1028,12 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 
       // Exhausted retries on current BSSID (scan_result_[0])
       // Its priority has been decreased, so on next scan it will be sorted lower
-      // and we'll try the next best BSSID. For now, try hidden mode.
+      // and we'll try the next best BSSID.
+      // If we saw this network in scan results, we KNOW it's not hidden - skip hidden mode and rescan
+      if (!this->scan_result_.empty() && this->scan_result_[0].get_matches()) {
+        return WiFiRetryPhase::SCAN_CONNECTING;  // Rescan to try next BSSID
+      }
+      // Otherwise try hidden mode
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
@@ -1091,11 +1121,17 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      // Starting hidden mode - reset to first SSID to try all configured networks
+      // Starting hidden mode - find first SSID that wasn't in scan results
       if (old_phase == WiFiRetryPhase::SCAN_CONNECTING) {
-        this->selected_sta_index_ = 0;
-        // Clear scan results since we're trying hidden mode (no scan data to use)
-        this->scan_result_.clear();
+        // Keep scan results so we can skip SSIDs that were visible in the scan
+        // Don't clear scan_result_ - we need it to know which SSIDs are NOT hidden
+
+        // Find first SSID that might be hidden (start from index -1 to search from beginning)
+        this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
+
+        if (this->selected_sta_index_ == -1) {
+          ESP_LOGD(TAG, "All configured SSIDs were visible in scan - skipping hidden mode");
+        }
       }
       break;
 
@@ -1181,13 +1217,16 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
   }
 #endif
 
-  if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID &&
-      this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-    // Hidden mode: exhausted retries on current SSID, advance to next
-    this->selected_sta_index_++;
-    this->num_retried_ = 0;
-    ESP_LOGD(TAG, "Advanced to next SSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-    return;
+  if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
+    // Hidden mode: exhausted retries on current SSID, find next potentially hidden SSID
+    int8_t next_index = this->find_next_hidden_sta_(this->selected_sta_index_);
+    if (next_index != -1) {
+      // Found another potentially hidden SSID
+      this->selected_sta_index_ = next_index;
+      this->num_retried_ = 0;
+      return;
+    }
+    // No more potentially hidden SSIDs - fall through to trigger phase change
   }
 
   // Don't increment retry counter if we're in a scan phase with no valid targets
