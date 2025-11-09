@@ -96,10 +96,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   BLEClientWriteAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
     ble_client_ = ble_client;
-    this->construct_simple_value_();
   }
-
-  ~BLEClientWriteAction() { this->destroy_simple_value_(); }
 
   void set_service_uuid16(uint16_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
   void set_service_uuid32(uint32_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
@@ -110,16 +107,14 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
 
   void set_value_template(std::vector<uint8_t> (*func)(Ts...)) {
-    this->destroy_simple_value_();
     this->value_.template_func = func;
     this->has_simple_value_ = false;
   }
 
-  void set_value_simple(const std::vector<uint8_t> &value) {
-    if (!this->has_simple_value_) {
-      this->construct_simple_value_();
-    }
-    this->value_.simple = value;
+  // Store pointer to static data in flash (no RAM copy)
+  void set_value_simple(const uint8_t *data, size_t len) {
+    this->value_.simple_data.ptr = data;
+    this->value_.simple_data.len = len;
     this->has_simple_value_ = true;
   }
 
@@ -128,7 +123,12 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   void play_complex(const Ts &...x) override {
     this->num_running_++;
     this->var_ = std::make_tuple(x...);
-    auto value = this->has_simple_value_ ? this->value_.simple : this->value_.template_func(x...);
+    std::vector<uint8_t> value;
+    if (this->has_simple_value_) {
+      value.assign(this->value_.simple_data.ptr, this->value_.simple_data.ptr + this->value_.simple_data.len);
+    } else {
+      value = this->value_.template_func(x...);
+    }
     // on write failure, continue the automation chain rather than stopping so that e.g. disconnect can work.
     if (!write(value))
       this->play_next_(x...);
@@ -201,21 +201,14 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   }
 
  private:
-  void construct_simple_value_() { new (&this->value_.simple) std::vector<uint8_t>(); }
-
-  void destroy_simple_value_() {
-    if (this->has_simple_value_) {
-      this->value_.simple.~vector();
-    }
-  }
-
   BLEClient *ble_client_;
-  bool has_simple_value_ = true;
+  bool has_simple_value_{true};
   union Value {
-    std::vector<uint8_t> simple;
     std::vector<uint8_t> (*template_func)(Ts...);
-    Value() {}   // trivial constructor
-    ~Value() {}  // trivial destructor - we manage lifetime via discriminator
+    struct {
+      const uint8_t *ptr;
+      size_t len;
+    } simple_data;
   } value_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
