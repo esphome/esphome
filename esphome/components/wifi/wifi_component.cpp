@@ -66,7 +66,7 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
 static constexpr uint8_t WIFI_RETRY_COUNT_STANDARD = 3;
 static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 5;
 static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;    // No retries in fast_connect mode
-static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 1;  // Only 1 retry before trying next BSSID
+static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 2;  // 1 attempt + 1 retry before trying next BSSID
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
