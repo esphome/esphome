@@ -1108,9 +1108,23 @@ void WiFiComponent::retry_connect() {
 
   // Determine next retry phase based on current state
   WiFiRetryPhase current_phase = this->retry_phase_;
-  size_t current_bssid_index = this->scan_result_index_;
   WiFiRetryPhase next_phase = this->determine_next_phase_();
-  bool bssid_changed = (this->scan_result_index_ != current_bssid_index);
+
+  // Special handling for FAST_CONNECT_CYCLING_APS: advance to next AP if staying in phase
+  // This must happen BEFORE the phase transition logic
+#ifdef USE_WIFI_FAST_CONNECT
+  if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS &&
+      next_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
+    // Advance to next configured AP
+    this->selected_sta_index_++;
+    this->reset_for_next_ap_attempt_();
+    this->num_retried_ = 0;
+    ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+  }
+#endif
+
+  // Track current indices for detecting changes
+  size_t current_bssid_index = this->scan_result_index_;
 
   // Transition to new phase if needed
   if (next_phase != current_phase) {
@@ -1118,15 +1132,22 @@ void WiFiComponent::retry_connect() {
     if (started_scan) {
       return;  // Wait for scan to complete
     }
-  } else if (bssid_changed) {
-    // Staying in same phase but advanced to new BSSID - reset counter
-    this->num_retried_ = 0;
-    ESP_LOGD(TAG, "Advanced to next BSSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
   } else {
-    // Staying in same phase with same BSSID - increment retry counter
-    this->num_retried_++;
-    ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
-             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    // Staying in same phase - check if we advanced to new BSSID (in scan phases)
+    bool bssid_changed = (this->scan_result_index_ != current_bssid_index);
+
+    if (bssid_changed) {
+      // Advanced to new BSSID - reset counter
+      this->num_retried_ = 0;
+      ESP_LOGD(TAG, "Advanced to next BSSID in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    } else if (current_phase != WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
+      // Same phase, same BSSID/AP, not in fast connect cycling - increment retry counter
+      // (fast connect cycling was already handled above)
+      this->num_retried_++;
+      ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
+               get_max_retries_for_phase(this->retry_phase_),
+               LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    }
   }
 
   this->error_from_callback_ = false;
