@@ -1077,12 +1077,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   return false;  // Did not start scan, can proceed with connection
 }
 
-void WiFiComponent::retry_connect() {
-  // Decrease BSSID priority for failed connection attempt
-  // This helps avoid repeatedly trying the same failed BSSID
+void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
+  // Determine which BSSID we tried to connect to
   optional<bssid_t> failed_bssid;
 
-  // Determine which BSSID we tried to connect to
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
     // Scan-based phase: always use best result (index 0)
     failed_bssid = this->scan_result_[0].get_bssid();
@@ -1091,22 +1089,29 @@ void WiFiComponent::retry_connect() {
     failed_bssid = *config->get_bssid();
   }
 
-  if (failed_bssid.has_value()) {
-    float old_priority = this->get_sta_priority(failed_bssid.value());
-    float new_priority = old_priority - 1.0f;
-    this->set_sta_priority(failed_bssid.value(), new_priority);
-
-    // Get SSID for logging
-    std::string ssid;
-    if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-      ssid = this->scan_result_[0].get_ssid();
-    } else if (const WiFiAP *config = this->get_selected_sta_()) {
-      ssid = config->get_ssid();
-    }
-
-    ESP_LOGD(TAG, "Connection failed to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", decreased priority %.1f → %.1f",
-             ssid.c_str(), format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
+  if (!failed_bssid.has_value()) {
+    return;  // No BSSID to penalize
   }
+
+  // Decrease priority to avoid repeatedly trying the same failed BSSID
+  float old_priority = this->get_sta_priority(failed_bssid.value());
+  float new_priority = old_priority - 1.0f;
+  this->set_sta_priority(failed_bssid.value(), new_priority);
+
+  // Get SSID for logging
+  std::string ssid;
+  if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
+    ssid = this->scan_result_[0].get_ssid();
+  } else if (const WiFiAP *config = this->get_selected_sta_()) {
+    ssid = config->get_ssid();
+  }
+
+  ESP_LOGD(TAG, "Connection failed to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", decreased priority %.1f → %.1f",
+           ssid.c_str(), format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
+}
+
+void WiFiComponent::retry_connect() {
+  this->log_and_adjust_priority_for_failed_connect_();
 
   delay(10);
 

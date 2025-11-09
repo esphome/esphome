@@ -368,6 +368,8 @@ class WiFiComponent : public Component {
   /// Check if we need valid scan results for the current phase but don't have any
   /// Returns true if the phase requires scan results but they're missing or don't match
   bool needs_scan_results_() const;
+  /// Log failed connection and decrease BSSID priority to avoid repeated attempts
+  void log_and_adjust_priority_for_failed_connect_();
   /// Start initial connection - either scan or connect directly to hidden networks
   void start_initial_connection_();
   const WiFiAP *get_selected_sta_() const {
