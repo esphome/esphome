@@ -835,8 +835,9 @@ void WiFiComponent::check_scanning_finished() {
     // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
     this->transition_to_phase_(WiFiRetryPhase::SCAN_WITH_HIDDEN);
     // Now start connection attempt in hidden mode
-  } else {
-    this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING);
+  }
+  elif (this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING)) {
+    return;  // scan started, wait for next loop iteration
   }
 
   yield();
@@ -1113,8 +1114,7 @@ void WiFiComponent::retry_connect() {
   WiFiRetryPhase next_phase = this->determine_next_phase_();
 
   // Handle phase transitions (transition_to_phase_ handles same-phase no-op internally)
-  bool started_scan = this->transition_to_phase_(next_phase);
-  if (started_scan) {
+  if (this->transition_to_phase_(next_phase)) {
     return;  // Wait for scan to complete
   }
 
