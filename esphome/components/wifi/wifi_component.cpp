@@ -187,7 +187,7 @@ void WiFiComponent::loop() {
           if (this->fast_connect_exhausted_) {
             this->retry_or_scan_();
           } else {
-            // Still in fast_connect mode - always try connecting with config data
+            // Still in fast_connect mode - always try connecting with config data only (no scan results)
             // Safety check: Ensure selected_sta_index_ is valid before retrying
             // (should already be set by retry_connect(), but check for robustness)
             this->reset_selected_ap_to_first_if_invalid_();
@@ -893,7 +893,7 @@ void WiFiComponent::retry_or_scan_() {
   // After cooldown: either retry with hidden networks or start scanning
   if (this->retry_hidden_) {
     this->reset_selected_ap_to_first_if_invalid_();
-    WiFiAP params = this->build_wifi_ap_from_selected_();
+    WiFiAP params = this->build_wifi_ap_from_selected_(this->scan_result_index_);
     this->start_connecting(params, false);
   } else {
     this->start_scanning();
