@@ -205,10 +205,10 @@ void WiFiComponent::start() {
         // No saved settings available - use first config (will use SSID from config)
         this->selected_sta_index_ = 0;
         params = this->build_wifi_ap_from_selected_();
-        ESP_LOGI(TAG, "Starting WiFi with fast_connect (no saved data), trying '%s'", params.get_ssid().c_str());
-      } else {
-        ESP_LOGI(TAG, "Starting WiFi with fast_connect (saved credentials), trying '%s'", params.get_ssid().c_str());
       }
+      ESP_LOGI(TAG, "Starting WiFi with fast_connect (%s), trying " LOG_SECRET("'%s'"),
+               loaded_fast_connect ? LOG_STR_LITERAL("saved credentials") : LOG_STR_LITERAL("no saved data"),
+               params.get_ssid().c_str());
       // Always start with INITIAL_CONNECT phase when using fast_connect
       this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
       this->start_connecting(params, false);
@@ -451,8 +451,8 @@ WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
     // Override with scan data - network is visible
     if (!this->scan_result_[0].get_matches()) {
       ESP_LOGW(TAG,
-               "Selected AP config (SSID='%s') does not match best scan result (SSID='%s'); "
-               "using config values only",
+               "Selected AP config " LOG_SECRET("(SSID='%s')") " does not match best scan result " LOG_SECRET(
+                   "(SSID='%s')") "; using config values only",
                config->get_ssid().c_str(), this->scan_result_[0].get_ssid().c_str());
     } else {
       // Apply best scan result to params
