@@ -212,8 +212,14 @@ void WiFiComponent::loop() {
           } else {
             // Have everything we need to connect
             WiFiAP params = this->build_params_for_current_phase_();
-            ESP_LOGI(TAG, "Connecting to '%s' (attempt %u in phase %s)...", params.get_ssid().c_str(),
-                     this->num_retried_ + 1, LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+            if (params.get_bssid().has_value()) {
+              ESP_LOGI(TAG, "Connecting to '%s' " LOG_SECRET("(%s)") " (attempt %u in phase %s)...",
+                       params.get_ssid().c_str(), format_mac_address_pretty(*params.get_bssid()).c_str(),
+                       this->num_retried_ + 1, LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+            } else {
+              ESP_LOGI(TAG, "Connecting to '%s' (attempt %u in phase %s)...", params.get_ssid().c_str(),
+                       this->num_retried_ + 1, LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+            }
             this->start_connecting(params, false);
           }
         }
@@ -1064,8 +1070,14 @@ void WiFiComponent::retry_connect() {
     WiFiAP params = this->build_params_for_current_phase_();
 
     // Log connection attempt with details
-    ESP_LOGI(TAG, "Connecting to '%s' (attempt %u in phase %s)...", params.get_ssid().c_str(), this->num_retried_ + 1,
-             LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    if (params.get_bssid().has_value()) {
+      ESP_LOGI(TAG, "Connecting to '%s' " LOG_SECRET("(%s)") " (attempt %u in phase %s)...", params.get_ssid().c_str(),
+               format_mac_address_pretty(*params.get_bssid()).c_str(), this->num_retried_ + 1,
+               LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    } else {
+      ESP_LOGI(TAG, "Connecting to '%s' (attempt %u in phase %s)...", params.get_ssid().c_str(), this->num_retried_ + 1,
+               LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    }
 
     this->start_connecting(params, true);
     return;
