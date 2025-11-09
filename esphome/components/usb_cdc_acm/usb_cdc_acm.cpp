@@ -165,6 +165,32 @@ void USBCDCACMInstance::setup() {
 
 void USBCDCACMInstance::invoke_line_coding_callback(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity,
                                                     uint8_t data_bits) {
+  // Update UART configuration based on CDC line coding
+  this->baud_rate_ = bit_rate;
+  this->data_bits_ = data_bits;
+
+  // Convert CDC stop bits to UART stop bits format
+  // CDC: 0=1 stop bit, 1=1.5 stop bits, 2=2 stop bits
+  this->stop_bits_ = (stop_bits == 0) ? 1 : (stop_bits == 1) ? 1 : 2;
+
+  // Convert CDC parity to UART parity format
+  // CDC: 0=None, 1=Odd, 2=Even, 3=Mark, 4=Space
+  switch (parity) {
+    case 0:
+      this->parity_ = uart::UART_CONFIG_PARITY_NONE;
+      break;
+    case 1:
+      this->parity_ = uart::UART_CONFIG_PARITY_ODD;
+      break;
+    case 2:
+      this->parity_ = uart::UART_CONFIG_PARITY_EVEN;
+      break;
+    default:
+      // Mark and Space parity are not commonly supported, default to None
+      this->parity_ = uart::UART_CONFIG_PARITY_NONE;
+      break;
+  }
+
   if (this->line_coding_callback_ != nullptr) {
     this->line_coding_callback_(bit_rate, stop_bits, parity, data_bits);
   }
@@ -224,6 +250,101 @@ void USBCDCACMInstance::usb_tx_task() {
       }
     }
   }
+}
+
+//==============================================================================
+// UARTComponent Interface Implementation
+//==============================================================================
+
+void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
+  if (len == 0) {
+    return;
+  }
+
+  // Write data to TX ring buffer
+  BaseType_t send_res = xRingbufferSend(this->usb_tx_ringbuf_, data, len, 0);
+  if (send_res != pdTRUE) {
+    ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %u bytes dropped", this->itf_, len);
+    return;
+  }
+
+  // Notify TX task that data is available
+  if (this->usb_tx_task_handle_ != nullptr) {
+    xTaskNotifyGive(this->usb_tx_task_handle_);
+  }
+}
+
+bool USBCDCACMInstance::peek_byte(uint8_t *data) {
+  if (this->has_peek_) {
+    *data = this->peek_buffer_;
+    return true;
+  }
+
+  if (this->read_byte(&this->peek_buffer_)) {
+    *data = this->peek_buffer_;
+    this->has_peek_ = true;
+    return true;
+  }
+
+  return false;
+}
+
+bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
+  if (len == 0) {
+    return true;
+  }
+
+  size_t original_len = len;
+  size_t bytes_read = 0;
+
+  // First, use the peek buffer if available
+  if (this->has_peek_) {
+    data[0] = this->peek_buffer_;
+    this->has_peek_ = false;
+    bytes_read = 1;
+    data++;
+    len--;
+  }
+
+  // Read remaining bytes from RX ring buffer
+  if (len > 0) {
+    size_t rx_size = 0;
+    uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(this->usb_rx_ringbuf_, &rx_size, 0, len));
+
+    if (buf != nullptr) {
+      memcpy(data, buf, rx_size);
+      vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+      bytes_read += rx_size;
+    }
+  }
+
+  return bytes_read == original_len;
+}
+
+int USBCDCACMInstance::available() {
+  UBaseType_t waiting = 0;
+  if (this->usb_rx_ringbuf_ != nullptr) {
+    vRingbufferGetInfo(this->usb_rx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
+  }
+  return static_cast<int>(waiting) + (this->has_peek_ ? 1 : 0);
+}
+
+void USBCDCACMInstance::flush() {
+  // Wait for TX ring buffer to be empty
+  if (this->usb_tx_ringbuf_ == nullptr) {
+    return;
+  }
+
+  UBaseType_t waiting = 1;
+  while (waiting > 0) {
+    vRingbufferGetInfo(this->usb_tx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
+    if (waiting > 0) {
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+  }
+
+  // Also wait for USB to finish transmitting
+  tinyusb_cdcacm_write_flush(this->itf_, pdMS_TO_TICKS(100));
 }
 
 //==============================================================================

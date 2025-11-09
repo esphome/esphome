@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import esp32
+from esphome.components import esp32, uart
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32.const import (
     VARIANT_ESP32P4,
@@ -10,6 +10,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER
 
 CODEOWNERS = ["@kbx81"]
+AUTO_LOAD = ["uart"]
 DEPENDENCIES = ["tinyusb"]
 
 CONF_INTERFACES = "interfaces"
@@ -18,7 +19,7 @@ CONF_USB_TX_BUFFER_SIZE = "usb_tx_buffer_size"
 
 usb_cdc_acm_ns = cg.esphome_ns.namespace("usb_cdc_acm")
 USBCDCACMComponent = usb_cdc_acm_ns.class_("USBCDCACMComponent", cg.Component)
-USBCDCACMInstance = usb_cdc_acm_ns.class_("USBCDCACMInstance")
+USBCDCACMInstance = usb_cdc_acm_ns.class_("USBCDCACMInstance", uart.UARTComponent)
 
 
 def validate_interfaces(config):
