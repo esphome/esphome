@@ -63,33 +63,27 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   }
 }
 
-static constexpr uint8_t WIFI_RETRY_COUNT_STANDARD = 3;  // 3 attempts for initial connection without fast_connect
-static constexpr uint8_t WIFI_RETRY_COUNT_SCAN_CONNECTING = 2;  // 2 attempts before trying next BSSID
-static constexpr uint8_t WIFI_RETRY_COUNT_HIDDEN = 2;           // 2 attempts with hidden flag
-static constexpr uint8_t WIFI_RETRY_COUNT_FAST_CONNECT = 1;     // 1 attempt in fast_connect mode
-static constexpr uint8_t WIFI_RETRY_COUNT_BSSID_FALLBACK = 2;   // 2 attempts before trying next BSSID
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_BSSID = 2;  // 2 attempts per BSSID (scan-based phases)
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 2;   // 2 attempts per SSID (hidden network mode)
+static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;     // 1 attempt per AP (fast_connect mode)
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
+    case WiFiRetryPhase::INITIAL_CONNECT:
 #ifdef USE_WIFI_FAST_CONNECT
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-      return WIFI_RETRY_COUNT_FAST_CONNECT;
 #endif
-    case WiFiRetryPhase::INITIAL_CONNECT:
-      // INITIAL_CONNECT uses fast_connect (1 attempt) when fast_connect enabled,
-      // otherwise uses standard retry count (3 attempts)
-#ifdef USE_WIFI_FAST_CONNECT
-      return WIFI_RETRY_COUNT_FAST_CONNECT;
-#else
-      return WIFI_RETRY_COUNT_STANDARD;
-#endif
+      // INITIAL_CONNECT and FAST_CONNECT_CYCLING_APS both use 1 attempt per AP (fast_connect mode)
+      return WIFI_RETRY_COUNT_PER_AP;
     case WiFiRetryPhase::SCAN_CONNECTING:
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      return WIFI_RETRY_COUNT_SCAN_CONNECTING;
+      // Scan-based phases: 2 attempts per BSSID before moving to next
+      return WIFI_RETRY_COUNT_PER_BSSID;
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      return WIFI_RETRY_COUNT_HIDDEN;
+      // Hidden network mode: 2 attempts per SSID before moving to next
+      return WIFI_RETRY_COUNT_PER_SSID;
     default:
-      return WIFI_RETRY_COUNT_SCAN_CONNECTING;
+      return WIFI_RETRY_COUNT_PER_BSSID;
   }
 }
 
@@ -253,6 +247,7 @@ void WiFiComponent::start() {
       this->start_connecting(params, false);
     }
 #else
+    // Without fast_connect: go straight to scanning (or hidden mode if all networks are hidden)
     this->start_initial_connection_();
 #endif
 #ifdef USE_WIFI_AP
@@ -1016,7 +1011,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::SCAN_WITH_HIDDEN;
       }
 
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_SCAN_CONNECTING) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_BSSID) {
         return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying
       }
 
@@ -1029,7 +1024,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_NEXT_SAME_SSID:
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_BSSID_FALLBACK) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_BSSID) {
         return WiFiRetryPhase::SCAN_NEXT_SAME_SSID;  // Keep retrying current AP
       }
 
@@ -1042,7 +1037,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       return WiFiRetryPhase::SCAN_WITH_HIDDEN;
 
     case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_HIDDEN) {
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
         return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Keep retrying same SSID
       }
 
@@ -1173,7 +1168,7 @@ void WiFiComponent::retry_connect() {
       ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
     } else
 #endif
-        if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_HIDDEN &&
+        if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID &&
             this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
       // Hidden mode: exhausted retries on current SSID, advance to next
       this->selected_sta_index_++;
