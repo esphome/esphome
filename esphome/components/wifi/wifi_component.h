@@ -109,7 +109,7 @@ enum class WiFiRetryPhase : uint8_t {
 #endif
   /// Scan-based: connecting to best AP from scan results
   SCAN_CONNECTING,
-  /// Mesh fallback: trying next BSSID with same SSID after auth failure
+  /// Mesh fallback: trying next matching BSSID (any configured SSID) after auth failure
   SCAN_NEXT_SAME_SSID,
   /// Retrying with hidden network flag
   SCAN_WITH_HIDDEN,

@@ -742,7 +742,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " reason='Station Roaming'", buf);
       return;
     } else {
-      ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " bssid=" LOG_SECRET("(%s)") " reason='%s'", buf,
+      ESP_LOGW(TAG, "Disconnected ssid=" LOG_SECRET("'%s'") " bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
       if (is_auth_failure) {
         s_sta_connect_auth_failed = true;
