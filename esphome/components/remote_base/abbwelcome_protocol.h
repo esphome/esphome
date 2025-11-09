@@ -214,10 +214,14 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   TEMPLATABLE_VALUE(uint8_t, message_type)
   TEMPLATABLE_VALUE(uint8_t, message_id)
   TEMPLATABLE_VALUE(bool, auto_message_id)
-  void set_data_static(std::vector<uint8_t> data) { data_static_ = std::move(data); }
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
-    has_data_func_ = true;
+  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->data_.func = func;
+    this->static_ = false;
+  }
+  void set_data_static(const uint8_t *data, size_t len) {
+    this->data_.static_data.ptr = data;
+    this->data_.static_data.len = len;
+    this->static_ = true;
   }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     ABBWelcomeData data;
@@ -228,19 +232,26 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
     data.set_message_type(this->message_type_.value(x...));
     data.set_message_id(this->message_id_.value(x...));
     data.auto_message_id = this->auto_message_id_.value(x...);
-    if (has_data_func_) {
-      data.set_data(this->data_func_(x...));
+    std::vector<uint8_t> data_vec;
+    if (this->static_) {
+      data_vec.assign(this->data_.static_data.ptr, this->data_.static_data.ptr + this->data_.static_data.len);
     } else {
-      data.set_data(this->data_static_);
+      data_vec = this->data_.func(x...);
     }
+    data.set_data(data_vec);
     data.finalize();
     ABBWelcomeProtocol().encode(dst, data);
   }
 
  protected:
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
-  bool has_data_func_{false};
+  bool static_{true};
+  union Data {
+    std::vector<uint8_t> (*func)(Ts...);
+    struct {
+      const uint8_t *ptr;
+      size_t len;
+    } static_data;
+  } data_;
 };
 
 }  // namespace remote_base
