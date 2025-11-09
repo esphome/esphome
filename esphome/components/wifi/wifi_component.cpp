@@ -950,6 +950,12 @@ void WiFiComponent::check_connecting_finished() {
   this->retry_connect();
 }
 
+/// Determine the next retry phase based on current state and failure conditions
+/// This function examines the current retry phase, number of retries, and failure reasons
+/// to decide what phase to move to next. It does not modify any state - it only returns
+/// the recommended next phase.
+///
+/// @return The next WiFiRetryPhase to transition to (may be same as current phase if should retry)
 WiFiRetryPhase WiFiComponent::determine_next_phase_() {
   switch (this->retry_phase_) {
     case WiFiRetryPhase::INITIAL_CONNECT:
@@ -1028,6 +1034,16 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
   return WiFiRetryPhase::SCAN_CONNECTING;
 }
 
+/// Transition from one retry phase to another with logging and phase-specific setup
+/// This function handles the actual state change from old_phase to new_phase, including:
+/// - Logging the phase transition
+/// - Resetting the retry counter
+/// - Performing phase-specific initialization (e.g., advancing AP index, starting scans)
+///
+/// @param old_phase The phase we're transitioning FROM
+/// @param new_phase The phase we're transitioning TO
+/// @return true if an async scan was started (caller should wait for completion)
+///         false if no scan started (caller can proceed with connection attempt)
 bool WiFiComponent::transition_to_phase_(WiFiRetryPhase old_phase, WiFiRetryPhase new_phase) {
   ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(old_phase)),
            LOG_STR_ARG(retry_phase_to_log_string(new_phase)));
