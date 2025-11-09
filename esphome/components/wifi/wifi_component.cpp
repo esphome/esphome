@@ -850,6 +850,8 @@ void WiFiComponent::check_scanning_finished() {
   yield();
 
   WiFiAP params = this->build_wifi_ap_from_selected_();
+  // Ensure we're in SCAN_CONNECTING phase when connecting with scan results
+  // (needed when scan was started directly without transition_to_phase_, e.g., initial scan)
   this->retry_phase_ = WiFiRetryPhase::SCAN_CONNECTING;
   this->start_connecting(params, false);
 }
@@ -1143,10 +1145,19 @@ void WiFiComponent::retry_connect() {
     } else if (current_phase != WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
       // Same phase, same BSSID/AP, not in fast connect cycling - increment retry counter
       // (fast connect cycling was already handled above)
-      this->num_retried_++;
-      ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
-               get_max_retries_for_phase(this->retry_phase_),
-               LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+      //
+      // Don't increment if we're in a scan phase and have no valid scan results to connect to
+      // (this happens when scan completes but finds no matching networks)
+      bool have_valid_scan_target =
+          (current_phase != WiFiRetryPhase::SCAN_CONNECTING && current_phase != WiFiRetryPhase::SCAN_NEXT_SAME_SSID) ||
+          (!this->scan_result_.empty() && this->scan_result_[0].get_matches());
+
+      if (have_valid_scan_target) {
+        this->num_retried_++;
+        ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
+                 get_max_retries_for_phase(this->retry_phase_),
+                 LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+      }
     }
   }
 
