@@ -1310,8 +1310,7 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
   auto *event = static_cast<event::Event *>(entity);
   ListEntitiesEventResponse msg;
   msg.set_device_class(event->get_device_class_ref());
-  for (const auto &event_type : event->get_event_types())
-    msg.event_types.push_back(event_type);
+  msg.event_types = &event->get_event_types();
   return fill_and_encode_entity_info(event, msg, ListEntitiesEventResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
