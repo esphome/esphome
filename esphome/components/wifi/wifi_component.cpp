@@ -1058,6 +1058,8 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // Starting hidden mode - reset to first SSID to try all configured networks
       if (old_phase == WiFiRetryPhase::SCAN_CONNECTING) {
         this->selected_sta_index_ = 0;
+        // Clear scan results since we're trying hidden mode (no scan data to use)
+        this->scan_result_.clear();
       }
       break;
 
