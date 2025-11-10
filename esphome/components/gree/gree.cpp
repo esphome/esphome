@@ -1,6 +1,7 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include <string>
+#include <cstring>
 
 namespace esphome {
 namespace gree {
@@ -9,6 +10,14 @@ static const char *const TAG = "gree.climate";
 
 static const char *const PRESET_DISPLAY_LIGHT_OFF = "Light off";
 
+// Support both APIs of ClimateCall::get_custom_preset():
+// - returns const char*
+// - returns esphome::optional<std::string>
+static inline const char *custom_preset_to_cstr(const char *preset) { return preset; }
+static inline const char *custom_preset_to_cstr(const esphome::optional<std::string> &preset) {
+  return preset.has_value() ? preset.value().c_str() : nullptr;
+}
+
 climate::ClimateTraits GreeClimate::traits() {
   auto t = climate_ir::ClimateIR::traits();
   t.set_supported_custom_presets({PRESET_DISPLAY_LIGHT_OFF});
@@ -16,19 +25,19 @@ climate::ClimateTraits GreeClimate::traits() {
 }
 
 void GreeClimate::control(const climate::ClimateCall &call) {
-  auto custom_preset = call.get_custom_preset();
-  if (custom_preset && custom_preset.value() == PRESET_DISPLAY_LIGHT_OFF) {
+  const auto &custom_preset_raw = call.get_custom_preset();
+  const char *custom_preset = custom_preset_to_cstr(custom_preset_raw);
+  if (custom_preset != nullptr && std::strcmp(custom_preset, PRESET_DISPLAY_LIGHT_OFF) == 0) {
+    ESP_LOGD(TAG, "Display light off");
+    this->set_custom_preset_(custom_preset);
     this->display_light_ = false;
-    this->set_custom_preset_(custom_preset.value().c_str());
   } else if (call.get_preset().has_value()) {
     // Persist the configured display preset
     this->set_preset_(*call.get_preset());
-  }
-  climate_ir::ClimateIR::control(call);
-  if (!call.get_custom_preset().has_value()) {
-    // Restore the display setting from configuration
+    // When a primary preset is chosen (including NONE), restore configured display setting
     this->display_light_ = this->display_light_config_;
   }
+  climate_ir::ClimateIR::control(call);
 }
 
 void GreeClimate::set_model(Model model) {
