@@ -626,20 +626,19 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   // Log connection attempt at INFO level with priority
-  const char *bssid_str = LOG_STR_LITERAL("any");
   std::string bssid_formatted;
   float priority = 0.0f;
 
   if (ap.get_bssid().has_value()) {
     bssid_formatted = format_mac_address_pretty(ap.get_bssid().value().data());
-    bssid_str = bssid_formatted.c_str();
     priority = this->get_sta_priority(ap.get_bssid().value());
   }
 
   ESP_LOGI(TAG,
            "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %.1f, attempt %u/%u in phase %s)...",
-           ap.get_ssid().c_str(), bssid_str, priority, this->num_retried_ + 1,
-           get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+           ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_formatted.c_str() : LOG_STR_LITERAL("any"),
+           priority, this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
+           LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG, "Connection Params:");
