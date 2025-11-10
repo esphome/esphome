@@ -212,10 +212,9 @@ def _apply_min_auth_mode_default(config):
                 "Currently defaults to WPA (less secure), but will change to WPA2 (more secure) in 2026.6.0. "
                 "WPA uses TKIP encryption which has known security vulnerabilities and should be avoided. "
                 "WPA2 uses AES encryption which is significantly more secure. "
-                "If your router supports WPA2 or WPA3, no action is needed - "
-                "the new default will be more secure. "
-                "If your router only supports WPA, add 'min_auth_mode: WPA' under 'wifi:' "
-                "in your configuration to maintain compatibility."
+                "To silence this warning, explicitly set min_auth_mode under 'wifi:'. "
+                "If your router supports WPA2 or WPA3, set 'min_auth_mode: WPA2'. "
+                "If your router only supports WPA, set 'min_auth_mode: WPA'."
             )
             config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA")
         elif CORE.is_esp32:
