@@ -2,5 +2,4 @@
 
 usb_cdc_acm:
   interfaces:
-    id: usb_cdc_acm1
-    number: 0
+    - id: usb_cdc_acm1
