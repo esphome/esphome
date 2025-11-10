@@ -2,6 +2,7 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include <string>
 #include <cstring>
+#include <type_traits>
 
 namespace esphome {
 namespace gree {
@@ -10,11 +11,15 @@ static const char *const TAG = "gree.climate";
 
 static const char *const PRESET_DISPLAY_LIGHT_OFF = "Light off";
 
-// Support both APIs of ClimateCall::get_custom_preset():
-// - returns const char*
-// - returns esphome::optional<std::string>
-static inline const char *custom_preset_to_cstr(const char *preset) { return preset; }
-static inline const char *custom_preset_to_cstr(const esphome::optional<std::string> &preset) {
+// Support both APIs of ClimateCall::get_custom_preset() without triggering unused warnings:
+// - when it's a C-string, return it directly
+// - when it's esphome::optional<std::string>, unwrap safely
+template<typename T, typename std::enable_if<std::is_convertible<T, const char *>::value, int>::type = 0>
+static inline const char *custom_preset_to_cstr(T preset) {
+  return preset;
+}
+template<typename T, typename std::enable_if<!std::is_convertible<T, const char *>::value, int>::type = 0>
+static inline const char *custom_preset_to_cstr(const T &preset) {
   return preset.has_value() ? preset.value().c_str() : nullptr;
 }
 
@@ -29,13 +34,13 @@ void GreeClimate::control(const climate::ClimateCall &call) {
   const char *custom_preset = custom_preset_to_cstr(custom_preset_raw);
   if (custom_preset != nullptr && std::strcmp(custom_preset, PRESET_DISPLAY_LIGHT_OFF) == 0) {
     ESP_LOGD(TAG, "Display light off");
-    this->set_custom_preset_(custom_preset);
     this->display_light_ = false;
+    this->set_custom_preset_(custom_preset);
   } else if (call.get_preset().has_value()) {
-    // Persist the configured display preset
-    this->set_preset_(*call.get_preset());
     // When a primary preset is chosen (including NONE), restore configured display setting
+    ESP_LOGD(TAG, "Restore display light from configuration (primary preset selected)");
     this->display_light_ = this->display_light_config_;
+    this->set_preset_(*call.get_preset());
   }
   climate_ir::ClimateIR::control(call);
 }
