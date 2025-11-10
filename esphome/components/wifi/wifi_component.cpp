@@ -47,33 +47,36 @@ static const char *const TAG = "wifi";
 /// The WiFi component uses a state machine with priority degradation to handle connection failures
 /// and automatically cycle through different BSSIDs in mesh networks or multiple configured networks.
 ///
-/// Connection Flow (with fast_connect enabled):
+/// Connection Flow:
 /// ┌──────────────────────────────────────────────────────────────────────┐
 /// │                      Fast Connect Path (Optional)                    │
 /// ├──────────────────────────────────────────────────────────────────────┤
+/// │  Skipped if: first network is hidden OR no saved data with single AP │
 /// │                                                                      │
-/// │  1. INITIAL_CONNECT → Try saved credentials (1 attempt)              │
+/// │  1. INITIAL_CONNECT → Try saved BSSID+channel (1 attempt)            │
 /// │                          ↓                                           │
 /// │     [FAILED] → FAST_CONNECT_CYCLING_APS                              │
 /// │                          ↓                                           │
 /// │  2. Cycle through remaining configured APs (1 attempt each)          │
 /// │                          ↓                                           │
-/// │     [All Failed] → Check if first network is explicitly hidden       │
+/// │     [All Failed] → Fall through to explicit hidden or scanning       │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///                          ↓
 /// ┌──────────────────────────────────────────────────────────────────────┐
 /// │              Explicit Hidden Networks Path (Optional)                │
 /// ├──────────────────────────────────────────────────────────────────────┤
+/// │  Entered if: first configured network has 'hidden: true'             │
 /// │                                                                      │
-/// │  If first configured network has 'hidden: true':                     │
-/// │                                                                      │
-/// │  1. EXPLICIT_HIDDEN → Try networks marked hidden: true (1 attempt)   │
-/// │                       in config order until visible network reached  │
+/// │  1. EXPLICIT_HIDDEN → Try consecutive hidden networks (1 attempt)    │
+/// │                       Stop when visible network reached              │
 /// │                          ↓                                           │
 /// │     Example: Hidden1, Hidden2, Visible1, Hidden3, Visible2          │
 /// │              Try: Hidden1, Hidden2 (stop at Visible1)                │
 /// │                          ↓                                           │
 /// │     [All Failed] → Fall back to scan-based connection                │
+/// │                                                                      │
+/// │  Note: Fast connect saves BSSID after first successful connection,   │
+/// │        so subsequent boots use fast path instead of hidden mode      │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///                          ↓
 /// ┌──────────────────────────────────────────────────────────────────────┐
@@ -93,9 +96,9 @@ static const char *const TAG = "wifi";
 /// │  3. FAILED → Decrease priority: 0.0 → -1.0 → -2.0                    │
 /// │              (stored in persistent sta_priorities_)                  │
 /// │                          ↓                                           │
-/// │  4. RETRY_HIDDEN → Try SSIDs not in scan (1 attempt per SSID)    │
-/// │                        Skip if already tried in EXPLICIT_HIDDEN      │
-/// │                        (Hidden3 from example, NOT Hidden1/Hidden2)   │
+/// │  4. RETRY_HIDDEN → Try SSIDs not in scan (1 attempt per SSID)        │
+/// │                    Skip networks already tried in EXPLICIT_HIDDEN    │
+/// │                    (Hidden3 from example, NOT Hidden1/Hidden2)       │
 /// │                          ↓                                           │
 /// │  5. FAILED → RESTARTING_ADAPTER (skipped if AP/improv active)        │
 /// │                          ↓                                           │
@@ -113,15 +116,16 @@ static const char *const TAG = "wifi";
 /// └──────────────────────────────────────────────────────────────────────┘
 ///
 /// Retry Phases:
-/// - INITIAL_CONNECT: First attempt (try saved credentials if fast_connect enabled)
+/// - INITIAL_CONNECT: First attempt (try saved BSSID+channel if fast_connect enabled)
 /// - FAST_CONNECT_CYCLING_APS: Cycle through configured APs (1 attempt per AP, fast_connect only)
 /// - EXPLICIT_HIDDEN: Try consecutive networks marked hidden:true before scanning (1 attempt per SSID)
 /// - SCAN_CONNECTING: Connect using scan results (2 attempts per BSSID)
-/// - RETRY_HIDDEN: Try hidden mode for SSIDs not in scan (1 attempt per SSID, skips already tried)
+/// - RETRY_HIDDEN: Retry networks not found in scan (1 attempt per SSID, skips already tried)
 /// - RESTARTING_ADAPTER: Restart WiFi adapter to clear stuck state
 ///
 /// Hidden Network Handling:
-/// - Networks marked 'hidden: true' at start of config → Tried in EXPLICIT_HIDDEN phase
+/// - Networks marked 'hidden: true' at start of config → Tried in EXPLICIT_HIDDEN phase (first boot)
+/// - After successful connection, fast_connect saves BSSID → subsequent boots use fast path
 /// - Networks marked 'hidden: true' after visible network → Tried in RETRY_HIDDEN phase
 /// - Networks not in scan → Tried in RETRY_HIDDEN phase
 /// - Networks visible in scan + not marked hidden → Skipped in RETRY_HIDDEN phase
