@@ -289,6 +289,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
+    # Track controller registration for StaticVector sizing
+    CORE.register_controller()
+
     version = config[CONF_VERSION]
 
     cg.add(paren.set_port(config[CONF_PORT]))
