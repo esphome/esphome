@@ -120,6 +120,7 @@ void RX8130Component::stop_(bool stop) {
   if (this->write_register(RX8130_REG_CTRL0, stop ? &RX8130_BIT_CTRL_STOP : &RX8130_CLEAR_FLAGS, 1) != i2c::ERROR_OK) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   }
+}
 
 }  // namespace rx8130
 }  // namespace esphome
