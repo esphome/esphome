@@ -22,9 +22,12 @@ void Modbus::setup() {
       (this->parent_->get_rx_full_threshold() * 11 * 1000 / this->parent_->get_baud_rate()) + 1;
 }
 
-void ModbusClient::loop() {
-  // First process all available incoming data.
-  this->receive_and_parse_modbus_bytes_();
+void Modbus::loop() {
+  // Receive any available bytes from UART
+  this->receive_bytes_();
+
+  // Parse bytes into frames
+  this->parse_modbus_frames_(false);
 
   // If the response frame is finished (including interframe delay) - we timeout.
   // The long_rx_buffer_delay accounts for long responses (larger than the UART rx_full_threshold) to avoid timeouts
@@ -38,9 +41,15 @@ void ModbusClient::loop() {
   // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
-  if (this->rx_buffer_.size() > 0 && millis() - this->last_modbus_byte_ > timeout) {
-    clear_rx_buffer_("timeout after partial response", true);
-  }
+
+  // If we've timed out, parse again with the timeout flag set, to clear the buffer.
+  if (millis() - this->last_modbus_byte_ > timeout)
+    this->parse_modbus_frames_(true);
+}
+
+void ModbusClient::loop() {
+  // Call base class to receive bytes and parse frames
+  this->Modbus::loop();
 
   //  If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
   if (this->waiting_for_response_.has_value() &&
@@ -56,33 +65,6 @@ void ModbusClient::loop() {
   //  If there's no response pending and there's commands in the buffer
   if (!this->tx_blocked() && !this->tx_buffer_.empty())
     this->defer("send_next_frame", [this]() { this->send_next_frame_(); });
-}
-
-void ModbusServer::loop() {
-  // First process all available incoming data.
-  this->receive_and_parse_modbus_bytes_();
-
-  // If the response frame is finished (including interframe delay) - we timeout.
-  // The long_rx_buffer_delay accounts for long responses (larger than the UART rx_full_threshold) to avoid timeouts
-  // when the buffer is filling the back half of the response
-  const uint16_t timeout = std::max(
-      (uint16_t) this->frame_delay_ms_,
-      (uint16_t) (this->rx_buffer_.size() > this->parent_->get_rx_full_threshold() - 1 ? this->long_rx_buffer_delay_ms_
-                                                                                       : 0));
-
-  if (this->rx_buffer_.size() > 0 && millis() - this->last_modbus_byte_ > timeout) {
-    if (this->expecting_peer_response_ != 0) {
-      ESP_LOGV(TAG, "Stop waiting for peer response from %d", this->expecting_peer_response_);
-      this->expecting_peer_response_ = 0;
-    }
-    // Try re-parse. This catches situations where we attempted to parse a long server response (which didn't arrive)
-    // and in the process captured another client request into the buffer
-    size_t size = this->rx_buffer_.size();
-    this->parse_modbus_client_byte_(std::nullopt);
-    if (this->rx_buffer_.size() == size) {
-      this->clear_rx_buffer_("timeout after partial response", true);
-    }
-  }
 }
 
 bool Modbus::tx_blocked() {
@@ -108,7 +90,7 @@ bool ModbusClient::tx_blocked() {
 
 bool ModbusClient::tx_buffer_empty() { return this->tx_buffer_.empty(); }
 
-void Modbus::receive_and_parse_modbus_bytes_() {
+void Modbus::receive_bytes_() {
   while (this->available()) {
     uint8_t byte;
     this->read_byte(&byte);
@@ -117,68 +99,80 @@ void Modbus::receive_and_parse_modbus_bytes_() {
     } else {
       ESP_LOGVV(TAG, "Received byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
     }
-
     this->last_modbus_byte_ = millis();
-    this->parse_modbus_byte_(byte);
+    this->rx_buffer_.push_back(byte);
   }
 }
 
-void ModbusClient::parse_modbus_byte_(uint8_t byte) {
-  if (!this->parse_modbus_server_byte_(byte))
-    this->clear_rx_buffer_("parse failed", true);
-}
-
-void ModbusServer::parse_modbus_byte_(uint8_t byte) {
-  if (this->expecting_peer_response_ != 0) {
-    if (!this->parse_modbus_server_byte_(byte)) {
-      ESP_LOGV(TAG, "Stop expecting peer response from %d due to parse failure, and retry parse",
-               this->expecting_peer_response_);
-      this->expecting_peer_response_ = 0;
-      if (!this->parse_modbus_client_byte_(std::nullopt)) {
+void ModbusClient::parse_modbus_frames_(bool timeout) {
+  if (this->rx_buffer_.size()) {
+    size_t size;
+    do {
+      size = this->rx_buffer_.size();
+      if (!this->parse_modbus_server_frame_())
         this->clear_rx_buffer_("parse failed", true);
-      }
-    }
-
-  } else {
-    if (!this->parse_modbus_client_byte_(byte))
-      this->clear_rx_buffer_("parse failed", true);
+    } while (this->rx_buffer_.size() && size > this->rx_buffer_.size());
+    if (timeout)
+      this->clear_rx_buffer_("timeout after partial response", true);
   }
 }
 
-bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
-  if (this->rx_buffer_.size() >= MAX_FRAME_SIZE) {
-    ESP_LOGW(TAG, "RX buffer exceeded max frame size of %d bytes", MAX_FRAME_SIZE);
-    return false;
+void ModbusServer::parse_modbus_frames_(bool timeout) {
+  if (this->rx_buffer_.size()) {
+    size_t size;
+    do {
+      size = this->rx_buffer_.size();
+      ESP_LOGVV(TAG, "Parsing frames buffer size = %d ", size);
+      if (this->expecting_peer_response_ != 0) {
+        if (!this->parse_modbus_server_frame_()) {
+          ESP_LOGV(TAG, "Stop expecting peer response from %d due to parse failure, and retry parse",
+                   this->expecting_peer_response_);
+          this->expecting_peer_response_ = 0;
+          size++;  // force retry parse as client frame
+        } else if (timeout && size == this->rx_buffer_.size()) {
+          // If we timed out and the above parse attempt did not then we also stop expecting a response
+          ESP_LOGV(TAG, "Stop expecting peer response from %d due to timeout after partial response, and retry parse",
+                   this->expecting_peer_response_);
+          this->expecting_peer_response_ = 0;
+          size++;  // force retry parse as client frame
+        }
+      } else {
+        if (!this->parse_modbus_client_frame_())
+          this->clear_rx_buffer_("parse failed", true);
+      }
+    } while (this->rx_buffer_.size() && size > this->rx_buffer_.size());
+    if (timeout)
+      this->clear_rx_buffer_("timeout after partial response", true);
   }
-  this->rx_buffer_.push_back(byte);
+}
+
+bool Modbus::parse_modbus_server_frame_() {
   size_t size = this->rx_buffer_.size();
+  uint8_t frame_length = server_frame_length(this->rx_buffer_);
 
-  if (size < MIN_SERVER_FRAME_SIZE)
-    return true;
-
-  if (size < server_frame_length(this->rx_buffer_))
+  if (size < frame_length)
     return true;
 
   const uint8_t *raw = &this->rx_buffer_[0];
 
-  uint8_t address = raw[0];
-  uint8_t function_code = raw[1];
-
-  uint8_t frame_length = server_frame_length(this->rx_buffer_);
+  uint8_t address = this->rx_buffer_[0];
+  uint8_t function_code = this->rx_buffer_[1];
 
   if (is_function_code_custom(function_code)) {
     // Custom functions could be any length - we have to rely on the CRC to determine completeness.
     // If a CRC match is never found, the buffer will eventually overflow and be cleared.
-    if (crc16(raw, size) != 0)
-      return true;
+    bool found = false;
+    for (; frame_length <= std::min(size, size_t(MAX_FRAME_SIZE)); frame_length++) {
+      if (crc16(raw, frame_length) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found)
+      return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
 
     ESP_LOGD(TAG, "User-defined function %02X found", function_code);
-    frame_length = size;
-
   } else {
-    if (size < frame_length)
-      return true;
-
     if (crc16(raw, frame_length) != 0) {
       return false;
     }
@@ -195,20 +189,11 @@ bool Modbus::parse_modbus_server_byte_(uint8_t byte) {
   return true;
 }
 
-bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
-  if (this->rx_buffer_.size() >= MAX_FRAME_SIZE) {
-    ESP_LOGW(TAG, "RX buffer exceeded max frame size of %d bytes", MAX_FRAME_SIZE);
-    return false;
-  }
-  if (byte.has_value())
-    this->rx_buffer_.push_back(byte.value());
-
+bool ModbusServer::parse_modbus_client_frame_() {
   size_t size = this->rx_buffer_.size();
+  uint8_t frame_length = client_frame_length(this->rx_buffer_);
 
-  if (size < MIN_CLIENT_FRAME_SIZE)
-    return true;
-
-  if (size < client_frame_length(this->rx_buffer_))
+  if (size < frame_length)
     return true;
 
   const uint8_t *raw = &this->rx_buffer_[0];
@@ -216,29 +201,27 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
   uint8_t address = raw[0];
   uint8_t function_code = raw[1];
 
-  uint8_t frame_length = client_frame_length(this->rx_buffer_);
-
   if (is_function_code_custom(function_code)) {
     // Custom functions could be any length - we have to rely on the CRC to determine completeness.
     // If a CRC match is never found, the buffer will eventually overflow and be cleared.
-    if (crc16(raw, size) != 0)
-      return true;
+    bool found = false;
+    for (; frame_length <= std::min(size, size_t(MAX_FRAME_SIZE)); frame_length++) {
+      if (crc16(raw, frame_length) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found)
+      return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
 
     ESP_LOGD(TAG, "User-defined function %02X found", function_code);
-    frame_length = size;
-
   } else {
-    if (size < frame_length)
-      return true;
-
     if (crc16(raw, frame_length) != 0) {
-      // Don't log CRC errors for expected responses from peers - we'll try again first
-      if (this->expecting_peer_response_ == 0) {
-        ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
-      }
       return false;
     }
   }
+
+  // We have a valid frame
   uint8_t data_offset = client_frame_data_offset(this->rx_buffer_);
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + frame_length - 2);
 
@@ -322,6 +305,8 @@ void ModbusServer::process_modbus_client_frame_(uint8_t address, uint8_t functio
       } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         device->on_modbus_write_registers(function_code, data);
+      } else {
+        ESP_LOGW(TAG, "Unsupported function code %d", function_code);
       }
     }
   }

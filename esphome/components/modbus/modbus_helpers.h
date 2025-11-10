@@ -34,9 +34,11 @@ inline bool is_function_code_custom(uint8_t function_code) {
           static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
 }
 
+// Returns the expected length of a server response frame based on the function code
+// If the frame is too short to determine the length, returns the minimum length
 inline uint8_t server_frame_length(const std::vector<uint8_t> &frame) {
   if (frame.size() < 2)
-    return 0;
+    return MIN_SERVER_FRAME_SIZE;
   if (is_function_code_exception(frame[1])) {
     return 5;  // address(1) + function(1) + exception(1) + CRC(2)
   }
@@ -53,13 +55,15 @@ inline uint8_t server_frame_length(const std::vector<uint8_t> &frame) {
     case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
       return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
     default:
-      return 0;  // unknown length
+      return MIN_SERVER_FRAME_SIZE;  // unknown length
   }
 }
 
+// Returns the expected length of a client response frame based on the function code
+// If the frame is too short to determine the length, returns the minimum length
 inline uint8_t client_frame_length(const std::vector<uint8_t> &frame) {
   if (frame.size() < 2)
-    return 0;
+    return MIN_CLIENT_FRAME_SIZE;
   switch (static_cast<ModbusFunctionCode>(frame[1])) {
     case ModbusFunctionCode::READ_COILS:
     case ModbusFunctionCode::READ_DISCRETE_INPUTS:
@@ -74,7 +78,7 @@ inline uint8_t client_frame_length(const std::vector<uint8_t> &frame) {
       // address(1) + function(1) + start address(2) + quantity(2) + byte count(1) + data + CRC(2)
       return 9 + (frame.size() > 6 ? std::min(frame[6], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
     default:
-      return 0;  // unknown length
+      return MIN_CLIENT_FRAME_SIZE;  // unknown length
   }
 }
 
