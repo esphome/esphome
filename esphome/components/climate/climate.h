@@ -77,6 +77,8 @@ class ClimateCall {
   ClimateCall &set_fan_mode(const std::string &fan_mode);
   /// Set the fan mode of the climate device based on a string.
   ClimateCall &set_fan_mode(optional<std::string> fan_mode);
+  /// Set the custom fan mode of the climate device.
+  ClimateCall &set_fan_mode(const char *custom_fan_mode);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(ClimateSwingMode swing_mode);
   /// Set the swing mode of the climate device.
@@ -91,6 +93,8 @@ class ClimateCall {
   ClimateCall &set_preset(const std::string &preset);
   /// Set the preset of the climate device based on a string.
   ClimateCall &set_preset(optional<std::string> preset);
+  /// Set the custom preset of the climate device.
+  ClimateCall &set_preset(const char *custom_preset);
 
   void perform();
 
@@ -103,8 +107,10 @@ class ClimateCall {
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
   const optional<ClimatePreset> &get_preset() const;
-  const optional<std::string> &get_custom_fan_mode() const;
-  const optional<std::string> &get_custom_preset() const;
+  const char *get_custom_fan_mode() const { return this->custom_fan_mode_; }
+  const char *get_custom_preset() const { return this->custom_preset_; }
+  bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
+  bool has_custom_preset() const { return this->custom_preset_ != nullptr; }
 
  protected:
   void validate_();
@@ -118,8 +124,10 @@ class ClimateCall {
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
   optional<ClimatePreset> preset_;
-  optional<std::string> custom_fan_mode_;
-  optional<std::string> custom_preset_;
+
+ private:
+  const char *custom_fan_mode_{nullptr};
+  const char *custom_preset_{nullptr};
 };
 
 /// Struct used to save the state of the climate device in restore memory.
@@ -212,6 +220,12 @@ class Climate : public EntityBase {
   void set_visual_min_humidity_override(float visual_min_humidity_override);
   void set_visual_max_humidity_override(float visual_max_humidity_override);
 
+  /// Check if a custom fan mode is currently active.
+  bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
+
+  /// Check if a custom preset is currently active.
+  bool has_custom_preset() const { return this->custom_preset_ != nullptr; }
+
   /// The current temperature of the climate device, as reported from the integration.
   float current_temperature{NAN};
 
@@ -238,12 +252,6 @@ class Climate : public EntityBase {
   /// The active preset of the climate device.
   optional<ClimatePreset> preset;
 
-  /// The active custom fan mode of the climate device.
-  optional<std::string> custom_fan_mode;
-
-  /// The active custom preset mode of the climate device.
-  optional<std::string> custom_preset;
-
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
 
@@ -253,20 +261,37 @@ class Climate : public EntityBase {
   /// The active swing mode of the climate device.
   ClimateSwingMode swing_mode{CLIMATE_SWING_OFF};
 
+  /// Get the active custom fan mode (read-only access).
+  const char *get_custom_fan_mode() const { return this->custom_fan_mode_; }
+
+  /// Get the active custom preset (read-only access).
+  const char *get_custom_preset() const { return this->custom_preset_; }
+
  protected:
   friend ClimateCall;
+  friend struct ClimateDeviceRestoreState;
 
   /// Set fan mode. Reset custom fan mode. Return true if fan mode has been changed.
   bool set_fan_mode_(ClimateFanMode mode);
 
   /// Set custom fan mode. Reset primary fan mode. Return true if fan mode has been changed.
-  bool set_custom_fan_mode_(const std::string &mode);
+  bool set_custom_fan_mode_(const char *mode);
+  /// Clear custom fan mode.
+  void clear_custom_fan_mode_();
 
   /// Set preset. Reset custom preset. Return true if preset has been changed.
   bool set_preset_(ClimatePreset preset);
 
   /// Set custom preset. Reset primary preset. Return true if preset has been changed.
-  bool set_custom_preset_(const std::string &preset);
+  bool set_custom_preset_(const char *preset);
+  /// Clear custom preset.
+  void clear_custom_preset_();
+
+  /// Find and return the matching custom fan mode pointer from traits, or nullptr if not found.
+  const char *find_custom_fan_mode_(const char *custom_fan_mode);
+
+  /// Find and return the matching custom preset pointer from traits, or nullptr if not found.
+  const char *find_custom_preset_(const char *custom_preset);
 
   /** Get the default traits of this climate device.
    *
@@ -303,6 +328,21 @@ class Climate : public EntityBase {
   optional<float> visual_current_temperature_step_override_{};
   optional<float> visual_min_humidity_override_{};
   optional<float> visual_max_humidity_override_{};
+
+ private:
+  /** The active custom fan mode (private - enforces use of safe setters).
+   *
+   * Points to an entry in traits.supported_custom_fan_modes_ or nullptr.
+   * Use get_custom_fan_mode() to read, set_custom_fan_mode_() to modify.
+   */
+  const char *custom_fan_mode_{nullptr};
+
+  /** The active custom preset (private - enforces use of safe setters).
+   *
+   * Points to an entry in traits.supported_custom_presets_ or nullptr.
+   * Use get_custom_preset() to read, set_custom_preset_() to modify.
+   */
+  const char *custom_preset_{nullptr};
 };
 
 }  // namespace climate

@@ -14,12 +14,14 @@ interval:
 
           // Test parse_json
           bool parse_ok = esphome::json::parse_json(json_str, [](JsonObject root) {
-            if (root.containsKey("sensor") && root.containsKey("value")) {
+            if (root["sensor"].is<const char*>() && root["value"].is<float>()) {
               const char* sensor = root["sensor"];
               float value = root["value"];
               ESP_LOGD("test", "Parsed: sensor=%s, value=%.1f", sensor, value);
+              return true;
             } else {
               ESP_LOGD("test", "Parsed JSON missing required keys");
+              return false;
             }
           });
           ESP_LOGD("test", "Parse result (JSON syntax only): %s", parse_ok ? "success" : "failed");
