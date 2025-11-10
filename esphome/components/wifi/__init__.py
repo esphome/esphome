@@ -214,9 +214,9 @@ def _apply_min_auth_mode_default(config):
                 "If your router supports WPA2 or WPA3, no action is needed - the new default will be more secure. "
                 "If your router only supports WPA, explicitly set 'min_auth_mode: WPA' to maintain compatibility."
             )
-            config[CONF_MIN_AUTH_MODE] = "WPA"
+            config[CONF_MIN_AUTH_MODE] = WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA
         elif CORE.is_esp32:
-            config[CONF_MIN_AUTH_MODE] = "WPA2"
+            config[CONF_MIN_AUTH_MODE] = WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA2
     return config
 
 
