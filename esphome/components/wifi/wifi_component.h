@@ -369,6 +369,9 @@ class WiFiComponent : public Component {
   /// Check if we need valid scan results for the current phase but don't have any
   /// Returns true if the phase requires scan results but they're missing or don't match
   bool needs_scan_results_() const;
+  /// Check if we went through EXPLICIT_HIDDEN phase (first network is marked hidden)
+  /// Used in RETRY_HIDDEN to determine whether to skip explicitly hidden networks
+  bool went_through_explicit_hidden_phase_() const;
   /// Check if an SSID was seen in the most recent scan results
   /// Used to skip hidden mode for SSIDs we know are visible
   bool ssid_was_seen_in_scan_(const std::string &ssid) const;

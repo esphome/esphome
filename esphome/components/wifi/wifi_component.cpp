@@ -151,6 +151,12 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   }
 }
 
+bool WiFiComponent::went_through_explicit_hidden_phase_() const {
+  // If first configured network is marked hidden, we went through EXPLICIT_HIDDEN phase
+  // This means those networks were already tried and should be skipped in RETRY_HIDDEN
+  return !this->sta_.empty() && this->sta_[0].get_hidden();
+}
+
 // 2 attempts per BSSID in SCAN_CONNECTING phase
 // Rationale: This is the ONLY phase where we decrease BSSID priority, so we must be very sure.
 // Auth failures are common immediately after scan due to WiFi stack state transitions.
@@ -1217,8 +1223,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
         // In that case, skip networks marked hidden:true (already tried)
         // Otherwise, include them (they haven't been tried yet)
-        bool went_through_explicit_hidden = !this->sta_.empty() && this->sta_[0].get_hidden();
-        this->selected_sta_index_ = this->find_next_hidden_sta_(-1, !went_through_explicit_hidden);
+        this->selected_sta_index_ = this->find_next_hidden_sta_(-1, !this->went_through_explicit_hidden_phase_());
 
         if (this->selected_sta_index_ == -1) {
           ESP_LOGD(TAG, "All SSIDs visible or already tried, skipping hidden mode");
@@ -1326,8 +1331,8 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
     // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
     // In that case, skip networks marked hidden:true (already tried)
     // Otherwise, include them (they haven't been tried yet)
-    bool went_through_explicit_hidden = !this->sta_.empty() && this->sta_[0].get_hidden();
-    int8_t next_index = this->find_next_hidden_sta_(this->selected_sta_index_, !went_through_explicit_hidden);
+    int8_t next_index =
+        this->find_next_hidden_sta_(this->selected_sta_index_, !this->went_through_explicit_hidden_phase_());
     if (next_index != -1) {
       // Found another potentially hidden SSID
       this->selected_sta_index_ = next_index;
