@@ -1335,7 +1335,9 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
       this->num_retried_ = 0;
       return;
     }
-    // No more potentially hidden SSIDs - fall through to trigger phase change
+    // No more potentially hidden SSIDs - set selected_sta_index_ to -1 to trigger phase change
+    // This ensures determine_next_phase_() will skip the RETRY_HIDDEN logic and transition out
+    this->selected_sta_index_ = -1;
   }
 
   // Don't increment retry counter if we're in a scan phase with no valid targets
