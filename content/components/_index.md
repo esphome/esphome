@@ -1051,6 +1051,7 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 "Exposure Notifications","components/exposure_notifications","exposure_notifications.png",""
 "GPS","components/gps","crosshairs-gps.svg","dark-invert"
 "Grow Fingerprint Reader","components/fingerprint_grow","fingerprint.svg","dark-invert"
+"HLK-FM22x Face Recognition Module","components/hlk_fm22x","face.svg","dark-invert"
 "Modbus Controller","components/modbus_controller","modbus.png",""
 "Sprinkler","components/sprinkler","sprinkler-variant.svg","dark-invert"
 "Status LED","components/status_led","led-on.svg","dark-invert"
