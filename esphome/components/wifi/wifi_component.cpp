@@ -1181,7 +1181,6 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
       // Move to next configured AP - clear old scan data so new AP is tried with config only
       this->selected_sta_index_++;
-      this->num_retried_ = 0;
       this->scan_result_.clear();
       break;
 #endif
