@@ -32,11 +32,20 @@ jobs:
 
       - name: Get Component name
         id: get_component
-        run: |-
-          comment="${{ github.event.comment.body }}"
-          component=$(echo $comment | sed -n 's/^@esphomebot generate image //p')
-          echo "name=$component" >> $GITHUB_OUTPUT
-          echo "name_lower=${component,,}" >> $GITHUB_OUTPUT
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          # Extract component name using bash parameter expansion (no external commands)
+          component="${COMMENT_BODY#@esphomebot generate image }"
+
+          # Validate component name: only lowercase alphanumeric and underscores
+          if [[ "$component" =~ ^[a-z0-9_]+$ ]]; then
+            echo "name=$component" >> $GITHUB_OUTPUT
+            echo "name_lower=${component,,}" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Invalid component name. Must contain only lowercase letters, numbers, and underscores."
+            exit 1
+          fi
 
   generate:
     name: Generate
