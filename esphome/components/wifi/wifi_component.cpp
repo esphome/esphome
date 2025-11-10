@@ -1096,7 +1096,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // No more APs to try, fall back to scan
       return WiFiRetryPhase::SCAN_CONNECTING;
 
-    case WiFiRetryPhase::EXPLICIT_HIDDEN:
+    case WiFiRetryPhase::EXPLICIT_HIDDEN: {
       // Try all explicitly hidden networks before scanning
       if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
         return WiFiRetryPhase::EXPLICIT_HIDDEN;  // Keep retrying same SSID
@@ -1112,6 +1112,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 
       // No more consecutive explicitly hidden networks - proceed to scanning
       return WiFiRetryPhase::SCAN_CONNECTING;
+    }
 
     case WiFiRetryPhase::SCAN_CONNECTING:
       // If scan found no matching networks, skip to hidden network mode
