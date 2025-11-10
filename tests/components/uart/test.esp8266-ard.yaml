@@ -13,3 +13,21 @@ uart:
     rx_buffer_size: 512
     parity: EVEN
     stop_bits: 2
+
+switch:
+  - platform: uart
+    name: "UART Switch Array"
+    uart_id: uart_uart
+    data: [0x01, 0x02, 0x03]
+  - platform: uart
+    name: "UART Switch Dual"
+    uart_id: uart_uart
+    data:
+      turn_on: [0xA0, 0xA1]
+      turn_off: [0xB0, 0xB1]
+
+button:
+  - platform: uart
+    name: "UART Button"
+    uart_id: uart_uart
+    data: [0xFF, 0xEE]

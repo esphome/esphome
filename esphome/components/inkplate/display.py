@@ -20,8 +20,7 @@ import esphome.final_validate as fv
 
 from .const import INKPLATE_10_CUSTOM_WAVEFORMS, WAVEFORMS
 
-DEPENDENCIES = ["i2c", "esp32"]
-AUTO_LOAD = ["psram"]
+DEPENDENCIES = ["i2c", "esp32", "psram"]
 
 CONF_DISPLAY_DATA_0_PIN = "display_data_0_pin"
 CONF_DISPLAY_DATA_1_PIN = "display_data_1_pin"

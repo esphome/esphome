@@ -416,7 +416,7 @@ jobs:
             }
 
             // Generate review messages
-            function generateReviewMessages(finalLabels) {
+            function generateReviewMessages(finalLabels, originalLabelCount) {
               const messages = [];
               const prAuthor = context.payload.pull_request.user.login;
 
@@ -430,15 +430,15 @@ jobs:
                   .reduce((sum, file) => sum + (file.deletions || 0), 0);
                 const nonTestChanges = (totalAdditions - testAdditions) - (totalDeletions - testDeletions);
 
-                const tooManyLabels = finalLabels.length > MAX_LABELS;
+                const tooManyLabels = originalLabelCount > MAX_LABELS;
                 const tooManyChanges = nonTestChanges > TOO_BIG_THRESHOLD;
 
                 let message = `${TOO_BIG_MARKER}\n### 📦 Pull Request Size\n\n`;
 
                 if (tooManyLabels && tooManyChanges) {
-                  message += `This PR is too large with ${nonTestChanges} line changes (excluding tests) and affects ${finalLabels.length} different components/areas.`;
+                  message += `This PR is too large with ${nonTestChanges} line changes (excluding tests) and affects ${originalLabelCount} different components/areas.`;
                 } else if (tooManyLabels) {
-                  message += `This PR affects ${finalLabels.length} different components/areas.`;
+                  message += `This PR affects ${originalLabelCount} different components/areas.`;
                 } else {
                   message += `This PR is too large with ${nonTestChanges} line changes (excluding tests).`;
                 }
@@ -466,8 +466,8 @@ jobs:
             }
 
             // Handle reviews
-            async function handleReviews(finalLabels) {
-              const reviewMessages = generateReviewMessages(finalLabels);
+            async function handleReviews(finalLabels, originalLabelCount) {
+              const reviewMessages = generateReviewMessages(finalLabels, originalLabelCount);
               const hasReviewableLabels = finalLabels.some(label =>
                 ['too-big', 'needs-codeowners'].includes(label)
               );
@@ -627,6 +627,7 @@ jobs:
 
             // Handle too many labels (only for non-mega PRs)
             const tooManyLabels = finalLabels.length > MAX_LABELS;
+            const originalLabelCount = finalLabels.length;
 
             if (tooManyLabels && !isMegaPR && !finalLabels.includes('too-big')) {
               finalLabels = ['too-big'];
@@ -635,7 +636,7 @@ jobs:
             console.log('Computed labels:', finalLabels.join(', '));
 
             // Handle reviews
-            await handleReviews(finalLabels);
+            await handleReviews(finalLabels, originalLabelCount);
 
             // Apply labels
             if (finalLabels.length > 0) {

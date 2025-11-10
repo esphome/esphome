@@ -71,6 +71,7 @@ static const uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0
 static const uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
 static const uint16_t PRONTO_DEFAULT_GAP = 45000;
 static const uint16_t MARK_EXCESS_MICROS = 20;
+static constexpr size_t PRONTO_LOG_CHUNK_SIZE = 230;
 
 static uint16_t to_frequency_k_hz(uint16_t code) {
   if (code == 0)
@@ -225,18 +226,18 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
 }
 
 void ProntoProtocol::dump(const ProntoData &data) {
-  std::string rest;
-
-  rest = data.data;
   ESP_LOGI(TAG, "Received Pronto: data=");
-  while (true) {
-    ESP_LOGI(TAG, "%s", rest.substr(0, 230).c_str());
-    if (rest.size() > 230) {
-      rest = rest.substr(230);
-    } else {
-      break;
-    }
-  }
+
+  const char *ptr = data.data.c_str();
+  size_t remaining = data.data.size();
+
+  // Log in chunks, always logging at least once (even for empty string)
+  do {
+    size_t chunk_size = remaining < PRONTO_LOG_CHUNK_SIZE ? remaining : PRONTO_LOG_CHUNK_SIZE;
+    ESP_LOGI(TAG, "%.*s", (int) chunk_size, ptr);
+    ptr += chunk_size;
+    remaining -= chunk_size;
+  } while (remaining > 0);
 }
 
 }  // namespace remote_base

@@ -405,7 +405,7 @@ void ToshibaClimate::setup() {
   this->swing_modes_ = this->toshiba_swing_modes_();
 
   // Ensure swing mode is always initialized to a valid value
-  if (this->swing_modes_.empty() || this->swing_modes_.find(this->swing_mode) == this->swing_modes_.end()) {
+  if (this->swing_modes_.empty() || !this->swing_modes_.count(this->swing_mode)) {
     // No swing support for this model or current swing mode not supported, reset to OFF
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
