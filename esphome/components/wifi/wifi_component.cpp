@@ -1000,7 +1000,7 @@ void WiFiComponent::check_connecting_finished() {
     if (const WiFiAP *config = this->get_selected_sta_(); this->retry_phase_ == WiFiRetryPhase::SCAN_WITH_HIDDEN &&
                                                           config && !config->get_hidden() &&
                                                           this->scan_result_.empty()) {
-      ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config->get_ssid().c_str());
+      ESP_LOGW(TAG, "Network " LOG_SECRET("'%s'") " should be marked as hidden", config->get_ssid().c_str());
     }
     // Reset to initial phase on successful connection (don't start scan, just reset state)
     this->transition_to_phase_(WiFiRetryPhase::INITIAL_CONNECT);
