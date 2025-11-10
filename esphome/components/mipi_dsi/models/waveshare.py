@@ -122,4 +122,3 @@ DriverChip(
         (0x11,),   # Sleep Out
     ],
 )
-
