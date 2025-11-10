@@ -12,7 +12,7 @@ Any GPS module that uses the standardized NMEA communication protocol will work.
 
 {{< img src="gps-full.jpg" alt="Image" caption="GPS Module. Image by [Adafruit](https://www.adafruit.com)" width="50.0%" class="align-center" >}}
 
-For this component to work you need to have set up a [UART bus](#uart)
+For this component to work you need to have set up a [UART bus](/components/uart)
 in your configuration - only the RX pin should be necessary.
 
 ```yaml
@@ -45,33 +45,33 @@ See {{< docref "time/gps" >}} for config options for the GPS time source.
 
 - **latitude** (*Optional*): Include the Latitude as a sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **longitude** (*Optional*): Include the Longitude as a sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **speed** (*Optional*): Include the measured speed as a sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **course** (*Optional*): Include the measured course as a sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **altitude** (*Optional*): Include the measured altitude as a sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **satellites** (*Optional*): Include the number of tracking satellites being used as a sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **hdop** (*Optional*): Include the measured HDOP (Horizontal Dilution Of Precision) as a sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval of sensor updates. Defaults to `20s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval of sensor updates. Defaults to `20s`.
 
 ## See Also
 

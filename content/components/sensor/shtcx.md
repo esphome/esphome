@@ -13,7 +13,7 @@ The `shtcx` sensor platform Temperature+Humidity sensor allows you to use your S
 the newer SHTC3
 ([datasheet](https://sensirion.com/media/documents/643F9C8E/63A5A436/Datasheet_SHTC3.pdf),
 [SparkFun](https://www.sparkfun.com/products/15074)) sensors with
-ESPHome. The [I²C Bus](#i2c) is
+ESPHome. The [I²C Bus](/components/i2c) is
 required to be set up in your configuration for this sensor to work.
 
 {{< img src="temperature-humidity.png" alt="Image" width="80.0%" class="align-center" >}}
@@ -32,16 +32,16 @@ sensor:
 
 - **temperature** (*Optional*): The information for the temperature sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **humidity** (*Optional*): The information for the humidity sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **address** (*Optional*, int): Manually specify the I²C address of the sensor.
   Defaults to `0x70`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 ## See Also

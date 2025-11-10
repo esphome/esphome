@@ -9,7 +9,7 @@ params:
 
 The OTA (Over The Air) via HTTP Request update component allows your devices to install updated firmware on their own.
 To use it, in your device's configuration, you specify a URL from which the device will download the binary
-file (firmware). To trigger the update, an ESPHome [action](#config-action) is used which initiates the
+file (firmware). To trigger the update, an ESPHome [action](/automations/actions#all-actions) is used which initiates the
 download and installation of the new firmware. Once complete, the device is rebooted, invoking the new firmware.
 
 Since the device functions as an HTTP(S) client, it can be on a foreign network or behind a firewall. This mechanism
@@ -25,14 +25,14 @@ ota:
 
 ## Configuration variables
 
-- All [automations](#automation) supported by {{< docref "/components/ota" >}}.
+- All [automations](/automations) supported by {{< docref "/components/ota" >}}.
 
 {{< anchor "ota_http_request-flash_action" >}}
 
 ## `ota.http_request.flash` Action
 
 This action triggers the download and installation of the updated firmware from the configured URL. As it's an
-ESPHome [action](#config-action), it may be used in any ESPHome [automation(s)](#automation).
+ESPHome [action](/automations/actions#all-actions), it may be used in any ESPHome [automation(s)](/automations).
 
 ```yaml
 on_...:
@@ -45,21 +45,21 @@ on_...:
 
 ### Configuration variables
 
-- **md5** (*Optional*, string, [templatable](#config-templatable)): The
+- **md5** (*Optional*, string, [templatable](/automations/templates)): The
   [MD5sum](https://en.wikipedia.org/wiki/Md5sum) of the firmware file pointed to by `url` (below). May not be used
   with `md5_url` (below); must be specified if `md5_url` is not.
 
-- **md5_url** (*Optional*, string, [templatable](#config-templatable)): The URL of the file containing an
+- **md5_url** (*Optional*, string, [templatable](/automations/templates)): The URL of the file containing an
   [MD5sum](https://en.wikipedia.org/wiki/Md5sum) of the firmware file pointed to by `url` (below). May not be used
   with `md5` (above); must be specified if `md5` is not.
 
-- **url** (**Required**, string, [templatable](#config-templatable)): The URL of the binary file containing the
+- **url** (**Required**, string, [templatable](/automations/templates)): The URL of the binary file containing the
   (new) firmware to be installed.
 
-- **username** (*Optional*, string, [templatable](#config-templatable)): The username to use for HTTP basic
+- **username** (*Optional*, string, [templatable](/automations/templates)): The username to use for HTTP basic
   authentication.
 
-- **password** (*Optional*, string, [templatable](#config-templatable)): The password to use for HTTP basic
+- **password** (*Optional*, string, [templatable](/automations/templates)): The password to use for HTTP basic
   authentication.
 
 > [!NOTE]

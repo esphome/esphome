@@ -78,21 +78,21 @@ sensor:
 
 - **level** (*Optional*): The percentage of full for the tank sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **distance** (*Optional*): The raw distance/depth of the liquid for the sensor in mm.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **temperature** (*Optional*): The information for the temperature sensor.
   This temperature is on the sensor and is not calibrated to ambient temperature.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **battery_level** (*Optional*): The information for the battery percentage
   sensor. Sensor uses a standard CR2032 battery.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 ## Tank Types
 

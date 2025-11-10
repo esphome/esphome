@@ -66,8 +66,8 @@ climate:
 
 ## Configuration variables
 
-- **sensor** (**Required**, [ID](#config-id)): The sensor that is used to measure the current temperature.
-- **humidity_sensor** (*Optional*, [ID](#config-id)): If specified, this sensor is used to measure the current humidity.
+- **sensor** (**Required**, [ID](/guides/configuration-types#id)): The sensor that is used to measure the current temperature.
+- **humidity_sensor** (*Optional*, [ID](/guides/configuration-types#id)): If specified, this sensor is used to measure the current humidity.
   This is used for information only and does not influence temperature control.
 
 - **default_target_temperature_low** (**Required**, float): The default low target temperature for
@@ -76,14 +76,14 @@ climate:
 - **default_target_temperature_high** (**Required**, float): The default high target temperature for
   the control algorithm. This can be dynamically set in the frontend later.
 
-- **idle_action** (**Required**, [Action](#config-action)): The action to call when
+- **idle_action** (**Required**, [Action](/automations/actions#all-actions)): The action to call when
   the climate device wants to enter idle mode.
 
-- **heat_action** (*Optional*, [Action](#config-action)): The action to call when
+- **heat_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device wants to heating mode and increase the current temperature. At least one
   of `heat_action` and `cool_action` need to be specified.
 
-- **cool_action** (*Optional*, [Action](#config-action)): The action to call when
+- **cool_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device wants to cooling mode and decrease the current temperature.
 
 - All other options from [Climate](#config-climate).

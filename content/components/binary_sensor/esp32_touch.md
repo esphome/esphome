@@ -34,7 +34,7 @@ esp32_touch:
    will spam the logs. See [setting up touch pads](#esp32-touch-binary-sensor)
    for more information. Defaults to `false`.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for code generation.
 
 #### Advanced options
 
@@ -43,11 +43,11 @@ the sensors aren't behaving as expected.
 
 #### All processors
 
-- **sleep_duration** (*Optional*, [Time](#config-time)): Set a time period
+- **sleep_duration** (*Optional*, [Time](/guides/configuration-types#time)): Set a time period
   denoting the amount of time the touch peripheral should sleep between measurements. This can decrease
   power usage but make the sensor slower. Default is about 27 milliseconds.
 
-- **measurement_duration** (*Optional*, [Time](#config-time)): Set the conversion
+- **measurement_duration** (*Optional*, [Time](/guides/configuration-types#time)): Set the conversion
   time for all touch pads. A longer conversion time means that more charge/discharge cycles of the touch pad
   can be performed, therefore increasing accuracy. Default is about 8ms, the maximum amount.
 
@@ -65,7 +65,7 @@ For a more detailed explanation of the parameters above, please see the
 
 #### ESP32 only
 
-- **iir_filter** (*Optional*, [Time](#config-time)): Optionally set up an
+- **iir_filter** (*Optional*, [Time](/guides/configuration-types#time)): Optionally set up an
   [Infinite Impulse Response](https://en.wikipedia.org/wiki/Infinite_impulse_response)
   filter should be applied to all touch pads. This can increase the accuracy of the touch pads a lot, but higher values
   decrease the response time. A good value to start with is `10ms`. By default, the IIR filter is inactive.
@@ -106,7 +106,7 @@ For a more detailed explanation of the denoise configuration, please see the
 
 Waterproof configuration:
 
-- **waterproof_guard_ring** (*Optional*, [Pin](#config-pin)): Sets the touch channel to use for the guard pad. The guard
+- **waterproof_guard_ring** (*Optional*, [Pin](/guides/configuration-types#pin)): Sets the touch channel to use for the guard pad. The guard
   pad is used to detect the large area of water covering the touch panel.
 
 - **waterproof_shield_driver** (*Optional*): Shield channel drive capability configuration; the larger the
@@ -143,7 +143,7 @@ binary_sensor:
 
 ### Configuration variables
 
-- **pin** (**Required**, [Pin](#config-pin)): The pin to detect touch
+- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin to detect touch
    events on.
 
 - **threshold** (**Required**, `int`  ): The threshold to use to detect touch events. See

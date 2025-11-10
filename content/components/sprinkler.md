@@ -88,7 +88,7 @@ examples that are ready for you to copy and paste!
   [The Sprinkler Controller Queue](#sprinkler-controller-sprinkler_controller_queue) section below for more detail). This switch will
   not appear in the front end if the controller is configured with only one valve.
 
-- **manual_selection_delay** (*Optional*, [Time](#config-time)): The amount of time the controller should
+- **manual_selection_delay** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time the controller should
   wait to activate a valve after the `next_valve` and `previous_valve` actions are called. Useful
   if the control interface consists of only forward/reverse buttons as the button(s) may be pressed
   multiple times to make the selection.
@@ -109,12 +109,12 @@ examples that are ready for you to copy and paste!
   as it will appear in the front end. When this switch is turned on, the controller *will not start any valves.*
   **This can result in confusing/unexpected behavior if there is no visual indication of this condition!**
 
-- **valve_open_delay** (*Optional*, [Time](#config-time)): The *minimum* delay in seconds that should be
+- **valve_open_delay** (*Optional*, [Time](/guides/configuration-types#time)): The *minimum* delay in seconds that should be
   inserted between (distribution) valve switching -- in other words, the amount of time that must elapse
   between one valve switching off and the next one switching on. Useful for systems with valves which depend
   on sufficient water pressure to close. May not be used with `valve_overlap`.
 
-- **valve_overlap** (*Optional*, [Time](#config-time)): The amount of time in seconds that the current valve
+- **valve_overlap** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time in seconds that the current valve
   and the next valve should run simultaneously as the next valve/zone starts up. This may help prevent pipes
   from banging as valves close. May not be used with `valve_open_delay`.
 
@@ -122,31 +122,31 @@ examples that are ready for you to copy and paste!
   switched off during the `valve_open_delay` interval; otherwise, it remains on. This may only be
   specified when `valve_open_delay` is configured (see above). Defaults to `false`.
 
-- **pump_start_pump_delay** (*Optional*, [Time](#config-time)): The delay in seconds from when a distribution
+- **pump_start_pump_delay** (*Optional*, [Time](/guides/configuration-types#time)): The delay in seconds from when a distribution
   valve is opened to when the associated pump is activated. Useful to ensure pressure does not build
   up from running the pump when no distribution valves are open. May not be used with `pump_start_valve_delay`.
 
-- **pump_start_valve_delay** (*Optional*, [Time](#config-time)): The delay in seconds from when a pump
+- **pump_start_valve_delay** (*Optional*, [Time](/guides/configuration-types#time)): The delay in seconds from when a pump
   is started to when the associated distribution valve is opened. Useful for systems where distribution
   valves require sufficient pressure to fully/quickly close. May not be used with `pump_start_pump_delay`.
 
-- **pump_stop_pump_delay** (*Optional*, [Time](#config-time)): The delay in seconds from when a distribution
+- **pump_stop_pump_delay** (*Optional*, [Time](/guides/configuration-types#time)): The delay in seconds from when a distribution
   valve is closed to when the respective pump is deactivated. Useful for systems where distribution valves
   require sufficient pressure to fully/quickly close. May not be used with `pump_stop_valve_delay`.
 
-- **pump_stop_valve_delay** (*Optional*, [Time](#config-time)): The delay in seconds from when a pump is
+- **pump_stop_valve_delay** (*Optional*, [Time](/guides/configuration-types#time)): The delay in seconds from when a pump is
   deactivated to when the respective distribution valve is closed. Useful to ensure pressure does not build
   up from running the pump when no distribution valves are open or to allow the main line out to distribution
   valves to drain. May not be used with `pump_stop_pump_delay`.
 
-- **pump_pulse_duration** (*Optional*, [Time](#config-time)): The *minimum* length of the pulse generated to
+- **pump_pulse_duration** (*Optional*, [Time](/guides/configuration-types#time)): The *minimum* length of the pulse generated to
   operate a pump in milliseconds. *Required* when one or more latching pumps is configured. Note that the *exact*
   length of the pulse is determined by the frequency of the main application loop (as are other `delay` timers
   used in ESPHome). Typically this is expected to provide a resolution of approximately 16 milliseconds, however
   this may vary somewhat depending on your exact configuration. Regardless, it should provide
   more-than-sufficient precision to operate any such valve.
 
-- **valve_pulse_duration** (*Optional*, [Time](#config-time)): The *minimum* length of the pulse generated to
+- **valve_pulse_duration** (*Optional*, [Time](/guides/configuration-types#time)): The *minimum* length of the pulse generated to
   operate a valve in milliseconds. *Required* when one or more latching valves is configured. Note that the *exact*
   length of the pulse is determined by the frequency of the main application loop (as are other `delay` timers
   used in ESPHome). Typically this is expected to provide a resolution of approximately 16 milliseconds, however
@@ -169,7 +169,7 @@ examples that are ready for you to copy and paste!
   [`sprinkler.next_valve` action](#sprinkler-controller-action_next_valve) and [`sprinkler.previous_valve` action](#sprinkler-controller-action_previous_valve) to skip
   over valves that are not enabled. Defaults to `false`.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation. While optional,
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. While optional,
   this is necessary to identify the controller instance (particularly in cases where more than one is
   defined) when calling controller actions (see below) such as `start_full_cycle` or `shutdown`.
 
@@ -213,7 +213,7 @@ examples that are ready for you to copy and paste!
     detail. **Pro tip:** Want times in minutes? Add `unit_of_measurement: min` to the number configuration. See
     [Using the Sprinkler Controller's Numbers](#sprinkler-controller-sprinkler_controller_numbers) for more detail.
 
-  - **run_duration** (*Optional*, [Time](#config-time)): Required when `run_duration_number` is not provided. The
+  - **run_duration** (*Optional*, [Time](/guides/configuration-types#time)): Required when `run_duration_number` is not provided. The
     duration in seconds this valve should remain on/open after it is activated. When a given valve is activated, the
     controller's multiplier value is multiplied by this value to determine the actual run duration for the valve, thus
     allowing the run duration for all valves/zones to be proportionally increased or decreased as desired. May not be
@@ -1046,7 +1046,7 @@ switch:
 ```
 
 While the above example simply illustrates creating a secondary "main" switch, this approach could be extended
-to take advantage of other devices such as a moisture [sensor](#config-sensor) -- when the moisture level
+to take advantage of other devices such as a moisture [sensor](/components/sensor) -- when the moisture level
 is too low (look for `on_value` or `on_value_range`  ), the sprinkler controller (or a specific valve) could
 be activated by calling one of the controller's start-up actions, such as `sprinkler.start_full_cycle`,
 `sprinkler.start_from_queue`, `sprinkler.start_single_valve`, or `sprinkler.resume_or_start_full_cycle`.

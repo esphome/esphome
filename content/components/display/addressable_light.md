@@ -37,7 +37,7 @@ display:
 
 ## Configuration variables
 
-- **addressable_light_id** (**Required**, [ID](#config-id)): The id of the addressable light component to use
+- **addressable_light_id** (**Required**, [ID](/guides/configuration-types#id)): The id of the addressable light component to use
   as a display.
 
 - **width** (**Required**, int): The width of the LED matrix in pixels.
@@ -45,7 +45,7 @@ display:
 - **rotation** (*Optional*): Set the rotation of the display. Everything you draw in `lambda:` will be rotated
   by this option. One of `0°` (default), `90°`, `180°`, `270°`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to call the lambda to update the display.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to call the lambda to update the display.
   Defaults to `16ms`.
 
 - **pixel_mapper** (*Optional*, [lambda](#config-lambda)): A lambda that returns the integer address of the LED
@@ -55,7 +55,7 @@ display:
   `it` will be an instance of {{< apiclass "DisplayBuffer" "display::DisplayBuffer" >}}.
   See [Display Rendering Engine](#display-engine) for more information.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 > [!NOTE]
 > When enabled (the default, but also via `it.set_enabled(true)`  ), any effect currently running on the

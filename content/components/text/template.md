@@ -28,11 +28,11 @@ text:
 - **lambda** (*Optional*, [lambda](#config-lambda)):
   Lambda to be evaluated every update interval to get the current value of the text.
 
-- **set_action** (*Optional*, [Action](#config-action)): The action that should
+- **set_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote (like Home Assistant's frontend) requests to set the
   text value. The new value is available to lambdas in the `x` variable.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval on which to update the text
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval on which to update the text
   by executing the `lambda`. Defaults to `60s`.
 
 - **optimistic** (*Optional*, boolean): Whether to operate in optimistic mode - when in this mode,
@@ -51,5 +51,5 @@ text:
 
 ## See Also
 
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "template/text/template_text.h" "template/text/template_text.h" >}}

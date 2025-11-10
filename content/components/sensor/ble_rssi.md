@@ -70,7 +70,7 @@ sensor:
 - **ibeacon_minor** (*Optional*, int): The iBeacon minor identifier of the beacon that needs
   to be tracked. Usually used to identify beacons within an iBeacon group.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 ## See Also
 

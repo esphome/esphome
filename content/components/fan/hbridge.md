@@ -27,13 +27,13 @@ fan:
 
 ## Configuration variables
 
-- **pin_a** (**Required**, [ID](#config-id)): The id of the
+- **pin_a** (**Required**, [ID](/guides/configuration-types#id)): The id of the
   [float output](#output) connected to Pin A (alternatively IN1, etc.) of the h-bridge.
 
-- **pin_b** (**Required**, [ID](#config-id)): The id of the
+- **pin_b** (**Required**, [ID](/guides/configuration-types#id)): The id of the
   [float output](#output) connected to Pin B (alternatively IN2, etc.) of the h-bridge.
 
-- **enable_pin** (*Optional*, [ID](#config-id)): The id of the
+- **enable_pin** (*Optional*, [ID](/guides/configuration-types#id)): The id of the
   [float output](#output) connected to the Enable pin of the h-bridge (if h-bridge uses enable).
 
 - **decay_mode** (*Optional*, string): The decay mode you want to use with

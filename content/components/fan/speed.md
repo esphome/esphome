@@ -22,11 +22,11 @@ fan:
 
 ## Configuration variables
 
-- **output** (**Required**, [ID](#config-id)): The id of the [float output](#output) to use for this fan.
-- **oscillation_output** (*Optional*, [ID](#config-id)): The id of the
+- **output** (**Required**, [ID](/guides/configuration-types#id)): The id of the [float output](#output) to use for this fan.
+- **oscillation_output** (*Optional*, [ID](/guides/configuration-types#id)): The id of the
   [output](#output) to use for the oscillation state of this fan. Default is empty.
 
-- **direction_output** (*Optional*, [ID](#config-id)): The id of the
+- **direction_output** (*Optional*, [ID](/guides/configuration-types#id)): The id of the
   [output](#output) to use for the direction state of the fan. Default is empty.
 
 - **speed_count** (*Optional*, int): Set the number of supported discrete speed levels. The value is used

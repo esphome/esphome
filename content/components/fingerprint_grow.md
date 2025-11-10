@@ -15,7 +15,7 @@ The `fingerprint_grow` component allows you to use your R307, R503, R503-RGB, ZF
 
 ## Component/Hub
 
-The reader can be powered by the 3.3V output of an NodeMCU. As the communication with the reader is done using UART (default baud rate is 57600), you need to have an [UART bus](#uart) in your configuration with the `rx_pin` connected to the reader's `TX` and the `tx_pin` connected to the reader's `RX`.
+The reader can be powered by the 3.3V output of an NodeMCU. As the communication with the reader is done using UART (default baud rate is 57600), you need to have an [UART bus](/components/uart) in your configuration with the `rx_pin` connected to the reader's `TX` and the `tx_pin` connected to the reader's `RX`.
 
 If available on your reader model, it's recommended to connect 3.3VT (touch induction power supply) & 3.3V to 3.3V; WAKEUP (finger detection signal) to a free GPIO pin and define it with the `sensing_pin` option to allow the polling function to quickly return when there's no finger on the reader.
 
@@ -52,21 +52,21 @@ The configuration is made up of three parts: The central component, optional ind
 
 Base Configuration:
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the UART hub.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
-- **sensing_pin** (*Optional*, [Pin Schema](#config-pin_schema)): Pin connected to the reader's finger detection signal (WAKEUP) output.
-- **sensor_power_pin** (*Optional*, [Pin Schema](#config-pin_schema)): Output pin responsible for toogling the sensor power on and off.
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the UART hub.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- **sensing_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): Pin connected to the reader's finger detection signal (WAKEUP) output.
+- **sensor_power_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): Output pin responsible for toogling the sensor power on and off.
 - **password** (*Optional*, int): Password to use for authentication. Defaults to `0x00`.
 - **new_password** (*Optional*, int): Sets a new password to use for authentication. See [Setting a New Password](#fingerprint_grow-set_new_password) for more information.
-- **idle_period_to_sleep** (*Optional*, [Time](#config-time)): The sensor idle period to wait before powering it off (sleep). Defaults to `5s`. See [Sleep Mode](#fingerprint_grow-sleep_mode) for more information.
-- **on_finger_scan_start** (*Optional*, [Automation](#automation)): An action to be performed when the finger touches the sensor. See [`on_finger_scan_start` Trigger](#fingerprint_grow-on_finger_scan_start).
-- **on_finger_scan_matched** (*Optional*, [Automation](#automation)): An action to be performed when an enrolled fingerprint is scanned. See [`on_finger_scan_matched` Trigger](#fingerprint_grow-on_finger_scan_matched).
-- **on_finger_scan_unmatched** (*Optional*, [Automation](#automation)): An action to be performed when an unknown fingerprint is scanned. See [`on_finger_scan_unmatched` Trigger](#fingerprint_grow-on_finger_scan_unmatched).
-- **on_finger_scan_misplaced** (*Optional*, [Automation](#automation)): An action to be performed when the finger is not entirely touching the sensor. See [`on_finger_scan_misplaced` Trigger](#fingerprint_grow-on_finger_scan_misplaced).
-- **on_finger_scan_invalid** (*Optional*, [Automation](#automation)): An action to be performed when the scan of a fingerprint failed. See [`on_finger_scan_invalid` Trigger](#fingerprint_grow-on_finger_scan_invalid).
-- **on_enrollment_scan** (*Optional*, [Automation](#automation)): An action to be performed when a fingerprint is scanned during enrollment. See [`on_enrollment_scan` Trigger](#fingerprint_grow-on_enrollment_scan).
-- **on_enrollment_done** (*Optional*, [Automation](#automation)): An action to be performed when a fingerprint is enrolled. See [`on_enrollment_done` Trigger](#fingerprint_grow-on_enrollment_done).
-- **on_enrollment_failed** (*Optional*, [Automation](#automation)): An action to be performed when a fingerprint enrollment failed. See [`on_enrollment_failed` Trigger](#fingerprint_grow-on_enrollment_failed).
+- **idle_period_to_sleep** (*Optional*, [Time](/guides/configuration-types#time)): The sensor idle period to wait before powering it off (sleep). Defaults to `5s`. See [Sleep Mode](#fingerprint_grow-sleep_mode) for more information.
+- **on_finger_scan_start** (*Optional*, [Automation](/automations)): An action to be performed when the finger touches the sensor. See [`on_finger_scan_start` Trigger](#fingerprint_grow-on_finger_scan_start).
+- **on_finger_scan_matched** (*Optional*, [Automation](/automations)): An action to be performed when an enrolled fingerprint is scanned. See [`on_finger_scan_matched` Trigger](#fingerprint_grow-on_finger_scan_matched).
+- **on_finger_scan_unmatched** (*Optional*, [Automation](/automations)): An action to be performed when an unknown fingerprint is scanned. See [`on_finger_scan_unmatched` Trigger](#fingerprint_grow-on_finger_scan_unmatched).
+- **on_finger_scan_misplaced** (*Optional*, [Automation](/automations)): An action to be performed when the finger is not entirely touching the sensor. See [`on_finger_scan_misplaced` Trigger](#fingerprint_grow-on_finger_scan_misplaced).
+- **on_finger_scan_invalid** (*Optional*, [Automation](/automations)): An action to be performed when the scan of a fingerprint failed. See [`on_finger_scan_invalid` Trigger](#fingerprint_grow-on_finger_scan_invalid).
+- **on_enrollment_scan** (*Optional*, [Automation](/automations)): An action to be performed when a fingerprint is scanned during enrollment. See [`on_enrollment_scan` Trigger](#fingerprint_grow-on_enrollment_scan).
+- **on_enrollment_done** (*Optional*, [Automation](/automations)): An action to be performed when a fingerprint is enrolled. See [`on_enrollment_done` Trigger](#fingerprint_grow-on_enrollment_done).
+- **on_enrollment_failed** (*Optional*, [Automation](/automations)): An action to be performed when a fingerprint enrollment failed. See [`on_enrollment_failed` Trigger](#fingerprint_grow-on_enrollment_failed).
 
 ## Binary Sensor
 
@@ -79,22 +79,22 @@ Base Configuration:
 ### Configuration variables
 
 - **fingerprint_count**: The number of enrolled fingerprints stored on the reader.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **last_finger_id**: The last matched enrolled fingerprint as set by [`on_finger_scan_matched` Trigger](#fingerprint_grow-on_finger_scan_matched).
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **last_confidence**: The last matched confidence as set by [`on_finger_scan_matched` Trigger](#fingerprint_grow-on_finger_scan_matched).
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **status**: The integer representation of the internal status register of the reader.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **capacity**: The fingerprint storage capacity of the reader.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **security_level**: The integer representation of the currently configured security level of the reader. Higher security levels reduce the false acceptance rate (FAR) at the expense of increasing the false rejection rate (FRR). Range is 1 (lowest) to 5 (highest).
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 {{< anchor "fingerprint_grow-sleep_mode" >}}
 
@@ -300,8 +300,8 @@ on_...:
 
 #### Configuration variables
 
-- **finger_id** (**Required**, int, [templatable](#config-templatable)): The slot number to enroll the new fingerprint into. Limited to the fingerprint capacity available on the reader.
-- **num_scans** (*Optional*, int, [templatable](#config-templatable)): Number of times to scan the finger to be enrolled. Limited to the number of character buffers available on the reader. Defaults to 2.
+- **finger_id** (**Required**, int, [templatable](/automations/templates)): The slot number to enroll the new fingerprint into. Limited to the fingerprint capacity available on the reader.
+- **num_scans** (*Optional*, int, [templatable](/automations/templates)): Number of times to scan the finger to be enrolled. Limited to the number of character buffers available on the reader. Defaults to 2.
 
 ### `fingerprint_grow.cancel_enroll` Action
 
@@ -328,7 +328,7 @@ on_...:
 
 #### Configuration variables
 
-- **finger_id** (**Required**, int, [templatable](#config-templatable)): The slot number of the enrolled fingerprint to delete.
+- **finger_id** (**Required**, int, [templatable](/automations/templates)): The slot number of the enrolled fingerprint to delete.
 
 ## `fingerprint_grow.delete_all` Action
 
@@ -355,7 +355,7 @@ on_...:
 
 #### Configuration variables
 
-- **state** (**Required**, boolean, [templatable](#config-templatable)): The state to set the LED.
+- **state** (**Required**, boolean, [templatable](/automations/templates)): The state to set the LED.
 
 {{< anchor "fingerprint_grow-aura_led_control" >}}
 
@@ -432,10 +432,10 @@ on...:
 
 #### Configuration variables
 
-- **state** (**Required**, string, [templatable](#config-templatable)): The state to set the LED. One of `BREATHING`, `FLASHING`, `ALWAYS_ON`, `ALWAYS_OFF`, `GRADUAL_ON` and `GRADUAL_OFF`.
-- **speed** (**Required**, int, [templatable](#config-templatable)): The duration each cycle lasts, a factor of 10ms. Only relevant for `BREATHING`, `FLASHING`, `GRADUAL_ON` and `GRADUAL_OFF` states. The total duration is defined by 10ms *speed* count. Range is 0 to 255.
-- **color** (**Required**, string, [templatable](#config-templatable)): The LED color to activate. For R503, one of `RED`, `BLUE` and `PURPLE`. For R503-RGB, one of `RED`, `BLUE`, `PURPLE`, `GREEN`, `YELLOW`, `CYAN` and `WHITE`.
-- **count** (**Required**, int, [templatable](#config-templatable)): How many times to repeat the pattern. Only relevant for `BREATHING` and `FLASHING` states. 0 for infinite, or 1 to 255.
+- **state** (**Required**, string, [templatable](/automations/templates)): The state to set the LED. One of `BREATHING`, `FLASHING`, `ALWAYS_ON`, `ALWAYS_OFF`, `GRADUAL_ON` and `GRADUAL_OFF`.
+- **speed** (**Required**, int, [templatable](/automations/templates)): The duration each cycle lasts, a factor of 10ms. Only relevant for `BREATHING`, `FLASHING`, `GRADUAL_ON` and `GRADUAL_OFF` states. The total duration is defined by 10ms *speed* count. Range is 0 to 255.
+- **color** (**Required**, string, [templatable](/automations/templates)): The LED color to activate. For R503, one of `RED`, `BLUE` and `PURPLE`. For R503-RGB, one of `RED`, `BLUE`, `PURPLE`, `GREEN`, `YELLOW`, `CYAN` and `WHITE`.
+- **count** (**Required**, int, [templatable](/automations/templates)): How many times to repeat the pattern. Only relevant for `BREATHING` and `FLASHING` states. 0 for infinite, or 1 to 255.
 
 ## Test setup
 

@@ -45,5 +45,5 @@ text_sensor:
 ## See Also
 
 - [Sensor Filters](#sensor-filters)
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "homeassistant/text_sensor/homeassistant_text_sensor.h" "homeassistant/text_sensor/homeassistant_text_sensor.h" >}}

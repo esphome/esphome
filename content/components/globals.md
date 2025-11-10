@@ -36,7 +36,7 @@ globals:
 
 ## Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): Give the global variable an ID so that you can refer
+- **id** (**Required**, [ID](/guides/configuration-types#id)): Give the global variable an ID so that you can refer
   to it later in [lambdas](#config-lambda).
 
 - **type** (**Required**, string): The C++ type of the global variable, for example `bool` (for `true`  /`false`  ),
@@ -58,7 +58,7 @@ Within lambdas globals don’t have a state attribute, just a value. Note in the
 
 ## `globals.set` Action
 
-This [Action](#config-action) allows you to change the value of a `global`
+This [Action](/automations/actions#all-actions) allows you to change the value of a `global`
 variable without having to use the lambda syntax.
 
 ```yaml
@@ -70,8 +70,8 @@ on_...:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): The [ID](#config-id) of the global variable to set.
-- **value** (**Required**, [templatable](#config-templatable)): The value to set the global
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The [ID](/guides/configuration-types#id) of the global variable to set.
+- **value** (**Required**, [templatable](/automations/templates)): The value to set the global
   variable to.
 
 > [!NOTE]

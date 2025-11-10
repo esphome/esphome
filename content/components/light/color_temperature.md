@@ -24,8 +24,8 @@ light:
 
 ## Configuration variables
 
-- **color_temperature** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the color temperature. It returns a float from 0 to 1 in the mired scale. Hereby 0 corresponds to the cold white temperature and 1 to the warm white temperature.
-- **brightness** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the brightness. It returns a float from 0 to 1.
+- **color_temperature** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the color temperature. It returns a float from 0 to 1 in the mired scale. Hereby 0 corresponds to the cold white temperature and 1 to the warm white temperature.
+- **brightness** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the brightness. It returns a float from 0 to 1.
 - **cold_white_color_temperature** (**Required**, float): The coldest color temperature supported by this light. This
   is the lowest value when expressed in [mireds](https://en.wikipedia.org/wiki/Mired), or the highest value when
   expressed in Kelvin.

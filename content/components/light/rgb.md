@@ -52,9 +52,9 @@ output:
 
 ## Configuration variables
 
-- **red** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the red channel.
-- **green** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the green channel.
-- **blue** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the blue channel.
+- **red** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the red channel.
+- **green** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the green channel.
+- **blue** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the blue channel.
 - All other options from [Light](#config-light).
 
 ## See Also

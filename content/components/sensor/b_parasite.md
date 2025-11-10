@@ -39,23 +39,23 @@ sensor:
 - **mac_address** (**Required**): The MAC address of the device.
 - **temperature** (*Optional*): Air temperature in Celsius.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **humidity** (*Optional*): Relative air humidity in %.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **moisture** (*Optional*): Soil moisture in %.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **battery_voltage** (*Optional*): Battery voltage in volts.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **illuminance** (*Optional*): Illuminance in lux.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 ## See Also
 

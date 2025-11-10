@@ -13,7 +13,7 @@ is *only* for the digit "matrix" display, for the 7 segment display see {{< docr
 {{< img src="max7219digit.png" alt="Image" caption="MAX7219 Digit Display." width="75.0%" class="align-center" >}}
 
 As the communication with the MAX7219 Digit is done using SPI for this component, you need
-to have an [SPI bus](#spi) in your configuration with both the **mosi_pin** set (miso_pin is not required).
+to have an [SPI bus](/components/spi) in your configuration with both the **mosi_pin** set (miso_pin is not required).
 Connect VCC to 3.3V (the manufacturer recommends 4+ V, but 3.3V seems to work fine), DIN to your `mosi_pin` and
 CS to your set `cs_pin` and finally GND to GND.
 
@@ -38,7 +38,7 @@ display:
 
 ## Configuration variables
 
-- **cs_pin** (**Required**, [Pin Schema](#config-pin_schema)): The pin you have the CS line hooked up to.
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin you have the CS line hooked up to.
 - **num_chips** (*Optional*, int): The number of chips you wish to use for daisy chaining. Defaults to
   `4`.
 
@@ -54,9 +54,9 @@ display:
 
   - `STOP`  : When text is over it waits the `scroll_dwell` time and scroll is set back to the start.
 
-- **scroll_speed** (*Optional*, [Time](#config-time)): Set scroll speed. Defaults to `250ms`
-- **scroll_delay** (*Optional*, [Time](#config-time)): Set delay time before scroll starts. Defaults to `1s`.
-- **scroll_dwell** (*Optional*, [Time](#config-time)): Sets the wait time at the end of the scroll before starting
+- **scroll_speed** (*Optional*, [Time](/guides/configuration-types#time)): Set scroll speed. Defaults to `250ms`
+- **scroll_delay** (*Optional*, [Time](/guides/configuration-types#time)): Set delay time before scroll starts. Defaults to `1s`.
+- **scroll_dwell** (*Optional*, [Time](/guides/configuration-types#time)): Sets the wait time at the end of the scroll before starting
   over. This is only used in mode `STOP`. Defaults to `1s`.
 
 - **reverse_enable** (*Optional*, boolean): For some displays the order of the displays is reversed ("DCBA"). This option will reverse the display to ("ABCD") again. Defaults to `false`.
@@ -66,11 +66,11 @@ display:
 - **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the
   MAX7219. See [Rendering Lambda](#display-max7219digit_lambda) for more information.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `1s`.
-- **spi_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the [SPI Component](#spi) if you want
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`.
+- **spi_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [SPI Component](/components/spi) if you want
   to use multiple SPI buses.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **num_chip_lines** (*Optional*, int): Number of lines if you want to use the displays in Multiline Mode. Defaults to `1` Example: <https://github.com/esphome/esphome/pull/1622#issue-836179156>
 - **chip_lines_style** (*Optional*): How are the lines in Multiline Mode connected? Possible values are `zigzag` and `snake`. Defaults to `snake`
 - **flip_x** (*Optional*, boolean): Flip the horizontal axis on the screen. Defaults to `false`.

@@ -102,16 +102,16 @@ most of the configuration will be set by default, but can be overridden if neede
 
 - **model** (**Required**): Chosen from the lists of supported chips and models above, or `CUSTOM` for custom displays.
 - **bus_mode** (*Optional*): Select the SPI bus mode for the display driver. Options are `single` (default), `quad` and `octal`.
-- **dc_pin** (**Required**, [Pin Schema](#config-pin_schema)): The DC pin. Not required or permitted for quad SPI.
-- **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin.
-- **cs_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The CS pin.
+- **dc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin. Not required or permitted for quad SPI.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin.
+- **cs_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin.
 
 > [!NOTE]
 > A DC pin is required for single SPI and 8 bit parallel, the CS pin and RESET pin will only be needed if the specific board has those
 > pins wired to GPIOs. When using a board with integrated display, the pins will be set to the correct values by
 > default, but can be overridden in the config if needed.
 
-- **enable_pin** (*Optional*, [Pin Schema](#config-pin_schema)): An optional pin to enable the display, if required. A list of pins can be provided for displays that require multiple enable pins. A full pin configuration may be provided
+- **enable_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): An optional pin to enable the display, if required. A list of pins can be provided for displays that require multiple enable pins. A full pin configuration may be provided
   to set the pin mode and inverted property. By default the pin will be driven high to enable the display.
 
 - **brightness** (*Optional*, int): The initial brightness of the display, for AMOLED displays only. This should be a value from 0 to 255, and defaults to 0xD0.

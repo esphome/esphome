@@ -69,12 +69,12 @@ climate:
 
 ## Configuration variables
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the {{< docref "../uart" >}} if you want
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the {{< docref "../uart" >}} if you want
   to use multiple UART buses.
 
-- **transmitter_id** (*Optional*, [ID](#config-id)): Defined and used automatically when using {{< docref "../remote_transmitter" >}} component for IR commands transmit.
-- **period** (*Optional*, [Time](#config-time)): Minimal period between requests to the appliance. Defaults to `1s`.
-- **timeout** (*Optional*, [Time](#config-time)): Request response timeout until next request attempt. Defaults to `2s`.
+- **transmitter_id** (*Optional*, [ID](/guides/configuration-types#id)): Defined and used automatically when using {{< docref "../remote_transmitter" >}} component for IR commands transmit.
+- **period** (*Optional*, [Time](/guides/configuration-types#time)): Minimal period between requests to the appliance. Defaults to `1s`.
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Request response timeout until next request attempt. Defaults to `2s`.
 - **num_attempts** (*Optional*, int): Number of request attempts between 1 and 5 inclusive. Defaults to `3`.
 - **autoconf** (*Optional*, boolean): Get capabilities automatically. Allows you not to manually define most of the capabilities of the appliance.
   Defaults to `True`.
@@ -88,15 +88,15 @@ climate:
 - **outdoor_temperature** (*Optional*): The information for the outdoor temperature
   sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 - **power_usage** (*Optional*): The information for the current power consumption
   sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 - **humidity_setpoint** (*Optional*): The information for the humidity indoor
   sensor (experimental).
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 - All other options from [Climate](#config-climate).
 
 ## Automations
@@ -155,16 +155,16 @@ on_...:
 
 Configuration variables:
 
-- **temperature** (**Required**, float, [templatable](#config-templatable)):
+- **temperature** (**Required**, float, [templatable](/automations/templates)):
   Sets the value of an internal temperature sensor. The value will be **clamped** to the range:
 
   - *0 °C to 37 °C* when `use_fahrenheit` is `false`.
   - *32 °F to 99 °F* when `use_fahrenheit` is `true`.
 
-- **use_fahrenheit** (*Optional*, boolean, [templatable](#config-templatable)):
+- **use_fahrenheit** (*Optional*, boolean, [templatable](/automations/templates)):
   Specifies if the `temperature` value is in Fahrenheit. When set to `true`, the temperature is parsed and sent in Fahrenheit. Defaults to `false` (Celsius).
 
-- **beeper** (*Optional*, boolean, [templatable](#config-templatable)):
+- **beeper** (*Optional*, boolean, [templatable](/automations/templates)):
   Sets beep on update. Defaults to `false`.
 
 {{< anchor "midea_ac-display_toggle_action" >}}

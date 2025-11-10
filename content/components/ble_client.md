@@ -44,23 +44,23 @@ ble_client:
 
 - **mac_address** (**Required**, MAC Address): The MAC address of the BLE device to connect to.
 - **auto_connect** (*Optional*, boolean): If true the device will be automatically connected when found by the {{< docref "/components/esp32_ble_tracker" >}}. Defaults to true.
-- **id** (**Required**, [ID](#config-id)): The ID to use for code generation, and for reference by dependent components.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID to use for code generation, and for reference by dependent components.
 
 Automations:
 
-- **on_connect** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_connect** (*Optional*, [Automation](/automations)): An automation to perform
   when the client connects to a device. See [`on_connect`](#ble_client-on_connect).
 
-- **on_disconnect** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_disconnect** (*Optional*, [Automation](/automations)): An automation to perform
   when the client disconnects from a device. See [`on_disconnect`](#ble_client-on_disconnect).
 
-- **on_passkey_request** (*Optional*, [Automation](#automation)): An automation to enter
+- **on_passkey_request** (*Optional*, [Automation](/automations)): An automation to enter
   the passkey required by the other BLE device. See [`on_passkey_request`](#ble_client-on_passkey_request).
 
-- **on_passkey_notification** (*Optional*, [Automation](#automation)): An automation to
+- **on_passkey_notification** (*Optional*, [Automation](/automations)): An automation to
   display the passkey to the user. See [`on_passkey_notification`](#ble_client-on_passkey_notification).
 
-- **on_numeric_comparison_request** (*Optional*, [Automation](#automation)): An automation to
+- **on_numeric_comparison_request** (*Optional*, [Automation](/automations)): An automation to
   compare the passkeys shown on the two BLE devices. See [`on_numeric_comparison_request`](#ble_client-on_numeric_comparison_request).
 
 ## BLE Client Automation
@@ -238,7 +238,7 @@ switch:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): ID of the associated BLE client.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 - **service_uuid** (**Required**, UUID): UUID of the service to write to.
 - **characteristic_uuid** (**Required**, UUID): UUID of the service's characteristic to write to.
 - **value** (**Required**, Array of bytes or [lambda](#config-lambda)): The value to be written.
@@ -261,7 +261,7 @@ on_...:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): ID of the associated BLE client.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 - **passkey** (**Required**, int): The 6-digit passkey.
 
 {{< anchor "ble_client-numeric_comparison_reply_action" >}}
@@ -282,7 +282,7 @@ on_...:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): ID of the associated BLE client.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 - **accept** (**Required**, boolean): Should be `true` if the passkeys
   displayed on both BLE devices are matching.
 
@@ -307,7 +307,7 @@ ble_client:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): ID of the associated BLE client.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 
 ## BLE Overview
 
@@ -494,5 +494,5 @@ ble_client:
 ## See Also
 
 - {{< docref "/components/sensor/ble_client" >}}
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "ble_client/ble_client.h" "ble_client/ble_client.h" >}}

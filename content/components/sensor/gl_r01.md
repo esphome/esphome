@@ -14,7 +14,7 @@ with a high accuracy.
 
 GL-R01 is sold in three versions - IIC (I²C), UART Automatic and UART Controlled (Modbus).
 This integration supports only IIC (I²C) version at the moment.
-The [I²C](#i2c) is required to be set up in your configuration for this sensor to work.
+The [I²C](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 {{< img src="gl_r01.jpg" alt="Image" caption="GL-R01 I²C - Time Of Flight Mini LiDAR Laser Ranging Sensor" width="50.0%" class="align-center" >}}
 
@@ -26,9 +26,9 @@ sensor:
 
 ## Configuration variables
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to trigger measurement and update sensor.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to trigger measurement and update sensor.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 I²C Configuration variables:
 
@@ -40,6 +40,6 @@ I²C Configuration variables:
 ## See Also
 
 - [Sensor Filters](#sensor-filters)
-- [I2C bus](#i2c)
+- [I2C bus](/components/i2c)
 - {{< apiref "gl_r01_i2c/gl_r01_i2c.h" "gl_r01_i2c/gl_r01_i2c.h" >}}
 - {{< apiref "gl_r01_i2c/gl_r01_i2c.cpp" "gl_r01_i2c/gl_r01_i2c.cpp" >}}

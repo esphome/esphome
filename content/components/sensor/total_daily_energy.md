@@ -42,7 +42,7 @@ time:
 
 ## Configuration variables
 
-- **power_id** (**Required**, [ID](#config-id)): The ID of the power sensor
+- **power_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the power sensor
   to integrate over time.
 
 - **restore** (*Optional*, boolean): Whether to store the intermediate result on the device so
@@ -52,7 +52,7 @@ time:
 - **method** (*Optional*, string): The method to use for calculating the total daily energy. One of
   `trapezoid`, `left` or `right`. Defaults to `right`.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 ## Converting from W to kW
 

@@ -9,7 +9,7 @@ params:
 
 The `scd4x` sensor platform allows you to use your Sensirion SCD4X CO₂
 ([datasheet](https://sensirion.com/media/documents/48C4B7FB/67FE0194/CD_DS_SCD4x_Datasheet_D1.pdf)) sensors with ESPHome.
-The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
+The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 {{< img src="scd4x.jpg" alt="Image" width="80.0%" class="align-center" >}}
 
@@ -29,15 +29,15 @@ sensor:
 
 - **co2** (*Optional*): The information for the CO₂ sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **temperature** (*Optional*): The information for the Temperature sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **humidity** (*Optional*): The information for the Humidity sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **temperature_offset** (*Optional*, float): The temperature offset can depend
   on various factors such as the SCD4x measurement mode, self-heating of close
@@ -66,13 +66,13 @@ sensor:
 
   - `single_shot_rht_only`  : A measurement is started in every update interval. A measurement takes 50 ms. Only humidity and temperature is measured. CO2 is reported as 0 ppm. This mode is only available on scd41 and useful if low power consumption is required.
 
-- **ambient_pressure_compensation_source** (*Optional*, [ID](#config-id)): Set an external pressure sensor ID used for ambient pressure compensation.
+- **ambient_pressure_compensation_source** (*Optional*, [ID](/guides/configuration-types#id)): Set an external pressure sensor ID used for ambient pressure compensation.
   The pressure sensor must report pressure in hPa. the correction is applied before updating the state of the co2 sensor.
 
 - **address** (*Optional*, int): Manually specify the I²C address of the sensor.
   Defaults to `0x62`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 ## Actions
@@ -81,7 +81,7 @@ sensor:
 
 ## `perform_forced_calibration` Action
 
-This [action](#config-action) manually calibrates the sensor to the provided value in ppm.
+This [action](/automations/actions#all-actions) manually calibrates the sensor to the provided value in ppm.
 Operate the SCD4x in the operation mode later used in normal sensor operation (periodic measurement, low power periodic measurement or single shot) for > 3 minutes in an environment with homogenous and constant CO2 concentration before performing a forced recalibration.
 As of March 2025, the global monthly mean CO₂ concentration is 426 ppm.
 
@@ -113,7 +113,7 @@ api:
 
 ## `factory_reset` Action
 
-This [action](#config-action) triggers a factory reset of the sensor. Calibration settings are restored from factory settings.
+This [action](/automations/actions#all-actions) triggers a factory reset of the sensor. Calibration settings are restored from factory settings.
 
 ```yaml
 on_...:

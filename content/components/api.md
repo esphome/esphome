@@ -79,7 +79,7 @@ api:
 > Support for configuring the encryption key on-the-fly will be implemented in a future release of Home Assistant.
 
 - **actions** (*Optional*, list): A list of user-defined actions. See [User-defined Actions](#api-device-actions).
-- **batch_delay** (*Optional*, [Time](#config-time)): The delay time for batching multiple state update messages
+- **batch_delay** (*Optional*, [Time](/guides/configuration-types#time)): The delay time for batching multiple state update messages
   together to reduce network overhead. Lower values send updates sooner but use more network packets,
   while higher values batch more efficiently but add latency. Must be between `0ms` and `65535ms`
   (65.535 seconds). Defaults to `100ms`.
@@ -93,19 +93,19 @@ api:
 - **custom_services** (*Optional*, boolean): Enable compilation of custom API services for external components that use the C++ `CustomAPIDevice` class. Only needed when external components register their own services via the native API. Defaults to `false`.
 - **homeassistant_services** (*Optional*, boolean): Enable compilation of Home Assistant service call support for external components that use the C++ `CustomAPIDevice::call_homeassistant_service()` or `CustomAPIDevice::fire_homeassistant_event()` methods. This is automatically enabled when using `homeassistant.service` or `homeassistant.event` actions, or the `homeassistant` platform for number or switch components. Only needs to be manually set when external components call Home Assistant services without using the built-in actions. Defaults to `false`.
 - **homeassistant_states** (*Optional*, boolean): Enable compilation of Home Assistant state subscription support for external components that use the C++ `CustomAPIDevice::subscribe_homeassistant_state()` method. This is automatically enabled when using any `homeassistant` platform components (sensor, binary_sensor, text_sensor, switch, or number). Only needs to be manually set when external components subscribe to Home Assistant states without using the built-in components. Defaults to `false`.
-- **reboot_timeout** (*Optional*, [Time](#config-time)): The amount of time to wait before rebooting when no
+- **reboot_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time to wait before rebooting when no
   client connects to the API. This is needed because sometimes the low level ESP functions report that
   the ESP is connected to the network, when in fact it is not - only a full reboot fixes it.
   Can be disabled by setting this to `0s`. Defaults to `15min`.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **password** (*Optional*, **Deprecated**, string): The password to protect the API Server with. Defaults
   to no password. It is recommended to use the `encryption` -> `key` above instead of the the `password`.
 
-- **on_client_connected** (*Optional*, [Action](#config-action)): An automation to perform when a client
+- **on_client_connected** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform when a client
   connects to the API. See [`on_client_connected` Trigger](#api-on_client_connected_trigger).
 
-- **on_client_disconnected** (*Optional*, [Action](#config-action)): An automation to perform when a client
+- **on_client_disconnected** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform when a client
   disconnects from the API. See [`on_client_disconnected` Trigger](#api-on_client_disconnected_trigger).
 
 {{< anchor "api-actions" >}}
@@ -142,7 +142,7 @@ Then:
 > your device to perform actions.
 
 When using the native API with Home Assistant, you can create events in the Home Assistant event bus
-straight from ESPHome [Automations](#automation).
+straight from ESPHome [Automations](/automations).
 
 ```yaml
 # In some trigger
@@ -172,7 +172,7 @@ on_...:
 > Be sure to [follow the instructions above](#api-actions) to tell Home Assistant to allow
 > your device to perform actions.
 
-When using the native API with Home Assistant, you can perform Home Assistant actions straight from ESPHome [Automations](#automation).
+When using the native API with Home Assistant, you can perform Home Assistant actions straight from ESPHome [Automations](/automations).
 
 ```yaml
 # In some trigger
@@ -209,15 +209,15 @@ on_...:
 - **capture_response** (*Optional*, boolean): Enable capturing the response from the Home Assistant action call.
   When enabled, `on_success` must be configured. Defaults to `false`.
 
-- **response_template** (*Optional*, [templatable](#config-templatable), string): Optional Jinja template to process
+- **response_template** (*Optional*, [templatable](/automations/templates), string): Optional Jinja template to process
   the action response data. This template is evaluated on the Home Assistant side with Home Assistant's templating engine.
   Requires `capture_response: true`.
 
-- **on_success** (*Optional*, [Automation](#automation)): Optional automation to execute when the Home Assistant action
+- **on_success** (*Optional*, [Automation](/automations)): Optional automation to execute when the Home Assistant action
   call succeeds. When `capture_response: true`, the response data is available as a `response` variable of type `JsonObjectConst`.
   See [Action Response Handling](#action-response-handling).
 
-- **on_error** (*Optional*, [Automation](#automation)): Optional automation to execute when the Home Assistant action
+- **on_error** (*Optional*, [Automation](/automations)): Optional automation to execute when the Home Assistant action
   call fails. See [Action Response Handling](#action-response-handling).
 
 Data structures are not possible, but you can create a script in Home Assistant and call with all
@@ -330,7 +330,7 @@ When `response_template` is used, the processed result is available in `response
 > your device to make action calls.
 
 When using the native API with Home Assistant, you can push tag_scanned to Home Assistant
-straight from ESPHome [Automations](#automation).
+straight from ESPHome [Automations](/automations).
 
 ```yaml
 # In some trigger
@@ -341,7 +341,7 @@ on_...:
 
 #### Configuration variables
 
-- **tag** (**Required**, [templatable](#config-templatable), string): The id of the scanned tag
+- **tag** (**Required**, [templatable](/automations/templates), string): The id of the scanned tag
 
 ## Triggers
 
@@ -385,7 +385,7 @@ api:
 
 ## `api.connected` Condition
 
-This [Condition](#config-condition) checks if at least one client is connected to the ESPHome
+This [Condition](/automations/actions#all-conditions) checks if at least one client is connected to the ESPHome
 native API. Please note client not only includes Home Assistant, but also ESPHome's OTA log output
 if logs are shown remotely.
 

@@ -64,7 +64,7 @@ external_components:
 - **components** (*Optional*, list): The list of components to use from the external source.
   By default, all available components are used.
 
-- **refresh** (*Optional*, [Time](#config-time)): The interval the source will be checked. Has no
+- **refresh** (*Optional*, [Time](/guides/configuration-types#time)): The interval the source will be checked. Has no
   effect on `local`. See [Refresh](#external-components_refresh). for more info. Defaults to `1day`.
 
 {{< anchor "external-components_local" >}}

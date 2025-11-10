@@ -18,7 +18,7 @@ Quality (IAQ) measurement derived from the gas resistance sensor's response to s
 (VOCs). The BSEC software also provides estimated values for CO₂ and Breath Volatile Organic Compounds (b-VOC) using
 a correlation between VOC and CO₂ in a human's exhaled breath.
 
-The [I²C](#i2c) is required to be set up in your configuration for this sensor to work.
+The [I²C](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 > [!NOTE]
 > The BSEC2 library is only available for use after accepting its software license agreement. By enabling this
@@ -44,7 +44,7 @@ bme68x_bsec2_i2c:
 - **address** (_Optional_, int): Manually specify the I²C address of the sensor. Defaults to `0x76`. The sensor can
   also be configured to use `0x77`.
 
-- **i2c_id** (**Optional**, [ID](#config-id)): The ID of the [I²C bus](#i2c) the bme68x is connected to.
+- **i2c_id** (**Optional**, [ID](/guides/configuration-types#id)): The ID of the [I²C bus](/components/i2c) the bme68x is connected to.
 - **model** (_Required_, string): The model of the connected sensor; either `BME680` or `BME688`.
 - **algorithm_output** (_Optional_, string): The output of the BSEC2 algorithm. Either `classification` (default) or
   `regression`. _Only valid when model is BME688._
@@ -64,10 +64,10 @@ bme68x_bsec2_i2c:
   value is subtracted from the reading (for example, if the sensor reads 5°C higher than expected, set this to `5`  )
   and also corrects the relative humidity readings. Defaults to `0`.
 
-- **state_save_interval** (_Optional_, [Time](#config-time)): The minimum interval at which to save the calibrated BSEC2
+- **state_save_interval** (_Optional_, [Time](/guides/configuration-types#time)): The minimum interval at which to save the calibrated BSEC2
   algorithm state to flash so that calibration doesn't have to start from scratch on device restart. Defaults to `6h`.
 
-- **id** (_Optional_, [ID](#config-id)): Manually specify the ID used for code generation. Use this ID in the sensor
+- **id** (_Optional_, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. Use this ID in the sensor
   section to refer to the correct BME68x sensor if you have more than one device. This will also be used to refer to
   the calibrated BSEC2 algorithm state saved to flash.
 
@@ -93,7 +93,7 @@ sensor:
 
 ### Configuration variables
 
-- **bme68x_bsec2_id** (_Optional_, [ID](#config-id)): The ID of the `bme68x_bsec2_i2c` component sensors will refer
+- **bme68x_bsec2_id** (_Optional_, [ID](/guides/configuration-types#id)): The ID of the `bme68x_bsec2_i2c` component sensors will refer
   to. Useful when multiple devices are present in your configuration.
 
 - **temperature** (_Optional_): Configuration for the temperature sensor.
@@ -101,45 +101,45 @@ sensor:
   - **sample_rate** (_Optional_, string): Optional sample rate override for this sensor. Can be `LP` for low power
     consumption, sampling every 3 seconds or `ULP` for ultra-low power, sampling every 5 minutes.
 
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **pressure** (_Optional_): Configuration for the pressure sensor.
 
   - **sample_rate** (_Optional_, string): Optional sample rate override for this sensor. Can be `LP` for low power
     consumption, sampling every 3 seconds or `ULP` for ultra-low power, sampling every 5 minutes.
 
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **humidity** (_Optional_): Configuration for the humidity sensor.
 
   - **sample_rate** (_Optional_, string): Optional sample rate override for this sensor. Can be `LP` for low power
     consumption, sampling every 3 seconds or `ULP` for ultra-low power, sampling every 5 minutes.
 
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **gas_resistance** (_Optional_): Configuration for the gas sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **iaq** (_Optional_): Configuration for the IAQ sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **iaq_static** (_Optional_): Configuration for the IAQ static sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **iaq_accuracy** (_Optional_): Configuration for the numeric IAQ accuracy sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **co2_equivalent** (_Optional_): Configuration for the CO₂ equivalent sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **breath_voc_equivalent** (_Optional_): Configuration for the Breath VOC equivalent humidity sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 ## Text Sensor
 
@@ -154,7 +154,7 @@ text_sensor:
 
 ### Configuration variables
 
-- **bme68x_bsec2_id** (_Optional_, [ID](#config-id)): The ID of the `bme68x_bsec2_i2c` component the text sensor
+- **bme68x_bsec2_id** (_Optional_, [ID](/guides/configuration-types#id)): The ID of the `bme68x_bsec2_i2c` component the text sensor
   will refer to. Useful when multiple devices are present in your configuration.
 
 - **iaq_accuracy** (_Optional_): Configuration for the IAQ accuracy sensor. Shows: `Stabilizing`, `Uncertain`,

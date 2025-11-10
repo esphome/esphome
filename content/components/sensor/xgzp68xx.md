@@ -18,7 +18,7 @@ reading. For example, if your sensor is reading -40Pa when the ports are disconn
 
 {{< img src="6897d.jpg" alt="Image" caption="XGZP6897D Differential Pressure Sensor. (Credit: [CFSensor](https://cfsensor.net/i2c-differential-pressure-sensor-xgzp6897d/), image cropped and compressed)" width="30.0%" class="align-center" >}}
 
-To use the sensor, set up an [I²C Bus](#i2c) and connect the sensor to the specified pins.
+To use the sensor, set up an [I²C Bus](/components/i2c) and connect the sensor to the specified pins.
 
 ```yaml
 # Example configuration entry
@@ -35,10 +35,10 @@ sensor:
 
 ## Configuration variables
 
-- **temperature** (*Optional*): All options from [Sensor](#config-sensor).
-- **pressure** (*Optional*): All options from [Sensor](#config-sensor).
+- **temperature** (*Optional*): All options from [Sensor](/components/sensor).
+- **pressure** (*Optional*): All options from [Sensor](/components/sensor).
 - **k_value** (*Optional*, int): The K value comes from the datasheet. It will default to 4096 if not specified, which is appropriate for a sensor with a range of +/- 0.5kPa.
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the sensor. Defaults to `60s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
 
 ## See Also
 

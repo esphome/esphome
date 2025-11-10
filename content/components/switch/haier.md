@@ -25,7 +25,7 @@ switch:
 
 ## Configuration variables
 
-- **haier_id** (**Required**, [ID](#config-id)): The id of Haier climate component
+- **haier_id** (**Required**, [ID](/guides/configuration-types#id)): The id of Haier climate component
 - **beeper** (*Optional*): (supported only by hOn) A switch that enables or disables Haier climate sound feedback.
   All options from [Switch](#config-switch).
 

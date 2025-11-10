@@ -54,7 +54,7 @@ The `modbus_controller` platform creates an output from a modbus_controller. The
   - `return {};` if you don't want write the command to the device (or do it from the lambda).
 
 - **offset** (*Optional*, int): Offset from start address in bytes (only required for uncommon response encodings). If more than one register is written in a command this value is used to find the start of this datapoint relative to start address. The component calculates the size of the range based on offset and size of the value type.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 All other options from [Output](#config-output).
 

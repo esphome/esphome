@@ -31,19 +31,19 @@ sensor:
 
 - **mac_address** (**Required**, string): The MAC address of the device.
 - **temperature** (*Optional*): The temperature sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **moisture** (*Optional*): The moisture sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **illuminance** (*Optional*): The illuminance sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **conductivity** (*Optional*): The conductivity sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **battery_level** (*Optional*): The battery level sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 ## See Also
 

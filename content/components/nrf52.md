@@ -93,7 +93,7 @@ nrf52:
 
 ### Configuration variables
 
-- **reset_pin** (*Required*, [Pin](#config-pin)): The pin to use for trigger a hardware reset. This pin should be connected to the MCU's reset line or to a circuit that causes the bootloader to enter DFU mode after reset.
+- **reset_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The pin to use for trigger a hardware reset. This pin should be connected to the MCU's reset line or to a circuit that causes the bootloader to enter DFU mode after reset.
 
 ## See Also
 

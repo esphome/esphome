@@ -34,13 +34,13 @@ light:
 
 ## Configuration variables
 
-- **pin** (*Optional*, [Pin Schema](#config-pin_schema)): The GPIO pin to operate the LED on.
-- **output** (*Optional*, [ID](#config-id)): The id of the binary [Output Component](#output) to use for this light.
+- **pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The GPIO pin to operate the LED on.
+- **output** (*Optional*, [ID](/guides/configuration-types#id)): The id of the binary [Output Component](#output) to use for this light.
 - All other options from [Light](#config-light).
 
 > [!NOTE]
 > If your Status LED is in an active-LOW mode (such as with the D1 Mini ESP8266 boards), use the
-> `inverted` option of the [Pin Schema](#config-pin_schema):
+> `inverted` option of the [Pin Schema](/guides/configuration-types#pin-schema):
 >
 > ```yaml
 > pin:

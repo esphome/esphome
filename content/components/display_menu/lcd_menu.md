@@ -29,7 +29,7 @@ kHz) or even ESPHome default (`50` kHz) will create perceptible delays especiall
 changing a numeric value using the rotary encoder. Most `PCF8574` adapters used with
 these displays will happily run at `200` or even `400` kHz though so if you are comfortable
 accepting risks from running your hardware out of spec, you might want to try that
-in your [I²C Bus](#i2c) configuration.
+in your [I²C Bus](/components/i2c) configuration.
 
 ```yaml
 # Example configuration entry
@@ -91,8 +91,8 @@ binary_sensor:
 
 Configuration variables:
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
-- **display_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the LCD display.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- **display_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the LCD display.
 - **mark_back** (*Optional*, 0-255): Code of the character used to mark menu items going back
   one level. As the character set lacks a good looking back arrow, using a user defined character
   is advisable (use `8` to reference one at position `0` to avoid problems with zeros
@@ -112,7 +112,7 @@ The menu inherits the dimensions of the connected LCD display and uses the entir
 
 ## See Also
 
-- [I²C Bus](#i2c)
+- [I²C Bus](/components/i2c)
 - [lcd_pcf8574 Component](#lcd-pcf8574)
 - [lcd_gpio Component](#lcd-gpio)
 - [Display Menu](#display_menu)

@@ -47,16 +47,16 @@ On the bus side, you need 120 Ohm termination resistors at the ends of the bus c
 
 ## Configuration variables
 
-- **modbus_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the `modbus` hub.
+- **modbus_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the `modbus` hub.
 
-- **address** (**Required**, [ID](#config-id)): The Modbus address of the slave device.
+- **address** (**Required**, [ID](/guides/configuration-types#id)): The Modbus address of the slave device.
 
 - **allow_duplicate_commands** (*Optional*, boolean): Whether to allow duplicate commands in the queue. Defaults to `false`.
 
-- **command_throttle** (*Optional*, [Time](#config-time)): minimum time in between 2 requests to the device. Default is `0ms`.
+- **command_throttle** (*Optional*, [Time](/guides/configuration-types#time)): minimum time in between 2 requests to the device. Default is `0ms`.
   Some Modbus slave devices limit the rate of requests from the master, so this allows the interval between requests to be altered.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval that the sensors should be checked.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked.
   Defaults to 60 seconds.
 
 {{< anchor "modbus_controller-offline_skip_updates" >}}
@@ -108,9 +108,9 @@ On the bus side, you need 120 Ohm termination resistors at the ends of the bus c
 
 Automations:
 
-- **on_command_sent** (*Optional*, [Automation](#automation)): An automation to perform when a modbus command has been sent. See [`on_command_sent`](#modbus_controller-on_command_sent)
-- **on_online** (*Optional*, [Automation](#automation)): An automation to perform when a modbus controller goes online. See [`on_online`](#modbus_controller-on_online)
-- **on_offline** (*Optional*, [Automation](#automation)): An automation to perform when a modbus controller goes offline. See [`on_offline`](#modbus_controller-on_offline)
+- **on_command_sent** (*Optional*, [Automation](/automations)): An automation to perform when a modbus command has been sent. See [`on_command_sent`](#modbus_controller-on_command_sent)
+- **on_online** (*Optional*, [Automation](/automations)): An automation to perform when a modbus controller goes online. See [`on_online`](#modbus_controller-on_online)
+- **on_offline** (*Optional*, [Automation](/automations)): An automation to perform when a modbus controller goes offline. See [`on_offline`](#modbus_controller-on_offline)
 
 ## Example Client
 

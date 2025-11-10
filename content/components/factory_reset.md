@@ -47,7 +47,7 @@ factory_reset:
 - **resets_required** (*Optional*, integer): The number of power cycles after which the device will be reset.
   No default, if not configured the power cycle reset feature will be disabled
 
-- **max_delay** (*Optional*, [Time](#config-time)): The maximum delay between power cycles. Default: 10s
+- **max_delay** (*Optional*, [Time](/guides/configuration-types#time)): The maximum delay between power cycles. Default: 10s
 
 ## `on_increment` Trigger
 

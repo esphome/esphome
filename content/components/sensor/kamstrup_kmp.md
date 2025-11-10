@@ -22,7 +22,7 @@ that uses the Kamstrup Meter Protocol for communication.
 This component can be used to request measurements from the meter using
 the optical interface.
 
-A [UART bus](#uart) is required to communicate with the meter.
+A [UART bus](/components/uart) is required to communicate with the meter.
 
 ## Configuration
 
@@ -48,30 +48,30 @@ sensor:
 Configuration variables:
 
 - **heat_energy** (*Optional*): Heat energy delivered.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **power** (*Optional*): Current power delivered.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **temp1** (*Optional*): Temperatue of sensor 1.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **temp2** (*Optional*): Temperatue of sensor 2.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **temp_diff** (*Optional*): Temperature difference between the 2 sensors.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **flow** (*Optional*): Water flow.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **volume** (*Optional*): Volume.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **custom** (*Optional*): List of custom sensors.
 
   - **command** (**Required**, 2-byte hex): The KMP command code (e.g. 0x003C).
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **update_interval** (*Optional*): The polling interval. Defaults to `60s`.
 
@@ -79,7 +79,7 @@ Configuration variables:
 >
 > - The uart baudrate has to be set to 1200 baud and the stop bits to 2.
 >   It is recommended to use pins associated with a hardware UART.
->   For more information regarding uart configuration, refer to [UART](#uart).
+>   For more information regarding uart configuration, refer to [UART](/components/uart).
 >
 > - Only the provided sensors will appear as sensor, and only those are read from
 >   the meter.
@@ -115,5 +115,5 @@ magnets.
 
 ## See Also
 
-- [Base Sensor Configuration](#config-sensor)
+- [Base Sensor Configuration](/components/sensor)
 - [DIY hardware with housing](https://github.com/cfeenstra1024/kamstrup-multical-hardware#readme) by [Chris Feenstra](https://github.com/cfeenstra1024)

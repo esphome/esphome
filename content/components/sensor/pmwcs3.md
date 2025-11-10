@@ -9,7 +9,7 @@ params:
 
 The `pmwcs3` sensor platform allows you to use your PMWCS3
 ([informations](https://tinovi.com/wp-content/uploads/2020/01/PM-WCS-3-I2C.pdf))
-capacitive soil moisture and temperature sensor with ESPHome. The [I²C bus](#i2c) is required to be set up in
+capacitive soil moisture and temperature sensor with ESPHome. The [I²C bus](/components/i2c) is required to be set up in
 your configuration for this sensor to work. Wiring scheme: red is 3.3V, black & shield is GND, green is SDA and white is SCL.
 2.2kOhm resistors are advised to pullup both SDA & SDA lines.
 
@@ -32,21 +32,21 @@ sensor:
 ## Configuration variables
 
 - **e25** (*Optional*): Electrical Conductivity, reference at 25°C in dS/m.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **ec** (*Optional*): Electrical Conductivity in mS/m.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **temperature** (*Optional*): Soil temperature in °C.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **vwc** (*Optional*): Volumetric Water Content in cm3cm−3.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **address** (*Optional*, int): Manually specify the I²C address of the sensor.
   Defaults to `0x63`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 {{< anchor "sensor-pmwcs3aircalibrationaction" >}}
@@ -71,7 +71,7 @@ on_...:
 
 Configuration option:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the pmwcs3 sensor.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pmwcs3 sensor.
 
 {{< anchor "sensor-pmwcs3watercalibrationaction" >}}
 
@@ -95,7 +95,7 @@ on_...:
 
 Configuration option:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the pmwcs3 sensor.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pmwcs3 sensor.
 
 {{< anchor "sensor-pmwcs3newi2caddressaction" >}}
 
@@ -119,7 +119,7 @@ on_...:
 
 Configuration options:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the pmwcs3 sensor.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pmwcs3 sensor.
 - **address** (**Required**, int): New I2C address.
 
 ## See Also

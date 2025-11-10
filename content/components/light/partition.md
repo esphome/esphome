@@ -93,7 +93,7 @@ light:
 
   *For addressable segments:*
 
-  - **id** (**Required**, [ID](#config-id)): The ID of the addressable light to be controlled by this segment.
+  - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the addressable light to be controlled by this segment.
   - **from** (**Required**, int): The index of the first LED to address in the segment. Counting starts with 0,
     so first LED is 0.
 
@@ -102,7 +102,7 @@ light:
 
   *For single light segments:*
 
-  - **single_light_id** (**Required**, [ID](#config-id)): The ID of a single addressable or non-addressable light.
+  - **single_light_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of a single addressable or non-addressable light.
     If an addressable light is specified, it will be treated as a single light in the partition.
 
 - All other options from [Light](#config-light).

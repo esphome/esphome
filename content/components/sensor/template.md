@@ -35,10 +35,10 @@ Possible return values for the lambda:
 - **lambda** (*Optional*, [lambda](#config-lambda)):
   Lambda to be evaluated every update interval to get the new value of the sensor
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Set to `never` to disable updates. Defaults to `60s`.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 {{< anchor "sensor-template-publish_action" >}}
 
@@ -68,8 +68,8 @@ on_...:
 
 Configuration options:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the template sensor.
-- **state** (**Required**, float, [templatable](#config-templatable)):
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the template sensor.
+- **state** (**Required**, float, [templatable](/automations/templates)):
   The state to publish.
 
 > [!NOTE]
@@ -112,5 +112,5 @@ sensor:
 ## See Also
 
 - [Sensor Filters](#sensor-filters)
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "template/sensor/template_sensor.h" "template/sensor/template_sensor.h" >}}

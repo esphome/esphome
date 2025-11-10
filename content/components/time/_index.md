@@ -18,27 +18,27 @@ All time configuration schemas inherit these options.
 
 ### Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): Specify the ID of the time for use in lambdas.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Specify the ID of the time for use in lambdas.
 - **timezone** (*Optional*, string): Manually tell ESPHome what time zone to use with [this format](https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html)
   (warning: the format is quite complicated, see [examples](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv))
   or the simpler [TZ database name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) in the form
   `<Region>/<City>`. ESPHome tries to automatically infer the time zone string based on the time zone of the computer
   that is running ESPHome, but this might not always be accurate.
 
-- **on_time** (*Optional*, [Automation](#automation)): Automation to run at specific intervals using
+- **on_time** (*Optional*, [Automation](/automations)): Automation to run at specific intervals using
   a cron-like syntax. See [`on_time` Trigger](#time-on_time).
 
-- **on_time_sync** (*Optional*, [Automation](#automation)): Automation to run when the time source
+- **on_time_sync** (*Optional*, [Automation](/automations)): Automation to run when the time source
   could be (re-)synchronized.. See [`on_time_sync` Trigger](#time-on_time_sync).
 
-- **update_interval** (*Optional*, [Time](#config-time)): How often to synchronize the device time from the source.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): How often to synchronize the device time from the source.
   Defaults to `15min`.
 
 {{< anchor "time-has_time_condition" >}}
 
 ### `time.has_time` Condition
 
-This [Condition](#config-condition) checks if time has been set and is valid.
+This [Condition](/automations/actions#all-conditions) checks if time has been set and is valid.
 
 ```yaml
 # Example configuration
@@ -124,7 +124,7 @@ Configuration variables:
   the day of week field is interpreted like the **days_of_week** variable (range from 1 (Sunday) to 7 (Saturday)) and
   not like other cron implementations would do it (range from 0 (Sunday) to 7 (Sunday)).
 
-- See [Automation](#automation).
+- See [Automation](/automations).
 
 In the `seconds:`, `minutes:`, ... fields you can use the following operators:
 

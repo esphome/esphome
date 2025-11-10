@@ -22,7 +22,7 @@ light:
 
 ## Configuration variables
 
-- **output** (**Required**, [ID](#config-id)): The id of the binary [Output Component](#output) to use for this light.
+- **output** (**Required**, [ID](/guides/configuration-types#id)): The id of the binary [Output Component](#output) to use for this light.
 - All other options from [Light](#config-light).
 
 ## See Also

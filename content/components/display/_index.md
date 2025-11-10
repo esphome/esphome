@@ -31,8 +31,8 @@ For graphical displays, which offer the greatest flexibility, there are two opti
 
 All display components inherit these configuration variables.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation. Required if there are multiple displays.
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `1s`.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. Required if there are multiple displays.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`.
 - **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
   See [Display Rendering Engine](#display-engine) for more information.
 
@@ -583,8 +583,8 @@ display:
             ESP_LOGD("display", "Page changed from 1 to 2");
 ```
 
-- **from** (*Optional*, [ID](#config-id)): A page id. If set the automation is only triggered if changing from this page. Defaults to all pages.
-- **to** (*Optional*, [ID](#config-id)): A page id. If set the automation is only triggered if changing to this page. Defaults to all pages.
+- **from** (*Optional*, [ID](/guides/configuration-types#id)): A page id. If set the automation is only triggered if changing from this page. Defaults to all pages.
+- **to** (*Optional*, [ID](/guides/configuration-types#id)): A page id. If set the automation is only triggered if changing to this page. Defaults to all pages.
 
 Additionally, the old page will be given as the variable `from` and the new one as the variable `to`.
 

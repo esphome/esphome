@@ -111,26 +111,26 @@ mqtt:
   The disadvantage is additional memory usage for the thread.
   Set this to true if you need to ensure that mqtt does not block the main thread, especially if you have poor network conditions.
 
-- **reboot_timeout** (*Optional*, [Time](#config-time)): The amount of time to wait before rebooting when no
+- **reboot_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time to wait before rebooting when no
   MQTT connection exists. Can be disabled by setting this to `0s`. Defaults to `15min`.
 
-- **keepalive** (*Optional*, [Time](#config-time)): The time
+- **keepalive** (*Optional*, [Time](/guides/configuration-types#time)): The time
   to keep the MQTT socket alive, decreasing this can help with overall stability due to more
   WiFi traffic with more pings. Defaults to 15 seconds.
 
-- **on_connect** (*Optional*, [Automation](#automation)): An action to be performed when a connection
+- **on_connect** (*Optional*, [Automation](/automations)): An action to be performed when a connection
   to the broker is established.
 
-- **on_disconnect** (*Optional*, [Automation](#automation)): An action to be performed when the connection
+- **on_disconnect** (*Optional*, [Automation](/automations)): An action to be performed when the connection
   to the broker is dropped.
 
-- **on_message** (*Optional*, [Automation](#automation)): An action to be
+- **on_message** (*Optional*, [Automation](/automations)): An action to be
   performed when a message on a specific MQTT topic is received. See [`on_message` Trigger](#mqtt-on_message).
 
-- **on_json_message** (*Optional*, [Automation](#automation)): An action to be
+- **on_json_message** (*Optional*, [Automation](/automations)): An action to be
   performed when a JSON message on a specific MQTT topic is received. See [`on_json_message` Trigger](#mqtt-on_json_message).
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **publish_nan_as_none** (*Optional*, bool): Publish `None` instead of `NaN` to handle Unknown/Unavailable sensor
   states in Home Assistant. Defaults to `false`.
 
@@ -675,15 +675,15 @@ on_...:
 
 #### Configuration variables
 
-- **topic** (**Required**, string, [templatable](#config-templatable)):
+- **topic** (**Required**, string, [templatable](/automations/templates)):
    The MQTT topic to publish the message.
 
-- **payload** (**Required**, string, [templatable](#config-templatable)): The message content.
-- **qos** (*Optional*, int, [templatable](#config-templatable)): The [Quality of
+- **payload** (**Required**, string, [templatable](/automations/templates)): The message content.
+- **qos** (*Optional*, int, [templatable](/automations/templates)): The [Quality of
    Service](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels)
    level of the topic. Defaults to 0.
 
-- **retain** (*Optional*, boolean, [templatable](#config-templatable)): If the published message should
+- **retain** (*Optional*, boolean, [templatable](/automations/templates)): If the published message should
    have a retain flag on or not. Defaults to `false`.
 
 > [!NOTE]
@@ -725,7 +725,7 @@ on_...:
 
 ### Configuration variables
 
-- **topic** (**Required**, string, [templatable](#config-templatable)):
+- **topic** (**Required**, string, [templatable](/automations/templates)):
    The MQTT topic to publish the message.
 
 - **payload** (**Required**, [lambda](#config-lambda)): The message content.
@@ -803,7 +803,7 @@ on_...:
 
 ### `mqtt.connected` Condition
 
-This [Condition](#config-condition) checks if the MQTT client is currently connected to
+This [Condition](/automations/actions#all-conditions) checks if the MQTT client is currently connected to
 the MQTT broker.
 
 ```yaml

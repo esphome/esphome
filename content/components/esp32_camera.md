@@ -60,7 +60,7 @@ Connection Options:
   - **frequency** (*Optional*, float): The frequency of the external clock, must be between 10
     and 20MHz. Defaults to `20MHz`.
 
-- **i2c_id** (**Required**, [ID](#config-id)): The ID of the [I²C bus](#i2c) the camera is connected to.
+- **i2c_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the [I²C bus](/components/i2c) the camera is connected to.
 - **reset_pin** (*Optional*, pin): The ESP pin the reset pin of the camera is connected to.
   If set, this will reset the camera before the ESP boots.
 
@@ -168,13 +168,13 @@ White Balance Setting:
 
 Automations:
 
-- **on_stream_start** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_stream_start** (*Optional*, [Automation](/automations)): An automation to perform
   when a stream starts.
 
-- **on_stream_stop** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_stream_stop** (*Optional*, [Automation](/automations)): An automation to perform
   when a stream stops.
 
-- **on_image** (*Optional*, [Automation](#automation)): An automation called when image taken. Image is available as `image` variable of type {{< apistruct "esp32_camera::CameraImageData" "esp32_camera::CameraImageData" >}}.
+- **on_image** (*Optional*, [Automation](/automations)): An automation called when image taken. Image is available as `image` variable of type {{< apistruct "esp32_camera::CameraImageData" "esp32_camera::CameraImageData" >}}.
 
 Test Setting:
 

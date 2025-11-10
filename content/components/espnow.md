@@ -34,9 +34,9 @@ espnow:
 
 Automations:
 
-- **on_receive** (*Optional*, [Automation](#automation)): An automation to perform when data is received. See [`on_receive`](#espnow-on_receive).
-- **on_unknown_peer** (*Optional*, [Automation](#automation)): An automation to perform when data is received from an unknown peer. See [`on_unknown_peer`](#espnow-on_unknown_peer).
-- **on_broadcast** (*Optional*, [Automation](#automation)): An automation to perform when a broadcast packet is received.
+- **on_receive** (*Optional*, [Automation](/automations)): An automation to perform when data is received. See [`on_receive`](#espnow-on_receive).
+- **on_unknown_peer** (*Optional*, [Automation](/automations)): An automation to perform when data is received from an unknown peer. See [`on_unknown_peer`](#espnow-on_unknown_peer).
+- **on_broadcast** (*Optional*, [Automation](/automations)): An automation to perform when a broadcast packet is received.
   See [`on_broadcast`](#espnow-on_broadcast).
 
 ## Automations
@@ -90,7 +90,7 @@ This automation will be triggered when a broadcast packet is received.
 
 ### `espnow.send` Action
 
-This is an [Action](#config-action) for sending a data packet over the espnow protocol.
+This is an [Action](/automations/actions#all-actions) for sending a data packet over the espnow protocol.
 
 ```yaml
 on_...:
@@ -110,8 +110,8 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, [templatable](#config-templatable), MAC Address): The MAC address of the receiving device to send to.
-- **data** (**Required**, [templatable](#config-templatable), string or list of bytes): The data to be sent.
+- **address** (**Required**, [templatable](/automations/templates), MAC Address): The MAC address of the receiving device to send to.
+- **data** (**Required**, [templatable](/automations/templates), string or list of bytes): The data to be sent.
 - **wait_for_sent** (*Optional*, boolean): The automation will wait for the data to be sent and for the `on_sent` or `on_error`
   actions to be finished before continuing with the next action.
   Defaults to `true`.
@@ -121,14 +121,14 @@ on_...:
 
 Automations:
 
-- **on_sent** (*Optional*, [Automation](#automation)): An automation to perform when the data is sent successfully.
-- **on_error** (*Optional*, [Automation](#automation)): An automation to perform when the data could not be sent.
+- **on_sent** (*Optional*, [Automation](/automations)): An automation to perform when the data is sent successfully.
+- **on_error** (*Optional*, [Automation](/automations)): An automation to perform when the data could not be sent.
 
 {{< anchor "espnow-broadcast-action" >}}
 
 ### `espnow.broadcast` Action
 
-This is an [Action](#config-action) for sending a data packet over the espnow protocol to any device that is listening.
+This is an [Action](/automations/actions#all-actions) for sending a data packet over the espnow protocol to any device that is listening.
 
 ```yaml
 on_...:
@@ -142,13 +142,13 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, [templatable](#config-templatable), string or list of bytes): The data to be sent.
+- **data** (**Required**, [templatable](/automations/templates), string or list of bytes): The data to be sent.
 
 {{< anchor "espnow-peer_add-action" >}}
 
 ### `espnow.peer.add` Action
 
-This is an [Action](#config-action) to add a new peer to the internal allowed peers list.
+This is an [Action](/automations/actions#all-actions) to add a new peer to the internal allowed peers list.
 
 ```yaml
 on_...:
@@ -166,7 +166,7 @@ on_...:
 
 ### `espnow.peer.delete` Action
 
-This is an [Action](#config-action) to remove a known peer from the internal allowed peers list.
+This is an [Action](/automations/actions#all-actions) to remove a known peer from the internal allowed peers list.
 
 ```yaml
 on_...:
@@ -184,7 +184,7 @@ on_...:
 
 ### `espnow.set_channel` Action
 
-This is an [Action](#config-action) to change the channel that espnow is sending and receiving on.
+This is an [Action](/automations/actions#all-actions) to change the channel that espnow is sending and receiving on.
 
 ```yaml
 on_...:

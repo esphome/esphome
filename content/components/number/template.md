@@ -29,11 +29,11 @@ number:
 - **lambda** (*Optional*, [lambda](#config-lambda)):
   Lambda to be evaluated every update interval to get the current value of the number.
 
-- **set_action** (*Optional*, [Action](#config-action)): The action that should
+- **set_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote (like Home Assistant's frontend) requests to set the
   number value. The new value is available to lambdas in the `x` variable.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval on which to update the number
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval on which to update the number
   by executing the `lambda`. Defaults to `60s`.
 
 - **optimistic** (*Optional*, boolean): Whether to operate in optimistic mode - when in this mode,
@@ -56,5 +56,5 @@ with the [`number.set` Action](#number-set_action).
 
 ## See Also
 
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "template/number/template_number.h" "template/number/template_number.h" >}}

@@ -34,11 +34,11 @@ sensor:
 - **mac_address** (**Required**, MAC Address): The MAC address of the scale.
 - **weight** (*Optional*): The information for the weight sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **impedance** (*Optional*): The information for the impedance sensor. **Only available on MiScale2**
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **clear_impedance** (*Optional*): Clear the impedance information if a weight reading without impedance is received. Defaults to `false`. **Only available on MiScale2**
 

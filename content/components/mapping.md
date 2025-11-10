@@ -29,7 +29,7 @@ text_sensor:
 
 ## Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): Give the mapping an ID so that you can refer
+- **id** (**Required**, [ID](/guides/configuration-types#id)): Give the mapping an ID so that you can refer
   to it later in [lambdas](#config-lambda).
 
 - **from** (**Required**, string): The type of the keys in the mapping. Can be one of `string` or `int`.

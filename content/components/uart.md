@@ -55,13 +55,13 @@ uart:
 ## Configuration variables
 
 - **baud_rate** (**Required**, int): The baud rate of the UART bus.
-- **tx_pin** (*Optional*, [Pin](#config-pin)): The pin to send data to from the ESP's perspective. Use the full pin
+- **tx_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The pin to send data to from the ESP's perspective. Use the full pin
   schema and set `inverted: true` to invert logic levels. Not supported by host platform.
 
-- **rx_pin** (*Optional*, [Pin](#config-pin)): The pin to receive data on from the ESP's perspective. Use the full pin
+- **rx_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The pin to receive data on from the ESP's perspective. Use the full pin
   schema and set `inverted: true` to invert logic levels. Not supported by host platform.
 
-- **flow_control_pin** (*Optional*, [Pin](#config-pin)): ESP32 only. The pin used to for hardware RS485 flow control.
+- **flow_control_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): ESP32 only. The pin used to for hardware RS485 flow control.
   Use of this setting enables half-duplex mode. Use the full pin schema and set `inverted: true` to invert logic levels.
 
 - **port** (*Optional*, string): Host platform only. Unix style name of the port to use.
@@ -75,7 +75,7 @@ uart:
 - **data_bits** (*Optional*, int): The number of data bits used on the UART bus. Options: 5 to 8. Defaults to 8.
 - **parity** (*Optional*): The parity used on the UART bus. Options: `NONE`, `EVEN`, `ODD`. Defaults to `NONE`.
 - **stop_bits** (*Optional*, int): The number of stop bits to send. Options: 1, 2. Defaults to 1.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID for this UART hub if you need multiple UART hubs.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this UART hub if you need multiple UART hubs.
 - **debug** (*Optional*, mapping): Options for debugging communication on the UART hub, see [Debugging](#uart-debugging).
 
 {{< anchor "uart-hardware_uarts" >}}
@@ -105,7 +105,7 @@ use `tx_pin: GPIO2`. Any other combination of pins will result in use of a softw
 
 ## `uart.write` Action
 
-This [Action](#config-action) sends a defined UART signal to the given UART bus.
+This [Action](/automations/actions#all-actions) sends a defined UART signal to the given UART bus.
 
 ```yaml
 on_...:
@@ -167,13 +167,13 @@ uart:
   to trigger publishing the accumulated bytes. The possible options are:
 
   - **bytes** (*Optional*, int): Trigger after accumulating the specified number of bytes. Defaults to 150.
-  - **timeout** (*Optional*, [Time](#config-time)): Trigger after no communication has been seen during the
+  - **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Trigger after no communication has been seen during the
     specified timeout, while one or more bytes have been accumulated. Defaults to 100ms.
 
   - **delimiter** (*Optional*, string or list of bytes): Trigger after the specified sequence of bytes is
     detected in the communication.
 
-- **sequence** (*Optional*, [Action](#config-action)): Action(s) to perform for publishing debugging data.
+- **sequence** (*Optional*, [Action](/automations/actions#all-actions)): Action(s) to perform for publishing debugging data.
   Defaults to an action that logs the bytes in hex format. The actions can make use of the following variables:
 
   - **direction**: `uart::UART_DIRECTION_RX` or `uart::UART_DIRECTION_TX`

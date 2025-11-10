@@ -38,7 +38,7 @@ This example will generate a metric named `test1.sensor` with the value of the `
 
 ## Sensor list
 
-- **id** (**Required**, [ID](#config-id)): The ID of the sensor.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the sensor.
 - **name** (**Required**, name): The Name of the metric the sensor value is send as. (Prefix is added to this name).
 
 ## See Also

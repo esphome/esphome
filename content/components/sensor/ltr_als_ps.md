@@ -12,7 +12,7 @@ params:
 {{< img src="ltr303-ui.png" alt="Image" caption="LTR-303 Sensor in Home Assistant UI." width="60.0%" class="align-center" >}}
 
 The `ltr_als_ps` sensor platform allows you to use a range of LiteOn ambient light and proximity sensors
-with ESPHome. The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
+with ESPHome. The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 The family of sensors includes:
 
@@ -106,7 +106,7 @@ sensor:
 
 ## Configuration variables
 
-- **id** (_Optional_, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (_Optional_, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **address** (_Optional_, int): Manually specify the I²C address of the sensor. Default is `0x29`.
 - **type** (_Optional_, string): The type of the sensor. Valid values are `ALS_PS` _(default)_ for
   integrated sensors, `ALS` for ambient light only or `PS` for proximity only devices.
@@ -115,17 +115,17 @@ sensor:
 - **gain** (_Optional_, string): The gain the device will use. Higher values are better in low-light conditions.
   Valid values are `1X` _(default)_, `2X`, `4X`, `8X`, `48X`, `96X`.
 
-- **integration_time** (_Optional_, [Time](#config-time)):
+- **integration_time** (_Optional_, [Time](/guides/configuration-types#time)):
   The amount of time sensors are exposed. Longer means more accurate values.
   Valid values are: `50ms` _(default)_, `100ms`, `150ms`, `200ms`, `250ms`, `300ms`, `350ms`, `400ms`.
 
 - **glass_attenuation_factor** (_Optional_, float): The attenuation factor of glass if it's behind some glass
   or plastic facia. Default is `1.0` means `100%` transmissivity. `2` means `50%` transmissivity etc.
 
-- **update_interval** (_Optional_, [Time](#config-time)): The interval for checking the sensors.
+- **update_interval** (_Optional_, [Time](/guides/configuration-types#time)): The interval for checking the sensors.
   Defaults to `60s`.
 
-- **ps_cooldown** (_Optional_, [Time](#config-time)): The "cooldown" period after the proximity sensor is triggered.
+- **ps_cooldown** (_Optional_, [Time](/guides/configuration-types#time)): The "cooldown" period after the proximity sensor is triggered.
   Helps to avoid multiple calls. Defaults to `5s`.
 
 - **ps_gain** (_Optional_, string): The gain the device will use for proximity sensor. Higher values are better in low-light conditions.
@@ -147,8 +147,8 @@ sensor:
 
 This component offers five sensors for ALS-equipped devices and one sensor for PS-equipped devices.
 You can configure all or any subset of these sensors. Each configured sensor is reported separately
-on each `update_interval`. Each is an ESPHome [sensor](#config-sensor) and may be configured
-accordingly; if you don't need to configure additional [sensor](#config-sensor) variables, you
+on each `update_interval`. Each is an ESPHome [sensor](/components/sensor) and may be configured
+accordingly; if you don't need to configure additional [sensor](/components/sensor) variables, you
 may simply use the shorthand syntax for the sensor. For example: `ambient_light: "Ambient light"`
 
 - **ambient_light** (_Optional_): Illuminance of ambient light, close to human eye spectre, lx.

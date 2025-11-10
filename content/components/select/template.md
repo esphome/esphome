@@ -29,11 +29,11 @@ select:
 - **lambda** (*Optional*, [lambda](#config-lambda)):
   Lambda to be evaluated every update interval to get the current option of the select.
 
-- **set_action** (*Optional*, [Action](#config-action)): The action that should
+- **set_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote (like Home Assistant's frontend) requests to set the Select option.
   The new option is available to lambdas in the `x` variable.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval on which to update the select
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval on which to update the select
   by executing the `lambda`. Defaults to `60s`.
 
 - **optimistic** (*Optional*, boolean): Whether to operate in optimistic mode - when in this mode,
@@ -59,5 +59,5 @@ with the [`select.set` Action](#select-set_action).
 
 ## See Also
 
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "template/select/template_select.h" "template/select/template_select.h" >}}

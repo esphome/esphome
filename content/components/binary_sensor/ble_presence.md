@@ -73,7 +73,7 @@ binary_sensor:
    to be tracked. Usually used to identify beacons within an iBeacon group.
 
 - **min_rssi** (*Optional*, int): at which minimum RSSI level would the component report the device be present.
-- **timeout** (*Optional*, [Time](#config-time)): The delay after last detecting the device before publishing not present state.
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): The delay after last detecting the device before publishing not present state.
    The default is 5 minutes.
 
 - All other options from [Binary Sensor](#config-binary_sensor).

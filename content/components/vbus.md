@@ -76,7 +76,7 @@ vbus:
 
 ### Configuration variables
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the UART hub used to connect to the device.
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the UART hub used to connect to the device.
 
 > [!NOTE]
 > Functionality of the sensors depends on the type of the device and the scheme arrangement of the hydraulic
@@ -126,7 +126,7 @@ Supported sensors:
 - for **deltasol_cs2**: `temperature_1`, `temperature_2`, `temperature_3`, `temperature_4`, `pump_speed`, `operating_hours`, `heat_quantity`, `version`.
 - for **deltasol_cs_plus**: `temperature_1`, `temperature_2`, `temperature_3`, `temperature_4`, `temperature_5`, `pump_speed_1`, `pump_speed_2`, `operating_hours_1`, `operating_hours_2`, `heat_quantity`, `time`, `version`, `flow_rate`.
 
-All sensors are *Optional* and support all other options from [Sensor](#config-sensor).
+All sensors are *Optional* and support all other options from [Sensor](/components/sensor).
 
 > [!NOTE]
 > Sensors are updated every time a data packet is sent by the device. Some models send data very often, possibly every second. If you are
@@ -203,7 +203,7 @@ sensor:
 - **dest** (**Required**): The `DFA` value corresponding to your device (see below).
 - **source** (**Required**): The address corresponding to `your device model` (see below).
 - **command** (**Required**): The `command` corresponding to your device (see below).
-- **sensors** (**Required**): A list of [Sensor](#config-sensor) definitions that include a `lambda` to do the decoding and return a `float` value.
+- **sensors** (**Required**): A list of [Sensor](/components/sensor) definitions that include a `lambda` to do the decoding and return a `float` value.
 
 - **lambda** (**Required**, [lambda](#config-lambda)): Code to parse a value from the incoming data packets and return it.
   The data packet is in a `std::vector<uint8_t>` called `x`.

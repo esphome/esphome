@@ -28,7 +28,7 @@ sensor:
 
 ## Configuration variables
 
-- **pin** (**Required**, [Pin](#config-pin)): The pin to measure the voltage on.
+- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin to measure the voltage on.
   Or on the ESP8266 or Raspberry Pi Pico it could alternatively be set to `VCC`, see [Measuring VCC](#adc-vcc).
 
 - **attenuation** (*Optional*): Only on ESP32. Specify the ADC
@@ -42,10 +42,10 @@ sensor:
   - `min` minimal value from all samples
   - `max` maximal value from all samples
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval
   to check the sensor. Defaults to `60s`.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 > [!NOTE]
 > This component prints the voltage as seen by the chip pin. On the ESP8266, this is always 0.0V to 1.0V

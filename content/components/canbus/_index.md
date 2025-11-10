@@ -56,7 +56,7 @@ canbus:
 **Configuration variables:**
 
 - **platform** (**Required**, [platform](#platforms-canbus)): One of the supported CAN bus [Platforms](#platforms-canbus).
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **can_id** (**Required**, int): default *CAN ID* used for transmitting frames.
 - **use_extended_id** (*Optional*, boolean): Identifies the type of `can_id`  :
 
@@ -87,7 +87,7 @@ canbus:
   - `500KBPS`
   - `1000KBPS`
 
-- **on_frame** (*Optional*, [Automation](#automation)): An automation to perform when a
+- **on_frame** (*Optional*, [Automation](/automations)): An automation to perform when a
   CAN frame is received. See [`on_frame` Trigger](#canbus-on-frame).
 
 {{< anchor "platforms-canbus" >}}
@@ -173,7 +173,7 @@ on_...:
 
 **Configuration variables:**
 
-- **data** (**Required**, binary data, [templatable](#config-templatable)): Data to transmit, up to eight
+- **data** (**Required**, binary data, [templatable](/automations/templates)): Data to transmit, up to eight
   bytes/characters are supported by CAN bus per frame.
 
 - **canbus_id** (*Optional*): Sets the CAN bus ID to use for transmitting the frame. Required if you are have multiple

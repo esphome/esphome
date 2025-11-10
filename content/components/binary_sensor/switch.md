@@ -26,7 +26,7 @@ switch:
 
 ## Configuration variables
 
-- **source_id** (**Required**, [ID](#config-id)): The source switch to observe.
+- **source_id** (**Required**, [ID](/guides/configuration-types#id)): The source switch to observe.
 - All other options from [Binary Sensor](#config-binary_sensor).
 
 ## See Also

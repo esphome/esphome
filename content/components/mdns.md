@@ -47,5 +47,5 @@ mdns:
 
   - **service** (**Required**, string): Name of extra service.
   - **protocol** (**Required**, string): Protocol of service (_udp or_tcp).
-  - **port** (*Optional*, [templatable](#config-templatable), int): Port number of extra service.
-  - **txt** (*Optional*, mapping): Additional text records to add to service. Values are [templatable](#config-templatable).
+  - **port** (*Optional*, [templatable](/automations/templates), int): Port number of extra service.
+  - **txt** (*Optional*, mapping): Additional text records to add to service. Values are [templatable](/automations/templates).

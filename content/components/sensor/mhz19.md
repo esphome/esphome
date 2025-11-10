@@ -14,7 +14,7 @@ The CO_2 measurement also works with the MH-Z16 and MH-Z14 sensors.
 {{< img src="mhz19-full.jpg" alt="Image" caption="MH-Z19 CO_2 and Temperature Sensor." width="50.0%" class="align-center" >}}
 
 As the communication with the MH-Z19 is done using UART, you need
-to have an [UART bus](#uart) in your configuration with the `rx_pin` connected to the TX pin of the
+to have an [UART bus](/components/uart) in your configuration with the `rx_pin` connected to the TX pin of the
 MH-Z19 and the `tx_pin` connected to the RX Pin of the MH-Z19 (it's switched because the
 TX/RX labels are from the perspective of the MH-Z19). Additionally, you need to set the baud rate to 9600.
 
@@ -31,19 +31,19 @@ sensor:
 ## Configuration variables
 
 - **co2** (*Optional*): The CO_2 data from the sensor in parts per million (ppm).
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **temperature** (*Optional*): The information for the temperature sensor. Please note that this is
   not officially documented in the datasheet and seems to be quite inaccurate.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the [UART Component](#uart) if you want
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [UART Component](/components/uart) if you want
   to use multiple UART buses.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for actions.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for actions.
 
 - **automatic_baseline_calibration** (*Optional*, boolean): MH-Z19 has automatic calibration procedure.
   The automatic calibration cycle is every 24 hours after powered on.
@@ -59,7 +59,7 @@ sensor:
 
 ## `mhz19.calibrate_zero` Action
 
-This [action](#config-action) executes zero point calibration command on the sensor with the given ID.
+This [action](/automations/actions#all-actions) executes zero point calibration command on the sensor with the given ID.
 
 If you want to execute zero point calibration, the MH-Z19 sensor must work in stable gas environment (400ppm)
 for over 20 minutes and you execute this function.
@@ -84,7 +84,7 @@ api:
 
 ## `mhz19.abc_enable` Action
 
-This [action](#config-action) enables automatic baseline calibration on the sensor with the given ID.
+This [action](/automations/actions#all-actions) enables automatic baseline calibration on the sensor with the given ID.
 
 ```yaml
 on_...:
@@ -96,7 +96,7 @@ on_...:
 
 ## `mhz19.abc_disable` Action
 
-This [action](#config-action) disables automatic baseline calibration on the sensor with the given ID.
+This [action](/automations/actions#all-actions) disables automatic baseline calibration on the sensor with the given ID.
 
 ```yaml
 on_...:

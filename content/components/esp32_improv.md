@@ -30,37 +30,37 @@ esp32_improv:
 
 ## Configuration variables
 
-- **authorizer** (**Required**, [ID](#config-id)): A {{< docref "binary_sensor/index" "binary sensor" >}} to authorize with.
+- **authorizer** (**Required**, [ID](/guides/configuration-types#id)): A {{< docref "binary_sensor/index" "binary sensor" >}} to authorize with.
   Also accepts `none` to skip authorization.
 
-- **authorized_duration** (*Optional*, [Time](#config-time)): The amount of time until authorization times out and needs
+- **authorized_duration** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time until authorization times out and needs
   to be re-authorized. Defaults to `1min`.
 
-- **status_indicator** (*Optional*, [ID](#config-id)): An {{< docref "output/index" "output" >}} to display feedback to the user.
-- **identify_duration** (*Optional*, [Time](#config-time)): The amount of time to identify for. Defaults to `10s`.
-- **wifi_timeout** (*Optional*, [Time](#config-time)): The amount of time to wait before starting the Improv service
+- **status_indicator** (*Optional*, [ID](/guides/configuration-types#id)): An {{< docref "output/index" "output" >}} to display feedback to the user.
+- **identify_duration** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time to identify for. Defaults to `10s`.
+- **wifi_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time to wait before starting the Improv service
   after Wi-Fi is no longer connected. Defaults to `1min`.
 
-- **on_start** (*Optional*, [Automation](#automation)): An action to be performed when Improv is waiting for
+- **on_start** (*Optional*, [Automation](/automations)): An action to be performed when Improv is waiting for
   authorization and/or upon authorization. See [`on_start`](#improv-on_start).
 
-- **on_provisioned** (*Optional*, [Automation](#automation)): An action to be performed when provisioning has
+- **on_provisioned** (*Optional*, [Automation](/automations)): An action to be performed when provisioning has
   completed. See [`on_provisioned`](#improv-on_provisioned).
 
-- **on_provisioning** (*Optional*, [Automation](#automation)): An action to be performed when the device begins the
+- **on_provisioning** (*Optional*, [Automation](/automations)): An action to be performed when the device begins the
   provisioning process. See [`on_provisioning`](#improv-on_provisioning).
 
-- **on_stop** (*Optional*, [Automation](#automation)): An action to be performed when Improv has stopped.
+- **on_stop** (*Optional*, [Automation](/automations)): An action to be performed when Improv has stopped.
   See [`on_stop`](#improv-on_stop).
 
-- **on_state** (*Optional*, [Automation](#automation)): An action to be performed when an Improv state change
+- **on_state** (*Optional*, [Automation](/automations)): An action to be performed when an Improv state change
   happens. See [`on_state`](#improv-on_state).
 
 {{< anchor "improv-automations" >}}
 
 ## Improv Automations
 
-The ESP32 Improv component provides various [automations](#automation) that can be used to provide feedback during
+The ESP32 Improv component provides various [automations](/automations) that can be used to provide feedback during
 the Improv provisioning process.
 
 {{< anchor "improv-on_start" >}}

@@ -26,13 +26,13 @@ light:
 
 ## Configuration variables
 
-- **red** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the red channel.
-- **green** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the green channel.
-- **blue** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the blue channel.
-- **color_temperature** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the
+- **red** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the red channel.
+- **green** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the green channel.
+- **blue** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the blue channel.
+- **color_temperature** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the
   color temperature channel.
 
-- **white_brightness** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the brightness
+- **white_brightness** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the brightness
   of the white leds.
 
 - **cold_white_color_temperature** (**Required**, float): The coldest color temperature supported by this light. This

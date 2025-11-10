@@ -51,7 +51,7 @@ esp32_ble:
 > [!NOTE]
 > The `disable_bt_logs` option intelligently disables only the Bluetooth logging categories that are not required by your configuration. Each Bluetooth component registers the specific loggers it needs, and all unused loggers are automatically disabled during compilation. This includes loggers for Classic Bluetooth features (like RFCOMM, A2DP, HID) that are not used by ESPHome's BLE implementation.
 
-- **connection_timeout** (*Optional*, [Time](#config-time)): The maximum time to wait for a BLE connection to be established. Defaults to `20s`.
+- **connection_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The maximum time to wait for a BLE connection to be established. Defaults to `20s`.
 
   - Range: 10 to 180 seconds
   - This timeout should align with the timeout used by your BLE client software to prevent connection slot waste
@@ -64,7 +64,7 @@ esp32_ble:
 > [!NOTE]
 > The `advertising` option is an advanced feature that manually enables BLE advertising compilation. In most cases, you don't need to set this as advertising is automatically enabled when using components that require it (like `esp32_ble_server` or `esp32_ble_beacon`  ). This option is primarily useful for custom components or special use cases where you need advertising functionality without the standard server or beacon components.
 
-- **advertising_cycle_time** (*Optional*, [Time](#config-time)): The time interval for cycling through multiple advertisements. Only applicable when advertising is enabled. Defaults to `10s`.
+- **advertising_cycle_time** (*Optional*, [Time](/guides/configuration-types#time)): The time interval for cycling through multiple advertisements. Only applicable when advertising is enabled. Defaults to `10s`.
 
 - **max_connections** (*Optional*, integer): The maximum number of simultaneous BLE connections (client + server combined). Defaults to `3`.
 
@@ -116,7 +116,7 @@ on_...:
 
 ## `ble.enabled` Condition
 
-This [Condition](#config-condition) checks if BLE is currently enabled or not.
+This [Condition](/automations/actions#all-conditions) checks if BLE is currently enabled or not.
 
 ```yaml
 on_...:

@@ -45,13 +45,13 @@ pin_a:
 
 ## Configuration variables
 
-- **pin_a** (**Required**, [Pin Schema](#config-pin_schema)):
+- **pin_a** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)):
   The first pin for determining the step value. Must not be a pin from an external I/O expander.
 
-- **pin_b** (**Required**, [Pin Schema](#config-pin_schema)):
+- **pin_b** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)):
   The second pin for determining the step value. Must not be a pin from an external I/O expander.
 
-- **pin_reset** (*Optional*, [Pin Schema](#config-pin_schema)):
+- **pin_reset** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)):
   An optional pin that resets the step value. This is useful with rotary encoders that have a
   third pin. Defaults to no reset pin.
 
@@ -78,13 +78,13 @@ pin_a:
   - `RESTORE_DEFAULT_ZERO` - (Default) Attempt to restore state and default to zero (0) if not possible to restore.
   - `ALWAYS_ZERO` - Always initialize the counter with value zero (0).
 
-- **on_clockwise** (*Optional*, [Automation](#automation)): Actions to be performed when
+- **on_clockwise** (*Optional*, [Automation](/automations)): Actions to be performed when
   the knob is turned clockwise. See [`on_clockwise` and `on_anticlockwise` Triggers](#sensor-rotary_encoder-triggers).
 
-- **on_anticlockwise** (*Optional*, [Automation](#automation)): Actions to be performed when
+- **on_anticlockwise** (*Optional*, [Automation](/automations)): Actions to be performed when
   the knob is turned anticlockwise. See [`on_clockwise` and `on_anticlockwise` Triggers](#sensor-rotary_encoder-triggers).
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 {{< anchor "sensor-rotary_encoder-set_value_action" >}}
 
@@ -115,8 +115,8 @@ on_...:
 
 Configuration options:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the rotary encoder.
-- **value** (**Required**, int, [templatable](#config-templatable)):
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the rotary encoder.
+- **value** (**Required**, int, [templatable](/automations/templates)):
   The value to set the internal counter to.
 
 {{< anchor "sensor-rotary_encoder-triggers" >}}

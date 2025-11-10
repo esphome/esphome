@@ -35,5 +35,5 @@ with the [`number.set` Action](#number-set_action).
 
 ## See Also
 
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "homeassistant/number/homeassistant_number.h" "homeassistant/number/homeassistant_number.h" >}}

@@ -32,11 +32,11 @@ speaker:
 
 ## Configuration variables
 
-- **output_speaker** (**Required**, [ID](#config-id)): The {{< docref "/components/speaker/index" "speaker" >}} to output the mixed audio.
+- **output_speaker** (**Required**, [ID](/guides/configuration-types#id)): The {{< docref "/components/speaker/index" "speaker" >}} to output the mixed audio.
 - **source_speakers** (**Required**, list): A list of source speaker inputs. Must have at least 2 and at most 8 speakers.
 
-  - **buffer_duration** (*Optional*, [Time](#config-time)): The duration of the internal ring buffer. Larger values can reduce stuttering but use more memory. Defaults to `100ms`.
-  - **timeout** (*Optional*, [Time](#config-time)): How long to wait after finishing playback before releasing the bus. Set to `never` to never stop the speaker due to a timeout. Defaults to `500ms`.
+  - **buffer_duration** (*Optional*, [Time](/guides/configuration-types#time)): The duration of the internal ring buffer. Larger values can reduce stuttering but use more memory. Defaults to `100ms`.
+  - **timeout** (*Optional*, [Time](/guides/configuration-types#time)): How long to wait after finishing playback before releasing the bus. Set to `never` to never stop the speaker due to a timeout. Defaults to `500ms`.
   - All other options from [Speaker Component](#config-speaker).
 
 - **num_channels** (*Optional*, positive integer): The number of audio channels to send to the output speaker. Either `1` or `2`. Defaults to the output speaker's number of channels.
@@ -62,7 +62,7 @@ on_...:
 Configuration variables:
 
 - **decibel_reduction** (**Required**, int, templatable): The reduction of the media stream in decibels. Must be between 0 and 50.
-- **duration** (*Optional*, [Time](#config-time), templatable): The length of time to transition between the current reduction level and the new reduction level. Defaults to `0s`.
+- **duration** (*Optional*, [Time](/guides/configuration-types#time), templatable): The length of time to transition between the current reduction level and the new reduction level. Defaults to `0s`.
 
 ## See also
 

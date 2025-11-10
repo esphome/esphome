@@ -62,10 +62,10 @@ the `color_mode` option of the [light control actions](#light-turn_on_action).
 
 ## Configuration variables
 
-- **red** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the red channel.
-- **green** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the green channel.
-- **blue** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the blue channel.
-- **white** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the white channel.
+- **red** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the red channel.
+- **green** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the green channel.
+- **blue** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the blue channel.
+- **white** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the white channel.
 - **color_interlock** (*Optional*, boolean): When enabled, this will prevent white leds being on at the same
   time as RGB leds. See [Color Interlock](#rgbw_color_interlock) for more information. Defaults to `false`.
 

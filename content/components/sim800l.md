@@ -37,19 +37,19 @@ sim800l:
 
 ### Configuration variables
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the UART hub.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
-- **on_sms_received** (*Optional*, [Automation](#automation)): An action to be
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the UART hub.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- **on_sms_received** (*Optional*, [Automation](/automations)): An action to be
   performed when an SMS is received. See [`on_sms_received` Trigger](#sim800l-on_sms_received).
 
-- **on_incoming_call** (*Optional*, [Automation](#automation)): An action to be
+- **on_incoming_call** (*Optional*, [Automation](/automations)): An action to be
   performed when a call is received. See [`on_incoming_call` Trigger](#sim800l-on_incoming_call).
 
-- **on_call_connected** (*Optional*, [Automation](#automation)): An action to be
+- **on_call_connected** (*Optional*, [Automation](/automations)): An action to be
   performed when a call is connected, either because an outgoing call accepted is
   accepted or an incoming call answered.
 
-- **on_call_disconnected** (*Optional*, [Automation](#automation)): An action to be
+- **on_call_disconnected** (*Optional*, [Automation](/automations)): An action to be
   performed when a call is disconnected.
 
 ## Sensor
@@ -65,7 +65,7 @@ sensor:
 
 - **rssi** (*Optional*): The informed Received signal strength indication (RSSI) in dBm.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 ## Binary Sensor
 
@@ -158,11 +158,11 @@ on_...:
 
 #### Configuration variables
 
-- **recipient** (**Required**, string, [templatable](#config-templatable)): The message recipient.
+- **recipient** (**Required**, string, [templatable](/automations/templates)): The message recipient.
   number.
 
-- **message** (**Required**, string, [templatable](#config-templatable)): The message content.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID of the SIM800L if you have multiple components.
+- **message** (**Required**, string, [templatable](/automations/templates)): The message content.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the SIM800L if you have multiple components.
 
 {{< anchor "sim800l-dial_action" >}}
 
@@ -179,8 +179,8 @@ on_...:
 
 #### Configuration variables
 
-- **recipient** (**Required**, string, [templatable](#config-templatable)): The number to dial.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID of the SIM800L if you have multiple components.
+- **recipient** (**Required**, string, [templatable](/automations/templates)): The number to dial.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the SIM800L if you have multiple components.
 
 ### `sim800l.connect` Action
 

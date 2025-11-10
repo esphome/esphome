@@ -63,7 +63,7 @@ web_server:
   web server OTA platform, setting this to `false` prevents OTA access through the regular web interface while
   maintaining it for captive portal access. To enable OTA for web server, use the `web_server` OTA platform instead.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **local** (*Optional*, boolean): Include supporting javascript locally allowing it to work without internet access.
   Defaults to `false`.
 
@@ -73,7 +73,7 @@ web_server:
 - **sorting_groups** (*Optional*, list): Available only on `version: 3`. A list of group ID's and names to group the
   entities. See [Webserver Entity Grouping](#config-webserver-grouping).
 
-  - **id** (**Required**, [ID](#config-id)): Manually specify the ID used for the group.
+  - **id** (**Required**, [ID](/guides/configuration-types#id)): Manually specify the ID used for the group.
   - **name** (**Required**, string): A string representing the group name which is displayed as the header of the group
   - **sorting_weight** (*Optional*, float): A float representing the weight of the group. A group with a smaller
 

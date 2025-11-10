@@ -33,8 +33,8 @@ output:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The id to use for this output component.
-- **power_supply** (*Optional*, [ID](#config-id)): The {{< docref "/components/power_supply" "power supply" >}} to connect to
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
+- **power_supply** (*Optional*, [ID](/guides/configuration-types#id)): The {{< docref "/components/power_supply" "power supply" >}} to connect to
   this output. When the output is enabled, the power supply will
   automatically be switched on too.
 

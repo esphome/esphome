@@ -27,8 +27,8 @@ Note: To gather the RAW codes from the remote, setup the `read_pin` and observe 
 
 ## Configuration variables
 
-- **read_pin** (**Required**, [Pin Schema](#config-pin_schema)): The pin that the receiver is connected to
-- **write_pin** (**Required**, [Pin Schema](#config-pin_schema)): the pin that the transmitter is connected to
+- **read_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin that the receiver is connected to
+- **write_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): the pin that the transmitter is connected to
 
 .. lightwaverf.send_raw:
 

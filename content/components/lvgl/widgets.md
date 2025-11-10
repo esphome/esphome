@@ -15,7 +15,7 @@ The properties below are common to all widgets.
 
 **Configuration variables:**
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **x** (*Optional*, int16 or percentage): Horizontal position of the widget.
 - **y** (*Optional*, int16 or percentage): Vertical position of the widget.
 
@@ -50,7 +50,7 @@ The properties below are common to all widgets.
 
 - **group** (*Optional*, string): The name of the group of widgets which will interact with a {{< docref "/components/sensor/rotary_encoder" >}}. In every group there is always one focused widget which receives the encoder actions. You need to associate an input device with a group. An input device can send key events to only one group but a group can receive data from more than one input device. If no group is specified for a widget or an encoder, an unnamed default group will be assigned, so in most cases where only one encoder is used it will not be necessary to explicitly specify a group.
 - **layout** (*Optional*): See [Layouts](#lvgl-layouts) for details. Defaults to `NONE`.
-- **styles** (*Optional*, [ID](#config-id)): The ID of a *style definition* from the main component configuration to override the theme styles.
+- **styles** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a *style definition* from the main component configuration to override the theme styles.
 - **theme** (*Optional*, list): A list of styles to apply to the widget and children. Same configuration option as at the main component.
 - **widgets** (*Optional*, list): A list of LVGL widgets to be drawn as children of this widget. Same configuration option as at the main component.
 
@@ -213,7 +213,7 @@ The animation image is similar to the normal `image` widget. The main difference
 
 - **src** (**Required**, list of [images](#display-image)): A list of IDs of existing image configurations to be loaded as frames of the animation.
 - **auto_start** (*Optional*, boolean): Start the animation playback automatically at boot. Defaults to `true`.
-- **duration** (**Required**, [Time](#config-time)): Total duration of a playback cycle (each frame is displayed for an equal amount of time).
+- **duration** (**Required**, [Time](/guides/configuration-types#time)): Total duration of a playback cycle (each frame is displayed for an equal amount of time).
 - **repeat_count** (*Optional*, int16 or *forever*): The number of times playback should be repeated. Defaults to `forever`.
 - Some style options from [Style properties](#lvgl-styling) for the background rectangle that uses the typical background style properties and the image itself using the image style properties.
 
@@ -229,7 +229,7 @@ The animation image is similar to the normal `image` widget. The main difference
   - **id** (**Required**): The ID or a list of IDs of animimg widgets to be updated.
   - **src** (*Optional*, list of [images](#display-image)): A list of IDs of existing image configurations to be loaded as frames of the animation.
   - **auto_start** (*Optional*, boolean): Start the animation playback automatically after update. Defaults to `true`.
-  - **duration** (*Optional*, [Time](#config-time)): Total duration of a playback cycle (each frame is displayed for an equal amount of time). This will apply to the next playback loop.
+  - **duration** (*Optional*, [Time](/guides/configuration-types#time)): Total duration of a playback cycle (each frame is displayed for an equal amount of time). This will apply to the next playback loop.
   - **repeat_count** (*Optional*, int16 or *forever*): The number of times playback should be repeated. Defaults to `forever`.
   - Some style options from [Style properties](#lvgl-styling) for the background rectangle that uses the typical background style properties and the image itself using the image style properties.
 
@@ -1178,7 +1178,7 @@ The meter widget can visualize data in very flexible ways. It can use arcs, need
       - **width**: Arc width in pixels. Defaults to `4`.
       - **opa**: Opacity of the arc. Defaults to 100%.
     - **image** (*Optional*): Add a rotating needle image to the scale:
-      - **id**: Manually specify the [ID](#config-id) used for updating the indicator value at runtime.
+      - **id**: Manually specify the [ID](/guides/configuration-types#id) used for updating the indicator value at runtime.
       - **pivot_x**: Horizontal position of the pivot point of rotation, in pixels, relative to the top left corner of the image.
       - **pivot_y**: Vertical position of the pivot point of rotation, in pixels, relative to the top left corner of the image.
       - **src**: The ID of an existing image configuration, representing a needle pointing to the right like `-o--->`.
@@ -1186,7 +1186,7 @@ The meter widget can visualize data in very flexible ways. It can use arcs, need
       - **opa**: Opacity of the image. Defaults to 100%.
     - **line** (*Optional*): Add a needle line to the scale. By default, the length of the line is the same as the scale's radius:
       - **color**: [Color](#lvgl-color) for the needle line. Defaults to `0` (black).
-      - **id**: Manually specify the [ID](#config-id) used for updating the indicator value at runtime.
+      - **id**: Manually specify the [ID](/guides/configuration-types#id) used for updating the indicator value at runtime.
       - **r_mod**: Adjust the length of the needle from the scale radius with this amount (can be negative). Defaults to `0`.
       - **value**: The value in the scale range to show at start.
       - **width**: Needle line width in pixels. Defaults to `4`.
@@ -1411,7 +1411,7 @@ Roller allows you to simply select one option from a list by scrolling.
 
 **Configuration variables:**
 
-- **anim_time** (*Optional*, [Time](#config-time)): When the Roller is scrolled and doesn't stop exactly on an option it will scroll to the nearest valid option automatically in this amount of time.
+- **anim_time** (*Optional*, [Time](/guides/configuration-types#time)): When the Roller is scrolled and doesn't stop exactly on an option it will scroll to the nearest valid option automatically in this amount of time.
 - **mode** (*Optional*, enum): Option to make the roller circular. `NORMAL` or `INFINITE`, defaults to `NORMAL`.
 - **options** (**Required**, list): The list of available options in the roller.
 - **selected_index** (*Optional*, int8): The index of the item you wish to be selected.
@@ -1475,7 +1475,7 @@ The slider widget looks like a bar supplemented with a knob. The user can drag t
 
 **Configuration variables:**
 
-- **anim_time** (*Optional*, [Time](#config-time)): Sets the animation time if the value is set with `animated: true`.
+- **anim_time** (*Optional*, [Time](/guides/configuration-types#time)): Sets the animation time if the value is set with `animated: true`.
 - **animated** (*Optional*, boolean): Animate the indicator on boot to the starting value. Defaults to `true`.
 - **indicator** (*Optional*, list): Settings for the indicator *part* to show the value. Supports a list of [styles](#lvgl-styling) and state-based styles to customize. The indicator shows the current state of the slider. Also uses all the typical background style properties.
 - **knob** (*Optional*, list): Settings for the knob *part* to control the value. Supports a list of [styles](#lvgl-styling) and state-based styles to customize. A rectangle (or circle) is drawn at the current value. Also uses all the typical background properties to describe the knob. By default, the knob is square (with an optional corner radius) with side length equal to the smaller side of the slider. The knob can be made larger with the padding values. Padding values can be asymmetric.
@@ -1549,7 +1549,7 @@ The spinbox contains a numeric value (as text) which can be increased or decreas
 
 **Configuration variables:**
 
-- **anim_time** (*Optional*, [Time](#config-time)): Sets the cursor's blink time.
+- **anim_time** (*Optional*, [Time](/guides/configuration-types#time)): Sets the cursor's blink time.
 - **decimal_places** (*Optional*, 0..6): The number of digits after the decimal point. If `0`, no decimal point is displayed. Defaults to `0`.
 - **digits** (*Optional*, 1..10): The number of digits (excluding the decimal separator and the sign characters). Defaults to `4`.
 - **range_from** (*Optional*, float): The minimum value allowed to set the spinbox to. Defaults to `0`.
@@ -1633,7 +1633,7 @@ The Spinner widget is a spinning arc over a ring.
 - **arc_rounded** (*Optional*, boolean): Make the end points of the arcs rounded. `true` rounded, `false` perpendicular line ending.
 - **arc_width** (*Optional*, int16): Set the width of the arcs in pixels.
 - **indicator** (*Optional*, list): Settings for the indicator *part* to show the value. Supports a list of [styles](#lvgl-styling) and state-based styles to customize. Draws *another arc using the arc style* properties. Its padding values are interpreted relative to the background arc.
-- **spin_time** (**Required**, [Time](#config-time)): Duration of one cycle of the spin.
+- **spin_time** (**Required**, [Time](/guides/configuration-types#time)): Duration of one cycle of the spin.
 - Style options from [Style properties](#lvgl-styling).
 
 **Actions:**

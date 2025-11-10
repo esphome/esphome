@@ -26,37 +26,37 @@ Configuration variables:
 > If you have a [friendly_name](#esphome-configuration_variables) set for your device and
 > you want the switch to use that name, you can set `name: None`.
 
-- **on_state** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_state** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm changes state. See [`on_state` Trigger](#alarm_control_panel_on_state_trigger).
 
-- **on_arming** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_arming** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm state changes to `arming`. See [`on_arming` Trigger](#alarm_control_panel_on_arming_trigger).
 
-- **on_pending** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_pending** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm state changes to `pending`. See [`on_pending` Trigger](#alarm_control_panel_on_pending_trigger).
 
-- **on_armed_home** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_armed_home** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm state changes to `armed_home`. See [`on_armed_home` Trigger](#alarm_control_panel_on_armed_home_trigger).
 
-- **on_armed_night** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_armed_night** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm state changes to `armed_night`. See [`on_armed_night` Trigger](#alarm_control_panel_on_armed_night_trigger).
 
-- **on_armed_away** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_armed_away** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm state changes to `armed_away`. See [`on_armed_away` Trigger](#alarm_control_panel_on_armed_away_trigger).
 
-- **on_triggered** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_triggered** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm triggers. See [`on_triggered` Trigger](#alarm_control_panel_on_triggered_trigger).
 
-- **on_disarmed** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_disarmed** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm state changes to `disarmed`. See [`on_disarmed` Trigger](#alarm_control_panel_on_disarmed_trigger).
 
-- **on_cleared** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_cleared** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the alarm clears. See [`on_cleared` Trigger](#alarm_control_panel_on_cleared_trigger).
 
-- **on_ready** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_ready** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the logical 'and' of all the zone sensors change state. See [`on_ready` Trigger](#alarm_control_panel_on_ready_trigger).
 
-- **on_chime** (*Optional*, [Action](#config-action)): An automation to perform
+- **on_chime** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when a zone has been marked as chime in the configuration, and it changes from closed to open.
   See [`on_chime` Trigger](#alarm_control_panel_on_chime_trigger).
 
@@ -307,7 +307,7 @@ on_...:
 
 ### `is_armed` Condition
 
-This [Condition](#config-condition) checks if the alarm control panel is armed.
+This [Condition](/automations/actions#all-conditions) checks if the alarm control panel is armed.
 
 ```yaml
 on_...:

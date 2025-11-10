@@ -8,7 +8,7 @@ params:
 ---
 
 The `ufire_ec` sensor platform allows you to use your uFire Isolated EC sensor
-with ESPHome. The [I²C Bus](#i2c) is required to be set up in your
+with ESPHome. The [I²C Bus](/components/i2c) is required to be set up in your
 configuration for this sensor to work. It requires also to have a temperature
 sensor in the liquid tank; this can be on the same board or an external sensor
 linked to the uFire EC configuration.
@@ -30,15 +30,15 @@ sensor:
 ## Configuration variables
 
 - **address** (*Optional*, int): Specify the I²C address of the sensor. Defaults to `0x3C`.
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
-- **id** (*Optional*, [ID](#config-id)): Set the ID of this sensor for use in lambdas.
-- **temperature_sensor** (*Optional*, [ID](#config-id)): Set the ID of the temperature
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Set the ID of this sensor for use in lambdas.
+- **temperature_sensor** (*Optional*, [ID](/guides/configuration-types#id)): Set the ID of the temperature
   sensor. Only needed if the onboard temperature sensor is not used.
 
-- **ec** (*Optional*, [Sensor](#config-sensor)): Set the EC sensor configuration. All options from [Sensor](#config-sensor).
-- **temperature** (*Optional*, [Sensor](#config-sensor)): Set the onboard temperature sensor configuration. All options from [Sensor](#config-sensor).
+- **ec** (*Optional*, [Sensor](/components/sensor)): Set the EC sensor configuration. All options from [Sensor](/components/sensor).
+- **temperature** (*Optional*, [Sensor](/components/sensor)): Set the onboard temperature sensor configuration. All options from [Sensor](/components/sensor).
 - **temperature_compensation** (*Optional*, float): Set the temperature compensation for the EC
   sensor. Defaults to `21.0`.
 
@@ -69,7 +69,7 @@ on_...:
 
 Configuration options:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the ufire EC sensor.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the ufire EC sensor.
 - **solution** (**Required**, float): Solution reference EC value.
 - **temperature** (**Required**, float): Solution current temperature.
 
@@ -94,7 +94,7 @@ on_...:
 
 Configuration options:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the ufire EC sensor.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the ufire EC sensor.
 
 ## See Also
 

@@ -56,14 +56,14 @@ stepper:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): Specify the ID of the stepper so that you can control it.
-- **step_pin** (**Required**, [Pin Schema](#config-pin_schema)): The `STEP` pin of the A4988
+- **id** (**Required**, [ID](/guides/configuration-types#id)): Specify the ID of the stepper so that you can control it.
+- **step_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The `STEP` pin of the A4988
   stepper driver.
 
-- **dir_pin** (**Required**, [Pin Schema](#config-pin_schema)): The `DIRECTION` pin of the A4988
+- **dir_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The `DIRECTION` pin of the A4988
   stepper driver.
 
-- **sleep_pin** (*Optional*, [Pin Schema](#config-pin_schema)): Optionally also use the `SLEEP` pin
+- **sleep_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): Optionally also use the `SLEEP` pin
   of the A4988 stepper driver. If specified, the driver will be put into sleep mode as soon as the stepper
   reaches the target steps.
 
@@ -116,11 +116,11 @@ stepper:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): Specify the ID of the stepper so that you can control it.
-- **pin_a** (**Required**, [Pin Schema](#config-pin_schema)): The pin **a** of the stepper control board.
-- **pin_b** (**Required**, [Pin Schema](#config-pin_schema)): The pin **b** of the stepper control board.
-- **pin_c** (**Required**, [Pin Schema](#config-pin_schema)): The pin **c** of the stepper control board.
-- **pin_d** (**Required**, [Pin Schema](#config-pin_schema)): The pin **d** of the stepper control board.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): Specify the ID of the stepper so that you can control it.
+- **pin_a** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin **a** of the stepper control board.
+- **pin_b** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin **b** of the stepper control board.
+- **pin_c** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin **c** of the stepper control board.
+- **pin_d** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin **d** of the stepper control board.
 - **sleep_when_done** (*Optional*, boolean): Whether to turn off all coils when the stepper has
   reached the target position
 
@@ -136,7 +136,7 @@ Configuration variables:
 
 ## `stepper.set_target` Action
 
-To use your stepper motor in [automations](#automation) or templates, you can use this action to set the target
+To use your stepper motor in [automations](/automations) or templates, you can use this action to set the target
 position (in steps). The stepper will always run towards the target position and stop once it has reached the target.
 
 ```yaml
@@ -159,8 +159,8 @@ on_...:
 
 Configuration options:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the stepper.
-- **target** (**Required**, int, [templatable](#config-templatable)): The target position in steps.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
+- **target** (**Required**, int, [templatable](/automations/templates)): The target position in steps.
 
 > [!WARNING]
 > This turns the stepper to an absolute position! To have the stepper motor move *relative* to the current
@@ -214,14 +214,14 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the stepper.
-- **position** (**Required**, int, [templatable](#config-templatable)): The position to report in steps.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
+- **position** (**Required**, int, [templatable](/automations/templates)): The position to report in steps.
 
 {{< anchor "stepper-set_speed_action" >}}
 
 ## `stepper.set_speed` Action
 
-This [Action](#config-action) allows you to set the speed of a stepper at runtime.
+This [Action](/automations/actions#all-actions) allows you to set the speed of a stepper at runtime.
 
 ```yaml
 on_...:
@@ -232,15 +232,15 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the stepper.
-- **speed** (**Required**, [templatable](#config-templatable), float): The speed
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
+- **speed** (**Required**, [templatable](/automations/templates), float): The speed
   in `steps/s` (steps per seconds) to drive the stepper at.
 
 {{< anchor "stepper-set_acceleration_action" >}}
 
 ## `stepper.set_acceleration` Action
 
-This [Action](#config-action) allows you to set the acceleration of a stepper at runtime.
+This [Action](/automations/actions#all-actions) allows you to set the acceleration of a stepper at runtime.
 
 ```yaml
 on_...:
@@ -251,15 +251,15 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the stepper.
-- **acceleration** (**Required**, [templatable](#config-templatable), float): The acceleration
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
+- **acceleration** (**Required**, [templatable](/automations/templates), float): The acceleration
   in `steps/s^2` (steps per seconds squared) to use when starting to move.
 
 {{< anchor "stepper-set_deceleration_action" >}}
 
 ## `stepper.set_deceleration` Action
 
-This [Action](#config-action) allows you to set the deceleration of a stepper at runtime.
+This [Action](/automations/actions#all-actions) allows you to set the deceleration of a stepper at runtime.
 
 ```yaml
 on_...:
@@ -270,8 +270,8 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the stepper.
-- **deceleration** (**Required**, [templatable](#config-templatable), float): The same as `acceleration`,
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
+- **deceleration** (**Required**, [templatable](/automations/templates), float): The same as `acceleration`,
   but for when the motor is decelerating shortly before reaching the set position.
 
 {{< anchor "stepper-ha-config" >}}

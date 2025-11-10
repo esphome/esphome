@@ -22,7 +22,7 @@ one_wire:
   bus so the selected GPIO pin must support both input and output. This must be a GPIO pin internal to the
   microcontroller and cannot be a pin located on an I/O expander or similar device.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation. Required if you have
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. Required if you have
   multiple busses.
 
 ### See Also

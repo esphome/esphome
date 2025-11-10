@@ -35,7 +35,7 @@ usb_uart:
 
 ## Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): The id to use for this component.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The id to use for this component.
 - **type** (**Required**, string): The type of USB-serial device to connect to. One of `ch34x`, `ch340`, `esp_jtag`, `stm32_vcp`, `cdc_acm`, `cp210x`.
 - **channels** (**Required**, list): A list of channels to configure.
 - **vid** (*Optional*, int): The vendor ID of the device. Use 0 as a wildcard. Each type has a default VID which will be overridden if this is set.
@@ -45,7 +45,7 @@ Setting both `vid` and `pid` to 0 will match any device.
 
 ## Channel configuration options
 
-- **id** (*Optional*, [ID](#config-id)): An id to assign to the channel. This id may be used anywhere a `uart` component is required.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): An id to assign to the channel. This id may be used anywhere a `uart` component is required.
 - **baud_rate** (**Required**, int): The baud rate to use for the channel. This is optional (and ignored) for the `stm32_vcp`, `esp_jtag` and `cdc_acm` types.
 - **buffer_size** (*Optional*, int): The size of the buffer to use for the channel. Defaults to 256 bytes.
 - **stop_bits** (*Optional*, float): The number of stop bits to use. Defaults to 1. Other options are 1.5 and 2.

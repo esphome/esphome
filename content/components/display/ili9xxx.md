@@ -82,9 +82,9 @@ All [graphical display configuration](#display-configuration) options are availa
   - `ST7789V`, `ST7796`, `ST7735`
   - `GC9A01A`, `GC9D01N`, `CUSTOM`
 
-- **dc_pin** (**Required**, [Pin Schema](#config-pin_schema)): The DC pin.
-- **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin.
-- **cs_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The CS pin.
+- **dc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin.
+- **cs_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin.
 
 > [!NOTE]
 > A DC pin is always required, the CS pin and RESET pin will only be needed if the specific board has those
@@ -127,7 +127,7 @@ All [graphical display configuration](#display-configuration) options are availa
 
 - **init_sequence** (*Optional*): Allows custom initialisation sequences to be added. See below for more information.
 
-To modify the SPI setting see [SPI bus](#spi). The default **data_rate** is set to `40MHz` and the **spi_mode** mode is `MODE0` but some displays require `MODE3` (*).
+To modify the SPI setting see [SPI bus](/components/spi). The default **data_rate** is set to `40MHz` and the **spi_mode** mode is `MODE0` but some displays require `MODE3` (*).
 
 **Note:** The maximum achievable data rate will depend on the chip type (e.g. ESP32 vs ESP32-S3) the pins used (on ESP32 using the default SPI pins allows higher rates) and the connection type (on-board connections will support higher rates than long cables or DuPont wires.) If in doubt, start with a low speed and test higher rates to find what works. A MISO pin should preferably not be specified, as this will limit the maximum rate in some circumstances, and is not required if the SPI bus is used only for the display.
 

@@ -49,11 +49,11 @@ output:
 
 Configuration variables:
 
-- **update_interval** (**Required**, [Time](#config-time)): The cycle interval at which the output is recalculated.
-- **pin** (*Optional*, [Pin Schema](#config-pin_schema)): The pin to pulse.
-- **state_change_action** (*Optional*, [Automation](#automation)): An automation to perform when the load is switched. If a lambda is used the boolean `state` parameter holds the new status.
-- **turn_on_action** (*Optional*, [Automation](#automation)): An automation to perform when the load is turned on. Can be used to control for example a switch or output component.
-- **turn_off_action** (*Optional*, [Automation](#automation)): An automation to perform when the load is turned off. `turn_on_action` and `turn_off_action` must be configured together.
+- **update_interval** (**Required**, [Time](/guides/configuration-types#time)): The cycle interval at which the output is recalculated.
+- **pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin to pulse.
+- **state_change_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is switched. If a lambda is used the boolean `state` parameter holds the new status.
+- **turn_on_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is turned on. Can be used to control for example a switch or output component.
+- **turn_off_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is turned off. `turn_on_action` and `turn_off_action` must be configured together.
 - All options from [Output](#config-output).
 
 > [!NOTE]

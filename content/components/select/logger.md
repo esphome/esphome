@@ -21,5 +21,5 @@ select:
 
 ## See Also
 
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< docref "/components/logger" >}}

@@ -36,7 +36,7 @@ on_...:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](#config-id)) The ID of the LDO to adjust.
+- **id** (**Required**, [ID](/guides/configuration-types#id)) The ID of the LDO to adjust.
 - **voltage** (**Required**, voltage): The desired output voltage - must be in the range 0.5V to 2.7V.
 
 ## See Also

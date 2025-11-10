@@ -38,11 +38,11 @@ matrix_keypad:
 
 ### Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): Set the ID of this device for use in lambdas.
-- **rows** (**Required**, list): A list of [pins](#config-pin_schema) where the horrizontal
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Set the ID of this device for use in lambdas.
+- **rows** (**Required**, list): A list of [pins](/guides/configuration-types#pin-schema) where the horrizontal
   matrix lines are connected, in order from top to bottom. These pins need to be output capable.
 
-- **columns** (**Required**, list): A list of [pins](#config-pin_schema) where the vertical
+- **columns** (**Required**, list): A list of [pins](/guides/configuration-types#pin-schema) where the vertical
   matrix lines are connected, in order from left to right. These pins need to be input capable
   with pullups enabled. If there is no internal pullup, then an external one is required.
 
@@ -73,8 +73,8 @@ binary_sensor:
 
 ### Configuration variables
 
-- **keypad_id** (*Optional*, [ID](#config-id)): The ID of the keypad to process keypresses from.
-- **id** (*Optional*, [ID](#config-id)): Set the ID of this key for use in lambdas.
+- **keypad_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the keypad to process keypresses from.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Set the ID of this key for use in lambdas.
 - **row** (*Optional*, integer): The row of the key.
 - **col** (*Optional*, integer): The column of the key.
 - **key** (*Optional*, string): The key from `keys` configuration entry above.
@@ -84,7 +84,7 @@ Either the `row` and `col` parameters, or the `key` parameter has to be provided
 
 ## Automations
 
-- **on_key** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_key** (*Optional*, [Automation](/automations)): An automation to perform
   when a key has been pressed. The key is in a variable called `x`.
 
   > [!NOTE]

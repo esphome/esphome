@@ -14,7 +14,7 @@ The `sen5x` sensor platform allows you to use your Sensirion
 ([datasheet](https://sensirion.com/media/documents/6791EFA0/62A1F68F/Sensirion_Datasheet_Environmental_Node_SEN5x.pdf))
 sensors with ESPHome.
 
-The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
+The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
 This sensor supports both UART and I²C communication. Only I²C communication is implemented in this component.
 
 {{< img src="sen54-web.png" alt="Image" width="100.0%" class="align-center" >}}
@@ -47,34 +47,34 @@ sensor:
 - **pm_1_0** (*Optional*): The information for the **Weight Concentration** sensor for fine particles up to 1μm.
   Readings in µg/m³.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **pm_2_5** (*Optional*): The information for the **Weight Concentration** sensor for fine particles up to 2.5μm.
   Readings in µg/m³.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **pm_4_0** (*Optional*): The information for the **Weight Concentration** sensor for coarse particles up to 4μm.
   Readings in µg/m³.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **pm_10_0** (*Optional*): The information for the **Weight Concentration** sensor for coarse particles up to 10μm.
   Readings in µg/m³.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **auto_cleaning_interval** (*Optional*): Reads/Writes the interval in seconds of the periodic fan-cleaning.
 
 - **temperature** (*Optional*): Temperature.Note only available with Sen54 or Sen55. The sensor will be ignored on
   unsupported models.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **humidity** (*Optional*): Relative Humidity. Note only available with Sen54 or Sen55. The sensor will be ignored on
   unsupported models.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **voc** (*Optional*): VOC Index. Note only available with Sen54 or Sen55. The sensor will be ignored on
   unsupported models.
@@ -99,7 +99,7 @@ sensor:
     - **gain_factor** (*Optional*): Gain factor to amplify or to attenuate the VOC index output.
       Allowed values are in range 1..1000. The default value is 230.
 
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **nox** (*Optional*): NOx Index. Note: Only available with Sen55. The sensor will be ignored on unsupported models.
 
@@ -122,7 +122,7 @@ sensor:
     - **gain_factor** (*Optional*): Gain factor to amplify or to attenuate the VOC index output.
       Allowed values are in range 1..1000. The default value is 230.
 
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **store_baseline** (*Optional*, boolean): Stores and retrieves the baseline VOC and NOx information for
   quicker startups. Defaults to `true`
@@ -195,7 +195,7 @@ this time counter.
 
 ## `sen5x.start_fan_autoclean` Action
 
-This [action](#config-action) manually starts fan-cleaning.
+This [action](/automations/actions#all-actions) manually starts fan-cleaning.
 
 ```yaml
 on_...:

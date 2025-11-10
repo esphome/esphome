@@ -39,26 +39,26 @@ deep_sleep:
 
 ## Configuration variables
 
-- **run_duration** (*Optional*, [Time](#config-time)): The time duration the node should be active, i.e. run code.
+- **run_duration** (*Optional*, [Time](/guides/configuration-types#time)): The time duration the node should be active, i.e. run code.
 
   Only on ESP32, instead of time, it is possible to specify run duration according to the wakeup reason from deep-sleep:
 
-  - **default** (**Required**, [Time](#config-time)): default run duration for timer wakeup and any unspecified wakeup reason.
-  - **gpio_wakeup_reason** (*Optional*, [Time](#config-time)): run duration if woken up by GPIO.
-  - **touch_wakeup_reason** (*Optional*, [Time](#config-time)): run duration if woken up by touch.
+  - **default** (**Required**, [Time](/guides/configuration-types#time)): default run duration for timer wakeup and any unspecified wakeup reason.
+  - **gpio_wakeup_reason** (*Optional*, [Time](/guides/configuration-types#time)): run duration if woken up by GPIO.
+  - **touch_wakeup_reason** (*Optional*, [Time](/guides/configuration-types#time)): run duration if woken up by touch.
 
-- **sleep_duration** (*Optional*, [Time](#config-time)): The time duration to stay in deep sleep mode.
+- **sleep_duration** (*Optional*, [Time](/guides/configuration-types#time)): The time duration to stay in deep sleep mode.
 - **touch_wakeup** (*Optional*, boolean): Only on ESP32. Use a touch event to wakeup from deep sleep. To be able
   to wakeup from a touch event, [Binary Sensor](#esp32-touch-binary-sensor) must be configured properly.
 
-- **wakeup_pin** (*Optional*, [Pin Schema](#config-pin_schema)): Only on ESP32. A pin to wake up to once
+- **wakeup_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): Only on ESP32. A pin to wake up to once
   in deep sleep mode. Use the inverted property to wake up to LOW signals.
 
 - **wakeup_pin_mode** (*Optional*): Only on ESP32. Specify how to handle waking up from a `wakeup_pin` if
   the wakeup pin is already in the state with which it would wake up when attempting to enter deep sleep.
   See [ESP32 Wakeup Pin Mode](#deep_sleep-esp32_wakeup_pin_mode). Defaults to `IGNORE`
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 Advanced features:
 
@@ -152,9 +152,9 @@ on_...:
 
 Configuration options:
 
-- **sleep_duration** (*Optional*, [templatable](#config-templatable), [Time](#config-time)): The time duration to stay in deep sleep mode. If a template is used, it should return a value in milliseconds.
+- **sleep_duration** (*Optional*, [templatable](/automations/templates), [Time](/guides/configuration-types#time)): The time duration to stay in deep sleep mode. If a template is used, it should return a value in milliseconds.
 - **until** (*Optional*, string): The time of day to wake up. Only on ESP32.
-- **time_id** (*Optional*, [ID](#config-id)): The ID of the time component to use for the `until` option. Only on ESP32.
+- **time_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the time component to use for the `until` option. Only on ESP32.
 
 {{< anchor "deep_sleep-prevent_action" >}}
 
@@ -215,5 +215,5 @@ on_...:
 ## See Also
 
 - {{< docref "switch/shutdown" >}}
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "deep_sleep/deep_sleep_component.h" "deep_sleep/deep_sleep_component.h" >}}

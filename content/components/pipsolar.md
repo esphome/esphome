@@ -8,7 +8,7 @@ params:
 ---
 
 The PipSolar component allows you to integrate PIP-compatible Inverters in ESPHome.
-It uses [UART](#uart) for communication.
+It uses [UART](/components/uart) for communication.
 
 Once configured, you can use sensors, binary sensors, switches and outputs as described below for your projects.
 
@@ -35,7 +35,7 @@ pipsolar:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): The id to use for this pipsolar component.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this pipsolar component.
 - **uart_id** (*Optional*): The uart Bus ID
 
 ## Sensor
@@ -301,7 +301,7 @@ All sensors are normal text sensors... so all text sensor variables are working 
 
 ## `output.pipsolar.set_level` Action
 
-To use your outputs in [automations](#automation) or templates, you can use this action to set the
+To use your outputs in [automations](/automations) or templates, you can use this action to set the
 target level of the output.
 
 ```yaml
@@ -314,9 +314,9 @@ on_...:
 
 Configuration options:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the output.
-- **value** (*Optional*, percentage, [templatable](#config-templatable)): The target level.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the output.
+- **value** (*Optional*, percentage, [templatable](/automations/templates)): The target level.
 
 ## See Also
 
-- [UART Bus](#uart)
+- [UART Bus](/components/uart)

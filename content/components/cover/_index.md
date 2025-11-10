@@ -76,7 +76,7 @@ MQTT options:
 
 ## `cover.open` Action
 
-This [action](#config-action) opens the cover with the given ID when executed.
+This [action](/automations/actions#all-actions) opens the cover with the given ID when executed.
 
 ```yaml
 on_...:
@@ -97,7 +97,7 @@ on_...:
 
 ## `cover.close` Action
 
-This [action](#config-action) closes the cover with the given ID when executed.
+This [action](/automations/actions#all-actions) closes the cover with the given ID when executed.
 
 ```yaml
 on_...:
@@ -118,7 +118,7 @@ on_...:
 
 ## `cover.stop` Action
 
-This [action](#config-action) stops the cover with the given ID when executed.
+This [action](/automations/actions#all-actions) stops the cover with the given ID when executed.
 
 ```yaml
 on_...:
@@ -139,7 +139,7 @@ on_...:
 
 ## `cover.toggle` Action
 
-This [action](#config-action) toggles the cover with the given ID when executed,
+This [action](/automations/actions#all-actions) toggles the cover with the given ID when executed,
 cycling through the states close/stop/open/stop... This allows the cover to be controlled
 by a single push button.
 
@@ -162,7 +162,7 @@ on_...:
 
 ## `cover.control` Action
 
-This [action](#config-action) is a more generic version of the other cover actions and
+This [action](/automations/actions#all-actions) is a more generic version of the other cover actions and
 allows all cover attributes to be set.
 
 ```yaml
@@ -176,7 +176,7 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The cover to control.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The cover to control.
 - **stop** (*Optional*, boolean): Whether to stop the cover.
 - **state** (*Optional*, string): The state to set the cover to - one of `OPEN` or `CLOSE`.
 - **position** (*Optional*, float): The cover position to set.

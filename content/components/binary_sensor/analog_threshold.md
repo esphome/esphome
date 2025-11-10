@@ -36,18 +36,18 @@ binary_sensor:
 
 ## Configuration variables
 
-- **sensor_id** (**Required**, [ID](#config-id)): The ID of the source sensor.
-- **threshold** (**Required**, float [templatable](#config-templatable) or mapping): Configures the reference for comparison. Accepts either a shorthand
+- **sensor_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the source sensor.
+- **threshold** (**Required**, float [templatable](/automations/templates) or mapping): Configures the reference for comparison. Accepts either a shorthand
    float number that will be used as both upper/lower threshold, or a mapping to define different values for each (to
    use hysteresis).
 
-  - **upper** (**Required**, float [templatable](#config-templatable)): Upper threshold, that needs to be crossed to transition from `low` to `high` states.
-  - **lower** (**Required**, float [templatable](#config-templatable)): Lower threshold, that needs to be crossed to transition from `high` to `low` states.
+  - **upper** (**Required**, float [templatable](/automations/templates)): Upper threshold, that needs to be crossed to transition from `low` to `high` states.
+  - **lower** (**Required**, float [templatable](/automations/templates)): Lower threshold, that needs to be crossed to transition from `high` to `low` states.
 - All other options from [Binary Sensor](#config-binary_sensor).
 
 ## See Also
 
 - {{< docref "/components/binary_sensor" >}}
 - {{< docref "/components/sensor" >}}
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "analog_threshold/analog_threshold_binary_sensor.h" "analog_threshold/analog_threshold_binary_sensor.h" >}}

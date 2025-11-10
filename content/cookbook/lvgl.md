@@ -29,7 +29,7 @@ Here are a couple recipes for various interesting things you can do with {{< doc
 {{< img src="lvgl_switch.png" alt="Image" class="align-left" >}}
 
 The easiest way to integrate an LVGL [`switch`](#lvgl-widget-switch) widget and a switch or light is with
-[automations](#automation):
+[automations](/automations):
 
 ```yaml
 light:
@@ -2307,7 +2307,7 @@ You can combine it with the previous example to turn off the backlight, so the u
 
 - {{< docref "/components/lvgl" >}}
 - [Templates](#config-lambda)
-- [Automation](#automation)
+- [Automation](/automations)
 - [Key collector component](#key_collector)
 - [What is Image Sticking, Image Burn-in, an After Image, or a Ghost Image on an LCD?](https://www.philips.ca/c-f/XC000007486/what-is-image-sticking,-image-burn-in,-an-after-image,-or-a-ghost-image-on-an-lcd)
 - [Image persistence](https://en.wikipedia.org/wiki/Image_persistence)

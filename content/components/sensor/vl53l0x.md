@@ -20,7 +20,7 @@ well enough (see also section 5 of datasheet).
 
 {{< img src="vl53l0x.png" alt="Image" width="100.0%" class="align-center" >}}
 
-The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
+The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 - `VCC` connects to 3V3 (`3V3` will output 3.3V), or directly connect `VCC` to 3.3V
 - `GND` connects to ground
@@ -46,7 +46,7 @@ sensor:
 
 ## Configuration variables
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 - **signal_rate_limit** (*Optional*, float): Set the return signal rate limit in units of MCPS
@@ -62,16 +62,16 @@ sensor:
   A dynamic re-address of sensor requires the `enable_pin` configuration variable to be assigned.
   If more then one VL53L0X sensor is used on the same i2c bus, a unique address must be specified per sensor.
 
-- **enable_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The pin connected to XSHUT
+- **enable_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin connected to XSHUT
   on vl53l0x to enable/disable sensor. **Required** if not using address `0x29` which is the cause if you
   have multiple VL53L0X on the same i2c bus. In this case you have to assign a different pin to each VL53L0X.
 
-- **timeout** (*Optional*, [Time](#config-time)): Sensor setup timeout. Default to `10ms`.
-- **timing_budget** (*Optional*, [Time](#config-time)): Set the timing budget the sensor will use for a single range measurement.
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Sensor setup timeout. Default to `10ms`.
+- **timing_budget** (*Optional*, [Time](/guides/configuration-types#time)): Set the timing budget the sensor will use for a single range measurement.
   Range is from 20000us - 4294967295us, inclusive. The timing budget allows the user to trade off speed for accuracy.
   If not specified, the default timing budget is 33000us.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 ```yaml
 # Muliple VL53L0X sensors on same i2c bus

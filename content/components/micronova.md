@@ -7,9 +7,9 @@ params:
 ---
 
 The MicroNova component allows you to integrate a pellet stove with a MicroNova board in ESPHome.
-It uses [UART](#uart) for communication.
+It uses [UART](/components/uart) for communication.
 
-The [UART](#uart) must be configured with a baud rate 1200, 8 data bits, 2 stop bits, no parity, no flow control.
+The [UART](/components/uart) must be configured with a baud rate 1200, 8 data bits, 2 stop bits, no parity, no flow control.
 
 > [!WARNING]
 > MicroNova bords come in various flavours. This code is only tested on an ExtraFlame Ketty Evo 2.0 stove. The protocol is not
@@ -48,8 +48,8 @@ micronova:
 
 ### Configuration variables
 
-- **enable_rx_pin** (**Required**, [Pin](#config-pin)): Output pin to be used to switch the line between RX and TX.
-- **update_interval** (*Optional*, [Time](#config-time)): The interval that the sensors should be checked.
+- **enable_rx_pin** (**Required**, [Pin](/guides/configuration-types#pin)): Output pin to be used to switch the line between RX and TX.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked.
   Defaults to 60 seconds.
 
 > [!NOTE]
@@ -103,27 +103,27 @@ sensor:
 ### Configuration variables
 
 - **room_temperature** (*Optional*): Sensor that reads the stoves ambient room temperature.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **fumes_temperature** (*Optional*): Fumes temperature.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **stove_power** (*Optional*): Current stove power.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **fan_speed** (*Optional*): Current fan speed. The raw value from the stove is multiplied by 10 + `fan_rpm_offset`.
 
   - **fan_rpm_offset** (*Optional*, integer): Offset the reported RPM value. Must be between 0 and 255. Defaults to 0.
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 - **water_temperature** (*Optional*): Internal boiler water termperature.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **water_pressure** (*Optional*): Internal boiler water pressure.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **memory_address_sensor** (*Optional*): Can be any **memory_location** / **memory_address** you want to track. Usefull
   when you don't know where the parameter is for your stove is.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 ## Numbers
 

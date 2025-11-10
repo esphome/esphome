@@ -89,34 +89,34 @@ sensor:
 + **level** (*Optional*): The percentage of full for the tank sensor. If
   read is ignored due to quality this sensor will not be updated.
 
-  + All options from [Sensor](#config-sensor).
+  + All options from [Sensor](/components/sensor).
 
 + **distance** (*Optional*): The raw distance/depth of the liquid for the sensor in mm.
   If read is ignored due to quality this sensor will not be updated.
 
-  + All options from [Sensor](#config-sensor).
+  + All options from [Sensor](/components/sensor).
 
 + **temperature** (*Optional*): The information for the temperature sensor.
   This temperature is on the sensor and is not calibrated to ambient temperature.
 
-  + All options from [Sensor](#config-sensor).
+  + All options from [Sensor](/components/sensor).
 
 + **battery_level** (*Optional*): The information for the battery percentage
   sensor. Sensor uses a standard CR2032 battery.
 
-  + All options from [Sensor](#config-sensor).
+  + All options from [Sensor](/components/sensor).
 
 + **signal_quality** (*Optional*): The information for the read quality
   sensor.
 
-  + All options from [Sensor](#config-sensor).
+  + All options from [Sensor](/components/sensor).
 
 + **ignored_reads** (*Optional*): A diagnostic sensor indicating the number
   of consecutive ignored reads. This resets to zero each time the read is
   equal or greater than the configured ignored quality. Only the distance
   and level sensors are not reported.
 
-  + All options from [Sensor](#config-sensor).
+  + All options from [Sensor](/components/sensor).
 
 + **minimum_signal_quality** (*Optional*, enum): Each report from the sensor
   indicates the quality or confidence in the distance the sensor calculated. Physical

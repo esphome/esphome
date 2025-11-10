@@ -27,14 +27,14 @@ usb_host:
 
 ## Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): The id to use for this component.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The id to use for this component.
 - **enable_hubs** (*Optional*, boolean): Whether to include support for hubs. Defaults to `false`.
 - **max_transfer_requests** (*Optional*, int): Maximum number of concurrent USB transfer requests. Range: 1-32. Defaults to `16`. Increase this value for high-throughput devices (e.g., USB UART at 115200+ baud) if you see "All X transfer slots in use" errors.
 - **devices** (*Optional*, list): A list of devices to configure.
 
 ## Device configuration options
 
-- **id** (*Optional*, [ID](#config-id)): An id to assign to the device.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): An id to assign to the device.
 - **vid** (**Required**, int): The vendor ID of the device. Use 0 as a wildcard.
 - **pid** (**Required**, int): The product ID of the device. Use 0 as a wildcard.
 

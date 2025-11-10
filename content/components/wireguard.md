@@ -98,7 +98,7 @@ wireguard:
 - **peer_preshared_key** (*Optional*, string): The chosen pre-shared key between
   local device and remote peer.
 
-- **peer_persistent_keepalive** (*Optional*, [Time](#config-time)): The amount of
+- **peer_persistent_keepalive** (*Optional*, [Time](/guides/configuration-types#time)): The amount of
   time after which a *keepalive* packet is sent through the tunnel.
   By default this feature is disabled (`0s`  ).
 
@@ -115,7 +115,7 @@ wireguard:
   expected to transit through the VPN link (e.g. with {{< docref "mqtt/" >}} to a
   remote MQTT broker).
 
-- **reboot_timeout** (*Optional*, [Time](#config-time)): The amount of time to wait
+- **reboot_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time to wait
   before rebooting the device when the remote peer is unreachable. Can be disabled
   by setting this to `0s`. Default to `15min`.
 
@@ -131,10 +131,10 @@ wireguard:
   active too. To bypass such deadlock set this parameter to `true` in
   order to not initialize MQTT until the remote peer is up.
 
-- **update_interval** (*Optional*, [Time](#config-time)): How often to check
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): How often to check
   the connection status and the latest handshake value. Default to `10s`.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 {{< anchor "wireguard-static-routes" >}}
 
@@ -220,7 +220,7 @@ sensor:
       name: 'WireGuard Latest Handshake'
 ```
 
-All options from [Sensor](#config-sensor) can be added to the
+All options from [Sensor](/components/sensor) can be added to the
 above configuration.
 
 ### Address Text Sensor
@@ -353,7 +353,7 @@ The device should now be linked to your remote Home Assistant.
 
 - {{< docref "time/" >}}
 - {{< docref "time/sntp" >}}
-- [Automation](#automation)
+- [Automation](/automations)
 - [WireGuard®](https://www.wireguard.org/) official website
 - [Home Assistant Community Add-on: WireGuard](https://community.home-assistant.io/t/home-assistant-community-add-on-wireguard/134662)
   (also on [GitHub](https://github.com/hassio-addons/addon-wireguard))

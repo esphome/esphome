@@ -138,7 +138,7 @@ binary_sensor:
   - **prob_given_true** (**Required**, float between 0 and 1): Assuming the event is true, the probability this observation is on.
   - **prob_given_false** (**Required**, float between 0 and 1): Assuming the event is false, the probability this observation is on.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 ## See Also
 

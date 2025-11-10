@@ -39,7 +39,7 @@ logger:
    when `logs` is configured or when `logger.set_level` is used with a `tag` parameter. Only needs to be manually
    enabled if calling `set_log_level()` from a lambda or external component. Defaults to `false` (auto-enabled as needed).
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 Advanced settings:
 
@@ -57,7 +57,7 @@ Advanced settings:
 - **esp8266_store_log_strings_in_flash** (*Optional*, boolean): If set to false, disables storing
    log strings in the flash section of the device (uses more memory). Defaults to true.
 
-- **on_message** (*Optional*, [Automation](#automation)): An action to be
+- **on_message** (*Optional*, [Automation](/automations)): An action to be
    performed when a message is to be logged. The variables `int level`, `const char* tag` and
    `const char* message` are available for lambda processing.
 

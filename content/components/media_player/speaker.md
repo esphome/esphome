@@ -38,7 +38,7 @@ media_player:
 
 - **announcement_pipeline** (**Required**, Pipeline Schema): Configuration settings for the announcement pipeline.
 
-  - **speaker** (**Required**, [ID](#config-id)): The {{< docref "/components/speaker/index" "speaker" >}} to output the audio.
+  - **speaker** (**Required**, [ID](/guides/configuration-types#id)): The {{< docref "/components/speaker/index" "speaker" >}} to output the audio.
   - **format** (*Optional*, enum): The audio format Home Asssistant will transcode audio to before sending it to the device. One of `FLAC`, `MP3`, `WAV`, or `NONE`. `NONE` disables transcoding in Home Assistant. Defaults to `FLAC`.
   - **sample_rate** (*Optional*, positive integer): Sample rate for the transcoded audio. Should be supported by the configured `speaker` component. Defaults to the speaker's sample rate.
   - **num_channels** (*Optional*, positive integer): Number of channels for the transcoded audio. Must be either `1` or `2`. Defaults to the speaker's number of channels.
@@ -52,11 +52,11 @@ media_player:
 - **volume_min** (*Optional*, percentage): The minimum volume allowed. Defaults to `0%`.
 - **volume_max** (*Optional*, percentage): The maximum volume allowed. Defaults to `100%`.
 - **files** (*Optional*, list): A list of media files to build into the firmware for on-device playback.
-  - **id** (**Required**, [ID](#config-id)): Unique ID for the file.
+  - **id** (**Required**, [ID](/guides/configuration-types#id)): Unique ID for the file.
   - **file** (**Required**, string): Path to audio file. Can be a local file path or a URL.
-- **on_mute** (*Optional*, [Automation](#automation)): An automation to perform when muted.
-- **on_unmute** (*Optional*, [Automation](#automation)): An automation to perform when unmuted.
-- **on_volume** (*Optional*, [Automation](#automation)): An automation to perform when the volume is changed.
+- **on_mute** (*Optional*, [Automation](/automations)): An automation to perform when muted.
+- **on_unmute** (*Optional*, [Automation](/automations)): An automation to perform when unmuted.
+- **on_volume** (*Optional*, [Automation](/automations)): An automation to perform when the volume is changed.
 - All other options from [Media Player](#config-media_player)
 
 {{< anchor "media_player-speaker-examples" >}}
@@ -161,7 +161,7 @@ on_...:
 
 Configuration variables:
 
-- **media_file** (**Required**, [ID](#config-id)): The ID of the media file.
+- **media_file** (**Required**, [ID](/guides/configuration-types#id)): The ID of the media file.
 - **announcement** (*Optional*, boolean): Whether to play back the file as an announcement or media stream. Defaults to `false`.
 - **enqueue** (*Optional*, boolean): Whether to add the media file to the end of the pipeline's internal playlist. Defaults to `false`.
 

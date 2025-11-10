@@ -29,7 +29,7 @@ There are plenty of other examples and ready to buy solutions on the web.
 
 ## Component/Hub
 
-As the communciation with the sensor is done using UART, you need to have the [UART bus](#uart)
+As the communciation with the sensor is done using UART, you need to have the [UART bus](/components/uart)
 in your configuration. The interface parameters should be set to 9600/8N1 or 9600/7E1 depending on your
 smart meter. If you see checksum errors in the log try changing the interface parameter.
 
@@ -49,8 +49,8 @@ sml:
 
 ### Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the [UART Component](#uart) if you want
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [UART Component](/components/uart) if you want
   to use multiple UART buses.
 
 ## Sensor
@@ -76,8 +76,8 @@ sensor:
   The format must be (A-B:C.D.E, e.g. 1-0:1.8.0)
 
 - **server_id** (*Optional*, string): Specify the device's server_id to retrieve the OBIS code from. Should be specified if more then one device is connected to the same hardware sensor component.
-- **sml_id** (*Optional*, [ID](#config-id)): The ID of the [SML platform](#sml-platform)
-- All other options from [Sensor](#config-sensor).
+- **sml_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the [SML platform](#sml-platform)
+- All other options from [Sensor](/components/sensor).
 
 ## Text Sensor
 
@@ -97,13 +97,13 @@ text_sensor:
   The format must be (A-B:C.D.E, e.g. 1-0:1.8.0)
 
 - **server_id** (*Optional*, string): Specify the device's server_id to retrieve the OBIS code from. Should be specified if more then one device is connected to the same hardware sensor component.
-- **sml_id** (*Optional*, [ID](#config-id)): The ID of the [SML platform](#sml-platform)
+- **sml_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the [SML platform](#sml-platform)
 - **format** (*Optional*, string): Override the automatic interpretation of the transmitted binary data value. Possible values (`int`, `uint`, `bool`, `hex`, `text`).
 - All other options from [Text Sensor](#config-text_sensor).
 
 ## Automations
 
-- **on_data** (*Optional*, [Automation](#automation)): An automation to perform when a
+- **on_data** (*Optional*, [Automation](/automations)): An automation to perform when a
   SML message is received. See [`on_data` Trigger](#sml-on-data).
 
 {{< anchor "sml-on-data" >}}

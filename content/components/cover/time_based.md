@@ -35,19 +35,19 @@ cover:
 
 ## Configuration variables
 
-- **open_action** (**Required**, [Action](#config-action)): The action that should
+- **open_action** (**Required**, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote requests the cover to be opened.
 
-- **open_duration** (**Required**, [Time](#config-time)): The amount of time it takes the cover
+- **open_duration** (**Required**, [Time](/guides/configuration-types#time)): The amount of time it takes the cover
   to open up from the fully-closed state.
 
-- **close_action** (*Optional*, [Action](#config-action)): The action that should
+- **close_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote requests the cover to be closed.
 
-- **close_duration** (**Required**, [Time](#config-time)): The amount of time it takes the cover
+- **close_duration** (**Required**, [Time](/guides/configuration-types#time)): The amount of time it takes the cover
   to close from the fully-open state.
 
-- **stop_action** (**Required**, [Action](#config-action)): The action that should
+- **stop_action** (**Required**, [Action](/automations/actions#all-actions)): The action that should
   be performed to stop the cover when the remote requests the cover to be stopped or
   when the cover has been opening/closing for the given durations.
 
@@ -94,5 +94,5 @@ stop_action:
 ## See Also
 
 - {{< docref "index/" >}}
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "time_based/time_based_cover.h" "time_based/time_based_cover.h" >}}
