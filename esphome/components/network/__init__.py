@@ -62,13 +62,11 @@ def require_high_performance_networking() -> None:
 
     Settings applied (ESP-IDF only):
     - lwip: Larger TCP buffers, windows, and mailbox sizes
-    - WiFi: Increased RX/TX buffers, AMPDU aggregation, PSRAM allocation
+    - WiFi: Increased RX/TX buffers, AMPDU aggregation, PSRAM allocation (set by wifi component)
 
     Configuration is PSRAM-aware:
     - With PSRAM guaranteed: Aggressive settings (512 RX buffers, 512KB TCP windows)
-    - Without PSRAM: Conservative settings (64 buffers, 65KB TCP windows)
-
-    This function is idempotent - safe to call multiple times from different components.
+    - Without PSRAM: Conservative optimized settings (64 buffers, 65KB TCP windows)
 
     Example:
         from esphome.components import network
@@ -132,6 +130,8 @@ async def to_code(config):
 
         if psram_guaranteed:
             # PSRAM is guaranteed - use aggressive settings
+            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true
+            # CONFIG_LWIP_WND_SCALE can only be enabled if CONFIG_SPIRAM_IGNORE_NOTFOUND isn't set
             # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
 
             # Enable window scaling for much larger TCP windows
@@ -158,7 +158,7 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_OVERSIZE_MSS", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_QUEUE_OOSEQ", True)
         else:
-            # PSRAM not guaranteed - use more conservative optimized settings
+            # PSRAM not guaranteed - use more conservative, but still optimized settings
             # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)

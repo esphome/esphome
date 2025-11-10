@@ -463,6 +463,7 @@ async def to_code(config):
 
         if psram_guaranteed:
             # PSRAM is guaranteed - use aggressive settings
+            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true in networking component
             # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
 
             # Large dynamic RX buffers (requires PSRAM)
@@ -481,7 +482,7 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
         else:
-            # PSRAM not guaranteed - use more conservative optimized settings
+            # PSRAM not guaranteed - use more conservative, but still optimized settings
             # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
 
             # Standard buffer counts
