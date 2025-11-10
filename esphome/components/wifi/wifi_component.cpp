@@ -357,10 +357,11 @@ void WiFiComponent::start() {
     WiFiAP params;
     bool loaded_fast_connect = this->load_fast_connect_settings_(params);
 
-    // Skip fast_connect if no saved data AND (first network is hidden OR only one AP configured)
-    // Logic: Try fast_connect if we have saved settings (might be for a working non-hidden network)
-    //        OR if we have multiple APs to cycle through
-    if (!loaded_fast_connect && ((!this->sta_.empty() && this->sta_[0].get_hidden()) || this->sta_.size() <= 1)) {
+    // Skip fast_connect if no saved data AND (no configured networks OR first is hidden OR only one AP)
+    // Try fast_connect if:
+    // 1. Have saved settings (from previous connection or Improv) - always try these first
+    // 2. Have multiple configured APs to cycle through
+    if (!loaded_fast_connect && (this->sta_.empty() || this->sta_[0].get_hidden() || this->sta_.size() <= 1)) {
       this->start_initial_connection_();
     } else {
       // FAST CONNECT ENABLED: Either have saved data OR multiple configured APs to try
@@ -600,7 +601,12 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
   const WiFiAP *config = this->get_selected_sta_();
-  assert(config != nullptr);
+  if (config == nullptr) {
+    ESP_LOGE(TAG, "No valid network config (selected_sta_index_=%d, sta_.size()=%zu)",
+             static_cast<int>(this->selected_sta_index_), this->sta_.size());
+    // Return empty params - caller should handle this gracefully
+    return WiFiAP();
+  }
 
   WiFiAP params = *config;
 
