@@ -1098,13 +1098,10 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 
       // Exhausted retries on current SSID - check for more explicitly hidden networks
       // Stop when we reach a visible network (proceed to scanning)
-      for (size_t i = this->selected_sta_index_ + 1; i < this->sta_.size(); i++) {
-        if (this->sta_[i].get_hidden()) {
-          // Found another explicitly hidden network
-          return WiFiRetryPhase::EXPLICIT_HIDDEN;
-        }
-        // Reached a visible network - stop trying explicit hidden and proceed to scanning
-        break;
+      size_t next_index = this->selected_sta_index_ + 1;
+      if (next_index < this->sta_.size() && this->sta_[next_index].get_hidden()) {
+        // Found another explicitly hidden network
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;
       }
 
       // No more consecutive explicitly hidden networks - proceed to scanning
@@ -1314,15 +1311,12 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
   if (current_phase == WiFiRetryPhase::EXPLICIT_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
     // Explicit hidden: exhausted retries on current SSID, find next explicitly hidden network
     // Stop when we reach a visible network (proceed to scanning)
-    for (size_t i = this->selected_sta_index_ + 1; i < this->sta_.size(); i++) {
-      if (this->sta_[i].get_hidden()) {
-        this->selected_sta_index_ = static_cast<int8_t>(i);
-        this->num_retried_ = 0;
-        ESP_LOGD(TAG, "Next explicit hidden network at index %d", static_cast<int>(i));
-        return;
-      }
-      // Reached a visible network - stop and fall through to trigger phase change
-      break;
+    size_t next_index = this->selected_sta_index_ + 1;
+    if (next_index < this->sta_.size() && this->sta_[next_index].get_hidden()) {
+      this->selected_sta_index_ = static_cast<int8_t>(next_index);
+      this->num_retried_ = 0;
+      ESP_LOGD(TAG, "Next explicit hidden network at index %d", static_cast<int>(next_index));
+      return;
     }
     // No more consecutive explicit hidden networks found - fall through to trigger phase change
   }
