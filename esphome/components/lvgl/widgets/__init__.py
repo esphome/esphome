@@ -212,20 +212,15 @@ class LvScrActType(WidgetType):
     A "widget" representing the active screen.
     """
 
-    # A lazily initialised instance for the default screen
-    lv_scr_act_spec: WidgetType | None = None
-
-    def __init__(self, name: str):
-        super().__init__(name, lv_obj_t, ())
+    def __init__(self):
+        super().__init__("lv_scr_act()", lv_obj_t, (), is_mock=True)
 
     async def to_code(self, w, config: dict):
         return []
 
 
 def get_scr_act(lv_comp: MockObj) -> Widget:
-    if LvScrActType.lv_scr_act_spec is None:
-        LvScrActType.lv_scr_act_spec = LvScrActType("lv_scr_act()")
-    return Widget.create(None, lv_comp.get_scr_act(), LvScrActType.lv_scr_act_spec, {})
+    return Widget.create(None, lv_comp.get_scr_act(), LvScrActType(), {})
 
 
 def get_widget_generator(wid):

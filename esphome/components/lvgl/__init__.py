@@ -277,9 +277,8 @@ async def to_code(configs):
         displays = [
             await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]
         ]
-        comp_id = config[CONF_ID]
         lv_component = cg.new_Pvariable(
-            comp_id,
+            config[CONF_ID],
             displays,
             frac,
             config[df.CONF_FULL_REFRESH],
@@ -287,9 +286,7 @@ async def to_code(configs):
             config[df.CONF_RESUME_ON_INPUT],
         )
         await cg.register_component(lv_component, config)
-        Widget.create(
-            comp_id, lv_component, LvScrActType(f"{comp_id}->get_scr_act()"), config
-        )
+        Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
         lv_scr_act = get_scr_act(lv_component)
         async with LvContext():
