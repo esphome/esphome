@@ -226,17 +226,18 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
 }
 
 void ProntoProtocol::dump(const ProntoData &data) {
-  std::string rest = data.data;
   ESP_LOGI(TAG, "Received Pronto: data=");
+
+  const char *ptr = data.data.c_str();
+  size_t remaining = data.data.size();
+
+  // Log in chunks, always logging at least once (even for empty string)
   do {
-    size_t chunk_size = rest.size() > PRONTO_LOG_CHUNK_SIZE ? PRONTO_LOG_CHUNK_SIZE : rest.size();
-    ESP_LOGI(TAG, "%.*s", (int) chunk_size, rest.c_str());
-    if (rest.size() > PRONTO_LOG_CHUNK_SIZE) {
-      rest.erase(0, PRONTO_LOG_CHUNK_SIZE);
-    } else {
-      break;
-    }
-  } while (true);
+    size_t chunk_size = remaining < PRONTO_LOG_CHUNK_SIZE ? remaining : PRONTO_LOG_CHUNK_SIZE;
+    ESP_LOGI(TAG, "%.*s", (int) chunk_size, ptr);
+    ptr += chunk_size;
+    remaining -= chunk_size;
+  } while (remaining > 0);
 }
 
 }  // namespace remote_base
