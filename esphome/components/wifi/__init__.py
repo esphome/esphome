@@ -202,7 +202,8 @@ def validate_variant(_):
 
 def _apply_min_auth_mode_default(config):
     """Apply platform-specific default for min_auth_mode and warn ESP8266 users."""
-    if CONF_MIN_AUTH_MODE not in config:
+    # Only apply defaults for platforms that support min_auth_mode
+    if CONF_MIN_AUTH_MODE not in config and (CORE.is_esp8266 or CORE.is_esp32):
         if CORE.is_esp8266:
             _LOGGER.warning(
                 "The minimum WiFi authentication mode (min_auth_mode) is not set. "
