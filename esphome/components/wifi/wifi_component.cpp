@@ -102,16 +102,21 @@ static const char *const TAG = "wifi";
 /// │                          ↓                                           │
 /// │  5. FAILED → RESTARTING_ADAPTER (skipped if AP/improv active)        │
 /// │                          ↓                                           │
-/// │  6. RESCAN → Apply stored priorities, sort again                     │
+/// │  6. Loop back to start:                                              │
+/// │     - If first network is hidden → EXPLICIT_HIDDEN (retry cycle)     │
+/// │     - Otherwise → SCAN_CONNECTING (rescan)                           │
+/// │                          ↓                                           │
+/// │  7. RESCAN → Apply stored priorities, sort again                     │
 /// │     ┌─────────────────────────────────────────────────┐              │
 /// │     │ scan_result_[0] = BSSID B (priority 0.0)  ← NEW │              │
 /// │     │ scan_result_[1] = BSSID C (priority 0.0)        │              │
 /// │     │ scan_result_[2] = BSSID A (priority -2.0) ← OLD │              │
 /// │     └─────────────────────────────────────────────────┘              │
 /// │                          ↓                                           │
-/// │  7. SCAN_CONNECTING → Try scan_result_[0] (next best)                │
+/// │  8. SCAN_CONNECTING → Try scan_result_[0] (next best)                │
 /// │                                                                      │
 /// │  Key: Priority system cycles through BSSIDs ACROSS scan cycles       │
+/// │       Full retry cycle: EXPLICIT_HIDDEN → SCAN → RETRY_HIDDEN       │
 /// │       Always try best available BSSID (scan_result_[0])              │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///
