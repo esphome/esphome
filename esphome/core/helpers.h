@@ -8,9 +8,11 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <concepts>
 
 #include "esphome/core/optional.h"
 
@@ -247,6 +249,8 @@ template<typename T> class FixedVector {
   }
 
   // Allocate capacity - can be called multiple times to reinit
+  // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
+  // Direct assignment via operator[] does NOT update the size counter.
   void init(size_t n) {
     cleanup_();
     reset_();
@@ -304,6 +308,11 @@ template<typename T> class FixedVector {
     return data_[size_ - 1];
   }
 
+  /// Access first element (no bounds checking - matches std::vector behavior)
+  /// Caller must ensure vector is not empty (size() > 0)
+  T &front() { return data_[0]; }
+  const T &front() const { return data_[0]; }
+
   /// Access last element (no bounds checking - matches std::vector behavior)
   /// Caller must ensure vector is not empty (size() > 0)
   T &back() { return data_[size_ - 1]; }
@@ -316,6 +325,11 @@ template<typename T> class FixedVector {
   /// Caller must ensure index is valid (i < size())
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
+
+  /// Access element with bounds checking (matches std::vector behavior)
+  /// Note: No exception thrown on out of bounds - caller must ensure index is valid
+  T &at(size_t i) { return data_[i]; }
+  const T &at(size_t i) const { return data_[i]; }
 
   // Iterator support for range-based for loops
   T *begin() { return data_; }
@@ -1017,6 +1031,10 @@ std::string get_mac_address();
 /// Get the device MAC address as a string, in colon-separated uppercase hex notation.
 std::string get_mac_address_pretty();
 
+/// Get the device MAC address into the given buffer, in lowercase hex notation.
+/// Assumes buffer length is 13 (12 digits for hexadecimal representation followed by null terminator).
+void get_mac_address_into_buffer(std::span<char, 13> buf);
+
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
@@ -1152,7 +1170,20 @@ template<class T> class RAMAllocator {
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
-/// @}
+/**
+ * Functions to constrain the range of arithmetic values.
+ */
+
+template<std::totally_ordered T> T clamp_at_least(T value, T min) {
+  if (value < min)
+    return min;
+  return value;
+}
+template<std::totally_ordered T> T clamp_at_most(T value, T max) {
+  if (value > max)
+    return max;
+  return value;
+}
 
 /// @name Internal functions
 ///@{
