@@ -360,25 +360,13 @@ def add_hello_world(config):
     return config
 
 
-class ThemeSchema:
-    """
-    Singleton pattern for delayed evaluation
-    """
-
-    _schema: cv.Schema = None
-
-    @classmethod
-    def __call__(cls, value):
-        if not ThemeSchema._schema:
-            ThemeSchema._schema = cv.Schema(
-                {
-                    cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-                    for name, w in WIDGET_TYPES.items()
-                }
-            )
-
-        # pylint: disable=not-callable
-        return ThemeSchema._schema(value)
+def _theme_schema(value):
+    return cv.Schema(
+        {
+            cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
+            for name, w in WIDGET_TYPES.items()
+        }
+    )(value)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation
@@ -433,7 +421,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,
-                cv.Optional(df.CONF_THEME): ThemeSchema(),
+                cv.Optional(df.CONF_THEME): _theme_schema,
                 cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
                 cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
                 cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
