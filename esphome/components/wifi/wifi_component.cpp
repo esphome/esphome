@@ -1,5 +1,6 @@
 #include "wifi_component.h"
 #ifdef USE_WIFI
+#include <cassert>
 #include <cinttypes>
 
 #ifdef USE_ESP32
@@ -84,9 +85,9 @@ void WiFiComponent::start() {
   uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
-  if (this->fast_connect_) {
-    this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, false);
-  }
+#ifdef USE_WIFI_FAST_CONNECT
+  this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, false);
+#endif
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
@@ -108,16 +109,19 @@ void WiFiComponent::start() {
       ESP_LOGV(TAG, "Setting Power Save Option failed");
     }
 
-    if (this->fast_connect_) {
-      this->trying_loaded_ap_ = this->load_fast_connect_settings_();
-      if (!this->trying_loaded_ap_) {
-        this->ap_index_ = 0;
-        this->selected_ap_ = this->sta_[this->ap_index_];
-      }
-      this->start_connecting(this->selected_ap_, false);
-    } else {
-      this->start_scanning();
+#ifdef USE_WIFI_FAST_CONNECT
+    WiFiAP params;
+    this->trying_loaded_ap_ = this->load_fast_connect_settings_(params);
+    if (!this->trying_loaded_ap_) {
+      // FAST CONNECT FALLBACK: No saved settings available
+      // Use first config (will use SSID from config)
+      this->selected_sta_index_ = 0;
+      params = this->build_wifi_ap_from_selected_();
     }
+    this->start_connecting(params, false);
+#else
+    this->start_scanning();
+#endif
 #ifdef USE_WIFI_AP
   } else if (this->has_ap()) {
     this->setup_ap_config_();
@@ -168,13 +172,21 @@ void WiFiComponent::loop() {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
         if (millis() - this->action_started_ > 5000) {
-          if (this->fast_connect_ || this->retry_hidden_) {
-            if (!this->selected_ap_.get_bssid().has_value())
-              this->selected_ap_ = this->sta_[0];
-            this->start_connecting(this->selected_ap_, false);
+#ifdef USE_WIFI_FAST_CONNECT
+          // Safety check: Ensure selected_sta_index_ is valid before retrying
+          // (should already be set by retry_connect(), but check for robustness)
+          this->reset_selected_ap_to_first_if_invalid_();
+          WiFiAP params = this->build_wifi_ap_from_selected_();
+          this->start_connecting(params, false);
+#else
+          if (this->retry_hidden_) {
+            this->reset_selected_ap_to_first_if_invalid_();
+            WiFiAP params = this->build_wifi_ap_from_selected_();
+            this->start_connecting(params, false);
           } else {
             this->start_scanning();
           }
+#endif
         }
         break;
       }
@@ -244,7 +256,6 @@ WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
-void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = fast_connect; }
 #ifdef USE_WIFI_11KV_SUPPORT
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
 void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
@@ -267,8 +278,8 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 }
 // set_use_address() is guaranteed to be called during component setup by Python code generation,
 // so use_address_ will always be valid when get_use_address() is called - no fallback needed.
-const std::string &WiFiComponent::get_use_address() const { return this->use_address_; }
-void WiFiComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+const char *WiFiComponent::get_use_address() const { return this->use_address_; }
+void WiFiComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 #ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
@@ -324,12 +335,48 @@ float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
 
+void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();
+  this->init_sta(1);
   this->add_sta(ap);
+  this->selected_sta_index_ = 0;
 }
-void WiFiComponent::clear_sta() { this->sta_.clear(); }
+
+WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
+  // PRECONDITION: selected_sta_index_ must be valid (ensured by all callers)
+  const WiFiAP *config = this->get_selected_sta_();
+  assert(config != nullptr);
+  WiFiAP params = *config;
+
+  // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync after wifi_scan_done():
+  // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
+  // - It then finds which sta_[i] config matches scan_result_[0]
+  // - Sets selected_sta_index_ = i to record that matching config
+  // This sync holds until scan_result_ is cleared (e.g., after connection or in reset_for_next_ap_attempt_())
+  if (!this->scan_result_.empty()) {
+    // Override with scan data - network is visible
+    const WiFiScanResult &scan = this->scan_result_[0];
+    params.set_hidden(false);
+    params.set_ssid(scan.get_ssid());
+    params.set_bssid(scan.get_bssid());
+    params.set_channel(scan.get_channel());
+  } else if (params.get_hidden()) {
+    // Hidden network - clear BSSID and channel even if set in config
+    // There might be multiple hidden networks with same SSID but we can't know which is correct
+    // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
+    params.set_bssid(optional<bssid_t>{});
+    params.set_channel(optional<uint8_t>{});
+  }
+
+  return params;
+}
+
+WiFiAP WiFiComponent::get_sta() const {
+  const WiFiAP *config = this->get_selected_sta_();
+  return config ? *config : WiFiAP{};
+}
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};  // zero-initialized - all bytes set to \0, guaranteeing null termination
   strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);              // max 32 chars, byte 32 remains \0
@@ -477,8 +524,8 @@ void WiFiComponent::print_connect_params_() {
                 LOG_STR_ARG(get_signal_bars(rssi)), get_wifi_channel(), wifi_subnet_mask_().str().c_str(),
                 wifi_gateway_ip_().str().c_str(), wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  if (this->selected_ap_.get_bssid().has_value()) {
-    ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*this->selected_ap_.get_bssid()));
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid().has_value()) {
+    ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*config->get_bssid()));
   }
 #endif
 #ifdef USE_WIFI_11KV_SUPPORT
@@ -607,10 +654,12 @@ void WiFiComponent::check_scanning_finished() {
     for (auto &ap : this->sta_) {
       if (res.matches(ap)) {
         res.set_matches(true);
-        if (!this->has_sta_priority(res.get_bssid())) {
-          this->set_sta_priority(res.get_bssid(), ap.get_priority());
+        // Cache priority lookup - do single search instead of 2 separate searches
+        const bssid_t &bssid = res.get_bssid();
+        if (!this->has_sta_priority(bssid)) {
+          this->set_sta_priority(bssid, ap.get_priority());
         }
-        res.set_priority(this->get_sta_priority(res.get_bssid()));
+        res.set_priority(this->get_sta_priority(bssid));
         break;
       }
     }
@@ -623,53 +672,38 @@ void WiFiComponent::check_scanning_finished() {
     log_scan_result(res);
   }
 
-  if (!this->scan_result_[0].get_matches()) {
+  // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
+  // After sorting, scan_result_[0] contains the best network. Now find which sta_[i] config
+  // matches that network and record it in selected_sta_index_. This keeps the two indices
+  // synchronized so build_wifi_ap_from_selected_() can safely use both to build connection parameters.
+  const WiFiScanResult &scan_res = this->scan_result_[0];
+  if (!scan_res.get_matches()) {
     ESP_LOGW(TAG, "No matching network found");
     this->retry_connect();
     return;
   }
 
-  WiFiAP connect_params;
-  WiFiScanResult scan_res = this->scan_result_[0];
-  for (auto &config : this->sta_) {
-    // search for matching STA config, at least one will match (from checks before)
-    if (!scan_res.matches(config)) {
-      continue;
+  bool found_match = false;
+  for (size_t i = 0; i < this->sta_.size(); i++) {
+    if (scan_res.matches(this->sta_[i])) {
+      // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
+      // No overflow check needed - YAML validation prevents >127 networks
+      this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
+      found_match = true;
+      break;
     }
+  }
 
-    if (config.get_hidden()) {
-      // selected network is hidden, we use the data from the config
-      connect_params.set_hidden(true);
-      connect_params.set_ssid(config.get_ssid());
-      // don't set BSSID and channel, there might be multiple hidden networks
-      // but we can't know which one is the correct one. Rely on probe-req with just SSID.
-    } else {
-      // selected network is visible, we use the data from the scan
-      // limit the connect params to only connect to exactly this network
-      // (network selection is done during scan phase).
-      connect_params.set_hidden(false);
-      connect_params.set_ssid(scan_res.get_ssid());
-      connect_params.set_channel(scan_res.get_channel());
-      connect_params.set_bssid(scan_res.get_bssid());
-    }
-    // copy manual IP (if set)
-    connect_params.set_manual_ip(config.get_manual_ip());
-
-#ifdef USE_WIFI_WPA2_EAP
-    // copy EAP parameters (if set)
-    connect_params.set_eap(config.get_eap());
-#endif
-
-    // copy password (if set)
-    connect_params.set_password(config.get_password());
-
-    break;
+  if (!found_match) {
+    ESP_LOGW(TAG, "No matching network found");
+    this->retry_connect();
+    return;
   }
 
   yield();
 
-  this->selected_ap_ = connect_params;
-  this->start_connecting(connect_params, false);
+  WiFiAP params = this->build_wifi_ap_from_selected_();
+  this->start_connecting(params, false);
 }
 
 void WiFiComponent::dump_config() {
@@ -688,9 +722,12 @@ void WiFiComponent::check_connecting_finished() {
     }
 
     ESP_LOGI(TAG, "Connected");
-    // We won't retry hidden networks unless a reconnect fails more than three times again
-    if (this->retry_hidden_ && !this->selected_ap_.get_hidden())
-      ESP_LOGW(TAG, "Network '%s' should be marked as hidden", this->selected_ap_.get_ssid().c_str());
+    // Warn if we had to retry with hidden network mode for a network that's not marked hidden
+    // Only warn if we actually connected without scan data (SSID only), not if scan succeeded on retry
+    if (const WiFiAP *config = this->get_selected_sta_();
+        this->retry_hidden_ && config && !config->get_hidden() && this->scan_result_.empty()) {
+      ESP_LOGW(TAG, "Network '%s' should be marked as hidden", config->get_ssid().c_str());
+    }
     this->retry_hidden_ = false;
 
     this->print_connect_params_();
@@ -713,14 +750,14 @@ void WiFiComponent::check_connecting_finished() {
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
 
+#ifdef USE_WIFI_FAST_CONNECT
+    this->save_fast_connect_settings_();
+#endif
+
     // Free scan results memory unless a component needs them
     if (!this->keep_scan_results_) {
       this->scan_result_.clear();
       this->scan_result_.shrink_to_fit();
-    }
-
-    if (this->fast_connect_) {
-      this->save_fast_connect_settings_();
     }
 
     return;
@@ -760,8 +797,8 @@ void WiFiComponent::check_connecting_finished() {
 }
 
 void WiFiComponent::retry_connect() {
-  if (this->selected_ap_.get_bssid()) {
-    auto bssid = *this->selected_ap_.get_bssid();
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid()) {
+    auto bssid = *config->get_bssid();
     float priority = this->get_sta_priority(bssid);
     this->set_sta_priority(bssid, priority - 1.0f);
   }
@@ -769,31 +806,38 @@ void WiFiComponent::retry_connect() {
   delay(10);
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
       (this->num_retried_ > 3 || this->error_from_callback_)) {
-    if (this->fast_connect_) {
-      if (this->trying_loaded_ap_) {
-        this->trying_loaded_ap_ = false;
-        this->ap_index_ = 0;  // Retry from the first configured AP
-      } else if (this->ap_index_ >= this->sta_.size() - 1) {
-        ESP_LOGW(TAG, "No more APs to try");
-        this->ap_index_ = 0;
-        this->restart_adapter();
-      } else {
-        // Try next AP
-        this->ap_index_++;
-      }
-      this->num_retried_ = 0;
-      this->selected_ap_ = this->sta_[this->ap_index_];
+#ifdef USE_WIFI_FAST_CONNECT
+    // No empty check needed - YAML validation requires at least one network for fast_connect
+    if (this->trying_loaded_ap_) {
+      this->trying_loaded_ap_ = false;
+      this->selected_sta_index_ = 0;  // Retry from the first configured AP
+      this->reset_for_next_ap_attempt_();
+    } else if (this->selected_sta_index_ >= static_cast<int8_t>(this->sta_.size()) - 1) {
+      // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
+      // Exhausted all configured APs, restart adapter and cycle back to first
+      // Restart clears any stuck WiFi driver state
+      // Each AP is tried with config data only (SSID + optional BSSID/channel if user configured them)
+      // Typically SSID only, which triggers ESP-IDF internal scanning
+      ESP_LOGW(TAG, "No more APs to try");
+      this->selected_sta_index_ = 0;
+      this->reset_for_next_ap_attempt_();
+      this->restart_adapter();
     } else {
-      if (this->num_retried_ > 5) {
-        // If retry failed for more than 5 times, let's restart STA
-        this->restart_adapter();
-      } else {
-        // Try hidden networks after 3 failed retries
-        ESP_LOGD(TAG, "Retrying with hidden networks");
-        this->retry_hidden_ = true;
-        this->num_retried_++;
-      }
+      // Try next AP
+      this->selected_sta_index_++;
+      this->reset_for_next_ap_attempt_();
     }
+#else
+    if (this->num_retried_ > 5) {
+      // If retry failed for more than 5 times, let's restart STA
+      this->restart_adapter();
+    } else {
+      // Try hidden networks after 3 failed retries
+      ESP_LOGD(TAG, "Retrying with hidden networks");
+      this->retry_hidden_ = true;
+      this->num_retried_++;
+    }
+#endif
   } else {
     this->num_retried_++;
   }
@@ -801,7 +845,8 @@ void WiFiComponent::retry_connect() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
-    this->start_connecting(this->selected_ap_, true);
+    WiFiAP params = this->build_wifi_ap_from_selected_();
+    this->start_connecting(params, true);
     return;
   }
 
@@ -839,16 +884,30 @@ bool WiFiComponent::is_esp32_improv_active_() {
 #endif
 }
 
-bool WiFiComponent::load_fast_connect_settings_() {
+#ifdef USE_WIFI_FAST_CONNECT
+bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
   SavedWifiFastConnectSettings fast_connect_save{};
 
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
+    // Validate saved AP index
+    if (fast_connect_save.ap_index < 0 || static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
+      ESP_LOGW(TAG, "AP index out of bounds");
+      return false;
+    }
+
+    // Set selected index for future operations (save, retry, etc)
+    this->selected_sta_index_ = fast_connect_save.ap_index;
+
+    // Copy entire config, then override with fast connect data
+    params = this->sta_[fast_connect_save.ap_index];
+
+    // Override with saved BSSID/channel from fast connect (SSID/password/etc already copied from config)
     bssid_t bssid{};
     std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
-    this->ap_index_ = fast_connect_save.ap_index;
-    this->selected_ap_ = this->sta_[this->ap_index_];
-    this->selected_ap_.set_bssid(bssid);
-    this->selected_ap_.set_channel(fast_connect_save.channel);
+    params.set_bssid(bssid);
+    params.set_channel(fast_connect_save.channel);
+    // Fast connect uses specific BSSID+channel, not hidden network probe (even if config has hidden: true)
+    params.set_hidden(false);
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
     return true;
@@ -860,19 +919,27 @@ bool WiFiComponent::load_fast_connect_settings_() {
 void WiFiComponent::save_fast_connect_settings_() {
   bssid_t bssid = wifi_bssid();
   uint8_t channel = get_wifi_channel();
+  // selected_sta_index_ is always valid here (called only after successful connection)
+  // Fallback to 0 is defensive programming for robustness
+  int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
 
-  if (bssid != this->selected_ap_.get_bssid() || channel != this->selected_ap_.get_channel()) {
-    SavedWifiFastConnectSettings fast_connect_save{};
-
-    memcpy(fast_connect_save.bssid, bssid.data(), 6);
-    fast_connect_save.channel = channel;
-    fast_connect_save.ap_index = this->ap_index_;
-
-    this->fast_connect_pref_.save(&fast_connect_save);
-
-    ESP_LOGD(TAG, "Saved fast_connect settings");
+  // Skip save if settings haven't changed (compare with previously saved settings to reduce flash wear)
+  SavedWifiFastConnectSettings previous_save{};
+  if (this->fast_connect_pref_.load(&previous_save) && memcmp(previous_save.bssid, bssid.data(), 6) == 0 &&
+      previous_save.channel == channel && previous_save.ap_index == ap_index) {
+    return;  // No change, nothing to save
   }
+
+  SavedWifiFastConnectSettings fast_connect_save{};
+  memcpy(fast_connect_save.bssid, bssid.data(), 6);
+  fast_connect_save.channel = channel;
+  fast_connect_save.ap_index = ap_index;
+
+  this->fast_connect_pref_.save(&fast_connect_save);
+
+  ESP_LOGD(TAG, "Saved fast_connect settings");
 }
+#endif
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
 void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
@@ -902,7 +969,7 @@ WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t c
       rssi_(rssi),
       with_auth_(with_auth),
       is_hidden_(is_hidden) {}
-bool WiFiScanResult::matches(const WiFiAP &config) {
+bool WiFiScanResult::matches(const WiFiAP &config) const {
   if (config.get_hidden()) {
     // User configured a hidden network, only match actually hidden networks
     // don't match SSID

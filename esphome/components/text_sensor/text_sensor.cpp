@@ -1,4 +1,6 @@
 #include "text_sensor.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -51,12 +53,12 @@ void TextSensor::add_filter(Filter *filter) {
   }
   filter->initialize(this, nullptr);
 }
-void TextSensor::add_filters(const std::vector<Filter *> &filters) {
+void TextSensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }
 }
-void TextSensor::set_filters(const std::vector<Filter *> &filters) {
+void TextSensor::set_filters(std::initializer_list<Filter *> filters) {
   this->clear_filters();
   this->add_filters(filters);
 }
@@ -84,6 +86,9 @@ void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
   this->callback_.call(state);
+#if defined(USE_TEXT_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_text_sensor_update(this);
+#endif
 }
 
 }  // namespace text_sensor

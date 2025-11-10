@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import dataclass
 import itertools
 import logging
@@ -101,6 +102,10 @@ COMPILER_OPTIMIZATIONS = {
     "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
 }
+
+# Socket limit configuration for ESP-IDF
+# ESP-IDF CONFIG_LWIP_MAX_SOCKETS has range 1-253, default 10
+DEFAULT_MAX_SOCKETS = 10  # ESP-IDF default
 
 ARDUINO_ALLOWED_VARIANTS = [
     VARIANT_ESP32,
@@ -299,9 +304,13 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
+    if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
+        ext = "tar.xz"
+    else:
+        ext = "zip"
     if release:
-        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.zip"
-    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.zip"
+        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.{ext}"
+    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.{ext}"
 
 
 def _is_framework_url(source: str) -> str:
@@ -350,6 +359,7 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "1"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "1"),
+    cv.Version(5, 4, 3): cv.Version(55, 3, 32),
     cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 0): cv.Version(54, 3, 21, "2"),
@@ -545,6 +555,33 @@ CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
 CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
 CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
 CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
+CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
+CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
+CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
+CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
+
+# VFS requirement tracking
+# Components that need VFS features can call require_vfs_select() or require_vfs_dir()
+KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
+KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
+
+
+def require_vfs_select() -> None:
+    """Mark that VFS select support is required by a component.
+
+    Call this from components that use esp_vfs_eventfd or other VFS select features.
+    This prevents CONFIG_VFS_SUPPORT_SELECT from being disabled.
+    """
+    CORE.data[KEY_VFS_SELECT_REQUIRED] = True
+
+
+def require_vfs_dir() -> None:
+    """Mark that VFS directory support is required by a component.
+
+    Call this from components that use directory functions (opendir, readdir, mkdir, etc.).
+    This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
+    """
+    CORE.data[KEY_VFS_DIR_REQUIRED] = True
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -610,7 +647,17 @@ FRAMEWORK_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True
                     ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_VFS_SUPPORT_SELECT, default=True
+                    ): cv.boolean,
+                    cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
+                    cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
+                        min=8192, max=32768
+                    ),
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -746,6 +793,72 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
+def _configure_lwip_max_sockets(conf: dict) -> None:
+    """Calculate and set CONFIG_LWIP_MAX_SOCKETS based on component needs.
+
+    Socket component tracks consumer needs via consume_sockets() called during config validation.
+    This function runs in to_code() after all components have registered their socket needs.
+    User-provided sdkconfig_options take precedence.
+    """
+    from esphome.components.socket import KEY_SOCKET_CONSUMERS
+
+    # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
+    user_max_sockets = conf.get(CONF_SDKCONFIG_OPTIONS, {}).get(
+        "CONFIG_LWIP_MAX_SOCKETS"
+    )
+
+    socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
+    total_sockets = sum(socket_consumers.values())
+
+    # Early return if no sockets registered and no user override
+    if total_sockets == 0 and user_max_sockets is None:
+        return
+
+    components_list = ", ".join(
+        f"{name}={count}" for name, count in sorted(socket_consumers.items())
+    )
+
+    # User specified their own value - respect it but warn if insufficient
+    if user_max_sockets is not None:
+        _LOGGER.info(
+            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %s",
+            user_max_sockets,
+        )
+
+        # Warn if user's value is less than what components need
+        if total_sockets > 0:
+            user_sockets_int = 0
+            with contextlib.suppress(ValueError, TypeError):
+                user_sockets_int = int(user_max_sockets)
+
+            if user_sockets_int < total_sockets:
+                _LOGGER.warning(
+                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
+                    "needs %d sockets (registered: %s). You may experience socket "
+                    "exhaustion errors. Consider increasing to at least %d.",
+                    user_sockets_int,
+                    total_sockets,
+                    components_list,
+                    total_sockets,
+                )
+        # User's value already added via sdkconfig_options processing
+        return
+
+    # Auto-calculate based on component needs
+    # Use at least the ESP-IDF default (10), or the total needed by components
+    max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
+
+    log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
+    _LOGGER.log(
+        log_level,
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (registered: %s)",
+        max_sockets,
+        components_list,
+    )
+
+    add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
+
+
 async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
@@ -773,11 +886,26 @@ async def to_code(config):
     for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
         os.environ.pop(clean_var, None)
 
+    # Set the location of the IDF component manager cache
+    os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
+        CORE.relative_internal_path(".espressif")
+    )
+
     add_extra_script(
         "post",
         "post_build.py",
         Path(__file__).parent / "post_build.py.script",
     )
+
+    # In testing mode, add IRAM fix script to allow linking grouped component tests
+    # Similar to ESP8266's approach but for ESP-IDF
+    if CORE.testing_mode:
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+        add_extra_script(
+            "pre",
+            "iram_fix.py",
+            Path(__file__).parent / "iram_fix.py.script",
+        )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
@@ -802,9 +930,14 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+        add_idf_sdkconfig_option(
+            "CONFIG_ARDUINO_LOOP_STACK_SIZE",
+            conf[CONF_ADVANCED][CONF_LOOP_TASK_STACK_SIZE],
+        )
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
@@ -827,6 +960,9 @@ async def to_code(config):
 
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
+
+    # Reduce PHY TX power in the event of a brownout
+    add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
     # Set default CPU frequency
     add_idf_sdkconfig_option(
@@ -852,6 +988,9 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
     if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
         add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
+
+    _configure_lwip_max_sockets(conf)
+
     if advanced.get(CONF_EXECUTE_FROM_PSRAM, False):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
@@ -873,6 +1012,43 @@ async def to_code(config):
     # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
     if advanced.get(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, True):
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
+
+    # Disable VFS support for termios (terminal I/O functions)
+    # ESPHome doesn't use termios functions on ESP32 (only used in host UART driver).
+    # Saves approximately 1.8KB of flash when disabled (default).
+    add_idf_sdkconfig_option(
+        "CONFIG_VFS_SUPPORT_TERMIOS",
+        not advanced.get(CONF_DISABLE_VFS_SUPPORT_TERMIOS, True),
+    )
+
+    # Disable VFS support for select() with file descriptors
+    # ESPHome only uses select() with sockets via lwip_select(), which still works.
+    # VFS select is only needed for UART/eventfd file descriptors.
+    # Components that need it (e.g., openthread) call require_vfs_select().
+    # Saves approximately 2.7KB of flash when disabled (default).
+    if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
+        # Component requires VFS select - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_SELECT", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_SELECT",
+            not advanced.get(CONF_DISABLE_VFS_SUPPORT_SELECT, True),
+        )
+
+    # Disable VFS support for directory functions (opendir, readdir, mkdir, etc.)
+    # ESPHome doesn't use directory functions on ESP32.
+    # Components that need it (e.g., storage components) call require_vfs_dir().
+    # Saves approximately 0.5KB+ of flash when disabled (default).
+    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
+        # Component requires VFS directory support - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_DIR",
+            not advanced.get(CONF_DISABLE_VFS_SUPPORT_DIR, True),
+        )
 
     cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
@@ -902,6 +1078,10 @@ async def to_code(config):
             "Using experimental features in ESP-IDF may result in unexpected failures."
         )
         add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
+
+    cg.add_define(
+        "ESPHOME_LOOP_TASK_STACK_SIZE", advanced.get(CONF_LOOP_TASK_STACK_SIZE)
+    )
 
     cg.add_define(
         "USE_ESP_IDF_VERSION_CODE",

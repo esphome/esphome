@@ -155,6 +155,7 @@ DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Compon
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter, cg.Component)
 
 _LOGGER = getLogger(__name__)
@@ -264,20 +265,31 @@ async def delayed_off_filter_to_code(config, filter_id):
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
-    timings = []
     if len(config) > 0:
-        timings.extend(
-            (conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON])
-            for conf in config
-        )
-    else:
-        timings.append(
-            (
-                cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds,
-                cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
-                cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
+        timings = [
+            cg.StructInitializer(
+                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
+                ("delay", conf[CONF_DELAY]),
+                ("time_off", conf[CONF_TIME_OFF]),
+                ("time_on", conf[CONF_TIME_ON]),
             )
-        )
+            for conf in config
+        ]
+    else:
+        timings = [
+            cg.StructInitializer(
+                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
+                ("delay", cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds),
+                (
+                    "time_off",
+                    cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
+                ),
+                (
+                    "time_on",
+                    cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
+                ),
+            )
+        ]
     var = cg.new_Pvariable(filter_id, timings)
     await cg.register_component(var, {})
     return var
@@ -288,7 +300,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(bool, "x")], return_type=cg.optional.template(bool)
     )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 @register_filter(
@@ -534,11 +546,6 @@ def binary_sensor_schema(
             schema[cv.Optional(key, default=default)] = validator
 
     return _BINARY_SENSOR_SCHEMA.extend(schema)
-
-
-# Remove before 2025.11.0
-BINARY_SENSOR_SCHEMA = binary_sensor_schema()
-BINARY_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("binary_sensor"))
 
 
 async def setup_binary_sensor_core_(var, config):

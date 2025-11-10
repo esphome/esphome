@@ -1,6 +1,10 @@
 #include "cover.h"
-#include "esphome/core/log.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
+
 #include <strings.h>
+
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace cover {
@@ -144,21 +148,7 @@ CoverCall &CoverCall::set_stop(bool stop) {
 bool CoverCall::get_stop() const { return this->stop_; }
 
 CoverCall Cover::make_call() { return {this}; }
-void Cover::open() {
-  auto call = this->make_call();
-  call.set_command_open();
-  call.perform();
-}
-void Cover::close() {
-  auto call = this->make_call();
-  call.set_command_close();
-  call.perform();
-}
-void Cover::stop() {
-  auto call = this->make_call();
-  call.set_command_stop();
-  call.perform();
-}
+
 void Cover::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
@@ -183,6 +173,9 @@ void Cover::publish_state(bool save) {
   ESP_LOGD(TAG, "  Current Operation: %s", cover_operation_to_str(this->current_operation));
 
   this->state_callback_.call();
+#if defined(USE_COVER) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_cover_update(this);
+#endif
 
   if (save) {
     CoverRestoreState restore{};
