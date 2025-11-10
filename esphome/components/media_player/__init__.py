@@ -192,10 +192,6 @@ def media_player_schema(
     return _MEDIA_PLAYER_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-MEDIA_PLAYER_SCHEMA = media_player_schema(MediaPlayer)
-MEDIA_PLAYER_SCHEMA.add_extra(cv.deprecated_schema_constant("media_player"))
-
 MEDIA_PLAYER_ACTION_SCHEMA = automation.maybe_simple_id(
     cv.Schema(
         {

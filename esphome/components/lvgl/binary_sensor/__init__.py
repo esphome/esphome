@@ -31,7 +31,7 @@ async def to_code(config):
             lvgl_static.add_event_cb(
                 widget.obj,
                 await pressed_ctx.get_lambda(),
-                LV_EVENT.PRESSING,
+                LV_EVENT.PRESSED,
                 LV_EVENT.RELEASED,
             )
         )

@@ -72,7 +72,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   const u_int8_t hardware_id = mopeka_data->data_1 & 0xCF;
   if (static_cast<SensorType>(hardware_id) != STANDARD && static_cast<SensorType>(hardware_id) != XL &&
-      static_cast<SensorType>(hardware_id) != ETRAILER) {
+      static_cast<SensorType>(hardware_id) != ETRAILER && static_cast<SensorType>(hardware_id) != STANDARD_ALT) {
     ESP_LOGE(TAG, "[%s] Unsupported Sensor Type (0x%X)", device.address_str().c_str(), hardware_id);
     return false;
   }
