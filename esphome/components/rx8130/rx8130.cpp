@@ -5,9 +5,21 @@
 
 namespace esphome {
 namespace rx8130 {
-using namespace i2c;
 
 static const char *const TAG = "rx8130";
+static const uint8_t RX8130_REG_SEC = 0x10;
+static const uint8_t RX8130_REG_MIN = 0x11;
+static const uint8_t RX8130_REG_HOUR = 0x12;
+static const uint8_t RX8130_REG_WDAY = 0x13;
+static const uint8_t RX8130_REG_MDAY = 0x14;
+static const uint8_t RX8130_REG_MONTH = 0x15;
+static const uint8_t RX8130_REG_YEAR = 0x16;
+static const uint8_t RX8130_REG_EXTEN = 0x1C;
+static const uint8_t RX8130_REG_FLAG = 0x1D;
+static const uint8_t RX8130_REG_CTRL0 = 0x1E;
+static const uint8_t RX8130_REG_CTRL1 = 0x1F;
+static const uint8_t RX8130_REG_DIG_OFFSET = 0x30;
+static const uint8_t RX8130_BIT_CTRL_STOP = 0x40;
 
 constexpr uint8_t bcd2dec(uint8_t val) { return (val >> 4) * 10 + (val & 0x0f); }
 constexpr uint8_t dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); }
@@ -15,28 +27,28 @@ constexpr uint8_t dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); 
 void RX8130Component::setup() {
   uint8_t clear_flags = 0x00;
   // Set digital offset to disabled with no offset
-  if (this->write_register(RX8130_REG_DIG_OFFSET, &clear_flags, 1) != ERROR_OK) {
+  if (this->write_register(RX8130_REG_DIG_OFFSET, &clear_flags, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
   // Disable wakeup timers
-  if (this->write_register(RX8130_REG_EXTEN, &clear_flags, 1) != ERROR_OK) {
+  if (this->write_register(RX8130_REG_EXTEN, &clear_flags, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
   // Clear VLF flag in case there has been data loss
-  if (this->write_register(RX8130_REG_FLAG, &clear_flags, 1) != ERROR_OK) {
+  if (this->write_register(RX8130_REG_FLAG, &clear_flags, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
   // Clear test flag and disable interrupts
-  if (this->write_register(RX8130_REG_CTRL0, &clear_flags, 1) != ERROR_OK) {
+  if (this->write_register(RX8130_REG_CTRL0, &clear_flags, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
   // Enable battery charging and switching
   uint8_t battery_flags = 0x30;
-  if (this->write_register(RX8130_REG_CTRL1, &battery_flags, 1) != ERROR_OK) {
+  if (this->write_register(RX8130_REG_CTRL1, &battery_flags, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
@@ -53,7 +65,7 @@ void RX8130Component::dump_config() {
 
 void RX8130Component::read_time() {
   uint8_t date[7];
-  if (this->read_register(RX8130_REG_SEC, date, 7) != ERROR_OK) {
+  if (this->read_register(RX8130_REG_SEC, date, 7) != i2c::ERROR_OK) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
@@ -94,7 +106,7 @@ void RX8130Component::write_time() {
   buff[5] = dec2bcd(now.month);
   buff[6] = dec2bcd(now.year % 100);
   this->stop_(true);
-  if (this->write_register(RX8130_REG_SEC, buff, 7) != ERROR_OK) {
+  if (this->write_register(RX8130_REG_SEC, buff, 7) != i2c::ERROR_OK) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   } else {
     ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
