@@ -77,11 +77,11 @@ WIFI_POWER_SAVE_MODES = {
     "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
 }
 
-WiFiAuthMode = wifi_ns.enum("WiFiAuthMode")
-WIFI_AUTH_MODES = {
-    "WPA": WiFiAuthMode.WIFI_AUTH_MODE_WPA,
-    "WPA2": WiFiAuthMode.WIFI_AUTH_MODE_WPA2,
-    "WPA3": WiFiAuthMode.WIFI_AUTH_MODE_WPA3,
+WifiMinAuthMode = wifi_ns.enum("WifiMinAuthMode")
+WIFI_MIN_AUTH_MODES = {
+    "WPA": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA,
+    "WPA2": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA2,
+    "WPA3": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA3,
 }
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
@@ -321,7 +321,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
-                cv.enum(WIFI_AUTH_MODES, upper=True),
+                cv.enum(WIFI_MIN_AUTH_MODES, upper=True),
                 cv.only_on([Platform.ESP32, Platform.ESP8266]),
             ),
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
