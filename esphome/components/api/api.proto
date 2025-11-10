@@ -2348,7 +2348,7 @@ enum WaterHeaterMode {
 }
 
 message ListEntitiesWaterHeaterResponse {
-  option (id) = 133;  
+  option (id) = 133;
   option (base_class) = "InfoResponseProtoMessage";
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_WATER_HEATER";
@@ -2356,14 +2356,14 @@ message ListEntitiesWaterHeaterResponse {
   string  object_id = 1;
   fixed32 key       = 2;
   string  name      = 3;
-  reserved 4;  
+  reserved 4;
 
   repeated WaterHeaterMode supported_modes = 5;
 
   bool  supports_current_temperature = 6;
-  float visual_min_temperature       = 7;  // °C
-  float visual_max_temperature       = 8;  // °C
-  float visual_temperature_step      = 9;
+  float visual_min_temperature       = 7;
+  float visual_max_temperature       = 8;
+  float visual_target_temperature_step = 9;
 
   bool   disabled_by_default = 10;
   string icon                = 11 [(field_ifdef) = "USE_ENTITY_ICON"];
@@ -2372,7 +2372,7 @@ message ListEntitiesWaterHeaterResponse {
 }
 
 message WaterHeaterStateResponse {
-  option (id) = 134; 
+  option (id) = 134;
   option (base_class) = "StateResponseProtoMessage";
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_WATER_HEATER";
@@ -2383,7 +2383,7 @@ message WaterHeaterStateResponse {
   WaterHeaterMode mode = 2;
 
   float current_temperature = 3;
-  bool  missing_current_temperature = 4; 
+  bool  missing_current_temperature = 4;
 
   float target_temperature = 5;
   bool  missing_target_temperature = 6;
@@ -2392,9 +2392,9 @@ message WaterHeaterStateResponse {
 }
 
 message WaterHeaterCommandRequest {
-  option (id) = 135; 
-  option (source) = SOURCE_CLIENT;
+  option (id) = 135;
   option (base_class) = "CommandProtoMessage";
+  option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_WATER_HEATER";
   option (no_delay) = true;
 
