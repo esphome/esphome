@@ -2,12 +2,17 @@ import ipaddress
 
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32.const import KEY_ESP32, KEY_PSRAM_GUARANTEED
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
+
+# High performance networking tracking infrastructure
+# Components can request high performance networking and this configures lwip and WiFi settings
+KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 
 network_ns = cg.esphome_ns.namespace("network")
 IPAddress = network_ns.class_("IPAddress")
@@ -47,6 +52,41 @@ def ip_address_literal(ip: str | int | None) -> cg.MockObj:
     return IPAddress(str(ip))
 
 
+def require_high_performance_networking() -> None:
+    """Request high performance networking for network and WiFi.
+
+    Call this from components that need optimized network performance for streaming
+    or high-throughput data transfer. This enables high performance mode which
+    configures both lwip TCP settings and WiFi driver settings for improved
+    network performance.
+
+    Settings applied (ESP-IDF only):
+    - lwip: Larger TCP buffers, windows, and mailbox sizes
+    - WiFi: Increased RX/TX buffers, AMPDU aggregation, PSRAM allocation
+
+    Configuration is PSRAM-aware:
+    - With PSRAM guaranteed: Aggressive settings (512 RX buffers, 512KB TCP windows)
+    - Without PSRAM: Conservative settings (64 buffers, 65KB TCP windows)
+
+    This function is idempotent - safe to call multiple times from different components.
+
+    Example:
+        from esphome.components import network
+
+        def _request_high_performance_networking(config):
+            network.require_high_performance_networking()
+            return config
+
+        CONFIG_SCHEMA = cv.All(
+            ...,
+            _request_high_performance_networking,
+        )
+    """
+    # Only set up once (idempotent - multiple components can call this)
+    if not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False):
+        CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
@@ -80,6 +120,51 @@ async def to_code(config):
     cg.add_define("USE_NETWORK")
     if CORE.using_arduino and CORE.is_esp32:
         cg.add_library("Networking", None)
+
+    # Apply high performance networking settings if requested by any component
+    if (
+        CORE.is_esp32
+        and CORE.using_esp_idf
+        and CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
+    ):
+        # Check if PSRAM is guaranteed (set by psram component during final validation)
+        psram_guaranteed = CORE.data.get(KEY_ESP32, {}).get(KEY_PSRAM_GUARANTEED, False)
+
+        if psram_guaranteed:
+            # PSRAM is guaranteed - use aggressive settings
+            # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
+
+            # Enable window scaling for much larger TCP windows
+            add_idf_sdkconfig_option("CONFIG_LWIP_WND_SCALE", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RCV_SCALE", 3)
+
+            # Large TCP buffers and windows (requires PSRAM)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 512000)
+
+            # Large mailboxes for high throughput
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 512)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 512)
+
+            # TCP connection limits
+            add_idf_sdkconfig_option("CONFIG_LWIP_MAX_ACTIVE_TCP", 16)
+            add_idf_sdkconfig_option("CONFIG_LWIP_MAX_LISTENING_TCP", 16)
+
+            # TCP optimizations
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MAXRTX", 12)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SYNMAXRTX", 6)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MSS", 1436)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MSL", 60000)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_OVERSIZE_MSS", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_QUEUE_OOSEQ", True)
+        else:
+            # PSRAM not guaranteed - use more conservative optimized settings
+            # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
+
     if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:

@@ -11,6 +11,8 @@ from esphome.components.esp32 import (
     get_esp32_variant,
 )
 from esphome.components.esp32.const import (
+    KEY_ESP32,
+    KEY_PSRAM_GUARANTEED,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -131,7 +133,22 @@ def get_config_schema(config):
 
 CONFIG_SCHEMA = get_config_schema
 
-FINAL_VALIDATE_SCHEMA = validate_psram_mode
+
+def _store_psram_guaranteed(config):
+    """Store PSRAM guaranteed status in CORE.data for other components.
+
+    PSRAM is "guaranteed" when it will fail if not found, ensuring safe use
+    of high buffer configurations in network/wifi components.
+
+    Called during final validation to ensure the flag is available
+    before any to_code() functions run.
+    """
+    psram_guaranteed = not config[CONF_DISABLED] and not config[CONF_IGNORE_NOT_FOUND]
+    CORE.data[KEY_ESP32][KEY_PSRAM_GUARANTEED] = psram_guaranteed
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(validate_psram_mode, _store_psram_guaranteed)
 
 
 async def to_code(config):
