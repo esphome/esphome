@@ -1414,15 +1414,16 @@ void WiFiComponent::retry_connect() {
 
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
     // Check if we have a valid target before building params
     // After exhausting all networks in a phase, selected_sta_index_ may be -1
     // In that case, skip connection and let next wifi_loop() handle phase transition
     if (this->selected_sta_index_ >= 0) {
+      this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
       WiFiAP params = this->build_params_for_current_phase_();
       this->start_connecting(params, true);
+      return;
     }
-    return;
+    // No valid target - fall through to set state to allow phase transition
   }
 
   this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
