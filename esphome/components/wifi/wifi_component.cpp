@@ -51,15 +51,13 @@ static const char *const TAG = "wifi";
 /// ┌──────────────────────────────────────────────────────────────────────┐
 /// │                      Fast Connect Path (Optional)                    │
 /// ├──────────────────────────────────────────────────────────────────────┤
-/// │  Skipped if: first network is hidden OR no saved data with single AP │
+/// │  Used if: saved BSSID+channel data available (from previous boot)    │
 /// │                                                                      │
 /// │  1. INITIAL_CONNECT → Try saved BSSID+channel (1 attempt)            │
 /// │                          ↓                                           │
-/// │     [FAILED] → FAST_CONNECT_CYCLING_APS                              │
-/// │                          ↓                                           │
-/// │  2. Cycle through remaining configured APs (1 attempt each)          │
-/// │                          ↓                                           │
-/// │     [All Failed] → Fall through to explicit hidden or scanning       │
+/// │     [FAILED] → Fall through to explicit hidden or scanning           │
+/// │                                                                      │
+/// │  Note: Fast connect data saved from Improv or successful connection  │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///                          ↓
 /// ┌──────────────────────────────────────────────────────────────────────┐
@@ -123,11 +121,10 @@ static const char *const TAG = "wifi";
 /// └──────────────────────────────────────────────────────────────────────┘
 ///
 /// Retry Phases:
-/// - INITIAL_CONNECT: First attempt (try saved BSSID+channel if fast_connect enabled)
-/// - FAST_CONNECT_CYCLING_APS: Cycle through configured APs (1 attempt per AP, fast_connect only)
+/// - INITIAL_CONNECT: Try saved BSSID+channel (fast_connect), or fall back to normal flow
 /// - EXPLICIT_HIDDEN: Try consecutive networks marked hidden:true before scanning (1 attempt per SSID)
 /// - SCAN_CONNECTING: Connect using scan results (2 attempts per BSSID)
-/// - RETRY_HIDDEN: Retry networks not found in scan (1 attempt per SSID, skips already tried)
+/// - RETRY_HIDDEN: Try networks not found in scan (1 attempt per SSID, skipped if none found)
 /// - RESTARTING_ADAPTER: Restart WiFi adapter to clear stuck state
 ///
 /// Hidden Network Handling:
@@ -355,6 +352,7 @@ void WiFiComponent::start() {
       ESP_LOGV(TAG, "Setting Power Save Option failed");
     }
 
+    this->transition_to_phase_(WiFiRetryPhase::INITIAL_CONNECT);
 #ifdef USE_WIFI_FAST_CONNECT
     WiFiAP params;
     bool loaded_fast_connect = this->load_fast_connect_settings_(params);
