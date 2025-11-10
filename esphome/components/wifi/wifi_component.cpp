@@ -51,9 +51,12 @@ static const char *const TAG = "wifi";
 /// ┌──────────────────────────────────────────────────────────────────────┐
 /// │                      Fast Connect Path (Optional)                    │
 /// ├──────────────────────────────────────────────────────────────────────┤
-/// │  Used if: saved BSSID+channel data available (from previous boot)    │
+/// │  Entered if: configuration has 'fast_connect: true'                  │
+/// │  Optimization to skip scanning when possible:                        │
 /// │                                                                      │
-/// │  1. INITIAL_CONNECT → Try saved BSSID+channel (1 attempt)            │
+/// │  1. INITIAL_CONNECT → Try one of:                                    │
+/// │     a) Saved BSSID+channel (from previous boot)                      │
+/// │     b) First configured non-hidden network (any BSSID)               │
 /// │                          ↓                                           │
 /// │     [FAILED] → Check if more configured networks available           │
 /// │                          ↓                                           │
