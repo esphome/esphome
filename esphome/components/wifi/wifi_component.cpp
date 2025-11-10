@@ -1233,9 +1233,9 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan");
       }
 #endif
-      // Trigger scan if we don't have scan results OR if looping back from RETRY_HIDDEN
-      if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::RETRY_HIDDEN ||
-          old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
+      // Trigger scan if we don't have scan results OR if transitioning from phases that need fresh scan
+      if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::EXPLICIT_HIDDEN ||
+          old_phase == WiFiRetryPhase::RETRY_HIDDEN || old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
         this->start_scanning();
         return true;  // Started scan, wait for completion
       }
