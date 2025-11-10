@@ -1160,18 +1160,21 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         }
       }
       // Exhausted all potentially hidden SSIDs - rescan to try next BSSID
-      // If captive portal/improv is active, keep rescanning
+      // If captive portal/improv is active, skip adapter restart and go back to start
       // Otherwise restart adapter to clear any stuck state
       if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
-        return WiFiRetryPhase::SCAN_CONNECTING;
+        // Go back to explicit hidden if we went through it initially, otherwise scan
+        return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
+                                                           : WiFiRetryPhase::SCAN_CONNECTING;
       }
 
       // Restart adapter
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
-      // After restart, go back to scanning
-      return WiFiRetryPhase::SCAN_CONNECTING;
+      // After restart, go back to explicit hidden if we went through it initially, otherwise scan
+      return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
+                                                         : WiFiRetryPhase::SCAN_CONNECTING;
   }
 
   // Should never reach here
