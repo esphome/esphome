@@ -16,16 +16,19 @@ climate::ClimateTraits GreeClimate::traits() {
 }
 
 void GreeClimate::control(const climate::ClimateCall &call) {
-  auto preset = call.get_custom_preset();
-  if (preset && preset.value() == PRESET_DISPLAY_LIGHT_OFF) {
-    this->set_display_light(false);
-    this->set_custom_preset_(preset.value().c_str());
+  auto custom_preset = call.get_custom_preset();
+  if (custom_preset && custom_preset.value() == PRESET_DISPLAY_LIGHT_OFF) {
+    this->display_light_ = false;
+    this->set_custom_preset_(custom_preset.value().c_str());
   } else if (call.get_preset().has_value()) {
-    // Standard preset is being set, use set_preset_ which will clear custom preset
+    // Persist the configured display preset
     this->set_preset_(*call.get_preset());
-    this->set_display_light(true);
   }
   climate_ir::ClimateIR::control(call);
+  if (!call.get_custom_preset().has_value()) {
+    // Restore the display setting from configuration
+    this->display_light_ = this->display_light_config_;
+  }
 }
 
 void GreeClimate::set_model(Model model) {

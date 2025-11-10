@@ -90,7 +90,10 @@ class GreeClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
-  void set_display_light(bool enabled) { this->display_light_ = enabled; }
+  void set_display_light(bool enabled) {
+    this->display_light_config_ = enabled;
+    this->display_light_ = enabled;
+  }
   bool get_display_light() const { return this->display_light_; }
 
  protected:
@@ -108,6 +111,7 @@ class GreeClimate : public climate_ir::ClimateIR {
 
   Model model_{};
   bool display_light_{true};
+  bool display_light_config_{true};
 };
 
 }  // namespace gree
