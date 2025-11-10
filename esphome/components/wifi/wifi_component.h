@@ -207,6 +207,12 @@ enum WiFiPowerSaveMode : uint8_t {
   WIFI_POWER_SAVE_HIGH,
 };
 
+enum WiFiAuthMode : uint8_t {
+  WIFI_AUTH_MODE_WPA = 0,
+  WIFI_AUTH_MODE_WPA2,
+  WIFI_AUTH_MODE_WPA3,
+};
+
 #ifdef USE_ESP32
 struct IDFWiFiEvent;
 #endif
@@ -258,6 +264,7 @@ class WiFiComponent : public Component {
   bool is_connected();
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
+  void set_min_auth_mode(WiFiAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
   void set_output_power(float output_power) { output_power_ = output_power; }
 
   void set_passive_scan(bool passive);
@@ -443,6 +450,7 @@ class WiFiComponent : public Component {
   // Group all 8-bit values together
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
+  WiFiAuthMode min_auth_mode_{WIFI_AUTH_MODE_WPA2};
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
