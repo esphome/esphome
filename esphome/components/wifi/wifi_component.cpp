@@ -70,7 +70,7 @@ static const char *const TAG = "wifi";
 /// │  1. EXPLICIT_HIDDEN → Try consecutive hidden networks (1 attempt)    │
 /// │                       Stop when visible network reached              │
 /// │                          ↓                                           │
-/// │     Example: Hidden1, Hidden2, Visible1, Hidden3, Visible2          │
+/// │     Example: Hidden1, Hidden2, Visible1, Hidden3, Visible2           │
 /// │              Try: Hidden1, Hidden2 (stop at Visible1)                │
 /// │                          ↓                                           │
 /// │     [All Failed] → Fall back to scan-based connection                │
@@ -97,7 +97,7 @@ static const char *const TAG = "wifi";
 /// │              (stored in persistent sta_priorities_)                  │
 /// │                          ↓                                           │
 /// │  4. Check for hidden networks:                                       │
-/// │     - If found → RETRY_HIDDEN (try SSIDs not in scan, 1 attempt)    │
+/// │     - If found → RETRY_HIDDEN (try SSIDs not in scan, 1 attempt)     │
 /// │       Skip hidden networks before first visible one                  │
 /// │       (Skip Hidden1/Hidden2, try Hidden3 from example)               │
 /// │     - If none → Skip RETRY_HIDDEN, go to step 5                      │
@@ -118,7 +118,7 @@ static const char *const TAG = "wifi";
 /// │  8. SCAN_CONNECTING → Try scan_result_[0] (next best)                │
 /// │                                                                      │
 /// │  Key: Priority system cycles through BSSIDs ACROSS scan cycles       │
-/// │       Full retry cycle: EXPLICIT_HIDDEN → SCAN → RETRY_HIDDEN       │
+/// │       Full retry cycle: EXPLICIT_HIDDEN → SCAN → RETRY_HIDDEN        │
 /// │       Always try best available BSSID (scan_result_[0])              │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///
