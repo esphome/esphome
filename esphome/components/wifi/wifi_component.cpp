@@ -56,7 +56,7 @@ static const char *const TAG = "wifi";
 /// │                          ↓                                           │
 /// │     [FAILED] → FAST_CONNECT_CYCLING_APS                              │
 /// │                          ↓                                           │
-/// │  2. Cycle through all configured APs (1 attempt each)                │
+/// │  2. Cycle through remaining configured APs (1 attempt each)          │
 /// │                          ↓                                           │
 /// │     [All Failed] → Fall back to scan-based connection                │
 /// └──────────────────────────────────────────────────────────────────────┘
