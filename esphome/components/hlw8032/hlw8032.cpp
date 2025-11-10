@@ -35,13 +35,13 @@ void HLW8032Component::loop() {
     return;
 
   uint8_t data = this->read();
-
-  if (((data == STATE_REG_CORRECTION_FUNC_NORMAL) || (data == STATE_REG_CORRECTION_FUNC_FAIL) ||
-       ((data & STATE_REG_CORRECTION_MASK) == STATE_REG_CORRECTION_MASK)) &&
-      !this->header_found_) {
-    this->header_found_ = true;
-    this->raw_data_[0] = data;
-  } else if (data == CHECK_REG && this->header_found_) {
+  if (!this->header_found_) {
+    if ((data == STATE_REG_CORRECTION_FUNC_NORMAL) || (data == STATE_REG_CORRECTION_FUNC_FAIL) ||
+        (data & STATE_REG_CORRECTION_MASK) == STATE_REG_CORRECTION_MASK) {
+      this->header_found_ = true;
+      this->raw_data_[0] = data;
+    }
+  } else if (data == CHECK_REG) {
     this->raw_data_[1] = data;
     this->raw_data_index_ = 2;
     this->check_ = 0;
@@ -62,6 +62,10 @@ void HLW8032Component::loop() {
   }
 }
 
+uint32_t HLW8032Component::read_uint24_(uint8_t offset) {
+  return encode_uint24(this->raw_data_[offset], this->raw_data_[offset + 1], this->raw_data_[offset + 2]);
+}
+
 void HLW8032Component::parse_data_() {
   // Parse header
   uint8_t state_reg = this->raw_data_[STATE_REG_OFFSET];
@@ -72,21 +76,12 @@ void HLW8032Component::parse_data_() {
   }
 
   // Parse data frame
-  uint32_t voltage_parameter =
-      encode_uint24(this->raw_data_[VOLTAGE_PARAM_OFFSET], this->raw_data_[VOLTAGE_PARAM_OFFSET + 1],
-                    this->raw_data_[VOLTAGE_PARAM_OFFSET + 2]);
-  uint32_t voltage_reg = encode_uint24(this->raw_data_[VOLTAGE_REG_OFFSET], this->raw_data_[VOLTAGE_REG_OFFSET + 1],
-                                       this->raw_data_[VOLTAGE_REG_OFFSET + 2]);
-  uint32_t current_parameter =
-      encode_uint24(this->raw_data_[CURRENT_PARAM_OFFSET], this->raw_data_[CURRENT_PARAM_OFFSET + 1],
-                    this->raw_data_[CURRENT_PARAM_OFFSET + 2]);
-  uint32_t current_reg = encode_uint24(this->raw_data_[CURRENT_REG_OFFSET], this->raw_data_[CURRENT_REG_OFFSET + 1],
-                                       this->raw_data_[CURRENT_REG_OFFSET + 2]);
-  uint32_t power_parameter = encode_uint24(this->raw_data_[POWER_PARAM_OFFSET], this->raw_data_[POWER_PARAM_OFFSET + 1],
-                                           this->raw_data_[POWER_PARAM_OFFSET + 2]);
-  uint32_t power_reg = encode_uint24(this->raw_data_[POWER_REG_OFFSET], this->raw_data_[POWER_REG_OFFSET + 1],
-                                     this->raw_data_[POWER_REG_OFFSET + 2]);
-
+  uint32_t voltage_parameter = this->read_uint24_(VOLTAGE_PARAM_OFFSET);
+  uint32_t voltage_reg = this->read_uint24_(VOLTAGE_REG_OFFSET);
+  uint32_t current_parameter = this->read_uint24_(CURRENT_PARAM_OFFSET);
+  uint32_t current_reg = this->read_uint24_(CURRENT_REG_OFFSET);
+  uint32_t power_parameter = this->read_uint24_(POWER_PARAM_OFFSET);
+  uint32_t power_reg = this->read_uint24_(POWER_REG_OFFSET);
   uint8_t data_update_register = this->raw_data_[DATA_UPDATE_REG_OFFSET];
 
   bool have_power = data_update_register & HAVE_POWER_BIT;
