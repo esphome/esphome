@@ -876,8 +876,12 @@ template<typename... X> class PartitionedCallbackManager;
  * Uses a single vector partitioned into two sections: [first_0, ..., first_m-1, second_0, ..., second_n-1]
  * The partition point is tracked externally by the caller (typically stored in the entity class for optimal alignment).
  *
- * Memory efficient: Only stores a 4-byte pointer. The partition count lives in the entity class where it can be
- * packed with other small fields to avoid padding waste.
+ * Memory efficient: Only stores a single pointer (4 bytes on 32-bit platforms, 8 bytes on 64-bit platforms).
+ * The partition count lives in the entity class where it can be packed with other small fields to avoid padding waste.
+ *
+ * Design rationale: The asymmetric API (add_first takes first_count*, while call_first/call_second take it by value)
+ * is intentional - add_first must increment the count, while call methods only read it. This avoids storing first_count
+ * internally, saving memory per instance.
  *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
@@ -891,7 +895,8 @@ template<typename... Ts> class PartitionedCallbackManager<void(Ts...)> {
 
     // Add to first partition: append then swap into position
     this->callbacks_->push_back(std::move(callback));
-    if (*first_count < this->callbacks_->size() - 1) {
+    // Avoid potential underflow: rewrite comparison to not subtract from size()
+    if (*first_count + 1 < this->callbacks_->size()) {
       std::swap((*this->callbacks_)[*first_count], (*this->callbacks_)[this->callbacks_->size() - 1]);
     }
     (*first_count)++;
