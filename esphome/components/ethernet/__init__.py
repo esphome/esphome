@@ -14,7 +14,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
-from esphome.components.network import IPAddress
+from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 import esphome.config_validation as cv
 from esphome.const import (
@@ -320,11 +320,11 @@ def _final_validate_spi(config):
 def manual_ip(config):
     return cg.StructInitializer(
         ManualIP,
-        ("static_ip", IPAddress(str(config[CONF_STATIC_IP]))),
-        ("gateway", IPAddress(str(config[CONF_GATEWAY]))),
-        ("subnet", IPAddress(str(config[CONF_SUBNET]))),
-        ("dns1", IPAddress(str(config[CONF_DNS1]))),
-        ("dns2", IPAddress(str(config[CONF_DNS2]))),
+        ("static_ip", ip_address_literal(config[CONF_STATIC_IP])),
+        ("gateway", ip_address_literal(config[CONF_GATEWAY])),
+        ("subnet", ip_address_literal(config[CONF_SUBNET])),
+        ("dns1", ip_address_literal(config[CONF_DNS1])),
+        ("dns2", ip_address_literal(config[CONF_DNS2])),
     )
 
 

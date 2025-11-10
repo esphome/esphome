@@ -235,7 +235,7 @@ void GraphLegend::init(Graph *g) {
       std::string valstr =
           value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       if (this->units_) {
-        valstr += trace->sensor_->get_unit_of_measurement();
+        valstr += trace->sensor_->get_unit_of_measurement_ref();
       }
       this->font_value_->measure(valstr.c_str(), &fw, &fos, &fbl, &fh);
       if (fw > valw)
@@ -371,7 +371,7 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
       std::string valstr =
           value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       if (legend_->units_) {
-        valstr += trace->sensor_->get_unit_of_measurement();
+        valstr += trace->sensor_->get_unit_of_measurement_ref();
       }
       buff->printf(xv, yv, legend_->font_value_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", valstr.c_str());
       ESP_LOGV(TAG, "    value: %s", valstr.c_str());
