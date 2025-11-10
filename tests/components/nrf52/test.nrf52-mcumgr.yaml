@@ -1,3 +1,4 @@
 nrf52:
   reg0:
     voltage: 3.3V
+    ucir_erase: true
