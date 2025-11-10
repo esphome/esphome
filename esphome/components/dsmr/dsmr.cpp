@@ -1,5 +1,3 @@
-#ifdef USE_ARDUINO
-
 #include "dsmr.h"
 #include "esphome/core/log.h"
 
@@ -257,9 +255,9 @@ bool Dsmr::parse_telegram() {
   ESP_LOGV(TAG, "Trying to parse telegram");
   this->stop_requesting_data_();
 
-  ::dsmr::ParseResult<void> res =
-      ::dsmr::P1Parser::parse(&data, this->telegram_, this->bytes_read_, false,
-                              this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
+  const auto &res = dsmr_parser::P1Parser::parse(
+      data, this->telegram_, this->bytes_read_, false,
+      this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
   if (res.err) {
     // Parsing error, show it
     auto err_str = res.fullError(this->telegram_, this->telegram_ + this->bytes_read_);
@@ -331,5 +329,3 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
 
 }  // namespace dsmr
 }  // namespace esphome
-
-#endif  // USE_ARDUINO
