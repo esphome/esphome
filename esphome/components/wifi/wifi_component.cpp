@@ -357,10 +357,10 @@ void WiFiComponent::start() {
     WiFiAP params;
     bool loaded_fast_connect = this->load_fast_connect_settings_(params);
 
-    // Skip fast_connect if:
-    // 1. First network is hidden (needs EXPLICIT_HIDDEN phase, not config-based connect)
-    // 2. No saved data AND only one configured AP (nothing to optimize)
-    if ((!this->sta_.empty() && this->sta_[0].get_hidden()) || (!loaded_fast_connect && this->sta_.size() <= 1)) {
+    // Skip fast_connect if no saved data AND (first network is hidden OR only one AP configured)
+    // Logic: Try fast_connect if we have saved settings (might be for a working non-hidden network)
+    //        OR if we have multiple APs to cycle through
+    if (!loaded_fast_connect && ((!this->sta_.empty() && this->sta_[0].get_hidden()) || this->sta_.size() <= 1)) {
       this->start_initial_connection_();
     } else {
       // FAST CONNECT ENABLED: Either have saved data OR multiple configured APs to try
