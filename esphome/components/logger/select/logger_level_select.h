@@ -9,7 +9,7 @@ class LoggerLevelSelect : public Component, public select::Select, public Parent
  public:
   void publish_state(int level);
   void setup() override;
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 
  protected:
   // Convert log level to option index (skip CONFIG at level 4)

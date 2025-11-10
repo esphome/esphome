@@ -48,6 +48,11 @@ on_drayton:
     - logger.log:
         format: "on_drayton: %u %u %u"
         args: ["x.address", "x.channel", "x.command"]
+on_dyson:
+  then:
+    - logger.log:
+        format: "on_dyson: %u %u"
+        args: ["x.code", "x.index"]
 on_gobox:
   then:
     - logger.log:

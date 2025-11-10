@@ -1,6 +1,8 @@
 import logging
+import textwrap
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_IGNORE_NOT_FOUND
 from esphome.components.esp32 import (
     CONF_CPU_FREQUENCY,
     CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES,
@@ -104,6 +106,17 @@ def get_config_schema(config):
     if not speeds:
         raise cv.Invalid("PSRAM is not supported on this chip")
     modes = SPIRAM_MODES[variant]
+    if CONF_MODE not in config and len(modes) != 1:
+        raise (
+            cv.Invalid(
+                textwrap.dedent(
+                    f"""
+                        {variant} requires PSRAM mode selection; one of {", ".join(modes)}
+                        Selection of the wrong mode for the board will cause a runtime failure to initialise PSRAM
+                    """
+                )
+            )
+        )
     return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),
@@ -111,6 +124,7 @@ def get_config_schema(config):
             cv.Optional(CONF_ENABLE_ECC, default=False): cv.boolean,
             cv.Optional(CONF_SPEED, default=speeds[0]): cv.one_of(*speeds, upper=True),
             cv.Optional(CONF_DISABLED, default=False): cv.boolean,
+            cv.Optional(CONF_IGNORE_NOT_FOUND, default=True): cv.boolean,
         }
     )(config)
 
@@ -135,7 +149,9 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
-    add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
+    add_idf_sdkconfig_option(
+        "CONFIG_SPIRAM_IGNORE_NOTFOUND", config[CONF_IGNORE_NOT_FOUND]
+    )
 
     add_idf_sdkconfig_option(f"CONFIG_SPIRAM_MODE_{SDK_MODES[config[CONF_MODE]]}", True)
 
