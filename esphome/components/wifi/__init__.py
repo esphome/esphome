@@ -83,6 +83,7 @@ WIFI_MIN_AUTH_MODES = {
     "WPA2": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA2,
     "WPA3": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA3,
 }
+VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
@@ -214,9 +215,9 @@ def _apply_min_auth_mode_default(config):
                 "If your router supports WPA2 or WPA3, no action is needed - the new default will be more secure. "
                 "If your router only supports WPA, explicitly set 'min_auth_mode: WPA' to maintain compatibility."
             )
-            config[CONF_MIN_AUTH_MODE] = "WPA"
+            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA")
         elif CORE.is_esp32:
-            config[CONF_MIN_AUTH_MODE] = "WPA2"
+            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
     return config
 
 
@@ -321,7 +322,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
-                cv.enum(WIFI_MIN_AUTH_MODES, upper=True),
+                VALIDATE_WIFI_MIN_AUTH_MODE,
                 cv.only_on([Platform.ESP32, Platform.ESP8266]),
             ),
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
@@ -459,7 +460,7 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     if CONF_MIN_AUTH_MODE in config:
-        cg.add(var.set_min_auth_mode(WIFI_MIN_AUTH_MODES[config[CONF_MIN_AUTH_MODE]]))
+        cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
     if config[CONF_FAST_CONNECT]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
     cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
