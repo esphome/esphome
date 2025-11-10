@@ -49,50 +49,50 @@ static const char *const TAG = "wifi";
 ///
 /// Connection Flow (with fast_connect enabled):
 /// ┌──────────────────────────────────────────────────────────────────────┐
-/// │                      Fast Connect Path (Optional)                     │
+/// │                      Fast Connect Path (Optional)                    │
 /// ├──────────────────────────────────────────────────────────────────────┤
-/// │                                                                       │
-/// │  1. INITIAL_CONNECT → Try saved credentials (1 attempt)             │
-/// │                          ↓                                            │
+/// │                                                                      │
+/// │  1. INITIAL_CONNECT → Try saved credentials (1 attempt)              │
+/// │                          ↓                                           │
 /// │     [FAILED] → FAST_CONNECT_CYCLING_APS                              │
-/// │                          ↓                                            │
-/// │  2. Cycle through all configured APs (1 attempt each)               │
-/// │                          ↓                                            │
-/// │     [All Failed] → Fall back to scan-based connection               │
+/// │                          ↓                                           │
+/// │  2. Cycle through all configured APs (1 attempt each)                │
+/// │                          ↓                                           │
+/// │     [All Failed] → Fall back to scan-based connection                │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///                          ↓
 /// ┌──────────────────────────────────────────────────────────────────────┐
-/// │                    Scan-Based Connection Path                         │
+/// │                    Scan-Based Connection Path                        │
 /// ├──────────────────────────────────────────────────────────────────────┤
-/// │                                                                       │
-/// │  1. SCAN → Sort by priority (highest first), then RSSI              │
-/// │     ┌─────────────────────────────────────────────────┐             │
-/// │     │ scan_result_[0] = Best BSSID (highest priority) │             │
-/// │     │ scan_result_[1] = Second best                   │             │
-/// │     │ scan_result_[2] = Third best                    │             │
-/// │     └─────────────────────────────────────────────────┘             │
-/// │                          ↓                                            │
-/// │  2. SCAN_CONNECTING → Try scan_result_[0] (2 attempts)              │
-/// │                          ↓                                            │
-/// │  3. FAILED → Decrease priority: 0.0 → -1.0 → -2.0                   │
+/// │                                                                      │
+/// │  1. SCAN → Sort by priority (highest first), then RSSI               │
+/// │     ┌─────────────────────────────────────────────────┐              │
+/// │     │ scan_result_[0] = Best BSSID (highest priority) │              │
+/// │     │ scan_result_[1] = Second best                   │              │
+/// │     │ scan_result_[2] = Third best                    │              │
+/// │     └─────────────────────────────────────────────────┘              │
+/// │                          ↓                                           │
+/// │  2. SCAN_CONNECTING → Try scan_result_[0] (2 attempts)               │
+/// │                          ↓                                           │
+/// │  3. FAILED → Decrease priority: 0.0 → -1.0 → -2.0                    │
 /// │              (stored in persistent sta_priorities_)                  │
-/// │                          ↓                                            │
-/// │  4. SCAN_WITH_HIDDEN → Try SSIDs not in scan OR marked hidden       │
+/// │                          ↓                                           │
+/// │  4. SCAN_WITH_HIDDEN → Try SSIDs not in scan OR marked hidden        │
 /// │                        (skips visible SSIDs not marked hidden)       │
-/// │                          ↓                                            │
+/// │                          ↓                                           │
 /// │  5. FAILED → RESTARTING_ADAPTER                                      │
-/// │                          ↓                                            │
+/// │                          ↓                                           │
 /// │  6. RESCAN → Apply stored priorities, sort again                     │
-/// │     ┌─────────────────────────────────────────────────┐             │
-/// │     │ scan_result_[0] = BSSID B (priority 0.0)  ← NEW │             │
-/// │     │ scan_result_[1] = BSSID C (priority 0.0)        │             │
-/// │     │ scan_result_[2] = BSSID A (priority -2.0) ← OLD │             │
-/// │     └─────────────────────────────────────────────────┘             │
-/// │                          ↓                                            │
-/// │  7. SCAN_CONNECTING → Try scan_result_[0] (next best)               │
-/// │                                                                       │
+/// │     ┌─────────────────────────────────────────────────┐              │
+/// │     │ scan_result_[0] = BSSID B (priority 0.0)  ← NEW │              │
+/// │     │ scan_result_[1] = BSSID C (priority 0.0)        │              │
+/// │     │ scan_result_[2] = BSSID A (priority -2.0) ← OLD │              │
+/// │     └─────────────────────────────────────────────────┘              │
+/// │                          ↓                                           │
+/// │  7. SCAN_CONNECTING → Try scan_result_[0] (next best)                │
+/// │                                                                      │
 /// │  Key: Priority system cycles through BSSIDs ACROSS scan cycles       │
-/// │       Always try best available BSSID (scan_result_[0])             │
+/// │       Always try best available BSSID (scan_result_[0])              │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///
 /// Retry Phases:
