@@ -19,7 +19,7 @@ template<typename... Ts> class TextSetAction : public Action<Ts...> {
   explicit TextSetAction(Text *text) : text_(text) {}
   TEMPLATABLE_VALUE(std::string, value)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->text_->make_call();
     call.set_value(this->value_.value(x...));
     call.perform();

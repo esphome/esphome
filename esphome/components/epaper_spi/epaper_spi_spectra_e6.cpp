@@ -1,135 +1,166 @@
 #include "epaper_spi_spectra_e6.h"
 
+#include <algorithm>
+
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-
 static constexpr const char *const TAG = "epaper_spi.6c";
+static constexpr size_t MAX_TRANSFER_SIZE = 128;
+static constexpr unsigned char GRAY_THRESHOLD = 50;
 
-static inline uint8_t color_to_hex(Color color) {
-  if (color.red > 127) {
-    if (color.green > 170) {
-      if (color.blue > 127) {
-        return 0x1;  // White
-      } else {
-        return 0x2;  // Yellow
-      }
-    } else {
-      return 0x3;  // Red (or Magenta)
+enum E6Color {
+  BLACK,
+  WHITE,
+  YELLOW,
+  RED,
+  SKIP_1,
+  BLUE,
+  GREEN,
+  CYAN,
+  SKIP_2,
+};
+
+static uint8_t color_to_hex(Color color) {
+  // --- Step 1: Check for Grayscale (Black or White) ---
+  // We define "grayscale" as a color where the min and max components
+  // are close to each other.
+  unsigned char max_rgb = std::max({color.r, color.g, color.b});
+  unsigned char min_rgb = std::min({color.r, color.g, color.b});
+
+  if ((max_rgb - min_rgb) < GRAY_THRESHOLD) {
+    // It's a shade of gray. Map to BLACK or WHITE.
+    // We split the luminance at the halfway point (382 = (255*3)/2)
+    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
+      return WHITE;
     }
-  } else {
-    if (color.green > 127) {
-      if (color.blue > 127) {
-        return 0x5;  // Cyan -> Blue
-      } else {
-        return 0x6;  // Green
-      }
-    } else {
-      if (color.blue > 127) {
-        return 0x5;  // Blue
-      } else {
-        return 0x0;  // Black
-      }
-    }
+    return BLACK;
   }
+  // --- Step 2: Check for Primary/Secondary Colors ---
+  // If it's not gray, it's a color. We check which components are
+  // "on" (over 128) vs "off". This divides the RGB cube into 8 corners.
+  bool r_on = (color.r > 128);
+  bool g_on = (color.g > 128);
+  bool b_on = (color.b > 128);
+
+  if (r_on && g_on && !b_on) {
+    return YELLOW;
+  }
+  if (r_on && !g_on && !b_on) {
+    return RED;
+  }
+  if (!r_on && g_on && !b_on) {
+    return GREEN;
+  }
+  if (!r_on && !g_on && b_on) {
+    return BLUE;
+  }
+  // Handle "impure" colors (Cyan, Magenta)
+  if (!r_on && g_on && b_on) {
+    // Cyan (G+B) -> Closest is Green or Blue. Pick Green.
+    return GREEN;
+  }
+  if (r_on && !g_on) {
+    // Magenta (R+B) -> Closest is Red or Blue. Pick Red.
+    return RED;
+  }
+  // Handle the remaining corners (White-ish, Black-ish)
+  if (r_on) {
+    // All high (but not gray) -> White
+    return WHITE;
+  }
+  // !r_on && !g_on && !b_on
+  // All low (but not gray) -> Black
+  return BLACK;
+}
+
+void EPaperSpectraE6::power_on() {
+  ESP_LOGD(TAG, "Power on");
+  this->command(0x04);
+}
+
+void EPaperSpectraE6::power_off() {
+  ESP_LOGD(TAG, "Power off");
+  this->command(0x02);
+  this->data(0x00);
+}
+
+void EPaperSpectraE6::refresh_screen() {
+  ESP_LOGD(TAG, "Refresh");
+  this->command(0x12);
+  this->data(0x00);
+}
+
+void EPaperSpectraE6::deep_sleep() {
+  ESP_LOGD(TAG, "Deep sleep");
+  this->command(0x07);
+  this->data(0xA5);
 }
 
 void EPaperSpectraE6::fill(Color color) {
-  uint8_t pixel_color;
-  if (color.is_on()) {
-    pixel_color = color_to_hex(color);
-  } else {
-    pixel_color = 0x1;
-  }
+  auto pixel_color = color_to_hex(color);
 
-  // We store 8 bitset<3> in 3 bytes
-  // | byte 1 | byte 2 | byte 3 |
-  // |aaabbbaa|abbbaaab|bbaaabbb|
-  uint8_t byte_1 = pixel_color << 5 | pixel_color << 2 | pixel_color >> 1;
-  uint8_t byte_2 = pixel_color << 7 | pixel_color << 4 | pixel_color << 1 | pixel_color >> 2;
-  uint8_t byte_3 = pixel_color << 6 | pixel_color << 3 | pixel_color << 0;
-
-  const size_t buffer_length = this->get_buffer_length();
-  for (size_t i = 0; i < buffer_length; i += 3) {
-    this->buffer_[i + 0] = byte_1;
-    this->buffer_[i + 1] = byte_2;
-    this->buffer_[i + 2] = byte_3;
-  }
+  // We store 2 pixels per byte
+  this->buffer_.fill(pixel_color + (pixel_color << 4));
 }
 
-uint32_t EPaperSpectraE6::get_buffer_length() {
-  // 6 colors buffer, 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
-  return this->get_width_controller() * this->get_height_internal() / 8u * 3u;
+void EPaperSpectraE6::clear() {
+  // clear buffer to white, just like real paper.
+  this->fill(COLOR_ON);
 }
 
 void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+  if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return;
 
-  uint8_t pixel_bits = color_to_hex(color);
+  auto pixel_bits = color_to_hex(color);
   uint32_t pixel_position = x + y * this->get_width_controller();
-  uint32_t first_bit_position = pixel_position * 3;
-  uint32_t byte_position = first_bit_position / 8u;
-  uint32_t byte_subposition = first_bit_position % 8u;
-
-  if (byte_subposition <= 5) {
-    this->buffer_[byte_position] = (this->buffer_[byte_position] & (0xFF ^ (0b111 << (5 - byte_subposition)))) |
-                                   (pixel_bits << (5 - byte_subposition));
+  uint32_t byte_position = pixel_position / 2;
+  auto original = this->buffer_[byte_position];
+  if ((pixel_position & 1) != 0) {
+    this->buffer_[byte_position] = (original & 0xF0) | pixel_bits;
   } else {
-    this->buffer_[byte_position] = (this->buffer_[byte_position] & (0xFF ^ (0b111 >> (byte_subposition - 5)))) |
-                                   (pixel_bits >> (byte_subposition - 5));
-
-    this->buffer_[byte_position + 1] =
-        (this->buffer_[byte_position + 1] & (0xFF ^ (0xFF & (0b111 << (13 - byte_subposition))))) |
-        (pixel_bits << (13 - byte_subposition));
+    this->buffer_[byte_position] = (original & 0x0F) | (pixel_bits << 4);
   }
 }
 
 bool HOT EPaperSpectraE6::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
+  const size_t buffer_length = this->buffer_length_;
   if (this->current_data_index_ == 0) {
-    ESP_LOGV(TAG, "Sending data");
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    this->transfer_start_time_ = millis();
+#endif
+    ESP_LOGV(TAG, "Start sending data at %ums", (unsigned) millis());
     this->command(0x10);
   }
 
-  uint8_t bytes_to_send[4]{0};
-  const size_t buffer_length = this->get_buffer_length();
-  for (size_t i = this->current_data_index_; i < buffer_length; i += 3) {
-    const uint32_t triplet = encode_uint24(this->buffer_[i + 0], this->buffer_[i + 1], this->buffer_[i + 2]);
-    // 8 pixels are stored in 3 bytes
-    // |aaabbbaa|abbbaaab|bbaaabbb|
-    // | byte 1 | byte 2 | byte 3 |
-    bytes_to_send[0] = ((triplet >> 17) & 0b01110000) | ((triplet >> 18) & 0b00000111);
-    bytes_to_send[1] = ((triplet >> 11) & 0b01110000) | ((triplet >> 12) & 0b00000111);
-    bytes_to_send[2] = ((triplet >> 5) & 0b01110000) | ((triplet >> 6) & 0b00000111);
-    bytes_to_send[3] = ((triplet << 1) & 0b01110000) | ((triplet << 0) & 0b00000111);
+  size_t buf_idx = 0;
+  uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
+  while (this->current_data_index_ != buffer_length) {
+    bytes_to_send[buf_idx++] = this->buffer_[this->current_data_index_++];
 
-    this->start_data_();
-    this->write_array(bytes_to_send, sizeof(bytes_to_send));
-    this->end_data_();
+    if (buf_idx == sizeof bytes_to_send) {
+      this->start_data_();
+      this->write_array(bytes_to_send, buf_idx);
+      this->end_data_();
+      ESP_LOGV(TAG, "Wrote %d bytes at %ums", buf_idx, (unsigned) millis());
+      buf_idx = 0;
 
-    if (millis() - start_time > MAX_TRANSFER_TIME) {
-      // Let the main loop run and come back next loop
-      this->current_data_index_ = i + 3;
-      return false;
+      if (millis() - start_time > MAX_TRANSFER_TIME) {
+        // Let the main loop run and come back next loop
+        return false;
+      }
     }
   }
   // Finished the entire dataset
+  if (buf_idx != 0) {
+    this->start_data_();
+    this->write_array(bytes_to_send, buf_idx);
+    this->end_data_();
+  }
   this->current_data_index_ = 0;
+  ESP_LOGV(TAG, "Sent data in %" PRIu32 " ms", millis() - this->transfer_start_time_);
   return true;
 }
-
-void EPaperSpectraE6::reset() {
-  if (this->reset_pin_ != nullptr) {
-    this->disable_loop();
-    this->reset_pin_->digital_write(true);
-    this->set_timeout(20, [this] {
-      this->reset_pin_->digital_write(false);
-      delay(2);
-      this->reset_pin_->digital_write(true);
-      this->set_timeout(20, [this] { this->enable_loop(); });
-    });
-  }
-}
-
 }  // namespace esphome::epaper_spi
