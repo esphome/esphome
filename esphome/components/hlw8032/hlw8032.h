@@ -36,11 +36,7 @@ class HLW8032Component : public Component, public uart::UARTDevice {
 
   float current_resistor_{0.001f};
   float voltage_divider_{1.720f};
-
-  uint32_t last_transmission_{0};
-
   uint8_t raw_data_[24]{};
-
   uint8_t check_{0};
   uint8_t raw_data_index_{0};
 
