@@ -80,7 +80,7 @@ static const char *const TAG = "wifi";
 /// │  4. SCAN_WITH_HIDDEN → Try SSIDs not in scan OR marked hidden        │
 /// │                        (skips visible SSIDs not marked hidden)       │
 /// │                          ↓                                           │
-/// │  5. FAILED → RESTARTING_ADAPTER                                      │
+/// │  5. FAILED → RESTARTING_ADAPTER (skipped if AP/improv active)        │
 /// │                          ↓                                           │
 /// │  6. RESCAN → Apply stored priorities, sort again                     │
 /// │     ┌─────────────────────────────────────────────────┐              │
