@@ -57,7 +57,7 @@ static const char *const TAG = "wifi";
 /// │                          ↓                                           │
 /// │     [FAILED] → Fall through to explicit hidden or scanning           │
 /// │                                                                      │
-/// │  Note: Fast connect data saved from Improv or successful connection  │
+/// │  Note: Fast connect data saved from previous successful connection   │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///                          ↓
 /// ┌──────────────────────────────────────────────────────────────────────┐
