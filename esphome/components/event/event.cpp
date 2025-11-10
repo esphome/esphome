@@ -45,22 +45,6 @@ void Event::set_event_types(const std::vector<const char *> &event_types) {
   this->last_event_type_ = nullptr;  // Reset when types change
 }
 
-void Event::set_event_types(const FixedVector<const char *> &event_types) {
-  this->types_.init(event_types.size());
-  for (const char *type : event_types) {
-    this->types_.push_back(type);
-  }
-  this->last_event_type_ = nullptr;  // Reset when types change
-}
-
-void Event::set_event_types(const std::vector<const char *> &event_types) {
-  this->types_.init(event_types.size());
-  for (const char *type : event_types) {
-    this->types_.push_back(type);
-  }
-  this->last_event_type_ = nullptr;  // Reset when types change
-}
-
 void Event::add_on_event_callback(std::function<void(const std::string &event_type)> &&callback) {
   this->event_callback_.add(std::move(callback));
 }
