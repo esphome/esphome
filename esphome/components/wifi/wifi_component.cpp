@@ -96,9 +96,11 @@ static const char *const TAG = "wifi";
 /// │  3. FAILED → Decrease priority: 0.0 → -1.0 → -2.0                    │
 /// │              (stored in persistent sta_priorities_)                  │
 /// │                          ↓                                           │
-/// │  4. RETRY_HIDDEN → Try SSIDs not in scan (1 attempt per SSID)        │
-/// │                    Skip hidden networks before first visible one     │
-/// │                    (Skip Hidden1/Hidden2, try Hidden3 from example)  │
+/// │  4. Check for hidden networks:                                       │
+/// │     - If found → RETRY_HIDDEN (try SSIDs not in scan, 1 attempt)    │
+/// │       Skip hidden networks before first visible one                  │
+/// │       (Skip Hidden1/Hidden2, try Hidden3 from example)               │
+/// │     - If none → Skip RETRY_HIDDEN, go to step 5                      │
 /// │                          ↓                                           │
 /// │  5. FAILED → RESTARTING_ADAPTER (skipped if AP/improv active)        │
 /// │                          ↓                                           │
@@ -1035,8 +1037,9 @@ void WiFiComponent::check_connecting_finished() {
                                                           this->scan_result_.empty()) {
       ESP_LOGW(TAG, LOG_SECRET("'%s'") " should be marked hidden", config->get_ssid().c_str());
     }
-    // Reset to initial phase on successful connection (don't start scan, just reset state)
-    this->transition_to_phase_(WiFiRetryPhase::INITIAL_CONNECT);
+    // Reset to initial phase on successful connection (don't log transition, just reset state)
+    this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
+    this->num_retried_ = 0;
 
     this->print_connect_params_();
 
