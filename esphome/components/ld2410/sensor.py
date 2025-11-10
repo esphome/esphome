@@ -18,42 +18,50 @@ from esphome.const import (
 from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
-CONF_STILL_DISTANCE = "still_distance"
-CONF_MOVING_ENERGY = "moving_energy"
-CONF_STILL_ENERGY = "still_energy"
+
 CONF_DETECTION_DISTANCE = "detection_distance"
 CONF_MOVE_ENERGY = "move_energy"
+CONF_MOVING_ENERGY = "moving_energy"
+CONF_STILL_DISTANCE = "still_distance"
+CONF_STILL_ENERGY = "still_energy"
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
         cv.Optional(CONF_MOVING_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
-            unit_of_measurement=UNIT_CENTIMETER,
+            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
             icon=ICON_SIGNAL,
+            unit_of_measurement=UNIT_CENTIMETER,
         ),
         cv.Optional(CONF_STILL_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
-            unit_of_measurement=UNIT_CENTIMETER,
+            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
             icon=ICON_SIGNAL,
+            unit_of_measurement=UNIT_CENTIMETER,
         ),
         cv.Optional(CONF_MOVING_ENERGY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
+            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
             icon=ICON_MOTION_SENSOR,
+            unit_of_measurement=UNIT_PERCENT,
         ),
         cv.Optional(CONF_STILL_ENERGY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
+            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
             icon=ICON_FLASH,
+            unit_of_measurement=UNIT_PERCENT,
         ),
         cv.Optional(CONF_LIGHT): sensor.sensor_schema(
             device_class=DEVICE_CLASS_ILLUMINANCE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
             icon=ICON_LIGHTBULB,
         ),
         cv.Optional(CONF_DETECTION_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
-            unit_of_measurement=UNIT_CENTIMETER,
+            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
             icon=ICON_SIGNAL,
+            unit_of_measurement=UNIT_CENTIMETER,
         ),
     }
 )
@@ -63,14 +71,20 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         cv.Optional(f"g{x}"): cv.Schema(
             {
                 cv.Optional(CONF_MOVE_ENERGY): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                    filters=[
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}
+                    ],
                     icon=ICON_MOTION_SENSOR,
+                    unit_of_measurement=UNIT_PERCENT,
                 ),
                 cv.Optional(CONF_STILL_ENERGY): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                    filters=[
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}
+                    ],
                     icon=ICON_FLASH,
+                    unit_of_measurement=UNIT_PERCENT,
                 ),
             }
         )

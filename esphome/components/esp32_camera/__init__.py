@@ -4,6 +4,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.esp32 import add_idf_component
+from esphome.components.psram import DOMAIN as psram_domain
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
@@ -21,15 +22,13 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VSYNC_PIN,
 )
-from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["esp32"]
-
-AUTO_LOAD = ["camera", "psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
@@ -164,6 +163,14 @@ CONF_ON_IMAGE = "on_image"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
+
+def validate_fb_location_(value):
+    validator = cv.enum(ENUM_FB_LOCATION, upper=True)
+    if value.lower() == psram_domain:
+        validator = cv.All(validator, cv.requires_component(psram_domain))
+    return validator(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
         {
@@ -237,9 +244,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.framerate, cv.Range(min=0, max=1)
             ),
             cv.Optional(CONF_FRAME_BUFFER_COUNT, default=1): cv.int_range(min=1, max=2),
-            cv.Optional(CONF_FRAME_BUFFER_LOCATION, default="PSRAM"): cv.enum(
-                ENUM_FB_LOCATION, upper=True
-            ),
+            cv.Optional(
+                CONF_FRAME_BUFFER_LOCATION, default="PSRAM"
+            ): validate_fb_location_,
             cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -344,8 +351,7 @@ async def to_code(config):
 
     cg.add_define("USE_CAMERA")
 
-    if CORE.using_esp_idf:
-        add_idf_component(name="espressif/esp32-camera", ref="2.0.15")
+    add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
 
     for conf in config.get(CONF_ON_STREAM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

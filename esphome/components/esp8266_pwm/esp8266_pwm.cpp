@@ -14,7 +14,6 @@ namespace esp8266_pwm {
 static const char *const TAG = "esp8266_pwm";
 
 void ESP8266PWM::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->setup();
   this->turn_off();
 }

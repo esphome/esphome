@@ -145,7 +145,6 @@ void OpenthermHub::process_response(OpenthermData &data) {
 }
 
 void OpenthermHub::setup() {
-  ESP_LOGD(TAG, "Setting up OpenTherm component");
   this->opentherm_ = make_unique<OpenTherm>(this->in_pin_, this->out_pin_);
   if (!this->opentherm_->initialize()) {
     ESP_LOGE(TAG, "Failed to initialize OpenTherm protocol. See previous log messages for details.");

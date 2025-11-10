@@ -28,8 +28,6 @@ static const char *const LOGMSG_ONLINE = "online";
 static const char *const LOGMSG_OFFLINE = "offline";
 
 void Wireguard::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->wg_config_.address = this->address_.c_str();
   this->wg_config_.private_key = this->private_key_.c_str();
   this->wg_config_.endpoint = this->peer_endpoint_.c_str();

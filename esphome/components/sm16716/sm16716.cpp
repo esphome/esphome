@@ -7,7 +7,6 @@ namespace sm16716 {
 static const char *const TAG = "sm16716";
 
 void SM16716::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->data_pin_->setup();
   this->data_pin_->digital_write(false);
   this->clock_pin_->setup();

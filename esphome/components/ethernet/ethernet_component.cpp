@@ -9,6 +9,10 @@
 #include <cinttypes>
 #include "esp_event.h"
 
+#ifdef USE_ETHERNET_LAN8670
+#include "esp_eth_phy_lan867x.h"
+#endif
+
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
@@ -37,24 +41,26 @@ static const char *const TAG = "ethernet";
 
 EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *message) {
+  ESP_LOGE(TAG, "%s: (%d) %s", message, err, esp_err_to_name(err));
+  this->mark_failed();
+}
+
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
+    this->log_error_and_mark_failed_(err, message); \
     return; \
   }
 
 #define ESPHL_ERROR_CHECK_RET(err, message, ret) \
   if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
+    this->log_error_and_mark_failed_(err, message); \
     return ret; \
   }
 
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
     // Delay here to allow power to stabilise before Ethernet is initialized.
     delay(300);  // NOLINT
@@ -201,6 +207,12 @@ void EthernetComponent::setup() {
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
       break;
     }
+#ifdef USE_ETHERNET_LAN8670
+    case ETHERNET_TYPE_LAN8670: {
+      this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
+      break;
+    }
+#endif
 #endif
 #ifdef USE_ETHERNET_SPI
 #if CONFIG_ETH_SPI_ETHERNET_W5500
@@ -230,10 +242,12 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
 
 #ifndef USE_ETHERNET_SPI
+#ifdef USE_ETHERNET_KSZ8081
   if (this->type_ == ETHERNET_TYPE_KSZ8081RNA && this->clk_mode_ == EMAC_CLK_OUT) {
     // KSZ8081RNA default is incorrect. It expects a 25MHz clock instead of the 50MHz we provide.
     this->ksz8081_set_clock_reference_(mac);
   }
+#endif  // USE_ETHERNET_KSZ8081
 
   for (const auto &phy_register : this->phy_registers_) {
     this->write_phy_register_(mac, phy_register);
@@ -242,7 +256,11 @@ void EthernetComponent::setup() {
 
   // use ESP internal eth mac
   uint8_t mac_addr[6];
-  esp_read_mac(mac_addr, ESP_MAC_ETH);
+  if (this->fixed_mac_.has_value()) {
+    memcpy(mac_addr, this->fixed_mac_->data(), 6);
+  } else {
+    esp_read_mac(mac_addr, ESP_MAC_ETH);
+  }
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_S_MAC_ADDR, mac_addr);
   ESPHL_ERROR_CHECK(err, "set mac address error");
 
@@ -301,6 +319,7 @@ void EthernetComponent::loop() {
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       } else {
+        this->finish_connect_();
         // When connected and stable, disable the loop to save CPU cycles
         this->disable_loop();
       }
@@ -350,6 +369,12 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_DM9051:
       eth_type = "DM9051";
       break;
+
+#ifdef USE_ETHERNET_LAN8670
+    case ETHERNET_TYPE_LAN8670:
+      eth_type = "LAN8670";
+      break;
+#endif
 
     default:
       eth_type = "Unknown";
@@ -487,13 +512,38 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 }
 #endif /* USE_NETWORK_IPV6 */
 
+void EthernetComponent::finish_connect_() {
+#if USE_NETWORK_IPV6
+  // Retry IPv6 link-local setup if it failed during initial connect
+  // This handles the case where min_ipv6_addr_count is NOT set (or is 0),
+  // allowing us to reach CONNECTED state with just IPv4.
+  // If IPv6 setup failed in start_connect_() because the interface wasn't ready:
+  // - Bootup timing issues (#10281)
+  // - Cable unplugged/network interruption (#10705)
+  // We can now retry since we're in CONNECTED state and the interface is definitely up.
+  if (!this->ipv6_setup_done_) {
+    esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+    if (err == ESP_OK) {
+      ESP_LOGD(TAG, "IPv6 link-local address created (retry succeeded)");
+    }
+    // Always set the flag to prevent continuous retries
+    // If IPv6 setup fails here with the interface up and stable, it's
+    // likely a persistent issue (IPv6 disabled at router, hardware
+    // limitation, etc.) that won't be resolved by further retries.
+    // The device continues to work with IPv4.
+    this->ipv6_setup_done_ = true;
+  }
+#endif /* USE_NETWORK_IPV6 */
+}
+
 void EthernetComponent::start_connect_() {
   global_eth_component->got_ipv4_address_ = false;
 #if USE_NETWORK_IPV6
   global_eth_component->ipv6_count_ = 0;
+  this->ipv6_setup_done_ = false;
 #endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
-  this->status_set_warning("waiting for IP configuration");
+  this->status_set_warning(LOG_STR("waiting for IP configuration"));
 
   esp_err_t err;
   err = esp_netif_set_hostname(this->eth_netif_, App.get_name().c_str());
@@ -546,9 +596,27 @@ void EthernetComponent::start_connect_() {
     }
   }
 #if USE_NETWORK_IPV6
+  // Attempt to create IPv6 link-local address
+  // We MUST attempt this here, not just in finish_connect_(), because with
+  // min_ipv6_addr_count set, the component won't reach CONNECTED state without IPv6.
+  // However, this may fail with ESP_FAIL if the interface is not up yet:
+  // - At bootup when link isn't ready (#10281)
+  // - After disconnection/cable unplugged (#10705)
+  // We'll retry in finish_connect_() if it fails here.
   err = esp_netif_create_ip6_linklocal(this->eth_netif_);
   if (err != ESP_OK) {
-    ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
+    if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
+      // This is a programming error, not a transient failure
+      ESPHL_ERROR_CHECK(err, "esp_netif_create_ip6_linklocal invalid parameters");
+    } else {
+      // ESP_FAIL means the interface isn't up yet
+      // This is expected and non-fatal, happens in multiple scenarios:
+      // - During reconnection after network interruptions (#10705)
+      // - At bootup when the link isn't ready yet (#10281)
+      // We'll retry once we reach CONNECTED state and the interface is up
+      ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(err));
+      // Don't mark component as failed - this is a transient error
+    }
   }
 #endif /* USE_NETWORK_IPV6 */
 
@@ -621,14 +689,11 @@ void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 
-std::string EthernetComponent::get_use_address() const {
-  if (this->use_address_.empty()) {
-    return App.get_name() + ".local";
-  }
-  return this->use_address_;
-}
+// set_use_address() is guaranteed to be called during component setup by Python code generation,
+// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
+const char *EthernetComponent::get_use_address() const { return this->use_address_; }
 
-void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+void EthernetComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   esp_err_t err;
@@ -639,7 +704,9 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
 std::string EthernetComponent::get_eth_mac_address_pretty() {
   uint8_t mac[6];
   get_eth_mac_address_raw(mac);
-  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  char buf[18];
+  format_mac_addr_upper(mac, buf);
+  return std::string(buf);
 }
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
@@ -676,6 +743,7 @@ bool EthernetComponent::powerdown() {
 
 #ifndef USE_ETHERNET_SPI
 
+#ifdef USE_ETHERNET_KSZ8081
 constexpr uint8_t KSZ80XX_PC2R_REG_ADDR = 0x1F;
 
 void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
@@ -704,6 +772,7 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
     ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
   }
 }
+#endif  // USE_ETHERNET_KSZ8081
 
 void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;

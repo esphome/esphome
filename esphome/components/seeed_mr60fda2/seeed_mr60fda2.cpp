@@ -31,7 +31,6 @@ void MR60FDA2Component::dump_config() {
 
 // Initialisation functions
 void MR60FDA2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->check_uart_settings(115200);
 
   this->current_frame_locate_ = LOCATE_FRAME_HEADER;
@@ -43,8 +42,6 @@ void MR60FDA2Component::setup() {
 
   memset(this->current_frame_buf_, 0, FRAME_BUF_MAX_SIZE);
   memset(this->current_data_buf_, 0, DATA_BUF_MAX_SIZE);
-
-  ESP_LOGCONFIG(TAG, "Set up MR60FDA2 complete");
 }
 
 // main loop
@@ -295,7 +292,7 @@ void MR60FDA2Component::process_frame_() {
 
         install_height_float = bit_cast<float>(current_install_height_int);
         uint32_t select_index = find_nearest_index(install_height_float, INSTALL_HEIGHT, 7);
-        this->install_height_select_->publish_state(this->install_height_select_->at(select_index).value());
+        this->install_height_select_->publish_state(select_index);
       }
 
       if (this->height_threshold_select_ != nullptr) {
@@ -304,7 +301,7 @@ void MR60FDA2Component::process_frame_() {
 
         height_threshold_float = bit_cast<float>(current_height_threshold_int);
         size_t select_index = find_nearest_index(height_threshold_float, HEIGHT_THRESHOLD, 7);
-        this->height_threshold_select_->publish_state(this->height_threshold_select_->at(select_index).value());
+        this->height_threshold_select_->publish_state(select_index);
       }
 
       if (this->sensitivity_select_ != nullptr) {
@@ -312,7 +309,7 @@ void MR60FDA2Component::process_frame_() {
             encode_uint32(current_data_buf_[11], current_data_buf_[10], current_data_buf_[9], current_data_buf_[8]);
 
         uint32_t select_index = find_nearest_index(current_sensitivity, SENSITIVITY, 3);
-        this->sensitivity_select_->publish_state(this->sensitivity_select_->at(select_index).value());
+        this->sensitivity_select_->publish_state(select_index);
       }
 
       ESP_LOGD(TAG, "Mounting height: %.2f, Height threshold: %.2f, Sensitivity: %" PRIu32, install_height_float,

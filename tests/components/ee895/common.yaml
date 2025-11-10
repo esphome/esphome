@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_ee895
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: ee895
+    i2c_id: i2c_bus
     address: 0x5F
     co2:
       name: EE895 CO2

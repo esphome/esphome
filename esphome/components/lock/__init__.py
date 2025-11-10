@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -91,11 +91,6 @@ def lock_schema(
     return _LOCK_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-LOCK_SCHEMA = lock_schema()
-LOCK_SCHEMA.add_extra(cv.deprecated_schema_constant("lock"))
-
-
 async def _setup_lock_core(var, config):
     await setup_entity(var, config, "lock")
 
@@ -155,7 +150,6 @@ async def lock_is_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(lock_ns.using)
-    cg.add_define("USE_LOCK")

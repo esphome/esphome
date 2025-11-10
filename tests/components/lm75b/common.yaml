@@ -1,0 +1,5 @@
+sensor:
+  - platform: lm75b
+    i2c_id: i2c_bus
+    name: LM75B Temperature
+    update_interval: 30s

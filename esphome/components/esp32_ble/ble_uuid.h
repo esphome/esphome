@@ -1,15 +1,16 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_UUID
 
 #include <string>
 #include <esp_bt_defs.h>
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 class ESPBTUUID {
  public:
@@ -41,7 +42,7 @@ class ESPBTUUID {
   esp_bt_uuid_t uuid_;
 };
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
-#endif
+#endif  // USE_ESP32_BLE_UUID
+#endif  // USE_ESP32

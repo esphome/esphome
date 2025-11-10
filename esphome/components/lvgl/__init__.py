@@ -2,8 +2,9 @@ import logging
 
 from esphome.automation import build_automation, register_action, validate_automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_DRAW_ROUNDING
+from esphome.components.const import CONF_COLOR_DEPTH, CONF_DRAW_ROUNDING
 from esphome.components.display import Display
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -11,6 +12,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_LOG_LEVEL,
     CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
@@ -39,10 +41,7 @@ from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
-    FLEX_OBJ_SCHEMA,
     FULL_STYLE_SCHEMA,
-    GRID_CELL_SCHEMA,
-    LAYOUT_SCHEMAS,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
@@ -56,7 +55,7 @@ from .types import (
     FontEngine,
     IdleTrigger,
     ObjUpdateAction,
-    PauseTrigger,
+    PlainTrigger,
     lv_font_t,
     lv_group_t,
     lv_style_t,
@@ -76,6 +75,7 @@ from .widgets.button import button_spec
 from .widgets.buttonmatrix import buttonmatrix_spec
 from .widgets.canvas import canvas_spec
 from .widgets.checkbox import checkbox_spec
+from .widgets.container import container_spec
 from .widgets.dropdown import dropdown_spec
 from .widgets.img import img_spec
 from .widgets.keyboard import keyboard_spec
@@ -128,26 +128,23 @@ for w_type in (
     tileview_spec,
     qr_code_spec,
     canvas_spec,
+    container_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
-WIDGET_SCHEMA = any_widget_schema()
-
-LAYOUT_SCHEMAS[df.TYPE_GRID] = {
-    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(GRID_CELL_SCHEMA))
-}
-LAYOUT_SCHEMAS[df.TYPE_FLEX] = {
-    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(FLEX_OBJ_SCHEMA))
-}
-LAYOUT_SCHEMAS[df.TYPE_NONE] = {
-    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())
-}
 for w_type in WIDGET_TYPES.values():
     register_action(
         f"lvgl.{w_type.name}.update",
         ObjUpdateAction,
         create_modify_schema(w_type),
     )(update_to_code)
+
+SIMPLE_TRIGGERS = (
+    df.CONF_ON_PAUSE,
+    df.CONF_ON_RESUME,
+    df.CONF_ON_DRAW_START,
+    df.CONF_ON_DRAW_END,
+)
 
 
 def as_macro(macro, value):
@@ -185,8 +182,8 @@ def multi_conf_validate(configs: list[dict]):
     base_config = configs[0]
     for config in configs[1:]:
         for item in (
-            df.CONF_LOG_LEVEL,
-            df.CONF_COLOR_DEPTH,
+            CONF_LOG_LEVEL,
+            CONF_COLOR_DEPTH,
             df.CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
         ):
@@ -201,9 +198,8 @@ def final_validation(configs):
         multi_conf_validate(configs)
     global_config = full_config.get()
     for config in configs:
-        if pages := config.get(CONF_PAGES):
-            if all(p[df.CONF_SKIP] for p in pages):
-                raise cv.Invalid("At least one page must not be skipped")
+        if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
+            raise cv.Invalid("At least one page must not be skipped")
         for display_id in config[df.CONF_DISPLAYS]:
             path = global_config.get_path_for_id(display_id)[:-1]
             display = global_config.get_config_for_path(path)
@@ -220,7 +216,7 @@ def final_validation(configs):
                     draw_rounding, config[CONF_DRAW_ROUNDING]
                 )
         buffer_frac = config[CONF_BUFFER_SIZE]
-        if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
+        if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
             LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
         for image_id in lv_images_used:
             path = global_config.get_path_for_id(image_id)[:-1]
@@ -243,9 +239,9 @@ def final_validation(configs):
         for w in refreshed_widgets:
             path = global_config.get_path_for_id(w)
             widget_conf = global_config.get_config_for_path(path[:-1])
-            if not any(isinstance(v, Lambda) for v in widget_conf.values()):
+            if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
                 raise cv.Invalid(
-                    f"Widget '{w}' does not have any templated properties to refresh",
+                    f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
 
 
@@ -269,17 +265,17 @@ async def to_code(configs):
 
     add_define(
         "LV_LOG_LEVEL",
-        f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[df.CONF_LOG_LEVEL]]}",
+        f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[CONF_LOG_LEVEL]]}",
     )
     cg.add_define(
         "LVGL_LOG_LEVEL",
-        cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[df.CONF_LOG_LEVEL]}"),
+        cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
     )
-    add_define("LV_COLOR_DEPTH", config_0[df.CONF_COLOR_DEPTH])
+    add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
     for font in helpers.lv_fonts_used:
         add_define(f"LV_FONT_{font.upper()}")
 
-    if config_0[df.CONF_COLOR_DEPTH] == 16:
+    if config_0[CONF_COLOR_DEPTH] == 16:
         add_define(
             "LV_COLOR_16_SWAP",
             "1" if config_0[df.CONF_BYTE_ORDER] == "big_endian" else "0",
@@ -365,16 +361,16 @@ async def to_code(configs):
                     conf[CONF_TRIGGER_ID], lv_component, templ
                 )
                 await build_automation(idle_trigger, [], conf)
-            for conf in config.get(df.CONF_ON_PAUSE, ()):
-                pause_trigger = cg.new_Pvariable(
-                    conf[CONF_TRIGGER_ID], lv_component, True
-                )
-                await build_automation(pause_trigger, [], conf)
-            for conf in config.get(df.CONF_ON_RESUME, ()):
-                resume_trigger = cg.new_Pvariable(
-                    conf[CONF_TRIGGER_ID], lv_component, False
-                )
-                await build_automation(resume_trigger, [], conf)
+            for trigger_name in SIMPLE_TRIGGERS:
+                if conf := config.get(trigger_name):
+                    trigger_var = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+                    await build_automation(trigger_var, [], conf)
+                    cg.add(
+                        getattr(
+                            lv_component,
+                            f"set_{trigger_name.removeprefix('on_')}_trigger",
+                        )(trigger_var)
+                    )
             await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
@@ -402,7 +398,7 @@ def display_schema(config):
 def add_hello_world(config):
     if df.CONF_WIDGETS not in config and CONF_PAGES not in config:
         LOGGER.info("No pages or widgets configured, creating default hello_world page")
-        config[df.CONF_WIDGETS] = cv.ensure_list(WIDGET_SCHEMA)(get_hello_world())
+        config[df.CONF_WIDGETS] = any_widget_schema()(get_hello_world())
     return config
 
 
@@ -416,14 +412,14 @@ LVGL_SCHEMA = cv.All(
             {
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
-                cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(16),
+                cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
                 cv.Optional(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
-                cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
+                cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
                 cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
@@ -442,22 +438,16 @@ LVGL_SCHEMA = cv.All(
                         ),
                     }
                 ),
-                cv.Optional(df.CONF_ON_PAUSE): validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
-                    }
-                ),
-                cv.Optional(df.CONF_ON_RESUME): validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
-                    }
-                ),
-                cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(
-                    WIDGET_SCHEMA
-                ),
-                cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
-                    container_schema(page_spec)
-                ),
+                cv.Optional(CONF_PAGES): cv.ensure_list(container_schema(page_spec)),
+                **{
+                    cv.Optional(x): validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
+                        },
+                        single=True,
+                    )
+                    for x in SIMPLE_TRIGGERS
+                },
                 cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
                 cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
                 cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),

@@ -6,8 +6,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Generate entity handler implementations using macros
 #ifdef USE_BINARY_SENSOR
@@ -90,6 +89,5 @@ bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
 }
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif
