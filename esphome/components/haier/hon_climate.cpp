@@ -1033,9 +1033,9 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   {
     // Swing mode
     ClimateSwingMode old_swing_mode = this->swing_mode;
-    const std::set<ClimateSwingMode> &swing_modes = traits_.get_supported_swing_modes();
-    bool vertical_swing_supported = swing_modes.find(CLIMATE_SWING_VERTICAL) != swing_modes.end();
-    bool horizontal_swing_supported = swing_modes.find(CLIMATE_SWING_HORIZONTAL) != swing_modes.end();
+    const auto &swing_modes = traits_.get_supported_swing_modes();
+    bool vertical_swing_supported = swing_modes.count(CLIMATE_SWING_VERTICAL);
+    bool horizontal_swing_supported = swing_modes.count(CLIMATE_SWING_HORIZONTAL);
     if (horizontal_swing_supported &&
         (packet.control.horizontal_swing_mode == (uint8_t) hon_protocol::HorizontalSwingMode::AUTO)) {
       if (vertical_swing_supported &&
@@ -1218,13 +1218,13 @@ void HonClimate::fill_control_messages_queue_() {
                                                 (uint8_t) hon_protocol::DataParameters::QUIET_MODE,
                                             quiet_mode_buf, 2);
     }
-    if ((fast_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_BOOST) != presets.end()))) {
+    if ((fast_mode_buf[1] != 0xFF) && presets.count(climate::ClimatePreset::CLIMATE_PRESET_BOOST)) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::FAST_MODE,
                                             fast_mode_buf, 2);
     }
-    if ((away_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_AWAY) != presets.end()))) {
+    if ((away_mode_buf[1] != 0xFF) && presets.count(climate::ClimatePreset::CLIMATE_PRESET_AWAY)) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::TEN_DEGREE,

@@ -1,0 +1,8 @@
+tinyusb:
+  id: tinyusb_test
+  usb_lang_id: 0x0123
+  usb_manufacturer_str: ESPHomeTestManufacturer
+  usb_product_id: 0x1234
+  usb_product_str: ESPHomeTestProduct
+  usb_serial_str: ESPHomeTestSerialNumber
+  usb_vendor_id: 0x2345
