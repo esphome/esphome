@@ -28,6 +28,7 @@
 #define USE_BUTTON
 #define USE_CAMERA
 #define USE_CLIMATE
+#define USE_COAP_CLIENT
 #define USE_COVER
 #define USE_DATETIME
 #define USE_DATETIME_DATE
