@@ -1,11 +1,8 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
-
-#include <cinttypes>
 
 namespace esphome {
 namespace hlw8032 {

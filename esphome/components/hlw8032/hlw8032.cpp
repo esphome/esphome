@@ -1,7 +1,6 @@
 #include "hlw8032.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
-#include <iomanip>
 
 namespace esphome::hlw8032 {
 
