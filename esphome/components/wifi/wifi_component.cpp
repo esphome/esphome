@@ -58,6 +58,21 @@ static const char *const TAG = "wifi";
 /// │                          ↓                                           │
 /// │  2. Cycle through remaining configured APs (1 attempt each)          │
 /// │                          ↓                                           │
+/// │     [All Failed] → Check if first network is explicitly hidden       │
+/// └──────────────────────────────────────────────────────────────────────┘
+///                          ↓
+/// ┌──────────────────────────────────────────────────────────────────────┐
+/// │              Explicit Hidden Networks Path (Optional)                │
+/// ├──────────────────────────────────────────────────────────────────────┤
+/// │                                                                      │
+/// │  If first configured network has 'hidden: true':                     │
+/// │                                                                      │
+/// │  1. EXPLICIT_HIDDEN → Try networks marked hidden: true (1 attempt)   │
+/// │                       in config order until visible network reached  │
+/// │                          ↓                                           │
+/// │     Example: Hidden1, Hidden2, Visible1, Hidden3, Visible2          │
+/// │              Try: Hidden1, Hidden2 (stop at Visible1)                │
+/// │                          ↓                                           │
 /// │     [All Failed] → Fall back to scan-based connection                │
 /// └──────────────────────────────────────────────────────────────────────┘
 ///                          ↓
@@ -73,12 +88,14 @@ static const char *const TAG = "wifi";
 /// │     └─────────────────────────────────────────────────┘              │
 /// │                          ↓                                           │
 /// │  2. SCAN_CONNECTING → Try scan_result_[0] (2 attempts)               │
+/// │                       (Visible1, Visible2 from example above)        │
 /// │                          ↓                                           │
 /// │  3. FAILED → Decrease priority: 0.0 → -1.0 → -2.0                    │
 /// │              (stored in persistent sta_priorities_)                  │
 /// │                          ↓                                           │
-/// │  4. SCAN_WITH_HIDDEN → Try SSIDs not in scan OR marked hidden        │
-/// │                        (skips visible SSIDs not marked hidden)       │
+/// │  4. RETRY_HIDDEN → Try SSIDs not in scan (1 attempt per SSID)    │
+/// │                        Skip if already tried in EXPLICIT_HIDDEN      │
+/// │                        (Hidden3 from example, NOT Hidden1/Hidden2)   │
 /// │                          ↓                                           │
 /// │  5. FAILED → RESTARTING_ADAPTER (skipped if AP/improv active)        │
 /// │                          ↓                                           │
@@ -98,14 +115,16 @@ static const char *const TAG = "wifi";
 /// Retry Phases:
 /// - INITIAL_CONNECT: First attempt (try saved credentials if fast_connect enabled)
 /// - FAST_CONNECT_CYCLING_APS: Cycle through configured APs (1 attempt per AP, fast_connect only)
+/// - EXPLICIT_HIDDEN: Try consecutive networks marked hidden:true before scanning (1 attempt per SSID)
 /// - SCAN_CONNECTING: Connect using scan results (2 attempts per BSSID)
-/// - SCAN_WITH_HIDDEN: Try hidden mode for SSIDs not in scan or marked hidden (1 attempt per SSID)
+/// - RETRY_HIDDEN: Try hidden mode for SSIDs not in scan (1 attempt per SSID, skips already tried)
 /// - RESTARTING_ADAPTER: Restart WiFi adapter to clear stuck state
 ///
-/// Smart Hidden Mode Skip:
-/// - SSIDs marked 'hidden: true' → Always tried in hidden mode (respects user config)
-/// - SSIDs visible in scan + not marked hidden → Skipped (we know they're not hidden)
-/// - SSIDs not in scan → Tried in hidden mode (might be hidden)
+/// Hidden Network Handling:
+/// - Networks marked 'hidden: true' at start of config → Tried in EXPLICIT_HIDDEN phase
+/// - Networks marked 'hidden: true' after visible network → Tried in RETRY_HIDDEN phase
+/// - Networks not in scan → Tried in RETRY_HIDDEN phase
+/// - Networks visible in scan + not marked hidden → Skipped in RETRY_HIDDEN phase
 
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   switch (phase) {
@@ -115,10 +134,12 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
     case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
       return LOG_STR("FAST_CONNECT_CYCLING");
 #endif
+    case WiFiRetryPhase::EXPLICIT_HIDDEN:
+      return LOG_STR("EXPLICIT_HIDDEN");
     case WiFiRetryPhase::SCAN_CONNECTING:
       return LOG_STR("SCAN_CONNECTING");
-    case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      return LOG_STR("SCAN_HIDDEN");
+    case WiFiRetryPhase::RETRY_HIDDEN:
+      return LOG_STR("RETRY_HIDDEN");
     case WiFiRetryPhase::RESTARTING_ADAPTER:
       return LOG_STR("RESTARTING");
     default:
@@ -133,7 +154,7 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
 // After 2 genuine failures, priority degradation ensures we skip this BSSID on subsequent scans.
 static constexpr uint8_t WIFI_RETRY_COUNT_PER_BSSID = 2;
 
-// 1 attempt per SSID in SCAN_WITH_HIDDEN phase
+// 1 attempt per SSID in RETRY_HIDDEN phase
 // Rationale: Try hidden mode once, then rescan to get next best BSSID via priority system
 static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 1;
 
@@ -149,11 +170,14 @@ static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
 #endif
       // INITIAL_CONNECT and FAST_CONNECT_CYCLING_APS both use 1 attempt per AP (fast_connect mode)
       return WIFI_RETRY_COUNT_PER_AP;
+    case WiFiRetryPhase::EXPLICIT_HIDDEN:
+      // Explicitly hidden network: 1 attempt (user marked as hidden, try once then scan)
+      return WIFI_RETRY_COUNT_PER_SSID;
     case WiFiRetryPhase::SCAN_CONNECTING:
       // Scan-based phase: 2 attempts per BSSID (handles transient auth failures after scan)
       return WIFI_RETRY_COUNT_PER_BSSID;
-    case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      // Hidden network mode: 2 attempts per SSID
+    case WiFiRetryPhase::RETRY_HIDDEN:
+      // Hidden network mode: 1 attempt per SSID
       return WIFI_RETRY_COUNT_PER_SSID;
     default:
       return WIFI_RETRY_COUNT_PER_BSSID;
@@ -194,28 +218,36 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
   return false;
 }
 
-int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
+int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index, bool include_explicit_hidden) {
   // Find next SSID that wasn't in scan results (might be hidden)
   // Start searching from start_index + 1
   for (size_t i = start_index + 1; i < this->sta_.size(); i++) {
-    if (!this->ssid_was_seen_in_scan_(this->sta_[i].get_ssid())) {
-      ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", this->sta_[i].get_ssid().c_str(),
-               static_cast<int>(i));
+    const auto &sta = this->sta_[i];
+
+    // If include_explicit_hidden is false, skip SSIDs marked as hidden (already tried in EXPLICIT_HIDDEN phase)
+    if (!include_explicit_hidden && sta.get_hidden()) {
+      ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (explicit hidden, already tried)", sta.get_ssid().c_str());
+      continue;
+    }
+
+    if (!this->ssid_was_seen_in_scan_(sta.get_ssid())) {
+      ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", sta.get_ssid().c_str(), static_cast<int>(i));
       return static_cast<int8_t>(i);
     }
-    ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (visible in scan)", this->sta_[i].get_ssid().c_str());
+    ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (visible in scan)", sta.get_ssid().c_str());
   }
   // No hidden SSIDs found
   return -1;
 }
 
 void WiFiComponent::start_initial_connection_() {
-  // If all networks are configured as hidden, skip scanning and go straight to hidden mode
-  if (this->all_networks_hidden_()) {
-    ESP_LOGI(TAG, "Starting in hidden mode (all networks hidden)");
+  // If first network (highest priority) is explicitly marked hidden, try it first before scanning
+  // This respects user's priority order when they explicitly configure hidden networks
+  if (!this->sta_.empty() && this->sta_[0].get_hidden()) {
+    ESP_LOGI(TAG, "Starting with explicit hidden network (highest priority)");
     this->selected_sta_index_ = 0;
-    this->retry_phase_ = WiFiRetryPhase::SCAN_WITH_HIDDEN;
-    WiFiAP params = this->build_wifi_ap_from_selected_();
+    this->retry_phase_ = WiFiRetryPhase::EXPLICIT_HIDDEN;
+    WiFiAP params = this->build_params_for_current_phase_();
     this->start_connecting(params, false);
   } else {
     ESP_LOGI(TAG, "Starting scan");
@@ -302,7 +334,7 @@ void WiFiComponent::start() {
       if (!loaded_fast_connect) {
         // No saved settings available - use first config (will use SSID from config)
         this->selected_sta_index_ = 0;
-        params = this->build_wifi_ap_from_selected_();
+        params = this->build_params_for_current_phase_();
       }
       ESP_LOGI(TAG, "Starting fast_connect (%s) " LOG_SECRET("'%s'"),
                loaded_fast_connect ? LOG_STR_LITERAL("saved") : LOG_STR_LITERAL("config"), params.get_ssid().c_str());
@@ -533,46 +565,9 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->selected_sta_index_ = 0;
 }
 
-WiFiAP WiFiComponent::build_wifi_ap_from_selected_() const {
-  // PRECONDITION: selected_sta_index_ must be valid (ensured by all callers)
-  const WiFiAP *config = this->get_selected_sta_();
-  assert(config != nullptr);
-  WiFiAP params = *config;
-
-  // SYNCHRONIZATION: selected_sta_index_ and scan_result_[0] are kept in sync after wifi_scan_done():
-  // - wifi_scan_done() sorts all scan results by priority/RSSI (best first)
-  // - It then finds which sta_[i] config matches scan_result_[0]
-  // - Sets selected_sta_index_ = i to record that matching config
-  // This sync holds until scan_result_ is cleared (e.g., after connection or when advancing to next AP)
-  if (!this->scan_result_.empty()) {
-    // Override with scan data - network is visible
-    if (!this->scan_result_[0].get_matches()) {
-      // BUG: Sorting should ensure matching networks are always first
-      // This should never happen - indicates a bug in wifi_scan_result_is_better() or scan result matching
-      ESP_LOGE(TAG,
-               "BUG: Selected AP config " LOG_SECRET("(SSID='%s')") " does not match best scan result " LOG_SECRET(
-                   "(SSID='%s')") "; using config values only",
-               config->get_ssid().c_str(), this->scan_result_[0].get_ssid().c_str());
-    } else {
-      // Apply best scan result to params
-      apply_scan_result_to_params(params, this->scan_result_[0]);
-    }
-  } else if (params.get_hidden()) {
-    // Hidden network - clear BSSID and channel even if set in config
-    // There might be multiple hidden networks with same SSID but we can't know which is correct
-    // Rely on probe-req with just SSID. Empty channel triggers ALL_CHANNEL_SCAN.
-    params.set_bssid(optional<bssid_t>{});
-    params.set_channel(optional<uint8_t>{});
-  }
-
-  return params;
-}
-
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
   const WiFiAP *config = this->get_selected_sta_();
-  if (!config) {
-    return WiFiAP{};
-  }
+  assert(config != nullptr);
 
   WiFiAP params = *config;
 
@@ -585,17 +580,19 @@ WiFiAP WiFiComponent::build_params_for_current_phase_() {
       // BSSID/channel from config if user specified them, otherwise empty
       break;
 
+    case WiFiRetryPhase::EXPLICIT_HIDDEN:
+    case WiFiRetryPhase::RETRY_HIDDEN:
+      // Hidden network mode: clear BSSID/channel to trigger probe request
+      // (both explicit hidden and retry hidden use same behavior)
+      params.set_bssid(optional<bssid_t>{});
+      params.set_channel(optional<uint8_t>{});
+      break;
+
     case WiFiRetryPhase::SCAN_CONNECTING:
       // Scan-based phase: always use best scan result (index 0 - highest priority after sorting)
       if (!this->scan_result_.empty()) {
         apply_scan_result_to_params(params, this->scan_result_[0]);
       }
-      break;
-
-    case WiFiRetryPhase::SCAN_WITH_HIDDEN:
-      // Hidden network mode: clear BSSID/channel to trigger probe request
-      params.set_bssid(optional<bssid_t>{});
-      params.set_channel(optional<uint8_t>{});
       break;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
@@ -943,7 +940,7 @@ void WiFiComponent::check_scanning_finished() {
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
   // After sorting, scan_result_[0] contains the best network. Now find which sta_[i] config
   // matches that network and record it in selected_sta_index_. This keeps the two indices
-  // synchronized so build_wifi_ap_from_selected_() can safely use both to build connection parameters.
+  // synchronized so build_params_for_current_phase_() can safely use both to build connection parameters.
   const WiFiScanResult &scan_res = this->scan_result_[0];
   bool found_match = false;
   if (scan_res.get_matches()) {
@@ -962,7 +959,7 @@ void WiFiComponent::check_scanning_finished() {
     ESP_LOGW(TAG, "No matching network found");
     // No scan results matched our configured networks - transition directly to hidden mode
     // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
-    this->transition_to_phase_(WiFiRetryPhase::SCAN_WITH_HIDDEN);
+    this->transition_to_phase_(WiFiRetryPhase::RETRY_HIDDEN);
     // Now start connection attempt in hidden mode
   } else if (this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING)) {
     return;  // scan started, wait for next loop iteration
@@ -970,7 +967,7 @@ void WiFiComponent::check_scanning_finished() {
 
   yield();
 
-  WiFiAP params = this->build_wifi_ap_from_selected_();
+  WiFiAP params = this->build_params_for_current_phase_();
   // Ensure we're in SCAN_CONNECTING phase when connecting with scan results
   // (needed when scan was started directly without transition_to_phase_, e.g., initial scan)
   this->start_connecting(params, false);
@@ -994,7 +991,7 @@ void WiFiComponent::check_connecting_finished() {
     ESP_LOGI(TAG, "Connected");
     // Warn if we had to retry with hidden network mode for a network that's not marked hidden
     // Only warn if we actually connected without scan data (SSID only), not if scan succeeded on retry
-    if (const WiFiAP *config = this->get_selected_sta_(); this->retry_phase_ == WiFiRetryPhase::SCAN_WITH_HIDDEN &&
+    if (const WiFiAP *config = this->get_selected_sta_(); this->retry_phase_ == WiFiRetryPhase::RETRY_HIDDEN &&
                                                           config && !config->get_hidden() &&
                                                           this->scan_result_.empty()) {
       ESP_LOGW(TAG, LOG_SECRET("'%s'") " should be marked hidden", config->get_ssid().c_str());
@@ -1087,10 +1084,30 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // No more APs to try, fall back to scan
       return WiFiRetryPhase::SCAN_CONNECTING;
 
+    case WiFiRetryPhase::EXPLICIT_HIDDEN:
+      // Try all explicitly hidden networks before scanning
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;  // Keep retrying same SSID
+      }
+
+      // Exhausted retries on current SSID - check for more explicitly hidden networks
+      // Stop when we reach a visible network (proceed to scanning)
+      for (size_t i = this->selected_sta_index_ + 1; i < this->sta_.size(); i++) {
+        if (this->sta_[i].get_hidden()) {
+          // Found another explicitly hidden network
+          return WiFiRetryPhase::EXPLICIT_HIDDEN;
+        }
+        // Reached a visible network - stop trying explicit hidden and proceed to scanning
+        break;
+      }
+
+      // No more consecutive explicitly hidden networks - proceed to scanning
+      return WiFiRetryPhase::SCAN_CONNECTING;
+
     case WiFiRetryPhase::SCAN_CONNECTING:
       // If scan found no matching networks, skip to hidden network mode
       if (!this->scan_result_.empty() && !this->scan_result_[0].get_matches()) {
-        return WiFiRetryPhase::SCAN_WITH_HIDDEN;
+        return WiFiRetryPhase::RETRY_HIDDEN;
       }
 
       if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_BSSID) {
@@ -1101,19 +1118,19 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // Its priority has been decreased, so on next scan it will be sorted lower
       // and we'll try the next best BSSID.
       // Always try hidden mode first - it will skip visible SSIDs and return to scanning
-      return WiFiRetryPhase::SCAN_WITH_HIDDEN;
+      return WiFiRetryPhase::RETRY_HIDDEN;
 
-    case WiFiRetryPhase::SCAN_WITH_HIDDEN:
+    case WiFiRetryPhase::RETRY_HIDDEN:
       // If no hidden SSIDs to try (selected_sta_index_ == -1), skip directly to rescan
       if (this->selected_sta_index_ >= 0) {
         if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
-          return WiFiRetryPhase::SCAN_WITH_HIDDEN;  // Keep retrying same SSID
+          return WiFiRetryPhase::RETRY_HIDDEN;  // Keep retrying same SSID
         }
 
         // Exhausted retries on current SSID - check if there are more potentially hidden SSIDs to try
         if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-          // More SSIDs available - stay in SCAN_WITH_HIDDEN, advance will happen in retry_connect()
-          return WiFiRetryPhase::SCAN_WITH_HIDDEN;
+          // More SSIDs available - stay in RETRY_HIDDEN, advance will happen in retry_connect()
+          return WiFiRetryPhase::RETRY_HIDDEN;
         }
       }
       // Exhausted all potentially hidden SSIDs - rescan to try next BSSID
@@ -1181,25 +1198,28 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         this->selected_sta_index_ = 0;
       }
 #endif
-      // Trigger scan if we don't have scan results OR if looping back from SCAN_WITH_HIDDEN
-      if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN ||
+      // Trigger scan if we don't have scan results OR if looping back from RETRY_HIDDEN
+      if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::RETRY_HIDDEN ||
           old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
         this->start_scanning();
         return true;  // Started scan, wait for completion
       }
       break;
 
-    case WiFiRetryPhase::SCAN_WITH_HIDDEN:
+    case WiFiRetryPhase::RETRY_HIDDEN:
       // Starting hidden mode - find first SSID that wasn't in scan results
       if (old_phase == WiFiRetryPhase::SCAN_CONNECTING) {
         // Keep scan results so we can skip SSIDs that were visible in the scan
         // Don't clear scan_result_ - we need it to know which SSIDs are NOT hidden
 
-        // Find first SSID that might be hidden (start from index -1 to search from beginning)
-        this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
+        // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
+        // In that case, skip networks marked hidden:true (already tried)
+        // Otherwise, include them (they haven't been tried yet)
+        bool went_through_explicit_hidden = !this->sta_.empty() && this->sta_[0].get_hidden();
+        this->selected_sta_index_ = this->find_next_hidden_sta_(-1, !went_through_explicit_hidden);
 
         if (this->selected_sta_index_ == -1) {
-          ESP_LOGD(TAG, "All SSIDs visible, skipping hidden mode");
+          ESP_LOGD(TAG, "All SSIDs visible or already tried, skipping hidden mode");
         }
       }
       break;
@@ -1270,7 +1290,7 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
 ///
 /// Phase-specific behavior:
 /// - FAST_CONNECT_CYCLING_APS: Always advance to next AP (no retries per AP)
-/// - SCAN_WITH_HIDDEN: Advance to next SSID after exhausting retries on current SSID
+/// - RETRY_HIDDEN: Advance to next SSID after exhausting retries on current SSID
 /// - Other phases: Increment retry counter (will retry same target)
 void WiFiComponent::advance_to_next_target_or_increment_retry_() {
   WiFiRetryPhase current_phase = this->retry_phase_;
@@ -1286,9 +1306,29 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
   }
 #endif
 
-  if (current_phase == WiFiRetryPhase::SCAN_WITH_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
+  if (current_phase == WiFiRetryPhase::EXPLICIT_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
+    // Explicit hidden: exhausted retries on current SSID, find next explicitly hidden network
+    // Stop when we reach a visible network (proceed to scanning)
+    for (size_t i = this->selected_sta_index_ + 1; i < this->sta_.size(); i++) {
+      if (this->sta_[i].get_hidden()) {
+        this->selected_sta_index_ = static_cast<int8_t>(i);
+        this->num_retried_ = 0;
+        ESP_LOGD(TAG, "Next explicit hidden network at index %d", static_cast<int>(i));
+        return;
+      }
+      // Reached a visible network - stop and fall through to trigger phase change
+      break;
+    }
+    // No more consecutive explicit hidden networks found - fall through to trigger phase change
+  }
+
+  if (current_phase == WiFiRetryPhase::RETRY_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
     // Hidden mode: exhausted retries on current SSID, find next potentially hidden SSID
-    int8_t next_index = this->find_next_hidden_sta_(this->selected_sta_index_);
+    // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
+    // In that case, skip networks marked hidden:true (already tried)
+    // Otherwise, include them (they haven't been tried yet)
+    bool went_through_explicit_hidden = !this->sta_.empty() && this->sta_[0].get_hidden();
+    int8_t next_index = this->find_next_hidden_sta_(this->selected_sta_index_, !went_through_explicit_hidden);
     if (next_index != -1) {
       // Found another potentially hidden SSID
       this->selected_sta_index_ = next_index;

@@ -102,10 +102,12 @@ enum class WiFiRetryPhase : uint8_t {
   /// Fast connect mode: cycling through configured APs (config-only, no scan)
   FAST_CONNECT_CYCLING_APS,
 #endif
+  /// Explicitly hidden networks (user marked as hidden, try before scanning)
+  EXPLICIT_HIDDEN,
   /// Scan-based: connecting to best AP from scan results
   SCAN_CONNECTING,
-  /// Retrying with hidden network flag
-  SCAN_WITH_HIDDEN,
+  /// Retry networks not found in scan (might be hidden)
+  RETRY_HIDDEN,
   /// Restarting WiFi adapter to clear stuck state
   RESTARTING_ADAPTER,
 };
@@ -357,7 +359,6 @@ class WiFiComponent : public Component {
 #endif  // USE_WIFI_AP
 
   void print_connect_params_();
-  WiFiAP build_wifi_ap_from_selected_() const;
   WiFiAP build_params_for_current_phase_();
 
   /// Determine next retry phase based on current state and failure conditions
@@ -373,7 +374,9 @@ class WiFiComponent : public Component {
   bool ssid_was_seen_in_scan_(const std::string &ssid) const;
   /// Find next SSID that wasn't in scan results (might be hidden)
   /// Returns index of next potentially hidden SSID, or -1 if none found
-  int8_t find_next_hidden_sta_(int8_t start_index);
+  /// @param start_index Start searching from index after this (-1 to start from beginning)
+  /// @param include_explicit_hidden If true, include SSIDs marked hidden:true. If false, only find truly hidden SSIDs.
+  int8_t find_next_hidden_sta_(int8_t start_index, bool include_explicit_hidden = true);
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
   /// Advance to next target (AP/SSID) within current phase, or increment retry counter
