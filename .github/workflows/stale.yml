@@ -16,7 +16,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@3a9db7e6a41a89f618792c92c0e97cc736e1b13f # v10
+      - uses: actions/stale@5f858e3efba33a5ca4407a664cc011ad407f2008 # v10
         with:
           days-before-pr-stale: 60
           days-before-pr-close: 7
