@@ -97,8 +97,8 @@ static const char *const TAG = "wifi";
 /// │              (stored in persistent sta_priorities_)                  │
 /// │                          ↓                                           │
 /// │  4. RETRY_HIDDEN → Try SSIDs not in scan (1 attempt per SSID)        │
-/// │                    Skip networks already tried in EXPLICIT_HIDDEN    │
-/// │                    (Hidden3 from example, NOT Hidden1/Hidden2)       │
+/// │                    Skip hidden networks before first visible one     │
+/// │                    (Skip Hidden1/Hidden2, try Hidden3 from example)  │
 /// │                          ↓                                           │
 /// │  5. FAILED → RESTARTING_ADAPTER (skipped if AP/improv active)        │
 /// │                          ↓                                           │
@@ -124,11 +124,12 @@ static const char *const TAG = "wifi";
 /// - RESTARTING_ADAPTER: Restart WiFi adapter to clear stuck state
 ///
 /// Hidden Network Handling:
-/// - Networks marked 'hidden: true' at start of config → Tried in EXPLICIT_HIDDEN phase (first boot)
+/// - Networks marked 'hidden: true' before first non-hidden → Tried in EXPLICIT_HIDDEN phase
+/// - Networks marked 'hidden: true' after first non-hidden → Tried in RETRY_HIDDEN phase
 /// - After successful connection, fast_connect saves BSSID → subsequent boots use fast path
-/// - Networks marked 'hidden: true' after visible network → Tried in RETRY_HIDDEN phase
-/// - Networks not in scan → Tried in RETRY_HIDDEN phase
+/// - Networks not in scan results → Tried in RETRY_HIDDEN phase
 /// - Networks visible in scan + not marked hidden → Skipped in RETRY_HIDDEN phase
+/// - Networks marked 'hidden: true' always use hidden mode, even if broadcasting SSID
 
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   switch (phase) {
