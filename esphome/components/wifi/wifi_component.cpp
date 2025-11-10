@@ -199,12 +199,11 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
   // Start searching from start_index + 1
   for (size_t i = start_index + 1; i < this->sta_.size(); i++) {
     if (!this->ssid_was_seen_in_scan_(this->sta_[i].get_ssid())) {
-      ESP_LOGD(TAG, "Found potentially hidden SSID " LOG_SECRET("'%s'") " at index %d",
-               this->sta_[i].get_ssid().c_str(), static_cast<int>(i));
+      ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", this->sta_[i].get_ssid().c_str(),
+               static_cast<int>(i));
       return static_cast<int8_t>(i);
     }
-    ESP_LOGD(TAG, "Skipping SSID " LOG_SECRET("'%s'") " - was visible in scan results (not hidden)",
-             this->sta_[i].get_ssid().c_str());
+    ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (visible in scan)", this->sta_[i].get_ssid().c_str());
   }
   // No hidden SSIDs found
   return -1;
@@ -213,13 +212,13 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
 void WiFiComponent::start_initial_connection_() {
   // If all networks are configured as hidden, skip scanning and go straight to hidden mode
   if (this->all_networks_hidden_()) {
-    ESP_LOGI(TAG, "Starting WiFi with hidden network mode (all networks configured as hidden)");
+    ESP_LOGI(TAG, "Starting in hidden mode (all networks hidden)");
     this->selected_sta_index_ = 0;
     this->retry_phase_ = WiFiRetryPhase::SCAN_WITH_HIDDEN;
     WiFiAP params = this->build_wifi_ap_from_selected_();
     this->start_connecting(params, false);
   } else {
-    ESP_LOGI(TAG, "Starting WiFi with scan-based connection");
+    ESP_LOGI(TAG, "Starting scan");
     this->start_scanning();
   }
 }
@@ -305,9 +304,8 @@ void WiFiComponent::start() {
         this->selected_sta_index_ = 0;
         params = this->build_wifi_ap_from_selected_();
       }
-      ESP_LOGI(TAG, "Starting WiFi with fast_connect (%s), trying " LOG_SECRET("'%s'"),
-               loaded_fast_connect ? LOG_STR_LITERAL("saved credentials") : LOG_STR_LITERAL("no saved data"),
-               params.get_ssid().c_str());
+      ESP_LOGI(TAG, "Starting fast_connect (%s) " LOG_SECRET("'%s'"),
+               loaded_fast_connect ? LOG_STR_LITERAL("saved") : LOG_STR_LITERAL("config"), params.get_ssid().c_str());
       // Always start with INITIAL_CONNECT phase when using fast_connect
       this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
       this->start_connecting(params, false);
@@ -1000,7 +998,7 @@ void WiFiComponent::check_connecting_finished() {
     if (const WiFiAP *config = this->get_selected_sta_(); this->retry_phase_ == WiFiRetryPhase::SCAN_WITH_HIDDEN &&
                                                           config && !config->get_hidden() &&
                                                           this->scan_result_.empty()) {
-      ESP_LOGW(TAG, "Network " LOG_SECRET("'%s'") " should be marked as hidden", config->get_ssid().c_str());
+      ESP_LOGW(TAG, LOG_SECRET("'%s'") " should be marked hidden", config->get_ssid().c_str());
     }
     // Reset to initial phase on successful connection (don't start scan, just reset state)
     this->transition_to_phase_(WiFiRetryPhase::INITIAL_CONNECT);
@@ -1176,7 +1174,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // Transitioning to scan-based connection
 #ifdef USE_WIFI_FAST_CONNECT
       if (old_phase == WiFiRetryPhase::INITIAL_CONNECT || old_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
-        ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan-based connection");
+        ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan");
         this->selected_sta_index_ = 0;
       }
 #else
@@ -1202,7 +1200,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
 
         if (this->selected_sta_index_ == -1) {
-          ESP_LOGD(TAG, "All configured SSIDs were visible in scan - skipping hidden mode");
+          ESP_LOGD(TAG, "All SSIDs visible, skipping hidden mode");
         }
       }
       break;
@@ -1261,8 +1259,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
     ssid = config->get_ssid();
   }
 
-  ESP_LOGD(TAG, "Connection failed to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", decreased priority %.1f → %.1f",
-           ssid.c_str(), format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %.1f → %.1f", ssid.c_str(),
+           format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
 }
 
 /// Handle target advancement or retry counter increment when staying in the same phase
@@ -1284,7 +1282,7 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
     // Fast connect: always advance to next AP (no retries per AP)
     this->selected_sta_index_++;
     this->num_retried_ = 0;
-    ESP_LOGD(TAG, "Advanced to next AP in phase %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    ESP_LOGD(TAG, "Next AP in %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
     return;
   }
 #endif
