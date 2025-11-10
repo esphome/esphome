@@ -365,18 +365,20 @@ class ThemeSchema:
     Singleton pattern for delayed evaluation
     """
 
-    _schema = None
+    _schema: cv.Schema = None
 
     @classmethod
     def __call__(cls, value):
-        if cls._schema is None:
-            cls._schema = cv.Schema(
+        if not ThemeSchema._schema:
+            ThemeSchema._schema = cv.Schema(
                 {
                     cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
                     for name, w in WIDGET_TYPES.items()
                 }
             )
-        return cls._schema(value)
+
+        # pylint: disable=not-callable
+        return ThemeSchema._schema(value)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation
