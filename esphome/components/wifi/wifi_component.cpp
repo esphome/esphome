@@ -359,23 +359,12 @@ void WiFiComponent::start() {
     WiFiAP params;
     bool loaded_fast_connect = this->load_fast_connect_settings_(params);
 
-    // Skip fast_connect if no saved data AND (no configured networks OR first is hidden OR only one AP)
-    // Try fast_connect if:
-    // 1. Have saved settings (from previous connection or Improv) - always try these first
-    // 2. Have multiple configured APs to cycle through
-    if (!loaded_fast_connect && (this->sta_.empty() || this->sta_[0].get_hidden() || this->sta_.size() <= 1)) {
+    // Fast connect optimization: only use when we have saved BSSID+channel data
+    // Without saved data, use normal flow (scan or explicit hidden)
+    if (!loaded_fast_connect) {
       this->start_initial_connection_();
     } else {
-      // FAST CONNECT ENABLED: Either have saved data OR multiple configured APs to try
-      if (!loaded_fast_connect) {
-        // No saved settings available - use first config (will use SSID from config)
-        this->selected_sta_index_ = 0;
-        params = this->build_params_for_current_phase_();
-      }
-      ESP_LOGI(TAG, "Starting fast_connect (%s) " LOG_SECRET("'%s'"),
-               loaded_fast_connect ? LOG_STR_LITERAL("saved") : LOG_STR_LITERAL("config"), params.get_ssid().c_str());
-      // Always start with INITIAL_CONNECT phase when using fast_connect
-      this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
+      ESP_LOGI(TAG, "Starting fast_connect (saved) " LOG_SECRET("'%s'"), params.get_ssid().c_str());
       this->start_connecting(params, false);
     }
 #else
