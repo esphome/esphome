@@ -96,6 +96,8 @@ sensor:
       - exponential_moving_average:
           alpha: 0.1
           send_every: 15
+      - low_pass: 0.25
+      - high_pass: 0.75
       - filter_out:
           - 10
           - 20
