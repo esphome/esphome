@@ -55,7 +55,12 @@ static const char *const TAG = "wifi";
 /// │                                                                      │
 /// │  1. INITIAL_CONNECT → Try saved BSSID+channel (1 attempt)            │
 /// │                          ↓                                           │
-/// │     [FAILED] → Fall through to explicit hidden or scanning           │
+/// │     [FAILED] → Check if more configured networks available           │
+/// │                          ↓                                           │
+/// │  2. FAST_CONNECT_CYCLING_APS → Try remaining configured networks     │
+/// │                                (1 attempt each, any BSSID)           │
+/// │                          ↓                                           │
+/// │     [All Failed] → Fall through to explicit hidden or scanning       │
 /// │                                                                      │
 /// │  Note: Fast connect data saved from previous successful connection   │
 /// └──────────────────────────────────────────────────────────────────────┘
@@ -122,6 +127,7 @@ static const char *const TAG = "wifi";
 ///
 /// Retry Phases:
 /// - INITIAL_CONNECT: Try saved BSSID+channel (fast_connect), or fall back to normal flow
+/// - FAST_CONNECT_CYCLING_APS: Cycle through remaining configured networks (1 attempt each, fast_connect only)
 /// - EXPLICIT_HIDDEN: Try consecutive networks marked hidden:true before scanning (1 attempt per SSID)
 /// - SCAN_CONNECTING: Connect using scan results (2 attempts per BSSID)
 /// - RETRY_HIDDEN: Try networks not found in scan (1 attempt per SSID, skipped if none found)
