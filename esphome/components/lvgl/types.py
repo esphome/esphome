@@ -153,7 +153,7 @@ class WidgetType:
         from .schemas import WIDGET_TYPES, create_modify_schema
 
         if self.name in WIDGET_TYPES:
-            raise EsphomeError(f"Duplicate definition of widget type '{self.name}")
+            raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
         WIDGET_TYPES[self.name] = self
 
         # Register the update action automatically

@@ -208,10 +208,12 @@ widget_map: dict[Any, Widget] = {}
 
 
 class LvScrActType(WidgetType):
-    lv_scr_act_spec = None
     """
     A "widget" representing the active screen.
     """
+
+    # A lazily initialised instance for the default screen
+    lv_scr_act_spec: WidgetType | None = None
 
     def __init__(self, name: str):
         super().__init__(name, lv_obj_t, ())
