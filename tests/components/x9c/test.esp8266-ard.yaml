@@ -1,6 +1,9 @@
 substitutions:
-  cs_pin: GPIO13
-  inc_pin: GPIO14
+  cs_pin: GPIO0
+  inc_pin: GPIO2
   ud_pin: GPIO15
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
 
 <<: !include common.yaml

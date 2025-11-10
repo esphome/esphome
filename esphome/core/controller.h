@@ -5,7 +5,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_FAN
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 #endif
 #ifdef USE_LIGHT
 #include "esphome/components/light/light_state.h"
@@ -69,7 +69,6 @@ namespace esphome {
 
 class Controller {
  public:
-  void setup_controller(bool include_internal = false);
 #ifdef USE_BINARY_SENSOR
   virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj){};
 #endif
@@ -80,22 +79,22 @@ class Controller {
   virtual void on_light_update(light::LightState *obj){};
 #endif
 #ifdef USE_SENSOR
-  virtual void on_sensor_update(sensor::Sensor *obj, float state){};
+  virtual void on_sensor_update(sensor::Sensor *obj){};
 #endif
 #ifdef USE_SWITCH
-  virtual void on_switch_update(switch_::Switch *obj, bool state){};
+  virtual void on_switch_update(switch_::Switch *obj){};
 #endif
 #ifdef USE_COVER
   virtual void on_cover_update(cover::Cover *obj){};
 #endif
 #ifdef USE_TEXT_SENSOR
-  virtual void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state){};
+  virtual void on_text_sensor_update(text_sensor::TextSensor *obj){};
 #endif
 #ifdef USE_CLIMATE
   virtual void on_climate_update(climate::Climate *obj){};
 #endif
 #ifdef USE_NUMBER
-  virtual void on_number_update(number::Number *obj, float state){};
+  virtual void on_number_update(number::Number *obj){};
 #endif
 #ifdef USE_DATETIME_DATE
   virtual void on_date_update(datetime::DateEntity *obj){};
@@ -107,10 +106,10 @@ class Controller {
   virtual void on_datetime_update(datetime::DateTimeEntity *obj){};
 #endif
 #ifdef USE_TEXT
-  virtual void on_text_update(text::Text *obj, const std::string &state){};
+  virtual void on_text_update(text::Text *obj){};
 #endif
 #ifdef USE_SELECT
-  virtual void on_select_update(select::Select *obj, const std::string &state, size_t index){};
+  virtual void on_select_update(select::Select *obj){};
 #endif
 #ifdef USE_LOCK
   virtual void on_lock_update(lock::Lock *obj){};
@@ -125,7 +124,7 @@ class Controller {
   virtual void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj){};
 #endif
 #ifdef USE_EVENT
-  virtual void on_event(event::Event *obj, const std::string &event_type){};
+  virtual void on_event(event::Event *obj){};
 #endif
 #ifdef USE_UPDATE
   virtual void on_update(update::UpdateEntity *obj){};

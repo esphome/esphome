@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32_CAMERA_JPEG_ENCODER
 
 #include <esp_camera.h>
@@ -24,7 +26,7 @@ class ESP32CameraJPEGEncoder : public camera::Encoder {
   void dump_config() override;
   // -------------------------
  protected:
-  static size_t callback_(void *arg, size_t index, const void *data, size_t len);
+  static size_t callback(void *arg, size_t index, const void *data, size_t len);
   pixformat_t to_internal_(camera::PixelFormat format);
 
   camera::EncoderBuffer *output_{};

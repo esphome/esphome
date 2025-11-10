@@ -21,7 +21,10 @@
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <sys/select.h>
+#ifdef USE_WAKE_LOOP_THREADSAFE
+#include <lwip/sockets.h>
 #endif
+#endif  // USE_SOCKET_SELECT_SUPPORT
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -39,7 +42,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 #ifdef USE_FAN
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 #endif
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
@@ -102,9 +105,15 @@ class Application {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
-      const std::string mac_suffix = get_mac_address().substr(6);
-      this->name_ = name + "-" + mac_suffix;
-      this->friendly_name_ = friendly_name.empty() ? "" : friendly_name + " " + mac_suffix;
+      // MAC address suffix length (last 6 characters of 12-char MAC address string)
+      constexpr size_t mac_address_suffix_len = 6;
+      const std::string mac_addr = get_mac_address();
+      // Use pointer + offset to avoid substr() allocation
+      const char *mac_suffix_ptr = mac_addr.c_str() + mac_address_suffix_len;
+      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
+      if (!friendly_name.empty()) {
+        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
+      }
     } else {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
@@ -423,6 +432,13 @@ class Application {
   /// Check if there's data available on a socket without blocking
   /// This function is thread-safe for reading, but should be called after select() has run
   bool is_socket_ready(int fd) const;
+
+#ifdef USE_WAKE_LOOP_THREADSAFE
+  /// Wake the main event loop from a FreeRTOS task
+  /// Thread-safe, can be called from task context to immediately wake select()
+  /// IMPORTANT: NOT safe to call from ISR context (socket operations not ISR-safe)
+  void wake_loop_threadsafe();
+#endif
 #endif
 
  protected:
@@ -448,6 +464,11 @@ class Application {
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  void setup_wake_loop_threadsafe_();       // Create wake notification socket
+  inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
+#endif
+
   // === Member variables ordered by size to minimize padding ===
 
   // Pointer-sized members first
@@ -472,9 +493,12 @@ class Application {
   // - When a component is enabled, it's swapped with the first inactive component
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
-  std::vector<Component *> looping_components_{};
+  FixedVector<Component *> looping_components_{};
 #ifdef USE_SOCKET_SELECT_SUPPORT
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
+#ifdef USE_WAKE_LOOP_THREADSAFE
+  int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
+#endif
 #endif
 
   // std::string members (typically 24-32 bytes each)
@@ -590,5 +614,29 @@ class Application {
 
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+// Inline implementations for hot-path functions
+// drain_wake_notifications_() is called on every loop iteration
+
+// Small buffer for draining wake notification bytes (1 byte sent per wake)
+// Size allows draining multiple notifications per recvfrom() without wasting stack
+static constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
+
+inline void Application::drain_wake_notifications_() {
+  // Called from main loop to drain any pending wake notifications
+  // Must check is_socket_ready() to avoid blocking on empty socket
+  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready(this->wake_socket_fd_)) {
+    char buffer[WAKE_NOTIFY_DRAIN_BUFFER_SIZE];
+    // Drain all pending notifications with non-blocking reads
+    // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
+    // We control both ends of this loopback socket (always write 1 byte per wake),
+    // so no error checking needed - any errors indicate catastrophic system failure
+    while (lwip_recvfrom(this->wake_socket_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+      // Just draining, no action needed - wake has already occurred
+    }
+  }
+}
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
 }  // namespace esphome

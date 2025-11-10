@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 
 #include <strings.h>
 #include <algorithm>
@@ -234,6 +235,30 @@ std::string str_sprintf(const char *fmt, ...) {
   return str;
 }
 
+// Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
+static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
+
+std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
+  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
+  size_t name_len = name.size();
+  size_t total_len = name_len + 1 + suffix_len;
+
+  // Silently truncate if needed: prioritize keeping the full suffix
+  if (total_len >= MAX_NAME_WITH_SUFFIX_SIZE) {
+    // NOTE: This calculation could underflow if suffix_len >= MAX_NAME_WITH_SUFFIX_SIZE - 2,
+    // but this is safe because this helper is only called with small suffixes:
+    // MAC suffixes (6-12 bytes), ".local" (5 bytes), etc.
+    name_len = MAX_NAME_WITH_SUFFIX_SIZE - suffix_len - 2;  // -2 for separator and null terminator
+    total_len = name_len + 1 + suffix_len;
+  }
+
+  memcpy(buffer, name.c_str(), name_len);
+  buffer[name_len] = sep;
+  memcpy(buffer + name_len + 1, suffix_ptr, suffix_len);
+  buffer[total_len] = '\0';
+  return std::string(buffer, total_len);
+}
+
 // Parsing & formatting
 
 size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
@@ -255,22 +280,21 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
 }
 
 std::string format_mac_address_pretty(const uint8_t *mac) {
-  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  char buf[18];
+  format_mac_addr_upper(mac, buf);
+  return std::string(buf);
 }
 
-static char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
 std::string format_hex(const uint8_t *data, size_t length) {
   std::string ret;
   ret.resize(length * 2);
   for (size_t i = 0; i < length; i++) {
-    ret[2 * i] = format_hex_char((data[i] & 0xF0) >> 4);
+    ret[2 * i] = format_hex_char(data[i] >> 4);
     ret[2 * i + 1] = format_hex_char(data[i] & 0x0F);
   }
   return ret;
 }
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
-
-static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
 
 // Shared implementation for uint8_t and string hex formatting
 static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
@@ -280,7 +304,7 @@ static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, c
   uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
   ret.resize(multiple * length - (separator ? 1 : 0));
   for (size_t i = 0; i < length; i++) {
-    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[multiple * i] = format_hex_pretty_char(data[i] >> 4);
     ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
     if (separator && i != length - 1)
       ret[multiple * i + 2] = separator;
@@ -349,14 +373,31 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
+static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_decimals) {
   if (accuracy_decimals < 0) {
     auto multiplier = powf(10.0f, accuracy_decimals);
     value = roundf(value * multiplier) / multiplier;
     accuracy_decimals = 0;
   }
+}
+
+std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
+  normalize_accuracy_decimals(value, accuracy_decimals);
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
+  return std::string(tmp);
+}
+
+std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement) {
+  normalize_accuracy_decimals(value, accuracy_decimals);
+  // Buffer sized for float (up to ~15 chars) + space + typical UOM (usually <20 chars like "μS/cm")
+  // snprintf truncates safely if exceeded, though ESPHome UOMs are typically short
+  char tmp[64];
+  if (unit_of_measurement.empty()) {
+    snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
+  } else {
+    snprintf(tmp, sizeof(tmp), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
+  }
   return std::string(tmp);
 }
 
@@ -591,13 +632,21 @@ bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; 
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  char buf[13];
+  format_mac_addr_lower_no_sep(mac, buf);
+  return std::string(buf);
 }
 
 std::string get_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   return format_mac_address_pretty(mac);
+}
+
+void get_mac_address_into_buffer(std::span<char, 13> buf) {
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  format_mac_addr_lower_no_sep(mac, buf.data());
 }
 
 #ifndef USE_ESP32
@@ -612,8 +661,6 @@ bool mac_address_is_valid(const uint8_t *mac) {
     if (mac[i] != 0) {
       is_all_zeros = false;
     }
-  }
-  for (uint8_t i = 0; i < 6; i++) {
     if (mac[i] != 0xFF) {
       is_all_ones = false;
     }

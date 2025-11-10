@@ -3,7 +3,8 @@ from esphome.components.esp32 import add_idf_component
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network", "web_server_base"]
@@ -22,11 +23,11 @@ CONFIG_SCHEMA = (
 )
 
 
-@coroutine_with_priority(CoroPriority.COMMUNICATION)
+@coroutine_with_priority(CoroPriority.WEB_SERVER_OTA)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
     await cg.register_component(var, config)
     cg.add_define("USE_WEBSERVER_OTA")
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         add_idf_component(name="zorxx/multipart-parser", ref="1.0.1")

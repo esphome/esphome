@@ -325,7 +325,7 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
       // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
       this->write_array(ptr, w * h * 2);
     } else {
-      for (size_t y = 0; y != h; y++) {
+      for (size_t y = 0; y != static_cast<size_t>(h); y++) {
         this->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
       }
     }
@@ -349,7 +349,7 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
         App.feed_wdt();
       }
       // end of line? Skip to the next.
-      if (++pixel == w) {
+      if (++pixel == static_cast<size_t>(w)) {
         pixel = 0;
         ptr += (x_pad + x_offset) * 2;
       }

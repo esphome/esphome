@@ -88,7 +88,6 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
-    WRONG_CHIP_STATE,
   } error_code_{NONE};
 
   bool flush_gpio_();
