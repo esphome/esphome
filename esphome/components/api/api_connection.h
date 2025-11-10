@@ -122,6 +122,11 @@ class APIConnection final : public APIServerConnection {
   bool send_media_player_state(media_player::MediaPlayer *media_player);
   void media_player_command(const MediaPlayerCommandRequest &msg) override;
 #endif
+#ifdef USE_WATER_HEATER
+  bool send_water_heater_state(water_heater::WaterHeater *water_heater);
+  void water_heater_command(const WaterHeaterCommandRequest &msg) override;
+#endif
+
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call) {
@@ -393,6 +398,10 @@ class APIConnection final : public APIServerConnection {
                                          bool is_single);
   static uint16_t try_send_climate_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                         bool is_single);
+#endif
+#ifdef USE_WATER_HEATER
+  static uint16_t try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
 #endif
 #ifdef USE_NUMBER
   static uint16_t try_send_number_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,

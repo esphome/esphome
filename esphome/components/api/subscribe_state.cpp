@@ -63,6 +63,10 @@ INITIAL_STATE_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPane
 #ifdef USE_UPDATE
 INITIAL_STATE_HANDLER(update, update::UpdateEntity)
 #endif
+#ifdef USE_WATER_HEATER
+INITIAL_STATE_HANDLER(water_heater, water_heater::WaterHeater)
+#endif
+
 
 // Special cases (button and event) are already defined inline in subscribe_state.h
 

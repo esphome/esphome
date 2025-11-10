@@ -343,6 +343,10 @@ API_DISPATCH_UPDATE(lock::Lock, lock)
 API_DISPATCH_UPDATE(valve::Valve, valve)
 #endif
 
+#ifdef USE_WATER_HEATER
+API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
+#endif
+
 #ifdef USE_MEDIA_PLAYER
 API_DISPATCH_UPDATE(media_player::MediaPlayer, media_player)
 #endif

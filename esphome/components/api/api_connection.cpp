@@ -36,6 +36,10 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
+
 
 namespace esphome::api {
 
@@ -709,6 +713,62 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
   call.perform();
 }
 #endif
+
+#ifdef USE_WATER_HEATER
+bool APIConnection::send_water_heater_state(water_heater::WaterHeater *water_heater) {
+  return this->send_message_smart_(water_heater, &APIConnection::try_send_water_heater_state,
+                                   WaterHeaterStateResponse::MESSAGE_TYPE,
+                                   WaterHeaterStateResponse::ESTIMATED_SIZE);
+}
+
+uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                                    bool is_single) {
+  auto *water_heater = static_cast<water_heater::WaterHeater *>(entity);
+  WaterHeaterStateResponse resp;
+  auto traits = water_heater->get_traits();
+
+  resp.mode = static_cast<enums::WaterHeaterMode>(water_heater->mode);
+
+  if (traits.get_supports_current_temperature())
+    resp.current_temperature = water_heater->current_temperature;
+
+  if (traits.get_supports_target_temperature())
+    resp.target_temperature = water_heater->target_temperature;
+
+  return fill_and_encode_entity_state(water_heater, resp, WaterHeaterStateResponse::MESSAGE_TYPE,
+                                      conn, remaining_size, is_single);
+}
+
+uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                                   bool is_single) {
+  auto *water_heater = static_cast<water_heater::WaterHeater *>(entity);
+  ListEntitiesWaterHeaterResponse msg;
+  auto traits = water_heater->get_traits();
+
+  msg.supported_modes = &traits.get_supported_modes();
+  msg.supports_current_temperature = traits.get_supports_current_temperature();
+  msg.supports_target_temperature = traits.get_supports_target_temperature();
+  msg.visual_min_temperature = traits.get_visual_min_temperature();
+  msg.visual_max_temperature = traits.get_visual_max_temperature();
+  msg.visual_target_temperature_step = traits.get_visual_target_temperature_step();
+
+  return fill_and_encode_entity_info(water_heater, msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE,
+                                     conn, remaining_size, is_single);
+}
+
+void APIConnection::water_heater_command(const WaterHeaterCommandRequest &msg) {
+  ENTITY_COMMAND_MAKE_CALL(water_heater::WaterHeater, water_heater, water_heater)
+
+  if (msg.has_mode)
+    call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
+
+  if (msg.has_target_temperature)
+    call.set_target_temperature(msg.target_temperature);
+
+  call.perform();
+}
+#endif
+
 
 #ifdef USE_NUMBER
 bool APIConnection::send_number_state(number::Number *number) {
