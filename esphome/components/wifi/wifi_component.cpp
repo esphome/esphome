@@ -112,6 +112,15 @@ bool WiFiComponent::needs_scan_results_() const {
 }
 
 bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
+  // Check if this SSID is configured as hidden
+  // If explicitly marked hidden, we should always try hidden mode regardless of scan results
+  for (const auto &conf : this->sta_) {
+    if (conf.get_ssid() == ssid && conf.get_hidden()) {
+      return false;  // Treat as not seen - force hidden mode attempt
+    }
+  }
+
+  // Otherwise, check if we saw it in scan results
   for (const auto &scan : this->scan_result_) {
     if (scan.get_ssid() == ssid) {
       return true;
