@@ -13,6 +13,7 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef HAS_PROTO_MESSAGE_DUMP
  protected:
   void log_send_message_(const char *name, const std::string &dump);
+
  public:
 #endif
 
@@ -39,30 +40,21 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_subscribe_states_request(const SubscribeStatesRequest &value){};
 
-
-
-
 #ifdef USE_COVER
   virtual void on_cover_command_request(const CoverCommandRequest &value){};
 #endif
-
 
 #ifdef USE_FAN
   virtual void on_fan_command_request(const FanCommandRequest &value){};
 #endif
 
-
 #ifdef USE_LIGHT
   virtual void on_light_command_request(const LightCommandRequest &value){};
 #endif
 
-
-
-
 #ifdef USE_SWITCH
   virtual void on_switch_command_request(const SwitchCommandRequest &value){};
 #endif
-
 
   virtual void on_subscribe_logs_request(const SubscribeLogsRequest &value){};
 
@@ -91,31 +83,25 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
 #endif
 
-
 #ifdef USE_CAMERA
   virtual void on_camera_image_request(const CameraImageRequest &value){};
 #endif
-
 
 #ifdef USE_CLIMATE
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
 #endif
 
-
 #ifdef USE_NUMBER
   virtual void on_number_command_request(const NumberCommandRequest &value){};
 #endif
-
 
 #ifdef USE_SELECT
   virtual void on_select_command_request(const SelectCommandRequest &value){};
 #endif
 
-
 #ifdef USE_SIREN
   virtual void on_siren_command_request(const SirenCommandRequest &value){};
 #endif
-
 
 #ifdef USE_LOCK
   virtual void on_lock_command_request(const LockCommandRequest &value){};
@@ -125,12 +111,12 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_button_command_request(const ButtonCommandRequest &value){};
 #endif
 
-
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_command_request(const MediaPlayerCommandRequest &value){};
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &value){};
+  virtual void on_subscribe_bluetooth_le_advertisements_request(
+      const SubscribeBluetoothLEAdvertisementsRequest &value){};
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
@@ -140,7 +126,6 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &value){};
 #endif
-
 
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &value){};
@@ -163,15 +148,10 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &value){};
 #endif
 
-
-
-
-
-
 #ifdef USE_BLUETOOTH_PROXY
-  virtual void on_unsubscribe_bluetooth_le_advertisements_request(const UnsubscribeBluetoothLEAdvertisementsRequest &value){};
+  virtual void on_unsubscribe_bluetooth_le_advertisements_request(
+      const UnsubscribeBluetoothLEAdvertisementsRequest &value){};
 #endif
-
 
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &value){};
@@ -204,38 +184,29 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &value){};
 #endif
 
-
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &value){};
 #endif
-
 
 #ifdef USE_TEXT
   virtual void on_text_command_request(const TextCommandRequest &value){};
 #endif
 
-
 #ifdef USE_DATETIME_DATE
   virtual void on_date_command_request(const DateCommandRequest &value){};
 #endif
-
 
 #ifdef USE_DATETIME_TIME
   virtual void on_time_command_request(const TimeCommandRequest &value){};
 #endif
 
-
-
-
 #ifdef USE_VALVE
   virtual void on_valve_command_request(const ValveCommandRequest &value){};
 #endif
 
-
 #ifdef USE_DATETIME_DATETIME
   virtual void on_date_time_command_request(const DateTimeCommandRequest &value){};
 #endif
-
 
 #ifdef USE_UPDATE
   virtual void on_update_command_request(const UpdateCommandRequest &value){};
@@ -246,7 +217,6 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_ZWAVE_PROXY
   virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
-
 
 #ifdef USE_WATER_HEATER
   virtual void on_water_heater_command_request(const WaterHeaterCommandRequest &value){};
@@ -361,7 +331,8 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual bool send_subscribe_bluetooth_connections_free_response(const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
+  virtual bool send_subscribe_bluetooth_connections_free_response(
+      const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
@@ -495,7 +466,8 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  void on_unsubscribe_bluetooth_le_advertisements_request(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void on_unsubscribe_bluetooth_le_advertisements_request(
+      const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) override;

@@ -80,7 +80,6 @@ LIST_ENTITIES_HANDLER(update, update::UpdateEntity, ListEntitiesUpdateResponse)
 LIST_ENTITIES_HANDLER(water_heater, water_heater::WaterHeater, ListEntitiesWaterHeaterResponse)
 #endif
 
-
 // Special cases that don't follow the pattern
 bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
 

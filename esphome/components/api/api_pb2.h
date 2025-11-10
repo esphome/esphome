@@ -298,20 +298,14 @@ class InfoResponseProtoMessage : public ProtoMessage {
  public:
   ~InfoResponseProtoMessage() override = default;
   StringRef object_id_ref_{};
-  void set_object_id(const StringRef &ref) {
-    this->object_id_ref_ = ref;
-  }
+  void set_object_id(const StringRef &ref) { this->object_id_ref_ = ref; }
   uint32_t key{0};
   StringRef name_ref_{};
-  void set_name(const StringRef &ref) {
-    this->name_ref_ = ref;
-  }
+  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   bool disabled_by_default{false};
 #ifdef USE_ENTITY_ICON
   StringRef icon_ref_{};
-  void set_icon(const StringRef &ref) {
-    this->icon_ref_ = ref;
-  }
+  void set_icon(const StringRef &ref) { this->icon_ref_ = ref; }
 #endif
   enums::EntityCategory entity_category{};
 #ifdef USE_DEVICES
@@ -349,7 +343,7 @@ class HelloRequest final : public ProtoDecodableMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "hello_request"; }
 #endif
-  const uint8_t* client_info{nullptr};
+  const uint8_t *client_info{nullptr};
   uint16_t client_info_len{0};
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
@@ -371,13 +365,9 @@ class HelloResponse final : public ProtoMessage {
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
   StringRef server_info_ref_{};
-  void set_server_info(const StringRef &ref) {
-    this->server_info_ref_ = ref;
-  }
+  void set_server_info(const StringRef &ref) { this->server_info_ref_ = ref; }
   StringRef name_ref_{};
-  void set_name(const StringRef &ref) {
-    this->name_ref_ = ref;
-  }
+  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -394,7 +384,7 @@ class AuthenticationRequest final : public ProtoDecodableMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "authentication_request"; }
 #endif
-  const uint8_t* password{nullptr};
+  const uint8_t *password{nullptr};
   uint16_t password_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -490,9 +480,7 @@ class AreaInfo final : public ProtoMessage {
  public:
   uint32_t area_id{0};
   StringRef name_ref_{};
-  void set_name(const StringRef &ref) {
-    this->name_ref_ = ref;
-  }
+  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -507,9 +495,7 @@ class DeviceInfo final : public ProtoMessage {
  public:
   uint32_t device_id{0};
   StringRef name_ref_{};
-  void set_name(const StringRef &ref) {
-    this->name_ref_ = ref;
-  }
+  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   uint32_t area_id{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -531,39 +517,25 @@ class DeviceInfoResponse final : public ProtoMessage {
   bool uses_password{false};
 #endif
   StringRef name_ref_{};
-  void set_name(const StringRef &ref) {
-    this->name_ref_ = ref;
-  }
+  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   StringRef mac_address_ref_{};
-  void set_mac_address(const StringRef &ref) {
-    this->mac_address_ref_ = ref;
-  }
+  void set_mac_address(const StringRef &ref) { this->mac_address_ref_ = ref; }
   StringRef esphome_version_ref_{};
-  void set_esphome_version(const StringRef &ref) {
-    this->esphome_version_ref_ = ref;
-  }
+  void set_esphome_version(const StringRef &ref) { this->esphome_version_ref_ = ref; }
   StringRef compilation_time_ref_{};
-  void set_compilation_time(const StringRef &ref) {
-    this->compilation_time_ref_ = ref;
-  }
+  void set_compilation_time(const StringRef &ref) { this->compilation_time_ref_ = ref; }
   StringRef model_ref_{};
-  void set_model(const StringRef &ref) {
-    this->model_ref_ = ref;
-  }
+  void set_model(const StringRef &ref) { this->model_ref_ = ref; }
 #ifdef USE_DEEP_SLEEP
   bool has_deep_sleep{false};
 #endif
 #ifdef ESPHOME_PROJECT_NAME
   StringRef project_name_ref_{};
-  void set_project_name(const StringRef &ref) {
-    this->project_name_ref_ = ref;
-  }
+  void set_project_name(const StringRef &ref) { this->project_name_ref_ = ref; }
 #endif
 #ifdef ESPHOME_PROJECT_NAME
   StringRef project_version_ref_{};
-  void set_project_version(const StringRef &ref) {
-    this->project_version_ref_ = ref;
-  }
+  void set_project_version(const StringRef &ref) { this->project_version_ref_ = ref; }
 #endif
 #ifdef USE_WEBSERVER
   uint32_t webserver_port{0};
@@ -572,27 +544,19 @@ class DeviceInfoResponse final : public ProtoMessage {
   uint32_t bluetooth_proxy_feature_flags{0};
 #endif
   StringRef manufacturer_ref_{};
-  void set_manufacturer(const StringRef &ref) {
-    this->manufacturer_ref_ = ref;
-  }
+  void set_manufacturer(const StringRef &ref) { this->manufacturer_ref_ = ref; }
   StringRef friendly_name_ref_{};
-  void set_friendly_name(const StringRef &ref) {
-    this->friendly_name_ref_ = ref;
-  }
+  void set_friendly_name(const StringRef &ref) { this->friendly_name_ref_ = ref; }
 #ifdef USE_VOICE_ASSISTANT
   uint32_t voice_assistant_feature_flags{0};
 #endif
 #ifdef USE_AREAS
   StringRef suggested_area_ref_{};
-  void set_suggested_area(const StringRef &ref) {
-    this->suggested_area_ref_ = ref;
-  }
+  void set_suggested_area(const StringRef &ref) { this->suggested_area_ref_ = ref; }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   StringRef bluetooth_mac_address_ref_{};
-  void set_bluetooth_mac_address(const StringRef &ref) {
-    this->bluetooth_mac_address_ref_ = ref;
-  }
+  void set_bluetooth_mac_address(const StringRef &ref) { this->bluetooth_mac_address_ref_ = ref; }
 #endif
 #ifdef USE_API_NOISE
   bool api_encryption_supported{false};
@@ -668,9 +632,7 @@ class ListEntitiesBinarySensorResponse final : public InfoResponseProtoMessage {
   const char *message_name() const override { return "list_entities_binary_sensor_response"; }
 #endif
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   bool is_status_binary_sensor{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -710,9 +672,7 @@ class ListEntitiesCoverResponse final : public InfoResponseProtoMessage {
   bool supports_position{false};
   bool supports_tilt{false};
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   bool supports_stop{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -773,7 +733,7 @@ class ListEntitiesFanResponse final : public InfoResponseProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  const std::vector<const char *>* supported_preset_modes{};
+  const std::vector<const char *> *supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -794,9 +754,7 @@ class FanStateResponse final : public StateResponseProtoMessage {
   enums::FanDirection direction{};
   int32_t speed_level{0};
   StringRef preset_mode_ref_{};
-  void set_preset_mode(const StringRef &ref) {
-    this->preset_mode_ref_ = ref;
-  }
+  void set_preset_mode(const StringRef &ref) { this->preset_mode_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -840,7 +798,7 @@ class ListEntitiesLightResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_light_response"; }
 #endif
-  const light::ColorModeMask* supported_color_modes{};
+  const light::ColorModeMask *supported_color_modes{};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
@@ -871,9 +829,7 @@ class LightStateResponse final : public StateResponseProtoMessage {
   float cold_white{0.0f};
   float warm_white{0.0f};
   StringRef effect_ref_{};
-  void set_effect(const StringRef &ref) {
-    this->effect_ref_ = ref;
-  }
+  void set_effect(const StringRef &ref) { this->effect_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -934,15 +890,11 @@ class ListEntitiesSensorResponse final : public InfoResponseProtoMessage {
   const char *message_name() const override { return "list_entities_sensor_response"; }
 #endif
   StringRef unit_of_measurement_ref_{};
-  void set_unit_of_measurement(const StringRef &ref) {
-    this->unit_of_measurement_ref_ = ref;
-  }
+  void set_unit_of_measurement(const StringRef &ref) { this->unit_of_measurement_ref_ = ref; }
   int32_t accuracy_decimals{0};
   bool force_update{false};
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   enums::SensorStateClass state_class{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -980,9 +932,7 @@ class ListEntitiesSwitchResponse final : public InfoResponseProtoMessage {
 #endif
   bool assumed_state{false};
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1033,9 +983,7 @@ class ListEntitiesTextSensorResponse final : public InfoResponseProtoMessage {
   const char *message_name() const override { return "list_entities_text_sensor_response"; }
 #endif
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1052,9 +1000,7 @@ class TextSensorStateResponse final : public StateResponseProtoMessage {
   const char *message_name() const override { return "text_sensor_state_response"; }
 #endif
   StringRef state_ref_{};
-  void set_state(const StringRef &ref) {
-    this->state_ref_ = ref;
-  }
+  void set_state(const StringRef &ref) { this->state_ref_ = ref; }
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1089,9 +1035,9 @@ class SubscribeLogsResponse final : public ProtoMessage {
   const char *message_name() const override { return "subscribe_logs_response"; }
 #endif
   enums::LogLevel level{};
-  const uint8_t* message_ptr_{nullptr};
+  const uint8_t *message_ptr_{nullptr};
   size_t message_len_{0};
-  void set_message(const uint8_t* data, size_t len) {
+  void set_message(const uint8_t *data, size_t len) {
     this->message_ptr_ = data;
     this->message_len_ = len;
   }
@@ -1153,9 +1099,7 @@ class SubscribeHomeassistantServicesRequest final : public ProtoMessage {
 class HomeassistantServiceMap final : public ProtoMessage {
  public:
   StringRef key_ref_{};
-  void set_key(const StringRef &ref) {
-    this->key_ref_ = ref;
-  }
+  void set_key(const StringRef &ref) { this->key_ref_ = ref; }
   std::string value{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1173,9 +1117,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
   const char *message_name() const override { return "homeassistant_action_request"; }
 #endif
   StringRef service_ref_{};
-  void set_service(const StringRef &ref) {
-    this->service_ref_ = ref;
-  }
+  void set_service(const StringRef &ref) { this->service_ref_ = ref; }
   FixedVector<HomeassistantServiceMap> data{};
   FixedVector<HomeassistantServiceMap> data_template{};
   FixedVector<HomeassistantServiceMap> variables{};
@@ -1210,7 +1152,7 @@ class HomeassistantActionResponse final : public ProtoDecodableMessage {
   bool success{false};
   std::string error_message{};
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  const uint8_t* response_data{nullptr};
+  const uint8_t *response_data{nullptr};
   uint16_t response_data_len{0};
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1244,13 +1186,9 @@ class SubscribeHomeAssistantStateResponse final : public ProtoMessage {
   const char *message_name() const override { return "subscribe_home_assistant_state_response"; }
 #endif
   StringRef entity_id_ref_{};
-  void set_entity_id(const StringRef &ref) {
-    this->entity_id_ref_ = ref;
-  }
+  void set_entity_id(const StringRef &ref) { this->entity_id_ref_ = ref; }
   StringRef attribute_ref_{};
-  void set_attribute(const StringRef &ref) {
-    this->attribute_ref_ = ref;
-  }
+  void set_attribute(const StringRef &ref) { this->attribute_ref_ = ref; }
   bool once{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1299,7 +1237,7 @@ class GetTimeResponse final : public ProtoDecodableMessage {
   const char *message_name() const override { return "get_time_response"; }
 #endif
   uint32_t epoch_seconds{0};
-  const uint8_t* timezone{nullptr};
+  const uint8_t *timezone{nullptr};
   uint16_t timezone_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1313,9 +1251,7 @@ class GetTimeResponse final : public ProtoDecodableMessage {
 class ListEntitiesServicesArgument final : public ProtoMessage {
  public:
   StringRef name_ref_{};
-  void set_name(const StringRef &ref) {
-    this->name_ref_ = ref;
-  }
+  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   enums::ServiceArgType type{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1333,9 +1269,7 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
   const char *message_name() const override { return "list_entities_services_response"; }
 #endif
   StringRef name_ref_{};
-  void set_name(const StringRef &ref) {
-    this->name_ref_ = ref;
-  }
+  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   uint32_t key{0};
   FixedVector<ListEntitiesServicesArgument> args{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1409,9 +1343,9 @@ class CameraImageResponse final : public StateResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "camera_image_response"; }
 #endif
-  const uint8_t* data_ptr_{nullptr};
+  const uint8_t *data_ptr_{nullptr};
   size_t data_len_{0};
-  void set_data(const uint8_t* data, size_t len) {
+  void set_data(const uint8_t *data, size_t len) {
     this->data_ptr_ = data;
     this->data_len_ = len;
   }
@@ -1451,16 +1385,16 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
 #endif
   bool supports_current_temperature{false};
   bool supports_two_point_target_temperature{false};
-  const climate::ClimateModeMask* supported_modes{};
+  const climate::ClimateModeMask *supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_target_temperature_step{0.0f};
   bool supports_action{false};
-  const climate::ClimateFanModeMask* supported_fan_modes{};
-  const climate::ClimateSwingModeMask* supported_swing_modes{};
-  const std::vector<const char *>* supported_custom_fan_modes{};
-  const climate::ClimatePresetMask* supported_presets{};
-  const std::vector<const char *>* supported_custom_presets{};
+  const climate::ClimateFanModeMask *supported_fan_modes{};
+  const climate::ClimateSwingModeMask *supported_swing_modes{};
+  const std::vector<const char *> *supported_custom_fan_modes{};
+  const climate::ClimatePresetMask *supported_presets{};
+  const std::vector<const char *> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
@@ -1491,14 +1425,10 @@ class ClimateStateResponse final : public StateResponseProtoMessage {
   enums::ClimateFanMode fan_mode{};
   enums::ClimateSwingMode swing_mode{};
   StringRef custom_fan_mode_ref_{};
-  void set_custom_fan_mode(const StringRef &ref) {
-    this->custom_fan_mode_ref_ = ref;
-  }
+  void set_custom_fan_mode(const StringRef &ref) { this->custom_fan_mode_ref_ = ref; }
   enums::ClimatePreset preset{};
   StringRef custom_preset_ref_{};
-  void set_custom_preset(const StringRef &ref) {
-    this->custom_preset_ref_ = ref;
-  }
+  void set_custom_preset(const StringRef &ref) { this->custom_preset_ref_ = ref; }
   float current_humidity{0.0f};
   float target_humidity{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1558,14 +1488,10 @@ class ListEntitiesNumberResponse final : public InfoResponseProtoMessage {
   float max_value{0.0f};
   float step{0.0f};
   StringRef unit_of_measurement_ref_{};
-  void set_unit_of_measurement(const StringRef &ref) {
-    this->unit_of_measurement_ref_ = ref;
-  }
+  void set_unit_of_measurement(const StringRef &ref) { this->unit_of_measurement_ref_ = ref; }
   enums::NumberMode mode{};
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1616,7 +1542,7 @@ class ListEntitiesSelectResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_select_response"; }
 #endif
-  const FixedVector<const char *>* options{};
+  const FixedVector<const char *> *options{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1633,9 +1559,7 @@ class SelectStateResponse final : public StateResponseProtoMessage {
   const char *message_name() const override { return "select_state_response"; }
 #endif
   StringRef state_ref_{};
-  void set_state(const StringRef &ref) {
-    this->state_ref_ = ref;
-  }
+  void set_state(const StringRef &ref) { this->state_ref_ = ref; }
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1735,9 +1659,7 @@ class ListEntitiesLockResponse final : public InfoResponseProtoMessage {
   bool supports_open{false};
   bool requires_code{false};
   StringRef code_format_ref_{};
-  void set_code_format(const StringRef &ref) {
-    this->code_format_ref_ = ref;
-  }
+  void set_code_format(const StringRef &ref) { this->code_format_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1791,9 +1713,7 @@ class ListEntitiesButtonResponse final : public InfoResponseProtoMessage {
   const char *message_name() const override { return "list_entities_button_response"; }
 #endif
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1822,9 +1742,7 @@ class ButtonCommandRequest final : public CommandProtoMessage {
 class MediaPlayerSupportedFormat final : public ProtoMessage {
  public:
   StringRef format_ref_{};
-  void set_format(const StringRef &ref) {
-    this->format_ref_ = ref;
-  }
+  void set_format(const StringRef &ref) { this->format_ref_ = ref; }
   uint32_t sample_rate{0};
   uint32_t num_channels{0};
   enums::MediaPlayerFormatPurpose purpose{};
@@ -2098,9 +2016,9 @@ class BluetoothGATTReadResponse final : public ProtoMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
-  const uint8_t* data_ptr_{nullptr};
+  const uint8_t *data_ptr_{nullptr};
   size_t data_len_{0};
-  void set_data(const uint8_t* data, size_t len) {
+  void set_data(const uint8_t *data, size_t len) {
     this->data_ptr_ = data;
     this->data_len_ = len;
   }
@@ -2122,7 +2040,7 @@ class BluetoothGATTWriteRequest final : public ProtoDecodableMessage {
   uint64_t address{0};
   uint32_t handle{0};
   bool response{false};
-  const uint8_t* data{nullptr};
+  const uint8_t *data{nullptr};
   uint16_t data_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -2157,7 +2075,7 @@ class BluetoothGATTWriteDescriptorRequest final : public ProtoDecodableMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
-  const uint8_t* data{nullptr};
+  const uint8_t *data{nullptr};
   uint16_t data_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -2193,9 +2111,9 @@ class BluetoothGATTNotifyDataResponse final : public ProtoMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
-  const uint8_t* data_ptr_{nullptr};
+  const uint8_t *data_ptr_{nullptr};
   size_t data_len_{0};
-  void set_data(const uint8_t* data, size_t len) {
+  void set_data(const uint8_t *data, size_t len) {
     this->data_ptr_ = data;
     this->data_len_ = len;
   }
@@ -2430,15 +2348,11 @@ class VoiceAssistantRequest final : public ProtoMessage {
 #endif
   bool start{false};
   StringRef conversation_id_ref_{};
-  void set_conversation_id(const StringRef &ref) {
-    this->conversation_id_ref_ = ref;
-  }
+  void set_conversation_id(const StringRef &ref) { this->conversation_id_ref_ = ref; }
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
   StringRef wake_word_phrase_ref_{};
-  void set_wake_word_phrase(const StringRef &ref) {
-    this->wake_word_phrase_ref_ = ref;
-  }
+  void set_wake_word_phrase(const StringRef &ref) { this->wake_word_phrase_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2499,9 +2413,9 @@ class VoiceAssistantAudio final : public ProtoDecodableMessage {
   const char *message_name() const override { return "voice_assistant_audio"; }
 #endif
   std::string data{};
-  const uint8_t* data_ptr_{nullptr};
+  const uint8_t *data_ptr_{nullptr};
   size_t data_len_{0};
-  void set_data(const uint8_t* data, size_t len) {
+  void set_data(const uint8_t *data, size_t len) {
     this->data_ptr_ = data;
     this->data_len_ = len;
   }
@@ -2575,13 +2489,9 @@ class VoiceAssistantAnnounceFinished final : public ProtoMessage {
 class VoiceAssistantWakeWord final : public ProtoMessage {
  public:
   StringRef id_ref_{};
-  void set_id(const StringRef &ref) {
-    this->id_ref_ = ref;
-  }
+  void set_id(const StringRef &ref) { this->id_ref_ = ref; }
   StringRef wake_word_ref_{};
-  void set_wake_word(const StringRef &ref) {
-    this->wake_word_ref_ = ref;
-  }
+  void set_wake_word(const StringRef &ref) { this->wake_word_ref_ = ref; }
   std::vector<std::string> trained_languages{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -2631,7 +2541,7 @@ class VoiceAssistantConfigurationResponse final : public ProtoMessage {
   const char *message_name() const override { return "voice_assistant_configuration_response"; }
 #endif
   std::vector<VoiceAssistantWakeWord> available_wake_words{};
-  const std::vector<std::string>* active_wake_words{};
+  const std::vector<std::string> *active_wake_words{};
   uint32_t max_active_wake_words{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -2722,9 +2632,7 @@ class ListEntitiesTextResponse final : public InfoResponseProtoMessage {
   uint32_t min_length{0};
   uint32_t max_length{0};
   StringRef pattern_ref_{};
-  void set_pattern(const StringRef &ref) {
-    this->pattern_ref_ = ref;
-  }
+  void set_pattern(const StringRef &ref) { this->pattern_ref_ = ref; }
   enums::TextMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -2742,9 +2650,7 @@ class TextStateResponse final : public StateResponseProtoMessage {
   const char *message_name() const override { return "text_state_response"; }
 #endif
   StringRef state_ref_{};
-  void set_state(const StringRef &ref) {
-    this->state_ref_ = ref;
-  }
+  void set_state(const StringRef &ref) { this->state_ref_ = ref; }
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -2889,10 +2795,8 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
   const char *message_name() const override { return "list_entities_event_response"; }
 #endif
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
-  const FixedVector<const char *>* event_types{};
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
+  const FixedVector<const char *> *event_types{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2909,9 +2813,7 @@ class EventResponse final : public StateResponseProtoMessage {
   const char *message_name() const override { return "event_response"; }
 #endif
   StringRef event_type_ref_{};
-  void set_event_type(const StringRef &ref) {
-    this->event_type_ref_ = ref;
-  }
+  void set_event_type(const StringRef &ref) { this->event_type_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2930,9 +2832,7 @@ class ListEntitiesValveResponse final : public InfoResponseProtoMessage {
   const char *message_name() const override { return "list_entities_valve_response"; }
 #endif
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   bool assumed_state{false};
   bool supports_position{false};
   bool supports_stop{false};
@@ -3039,9 +2939,7 @@ class ListEntitiesUpdateResponse final : public InfoResponseProtoMessage {
   const char *message_name() const override { return "list_entities_update_response"; }
 #endif
   StringRef device_class_ref_{};
-  void set_device_class(const StringRef &ref) {
-    this->device_class_ref_ = ref;
-  }
+  void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3062,25 +2960,15 @@ class UpdateStateResponse final : public StateResponseProtoMessage {
   bool has_progress{false};
   float progress{0.0f};
   StringRef current_version_ref_{};
-  void set_current_version(const StringRef &ref) {
-    this->current_version_ref_ = ref;
-  }
+  void set_current_version(const StringRef &ref) { this->current_version_ref_ = ref; }
   StringRef latest_version_ref_{};
-  void set_latest_version(const StringRef &ref) {
-    this->latest_version_ref_ = ref;
-  }
+  void set_latest_version(const StringRef &ref) { this->latest_version_ref_ = ref; }
   StringRef title_ref_{};
-  void set_title(const StringRef &ref) {
-    this->title_ref_ = ref;
-  }
+  void set_title(const StringRef &ref) { this->title_ref_ = ref; }
   StringRef release_summary_ref_{};
-  void set_release_summary(const StringRef &ref) {
-    this->release_summary_ref_ = ref;
-  }
+  void set_release_summary(const StringRef &ref) { this->release_summary_ref_ = ref; }
   StringRef release_url_ref_{};
-  void set_release_url(const StringRef &ref) {
-    this->release_url_ref_ = ref;
-  }
+  void set_release_url(const StringRef &ref) { this->release_url_ref_ = ref; }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3114,7 +3002,7 @@ class ZWaveProxyFrame final : public ProtoDecodableMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "z_wave_proxy_frame"; }
 #endif
-  const uint8_t* data{nullptr};
+  const uint8_t *data{nullptr};
   uint16_t data_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -3133,7 +3021,7 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
   const char *message_name() const override { return "z_wave_proxy_request"; }
 #endif
   enums::ZWaveProxyRequestType type{};
-  const uint8_t* data{nullptr};
+  const uint8_t *data{nullptr};
   uint16_t data_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;

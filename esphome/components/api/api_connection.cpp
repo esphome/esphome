@@ -40,7 +40,6 @@
 #include "esphome/components/water_heater/water_heater.h"
 #endif
 
-
 namespace esphome::api {
 
 // Read a maximum of 5 messages per loop iteration to prevent starving other components.
@@ -717,8 +716,7 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
 #ifdef USE_WATER_HEATER
 bool APIConnection::send_water_heater_state(water_heater::WaterHeater *water_heater) {
   return this->send_message_smart_(water_heater, &APIConnection::try_send_water_heater_state,
-                                   WaterHeaterStateResponse::MESSAGE_TYPE,
-                                   WaterHeaterStateResponse::ESTIMATED_SIZE);
+                                   WaterHeaterStateResponse::MESSAGE_TYPE, WaterHeaterStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -735,8 +733,8 @@ uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConne
   if (traits.get_supports_target_temperature())
     resp.target_temperature = water_heater->target_temperature;
 
-  return fill_and_encode_entity_state(water_heater, resp, WaterHeaterStateResponse::MESSAGE_TYPE,
-                                      conn, remaining_size, is_single);
+  return fill_and_encode_entity_state(water_heater, resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size,
+                                      is_single);
 }
 
 uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -752,8 +750,8 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   msg.visual_max_temperature = traits.get_visual_max_temperature();
   msg.visual_target_temperature_step = traits.get_visual_target_temperature_step();
 
-  return fill_and_encode_entity_info(water_heater, msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE,
-                                     conn, remaining_size, is_single);
+  return fill_and_encode_entity_info(water_heater, msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE, conn,
+                                     remaining_size, is_single);
 }
 
 void APIConnection::water_heater_command(const WaterHeaterCommandRequest &msg) {
@@ -768,7 +766,6 @@ void APIConnection::water_heater_command(const WaterHeaterCommandRequest &msg) {
   call.perform();
 }
 #endif
-
 
 #ifdef USE_NUMBER
 bool APIConnection::send_number_state(number::Number *number) {

@@ -400,8 +400,10 @@ class APIConnection final : public APIServerConnection {
                                         bool is_single);
 #endif
 #ifdef USE_WATER_HEATER
-  static uint16_t try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
-  static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                              bool is_single);
+  static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                             bool is_single);
 #endif
 #ifdef USE_NUMBER
   static uint16_t try_send_number_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,

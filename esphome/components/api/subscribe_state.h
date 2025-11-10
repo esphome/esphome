@@ -86,7 +86,6 @@ class InitialStateIterator : public ComponentIterator {
   bool on_water_heater(water_heater::WaterHeater *entity) override;
 #endif
 
-
   bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:

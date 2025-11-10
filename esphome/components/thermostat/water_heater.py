@@ -1,10 +1,12 @@
 import esphome.codegen as cg
+from esphome.components import sensor, water_heater
 import esphome.config_validation as cv
-from esphome.components import water_heater, sensor
-from esphome.const import CONF_ID, CONF_SENSOR, CONF_ECO_MODE
+from esphome.const import CONF_ID, CONF_SENSOR
 
 thermostat_ns = cg.esphome_ns.namespace("thermostat")
-ThermostatWaterHeater = thermostat_ns.class_("ThermostatWaterHeater", water_heater.WaterHeater)
+ThermostatWaterHeater = thermostat_ns.class_(
+    "ThermostatWaterHeater", water_heater.WaterHeater
+)
 
 CONF_SUPPORTS_ECO = "supports_eco"
 
@@ -15,9 +17,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_SUPPORTS_ECO, default=False): cv.boolean,
         }
-    )
-    .extend({})  # future flags if needed
+    ).extend({})  # future flags if needed
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

@@ -14,18 +14,14 @@ ThermostatWaterHeater::ThermostatWaterHeater() {
   engine_.set_supports_auto(false);
 }
 
-void ThermostatWaterHeater::set_sensor(sensor::Sensor *sensor) {
-  engine_.set_sensor(sensor);
-}
+void ThermostatWaterHeater::set_sensor(sensor::Sensor *sensor) { engine_.set_sensor(sensor); }
 
 void ThermostatWaterHeater::set_supports_eco(bool eco) {
   supports_eco_ = eco;
   // We will expose ECO preset if true
 }
 
-void ThermostatWaterHeater::setup() {
-  engine_.setup();
-}
+void ThermostatWaterHeater::setup() { engine_.setup(); }
 
 water_heater::WaterHeaterTraits ThermostatWaterHeater::traits() {
   water_heater::WaterHeaterTraits traits;

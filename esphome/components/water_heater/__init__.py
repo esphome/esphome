@@ -9,11 +9,16 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({})
 
 CONFIG_SCHEMA = cv.All(
     cv.ensure_list(
-        cv.Schema({
-            cv.Required(CONF_PLATFORM): cv.one_of("thermostat", "template", "opentherm", lower=True),
-        })
+        cv.Schema(
+            {
+                cv.Required(CONF_PLATFORM): cv.one_of(
+                    "thermostat", "template", "opentherm", lower=True
+                ),
+            }
+        )
     )
 )
+
 
 async def to_code(config):
     for conf in config:

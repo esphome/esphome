@@ -8,9 +8,7 @@ static const char *const TAG = "water_heater";
 
 void WaterHeater::setup() {}
 
-void WaterHeater::loop() {
-  this->update_sensor_values_();
-}
+void WaterHeater::loop() { this->update_sensor_values_(); }
 
 void WaterHeater::update_sensor_values_() {
   if (current_temperature_sensor_ && current_temperature_sensor_->has_state())

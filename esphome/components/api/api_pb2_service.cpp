@@ -665,17 +665,14 @@ void APIServerConnection::on_device_info_request(const DeviceInfoRequest &msg) {
     this->on_fatal_error();
   }
 }
-void APIServerConnection::on_list_entities_request(const ListEntitiesRequest &msg) {
-  this->list_entities(msg);
-}
+void APIServerConnection::on_list_entities_request(const ListEntitiesRequest &msg) { this->list_entities(msg); }
 void APIServerConnection::on_subscribe_states_request(const SubscribeStatesRequest &msg) {
   this->subscribe_states(msg);
 }
-void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
-  this->subscribe_logs(msg);
-}
+void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) { this->subscribe_logs(msg); }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(
+    const SubscribeHomeassistantServicesRequest &msg) {
   this->subscribe_homeassistant_services(msg);
 }
 #endif
@@ -685,9 +682,7 @@ void APIServerConnection::on_subscribe_home_assistant_states_request(const Subsc
 }
 #endif
 #ifdef USE_API_SERVICES
-void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest &msg) {
-  this->execute_service(msg);
-}
+void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest &msg) { this->execute_service(msg); }
 #endif
 #ifdef USE_API_NOISE
 void APIServerConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) {
@@ -697,29 +692,19 @@ void APIServerConnection::on_noise_encryption_set_key_request(const NoiseEncrypt
 }
 #endif
 #ifdef USE_BUTTON
-void APIServerConnection::on_button_command_request(const ButtonCommandRequest &msg) {
-  this->button_command(msg);
-}
+void APIServerConnection::on_button_command_request(const ButtonCommandRequest &msg) { this->button_command(msg); }
 #endif
 #ifdef USE_CAMERA
-void APIServerConnection::on_camera_image_request(const CameraImageRequest &msg) {
-  this->camera_image(msg);
-}
+void APIServerConnection::on_camera_image_request(const CameraImageRequest &msg) { this->camera_image(msg); }
 #endif
 #ifdef USE_CLIMATE
-void APIServerConnection::on_climate_command_request(const ClimateCommandRequest &msg) {
-  this->climate_command(msg);
-}
+void APIServerConnection::on_climate_command_request(const ClimateCommandRequest &msg) { this->climate_command(msg); }
 #endif
 #ifdef USE_COVER
-void APIServerConnection::on_cover_command_request(const CoverCommandRequest &msg) {
-  this->cover_command(msg);
-}
+void APIServerConnection::on_cover_command_request(const CoverCommandRequest &msg) { this->cover_command(msg); }
 #endif
 #ifdef USE_DATETIME_DATE
-void APIServerConnection::on_date_command_request(const DateCommandRequest &msg) {
-  this->date_command(msg);
-}
+void APIServerConnection::on_date_command_request(const DateCommandRequest &msg) { this->date_command(msg); }
 #endif
 #ifdef USE_DATETIME_DATETIME
 void APIServerConnection::on_date_time_command_request(const DateTimeCommandRequest &msg) {
@@ -727,19 +712,13 @@ void APIServerConnection::on_date_time_command_request(const DateTimeCommandRequ
 }
 #endif
 #ifdef USE_FAN
-void APIServerConnection::on_fan_command_request(const FanCommandRequest &msg) {
-  this->fan_command(msg);
-}
+void APIServerConnection::on_fan_command_request(const FanCommandRequest &msg) { this->fan_command(msg); }
 #endif
 #ifdef USE_LIGHT
-void APIServerConnection::on_light_command_request(const LightCommandRequest &msg) {
-  this->light_command(msg);
-}
+void APIServerConnection::on_light_command_request(const LightCommandRequest &msg) { this->light_command(msg); }
 #endif
 #ifdef USE_LOCK
-void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg) {
-  this->lock_command(msg);
-}
+void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg) { this->lock_command(msg); }
 #endif
 #ifdef USE_MEDIA_PLAYER
 void APIServerConnection::on_media_player_command_request(const MediaPlayerCommandRequest &msg) {
@@ -747,44 +726,28 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
 }
 #endif
 #ifdef USE_NUMBER
-void APIServerConnection::on_number_command_request(const NumberCommandRequest &msg) {
-  this->number_command(msg);
-}
+void APIServerConnection::on_number_command_request(const NumberCommandRequest &msg) { this->number_command(msg); }
 #endif
 #ifdef USE_SELECT
-void APIServerConnection::on_select_command_request(const SelectCommandRequest &msg) {
-  this->select_command(msg);
-}
+void APIServerConnection::on_select_command_request(const SelectCommandRequest &msg) { this->select_command(msg); }
 #endif
 #ifdef USE_SIREN
-void APIServerConnection::on_siren_command_request(const SirenCommandRequest &msg) {
-  this->siren_command(msg);
-}
+void APIServerConnection::on_siren_command_request(const SirenCommandRequest &msg) { this->siren_command(msg); }
 #endif
 #ifdef USE_SWITCH
-void APIServerConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
-  this->switch_command(msg);
-}
+void APIServerConnection::on_switch_command_request(const SwitchCommandRequest &msg) { this->switch_command(msg); }
 #endif
 #ifdef USE_TEXT
-void APIServerConnection::on_text_command_request(const TextCommandRequest &msg) {
-  this->text_command(msg);
-}
+void APIServerConnection::on_text_command_request(const TextCommandRequest &msg) { this->text_command(msg); }
 #endif
 #ifdef USE_DATETIME_TIME
-void APIServerConnection::on_time_command_request(const TimeCommandRequest &msg) {
-  this->time_command(msg);
-}
+void APIServerConnection::on_time_command_request(const TimeCommandRequest &msg) { this->time_command(msg); }
 #endif
 #ifdef USE_UPDATE
-void APIServerConnection::on_update_command_request(const UpdateCommandRequest &msg) {
-  this->update_command(msg);
-}
+void APIServerConnection::on_update_command_request(const UpdateCommandRequest &msg) { this->update_command(msg); }
 #endif
 #ifdef USE_VALVE
-void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) {
-  this->valve_command(msg);
-}
+void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) { this->valve_command(msg); }
 #endif
 #ifdef USE_WATER_HEATER
 void APIServerConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
@@ -792,7 +755,8 @@ void APIServerConnection::on_water_heater_command_request(const WaterHeaterComma
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
+    const SubscribeBluetoothLEAdvertisementsRequest &msg) {
   this->subscribe_bluetooth_le_advertisements(msg);
 }
 #endif
@@ -832,14 +796,16 @@ void APIServerConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNo
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &msg) {
+void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
+    const SubscribeBluetoothConnectionsFreeRequest &msg) {
   if (!this->send_subscribe_bluetooth_connections_free_response(msg)) {
     this->on_fatal_error();
   }
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
+    const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
   this->unsubscribe_bluetooth_le_advertisements(msg);
 }
 #endif
@@ -871,14 +837,10 @@ void APIServerConnection::on_alarm_control_panel_command_request(const AlarmCont
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
-  this->zwave_proxy_frame(msg);
-}
+void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) { this->zwave_proxy_frame(msg); }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
-  this->zwave_proxy_request(msg);
-}
+void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) { this->zwave_proxy_request(msg); }
 #endif
 
 void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
@@ -889,8 +851,8 @@ void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, uin
     case AuthenticationRequest::MESSAGE_TYPE:  // No setup required
 #endif
     case DisconnectRequest::MESSAGE_TYPE:  // No setup required
-    case PingRequest::MESSAGE_TYPE:  // No setup required
-      break;  // Skip all checks for these messages
+    case PingRequest::MESSAGE_TYPE:        // No setup required
+      break;                               // Skip all checks for these messages
     case DeviceInfoRequest::MESSAGE_TYPE:  // Connection setup only
       if (!this->check_connection_setup_()) {
         return;  // Connection not setup
