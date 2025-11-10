@@ -39,7 +39,6 @@ class HLW8032Component : public Component, public uart::UARTDevice {
   uint8_t raw_data_[24]{};
   uint8_t check_{0};
   uint8_t raw_data_index_{0};
-
   bool header_found_{false};
 };
 
