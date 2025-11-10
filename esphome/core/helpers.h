@@ -872,6 +872,73 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   std::vector<std::function<void(Ts...)>> callbacks_;
 };
 
+template<typename... X> class PartitionedCallbackManager;
+
+/** Helper class for callbacks partitioned into two sections.
+ *
+ * Uses a single vector partitioned into two sections: [first_0, ..., first_m-1, second_0, ..., second_n-1]
+ * The partition point is tracked externally by the caller (typically stored in the entity class for optimal alignment).
+ *
+ * Memory efficient: Only stores a single pointer (4 bytes on 32-bit platforms, 8 bytes on 64-bit platforms).
+ * The partition count lives in the entity class where it can be packed with other small fields to avoid padding waste.
+ *
+ * Design rationale: The asymmetric API (add_first takes first_count*, while call_first/call_second take it by value)
+ * is intentional - add_first must increment the count, while call methods only read it. This avoids storing first_count
+ * internally, saving memory per instance.
+ *
+ * @tparam Ts The arguments for the callbacks, wrapped in void().
+ */
+template<typename... Ts> class PartitionedCallbackManager<void(Ts...)> {
+ public:
+  /// Add a callback to the first partition.
+  void add_first(std::function<void(Ts...)> &&callback, uint8_t *first_count) {
+    if (!this->callbacks_) {
+      this->callbacks_ = make_unique<std::vector<std::function<void(Ts...)>>>();
+    }
+
+    // Add to first partition: append then rotate into position
+    this->callbacks_->push_back(std::move(callback));
+    // Avoid potential underflow: rewrite comparison to not subtract from size()
+    if (*first_count + 1 < this->callbacks_->size()) {
+      // Use std::rotate to maintain registration order in second partition
+      std::rotate(this->callbacks_->begin() + *first_count, this->callbacks_->end() - 1, this->callbacks_->end());
+    }
+    (*first_count)++;
+  }
+
+  /// Add a callback to the second partition.
+  void add_second(std::function<void(Ts...)> &&callback) {
+    if (!this->callbacks_) {
+      this->callbacks_ = make_unique<std::vector<std::function<void(Ts...)>>>();
+    }
+
+    // Add to second partition: just append (already at end after first partition)
+    this->callbacks_->push_back(std::move(callback));
+  }
+
+  /// Call all callbacks in the first partition.
+  void call_first(uint8_t first_count, Ts... args) {
+    if (this->callbacks_) {
+      for (size_t i = 0; i < first_count; i++) {
+        (*this->callbacks_)[i](args...);
+      }
+    }
+  }
+
+  /// Call all callbacks in the second partition.
+  void call_second(uint8_t first_count, Ts... args) {
+    if (this->callbacks_) {
+      for (size_t i = first_count; i < this->callbacks_->size(); i++) {
+        (*this->callbacks_)[i](args...);
+      }
+    }
+  }
+
+ protected:
+  /// Partitioned callback storage: [first_0, ..., first_m-1, second_0, ..., second_n-1]
+  std::unique_ptr<std::vector<std::function<void(Ts...)>>> callbacks_;
+};
+
 /// Helper class to deduplicate items in a series of values.
 template<typename T> class Deduplicator {
  public:
