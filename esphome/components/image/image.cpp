@@ -125,7 +125,7 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
 
       case IMAGE_TYPE_RGB:
 #if LV_COLOR_DEPTH == 32
-        switch (this->transparent_) {
+        switch (this->transparency_) {
           case TRANSPARENCY_ALPHA_CHANNEL:
             this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
             break;
@@ -156,7 +156,8 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
             break;
         }
 #else
-        this->dsc_.header.cf = this->transparent_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_IMG_CF_RGB565A8 : LV_IMG_CF_RGB565;
+        this->dsc_.header.cf =
+            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_IMG_CF_RGB565A8 : LV_IMG_CF_RGB565;
 #endif
         break;
     }

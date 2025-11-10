@@ -151,11 +151,6 @@ def cover_schema(
     return _COVER_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-COVER_SCHEMA = cover_schema(Cover)
-COVER_SCHEMA.add_extra(cv.deprecated_schema_constant("cover"))
-
-
 async def setup_cover_core_(var, config):
     await setup_entity(var, config, "cover")
 

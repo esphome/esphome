@@ -319,6 +319,9 @@ def iter_ids(config, path=None):
             yield from iter_ids(item, path + [i])
     elif isinstance(config, dict):
         for key, value in config.items():
+            if len(path) == 0 and key == CONF_SUBSTITUTIONS:
+                # Ignore IDs in substitution definitions.
+                continue
             if isinstance(key, core.ID):
                 yield key, path
             yield from iter_ids(value, path + [key])

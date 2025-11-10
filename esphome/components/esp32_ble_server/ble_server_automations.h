@@ -71,7 +71,7 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
   BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
   TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
   void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     // If the listener is already set, do nothing
     if (BLECharacteristicSetValueActionManager::get_instance()->has_listener(this->parent_))
       return;
@@ -96,7 +96,7 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
 template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts...> {
  public:
   BLECharacteristicNotifyAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
 #ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
     // Call the pre-notify event
     BLECharacteristicSetValueActionManager::get_instance()->emit_pre_notify(this->parent_);
@@ -116,7 +116,7 @@ template<typename... Ts> class BLEDescriptorSetValueAction : public Action<Ts...
   BLEDescriptorSetValueAction(BLEDescriptor *descriptor) : parent_(descriptor) {}
   TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
   void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
-  void play(Ts... x) override { this->parent_->set_value(this->buffer_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->set_value(this->buffer_.value(x...)); }
 
  protected:
   BLEDescriptor *parent_;

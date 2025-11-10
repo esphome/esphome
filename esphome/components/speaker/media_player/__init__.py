@@ -26,21 +26,12 @@ from esphome.const import (
 from esphome.core import CORE, HexInt
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
-from esphome.types import ConfigType
+from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
-    load = ["audio"]
-    if (
-        not config
-        or config.get(CONF_TASK_STACK_IN_PSRAM)
-        or config.get(CONF_CODEC_SUPPORT_ENABLED)
-    ):
-        return load + ["psram"]
-    return load
-
+AUTO_LOAD = ["audio"]
 
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
@@ -226,12 +217,19 @@ def _validate_repeated_speaker(config):
     return config
 
 
-def _validate_supported_local_file(config):
+def _final_validate(config):
+    # Default to using codec if psram is enabled
+    if (use_codec := config.get(CONF_CODEC_SUPPORT_ENABLED)) is None:
+        use_codec = psram.DOMAIN in full_config.get()
+    conf_id = config[CONF_ID].id
+    core_data = CORE.data.setdefault(DOMAIN, {conf_id: {}})
+    core_data[conf_id][CONF_CODEC_SUPPORT_ENABLED] = use_codec
+
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             raise cv.Invalid("Unsupported local media file")
-        if not config[CONF_CODEC_SUPPORT_ENABLED] and str(media_file_type) != str(
+        if not use_codec and str(media_file_type) != str(
             audio.AUDIO_FILE_TYPE_ENUM["WAV"]
         ):
             # Only wav files are supported
@@ -290,11 +288,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            cv.Optional(
-                CONF_CODEC_SUPPORT_ENABLED, default=psram.supported()
-            ): cv.boolean,
+            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.boolean,
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
+                cv.boolean, cv.requires_component(psram.DOMAIN)
+            ),
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
             cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
@@ -317,12 +315,12 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         },
         extra=cv.ALLOW_EXTRA,
     ),
-    _validate_supported_local_file,
+    _final_validate,
 )
 
 
 async def to_code(config):
-    if config[CONF_CODEC_SUPPORT_ENABLED]:
+    if CORE.data[DOMAIN][config[CONF_ID].id][CONF_CODEC_SUPPORT_ENABLED]:
         # Compile all supported audio codecs and optimize the wifi settings
 
         cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
@@ -352,8 +350,8 @@ async def to_code(config):
 
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
 
-    cg.add(var.set_task_stack_in_psram(config[CONF_TASK_STACK_IN_PSRAM]))
-    if config[CONF_TASK_STACK_IN_PSRAM]:
+    if config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(True))
         esp32.add_idf_sdkconfig_option(
             "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
         )

@@ -725,7 +725,7 @@ class ListEntitiesFanResponse final : public InfoResponseProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  const std::set<std::string> *supported_preset_modes{};
+  const std::vector<const char *> *supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1384,9 +1384,9 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
   bool supports_action{false};
   const climate::ClimateFanModeMask *supported_fan_modes{};
   const climate::ClimateSwingModeMask *supported_swing_modes{};
-  const std::vector<std::string> *supported_custom_fan_modes{};
+  const std::vector<const char *> *supported_custom_fan_modes{};
   const climate::ClimatePresetMask *supported_presets{};
-  const std::vector<std::string> *supported_custom_presets{};
+  const std::vector<const char *> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
@@ -1534,7 +1534,7 @@ class ListEntitiesSelectResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_select_response"; }
 #endif
-  const std::vector<std::string> *options{};
+  const FixedVector<const char *> *options{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2788,7 +2788,7 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
 #endif
   StringRef device_class_ref_{};
   void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
-  std::vector<std::string> event_types{};
+  const FixedVector<const char *> *event_types{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

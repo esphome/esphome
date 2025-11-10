@@ -9,11 +9,11 @@
 namespace esphome::api {
 
 #ifdef USE_API_SERVICES
-template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceBase<Ts...> {
+template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceDynamic<Ts...> {
  public:
   CustomAPIDeviceService(const std::string &name, const std::array<std::string, sizeof...(Ts)> &arg_names, T *obj,
                          void (T::*callback)(Ts...))
-      : UserServiceBase<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
+      : UserServiceDynamic<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
 
  protected:
   void execute(Ts... x) override { (this->obj_->*this->callback_)(x...); }  // NOLINT
