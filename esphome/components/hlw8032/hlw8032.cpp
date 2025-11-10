@@ -30,33 +30,32 @@ static constexpr uint8_t STATE_REG_OVERFLOW_MASK = 0xF;
 static constexpr uint8_t PACKET_LENGTH = 24;
 
 void HLW8032Component::loop() {
-  if (!this->available())
-    return;
-
-  uint8_t data = this->read();
-  if (!this->header_found_) {
-    if ((data == STATE_REG_CORRECTION_FUNC_NORMAL) || (data == STATE_REG_CORRECTION_FUNC_FAIL) ||
-        (data & STATE_REG_CORRECTION_MASK) == STATE_REG_CORRECTION_MASK) {
-      this->header_found_ = true;
-      this->raw_data_[0] = data;
-    }
-  } else if (data == CHECK_REG) {
-    this->raw_data_[1] = data;
-    this->raw_data_index_ = 2;
-    this->check_ = 0;
-  } else if (this->raw_data_index_ >= 2 && this->raw_data_index_ < PACKET_LENGTH) {
-    this->raw_data_[this->raw_data_index_++] = data;
-    if (this->raw_data_index_ < PACKET_LENGTH) {
-      this->check_ += data;
-    } else if (this->raw_data_index_ == PACKET_LENGTH) {
-      if (this->check_ == this->raw_data_[CHECKSUM_REG_OFFSET]) {
-        this->parse_data_();
-      } else {
-        ESP_LOGW(TAG, "Invalid checksum: 0x%02X != 0x%02X", this->check_, this->raw_data_[CHECKSUM_REG_OFFSET]);
+  while (this->available()) {
+    uint8_t data = this->read();
+    if (!this->header_found_) {
+      if ((data == STATE_REG_CORRECTION_FUNC_NORMAL) || (data == STATE_REG_CORRECTION_FUNC_FAIL) ||
+          (data & STATE_REG_CORRECTION_MASK) == STATE_REG_CORRECTION_MASK) {
+        this->header_found_ = true;
+        this->raw_data_[0] = data;
       }
-      this->raw_data_index_ = 0;
-      this->header_found_ = false;
-      memset(this->raw_data_, 0, PACKET_LENGTH);
+    } else if (data == CHECK_REG) {
+      this->raw_data_[1] = data;
+      this->raw_data_index_ = 2;
+      this->check_ = 0;
+    } else if (this->raw_data_index_ >= 2 && this->raw_data_index_ < PACKET_LENGTH) {
+      this->raw_data_[this->raw_data_index_++] = data;
+      if (this->raw_data_index_ < PACKET_LENGTH) {
+        this->check_ += data;
+      } else if (this->raw_data_index_ == PACKET_LENGTH) {
+        if (this->check_ == this->raw_data_[CHECKSUM_REG_OFFSET]) {
+          this->parse_data_();
+        } else {
+          ESP_LOGW(TAG, "Invalid checksum: 0x%02X != 0x%02X", this->check_, this->raw_data_[CHECKSUM_REG_OFFSET]);
+        }
+        this->raw_data_index_ = 0;
+        this->header_found_ = false;
+        memset(this->raw_data_, 0, PACKET_LENGTH);
+      }
     }
   }
 }
