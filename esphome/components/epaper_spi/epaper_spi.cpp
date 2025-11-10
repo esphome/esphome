@@ -9,9 +9,8 @@ namespace esphome::epaper_spi {
 static const char *const TAG = "epaper_spi";
 
 static constexpr const char *const EPAPER_STATE_STRINGS[] = {
-    "IDLE",        "UPDATE",     "RESET",         "RESET_END",
-
-    "SHOULD_WAIT", "INITIALISE", "TRANSFER_DATA", "POWER_ON",  "REFRESH_SCREEN", "POWER_OFF", "DEEP_SLEEP",
+    "IDLE",          "UPDATE",   "RESET",          "RESET_END", "SHOULD_WAIT", "INITIALISE",
+    "TRANSFER_DATA", "POWER_ON", "REFRESH_SCREEN", "POWER_OFF", "DEEP_SLEEP",
 };
 
 const char *EPaperBase::epaper_state_to_string_() {
@@ -69,8 +68,8 @@ void EPaperBase::data(uint8_t value) {
 // The command is the first byte, length is the length of data only in the second byte, followed by the data.
 // [COMMAND, LENGTH, DATA...]
 void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
-  ESP_LOGVV(TAG, "Command: 0x%02X, Length: %d, Data: %s", command, length,
-            format_hex_pretty(ptr, length, '.', false).c_str());
+  ESP_LOGD(TAG, "Command: 0x%02X, Length: %d, Data: %s", command, length,
+           format_hex_pretty(ptr, length, '.', false).c_str());
 
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -89,7 +88,7 @@ bool EPaperBase::is_idle_() const {
   return !this->busy_pin_->digital_read();
 }
 
-bool EPaperBase::reset_() const {
+bool EPaperBase::reset() {
   if (this->reset_pin_ != nullptr) {
     if (this->state_ == EPaperState::RESET) {
       this->reset_pin_->digital_write(false);
@@ -172,10 +171,10 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::RESET:
     case EPaperState::RESET_END:
-      if (this->reset_()) {
+      if (this->reset()) {
         this->set_state_(EPaperState::UPDATE);
       } else {
-        this->set_state_(EPaperState::RESET_END);
+        this->set_state_(EPaperState::RESET_END, this->reset_duration_);
       }
       break;
     case EPaperState::UPDATE:

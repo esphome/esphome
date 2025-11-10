@@ -25,6 +25,13 @@ enum class EPaperState : uint8_t {
   DEEP_SLEEP,      // deep sleep the display
 };
 
+enum class Transform : uint8_t {
+  NONE = 0,
+  MIRROR_X = 1,
+  MIRROR_Y = 2,
+  SWAP_XY = 4,
+};
+
 static constexpr uint8_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
 static constexpr uint8_t DELAY_FLAG = 0xFF;
 
@@ -45,6 +52,7 @@ class EPaperBase : public DisplayBuffer,
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
+  void set_transform(uint8_t transform) { this->transform_ = transform; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -68,7 +76,7 @@ class EPaperBase : public DisplayBuffer,
   const char *epaper_state_to_string_();
   bool is_idle_() const;
   void setup_pins_() const;
-  bool reset_() const;
+  virtual bool reset();
   void initialise_();
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
@@ -136,6 +144,7 @@ class EPaperBase : public DisplayBuffer,
   split_buffer::SplitBuffer buffer_;
 
   EPaperState state_{EPaperState::IDLE};
+  uint8_t transform_{};
 };
 
 }  // namespace esphome::epaper_spi

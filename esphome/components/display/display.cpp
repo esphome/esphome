@@ -7,7 +7,6 @@
 
 namespace esphome {
 namespace display {
-
 static const char *const TAG = "display";
 
 const Color COLOR_OFF(0, 0, 0, 0);
@@ -16,6 +15,7 @@ const Color COLOR_ON(255, 255, 255, 255);
 void Display::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void Display::clear() { this->fill(COLOR_OFF); }
 void Display::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
+
 void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
   const int32_t dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
   const int32_t dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
@@ -91,23 +91,27 @@ void HOT Display::horizontal_line(int x, int y, int width, Color color) {
   for (int i = x; i < x + width; i++)
     this->draw_pixel_at(i, y, color);
 }
+
 void HOT Display::vertical_line(int x, int y, int height, Color color) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = y; i < y + height; i++)
     this->draw_pixel_at(x, i, color);
 }
+
 void Display::rectangle(int x1, int y1, int width, int height, Color color) {
   this->horizontal_line(x1, y1, width, color);
   this->horizontal_line(x1, y1 + height - 1, width, color);
   this->vertical_line(x1, y1, height, color);
   this->vertical_line(x1 + width - 1, y1, height, color);
 }
+
 void Display::filled_rectangle(int x1, int y1, int width, int height, Color color) {
   // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
   for (int i = y1; i < y1 + height; i++) {
     this->horizontal_line(x1, i, width, color);
   }
 }
+
 void HOT Display::circle(int center_x, int center_xy, int radius, Color color) {
   int dx = -radius;
   int dy = 0;
@@ -131,6 +135,7 @@ void HOT Display::circle(int center_x, int center_xy, int radius, Color color) {
     }
   } while (dx <= 0);
 }
+
 void Display::filled_circle(int center_x, int center_y, int radius, Color color) {
   int dx = -int32_t(radius);
   int dy = 0;
@@ -157,6 +162,7 @@ void Display::filled_circle(int center_x, int center_y, int radius, Color color)
     }
   } while (dx <= 0);
 }
+
 void Display::filled_ring(int center_x, int center_y, int radius1, int radius2, Color color) {
   int rmax = radius1 > radius2 ? radius1 : radius2;
   int rmin = radius1 < radius2 ? radius1 : radius2;
@@ -213,6 +219,7 @@ void Display::filled_ring(int center_x, int center_y, int radius1, int radius2, 
     }
   } while (dxmax <= 0);
 }
+
 void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2, int progress, Color color) {
   int rmax = radius1 > radius2 ? radius1 : radius2;
   int rmin = radius1 < radius2 ? radius1 : radius2;
@@ -228,7 +235,8 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
     // outer dots
     this->draw_pixel_at(center_x + dxmax, center_y - dymax, color);
     this->draw_pixel_at(center_x - dxmax, center_y - dymax, color);
-    if (dymin < rmin) {  // side parts
+    if (dymin < rmin) {
+      // side parts
       int lhline_width = -(dxmax - dxmin) + 1;
       if (progress >= 50) {
         if (float(dymax) < float(-dxmax) * tan_a) {
@@ -239,7 +247,8 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
         this->horizontal_line(center_x + dxmax, center_y - dymax, lhline_width, color);  // left
         if (!dymax)
           this->horizontal_line(center_x - dxmin, center_y, lhline_width, color);  // right horizontal border
-        if (upd_dxmax > -dxmin) {                                                  // right
+        if (upd_dxmax > -dxmin) {
+          // right
           int rhline_width = (upd_dxmax + dxmin) + 1;
           this->horizontal_line(center_x - dxmin, center_y - dymax,
                                 rhline_width > lhline_width ? lhline_width : rhline_width, color);
@@ -256,7 +265,8 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
         if (lhline_width > 0)
           this->horizontal_line(center_x + dxmax, center_y - dymax, lhline_width, color);
       }
-    } else {  // top part
+    } else {
+      // top part
       int hline_width = 2 * (-dxmax) + 1;
       if (progress >= 50) {
         if (dymax < float(-dxmax) * tan_a) {
@@ -300,11 +310,13 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
     }
   } while (dxmax <= 0);
 }
+
 void HOT Display::triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
   this->line(x1, y1, x2, y2, color);
   this->line(x1, y1, x3, y3, color);
   this->line(x2, y2, x3, y3, color);
 }
+
 void Display::sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3) {
   if (*y1 > *y2) {
     int x_temp = *x1, y_temp = *y1;
@@ -322,6 +334,7 @@ void Display::sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int
     *x3 = x_temp, *y3 = y_temp;
   }
 }
+
 void Display::filled_flat_side_triangle_(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
   // y2 must be equal to y3 (same horizontal line)
 
@@ -333,7 +346,8 @@ void Display::filled_flat_side_triangle_(int x1, int y1, int x2, int y2, int x3,
   int s1_dy = abs(y2 - y1);
   int s1_sign_x = ((x2 - x1) >= 0) ? 1 : -1;
   int s1_sign_y = ((y2 - y1) >= 0) ? 1 : -1;
-  if (s1_dy > s1_dx) {  // swap values
+  if (s1_dy > s1_dx) {
+    // swap values
     int tmp = s1_dx;
     s1_dx = s1_dy;
     s1_dy = tmp;
@@ -349,7 +363,8 @@ void Display::filled_flat_side_triangle_(int x1, int y1, int x2, int y2, int x3,
   int s2_dy = abs(y3 - y1);
   int s2_sign_x = ((x3 - x1) >= 0) ? 1 : -1;
   int s2_sign_y = ((y3 - y1) >= 0) ? 1 : -1;
-  if (s2_dy > s2_dx) {  // swap values
+  if (s2_dy > s2_dx) {
+    // swap values
     int tmp = s2_dx;
     s2_dx = s2_dy;
     s2_dy = tmp;
@@ -402,20 +417,25 @@ void Display::filled_flat_side_triangle_(int x1, int y1, int x2, int y2, int x3,
     }
   }
 }
+
 void Display::filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
   // Sort the three points by y-coordinate ascending, so [x1,y1] is the topmost point
   this->sort_triangle_points_by_y_(&x1, &y1, &x2, &y2, &x3, &y3);
 
-  if (y2 == y3) {  // Check for special case of a bottom-flat triangle
+  if (y2 == y3) {
+    // Check for special case of a bottom-flat triangle
     this->filled_flat_side_triangle_(x1, y1, x2, y2, x3, y3, color);
-  } else if (y1 == y2) {  // Check for special case of a top-flat triangle
+  } else if (y1 == y2) {
+    // Check for special case of a top-flat triangle
     this->filled_flat_side_triangle_(x3, y3, x1, y1, x2, y2, color);
-  } else {  // General case: split the no-flat-side triangle in a top-flat triangle and bottom-flat triangle
+  } else {
+    // General case: split the no-flat-side triangle in a top-flat triangle and bottom-flat triangle
     int x_temp = (int) (x1 + ((float) (y2 - y1) / (float) (y3 - y1)) * (x3 - x1)), y_temp = y2;
     this->filled_flat_side_triangle_(x1, y1, x2, y2, x_temp, y_temp, color);
     this->filled_flat_side_triangle_(x3, y3, x2, y2, x_temp, y_temp, color);
   }
 }
+
 void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *vertex_y, int center_x, int center_y,
                                              int radius, int edges, RegularPolygonVariation variation,
                                              float rotation_degrees) {
@@ -447,7 +467,8 @@ void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPo
       int current_vertex_x, current_vertex_y;
       get_regular_polygon_vertex(current_vertex_id, &current_vertex_x, &current_vertex_y, x, y, radius, edges,
                                  variation, rotation_degrees);
-      if (current_vertex_id > 0) {  // Start drawing after the 2nd vertex coordinates has been calculated
+      if (current_vertex_id > 0) {
+        // Start drawing after the 2nd vertex coordinates has been calculated
         if (drawing == DRAWING_FILLED) {
           this->filled_triangle(x, y, previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
         } else if (drawing == DRAWING_OUTLINE) {
@@ -459,21 +480,26 @@ void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPo
     }
   }
 }
+
 void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation, Color color,
                                   RegularPolygonDrawing drawing) {
   regular_polygon(x, y, radius, edges, variation, ROTATION_0_DEGREES, color, drawing);
 }
+
 void HOT Display::regular_polygon(int x, int y, int radius, int edges, Color color, RegularPolygonDrawing drawing) {
   regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, drawing);
 }
+
 void Display::filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
                                      float rotation_degrees, Color color) {
   regular_polygon(x, y, radius, edges, variation, rotation_degrees, color, DRAWING_FILLED);
 }
+
 void Display::filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
                                      Color color) {
   regular_polygon(x, y, radius, edges, variation, ROTATION_0_DEGREES, color, DRAWING_FILLED);
 }
+
 void Display::filled_regular_polygon(int x, int y, int radius, int edges, Color color) {
   regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, DRAWING_FILLED);
 }
@@ -584,15 +610,19 @@ void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, Te
       break;
   }
 }
+
 void Display::print(int x, int y, BaseFont *font, Color color, const char *text, Color background) {
   this->print(x, y, font, color, TextAlign::TOP_LEFT, text, background);
 }
+
 void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *text) {
   this->print(x, y, font, COLOR_ON, align, text);
 }
+
 void Display::print(int x, int y, BaseFont *font, const char *text) {
   this->print(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, text);
 }
+
 void Display::printf(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
                      ...) {
   va_list arg;
@@ -600,31 +630,37 @@ void Display::printf(int x, int y, BaseFont *font, Color color, Color background
   this->vprintf_(x, y, font, color, background, align, format, arg);
   va_end(arg);
 }
+
 void Display::printf(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, color, COLOR_OFF, align, format, arg);
   va_end(arg);
 }
+
 void Display::printf(int x, int y, BaseFont *font, Color color, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, color, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
+
 void Display::printf(int x, int y, BaseFont *font, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, align, format, arg);
   va_end(arg);
 }
+
 void Display::printf(int x, int y, BaseFont *font, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
+
 void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
+
 void Display::set_pages(std::vector<DisplayPage *> pages) {
   for (auto *page : pages)
     page->set_parent(this);
@@ -637,6 +673,7 @@ void Display::set_pages(std::vector<DisplayPage *> pages) {
   pages[pages.size() - 1]->set_next(pages[0]);
   this->show_page(pages[0]);
 }
+
 void Display::show_page(DisplayPage *page) {
   this->previous_page_ = this->page_;
   this->page_ = page;
@@ -645,8 +682,10 @@ void Display::show_page(DisplayPage *page) {
       t->process(this->previous_page_, this->page_);
   }
 }
+
 void Display::show_next_page() { this->page_->show_next(); }
 void Display::show_prev_page() { this->page_->show_prev(); }
+
 void Display::do_update_() {
   if (this->auto_clear_enabled_) {
     this->clear();
@@ -660,10 +699,12 @@ void Display::do_update_() {
   }
   this->clear_clipping_();
 }
+
 void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
     this->trigger(from, to);
 }
+
 void Display::strftime(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
                        ESPTime time) {
   char buffer[64];
@@ -671,15 +712,19 @@ void Display::strftime(int x, int y, BaseFont *font, Color color, Color backgrou
   if (ret > 0)
     this->print(x, y, font, color, align, buffer, background);
 }
+
 void Display::strftime(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ESPTime time) {
   this->strftime(x, y, font, color, COLOR_OFF, align, format, time);
 }
+
 void Display::strftime(int x, int y, BaseFont *font, Color color, const char *format, ESPTime time) {
   this->strftime(x, y, font, color, COLOR_OFF, TextAlign::TOP_LEFT, format, time);
 }
+
 void Display::strftime(int x, int y, BaseFont *font, TextAlign align, const char *format, ESPTime time) {
   this->strftime(x, y, font, COLOR_ON, COLOR_OFF, align, format, time);
 }
+
 void Display::strftime(int x, int y, BaseFont *font, const char *format, ESPTime time) {
   this->strftime(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, time);
 }
@@ -691,6 +736,7 @@ void Display::start_clipping(Rect rect) {
   }
   this->clipping_rectangle_.push_back(rect);
 }
+
 void Display::end_clipping() {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "clear: Clipping is not set.");
@@ -698,6 +744,7 @@ void Display::end_clipping() {
     this->clipping_rectangle_.pop_back();
   }
 }
+
 void Display::extend_clipping(Rect add_rect) {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "add: Clipping is not set.");
@@ -705,6 +752,7 @@ void Display::extend_clipping(Rect add_rect) {
     this->clipping_rectangle_.back().extend(add_rect);
   }
 }
+
 void Display::shrink_clipping(Rect add_rect) {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "add: Clipping is not set.");
@@ -712,6 +760,7 @@ void Display::shrink_clipping(Rect add_rect) {
     this->clipping_rectangle_.back().shrink(add_rect);
   }
 }
+
 Rect Display::get_clipping() const {
   if (this->clipping_rectangle_.empty()) {
     return Rect();
@@ -719,7 +768,9 @@ Rect Display::get_clipping() const {
     return this->clipping_rectangle_.back();
   }
 }
+
 void Display::clear_clipping_() { this->clipping_rectangle_.clear(); }
+
 bool Display::clip(int x, int y) {
   if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height())
     return false;
@@ -727,6 +778,7 @@ bool Display::clip(int x, int y) {
     return false;
   return true;
 }
+
 bool Display::clamp_x_(int x, int w, int &min_x, int &max_x) {
   min_x = std::max(x, 0);
   max_x = std::min(x + w, this->get_width());
@@ -742,6 +794,7 @@ bool Display::clamp_x_(int x, int w, int &min_x, int &max_x) {
 
   return min_x < max_x;
 }
+
 bool Display::clamp_y_(int y, int h, int &min_y, int &max_y) {
   min_y = std::max(y, 0);
   max_y = std::min(y + h, this->get_height());
@@ -766,15 +819,15 @@ void Display::test_card() {
   int w = get_width(), h = get_height(), image_w, image_h;
   this->clear();
   this->show_test_card_ = false;
+  image_w = std::min(w - 20, 310);
+  image_h = std::min(h - 20, 255);
+  int shift_x = (w - image_w) / 2;
+  int shift_y = (h - image_h) / 2;
+  int line_w = (image_w - 6) / 6;
+  int image_c = image_w / 2;
   if (this->get_display_type() == DISPLAY_TYPE_COLOR) {
     Color r(255, 0, 0), g(0, 255, 0), b(0, 0, 255);
-    image_w = std::min(w - 20, 310);
-    image_h = std::min(h - 20, 255);
 
-    int shift_x = (w - image_w) / 2;
-    int shift_y = (h - image_h) / 2;
-    int line_w = (image_w - 6) / 6;
-    int image_c = image_w / 2;
     for (auto i = 0; i != image_h; i++) {
       int c = esp_scale(i, image_h);
       this->horizontal_line(shift_x + 0, shift_y + i, line_w, r.fade_to_white(c));
@@ -786,26 +839,26 @@ void Display::test_card() {
       this->horizontal_line(shift_x + image_w - (line_w * 2), shift_y + i, line_w, b.fade_to_white(c));
       this->horizontal_line(shift_x + image_w - line_w, shift_y + i, line_w, b.fade_to_black(c));
     }
-    this->rectangle(shift_x, shift_y, image_w, image_h, Color(127, 127, 0));
+  }
+  this->rectangle(shift_x, shift_y, image_w, image_h, Color(127, 127, 0));
 
-    uint16_t shift_r = shift_x + line_w - (8 * 3);
-    uint16_t shift_g = shift_x + image_c - (8 * 3);
-    uint16_t shift_b = shift_x + image_w - line_w - (8 * 3);
-    shift_y = h / 2 - (8 * 3);
-    for (auto i = 0; i < 8; i++) {
-      uint8_t ftr = progmem_read_byte(&TESTCARD_FONT[0][i]);
-      uint8_t ftg = progmem_read_byte(&TESTCARD_FONT[1][i]);
-      uint8_t ftb = progmem_read_byte(&TESTCARD_FONT[2][i]);
-      for (auto k = 0; k < 8; k++) {
-        if ((ftr & (1 << k)) != 0) {
-          this->filled_rectangle(shift_r + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
-        }
-        if ((ftg & (1 << k)) != 0) {
-          this->filled_rectangle(shift_g + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
-        }
-        if ((ftb & (1 << k)) != 0) {
-          this->filled_rectangle(shift_b + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
-        }
+  uint16_t shift_r = shift_x + line_w - (8 * 3);
+  uint16_t shift_g = shift_x + image_c - (8 * 3);
+  uint16_t shift_b = shift_x + image_w - line_w - (8 * 3);
+  shift_y = h / 2 - (8 * 3);
+  for (auto i = 0; i < 8; i++) {
+    uint8_t ftr = progmem_read_byte(&TESTCARD_FONT[0][i]);
+    uint8_t ftg = progmem_read_byte(&TESTCARD_FONT[1][i]);
+    uint8_t ftb = progmem_read_byte(&TESTCARD_FONT[2][i]);
+    for (auto k = 0; k < 8; k++) {
+      if ((ftr & (1 << k)) != 0) {
+        this->filled_rectangle(shift_r + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
+      }
+      if ((ftg & (1 << k)) != 0) {
+        this->filled_rectangle(shift_g + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
+      }
+      if ((ftb & (1 << k)) != 0) {
+        this->filled_rectangle(shift_b + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
       }
     }
   }
@@ -818,7 +871,9 @@ void Display::test_card() {
 }
 
 DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}
+
 void DisplayPage::show() { this->parent_->show_page(this); }
+
 void DisplayPage::show_next() {
   if (this->next_ == nullptr) {
     ESP_LOGE(TAG, "no next page");
@@ -826,6 +881,7 @@ void DisplayPage::show_next() {
   }
   this->next_->show();
 }
+
 void DisplayPage::show_prev() {
   if (this->prev_ == nullptr) {
     ESP_LOGE(TAG, "no previous page");
@@ -833,6 +889,7 @@ void DisplayPage::show_prev() {
   }
   this->prev_->show();
 }
+
 void DisplayPage::set_parent(Display *parent) { this->parent_ = parent; }
 void DisplayPage::set_prev(DisplayPage *prev) { this->prev_ = prev; }
 void DisplayPage::set_next(DisplayPage *next) { this->next_ = next; }
@@ -868,6 +925,5 @@ const LogString *text_align_to_string(TextAlign textalign) {
       return LOG_STR("UNKNOWN");
   }
 }
-
 }  // namespace display
 }  // namespace esphome

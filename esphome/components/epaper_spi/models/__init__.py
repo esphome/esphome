@@ -63,3 +63,10 @@ class EpaperModel:
         defaults = self.defaults.copy()
         defaults.update(kwargs)
         return self.__class__(name, initsequence=tuple(initsequence), **defaults)
+
+    def get_available_transforms(self):
+        """
+        Get the transform options available for this device
+        :return:
+        """
+        return set()
