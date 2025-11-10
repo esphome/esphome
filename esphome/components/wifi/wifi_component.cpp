@@ -1154,8 +1154,16 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // Exhausted retries on current BSSID (scan_result_[0])
       // Its priority has been decreased, so on next scan it will be sorted lower
       // and we'll try the next best BSSID.
-      // Always try hidden mode first - it will skip visible SSIDs and return to scanning
-      return WiFiRetryPhase::RETRY_HIDDEN;
+      // Check if there are any potentially hidden networks to try
+      if (this->find_next_hidden_sta_(-1, !this->went_through_explicit_hidden_phase_()) >= 0) {
+        return WiFiRetryPhase::RETRY_HIDDEN;  // Found hidden networks to try
+      }
+      // No hidden networks - skip directly to restart/rescan
+      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+        return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
+                                                           : WiFiRetryPhase::SCAN_CONNECTING;
+      }
+      return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RETRY_HIDDEN:
       // If no hidden SSIDs to try (selected_sta_index_ == -1), skip directly to rescan
