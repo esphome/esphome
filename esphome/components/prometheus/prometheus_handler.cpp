@@ -616,7 +616,7 @@ void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *ob
                                    std::string &friendly_name) {
   if (obj->is_internal() && !this->include_internal_)
     return;
-  if (obj->get_last_event_type() != nullptr) {
+  if (obj->last_event_type_ != nullptr) {
     // We have a valid event type, output this value
     stream->print(ESPHOME_F("esphome_event_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
@@ -635,7 +635,7 @@ void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *ob
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",last_event_type=\""));
-    stream->print(obj->get_last_event_type().c_str());
+    stream->print(obj->last_event_type_.c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(ESPHOME_F("1.0"));
     stream->print(ESPHOME_F("\n"));
