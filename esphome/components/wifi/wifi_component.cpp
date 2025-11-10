@@ -1219,6 +1219,11 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 #endif
 
+    case WiFiRetryPhase::EXPLICIT_HIDDEN:
+      // Starting explicit hidden phase - reset to first network
+      this->selected_sta_index_ = 0;
+      break;
+
     case WiFiRetryPhase::SCAN_CONNECTING:
       // Transitioning to scan-based connection
 #ifdef USE_WIFI_FAST_CONNECT
