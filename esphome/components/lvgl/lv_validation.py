@@ -1,3 +1,6 @@
+import re
+from typing import TYPE_CHECKING, Any
+
 import esphome.codegen as cg
 from esphome.components import image
 from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
@@ -17,6 +20,7 @@ from esphome.cpp_generator import MockObj
 from esphome.cpp_types import ESPTime, int32, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import Expression, SafeExpType
 
 from . import types as ty
 from .defines import (
@@ -29,7 +33,13 @@ from .defines import (
     call_lambda,
     literal,
 )
-from .helpers import add_lv_use, esphome_fonts_used, lv_fonts_used, requires_component
+from .helpers import (
+    CONF_IF_NAN,
+    add_lv_use,
+    esphome_fonts_used,
+    lv_fonts_used,
+    requires_component,
+)
 from .types import lv_font_t, lv_gradient_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
@@ -243,6 +253,8 @@ def pixels_or_percent_validator(value):
         return ["pixels", "..%"]
     if isinstance(value, str) and value.lower().endswith("px"):
         value = cv.int_(value[:-2])
+    if isinstance(value, str) and re.match(r"^lv_pct\((\d+)\)$", value):
+        return value
     value = cv.Any(cv.int_, cv.percentage)(value)
     if isinstance(value, int):
         return value
@@ -388,13 +400,31 @@ class TextValidator(LValidator):
             return value
         return super().__call__(value)
 
-    async def process(self, value, args=()):
+    async def process(
+        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+    ) -> Expression:
+        # Local import to avoid circular import at module level
+
+        from .lvcode import CodeContext, LambdaContext
+
+        if TYPE_CHECKING:
+            # CodeContext does not have get_automation_parameters
+            # so we need to assert the type here
+            assert isinstance(CodeContext.code_context, LambdaContext)
+        args = args or CodeContext.code_context.get_automation_parameters()
+
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
-                args = [str(x) for x in value[CONF_ARGS]]
-                arg_expr = cg.RawExpression(",".join(args))
+                str_args = [str(x) for x in value[CONF_ARGS]]
+                arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(format_str)
-                return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
+                sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
+                if nanval := value.get(CONF_IF_NAN):
+                    nanval = cpp_string_escape(nanval)
+                    return literal(
+                        f"(std::isfinite({arg_expr}) ? {sprintf_str} : {nanval})"
+                    )
+                return literal(sprintf_str)
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):

@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import socket
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -11,7 +12,7 @@ from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["bytebuffer"]
+AUTO_LOAD = ["bytebuffer", "socket"]
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["esp32"]
 usb_host_ns = cg.esphome_ns.namespace("usb_host")
@@ -70,6 +71,11 @@ async def to_code(config: ConfigType) -> None:
 
     max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
     cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
+
+    # USB uses the socket wake_loop_threadsafe() mechanism to wake the main loop from USB task
+    # This enables low-latency (~12μs) USB event processing instead of waiting for
+    # select() timeout (0-16ms). The wake socket is shared across all components.
+    socket.require_wake_loop_threadsafe()
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

@@ -15,6 +15,9 @@ IMPLEMENTATION_BSD_SOCKETS = "bsd_sockets"
 # Components register their socket needs and platforms read this to configure appropriately
 KEY_SOCKET_CONSUMERS = "socket_consumers"
 
+# Wake loop threadsafe support tracking
+KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
+
 
 def consume_sockets(
     value: int, consumer: str
@@ -35,6 +38,30 @@ def consume_sockets(
         return config
 
     return _consume_sockets
+
+
+def require_wake_loop_threadsafe() -> None:
+    """Mark that wake_loop_threadsafe support is required by a component.
+
+    Call this from components that need to wake the main event loop from background threads.
+    This enables the shared UDP loopback socket mechanism (~208 bytes RAM).
+    The socket is shared across all components that use this feature.
+
+    IMPORTANT: This is for background thread context only, NOT ISR context.
+    Socket operations are not safe to call from ISR handlers.
+
+    Example:
+        from esphome.components import socket
+
+        async def to_code(config):
+            socket.require_wake_loop_threadsafe()
+    """
+    # Only set up once (idempotent - multiple components can call this)
+    if not CORE.data.get(KEY_WAKE_LOOP_THREADSAFE_REQUIRED, False):
+        CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
+        cg.add_define("USE_WAKE_LOOP_THREADSAFE")
+        # Consume 1 socket for the shared wake notification socket
+        consume_sockets(1, "socket.wake_loop_threadsafe")({})
 
 
 CONFIG_SCHEMA = cv.Schema(
