@@ -1467,6 +1467,8 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   static constexpr auto MANUFACTURER = StringRef::from_lit("Beken");
 #elif defined(USE_LN882X)
   static constexpr auto MANUFACTURER = StringRef::from_lit("Lightning");
+#elif defined(USE_NRF52)
+  static constexpr auto MANUFACTURER = StringRef::from_lit("Nordic Semiconductor");
 #elif defined(USE_RTL87XX)
   static constexpr auto MANUFACTURER = StringRef::from_lit("Realtek");
 #elif defined(USE_HOST)
