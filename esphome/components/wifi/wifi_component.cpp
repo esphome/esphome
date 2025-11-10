@@ -362,14 +362,20 @@ void WiFiComponent::start() {
 #ifdef USE_WIFI_FAST_CONNECT
     WiFiAP params;
     bool loaded_fast_connect = this->load_fast_connect_settings_(params);
-
     // Fast connect optimization: only use when we have saved BSSID+channel data
-    // Without saved data, use normal flow (scan or explicit hidden)
-    if (!loaded_fast_connect) {
-      this->start_initial_connection_();
-    } else {
+    // Without saved data, try first configured network or use normal flow
+    if (loaded_fast_connect) {
       ESP_LOGI(TAG, "Starting fast_connect (saved) " LOG_SECRET("'%s'"), params.get_ssid().c_str());
       this->start_connecting(params, false);
+    } else if (!this->sta_.empty() && !this->sta_[0].get_hidden()) {
+      // No saved data, but have configured networks - try first non-hidden network
+      ESP_LOGI(TAG, "Starting fast_connect (config) " LOG_SECRET("'%s'"), this->sta_[0].get_ssid().c_str());
+      this->selected_sta_index_ = 0;
+      params = this->build_params_for_current_phase_();
+      this->start_connecting(params, false);
+    } else {
+      // No saved data and (no networks OR first is hidden) - use normal flow
+      this->start_initial_connection_();
     }
 #else
     // Without fast_connect: go straight to scanning (or hidden mode if all networks are hidden)
