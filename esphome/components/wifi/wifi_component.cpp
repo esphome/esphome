@@ -157,6 +157,17 @@ bool WiFiComponent::went_through_explicit_hidden_phase_() const {
   return !this->sta_.empty() && this->sta_[0].get_hidden();
 }
 
+int8_t WiFiComponent::find_first_non_hidden_index_() const {
+  // Find the first network that is NOT marked hidden:true
+  // This is where EXPLICIT_HIDDEN phase would have stopped
+  for (size_t i = 0; i < this->sta_.size(); i++) {
+    if (!this->sta_[i].get_hidden()) {
+      return static_cast<int8_t>(i);
+    }
+  }
+  return -1;  // All networks are hidden
+}
+
 // 2 attempts per BSSID in SCAN_CONNECTING phase
 // Rationale: This is the ONLY phase where we decrease BSSID priority, so we must be very sure.
 // Auth failures are common immediately after scan due to WiFi stack state transitions.
@@ -234,10 +245,14 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index, bool include_exp
   for (size_t i = start_index + 1; i < this->sta_.size(); i++) {
     const auto &sta = this->sta_[i];
 
-    // If include_explicit_hidden is false, skip SSIDs marked as hidden (already tried in EXPLICIT_HIDDEN phase)
+    // Skip networks that were already tried in EXPLICIT_HIDDEN phase
+    // Those are: networks marked hidden:true that appear before the first non-hidden network
     if (!include_explicit_hidden && sta.get_hidden()) {
-      ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (explicit hidden, already tried)", sta.get_ssid().c_str());
-      continue;
+      int8_t first_non_hidden_idx = this->find_first_non_hidden_index_();
+      if (first_non_hidden_idx >= 0 && static_cast<int8_t>(i) < first_non_hidden_idx) {
+        ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (explicit hidden, already tried)", sta.get_ssid().c_str());
+        continue;
+      }
     }
 
     if (!this->ssid_was_seen_in_scan_(sta.get_ssid())) {
@@ -1381,8 +1396,13 @@ void WiFiComponent::retry_connect() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
-    WiFiAP params = this->build_params_for_current_phase_();
-    this->start_connecting(params, true);
+    // Check if we have a valid target before building params
+    // After exhausting all networks in a phase, selected_sta_index_ may be -1
+    // In that case, skip connection and let next wifi_loop() handle phase transition
+    if (this->selected_sta_index_ >= 0) {
+      WiFiAP params = this->build_params_for_current_phase_();
+      this->start_connecting(params, true);
+    }
     return;
   }
 

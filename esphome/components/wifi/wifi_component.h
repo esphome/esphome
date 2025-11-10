@@ -372,6 +372,9 @@ class WiFiComponent : public Component {
   /// Check if we went through EXPLICIT_HIDDEN phase (first network is marked hidden)
   /// Used in RETRY_HIDDEN to determine whether to skip explicitly hidden networks
   bool went_through_explicit_hidden_phase_() const;
+  /// Find the index of the first non-hidden network
+  /// Returns where EXPLICIT_HIDDEN phase would have stopped, or -1 if all networks are hidden
+  int8_t find_first_non_hidden_index_() const;
   /// Check if an SSID was seen in the most recent scan results
   /// Used to skip hidden mode for SSIDs we know are visible
   bool ssid_was_seen_in_scan_(const std::string &ssid) const;
