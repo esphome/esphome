@@ -325,9 +325,11 @@ void WiFiComponent::start() {
 #ifdef USE_WIFI_FAST_CONNECT
     WiFiAP params;
     bool loaded_fast_connect = this->load_fast_connect_settings_(params);
-    if (!loaded_fast_connect && this->sta_.size() <= 1) {
-      // FAST CONNECT DISABLED: No saved data and only one (or zero) configured AP
-      // Skip fast_connect and go straight to initial connection (scan or hidden mode)
+
+    // Skip fast_connect if:
+    // 1. First network is hidden (needs EXPLICIT_HIDDEN phase, not config-based connect)
+    // 2. No saved data AND only one configured AP (nothing to optimize)
+    if ((!this->sta_.empty() && this->sta_[0].get_hidden()) || (!loaded_fast_connect && this->sta_.size() <= 1)) {
       this->start_initial_connection_();
     } else {
       // FAST CONNECT ENABLED: Either have saved data OR multiple configured APs to try
