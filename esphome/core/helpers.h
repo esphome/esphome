@@ -889,10 +889,11 @@ template<typename... Ts> class PartitionedCallbackManager<void(Ts...)> {
       this->callbacks_ = make_unique<std::vector<std::function<void(Ts...)>>>();
     }
 
-    // Add to first partition: append then swap into position
+    // Add to first partition: append then rotate into position
     this->callbacks_->push_back(std::move(callback));
     if (*first_count < this->callbacks_->size() - 1) {
-      std::swap((*this->callbacks_)[*first_count], (*this->callbacks_)[this->callbacks_->size() - 1]);
+      // Use std::rotate to maintain registration order in second partition
+      std::rotate(this->callbacks_->begin() + *first_count, this->callbacks_->end() - 1, this->callbacks_->end());
     }
     (*first_count)++;
   }
