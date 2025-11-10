@@ -2,8 +2,6 @@ from esphome.components.mipi import DriverChip
 import esphome.config_validation as cv
 
 # fmt: off
-from esphome.components.mipi import DriverChip
-import esphome.config_validation as cv
 
 # fmt: off
 DriverChip(
