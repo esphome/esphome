@@ -258,6 +258,8 @@ class WiFiComponent : public Component {
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap);
+  // Backward compatibility overload - ignores 'two' parameter
+  void start_connecting(const WiFiAP &ap, bool /* two */) { this->start_connecting(ap); }
 
   void check_connecting_finished();
 
