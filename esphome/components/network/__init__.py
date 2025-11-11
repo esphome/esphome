@@ -113,7 +113,7 @@ CONFIG_SCHEMA = cv.Schema(
             ),
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
-        cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.boolean,
+        cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
     }
 )
 
