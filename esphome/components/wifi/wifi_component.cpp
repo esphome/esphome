@@ -667,7 +667,7 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   // Log connection attempt at INFO level with priority
   std::string bssid_formatted;
-  float priority = 0.0f;
+  int8_t priority = 0;
 
   if (ap.get_bssid().has_value()) {
     bssid_formatted = format_mac_address_pretty(ap.get_bssid().value().data());
@@ -675,7 +675,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   }
 
   ESP_LOGI(TAG,
-           "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %.1f, attempt %u/%u in phase %s)...",
+           "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
            ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_formatted.c_str() : LOG_STR_LITERAL("any"),
            priority, this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
            LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
@@ -812,7 +812,7 @@ void WiFiComponent::print_connect_params_() {
                 wifi_gateway_ip_().str().c_str(), wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid().has_value()) {
-    ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*config->get_bssid()));
+    ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(*config->get_bssid()));
   }
 #endif
 #ifdef USE_WIFI_11KV_SUPPORT
@@ -933,8 +933,7 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
     ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
              res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
              LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-    ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4.1f", res.get_channel(), res.get_rssi(),
-             res.get_priority());
+    ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
   } else {
     ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
              LOG_STR_ARG(get_signal_bars(res.get_rssi())));
@@ -1063,6 +1062,9 @@ void WiFiComponent::check_connecting_finished() {
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
 
+    // Clear priority tracking if all priorities are at minimum
+    this->clear_priorities_if_all_min_();
+
 #ifdef USE_WIFI_FAST_CONNECT
     this->save_fast_connect_settings_();
 #endif
@@ -1163,11 +1165,9 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       if (this->find_next_hidden_sta_(-1, !this->went_through_explicit_hidden_phase_()) >= 0) {
         return WiFiRetryPhase::RETRY_HIDDEN;  // Found hidden networks to try
       }
-      // No hidden networks - skip directly to restart/rescan
-      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
-        return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
-                                                           : WiFiRetryPhase::SCAN_CONNECTING;
-      }
+      // No hidden networks - always go through RESTARTING_ADAPTER phase
+      // This ensures num_retried_ gets reset and a fresh scan is triggered
+      // The actual adapter restart will be skipped if captive portal/improv is active
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RETRY_HIDDEN:
@@ -1183,16 +1183,9 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
           return WiFiRetryPhase::RETRY_HIDDEN;
         }
       }
-      // Exhausted all potentially hidden SSIDs - rescan to try next BSSID
-      // If captive portal/improv is active, skip adapter restart and go back to start
-      // Otherwise restart adapter to clear any stuck state
-      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
-        // Go back to explicit hidden if we went through it initially, otherwise scan
-        return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
-                                                           : WiFiRetryPhase::SCAN_CONNECTING;
-      }
-
-      // Restart adapter
+      // Exhausted all potentially hidden SSIDs - always go through RESTARTING_ADAPTER
+      // This ensures num_retried_ gets reset and a fresh scan is triggered
+      // The actual adapter restart will be skipped if captive portal/improv is active
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
@@ -1280,7 +1273,12 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
-      this->restart_adapter();
+      // Skip actual adapter restart if captive portal/improv is active
+      // This allows state machine to reset num_retried_ and trigger fresh scan
+      // without disrupting the captive portal/improv connection
+      if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
+        this->restart_adapter();
+      }
       // Return true to indicate we should wait (go to COOLDOWN) instead of immediately connecting
       return true;
 
@@ -1289,6 +1287,34 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   }
 
   return false;  // Did not start scan, can proceed with connection
+}
+
+/// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
+/// At minimum priority, all BSSIDs are equally bad, so priority tracking is useless
+/// Called after successful connection or after failed connection attempts
+void WiFiComponent::clear_priorities_if_all_min_() {
+  if (this->sta_priorities_.empty()) {
+    return;
+  }
+
+  int8_t first_priority = this->sta_priorities_[0].priority;
+
+  // Only clear if all priorities have been decremented to the minimum value
+  // At this point, all BSSIDs have been equally penalized and priority info is useless
+  if (first_priority != std::numeric_limits<int8_t>::min()) {
+    return;
+  }
+
+  for (const auto &pri : this->sta_priorities_) {
+    if (pri.priority != first_priority) {
+      return;  // Not all same, nothing to do
+    }
+  }
+
+  // All priorities are at minimum - clear the vector to save memory and reset
+  ESP_LOGD(TAG, "Clearing BSSID priorities (all at minimum)");
+  this->sta_priorities_.clear();
+  this->sta_priorities_.shrink_to_fit();
 }
 
 /// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
@@ -1321,8 +1347,9 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
 
   // Decrease priority to avoid repeatedly trying the same failed BSSID
-  float old_priority = this->get_sta_priority(failed_bssid.value());
-  float new_priority = old_priority - 1.0f;
+  int8_t old_priority = this->get_sta_priority(failed_bssid.value());
+  int8_t new_priority =
+      (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
   this->set_sta_priority(failed_bssid.value(), new_priority);
 
   // Get SSID for logging
@@ -1333,8 +1360,12 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
     ssid = config->get_ssid();
   }
 
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %.1f → %.1f", ssid.c_str(),
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(),
            format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
+
+  // After adjusting priority, check if all priorities are now at minimum
+  // If so, clear the vector to save memory and reset for fresh start
+  this->clear_priorities_if_all_min_();
 }
 
 /// Handle target advancement or retry counter increment when staying in the same phase
@@ -1547,9 +1578,9 @@ bool WiFiAP::get_hidden() const { return this->hidden_; }
 WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
                                bool is_hidden)
     : bssid_(bssid),
-      ssid_(std::move(ssid)),
       channel_(channel),
       rssi_(rssi),
+      ssid_(std::move(ssid)),
       with_auth_(with_auth),
       is_hidden_(is_hidden) {}
 bool WiFiScanResult::matches(const WiFiAP &config) const {
