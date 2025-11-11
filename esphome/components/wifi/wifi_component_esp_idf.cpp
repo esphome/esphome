@@ -308,7 +308,18 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (ap.get_password().empty()) {
     conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
   } else {
-    conf.sta.threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK;
+    // Set threshold based on configured minimum auth mode
+    switch (this->min_auth_mode_) {
+      case WIFI_MIN_AUTH_MODE_WPA:
+        conf.sta.threshold.authmode = WIFI_AUTH_WPA_PSK;
+        break;
+      case WIFI_MIN_AUTH_MODE_WPA2:
+        conf.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+        break;
+      case WIFI_MIN_AUTH_MODE_WPA3:
+        conf.sta.threshold.authmode = WIFI_AUTH_WPA3_PSK;
+        break;
+    }
   }
 
 #ifdef USE_WIFI_WPA2_EAP
@@ -346,8 +357,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // note, we do our own filtering
   // The minimum rssi to accept in the fast scan mode
   conf.sta.threshold.rssi = -127;
-
-  conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
 
   wifi_config_t current_conf;
   esp_err_t err;
