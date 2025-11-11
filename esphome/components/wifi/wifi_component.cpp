@@ -441,7 +441,7 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
-        if (millis() - this->action_started_ > WIFI_COOLDOWN_DURATION_MS) {
+        if (now - this->action_started_ > WIFI_COOLDOWN_DURATION_MS) {
           // After cooldown we either restarted the adapter because of
           // a failure, or something tried to connect over and over
           // so we entered cooldown. In both cases we call
