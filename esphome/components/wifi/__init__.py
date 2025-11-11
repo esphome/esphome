@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
@@ -54,6 +56,8 @@ import esphome.final_validate as fv
 from . import wpa2_eap
 
 AUTO_LOAD = ["network"]
+
+_LOGGER = logging.getLogger(__name__)
 
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
@@ -462,6 +466,9 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
         if psram_guaranteed:
+            _LOGGER.info(
+                "Applying high-performance WiFi settings (PSRAM guaranteed): 512 RX buffers, 32 TX buffers"
+            )
             # PSRAM is guaranteed - use aggressive settings
             # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true in networking component
             # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
@@ -482,6 +489,9 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
         else:
+            _LOGGER.info(
+                "Applying optimized WiFi settings: 64 RX buffers, 64 TX buffers"
+            )
             # PSRAM not guaranteed - use more conservative, but still optimized settings
             # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
 

@@ -1,4 +1,5 @@
 import ipaddress
+import logging
 
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -9,6 +10,8 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
+
+_LOGGER = logging.getLogger(__name__)
 
 # High performance networking tracking infrastructure
 # Components can request high performance networking and this configures lwip and WiFi settings
@@ -129,6 +132,9 @@ async def to_code(config):
         psram_guaranteed = CORE.data.get(KEY_PSRAM_GUARANTEED, False)
 
         if psram_guaranteed:
+            _LOGGER.info(
+                "Applying high-performance lwip settings (PSRAM guaranteed): 512KB TCP windows, 512 mailbox sizes"
+            )
             # PSRAM is guaranteed - use aggressive settings
             # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true
             # CONFIG_LWIP_WND_SCALE can only be enabled if CONFIG_SPIRAM_IGNORE_NOTFOUND isn't set
@@ -158,6 +164,9 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_OVERSIZE_MSS", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_QUEUE_OOSEQ", True)
         else:
+            _LOGGER.info(
+                "Applying optimized lwip settings: 65KB TCP windows, 64 mailbox sizes"
+            )
             # PSRAM not guaranteed - use more conservative, but still optimized settings
             # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
