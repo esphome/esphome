@@ -388,7 +388,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the background picture id of the component `textview`.
    */
-  void set_component_picc(const char *component, uint8_t pic_id);
+  void set_component_picc(const char *component, uint32_t pic_id);
 
   /**
    * Set the font color of a component.

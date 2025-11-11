@@ -147,8 +147,8 @@ void Nextion::set_component_pic(const char *component, uint8_t pic_id) {
   this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%" PRIu8, component, pic_id);
 }
 
-void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_picc", "%s.picc=%" PRIu8, component, pic_id);
+void Nextion::set_component_picc(const char *component, uint32_t pic_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_picc", "%s.picc=%" PRIu32, component, pic_id);
 }
 
 // Set video
