@@ -541,6 +541,11 @@ template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
   bool check(const Ts &...x) override { return !global_wifi_component->is_disabled(); }
 };
 
+template<typename... Ts> class WiFiAPActiveCondition : public Condition<Ts...> {
+ public:
+  bool check(const Ts &...x) override { return global_wifi_component->is_ap_active(); }
+};
+
 template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
  public:
   void play(const Ts &...x) override { global_wifi_component->enable(); }
