@@ -156,7 +156,7 @@ bool OtaCoapClientComponent::get_md5_expected_() {
   this->parent_->get(this->md5_url_, OtaCoapClientComponent::md5_callback, this, 32);
   while (!this->md5_url_ready_) {
     App.feed_wdt();
-    delay(100);  // NOLINT
+    delay(10);  // NOLINT
   }
   return this->md5_expected().size() == MD5_SIZE;
 }
@@ -194,22 +194,24 @@ bool OtaCoapClientComponent::validate_url_(const std::string &url) {
 
 void OtaCoapClientComponent::md5_callback(const unsigned char *data, size_t len, size_t offset, size_t total,
                                           void *context) {
-  ESP_LOGD(TAG, "md5_callback %d, %d, $d", len, offset, total);
+  ESP_LOGD(TAG, "md5_callback %d, %d, %d", len, offset, total);
   esphome::coap_client_component::OtaCoapClientComponent *obj =
       (esphome::coap_client_component::OtaCoapClientComponent *) context;
-  // assume you get the 32 bytes back on first callback, just some len checking.
-  if (len >= 32) {
-    obj->append_md5_expected(data, 32);
+  if (!obj->is_md5_url_ready()) {
+    // assume you get the 32 bytes back on first callback, just some len checking.
+    if (len >= 32) {
+      obj->append_md5_expected(data, 32);
+    }
+    obj->set_md5_url_ready(true);
   }
-  obj->set_md5_url_ready(true);
 }
 
 void OtaCoapClientComponent::image_callback(const unsigned char *data, size_t len, size_t offset, size_t total,
                                             void *context) {
   esphome::coap_client_component::OtaCoapClientComponent *obj =
       (esphome::coap_client_component::OtaCoapClientComponent *) context;
-  ESP_LOGD(TAG, "image_callback %d, %d, $d", len, offset, total);
-  if (!obj->is_image_download_ready() && !obj->is_image_download_abort()) {
+  ESP_LOGD(TAG, "image_callback %d, %d, %d", len, offset, total);
+  if (!obj->is_image_download_ready()) {
     if (len <= 0) {
       obj->abort();
     } else {

@@ -1,15 +1,16 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_COAP_CLIENT
-#include <mutex>
 #include <netdb.h>
 #include <string>
 #include "coap3/coap.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include "esphome/core/component.h"
 
 namespace esphome::coap_client_component {
 
-struct CoapRequestData {
+struct CoapClientRequestData {
   size_t max_block_size{1024};
   std::function<void(const unsigned char *data, size_t data_len, size_t offset, size_t total, void *context)> callback;
   void *callback_context;
@@ -37,10 +38,10 @@ class CoapClientComponent : public Component {
   void main_();
   bool main_looping_{true};
   bool toredown_{false};
-  QueueHandle_t request_queue_;
+  QueueHandle_t request_queue_{nullptr};
   std::function<void(const unsigned char *data, size_t len, size_t offset, size_t total, void *context)>
-      response_callback_;
-  void *response_callback_context_;
+      response_callback_{nullptr};
+  void *response_callback_context_{nullptr};
   const uint8_t uri_path_buffer_size_{40};
   const uint32_t request_timeout_{60000};
   bool response_wait_{false};

@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.esp32 import VARIANT_ESP32C6, VARIANT_ESP32H2, only_on_variant
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_URL
@@ -59,7 +58,6 @@ OTA_COAP_CLIENT_FLASH_ACTION_SCHEMA = cv.All(
         }
     ),
     cv.has_exactly_one_key(CONF_MD5, CONF_MD5_URL),
-    only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2]),
 )
 
 

@@ -46,6 +46,7 @@ class OtaCoapClientComponent : public ota::OTAComponent, public Parented<CoapCli
     this->md5_expected_.append(reinterpret_cast<const char *>(data), len);
   }
   void set_md5_url_ready(bool ready) { this->md5_url_ready_ = ready; }
+  bool is_md5_url_ready() { return this->md5_url_ready_; }
   bool is_image_download_abort() { return this->image_download_abort_; }
   void set_image_download_ready(bool ready) { this->image_download_ready_ = ready; }
   bool is_image_download_ready() { return this->image_download_ready_; }
