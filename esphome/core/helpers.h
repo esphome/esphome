@@ -45,10 +45,6 @@
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
-#ifdef USE_ZEPHYR
-#define M_PI 3.14159265358979323846
-#endif
-
 namespace esphome {
 
 // Forward declaration to avoid circular dependency with string_ref.h
