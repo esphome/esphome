@@ -1,0 +1,12 @@
+cc1101:
+  id: transceiver
+  cs_pin: ${cs_pin}
+  gdo0_pin: ${gdo0_pin}
+  tuner:
+    frequency: 433920
+    if_frequency: 153
+    filter_bandwidth: 203
+    channel: 0
+    channel_spacing: 200
+    symbol_rate: 5000
+    modulation_type: ASK/OOK

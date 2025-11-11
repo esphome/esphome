@@ -20,14 +20,14 @@ CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
 # tuner
 CONF_TUNER = "tuner"
 CONF_IF_FREQUENCY = "if_frequency"
-# CONF_BANDWIDTH = "bandwidth"
+CONF_FILTER_BANDWIDTH = "filter_bandwidth"
 CONF_CHANNEL_SPACING = "channel_spacing"
 CONF_FSK_DEVIATION = "fsk_deviation"
 CONF_MSK_DEVIATION = "msk_deviation"
 CONF_SYMBOL_RATE = "symbol_rate"
 CONF_SYNC_MODE = "sync_mode"
 CONF_CARRIER_SENSE_ABOVE_THRESHOLD = "carrier_sense_above_threshold"
-# CONF_MODULATION = "modulation"
+CONF_MODULATION_TYPE = "modulation_type"
 CONF_MANCHESTER = "manchester"
 CONF_NUM_PREAMBLE = "num_preamble"
 CONF_SYNC1 = "sync1"
@@ -164,7 +164,7 @@ TYPES = {
     CONF_TUNER: {
         CONF_FREQUENCY: [cv.float_range(min=300000.0, max=928000.0)],
         CONF_IF_FREQUENCY: [cv.float_range(min=25, max=788)],
-        # CONF_BANDWIDTH: [cv.float_range(min=58.0, max=812.0)],
+        CONF_FILTER_BANDWIDTH: [cv.float_range(min=58.0, max=812.0)],
         CONF_CHANNEL: [cv.uint8_t],
         CONF_CHANNEL_SPACING: [cv.float_range(min=25, max=405)],
         CONF_FSK_DEVIATION: [cv.float_range(min=1.5, max=381)],
@@ -172,7 +172,7 @@ TYPES = {
         CONF_SYMBOL_RATE: [cv.float_range(min=600, max=500000)],
         CONF_SYNC_MODE: [cv.enum(SYNC_MODE, upper=False)],
         CONF_CARRIER_SENSE_ABOVE_THRESHOLD: [cv.boolean],
-        # CONF_MODULATION: [cv.enum(MODULATION, upper=False)],
+        CONF_MODULATION_TYPE: [cv.enum(MODULATION, upper=False)],
         CONF_MANCHESTER: [cv.boolean],
         CONF_NUM_PREAMBLE: [cv.int_range(min=0, max=7)],
         CONF_SYNC1: [cv.hex_uint8_t],

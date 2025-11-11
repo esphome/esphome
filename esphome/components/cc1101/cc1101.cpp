@@ -99,13 +99,13 @@ CC1101Component::CC1101Component() {
 
   this->set_tuner_frequency(433920);
   this->set_tuner_if_frequency(153);
-  this->set_tuner_bandwidth(203);
+  this->set_tuner_filter_bandwidth(203);
   this->set_tuner_channel(0);
   this->set_tuner_channel_spacing(200);
   this->set_tuner_symbol_rate(5000);
   this->set_tuner_sync_mode(SyncMode::SYNC_MODE_NONE);
   this->set_tuner_carrier_sense_above_threshold(true);
-  this->set_tuner_modulation(Modulation::MODULATION_ASK_OOK);
+  this->set_tuner_modulation_type(Modulation::MODULATION_ASK_OOK);
   this->set_agc_magn_target(MagnTarget::MAGN_TARGET_42DB);
   this->set_agc_max_lna_gain(MaxLnaGain::MAX_LNA_GAIN_DEFAULT);
   this->set_agc_max_dvga_gain(MaxDvgaGain::MAX_DVGA_GAIN_MINUS_3);
@@ -530,7 +530,7 @@ void CC1101Component::set_tuner_if_frequency(float value) {
   }
   this->write_(Register::FSCTRL1);
 }
-void CC1101Component::set_tuner_bandwidth(float value) {
+void CC1101Component::set_tuner_filter_bandwidth(float value) {
   CHECK_FLOAT_RANGE(value, BANDWIDTH_MIN, BANDWIDTH_MAX);
   uint8_t e;
   uint32_t m;
@@ -612,7 +612,7 @@ void CC1101Component::set_tuner_carrier_sense_above_threshold(bool value) {
   }
   this->write_(Register::MDMCFG2);
 }
-void CC1101Component::set_tuner_modulation(Modulation value) {
+void CC1101Component::set_tuner_modulation_type(Modulation value) {
   CHECK_ENUM(value);
   this->state_.MOD_FORMAT = (uint8_t) value;
   this->state_.PA_POWER = value == Modulation::MODULATION_ASK_OOK ? 1 : 0;

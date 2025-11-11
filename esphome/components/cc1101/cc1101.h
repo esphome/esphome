@@ -32,7 +32,7 @@ class CC1101Component : public Component,
   void set_dc_blocking_filter(bool value);
   void set_tuner_frequency(float value);
   void set_tuner_if_frequency(float value);
-  void set_tuner_bandwidth(float value);
+  void set_tuner_filter_bandwidth(float value);
   void set_tuner_channel(uint8_t value);
   void set_tuner_channel_spacing(float value);
   void set_tuner_fsk_deviation(float value);
@@ -40,7 +40,7 @@ class CC1101Component : public Component,
   void set_tuner_symbol_rate(float value);
   void set_tuner_sync_mode(SyncMode value);
   void set_tuner_carrier_sense_above_threshold(bool value);
-  void set_tuner_modulation(Modulation value);
+  void set_tuner_modulation_type(Modulation value);
   void set_tuner_manchester(bool value);
   void set_tuner_num_preamble(uint8_t value);
   void set_tuner_sync1(uint8_t value);
