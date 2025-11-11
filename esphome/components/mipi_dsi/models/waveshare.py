@@ -4,10 +4,10 @@ import esphome.config_validation as cv
 # fmt: off
 DriverChip(
     "WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-7B",
-    height=1024,
-    width=600,
+    height=600,
+    width=1024,
     hsync_back_porch=160,
-    hsync_pulse_width=1,
+    hsync_pulse_width=10,
     hsync_front_porch=160,
     vsync_back_porch=23,
     vsync_pulse_width=1,
