@@ -7,8 +7,8 @@
 
 extern "C" {
 void nvmc_config(uint32_t mode);
-void nvmc_wait(void);
-nrfx_err_t nrfx_nvmc_uicr_erase(void);
+void nvmc_wait();
+nrfx_err_t nrfx_nvmc_uicr_erase();
 }
 
 namespace esphome::nrf52 {
@@ -76,7 +76,7 @@ static StatusFlags set_uicr() {
   return status;
 }
 
-static int board_esphome_init(void) {
+static int board_esphome_init() {
   bool need_reset = false;
   StatusFlags status = set_uicr();
 
@@ -102,7 +102,7 @@ static int board_esphome_init(void) {
 }
 }  // namespace esphome::nrf52
 
-static int board_esphome_init(void) { return esphome::nrf52::board_esphome_init(); }
+static int board_esphome_init() { return esphome::nrf52::board_esphome_init(); }
 
 SYS_INIT(board_esphome_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 
