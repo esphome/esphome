@@ -28,11 +28,13 @@
 #define USE_BUTTON
 #define USE_CAMERA
 #define USE_CLIMATE
+#define USE_CONTROLLER_REGISTRY
 #define USE_COVER
 #define USE_DATETIME
 #define USE_DATETIME_DATE
 #define USE_DATETIME_DATETIME
 #define USE_DATETIME_TIME
+#define USE_DEBUG
 #define USE_DEEP_SLEEP
 #define USE_DEVICES
 #define USE_DISPLAY
@@ -298,6 +300,7 @@
 #define USE_DASHBOARD_IMPORT
 
 // Default counts for static analysis
+#define CONTROLLER_REGISTRY_MAX 2
 #define ESPHOME_COMPONENT_COUNT 50
 #define ESPHOME_DEVICE_COUNT 10
 #define ESPHOME_AREA_COUNT 10
