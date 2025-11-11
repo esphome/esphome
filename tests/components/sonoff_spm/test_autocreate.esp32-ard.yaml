@@ -1,0 +1,18 @@
+uart:
+  - id: uart_bus
+    tx_pin: 4
+    rx_pin: 16
+    baud_rate: 115200
+
+sonoff_spm:
+  id: spm_main
+  uart_id: uart_bus
+  module_count: 2
+  auto_create_switches: true
+  auto_create_sensors: true
+  name_prefix: "Auto SPM"
+  sensor_types:
+    - voltage
+    - current
+    - power
+    - energy

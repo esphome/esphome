@@ -1,0 +1,55 @@
+uart:
+  - id: uart_bus
+    tx_pin: 4
+    rx_pin: 16
+    baud_rate: 115200
+
+sonoff_spm:
+  id: spm_main
+  uart_id: uart_bus
+  module_count: 2
+
+switch:
+  - platform: sonoff_spm
+    name: "SPM Relay 1"
+    sonoff_spm_id: spm_main
+    relay_id: 0
+
+  - platform: sonoff_spm
+    name: "SPM Relay 2"
+    sonoff_spm_id: spm_main
+    relay_id: 1
+
+  - platform: sonoff_spm
+    name: "SPM Relay 5"
+    sonoff_spm_id: spm_main
+    relay_id: 4
+
+sensor:
+  - platform: sonoff_spm
+    sonoff_spm_id: spm_main
+    relay_id: 0
+    voltage:
+      name: "SPM Relay 1 Voltage"
+    current:
+      name: "SPM Relay 1 Current"
+    power:
+      name: "SPM Relay 1 Power"
+    apparent_power:
+      name: "SPM Relay 1 Apparent Power"
+    reactive_power:
+      name: "SPM Relay 1 Reactive Power"
+    power_factor:
+      name: "SPM Relay 1 Power Factor"
+    energy:
+      name: "SPM Relay 1 Energy"
+
+  - platform: sonoff_spm
+    sonoff_spm_id: spm_main
+    relay_id: 4
+    voltage:
+      name: "SPM Relay 5 Voltage"
+    current:
+      name: "SPM Relay 5 Current"
+    power:
+      name: "SPM Relay 5 Power"
