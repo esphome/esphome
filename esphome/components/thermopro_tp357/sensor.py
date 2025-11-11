@@ -19,7 +19,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-CODEOWNERS = ["@ahpohl"]
+CODEOWNERS = ["@sittner"]
 
 DEPENDENCIES = ["esp32_ble_tracker"]
 
