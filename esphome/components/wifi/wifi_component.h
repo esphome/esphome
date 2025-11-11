@@ -74,12 +74,6 @@ enum WiFiComponentState : uint8_t {
   WIFI_COMPONENT_STATE_STA_SCANNING,
   /** WiFi is in STA(+AP) mode and currently connecting to an AP. */
   WIFI_COMPONENT_STATE_STA_CONNECTING,
-  /** WiFi is in STA(+AP) mode and currently connecting to an AP a second time.
-   *
-   * This is required because for some reason ESPs don't like to connect to WiFi APs directly after
-   * a scan.
-   * */
-  WIFI_COMPONENT_STATE_STA_CONNECTING_2,
   /** WiFi is in STA(+AP) mode and successfully connected. */
   WIFI_COMPONENT_STATE_STA_CONNECTED,
   /** WiFi is in AP-only mode and internal AP is already enabled. */
@@ -275,7 +269,7 @@ class WiFiComponent : public Component {
   bool is_disabled();
   void start_scanning();
   void check_scanning_finished();
-  void start_connecting(const WiFiAP &ap, bool two);
+  void start_connecting(const WiFiAP &ap);
 
   void check_connecting_finished();
 

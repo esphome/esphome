@@ -293,7 +293,7 @@ void WiFiComponent::start_initial_connection_() {
     this->selected_sta_index_ = 0;
     this->retry_phase_ = WiFiRetryPhase::EXPLICIT_HIDDEN;
     WiFiAP params = this->build_params_for_current_phase_();
-    this->start_connecting(params, false);
+    this->start_connecting(params);
   } else {
     ESP_LOGI(TAG, "Starting scan");
     this->start_scanning();
@@ -375,13 +375,13 @@ void WiFiComponent::start() {
     // Without saved data, try first configured network or use normal flow
     if (loaded_fast_connect) {
       ESP_LOGI(TAG, "Starting fast_connect (saved) " LOG_SECRET("'%s'"), params.get_ssid().c_str());
-      this->start_connecting(params, false);
+      this->start_connecting(params);
     } else if (!this->sta_.empty() && !this->sta_[0].get_hidden()) {
       // No saved data, but have configured networks - try first non-hidden network
       ESP_LOGI(TAG, "Starting fast_connect (config) " LOG_SECRET("'%s'"), this->sta_[0].get_ssid().c_str());
       this->selected_sta_index_ = 0;
       params = this->build_params_for_current_phase_();
-      this->start_connecting(params, false);
+      this->start_connecting(params);
     } else {
       // No saved data and (no networks OR first is hidden) - use normal flow
       this->start_initial_connection_();
@@ -454,8 +454,7 @@ void WiFiComponent::loop() {
         this->check_scanning_finished();
         break;
       }
-      case WIFI_COMPONENT_STATE_STA_CONNECTING:
-      case WIFI_COMPONENT_STATE_STA_CONNECTING_2: {
+      case WIFI_COMPONENT_STATE_STA_CONNECTING: {
         this->status_set_warning(LOG_STR("associating to network"));
         this->check_connecting_finished();
         break;
@@ -464,7 +463,6 @@ void WiFiComponent::loop() {
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
         if (!this->is_connected()) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
-          this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
         } else {
           this->status_clear_warning();
@@ -666,7 +664,7 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   this->set_sta(sta);
 }
 
-void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
+void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // Log connection attempt at INFO level with priority
   std::string bssid_formatted;
   int8_t priority = 0;
@@ -737,11 +735,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
     return;
   }
 
-  if (!two) {
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
-  } else {
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
-  }
+  this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
   this->action_started_ = millis();
 }
 
@@ -1021,7 +1015,7 @@ void WiFiComponent::check_scanning_finished() {
   WiFiAP params = this->build_params_for_current_phase_();
   // Ensure we're in SCAN_CONNECTING phase when connecting with scan results
   // (needed when scan was started directly without transition_to_phase_, e.g., initial scan)
-  this->start_connecting(params, false);
+  this->start_connecting(params);
 }
 
 void WiFiComponent::dump_config() {
@@ -1090,18 +1084,12 @@ void WiFiComponent::check_connecting_finished() {
   uint32_t now = millis();
   if (now - this->action_started_ > 30000) {
     ESP_LOGW(TAG, "Connection timeout");
-    // Move from STA_CONNECTING_2 back to STA_CONNECTING state
-    // since we know the connection attempt has failed
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
     this->retry_connect();
     return;
   }
 
   if (this->error_from_callback_) {
     ESP_LOGW(TAG, "Connecting to network failed (callback)");
-    // Move from STA_CONNECTING_2 back to STA_CONNECTING state
-    // since we know the connection attempt is finished
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
     this->retry_connect();
     return;
   }
@@ -1110,9 +1098,6 @@ void WiFiComponent::check_connecting_finished() {
     return;
   }
 
-  // Move from STA_CONNECTING_2 back to STA_CONNECTING state
-  // since we know the connection attempt is finished
-  this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
   if (status == WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND) {
     ESP_LOGW(TAG, "Network no longer found");
     this->retry_connect();
@@ -1479,6 +1464,10 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
+  // We always need to be in STA_CONNECTING state to start a connection attempt
+  // If we start a scan here, we will set state to SCANNING
+  this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
+
   this->log_and_adjust_priority_for_failed_connect_();
 
   // Determine next retry phase based on current state
@@ -1496,27 +1485,14 @@ void WiFiComponent::retry_connect() {
 
   this->error_from_callback_ = false;
 
-  if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
-    yield();
-    // Check if we have a valid target before building params
-    // After exhausting all networks in a phase, selected_sta_index_ may be -1
-    // In that case, skip connection and let next wifi_loop() handle phase transition
-    if (this->selected_sta_index_ >= 0) {
-      this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
-      WiFiAP params = this->build_params_for_current_phase_();
-      this->start_connecting(params, true);
-    }
-    return;
+  yield();
+  // Check if we have a valid target before building params
+  // After exhausting all networks in a phase, selected_sta_index_ may be -1
+  // In that case, skip connection and let next wifi_loop() handle phase transition
+  if (this->selected_sta_index_ >= 0) {
+    WiFiAP params = this->build_params_for_current_phase_();
+    this->start_connecting(params);
   }
-
-  // If we can't progress forward its likely because scanning failed
-  // or the stack is in a bad state after restart so we cooldown first
-  // and once it finishes, cooldown will call check_connecting_finished()
-  // which will progress the state machine
-  ESP_LOGD(TAG, "Entering cooldown from state %d and phase %s", this->state_,
-           LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-  this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
-  this->action_started_ = millis();
 }
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
