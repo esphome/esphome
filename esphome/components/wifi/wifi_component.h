@@ -157,7 +157,7 @@ class WiFiAP {
   void set_eap(optional<EAPAuth> eap_auth);
 #endif  // USE_WIFI_WPA2_EAP
   void set_channel(optional<uint8_t> channel);
-  void set_priority(float priority) { priority_ = priority; }
+  void set_priority(int8_t priority) { priority_ = priority; }
 #ifdef USE_WIFI_MANUAL_IP
   void set_manual_ip(optional<ManualIP> manual_ip);
 #endif
@@ -169,7 +169,7 @@ class WiFiAP {
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
   const optional<uint8_t> &get_channel() const;
-  float get_priority() const { return priority_; }
+  int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
 #endif
@@ -185,8 +185,8 @@ class WiFiAP {
 #ifdef USE_WIFI_MANUAL_IP
   optional<ManualIP> manual_ip_;
 #endif
-  float priority_{0};
   optional<uint8_t> channel_;
+  int8_t priority_{0};
   bool hidden_{false};
 };
 
@@ -204,17 +204,17 @@ class WiFiScanResult {
   int8_t get_rssi() const;
   bool get_with_auth() const;
   bool get_is_hidden() const;
-  float get_priority() const { return priority_; }
-  void set_priority(float priority) { priority_ = priority; }
+  int8_t get_priority() const { return priority_; }
+  void set_priority(int8_t priority) { priority_ = priority; }
 
   bool operator==(const WiFiScanResult &rhs) const;
 
  protected:
   bssid_t bssid_;
-  std::string ssid_;
-  float priority_{0.0f};
   uint8_t channel_;
   int8_t rssi_;
+  std::string ssid_;
+  int8_t priority_{0};
   bool matches_{false};
   bool with_auth_;
   bool is_hidden_;
@@ -222,7 +222,7 @@ class WiFiScanResult {
 
 struct WiFiSTAPriority {
   bssid_t bssid;
-  float priority;
+  int8_t priority;
 };
 
 enum WiFiPowerSaveMode : uint8_t {
@@ -323,14 +323,14 @@ class WiFiComponent : public Component {
     }
     return false;
   }
-  float get_sta_priority(const bssid_t bssid) {
+  int8_t get_sta_priority(const bssid_t bssid) {
     for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid)
         return it.priority;
     }
-    return 0.0f;
+    return 0;
   }
-  void set_sta_priority(const bssid_t bssid, float priority) {
+  void set_sta_priority(const bssid_t bssid, int8_t priority) {
     for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid) {
         it.priority = priority;
@@ -389,6 +389,8 @@ class WiFiComponent : public Component {
   int8_t find_next_hidden_sta_(int8_t start_index, bool include_explicit_hidden = true);
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
+  /// Clear BSSID priority tracking if all priorities are identical (saves memory)
+  void clear_priorities_if_all_same_();
   /// Advance to next target (AP/SSID) within current phase, or increment retry counter
   /// Called when staying in the same phase after a failed connection attempt
   void advance_to_next_target_or_increment_retry_();
