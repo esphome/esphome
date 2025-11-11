@@ -26,7 +26,7 @@ RealTimeClock::RealTimeClock() = default;
 
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
-  ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
+  ESP_LOGCONFIG(TAG, "Timezone: '%s'", this->timezone_.c_str());
 #endif
 }
 
