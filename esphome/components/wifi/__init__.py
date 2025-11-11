@@ -174,7 +174,7 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(CONF_BSSID): cv.mac_address,
         cv.Optional(CONF_HIDDEN): cv.boolean,
-        cv.Optional(CONF_PRIORITY, default=0.0): cv.float_,
+        cv.Optional(CONF_PRIORITY, default=0): cv.int_range(min=-128, max=127),
         cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
     }
 )
