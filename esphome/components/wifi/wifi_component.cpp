@@ -726,11 +726,12 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
-    this->retry_connect();
-    return;
+    // Enter cooldown to allow WiFi hardware to stabilize
+    // (immediate failure suggests hardware not ready, different from connection timeout)
+    this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+  } else {
+    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
   }
-
-  this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
   this->action_started_ = millis();
 }
 
@@ -1413,10 +1414,6 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
-  // We always need to be in STA_CONNECTING state to start a connection attempt
-  // If we start a scan here, we will set state to SCANNING
-  this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
-
   this->log_and_adjust_priority_for_failed_connect_();
 
   // Determine next retry phase based on current state
