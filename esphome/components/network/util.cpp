@@ -23,7 +23,7 @@ namespace network {
 // The order of the components is important: WiFi should come after any possible main interfaces (it may be used as
 // an AP that use a previous interface for NAT).
 
-bool has_network() {
+bool is_available() {
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr)
     return true;
@@ -41,7 +41,7 @@ bool has_network() {
 
 #ifdef USE_OPENTHREAD
   if (openthread::global_openthread_component != nullptr)
-    return true
+    return true;
 #endif
 
 #ifdef USE_HOST
