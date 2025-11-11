@@ -1163,11 +1163,9 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       if (this->find_next_hidden_sta_(-1, !this->went_through_explicit_hidden_phase_()) >= 0) {
         return WiFiRetryPhase::RETRY_HIDDEN;  // Found hidden networks to try
       }
-      // No hidden networks - skip directly to restart/rescan
-      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
-        return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
-                                                           : WiFiRetryPhase::SCAN_CONNECTING;
-      }
+      // No hidden networks - always go through RESTARTING_ADAPTER phase
+      // This ensures num_retried_ gets reset and a fresh scan is triggered
+      // The actual adapter restart will be skipped if captive portal/improv is active
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RETRY_HIDDEN:
@@ -1183,16 +1181,9 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
           return WiFiRetryPhase::RETRY_HIDDEN;
         }
       }
-      // Exhausted all potentially hidden SSIDs - rescan to try next BSSID
-      // If captive portal/improv is active, skip adapter restart and go back to start
-      // Otherwise restart adapter to clear any stuck state
-      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
-        // Go back to explicit hidden if we went through it initially, otherwise scan
-        return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
-                                                           : WiFiRetryPhase::SCAN_CONNECTING;
-      }
-
-      // Restart adapter
+      // Exhausted all potentially hidden SSIDs - always go through RESTARTING_ADAPTER
+      // This ensures num_retried_ gets reset and a fresh scan is triggered
+      // The actual adapter restart will be skipped if captive portal/improv is active
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
@@ -1280,7 +1271,12 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
-      this->restart_adapter();
+      // Skip actual adapter restart if captive portal/improv is active
+      // This allows state machine to reset num_retried_ and trigger fresh scan
+      // without disrupting the captive portal/improv connection
+      if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
+        this->restart_adapter();
+      }
       // Return true to indicate we should wait (go to COOLDOWN) instead of immediately connecting
       return true;
 
