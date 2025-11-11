@@ -279,7 +279,7 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
       ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", sta.get_ssid().c_str(), static_cast<int>(i));
       return static_cast<int8_t>(i);
     }
-    ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (visible in scan)", sta.get_ssid().c_str());
+    ESP_LOGD(TAG, "Skipping hidden retry for visible network " LOG_SECRET("'%s'"), sta.get_ssid().c_str());
   }
   // No hidden SSIDs found
   return -1;
