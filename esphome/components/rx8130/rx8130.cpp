@@ -117,7 +117,8 @@ void RX8130Component::write_time() {
 }
 
 void RX8130Component::stop_(bool stop) {
-  if (this->write_register(RX8130_REG_CTRL0, stop ? &RX8130_BIT_CTRL_STOP : &RX8130_CLEAR_FLAGS, 1) != i2c::ERROR_OK) {
+  const uint8_t data = stop ? RX8130_BIT_CTRL_STOP : RX8130_CLEAR_FLAGS;
+  if (this->write_register(RX8130_REG_CTRL0, &data, 1) != i2c::ERROR_OK) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   }
 }
