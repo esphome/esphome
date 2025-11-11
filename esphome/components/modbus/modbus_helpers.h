@@ -54,6 +54,19 @@ inline uint8_t server_frame_length(const std::vector<uint8_t> &frame) {
     case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
     case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
       return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
+    // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
+    case ModbusFunctionCode::READ_FILE_RECORD:
+    case ModbusFunctionCode::WRITE_FILE_RECORD:
+      // address(1) + function(1) + byte count(1) + data + CRC(2)
+      return 5 + (frame.size() > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
+    case ModbusFunctionCode::MASK_WRITE_REGISTER:
+      return 8;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
+    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+      // address(1) + function(1) + byte count(1) + data + CRC(2)
+      return 5 + (frame.size() > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
+    case ModbusFunctionCode::READ_FIFO_QUEUE:
+      // address(1) + function(1) + fifo address(2) CRC(2)
+      return 6;
     default:
       return MIN_SERVER_FRAME_SIZE;  // unknown length
   }
@@ -77,6 +90,20 @@ inline uint8_t client_frame_length(const std::vector<uint8_t> &frame) {
     case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
       // address(1) + function(1) + start address(2) + quantity(2) + byte count(1) + data + CRC(2)
       return 9 + (frame.size() > 6 ? std::min(frame[6], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
+    // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
+    case ModbusFunctionCode::READ_FILE_RECORD:
+    case ModbusFunctionCode::WRITE_FILE_RECORD:
+      // address(1) + function(1) + byte count(1) + data + CRC(2)
+      return 5 + (frame.size() > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
+    case ModbusFunctionCode::MASK_WRITE_REGISTER:
+      return 8;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
+    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+      // address(1) + function(1) + read start address(2) + read quantity(2) + write start address(2) +
+      // write quantity(2) + byte count(1) + data + CRC(2)
+      return 13 + (frame.size() > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
+    case ModbusFunctionCode::READ_FIFO_QUEUE:
+      // address(1) + function(1) + fifo address(2) CRC(2)
+      return 6;
     default:
       return MIN_CLIENT_FRAME_SIZE;  // unknown length
   }
@@ -91,8 +118,9 @@ inline uint8_t server_frame_data_offset(const std::vector<uint8_t> &frame) {
     case ModbusFunctionCode::READ_HOLDING_REGISTERS:
     case ModbusFunctionCode::READ_INPUT_REGISTERS:
       return 3;  // address(1) + function(1) + byte count(1) + data + CRC(2)
+    default:
+      return 2;
   }
-  return 2;
 }
 
 inline uint8_t client_frame_data_offset(const std::vector<uint8_t> &) { return 2; }
