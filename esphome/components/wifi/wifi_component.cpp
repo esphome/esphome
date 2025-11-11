@@ -197,6 +197,10 @@ static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 1;
 // Rationale: Fast connect prioritizes speed - try each AP once to find a working one quickly
 static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;
 
+/// Cooldown duration in milliseconds after adapter restart or repeated failures
+/// Allows WiFi hardware to stabilize before next connection attempt
+static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 2500;
+
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
     case WiFiRetryPhase::INITIAL_CONNECT:
@@ -436,7 +440,7 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
-        if (millis() - this->action_started_ > 5000) {
+        if (millis() - this->action_started_ > WIFI_COOLDOWN_DURATION_MS) {
           // After cooldown we either restarted the adapter because of
           // a failure, or something tried to connect over and over
           // so we entered cooldown. In both cases we call
