@@ -253,8 +253,9 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
   return false;
 }
 
-int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index, bool include_explicit_hidden) {
+int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
   // Find next SSID that wasn't in scan results (might be hidden)
+  bool include_explicit_hidden = !this->went_through_explicit_hidden_phase_();
   // Start searching from start_index + 1
   for (size_t i = start_index + 1; i < this->sta_.size(); i++) {
     const auto &sta = this->sta_[i];
@@ -1160,7 +1161,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // Its priority has been decreased, so on next scan it will be sorted lower
       // and we'll try the next best BSSID.
       // Check if there are any potentially hidden networks to try
-      if (this->find_next_hidden_sta_(-1, !this->went_through_explicit_hidden_phase_()) >= 0) {
+      if (this->find_next_hidden_sta_(-1) >= 0) {
         return WiFiRetryPhase::RETRY_HIDDEN;  // Found hidden networks to try
       }
       // No hidden networks - skip directly to restart/rescan
@@ -1179,8 +1180,13 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 
         // Exhausted retries on current SSID - check if there are more potentially hidden SSIDs to try
         if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-          // More SSIDs available - stay in RETRY_HIDDEN, advance will happen in retry_connect()
-          return WiFiRetryPhase::RETRY_HIDDEN;
+          // Check if find_next_hidden_sta_() would actually find another hidden SSID
+          // as it might have been seen in the scan results and we want to skip those
+          // otherwise we will get stuck in RETRY_HIDDEN phase
+          if (this->find_next_hidden_sta_(this->selected_sta_index_) != -1) {
+            // More hidden SSIDs available - stay in RETRY_HIDDEN, advance will happen in retry_connect()
+            return WiFiRetryPhase::RETRY_HIDDEN;
+          }
         }
       }
       // Exhausted all potentially hidden SSIDs - rescan to try next BSSID
@@ -1271,7 +1277,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
         // In that case, skip networks marked hidden:true (already tried)
         // Otherwise, include them (they haven't been tried yet)
-        this->selected_sta_index_ = this->find_next_hidden_sta_(-1, !this->went_through_explicit_hidden_phase_());
+        this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
 
         if (this->selected_sta_index_ == -1) {
           ESP_LOGD(TAG, "All SSIDs visible or already tried, skipping hidden mode");
@@ -1379,8 +1385,7 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
     // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
     // In that case, skip networks marked hidden:true (already tried)
     // Otherwise, include them (they haven't been tried yet)
-    int8_t next_index =
-        this->find_next_hidden_sta_(this->selected_sta_index_, !this->went_through_explicit_hidden_phase_());
+    int8_t next_index = this->find_next_hidden_sta_(this->selected_sta_index_);
     if (next_index != -1) {
       // Found another potentially hidden SSID
       this->selected_sta_index_ = next_index;
