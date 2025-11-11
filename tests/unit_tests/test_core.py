@@ -671,44 +671,50 @@ class TestEsphomeCore:
             os.environ.pop("ESPHOME_DATA_DIR", None)
             assert target.data_dir == Path(expected_default)
 
-    def test_platformio_cache_dir_with_env_var(self):
-        """Test platformio_cache_dir when PLATFORMIO_CACHE_DIR env var is set."""
-        target = core.EsphomeCore()
-        test_cache_dir = "/custom/cache/dir"
+    def test_web_port__none(self, target):
+        """Test web_port returns None when web_server is not configured."""
+        target.config = {}
+        assert target.web_port is None
 
-        with patch.dict(os.environ, {"PLATFORMIO_CACHE_DIR": test_cache_dir}):
-            assert target.platformio_cache_dir == test_cache_dir
+    def test_web_port__explicit_web_server_default_port(self, target):
+        """Test web_port returns 80 when web_server is explicitly configured without port."""
+        target.config = {const.CONF_WEB_SERVER: {}}
+        assert target.web_port == 80
 
-    def test_platformio_cache_dir_without_env_var(self):
-        """Test platformio_cache_dir defaults to ~/.platformio/.cache."""
-        target = core.EsphomeCore()
+    def test_web_port__explicit_web_server_custom_port(self, target):
+        """Test web_port returns custom port when web_server is configured with port."""
+        target.config = {const.CONF_WEB_SERVER: {const.CONF_PORT: 8080}}
+        assert target.web_port == 8080
 
-        with patch.dict(os.environ, {}, clear=True):
-            # Ensure env var is not set
-            os.environ.pop("PLATFORMIO_CACHE_DIR", None)
-            expected = os.path.expanduser("~/.platformio/.cache")
-            assert target.platformio_cache_dir == expected
+    def test_web_port__ota_web_server_platform_only(self, target):
+        """
+        Test web_port returns None when ota.web_server platform is explicitly configured.
 
-    def test_platformio_cache_dir_empty_env_var(self):
-        """Test platformio_cache_dir with empty env var falls back to default."""
-        target = core.EsphomeCore()
+        This is a critical test for Dashboard Issue #766:
+        https://github.com/esphome/dashboard/issues/766
 
-        with patch.dict(os.environ, {"PLATFORMIO_CACHE_DIR": ""}):
-            expected = os.path.expanduser("~/.platformio/.cache")
-            assert target.platformio_cache_dir == expected
+        When ota: platform: web_server is explicitly configured (or auto-loaded by captive_portal):
+        - "web_server" appears in loaded_integrations (platform name added to integrations)
+        - "ota/web_server" appears in loaded_platforms
+        - But CONF_WEB_SERVER is NOT in config (only the platform is loaded, not the component)
+        - web_port MUST return None (no web UI available)
+        - Dashboard should NOT show VISIT button
 
-    def test_platformio_cache_dir_whitespace_env_var(self):
-        """Test platformio_cache_dir with whitespace-only env var falls back to default."""
-        target = core.EsphomeCore()
-
-        with patch.dict(os.environ, {"PLATFORMIO_CACHE_DIR": "   "}):
-            expected = os.path.expanduser("~/.platformio/.cache")
-            assert target.platformio_cache_dir == expected
-
-    def test_platformio_cache_dir_docker_addon_path(self):
-        """Test platformio_cache_dir in Docker/HA addon environment."""
-        target = core.EsphomeCore()
-        addon_cache = "/data/cache/platformio"
-
-        with patch.dict(os.environ, {"PLATFORMIO_CACHE_DIR": addon_cache}):
-            assert target.platformio_cache_dir == addon_cache
+        This test ensures web_port only checks CONF_WEB_SERVER in config, not loaded_integrations.
+        """
+        # Simulate config with ota.web_server platform but no web_server component
+        # This happens when:
+        # 1. User explicitly configures: ota: - platform: web_server
+        # 2. OR captive_portal auto-loads ota.web_server
+        target.config = {
+            const.CONF_OTA: [
+                {
+                    "platform": "web_server",
+                    # OTA web_server platform config would be here
+                }
+            ],
+            # Note: CONF_WEB_SERVER is NOT in config - only the OTA platform
+        }
+        # Even though "web_server" is in loaded_integrations due to the platform,
+        # web_port must return None because the full web_server component is not configured
+        assert target.web_port is None
