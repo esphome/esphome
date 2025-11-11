@@ -17,4 +17,4 @@ nrf52:
         output: true
   reg0:
     voltage: 2.1V
-    ucir_erase: true
+    uicr_erase: true
