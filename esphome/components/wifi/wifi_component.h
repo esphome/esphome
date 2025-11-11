@@ -396,8 +396,8 @@ class WiFiComponent : public Component {
   int8_t find_next_hidden_sta_(int8_t start_index, bool include_explicit_hidden = true);
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
-  /// Clear BSSID priority tracking if all priorities are identical (saves memory)
-  void clear_priorities_if_all_same_();
+  /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
+  void clear_priorities_if_all_min_();
   /// Advance to next target (AP/SSID) within current phase, or increment retry counter
   /// Called when staying in the same phase after a failed connection attempt
   void advance_to_next_target_or_increment_retry_();
