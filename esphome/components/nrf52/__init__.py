@@ -106,7 +106,8 @@ CONF_DFU = "dfu"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
 
-VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3, None, "default"]
+VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
+DEFAULT_VOLTAGE_LEVEL = "default"
 
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
@@ -126,9 +127,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_VOLTAGE): cv.Any(
                         cv.All(
                             cv.voltage,
-                            cv.one_of(*VOLTAGE_LEVELS[:-2], float=True),
+                            cv.one_of(*VOLTAGE_LEVELS, float=True),
                         ),
-                        cv.one_of(*VOLTAGE_LEVELS[-1:], lower=True),
+                        cv.one_of(*[DEFAULT_VOLTAGE_LEVEL], lower=True),
                     ),
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
@@ -201,7 +202,9 @@ async def to_code(config: ConfigType) -> None:
         CORE.add_job(_dfu_to_code, dfu_config)
 
     if reg0_config := config.get(CONF_REG0):
-        value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
+        value = 7  # DEFAULT_VOLTAGE_LEVEL
+        if reg0_config[CONF_VOLTAGE] in VOLTAGE_LEVELS:
+            value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
         cg.add_define("USE_NRF52_REG0_VOUT", value)
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
