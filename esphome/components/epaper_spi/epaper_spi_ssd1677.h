@@ -24,6 +24,10 @@ class EPaperSSD1677 : public EPaperBase {
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   bool transfer_data() override;
+
+  uint16_t update_width_{};
+  uint16_t update_startx_{};
+  size_t bytes_remaining_{};
 };
 
 }  // namespace esphome::epaper_spi

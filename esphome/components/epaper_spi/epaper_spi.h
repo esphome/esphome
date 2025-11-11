@@ -5,8 +5,6 @@
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
 
-#include <queue>
-
 namespace esphome::epaper_spi {
 using namespace display;
 
@@ -25,12 +23,10 @@ enum class EPaperState : uint8_t {
   DEEP_SLEEP,      // deep sleep the display
 };
 
-enum class Transform : uint8_t {
-  NONE = 0,
-  MIRROR_X = 1,
-  MIRROR_Y = 2,
-  SWAP_XY = 4,
-};
+static const uint8_t NONE = 0;
+static const uint8_t MIRROR_X = 1;
+static const uint8_t MIRROR_Y = 2;
+static const uint8_t SWAP_XY = 4;
 
 static constexpr uint8_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
 static constexpr uint8_t DELAY_FLAG = 0xFF;
@@ -126,25 +122,28 @@ class EPaperBase : public DisplayBuffer,
   DisplayType display_type_;
 
   size_t buffer_length_{};
-  size_t current_data_index_{0};  // used by data transfer to track progress
-  uint32_t reset_duration_{200};
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  uint32_t transfer_start_time_{};
-  uint32_t waiting_for_idle_last_print_{0};
-  uint32_t waiting_for_idle_start_{0};
-#endif
-
+  size_t current_data_index_{};  // used by data transfer to track progress
+  split_buffer::SplitBuffer buffer_{};
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
-
-  bool waiting_for_idle_{false};
-  uint32_t delay_until_{0};
-
-  split_buffer::SplitBuffer buffer_;
-
-  EPaperState state_{EPaperState::IDLE};
+  bool waiting_for_idle_{};
+  uint32_t delay_until_{};
   uint8_t transform_{};
+  uint16_t x_high_{};
+  uint16_t y_high_{};
+  uint16_t x_low_{};
+  uint16_t y_low_{};
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  uint32_t transfer_start_time_{};
+  uint32_t waiting_for_idle_last_print_{};
+  uint32_t waiting_for_idle_start_{};
+#endif
+
+  // properties with specific initialisers go last
+  EPaperState state_{EPaperState::IDLE};
+  uint32_t reset_duration_{50};
 };
 
 }  // namespace esphome::epaper_spi

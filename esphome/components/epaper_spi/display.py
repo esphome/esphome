@@ -39,7 +39,7 @@ epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
-Transform = epaper_spi_ns.enum("Transform", is_class=True)
+Transform = epaper_spi_ns.enum("Transform")
 
 EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
 EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
@@ -183,5 +183,5 @@ async def to_code(config):
             getattr(Transform, x.upper()) for x in TRANSFORM_OPTIONS if transform.get(x)
         ]
         if transform:
-            transform = "|".join({f"(uint8_t){e}" for e in transform})
+            transform = "|".join({f"{e}" for e in transform})
             cg.add(var.set_transform(RawExpression(transform)))
