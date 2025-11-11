@@ -47,6 +47,7 @@ static StatusFlags set_regout0() {
   return StatusFlags::OK;
 }
 
+#ifndef USE_BOOTLOADER_MCUBOOT
 // https://github.com/adafruit/Adafruit_nRF52_Bootloader/blob/6a9a6a3e6d0f86918e9286188426a279976645bd/lib/sdk11/components/libraries/bootloader_dfu/dfu_types.h#L61
 constexpr uint32_t BOOTLOADER_REGION_START = 0x000F4000;
 constexpr uint32_t BOOTLOADER_MBR_PARAMS_PAGE_ADDRESS = 0x000FE000;
@@ -66,6 +67,7 @@ static StatusFlags fix_bootloader() {
   }
   return StatusFlags::OK;
 }
+#endif
 
 static StatusFlags set_uicr() {
   StatusFlags status = StatusFlags::OK;
