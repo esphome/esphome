@@ -1,0 +1,19 @@
+spi:
+  clk_pin: D5
+  miso_pin: D6
+  mosi_pin: D7
+cc1101:
+  id: transceiver
+  cs_pin: D8
+  tuner:
+    frequency: 433920
+    if_frequency: 153
+    bandwidth: 203
+    channel: 0
+    channel_spacing: 200
+    symbol_rate: 5000
+    modulation: ASK/OOK
+esphome:
+  name: test-esp8266
+esp8266:
+  board: d1_mini

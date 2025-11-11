@@ -1,0 +1,63 @@
+spi:
+  clk_pin: GPIO18
+  miso_pin: GPIO19
+  mosi_pin: GPIO23
+cc1101:
+  id: transceiver
+  cs_pin: GPIO5
+  tuner:
+    frequency: 433920
+    if_frequency: 153
+    bandwidth: 203
+    channel: 0
+    channel_spacing: 200
+    symbol_rate: 5000
+    modulation: ASK/OOK
+esphome:
+  name: test-esp32
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+remote_transmitter:
+  pin: GPIO32
+  carrier_duty_percent: 100%
+  on_transmit:
+    then:
+      - cc1101.begin_tx: transceiver
+  on_complete:
+    then:
+      - cc1101.end_tx: transceiver
+remote_receiver:
+  pin: GPIO33
+  dump:
+    - rc_switch
+  tolerance: 50%
+  buffer_size: 2kb
+  filter: 250us
+  idle: 10ms
+binary_sensor:
+  - platform: remote_receiver
+    name: "Window"
+    rc_switch_raw:
+      code: '110111110001111011100110'
+    filters:
+      - delayed_off: 1000ms
+button:
+  - platform: template
+    name: "Gate"
+    on_press:
+      - remote_transmitter.transmit_rc_switch_raw_cc1101:
+          code: '0111000110010011110110010100011111110001001011110111'
+          protocol:
+            pulse_length: 434
+            sync: [1, 6]
+            zero: [1, 2]
+            one: [2, 1]
+            inverted: true
+          repeat:
+            times: 10
+  - platform: template
+    name: "CC1101 Reset"
+    on_press:
+      - cc1101.reset: transceiver

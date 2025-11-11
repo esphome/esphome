@@ -1,0 +1,21 @@
+spi:
+  clk_pin: GPIO18
+  miso_pin: GPIO19
+  mosi_pin: GPIO23
+cc1101:
+  id: transceiver
+  cs_pin: GPIO5
+  tuner:
+    frequency: 433920
+    if_frequency: 153
+    bandwidth: 203
+    channel: 0
+    channel_spacing: 200
+    symbol_rate: 5000
+    modulation: ASK/OOK
+esphome:
+  name: test-esp32
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf

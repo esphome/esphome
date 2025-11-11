@@ -1,0 +1,21 @@
+spi:
+  clk_pin: GPIO6
+  miso_pin: GPIO5
+  mosi_pin: GPIO7
+cc1101:
+  id: transceiver
+  cs_pin: GPIO10
+  tuner:
+    frequency: 433920
+    if_frequency: 153
+    bandwidth: 203
+    channel: 0
+    channel_spacing: 200
+    symbol_rate: 5000
+    modulation: ASK/OOK
+esphome:
+  name: test-esp32-c3
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: arduino

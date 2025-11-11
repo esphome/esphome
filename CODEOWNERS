@@ -94,7 +94,8 @@ esphome/components/camera/* @bdraco @DT-art1
 esphome/components/camera_encoder/* @DT-art1
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
-esphome/components/captive_portal/* @esphome/core
+esphome/components/captive_portal/* @OttoWinter
+esphome/components/cc1101/* @lygris
 esphome/components/ccs811/* @habbie
 esphome/components/cd74hc4067/* @asoehlke
 esphome/components/ch422g/* @clydebarrow @jesterret
