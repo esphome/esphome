@@ -1450,11 +1450,14 @@ void WiFiComponent::retry_connect() {
       this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
       WiFiAP params = this->build_params_for_current_phase_();
       this->start_connecting(params, true);
-      return;
     }
-    // No valid target - fall through to set state to allow phase transition
+    return;
   }
 
+  // If we can't progress forward its likely because scanning failed
+  // or the stack is in a bad state after restart so we cooldown first
+  // and once it finishes, cooldown will call check_connecting_finished()
+  // which will progress the state machine
   ESP_LOGD(TAG, "Entering cooldown from state %d and phase %s", this->state_,
            LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
   this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
