@@ -1179,12 +1179,12 @@ concept comparable_with = requires(T a, U b) {
   { a > b } -> std::convertible_to<bool>;
 };
 
-template<std::totally_ordered T, comparable_with<T> U> bool clamp_at_least(T value, U min) {
+template<std::totally_ordered T, comparable_with<T> U> T clamp_at_least(T value, U min) {
   if (value < min)
     return min;
   return value;
 }
-template<std::totally_ordered T, comparable_with<T> U> bool clamp_at_most(T value, U max) {
+template<std::totally_ordered T, comparable_with<T> U> T clamp_at_most(T value, U max) {
   if (value > max)
     return max;
   return value;
