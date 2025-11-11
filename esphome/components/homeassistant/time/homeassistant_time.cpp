@@ -7,7 +7,7 @@ namespace homeassistant {
 static const char *const TAG = "homeassistant.time";
 
 void HomeassistantTime::dump_config() {
-  ESP_LOGCONFIG(TAG, "Home Assistant Time:");
+  ESP_LOGCONFIG(TAG, "Home Assistant Time");
   RealTimeClock::dump_config();
 }
 
