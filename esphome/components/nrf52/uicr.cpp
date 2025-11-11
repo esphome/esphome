@@ -79,7 +79,6 @@ static StatusFlags set_uicr() {
 }
 
 static int board_esphome_init() {
-  bool need_reset = false;
   StatusFlags status = set_uicr();
 
 #ifdef USE_NRF52_UICR_ERASE
