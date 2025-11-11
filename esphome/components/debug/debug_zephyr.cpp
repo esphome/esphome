@@ -91,7 +91,7 @@ static void fa_cb(const struct flash_area *fa, void *user_data) {
 #if CONFIG_FLASH_MAP_LABELS
   const char *fa_label = flash_area_label(fa);
 
-  if (fa_label == NULL) {
+  if (fa_label == nullptr) {
     fa_label = "-";
   }
   ESP_LOGD(TAG, "%2d   0x%0*" PRIxPTR "   %-26s  %-24.24s  0x%-10x 0x%-12x", (int) fa->fa_id, sizeof(uintptr_t) * 2,
