@@ -44,7 +44,6 @@ class CoapClientComponent : public Component {
   void *response_callback_context_{nullptr};
   const uint8_t uri_path_buffer_size_{40};
   const uint32_t request_timeout_{60000};
-  bool response_wait_{false};
 };
 
 extern CoapClientComponent *global_coap_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -60,25 +60,17 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
   size_t total;
   void *context = this->response_callback_context_;
   coap_pdu_code_t rcvd_code = coap_pdu_get_code(received);
-  if (COAP_RESPONSE_CLASS(rcvd_code) > 2) {
+  if (COAP_RESPONSE_CLASS(rcvd_code) == 2) {
     if (coap_get_data_large(received, &data_len, &data, &offset, &total)) {
-      this->defer([this, data, data_len, offset, total, context]() {
-        this->response_callback_(data, data_len, offset, total, context);
-      });
-      if (offset + data_len == total) {
-        this->response_wait_ = false;
-      }
+      this->response_callback_(data, data_len, offset, total, context);
     }
   } else {
-    ESP_LOGE(TAG, "Coap Response Code: %d.%02d", (rcvd_code >> 5), rcvd_code & 0x1F);
+    ESP_LOGE(TAG, "CoAP Response Code: %d.%02d", (rcvd_code >> 5), rcvd_code & 0x1F);
     data = nullptr;
     data_len = 0;
     offset = 0;
     total = 0;
-    this->defer([this, data, data_len, offset, total, context]() {
-      this->response_callback_(data, data_len, offset, total, context);
-    });
-    this->response_wait_ = false;
+    this->response_callback_(data, data_len, offset, total, context);
   }
   return COAP_RESPONSE_OK;
 }
@@ -206,7 +198,6 @@ void CoapClientComponent::main_() {
       coap_session_new_token(session, &token_length, token);
       coap_add_token(request, token_length, token);
       coap_add_optlist_pdu(request, &opt_list);
-      this->response_wait_ = true;
 
       ESP_LOGD(TAG, "Send the request via CoAP");
       coap_send(session, request);
@@ -218,7 +209,6 @@ void CoapClientComponent::main_() {
         // Wait for up to request_timeout_ milliseconds for I/O to happen.
         // The return value is the time spent in the function in milliseconds.
         result = coap_io_process(context, this->request_timeout_);
-        ESP_LOGE(TAG, "CoAP waiting for response");
         if (result < 0) {
           ESP_LOGE(TAG, "CoAP I/O error! Exiting loop.");
           break;
@@ -226,7 +216,6 @@ void CoapClientComponent::main_() {
       }
       ESP_LOGD(TAG, "CoAP Request Processed");
     }
-    // ESP_LOGD(TAG, "End of main loop");
   }
 }
 

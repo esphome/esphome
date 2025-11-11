@@ -153,7 +153,7 @@ bool OtaCoapClientComponent::get_md5_expected_() {
     return false;
   }
   ESP_LOGI(TAG, "Get: %s", this->md5_url_.c_str());
-  this->parent_->get(this->md5_url_, OtaCoapClientComponent::md5_callback, this, 32);
+  this->parent_->get(this->md5_url_, OtaCoapClientComponent::md5_callback, this);
   while (!this->md5_url_ready_) {
     App.feed_wdt();
     delay(10);  // NOLINT
@@ -163,14 +163,14 @@ bool OtaCoapClientComponent::get_md5_expected_() {
 
 void OtaCoapClientComponent::append_image(const uint8_t *block, uint16_t length, uint32_t offset) {
   if (length < 0) {
-    ESP_LOGE(TAG, "Coap closed");
+    ESP_LOGE(TAG, "CoAP closed");
     this->abort();
   } else {
     // add read bytes to MD5
     this->md5_receive_.add(block, length);
     // write bytes to OTA backend
     uint8_t *non_const_ptr = const_cast<uint8_t *>(block);
-    auto error_code = this->backend_->write(non_const_ptr, length);
+    auto error_code = this->backend_->write(non_const_ptr, length, offset);
     if (error_code != ota::OTA_RESPONSE_OK) {
       // error code explanation available at
       // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
@@ -210,7 +210,9 @@ void OtaCoapClientComponent::image_callback(const unsigned char *data, size_t le
                                             void *context) {
   esphome::coap_client_component::OtaCoapClientComponent *obj =
       (esphome::coap_client_component::OtaCoapClientComponent *) context;
-  ESP_LOGD(TAG, "image_callback %d, %d, %d", len, offset, total);
+  if (offset % 102400 == 0) {
+    ESP_LOGD(TAG, "image_callback %d, %d", len, offset);
+  }
   if (!obj->is_image_download_ready()) {
     if (len <= 0) {
       obj->abort();
@@ -218,6 +220,7 @@ void OtaCoapClientComponent::image_callback(const unsigned char *data, size_t le
       obj->append_image(data, len, offset);
     }
     if (len + offset == total) {
+      ESP_LOGD(TAG, "image_callback %d, %d %d", len, offset, len + offset);
       obj->set_image_download_ready(true);
     }
   }
