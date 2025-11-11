@@ -6,4 +6,4 @@ nrf52:
       mode:
         output: true
   reg0:
-    voltage: default
+    voltage: 1.8V
