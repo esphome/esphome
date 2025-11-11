@@ -421,6 +421,7 @@ void WiFiComponent::restart_adapter() {
   // Don't set retry_phase_ or num_retried_ here - state machine handles transitions
   this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
   this->action_started_ = millis();
+  this->error_from_callback_ = false;
 }
 
 void WiFiComponent::loop() {
