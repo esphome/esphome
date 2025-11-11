@@ -1301,14 +1301,21 @@ void WiFiComponent::clear_priorities_if_all_same_() {
   }
 
   int8_t first_priority = this->sta_priorities_[0].priority;
+
+  // Only clear if all priorities have been decremented to the minimum value
+  // At this point, all BSSIDs have been equally penalized and priority info is useless
+  if (first_priority != std::numeric_limits<int8_t>::min()) {
+    return;
+  }
+
   for (const auto &pri : this->sta_priorities_) {
     if (pri.priority != first_priority) {
       return;  // Not all same, nothing to do
     }
   }
 
-  // All priorities are identical - clear the vector to save memory
-  ESP_LOGD(TAG, "Clearing BSSID priorities (all identical)");
+  // All priorities are at minimum - clear the vector to save memory and reset
+  ESP_LOGD(TAG, "Clearing BSSID priorities (all at minimum)");
   this->sta_priorities_.clear();
   this->sta_priorities_.shrink_to_fit();
 }
