@@ -15,3 +15,6 @@ nrf52:
       inverted: true
       mode:
         output: true
+  reg0:
+    voltage: 2.1V
+    uicr_erase: true
