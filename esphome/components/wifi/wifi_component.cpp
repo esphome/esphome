@@ -1062,8 +1062,8 @@ void WiFiComponent::check_connecting_finished() {
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
 
-    // Reset all priorities if they're all the same (can't differentiate)
-    this->reset_priorities_if_all_same_();
+    // Clear priority tracking if all priorities are identical
+    this->clear_priorities_if_all_same_();
 
 #ifdef USE_WIFI_FAST_CONNECT
     this->save_fast_connect_settings_();
@@ -1293,9 +1293,9 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   return false;  // Did not start scan, can proceed with connection
 }
 
-/// Reset all BSSID priorities if they're all identical (can't differentiate)
+/// Clear BSSID priority tracking if all priorities are identical (can't differentiate, saves memory)
 /// Called when starting a fresh connection attempt or after successful connection
-void WiFiComponent::reset_priorities_if_all_same_() {
+void WiFiComponent::clear_priorities_if_all_same_() {
   if (this->sta_priorities_.empty()) {
     return;
   }
@@ -1360,8 +1360,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
            format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now identical
-  // If so, reset them all to 0 to start fresh
-  this->reset_priorities_if_all_same_();
+  // If so, clear the vector to save memory
+  this->clear_priorities_if_all_same_();
 }
 
 /// Handle target advancement or retry counter increment when staying in the same phase
