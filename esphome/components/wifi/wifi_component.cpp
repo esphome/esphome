@@ -1293,7 +1293,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   return false;  // Did not start scan, can proceed with connection
 }
 
-/// Reset all BSSID priorities to 0 if they're all identical (can't differentiate)
+/// Reset all BSSID priorities if they're all identical (can't differentiate)
 /// Called when starting a fresh connection attempt or after successful connection
 void WiFiComponent::reset_priorities_if_all_same_() {
   if (this->sta_priorities_.empty()) {
@@ -1307,11 +1307,10 @@ void WiFiComponent::reset_priorities_if_all_same_() {
     }
   }
 
-  // All priorities are identical, reset to 0
-  ESP_LOGD(TAG, "Resetting all BSSID priorities (all identical)");
-  for (auto &pri : this->sta_priorities_) {
-    pri.priority = 0;
-  }
+  // All priorities are identical - clear the vector to save memory
+  ESP_LOGD(TAG, "Clearing BSSID priorities (all identical)");
+  this->sta_priorities_.clear();
+  this->sta_priorities_.shrink_to_fit();
 }
 
 /// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
