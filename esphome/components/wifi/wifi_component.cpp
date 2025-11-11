@@ -1062,8 +1062,8 @@ void WiFiComponent::check_connecting_finished() {
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
 
-    // Clear priority tracking if all priorities are identical
-    this->clear_priorities_if_all_same_();
+    // Clear priority tracking if all priorities are at minimum
+    this->clear_priorities_if_all_min_();
 
 #ifdef USE_WIFI_FAST_CONNECT
     this->save_fast_connect_settings_();
@@ -1293,9 +1293,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   return false;  // Did not start scan, can proceed with connection
 }
 
-/// Clear BSSID priority tracking if all priorities are identical (can't differentiate, saves memory)
-/// Called when starting a fresh connection attempt or after successful connection
-void WiFiComponent::clear_priorities_if_all_same_() {
+/// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
+/// At minimum priority, all BSSIDs are equally bad, so priority tracking is useless
+/// Called after successful connection or after failed connection attempts
+void WiFiComponent::clear_priorities_if_all_min_() {
   if (this->sta_priorities_.empty()) {
     return;
   }
@@ -1366,9 +1367,9 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(),
            format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
 
-  // After adjusting priority, check if all priorities are now identical
-  // If so, clear the vector to save memory
-  this->clear_priorities_if_all_same_();
+  // After adjusting priority, check if all priorities are now at minimum
+  // If so, clear the vector to save memory and reset for fresh start
+  this->clear_priorities_if_all_min_();
 }
 
 /// Handle target advancement or retry counter increment when staying in the same phase
