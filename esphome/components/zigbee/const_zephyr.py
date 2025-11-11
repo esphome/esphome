@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 
 zigbee_ns = cg.esphome_ns.namespace("zigbee")
-Zigbee = zigbee_ns.class_("Zigbee", cg.Component)
+ZigbeeComponent = zigbee_ns.class_("ZigbeeComponent", cg.Component)
 
 zb_char_t_ptr = cg.global_ns.namespace("zb_char_t *")
 

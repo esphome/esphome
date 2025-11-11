@@ -16,11 +16,11 @@ namespace esphome::zigbee {
 
 static const char *const TAG = "zigbee";
 
-Zigbee *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 const uint8_t IEEE_ADDR_BUF_SIZE = 17;
 
-void Zigbee::zboss_signal_handler_esphome(zb_bufid_t bufid) {
+void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   zb_zdo_app_signal_hdr_t *sig_hndler = NULL;
   zb_zdo_app_signal_type_t sig = zb_get_app_signal(bufid, &sig_hndler);
   zb_ret_t status = ZB_GET_APP_SIGNAL_STATUS(bufid);
@@ -94,7 +94,7 @@ void Zigbee::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   }
 }
 
-void Zigbee::zcl_device_cb(zb_bufid_t bufid) {
+void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   zb_zcl_device_callback_param_t *p_device_cb_param = ZB_BUF_GET_PARAM(bufid, zb_zcl_device_callback_param_t);
   zb_zcl_device_callback_id_t device_cb_id = p_device_cb_param->device_cb_id;
   zb_uint16_t cluster_id = p_device_cb_param->cb_param.set_attr_value_param.cluster_id;
@@ -112,7 +112,7 @@ void Zigbee::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_ERROR;
 }
 
-void Zigbee::on_join_() {
+void ZigbeeComponent::on_join_() {
   this->schedule([this]() {
     ESP_LOGD(TAG, "joined the network");
     this->join_trigger_->trigger();
@@ -123,7 +123,7 @@ void Zigbee::on_join_() {
 }
 
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
-void Zigbee::erase_flash_(int area) {
+void ZigbeeComponent::erase_flash_(int area) {
   const struct flash_area *fap;
   flash_area_open(area, &fap);
   flash_area_erase(fap, 0, fap->fa_size);
@@ -131,7 +131,7 @@ void Zigbee::erase_flash_(int area) {
 }
 #endif
 
-void Zigbee::setup() {
+void ZigbeeComponent::setup() {
   global_zigbee = this;
   auto err = settings_subsys_init();
   if (err) {
@@ -159,9 +159,9 @@ static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   zb_buf_free(bufid);
 }
 
-void Zigbee::flush() { this->need_flush_ = true; }
+void ZigbeeComponent::flush() { this->need_flush_ = true; }
 
-void Zigbee::loop() {
+void ZigbeeComponent::loop() {
   if (this->need_flush_) {
     this->need_flush_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
@@ -178,13 +178,13 @@ void Zigbee::loop() {
   }
 }
 
-void Zigbee::schedule(std::function<void()> &&f) {
+void ZigbeeComponent::schedule(std::function<void()> &&f) {
   this->mutex_.lock();
   this->to_schedule_.push_back(std::move(f));
   this->mutex_.unlock();
 }
 
-void Zigbee::factory_reset() {
+void ZigbeeComponent::factory_reset() {
   ESP_LOGD(TAG, "factory reset");
   ZB_SCHEDULE_APP_CALLBACK(zb_bdb_reset_via_local_action, 0);
 }

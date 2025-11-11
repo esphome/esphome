@@ -62,7 +62,7 @@ struct AnalogAttrs {
   float resolution;
 };
 
-class Zigbee : public Component {
+class ZigbeeComponent : public Component {
  public:
   void setup() override;
   void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
@@ -93,12 +93,12 @@ class Zigbee : public Component {
 
 class ZigbeeEntity {
  public:
-  void set_parent(Zigbee *parent) { this->parent_ = parent; }
+  void set_parent(ZigbeeComponent *parent) { this->parent_ = parent; }
   void set_ep(zb_uint8_t ep) { this->ep_ = ep; }
 
  protected:
   zb_uint8_t ep_{0};
-  Zigbee *parent_{nullptr};
+  ZigbeeComponent *parent_{nullptr};
 };
 
 }  // namespace esphome::zigbee
