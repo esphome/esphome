@@ -31,7 +31,8 @@ class Modbus : public uart::UARTDevice, public Component {
 
  protected:
   void receive_bytes_();
-  virtual void parse_modbus_frames_(bool timeout) = 0;
+  bool timeout_();
+  virtual void parse_modbus_frames_() = 0;
   bool parse_modbus_server_frame_();
   virtual void process_modbus_server_frame_(uint8_t address, uint8_t function_code,
                                             const std::vector<uint8_t> &data) = 0;
@@ -40,6 +41,7 @@ class Modbus : public uart::UARTDevice, public Component {
   static const std::vector<uint8_t> add_crc_to_payload_(const std::vector<uint8_t> &payload);
 
   uint32_t last_modbus_byte_{0};
+  uint32_t last_receive_check_{0};
   uint32_t last_send_{0};
   uint32_t last_send_tx_offset_{0};
   uint16_t frame_delay_ms_{5};
@@ -74,7 +76,7 @@ class ModbusClient : public Modbus {
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
 
  protected:
-  void parse_modbus_frames_(bool timeout) override;
+  void parse_modbus_frames_() override;
   void process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void send_next_frame_();
 
@@ -96,7 +98,7 @@ class ModbusServer : public Modbus {
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
-  void parse_modbus_frames_(bool timeout) override;
+  void parse_modbus_frames_() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data);

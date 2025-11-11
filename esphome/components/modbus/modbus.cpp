@@ -13,10 +13,9 @@ void Modbus::setup() {
     this->flow_control_pin_->setup();
   }
 
-  this->frame_delay_ms_ =
-      std::max(2,  // 1750us minimium per spec - rounded up to 2ms.
-                   // 3.5 characters * 11 bits per character * 1000ms/sec / (bits/sec) (Standard modbus frame delay)
-               (uint16_t) (3.5 * 11 * 1000 / this->parent_->get_baud_rate()) + 1);
+  // 1750us minimium per spec - rounded up to 2ms.
+  // 3.5 characters * 11 bits per character * 1000ms/sec / (bits/sec) (Standard modbus frame delay)
+  this->frame_delay_ms_ = std::max(2, (uint16_t) (3.5 * 11 * 1000 / this->parent_->get_baud_rate()) + 1);
 
   this->long_rx_buffer_delay_ms_ =
       (this->parent_->get_rx_full_threshold() * 11 * 1000 / this->parent_->get_baud_rate()) + 1;
@@ -26,25 +25,8 @@ void Modbus::loop() {
   // Receive any available bytes from UART
   this->receive_bytes_();
 
-  // Parse bytes into frames
-  this->parse_modbus_frames_(false);
-
-  // If the response frame is finished (including interframe delay) - we timeout.
-  // The long_rx_buffer_delay accounts for long responses (larger than the UART rx_full_threshold) to avoid timeouts
-  // when the buffer is filling the back half of the response
-  const uint16_t timeout = std::max(
-      (uint16_t) this->frame_delay_ms_,
-      (uint16_t) (this->rx_buffer_.size() > this->parent_->get_rx_full_threshold() - 1 ? this->long_rx_buffer_delay_ms_
-                                                                                       : 0));
-  // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
-  // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
-  // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
-  // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
-  // So in this component we don't use any cached timestamp values to avoid these annoying bugs
-
-  // If we've timed out, parse again with the timeout flag set, to clear the buffer.
-  if (millis() - this->last_modbus_byte_ > timeout)
-    this->parse_modbus_frames_(true);
+  // Parse bytes into frames and process them
+  this->parse_modbus_frames_();
 }
 
 void ModbusClient::loop() {
@@ -53,10 +35,10 @@ void ModbusClient::loop() {
 
   //  If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
   if (this->waiting_for_response_.has_value() &&
-      millis() - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
+      this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
       (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_for_response_.value().frame[0])) {
     ESP_LOGW(TAG, "Stop waiting for response from %d %dms after last send",
-             this->waiting_for_response_.value().frame[0], millis() - this->last_send_);
+             this->waiting_for_response_.value().frame[0], this->last_receive_check_ - this->last_send_);
     if (this->waiting_for_response_.value().device)
       this->waiting_for_response_.value().device->on_modbus_no_response();
     this->waiting_for_response_.reset();
@@ -67,7 +49,24 @@ void ModbusClient::loop() {
     this->defer("send_next_frame", [this]() { this->send_next_frame_(); });
 }
 
+bool Modbus::timeout_() {
+  // If the response frame is finished (including interframe delay) - we timeout.
+  // The long_rx_buffer_delay accounts for long responses (larger than the UART rx_full_threshold) to avoid timeouts
+  // when the buffer is filling the back half of the response
+  const uint16_t timeout = std::max(
+      (uint16_t) this->frame_delay_ms_,
+      (uint16_t) (this->rx_buffer_.size() > this->parent_->get_rx_full_threshold() - 1 ? this->long_rx_buffer_delay_ms_
+                                                                                       : 0));
+
+  return this->last_receive_check_ - this->last_modbus_byte_ > timeout;
+}
+
 bool Modbus::tx_blocked() {
+  // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
+  // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
+  // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
+  // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
+  // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   const uint32_t now = millis();
 
   // We block transmission in any of these case:
@@ -91,7 +90,9 @@ bool ModbusClient::tx_blocked() {
 bool ModbusClient::tx_buffer_empty() { return this->tx_buffer_.empty(); }
 
 void Modbus::receive_bytes_() {
+  bool bytes_received = false;
   while (this->available()) {
+    bytes_received = true;
     uint8_t byte;
     this->read_byte(&byte);
     if (this->rx_buffer_.empty()) {
@@ -99,12 +100,15 @@ void Modbus::receive_bytes_() {
     } else {
       ESP_LOGVV(TAG, "Received byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
     }
-    this->last_modbus_byte_ = millis();
     this->rx_buffer_.push_back(byte);
+  }
+  this->last_receive_check_ = millis();
+  if (bytes_received) {
+    this->last_modbus_byte_ = this->last_receive_check_;
   }
 }
 
-void ModbusClient::parse_modbus_frames_(bool timeout) {
+void ModbusClient::parse_modbus_frames_() {
   if (this->rx_buffer_.size()) {
     size_t size;
     do {
@@ -112,12 +116,12 @@ void ModbusClient::parse_modbus_frames_(bool timeout) {
       if (!this->parse_modbus_server_frame_())
         this->clear_rx_buffer_("parse failed", true);
     } while (this->rx_buffer_.size() && size > this->rx_buffer_.size());
-    if (timeout)
+    if (this->timeout_())
       this->clear_rx_buffer_("timeout after partial response", true);
   }
 }
 
-void ModbusServer::parse_modbus_frames_(bool timeout) {
+void ModbusServer::parse_modbus_frames_() {
   if (this->rx_buffer_.size()) {
     size_t size;
     do {
@@ -129,7 +133,7 @@ void ModbusServer::parse_modbus_frames_(bool timeout) {
                    this->expecting_peer_response_);
           this->expecting_peer_response_ = 0;
           size++;  // force retry parse as client frame
-        } else if (timeout && size == this->rx_buffer_.size()) {
+        } else if (this->timeout_() && size == this->rx_buffer_.size()) {
           // If we timed out and the above parse attempt did not then we also stop expecting a response
           ESP_LOGV(TAG, "Stop expecting peer response from %d due to timeout after partial response, and retry parse",
                    this->expecting_peer_response_);
@@ -141,7 +145,7 @@ void ModbusServer::parse_modbus_frames_(bool timeout) {
           this->clear_rx_buffer_("parse failed", true);
       }
     } while (this->rx_buffer_.size() && size > this->rx_buffer_.size());
-    if (timeout)
+    if (this->timeout_())
       this->clear_rx_buffer_("timeout after partial response", true);
   }
 }
@@ -236,7 +240,7 @@ void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t functio
                                                 const std::vector<uint8_t> &data) {
   if (!this->waiting_for_response_.has_value()) {
     ESP_LOGW(TAG, "Received unexpected frame from address %d, function code 0x%X, %dms after last send", address,
-             function_code, millis() - this->last_send_);
+             function_code, this->last_modbus_byte_ - this->last_send_);
     return;
   } else {  // We are waiting for a response
     // Check if the response matches the expected address and function code
@@ -246,7 +250,7 @@ void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t functio
     if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
       ESP_LOGW(TAG, "Received incorrect frame address %d <> %d or function code 0x%X <> 0x%X, %dms after last send",
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
-               millis() - this->last_send_);
+               this->last_modbus_byte_ - this->last_send_);
       // Invalidate the waiting device so it won't process this response.
       this->waiting_for_response_.value().device->on_modbus_no_response();
       this->waiting_for_response_.value().device = nullptr;
@@ -257,7 +261,7 @@ void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t functio
       ESP_LOGW(
           TAG,
           "Ignoring response from %d - transmission interrupted by previous unexpected response, %dms after last send",
-          address, millis() - this->last_send_);
+          address, this->last_modbus_byte_ - this->last_send_);
       return;
     } else {  // We have a valid device waiting for this response
 
@@ -265,7 +269,7 @@ void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t functio
       if (is_function_code_exception(function_code)) {
         uint8_t exception = data[0];
         ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
-                 exception, address, millis() - this->last_send_);
+                 exception, address, this->last_modbus_byte_ - this->last_send_);
         device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
 
       } else {  // Not an error response
@@ -338,9 +342,10 @@ void Modbus::send_frame_(const std::vector<uint8_t> &data) {
     this->last_send_tx_offset_ = data.size() * 11 * 1000 / this->parent_->get_baud_rate() + 1;
   }
 
+  uint32_t now = millis();
   ESP_LOGV(TAG, "Write: %s %dms after last send, %dms after last receive", format_hex_pretty(data).c_str(),
-           millis() - this->last_send_, millis() - this->last_modbus_byte_);
-  this->last_send_ = millis();
+           now - this->last_send_, now - this->last_modbus_byte_);
+  this->last_send_ = now;
 }
 
 void ModbusClient::send_next_frame_() {
