@@ -89,5 +89,5 @@ sensor:
 
 - {{< docref "/components/sensor/pmsx003" >}}
 - {{< docref "/components/sensor/sds011" >}}
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "pmsa003i/pmsa003i.h" "pmsa003i/pmsa003i.h" >}}

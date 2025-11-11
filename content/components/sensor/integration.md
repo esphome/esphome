@@ -57,7 +57,7 @@ on_...:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "total_daily_energy/" >}}
 - {{< docref "/cookbook/power_meter" >}}
 - {{< apiref "integration/integration_sensor.h" "integration/integration_sensor.h" >}}

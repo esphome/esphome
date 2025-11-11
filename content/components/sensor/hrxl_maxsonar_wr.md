@@ -38,7 +38,7 @@ Advanced options:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - [UART Bus](/components/uart)
 - {{< docref "template/" >}}
 - {{< apiref "hrxl_maxsonar_wr/hrxl_maxsonar_wr.h" "hrxl_maxsonar_wr/hrxl_maxsonar_wr.h" >}}

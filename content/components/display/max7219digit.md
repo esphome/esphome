@@ -63,7 +63,7 @@ display:
 - **intensity** (*Optional*, int): The intensity with which the MAX7219 should drive the outputs. Range is
   from `0`, least intense to `15` the brightest. Defaults to `15`.
 
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the
   MAX7219. See [Rendering Lambda](#display-max7219digit_lambda) for more information.
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`.
@@ -104,7 +104,7 @@ The intensity of the screen can be set "dynamically" within the lambda code with
 
 ## Rendering Lambda
 
-The MAX7219 digit is based on the fully fledged [Display Rendering Engine](#display-engine), as it has a concept of individual pixels 8 X 8
+The MAX7219 digit is based on the fully fledged [Display Rendering Engine](/components/display#display-engine), as it has a concept of individual pixels 8 X 8
 per max7219 chip. In the lambda you're passed a variable called `it` as with all other displays. Some "Special"
 commands have been added to the basic display set.
 
@@ -232,8 +232,8 @@ For a quick display some additional commands are embedded in the code with a rel
 display a single character. So not very space efficient. The format of the command is: `it.printdigit("1234");` or
 `it.printdigitf("%s","1234")`  ;
 
-Please see [Formatted Text](#display-printf) for a quick introduction into the `printf` formatting rules and
-[Displaying Time](#display-strftime) for an introduction into the `strftime` time formatting.
+Please see [Formatted Text](/components/display#display-printf) for a quick introduction into the `printf` formatting rules and
+[Displaying Time](/components/display#display-strftime) for an introduction into the `strftime` time formatting.
 
 ## See Also
 

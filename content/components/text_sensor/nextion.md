@@ -36,11 +36,11 @@ text_sensor:
 - **nextion_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the Nextion display.
 - **component_name** (*Optional*, string): The name of the Nextion component.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The duration to update the sensor. If using a [Nextion Custom Text Sensor Protocol](#nextion_custom_text_sensor_protocol) this should not be used
-- **background_color** (*Optional*, [Color](#config-color)): The background color
-- **foreground_color** (*Optional*, [Color](#config-color)): The foreground color
+- **background_color** (*Optional*, [Color](/components/display#config-color)): The background color
+- **foreground_color** (*Optional*, [Color](/components/display#config-color)): The foreground color
 - **font_id** (*Optional*, int): The font id for the component
 - **visible** (*Optional*, boolean): Visible or not
-- All other options from [Text Sensor](#config-text_sensor).
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 **Only one** *component_name* **or** *variable_name* **can be set**
 
@@ -101,7 +101,7 @@ Configuration variables:
 
 ### Lambda Calls
 
-From [lambdas](#config-lambda), you can call several methods to access
+From [lambdas](/automations/templates#config-lambda), you can call several methods to access
 some more advanced functions (see the full {{< apiref "nextion/text_sensor/nextion_textsensor.h" "nextion/text_sensor/nextion_textsensor.h" >}} for more info).
 
 {{< anchor "nextion_text_sensor_set_state" >}}

@@ -178,7 +178,7 @@ binary_sensor:
   - **`deltasol_cs_plus`**: `sensor1_error`, `sensor2_error`, `sensor3_error`, `sensor4_error`.
   - **`custom`**: See below.
 
-All binary sensors are *Optional* and support all other options from [Binary Sensor](#config-binary_sensor).
+All binary sensors are *Optional* and support all other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## `custom` VBus sensors
 
@@ -205,7 +205,7 @@ sensor:
 - **command** (**Required**): The `command` corresponding to your device (see below).
 - **sensors** (**Required**): A list of [Sensor](/components/sensor) definitions that include a `lambda` to do the decoding and return a `float` value.
 
-- **lambda** (**Required**, [lambda](#config-lambda)): Code to parse a value from the incoming data packets and return it.
+- **lambda** (**Required**, [lambda](/automations/templates#config-lambda)): Code to parse a value from the incoming data packets and return it.
   The data packet is in a `std::vector<uint8_t>` called `x`.
 
 ## `custom` VBus binary sensors
@@ -215,14 +215,14 @@ sensor:
 - **dest** (**Required**): The `DFA` value corresponding to your device (see below).
 - **source** (**Required**): The address corresponding to `your device model` (see below).
 - **command** (**Required**): The `command` corresponding to your device (see below).
-- **binary_sensors** (**Required**): A list of [Binary Sensor](#config-binary_sensor) definitions that include a `lambda` to do the decoding and return a `bool` value.
+- **binary_sensors** (**Required**): A list of [Binary Sensor](/components/binary_sensor#config-binary_sensor) definitions that include a `lambda` to do the decoding and return a `bool` value.
 
-- **lambda** (**Required**, [lambda](#config-lambda)): Code to parse a value from the incoming data packets and return it.
+- **lambda** (**Required**, [lambda](/automations/templates#config-lambda)): Code to parse a value from the incoming data packets and return it.
   The data packet is in a `std::vector<uint8_t>` called `x`.
 
 To determine the correct values for the parameters above, visit [packet definitions list](http://danielwippermann.github.io/resol-vbus/#/vsf). In the search field of the **Packets** table, enter the name of your device.
 
-To extract the values with a [lambda](#config-lambda), look in the packet structure by clicking the **Bytes** link in the table. Each value is placed at an `offset` within the packet.
+To extract the values with a [lambda](/automations/templates#config-lambda), look in the packet structure by clicking the **Bytes** link in the table. Each value is placed at an `offset` within the packet.
 For `float` values, let's look at the temperature example: the value is stored as a `16`  -bit value in `2` bytes little-endian format. Since it's always the second byte containing the upper byte, it needs to be shifted by `8` bits (multiplied by `256`  ) (e.g. `0x34, 0x12 -> 0x1234`  ). The result needs to be multiplied by the factor, which is `0.1`, to obtain the correct values: `((x[1] << 8) + x[0]) * 0.1f)`. The number within the square brackets is the `[offset]`.
 For `binary` values, multiple binary values are stored within a single numeric value encoded with a bitmask. To extract the binary value all you have to do is to apply *bitwise AND* operator `&` between the value at the corresponding offset and the `mask` shown in the table.
 

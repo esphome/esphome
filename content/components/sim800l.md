@@ -80,7 +80,7 @@ binary_sensor:
 
 - **registered** (*Optional*): Indicates if the SIM800L has successfully registered in the cellular network.
 
-  - All options from [Binary Sensor](#config-binary_sensor).
+  - All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Triggers
 
@@ -89,7 +89,7 @@ binary_sensor:
 ### `on_sms_received` Trigger
 
 With this configuration option you can write complex automations whenever an SMS message
-is received. To use the message content, use a [lambda](#config-lambda)
+is received. To use the message content, use a [lambda](/automations/templates#config-lambda)
 template, the message content and the sender phone number are available inside that lambda
 under the variables named `message` and `sender` respectively.
 

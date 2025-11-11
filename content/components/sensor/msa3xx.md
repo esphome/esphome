@@ -67,7 +67,7 @@ Base Configuration:
 ## Binary Sensor
 
 Three binary sensors available for use. Internal 500 ms debounce is applied for all sensors.
-For every sensor **name** is required. All other options from [Binary Sensor](#config-binary_sensor).
+For every sensor **name** is required. All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 Shorthand notation also can be used.
 
 ```yaml
@@ -207,5 +207,5 @@ binary_sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "msa3xxx/msa3xxx.h" "msa3xxx/msa3xxx.h" >}}

@@ -160,7 +160,7 @@ Configuration variables:
 - **iaq_accuracy** (_Optional_): The information for the IAQ accuracy sensor. Shows: Stabilizing,
   Uncertain, Calibrating, Calibrated.
 
-  - All options from [TextSensor](#config-text_sensor).
+  - All options from [TextSensor](/components/text_sensor#config-text_sensor).
 
 {{< img src="bme680-bsec-ui.png" alt="Image" width="80.0%" class="align-center" >}}
 
@@ -169,7 +169,7 @@ Configuration variables:
 The following configuration shows all the available sensors and optional settings for the component. It also includes an example of filtering to guard against
 outliers, limit the number of updates sent to home assistant and reduce storage requirements in other systems such as influxdb used to store historical data.
 
-For each sensor, all other options from [Sensor](/components/sensor) and [TextSensor](#config-text_sensor) are also available for filtering, automation and so on.
+For each sensor, all other options from [Sensor](/components/sensor) and [TextSensor](/components/text_sensor#config-text_sensor) are also available for filtering, automation and so on.
 
 ```yaml
 bme680_bsec:
@@ -395,7 +395,7 @@ so that the process does not have to start from zero on device restart.
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< docref "bme680/" >}}
 - {{< apiref "bme680_bsec/bme680_bsec.h" "bme680_bsec/bme680_bsec.h" >}}

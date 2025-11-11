@@ -50,5 +50,5 @@ datasheet indicates that the sensor does not measure temperature.
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "honeywellabp/honeywellabp2.h" "honeywellabp/honeywellabp2.h" >}}

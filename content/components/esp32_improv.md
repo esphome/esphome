@@ -124,7 +124,7 @@ esp32_improv:
 
 This automation will be triggered on every state change.
 
-Two variables are available for use in [lambdas](#config-lambda) within this automation. They are:
+Two variables are available for use in [lambdas](/automations/templates#config-lambda) within this automation. They are:
 
 - `state`, an `enum` named `improv::State`, having one of the following values:
 

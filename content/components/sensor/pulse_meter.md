@@ -45,7 +45,7 @@ sensor:
 
 ## Converting units
 
-The sensor defaults to units of *pulses/min*, You can change this by using [Sensor Filters](#sensor-filters).
+The sensor defaults to units of *pulses/min*, You can change this by using [Sensor Filters](/components/sensor#sensor-filters).
 For example, if you're using the pulse meter with a photodiode to count the light pulses on a power meter that has an impulse constant of *10000 pulses / kWh*, you can use the following to output instantaneous usage in *W*:
 
 ```yaml
@@ -101,7 +101,7 @@ api:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "/components/sensor/pulse_counter" >}}
 - {{< docref "/components/sensor/total_daily_energy" >}}
 - {{< docref "/cookbook/power_meter" >}}

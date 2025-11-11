@@ -98,10 +98,10 @@ On the bus side, you need 120 Ohm termination resistors at the ends of the bus c
 
     Defaults to `U_WORD`.
 
-  - **read_lambda** (**Required**, [lambda](#config-lambda)):
+  - **read_lambda** (**Required**, [lambda](/automations/templates#config-lambda)):
     Lambda that returns the value of this register.
 
-  - **write_lambda** (*Optional*, [lambda](#config-lambda)):
+  - **write_lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
     Lambda that sets the value of this register. A variable `x` of the appropriate type (`uint16_t`, `int32_t`, etc, see above) is provided with the value,
     as well as `address` containing the address of this register. You must return `true` if the operation was successful, `false` otherwise, in which case
     a ModBUS exception code `4` will be sent to the client.
@@ -686,7 +686,7 @@ The response is mapped to the sensor based on `register_count` and offset in byt
 
 ### `on_command_sent`
 
-This automation will be triggered when a command has been sent by the `modbus_controller`. In [Lambdas](#config-lambda)
+This automation will be triggered when a command has been sent by the `modbus_controller`. In [Lambdas](/automations/templates#config-lambda)
 you can get the function code in `function_code` and the register address in `address`.
 
 ```yaml
@@ -702,7 +702,7 @@ modbus_controller:
 
 ### `on_online`
 
-This automation will be triggered when a `modbus_controller` goes `online`, after been `offline`. In [Lambdas](#config-lambda)
+This automation will be triggered when a `modbus_controller` goes `online`, after been `offline`. In [Lambdas](/automations/templates#config-lambda)
 you can get the function code in `function_code` and the register address in `address`.
 
 ```yaml
@@ -718,7 +718,7 @@ modbus_controller:
 
 ### `on_offline`
 
-This automation will be triggered when a `modbus_controller` goes `offline` (See [offline_skip_updates](#modbus_controller-offline_skip_updates)). In [Lambdas](#config-lambda)
+This automation will be triggered when a `modbus_controller` goes `offline` (See [offline_skip_updates](#modbus_controller-offline_skip_updates)). In [Lambdas](/automations/templates#config-lambda)
 you can get the function code in `function_code` and the register address in `address`.
 
 ```yaml

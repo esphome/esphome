@@ -39,12 +39,12 @@ switch:
 - **component_name** (*Optional*, string): The name of the Nextion component.
 - **variable_name** (*Optional*, string): The name of the Nextion variable. Any value over `0` is considered to be **on**
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The duration to update the sensor. If using a [Nextion Custom Switch Protocol](#nextion_custom_switch_protocol) this should not be used
-- **background_color** (*Optional*, [Color](#config-color)): The background color
-- **background_pressed_color** (*Optional*, [Color](#config-color)): The background color when pressed
-- **foreground_color** (*Optional*, [Color](#config-color)): The foreground color
-- **foreground_pressed_color** (*Optional*, [Color](#config-color)): The foreground color when pressed
+- **background_color** (*Optional*, [Color](/components/display#config-color)): The background color
+- **background_pressed_color** (*Optional*, [Color](/components/display#config-color)): The background color when pressed
+- **foreground_color** (*Optional*, [Color](/components/display#config-color)): The foreground color
+- **foreground_pressed_color** (*Optional*, [Color](/components/display#config-color)): The foreground color when pressed
 - **visible** (*Optional*, boolean): Visible or not
-- All other options from [Switch](#config-switch).
+- All other options from [Switch](/components/switch#config-switch).
 
 **Only one** *component_name* **or** *variable_name* **can be set**
 
@@ -105,7 +105,7 @@ Configuration options:
 
 ### Lambda Calls
 
-From [lambdas](#config-lambda), you can call several methods to access
+From [lambdas](/automations/templates#config-lambda), you can call several methods to access
 some more advanced functions (see the full {{< apiref "nextion/nextion_switch.h" "nextion/nextion_switch.h" >}} for more info).
 
 {{< anchor "nextion_switch_set_state" >}}

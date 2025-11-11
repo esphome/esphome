@@ -33,7 +33,7 @@ switch:
   to wait after other items in an interlock group have been disabled before re-activating.
   Useful for motors where immediately turning on in the other direction could cause problems.
 
-- All other options from [Switch](#config-switch).
+- All other options from [Switch](/components/switch#config-switch).
 
 ## Active Low Switch
 

@@ -14,7 +14,7 @@ a simple PWM interface to control the motor.
 This component works with both continuous-rotation and absolute servos and has a similar
 interface to the Arduino Servo library.
 
-First, create an [output component](#output) (here `esp8266_pwm`  ) for the pin the
+First, create an [output component](/components/output#output) (here `esp8266_pwm`  ) for the pin the
 servo is connected to. Then connect that output to the servo component by assigning an ID.
 Please note the frequency of the output should be around 50Hz, as most servo controllers
 only operate in this frequency range.
@@ -112,7 +112,7 @@ Configuration options:
   Range is from -100% to 100% (-1.0 to 1.0).
 
 > [!NOTE]
-> This action can also be expressed as a [lambda](#config-lambda):
+> This action can also be expressed as a [lambda](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(my_servo).write(1.0);
@@ -132,7 +132,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed as a [lambda](#config-lambda):
+> This action can also be expressed as a [lambda](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(my_servo).detach();
@@ -143,7 +143,7 @@ on_...:
 ## Home Assistant Configuration
 
 The easiest way to control your servo from Home Assistant is to add a `number` to your ESPHome
-configuration. See [Number](#config-number) for more information.
+configuration. See [Number](/components/number#config-number) for more information.
 
 ```yaml
 number:

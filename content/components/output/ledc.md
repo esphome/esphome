@@ -20,7 +20,7 @@ bit depth which means the output is not that accurate for frequencies above ~300
 - **frequency** (*Optional*, float): At which frequency to run the LEDC
   channel's timer. Defaults to 1000Hz.
 
-- All other options from [Output](#config-output).
+- All other options from [Output](/components/output#config-output).
 
 Advanced options:
 

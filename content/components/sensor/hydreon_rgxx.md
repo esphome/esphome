@@ -99,7 +99,7 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "../binary_sensor/hydreon_rgxx" >}}
 
 - [Hydreon RG-9](https://rainsensors.com/products/rg-9/)

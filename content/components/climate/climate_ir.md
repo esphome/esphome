@@ -70,7 +70,7 @@ climate:
 - **receiver_id** (*Optional*, [ID](/guides/configuration-types#id)): The id of the remote_receiver if this platform supports
   receiver. see: [Using a Receiver](#ir-receiver_id).
 
-- All other options from [Climate](#config-climate).
+- All other options from [Climate](/components/climate#config-climate).
 
 ### Advanced Options
 
@@ -167,7 +167,7 @@ climate:
 
 > [!NOTE]
 >
-> - See [Transmit Midea](#remote_transmitter-transmit_midea) to send custom commands, including Follow Me mode.
+> - See [Transmit Midea](/components/remote_transmitter#remote_transmitter-transmit_midea) to send custom commands, including Follow Me mode.
 > - See [Toshiba](#toshiba) below if you are looking for compatibility with Midea model MAP14HS1TBL or similar.
 
 {{< anchor "mitsubishi" >}}

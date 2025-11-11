@@ -43,7 +43,7 @@ light:
 
 - **is_rgbw** (*Optional*, boolean): Set to `true` if the strip is RGBW. Defaults to `false`.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 ### Manual Timings
 

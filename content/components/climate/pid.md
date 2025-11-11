@@ -57,11 +57,11 @@ climate:
 - **default_target_temperature** (**Required**, float): The default target temperature (setpoint)
   for the control algorithm. This can be dynamically set in the frontend later.
 
-- **heat_output** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [float output](#config-output)
+- **heat_output** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [float output](/components/output#config-output)
   that increases the current temperature. At least one of `heat_output` and `cool_output` must
   be specified.
 
-- **cool_output** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [float output](#config-output)
+- **cool_output** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [float output](/components/output#config-output)
   that decreases the current temperature. At least one of `heat_output` and `cool_output` must
   be specified.
 
@@ -112,7 +112,7 @@ climate:
     reached a state of equilibrium, so it advantageous to use a higher number of output samples
     like 10-30 samples. Defaults to `1` which is no sampling/averaging.
 
-- All other options from [Climate](#config-climate).
+- All other options from [Climate](/components/climate#config-climate).
 
 {{< anchor "pid-setup" >}}
 
@@ -121,7 +121,7 @@ climate:
 To set up a PID climate controller, you need a couple of components:
 
 - A [Sensor](/components/sensor) to read the current temperature (`sensor`  ).
-- At least one [float output](#config-output) to drive for heating or cooling (or both).
+- At least one [float output](/components/output#config-output) to drive for heating or cooling (or both).
   This could for example be a PWM output via {{< docref "/components/output/sigma_delta_output" >}} or {{< docref "/components/output/slow_pwm" >}} that drives a heating unit.
 
   Please note the output *must* be controllable with continuous value (not only ON/OFF, but any state

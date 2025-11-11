@@ -14,6 +14,6 @@ time:
 
 ## Configuration variables
 
-- All options from [Base Time Configuration](#base_time_config).
+- All options from [Base Time Configuration](/components/time#base_time_config).
 
 ## See Also

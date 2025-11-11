@@ -44,7 +44,7 @@ Possible return values for the optional lambda:
 
 ## Configuration variables
 
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated repeatedly to get the current state of the lock.
 
 - **lock_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
@@ -61,7 +61,7 @@ Possible return values for the optional lambda:
   This will make the Home Assistant frontend show buttons for both LOCK and UNLOCK actions, instead
   of hiding one of them when the lock is LOCKED/UNLOCKED. Defaults to `false`.
 
-- All other options from [Lock](#config-lock).
+- All other options from [Lock](/components/lock#config-lock).
 
 {{< anchor "lock-template-publish_action" >}}
 

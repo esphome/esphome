@@ -139,7 +139,7 @@ text_sensor:
 ### Configuration variables
 
 - **status** (*Optional*): The BMS Status (Charging, Discharging, Stationary).
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Binary Sensor
 
@@ -157,10 +157,10 @@ binary_sensor:
 ### Configuration variables
 
 - **charging_mos_enabled** (*Optional*): The BMS charging MOS status to enable the recharge of the battery.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 - **discharging_mos_enabled** (*Optional*): The BMS discharging mos status to enable the load.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Control BMS
 
@@ -305,5 +305,5 @@ uart:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "daly_bms/daly_bms.h" "daly_bms/daly_bms.h" >}}

@@ -26,10 +26,10 @@ bkcmd=0       // Tells the Nextion to not send responses on commands. This is th
 ```
 
 This permits faster communication with the Nextion display and it is highly recommended when using
-[Hardware UARTs](#uart-hardware_uarts).
+[Hardware UARTs](/components/uart#uart-hardware_uarts).
 
 > [!WARNING]
-> **We highly recommend using only** [Hardware UARTs](#uart-hardware_uarts) **with Nextion displays.**
+> **We highly recommend using only** [Hardware UARTs](/components/uart#uart-hardware_uarts) **with Nextion displays.**
 >
 > *Use of software UARTs is known to result in unpredictable/inconsistent behavior.*
 >
@@ -53,7 +53,7 @@ display:
   when you have multiple UART configurations.
 
 - **brightness** (*Optional*, percentage): When specified, the display brightness will be set to this value at boot.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the Nextion
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the Nextion
   display. See [Rendering Lambda](#display-nextion_lambda) for more information. This is typically empty. The individual components
   for the Nextion will handle almost all functions needed for updating display elements.
 
@@ -135,12 +135,12 @@ display:
 > Although you can use the rendering lambda, most, if not all, updates to the Nextion can be handled by the
 > individual Nextion components/platforms. **See Below**
 
-See [Formatted Text](#display-printf) for a quick introduction to the `printf` formatting rules and [Displaying Time](#display-strftime) for
+See [Formatted Text](/components/display#display-printf) for a quick introduction to the `printf` formatting rules and [Displaying Time](/components/display#display-strftime) for
 an introduction to `strftime` time formatting.
 
 ### Using Lambdas
 
-Several methods are available for use within [lambdas](#config-lambda); these permit advanced functionality beyond
+Several methods are available for use within [lambdas](/automations/templates#config-lambda); these permit advanced functionality beyond
 simple display updates. There are too many to cover here; please see the {{< apiref "nextion/nextion.h" "nextion/nextion.h" >}} for more detail.
 The list below calls out a few commonly-used methods:
 
@@ -215,7 +215,7 @@ The list below calls out a few commonly-used methods:
 
 ### Triggers
 
-Several [Triggers](#actions-trigger) are available for use with your Nextion display.
+Several [Triggers](/automations/actions#actions-trigger) are available for use with your Nextion display.
 
 {{< anchor "nextion-on_setup" >}}
 
@@ -275,7 +275,7 @@ integer which indicates the current page ID number.
 
 Given the page ID, the appropriate components can be updated. Two strategies are be possible:
 
-- Use [Nextion Sensors](#nextion_sensor) for every UI field and use one of the
+- Use [Nextion Sensors](/components/sensor/nextion#nextion_sensor) for every UI field and use one of the
   [update functions](#nextion_update_all_components).
 
 - Manually set component text or value for each field:
@@ -342,7 +342,7 @@ on_buffer_overflow:
 
 #### `display.nextion.set_brightness`
 
-You can use this [action](#actions-action) to set the brightness of the Nextion's backlight.
+You can use this [action](/automations/actions#actions-action) to set the brightness of the Nextion's backlight.
 
 ```yaml
 on_...:
@@ -375,7 +375,7 @@ logging or other {{< docref "/automations/index" "automations" >}} will occur. T
 > update process failing.*
 >
 > If you experience problems with the update process and are using a software UART (for example, on the ESP8266), you
-> should switch to an ESP32 or supported variant which has more available [Hardware UARTs](#uart-hardware_uarts).
+> should switch to an ESP32 or supported variant which has more available [Hardware UARTs](/components/uart#uart-hardware_uarts).
 
 You can use Home Assistant itself or any other web server to host the TFT file. When using HTTPS (generally
 recommended), you may notice reduced upload speeds as the encryption consumes more resources on the microcontroller.

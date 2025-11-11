@@ -8,7 +8,7 @@ params:
 ---
 
 The `template` number platform allows you to create a number with templated values
-using [lambdas](#config-lambda).
+using [lambdas](/automations/templates#config-lambda).
 
 ```yaml
 # Example configuration entry
@@ -26,7 +26,7 @@ number:
 - **min_value** (**Required**, float): The minimum value this number can be.
 - **max_value** (**Required**, float): The maximum value this number can be.
 - **step** (**Required**, float): The granularity with which the number can be set.
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated every update interval to get the current value of the number.
 
 - **set_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
@@ -47,12 +47,12 @@ number:
   restored with `restore_value`.
   Cannot be used with `lambda`. Defaults to `min_value`.
 
-- All other options from [Number](#config-number).
+- All other options from [Number](/components/number#config-number).
 
 ## `number.set` Action
 
 You can also set the number for the template number from elsewhere in your YAML file
-with the [`number.set` Action](#number-set_action).
+with the [`number.set` Action](/components/number#number-set_action).
 
 ## See Also
 

@@ -19,7 +19,7 @@ button:
 
 ## Configuration variables
 
-- All options from [Button](#config-button).
+- All options from [Button](/components/button#config-button).
 
 ## See Also
 

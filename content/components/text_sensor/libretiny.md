@@ -21,7 +21,7 @@ text_sensor:
 ## Configuration variables
 
 - **version** (*Optional*): Expose the version of LibreTiny core as a text sensor. All options from
-  [Text Sensor](#config-text_sensor).
+  [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## See Also
 

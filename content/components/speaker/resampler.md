@@ -37,7 +37,7 @@ speaker:
 - **filters** (*Optional*, positive integer): The number of windowed sinc interpolation filters to use. Must be between `2` and `1024`. Defaults to `16`.
 - **taps** (*Optional*, positive integer): The number of taps per windowed sinc interpolation filter. Must between `16` and `128` and divisible by 4. Defaults to `16`.
 - **task_stack_in_psram** (*Optional*, boolean): Only with `esp-idf`. Run the audio tasks in external memory. Defaults to `false`.
-- All other options from [Speaker Component](#config-speaker).
+- All other options from [Speaker Component](/components/speaker#config-speaker).
 
 ## Improving quality
 

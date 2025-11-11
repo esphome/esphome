@@ -199,7 +199,7 @@ These are triggered when the climate control **action** is changed by the thermo
   `fan_only_mode`  ; however, when `fan_only_cooling` is set to `true`, this action is called
   based on the upper target temperature (similar to `cool_action` above).
 
-- All other options from [Climate](#config-climate).
+- All other options from [Climate](/components/climate#config-climate).
 
 **At least one of** `cool_action`, `fan_only_action`, `heat_action`, **and** `dry_action`
 **must be specified.**
@@ -338,7 +338,7 @@ experience and automation.
   - **name** (**Required**, string): Name of the preset. If this is one of the *standard* presets (`eco`, `away`,
     `boost`, `comfort`, `home`, `sleep`, or `activity`  ) it is considered a *standard* preset. Any other
     string will make the preset a *custom* preset. *Standard* and *custom* presets are functionally equivalent,
-    the only difference is that when switching the mode via [climate.control Action](#climate-control_action)
+    the only difference is that when switching the mode via [climate.control Action](/components/climate#climate-control_action)
     you will need to use the `preset` or `custom_preset` property as appropriate. The Home Assistant
     `climate.set_preset_mode` service treats them identically
 

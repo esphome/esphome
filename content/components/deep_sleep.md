@@ -49,7 +49,7 @@ deep_sleep:
 
 - **sleep_duration** (*Optional*, [Time](/guides/configuration-types#time)): The time duration to stay in deep sleep mode.
 - **touch_wakeup** (*Optional*, boolean): Only on ESP32. Use a touch event to wakeup from deep sleep. To be able
-  to wakeup from a touch event, [Binary Sensor](#esp32-touch-binary-sensor) must be configured properly.
+  to wakeup from a touch event, [Binary Sensor](/components/binary_sensor/esp32_touch#esp32-touch-binary-sensor) must be configured properly.
 
 - **wakeup_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): Only on ESP32. A pin to wake up to once
   in deep sleep mode. Use the inverted property to wake up to LOW signals.

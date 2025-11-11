@@ -97,7 +97,7 @@ The integer members for the touch positions below are in relation to the display
 ## Calibration
 
 For most touchscreen drivers the dimensions of the touchscreen are automatically set from the display driver to match the screen size.
-In some cases such as the [XPT2046](#xpt2046-component) (a resistive touch screen) the reported values bear no relation to the actual screen size.
+In some cases such as the [XPT2046](/components/touchscreen/xpt2046#xpt2046-component) (a resistive touch screen) the reported values bear no relation to the actual screen size.
 The `calibration` configuration can be used to manually calibrate the touchscreen.
 
 To match the point of the touch to the display coordinates the touch screen has to be calibrated.
@@ -106,7 +106,7 @@ as the `x_raw` and `y_raw` member variables. The goal of the calibration is to i
 to the edges of the screen.
 
 The calibration assumes a display oriented in a way that you will be using it, i.e. your
-[Display Rendering Engine](#display-engine) component has to have the [0,0] logical coordinate at the top left.
+[Display Rendering Engine](/components/display#display-engine) component has to have the [0,0] logical coordinate at the top left.
 
 ```yaml
 # Touchscreen
@@ -283,11 +283,11 @@ binary_sensor:
   area for touch buttons. To allow the sensor to register touches outside the display area set this to `true`.
   The calibration values as above should be set to the display bounds.
 
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## See Also
 
-- [Binary Sensor Filters](#binary_sensor-filters)
+- [Binary Sensor Filters](/components/binary_sensor#binary_sensor-filters)
 - {{< docref "/components/display/inkplate" "Inkplate 6 Plus" >}}
 - {{< docref "/components/touchscreen/ektf2232" "EKTF2232" >}}
 - {{< docref "/components/touchscreen/xpt2046" "XPT2046" >}}

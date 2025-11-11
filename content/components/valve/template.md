@@ -40,7 +40,7 @@ Possible return values for the optional lambda:
 
 ## Configuration variables
 
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated repeatedly to get the current state of the valve.
 
 - **open_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should be performed when the remote
@@ -71,7 +71,7 @@ Possible return values for the optional lambda:
   (like Home Assistant's frontend) requests the valve be set to a specific position. The desired position is available
   in the lambda in the `pos` variable. Requires `has_position` (above) to be set to `true`.
 
-- All other options from [Valve](#config-valve).
+- All other options from [Valve](/components/valve#config-valve).
 
 {{< anchor "valve-template-publish_action" >}}
 

@@ -50,9 +50,9 @@ but can be overridden if needed.
 
 - **reset_duration** (*Optional*, [Time](/guides/configuration-types#time)): Duration for the display reset operation. Defaults to `200ms`.
 
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
-  See [Display Rendering Engine](#display-engine) for more information.
-- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
+  See [Display Rendering Engine](/components/display#display-engine) for more information.
+- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](/components/display#display-pages).
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `60s`,
   use `never` to only manually update the screen via `component.update`.
@@ -64,4 +64,4 @@ but can be overridden if needed.
 
 - {{< docref "index/" >}}
 - {{< apiref "epaper_spi/epaper_spi.h" "epaper_spi/epaper_spi.h" >}}
-- [ESPHome Display Rendering Engine](#display-engine)
+- [ESPHome Display Rendering Engine](/components/display#display-engine)

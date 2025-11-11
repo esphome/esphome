@@ -18,7 +18,7 @@ The source sensor states can be combined in several ways:
 
 - `KALMAN` filter: This type filters one or several
   sensors into one with a reduced error. If using a single sensor as data source,
-  it acts like a [sensor-filter-exponential_moving_average](#sensor-filter-exponential_moving_average) filter. With
+  it acts like a [sensor-filter-exponential_moving_average](/components/sensor/filter/sliding_window_moving_average#sensor-filter-exponential_moving_average) filter. With
   multiple sensors, it combines their values based on their respective standard
   deviation.
 
@@ -103,5 +103,5 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "combination/combination.h" "combination/combination.h" >}}

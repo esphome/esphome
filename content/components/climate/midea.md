@@ -97,7 +97,7 @@ climate:
   sensor (experimental).
 
   - All options from [Sensor](/components/sensor).
-- All other options from [Climate](#config-climate).
+- All other options from [Climate](/components/climate#config-climate).
 
 ## Automations
 

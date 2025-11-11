@@ -10,7 +10,7 @@ params:
 The `status_led` light platform allows to share a single LED for indicating the status of
 the device (when on error/warning state) or as binary light (when on OK state).
 This is useful for devices with only one LED available.
-You can also use a binary [Output Component](#output).
+You can also use a binary [Output Component](/components/output#output).
 
 It provides the combined functionality of {{< docref "/components/status_led" "status_led component" >}} and a
 {{< docref "/components/light/binary" "binary light component" >}} over a single shared GPIO led.
@@ -35,8 +35,8 @@ light:
 ## Configuration variables
 
 - **pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The GPIO pin to operate the LED on.
-- **output** (*Optional*, [ID](/guides/configuration-types#id)): The id of the binary [Output Component](#output) to use for this light.
-- All other options from [Light](#config-light).
+- **output** (*Optional*, [ID](/guides/configuration-types#id)): The id of the binary [Output Component](/components/output#output) to use for this light.
+- All other options from [Light](/components/light#config-light).
 
 > [!NOTE]
 > If your Status LED is in an active-LOW mode (such as with the D1 Mini ESP8266 boards), use the

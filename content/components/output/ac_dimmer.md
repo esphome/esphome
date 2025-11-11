@@ -63,7 +63,7 @@ light:
   levels. On Halogen lamps it might show at initial flicker. Defaults to `false`.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
-- All other options from [Output](#config-output).
+- All other options from [Output](/components/output#config-output).
 
 Dimming lights with phase control can be tricky, the minimum level your light turns on
 might be different from other lights, also the perceived light level might not correlate

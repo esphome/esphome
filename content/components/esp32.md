@@ -230,7 +230,7 @@ esp32:
 ## IDF Components
 
 The `components` option allows you to include IDF components. These components will then be compiled into the resulting
-firmware and may be used by [lambdas](#config-lambda). The most common usage of this option is to include third-party
+firmware and may be used by [lambdas](/automations/templates#config-lambda). The most common usage of this option is to include third-party
 components that are available in the [ESP Component Registry](https://components.espressif.com/). They can be added by
 listing their name under this option. It is also possible to use specific versions, or to fetch components from a file or
 git repository.

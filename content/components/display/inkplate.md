@@ -82,11 +82,11 @@ display:
   - **flip_y** (*Optional*, boolean): Flip the screen on the Y axis. Defaults to `false`
   - **flip_x** (*Optional*, boolean): Flip the screen on the X axis. Defaults to `false`
 
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
-  See [Display Rendering Engine](#display-engine) for more information.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
+  See [Display Rendering Engine](/components/display#display-engine) for more information.
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `5s`.
-- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
+- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](/components/display#display-pages).
 
 - **ckv_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The CKV pin for the Inkplate display.
 - **gmod_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The GMOD pin for the Inkplate display.

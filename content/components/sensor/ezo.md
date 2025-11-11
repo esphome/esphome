@@ -65,7 +65,7 @@ Automation triggers:
 
 ## Lambda calls
 
-From [lambdas](#config-lambda), you can interact with the sensor in various ways. For any `get` command a trigger will be called
+From [lambdas](/automations/templates#config-lambda), you can interact with the sensor in various ways. For any `get` command a trigger will be called
 with the information retrieved from the sensor. For more information on the command specifics, refer to the datasheet.
 
 - `set_i2c(uint8_t address)`  : Set I2C address of the device, must be an integer between 1 and 127
@@ -173,5 +173,5 @@ with the information retrieved from the sensor. For more information on the comm
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "ezo/ezo.h" "ezo/ezo.h" >}}

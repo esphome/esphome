@@ -105,14 +105,14 @@ light:
   - **single_light_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of a single addressable or non-addressable light.
     If an addressable light is specified, it will be treated as a single light in the partition.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 > [!NOTE]
 > Do *not* use this platform to control each LED on your addressable light - the light
 > objects have a moderate overhead and if you try to create many lights you will run out
 > of memory quickly.
 >
-> See [`light.addressable_set` Action](#light-addressable_set_action) for that.
+> See [`light.addressable_set` Action](/components/light#light-addressable_set_action) for that.
 
 ## See Also
 

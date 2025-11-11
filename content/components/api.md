@@ -162,7 +162,7 @@ on_...:
   This is evaluated on the Home Assistant side with Home Assistant's templating engine.
 
 - **variables** (*Optional*, mapping): Optional variables that can be used in the `data_template`.
-  Values are [lambdas](#config-lambda) and will be evaluated before sending the request.
+  Values are [lambdas](/automations/templates#config-lambda) and will be evaluated before sending the request.
 
 {{< anchor "api-homeassistant_action-action" >}}
 
@@ -204,7 +204,7 @@ on_...:
   This is evaluated on the Home Assistant side with Home Assistant's templating engine.
 
 - **variables** (*Optional*, mapping): Optional variables that can be used in the `data_template`.
-  Values are [lambdas](#config-lambda) and will be evaluated before sending the request.
+  Values are [lambdas](/automations/templates#config-lambda) and will be evaluated before sending the request.
 
 - **capture_response** (*Optional*, boolean): Enable capturing the response from the Home Assistant action call.
   When enabled, `on_success` must be configured. Defaults to `false`.

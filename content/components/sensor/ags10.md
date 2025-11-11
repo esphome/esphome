@@ -106,5 +106,5 @@ Configuration options:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "ags10/ags10.h" "ags10/ags10.h" >}}

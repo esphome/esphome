@@ -33,7 +33,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the datetime. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
 > you want the datetime to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the datetime in the frontend.
@@ -53,11 +53,11 @@ Configuration variables:
 - **time_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the time entity. Automatically set
   to the ID of a time component if only a single one is defined. Required if `on_time` is used.
 
-- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
+- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
 MQTT Options:
 
-- All other options from [MQTT Component](#config-mqtt-component).
+- All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
 Time and DateTime Options:
 
@@ -72,7 +72,7 @@ You can access the most recent state as a `ESPTime` object by `id(datetime_id).s
 
 ### `on_value`
 
-This automation will be triggered when a new value is published. In [Lambdas](#config-lambda)
+This automation will be triggered when a new value is published. In [Lambdas](/automations/templates#config-lambda)
 you can get the value as a ESPTime object from the trigger with `x`.
 
 ```yaml
@@ -132,7 +132,7 @@ Configuration variables:
 
 ### lambda calls
 
-From [lambdas](#config-lambda), you can call several methods on all datetimes to do some
+From [lambdas](/automations/templates#config-lambda), you can call several methods on all datetimes to do some
 advanced stuff (see the full API Reference for more info).
 
 - `.make_call()`  : Make a call for updating the datetime value.
@@ -198,7 +198,7 @@ Configuration variables:
 
 ### lambda calls
 
-From [lambdas](#config-lambda), you can call several methods on all datetimes to do some
+From [lambdas](/automations/templates#config-lambda), you can call several methods on all datetimes to do some
 advanced stuff (see the full API Reference for more info).
 
 - `.make_call()`  : Make a call for updating the datetime value.
@@ -267,7 +267,7 @@ Configuration variables:
 
 ### Lambda calls
 
-For more complex use cases, several methods are available for use on datetimes from within [lambdas](#config-lambda). See the full API Reference for more information.
+For more complex use cases, several methods are available for use on datetimes from within [lambdas](/automations/templates#config-lambda). See the full API Reference for more information.
 
 - `.make_call()`  : Make a call for updating the datetime value.
 

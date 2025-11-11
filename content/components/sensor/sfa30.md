@@ -45,6 +45,6 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< apiref "sfa30/sfa30.h" "sfa30/sfa30.h" >}}

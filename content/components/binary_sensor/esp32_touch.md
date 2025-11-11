@@ -151,10 +151,10 @@ binary_sensor:
 
 - **wakeup_threshold** (*Optional*, `int`  ): The threshold to use to detect touch events to wake-up from deep sleep.
    See [Finding Thresholds](#esp32-finding-thresholds) below for help determining this value. Touch pad sensors that should trigger a
-   wake-up from deep sleep must specify this value. The [Deep Sleep Component](#deep_sleep-component) must also be configured to enable
+   wake-up from deep sleep must specify this value. The [Deep Sleep Component](/components/deep_sleep#deep_sleep-component) must also be configured to enable
    wake-up from a touch event. Note that no filter(s) is/are active during deep sleep.
 
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Raw Values
 

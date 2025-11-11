@@ -15,7 +15,7 @@ The component is split into two parts:
 - The remote transmitter "hub", which defines the pin and a few additional settings, and...
 - Individual [actions](/automations/actions#all-actions) to send encoded remote signals.
 
-**See** [Setting up IR Devices](#remote-setting-up-infrared) **and** [Setting up RF Devices](#remote-setting-up-rf) **for details.**
+**See** [Setting up IR Devices](/guides/setting_up_rmt_devices#remote-setting-up-infrared) **and** [Setting up RF Devices](/guides/setting_up_rmt_devices#remote-setting-up-rf) **for details.**
 
 > [!NOTE]
 > This component performs best with an ESP32 or variant; they have a dedicated hardware peripheral which ensures
@@ -108,7 +108,7 @@ on_...:
 
   - **times** ([templatable](/automations/templates), int): The number of times to repeat the code.
   - **wait_time** ([templatable](/automations/templates), [Time](/guides/configuration-types#time)): The time to wait between repeats (in
-    µs as a result of a [lambda](#config-lambda)).
+    µs as a result of a [lambda](/automations/templates#config-lambda)).
 
 - **transmitter_id** (*Optional*, [ID](/guides/configuration-types#id)): The remote transmitter to send the remote code with. Defaults to
   the first one defined in the configuration.
@@ -1105,7 +1105,7 @@ All RC Switch `protocol` settings have these settings:
 
 ### Lambda calls
 
-Actions may also be called from [lambdas](#config-lambda). The `.transmit()` call can be populated with
+Actions may also be called from [lambdas](/automations/templates#config-lambda). The `.transmit()` call can be populated with
 encoded data for a specific protocol by following the example below.
 See the full API Reference for more info.
 
@@ -1124,9 +1124,9 @@ See the full API Reference for more info.
 
 - {{< docref "index/" >}}
 - {{< docref "/components/remote_receiver" >}}
-- [Setting up IR Devices](#remote-setting-up-infrared)
-- [Setting up RF Devices](#remote-setting-up-rf)
+- [Setting up IR Devices](/guides/setting_up_rmt_devices#remote-setting-up-infrared)
+- [Setting up RF Devices](/guides/setting_up_rmt_devices#remote-setting-up-rf)
 - {{< docref "/components/rf_bridge" >}}
-- [Delaying Remote Transmissions](#lambda_magic_rf_queues)
+- [Delaying Remote Transmissions](/cookbook/lambda_magic#lambda_magic_rf_queues)
 - [RCSwitch](https://github.com/sui77/rc-switch) by [Suat Özgür](https://github.com/sui77)
 - {{< apiref "remote_transmitter/remote_transmitter.h" "remote_transmitter/remote_transmitter.h" >}}

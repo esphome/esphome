@@ -58,7 +58,7 @@ Disable all esphome logs.
 Defines or overrides substitution KEY with value VALUE.
 
 {{< /option >}}
-Please see [command line substitutions](#command-line-substitutions) for details.
+Please see [command line substitutions](/components/substitutions#command-line-substitutions) for details.
 
 ## Commands
 
@@ -173,7 +173,7 @@ Specify the host port to use for legacy Over the Air uploads.
 ### `clean-mqtt` Command
 
 The `esphome clean-mqtt <CONFIG>` cleans retained MQTT discovery messages from the MQTT broker.
-See [Using with Home Assistant MQTT entities](#mqtt-using_with_home_assistant_entities).
+See [Using with Home Assistant MQTT entities](/components/mqtt#mqtt-using_with_home_assistant_entities).
 
 #### Options
 
@@ -201,7 +201,7 @@ The `esphome wizard <CONFIG>` command starts the ESPHome configuration creation 
 ### `mqtt-fingerprint` Command
 
 The `esphome mqtt-fingerprint <CONFIG>` command shows the MQTT SSL fingerprints of the remote used
-for SSL MQTT connections. See [SSL Fingerprints](#mqtt-ssl_fingerprints).
+for SSL MQTT connections. See [SSL Fingerprints](/components/mqtt#mqtt-ssl_fingerprints).
 
 ### `version` Command
 

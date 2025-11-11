@@ -63,7 +63,7 @@ select:
 - **optimistic** (*Optional*, boolean): Whether to operate in optimistic mode - when in this mode,
   any command sent to the Select will immediately update the reported state.
 
-- All other options from [Select](#config-select).
+- All other options from [Select](/components/select#config-select).
 
 ## See Also
 

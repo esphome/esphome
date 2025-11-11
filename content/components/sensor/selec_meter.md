@@ -13,7 +13,7 @@ with ESPHome.
 
 {{< img src="selec_meter_em2m.jpg" alt="Image" caption="Selec EM2M Energy Monitor." width="50.0%" class="align-center" >}}
 
-The communication with this component is done via a [UART](/components/uart) using [Modbus](#modbus).
+The communication with this component is done via a [UART](/components/uart) using [Modbus](/components/modbus#modbus).
 You must therefore have a `uart:` entry in your configuration with both the TX and RX pins set
 to some pins on your board and the baud rate set to 9600.
 
@@ -124,4 +124,4 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)

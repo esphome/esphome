@@ -90,7 +90,7 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "hlw8012/" >}}
 - {{< docref "cse7766/" >}}
 - {{< docref "integration/" >}}

@@ -76,5 +76,5 @@ determined would be wise.
 ## See Also
 
 - [esphome-pressure device](https://github.com/gcormier/esphome-pressure/)
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "xgzp6xx/xgzp6xx.h" "xgzp6xx/xgzp6xx.h" >}}

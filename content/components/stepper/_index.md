@@ -279,7 +279,7 @@ Configuration variables:
 ## Home Assistant Configuration
 
 The easiest way to control your stepper from Home Assistant is to add a `number` to your ESPHome
-configuration. See [Number](#config-number) for more information.
+configuration. See [Number](/components/number#config-number) for more information.
 
 ```yaml
 number:
@@ -304,7 +304,7 @@ stepper:
 
 ## lambda calls
 
-From [lambdas](#config-lambda), you can call several methods on stepper motors to do some
+From [lambdas](/automations/templates#config-lambda), you can call several methods on stepper motors to do some
 advanced stuff (see the full API Reference for more info).
 
 - `set_target`  : Set the target position of the motor as an integer.

@@ -62,7 +62,7 @@ sensor:
   - `low_power_periodic`  : The sensor takes a new measurement every 30 seconds. Make sure `update_interval` is at least 30 seconds.
   - `single_shot`  : A measurement is started in every update interval. A measurement takes 5 seconds. This mode is only available on scd41 and useful if low power consumption is required.
     The automatic self-calibration is optimized for single shot measurements performed every 5 minutes.
-    To reduce noise levels, you can can perform several single shot measurements in a row and average the output values using a [Sensor Filters](#sensor-filters).
+    To reduce noise levels, you can can perform several single shot measurements in a row and average the output values using a [Sensor Filters](/components/sensor#sensor-filters).
 
   - `single_shot_rht_only`  : A measurement is started in every update interval. A measurement takes 50 ms. Only humidity and temperature is measured. CO2 is reported as 0 ppm. This mode is only available on scd41 and useful if low power consumption is required.
 
@@ -123,7 +123,7 @@ on_...:
 
 ## Pressure compensation
 
-A static ambient pressure value can be set with `ambient_pressure_compensation` or `altitude_compensation`. It can also be changed dynamically with [lambdas](#config-lambda) using `set_ambient_pressure_compensation(<mBar>)`, or by pointing `ambient_pressure_compensation_source` to a local pressure sensor.
+A static ambient pressure value can be set with `ambient_pressure_compensation` or `altitude_compensation`. It can also be changed dynamically with [lambdas](/automations/templates#config-lambda) using `set_ambient_pressure_compensation(<mBar>)`, or by pointing `ambient_pressure_compensation_source` to a local pressure sensor.
 
 ### Example with a local sensor
 
@@ -168,7 +168,7 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< docref "scd30/" >}}
 - {{< apiref "scd4x/scd4x.h" "scd4x/scd4x.h" >}}

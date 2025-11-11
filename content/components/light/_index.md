@@ -32,7 +32,7 @@ light:
 - **name** (*Optional*, string): The name of the light. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and you want the light
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and you want the light
 > to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the light in the frontend.
@@ -90,8 +90,8 @@ light:
 - **entity_category** (*Optional*, string): The category of the entity. See [this list](https://developers.home-assistant.io/docs/core/entity/#generic-properties) for a list of available options. Set
   to `""` to remove the default entity category.
 
-- If MQTT enabled, all other options from [MQTT Component](#config-mqtt-component).
-- If Webserver enabled and [version 3](#config-webserver-version-3-options) is selected, all other options from
+- If MQTT enabled, all other options from [MQTT Component](/components/mqtt#config-mqtt-component).
+- If Webserver enabled and [version 3](/components/web_server#config-webserver-version-3-options) is selected, all other options from
   {{< docref "/components/web_server" >}}.
 
 {{< anchor "light-state_config" >}}
@@ -176,7 +176,7 @@ on_...:
   transition if the light supports it.
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(light_1).toggle();
@@ -224,7 +224,7 @@ on_...:
 - All other options from [light state](#light-state_config).
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(light_1).turn_on();
@@ -286,7 +286,7 @@ on_...:
   transition if the light supports it.
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(light_1).turn_off();
@@ -642,7 +642,7 @@ light:
 
 ### Lambda Effect
 
-This effect allows you to write completely custom light effects yourself using [lambdas](#config-lambda).
+This effect allows you to write completely custom light effects yourself using [lambdas](/automations/templates#config-lambda).
 
 Available variable in the lambda:
 
@@ -683,7 +683,7 @@ light:
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval with which the lambda code is executed. A value of
   `0ms` means that the lambda is always executed, without a cool-down. Defaults to `0ms`.
 
-- **lambda** (**Required**, [lambda](#config-lambda)): The code to execute. `static` variables are especially
+- **lambda** (**Required**, [lambda](/automations/templates#config-lambda)): The code to execute. `static` variables are especially
   useful.
 
 ### Addressable Rainbow Effect

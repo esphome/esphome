@@ -103,7 +103,7 @@ cover:
   be performed when relay malfunction is detected. Malfunction may require device servicing. You can use this action
   to notify other systems about this situation
 
-- All other options from [Cover](#config-cover).
+- All other options from [Cover](/components/cover#config-cover).
 
 ## Use with Shelly 2.5
 

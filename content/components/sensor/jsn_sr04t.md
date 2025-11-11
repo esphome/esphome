@@ -32,7 +32,7 @@ Configure the AJ_SR04M for mode 2:
 {{< img src="jsn-sr04t-v3-mode-select-pads.jpg" alt="Image" caption="JSN-SR04T Waterproof Ultrasonic Range Finder Mode Select Pads." width="50.0%" class="align-center" >}}
 
 In mode 1 the module continuously takes measurements approximately every 100mS and outputs the distance on the TX pin at 9600 baud.
-In this mode [Sensor Filters](#sensor-filters) are highly recommended.
+In this mode [Sensor Filters](/components/sensor#sensor-filters) are highly recommended.
 
 In mode 2 the module takes a measurement only when a trigger command of 0x55 is sent to the RX pin on the module.
 The module then outputs the distance on its TX pin. The frequency of the measurements can be set with the **update_interval** option.
@@ -63,5 +63,5 @@ sensor:
 ## See Also
 
 - [UART Bus](/components/uart)
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "jsn_sr04t/jsn_sr04t.h" "jsn_sr04t/jsn_sr04t.h" >}}

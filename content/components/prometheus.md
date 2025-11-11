@@ -95,7 +95,7 @@ prometheus:
 ## See Also
 
 - {{< docref "/components/web_server" >}}
-- [REST API](#api-rest)
+- [REST API](/web-api#api-rest)
 - {{< docref "/components/http_request" >}}
 - {{< apiref "prometheus/prometheus_handler.h" "prometheus/prometheus_handler.h" >}}
 - [Prometheus](https://prometheus.io/)

@@ -59,6 +59,6 @@ Advanced options:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "template/" >}}
 - {{< apiref "ultrasonic/ultrasonic_sensor.h" "ultrasonic/ultrasonic_sensor.h" >}}

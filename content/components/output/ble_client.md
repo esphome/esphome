@@ -42,7 +42,7 @@ output:
 - **require_response** (*Optional*, boolean): Control whether to require a remote response from the device when writing.
   Whether or not this is required will vary by device. Defaults to `false`
 
-- All other options from [Output](#config-output).
+- All other options from [Output](/components/output#config-output).
 
 ## See Also
 

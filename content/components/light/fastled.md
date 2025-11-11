@@ -65,7 +65,7 @@ light:
   A time interval used to limit the number of commands a light can handle per second. For example
   16ms will limit the light to a refresh rate of about 60Hz. Defaults to the default value for the used chipset.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 {{< anchor "fastled_clockless-chipsets" >}}
 
@@ -142,8 +142,8 @@ light:
 - **data_rate** (*Optional*, frequency): The data rate to use for shifting data to the light. Can help if you
   have long cables or slow level-shifters.
 
-- **effects** (*Optional*, list): A list of [light effects](#light-effects) to use for this light.
-- All other options from [Light](#config-light).
+- **effects** (*Optional*, list): A list of [light effects](/components/light#light-effects) to use for this light.
+- All other options from [Light](/components/light#config-light).
 
 {{< anchor "fastled_spi-chipsets" >}}
 

@@ -182,7 +182,7 @@ To simplify the use of this function, you can use the following example to add a
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "ina219/" >}}
 - {{< docref "ina226/" >}}
 - {{< docref "ina3221/" >}}

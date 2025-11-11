@@ -17,7 +17,7 @@ It supports two different audio pipelines: announcement and media. Each audio pi
 
 On-device files built directly into the firmware are played without a network connection. Encode on-device files with the configured sample rate, 1 or 2 channels, and 16 bits per sample.
 
-This platform only works on ESP32-based chips using the [ESP-IDF framework](#esp32-framework).
+This platform only works on ESP32-based chips using the [ESP-IDF framework](/components/esp32#esp32-framework).
 
 > [!WARNING]
 > Audio and voice components consume a significant amount of resources (RAM, CPU) on the device.
@@ -57,7 +57,7 @@ media_player:
 - **on_mute** (*Optional*, [Automation](/automations)): An automation to perform when muted.
 - **on_unmute** (*Optional*, [Automation](/automations)): An automation to perform when unmuted.
 - **on_volume** (*Optional*, [Automation](/automations)): An automation to perform when the volume is changed.
-- All other options from [Media Player](#config-media_player)
+- All other options from [Media Player](/components/media_player#config-media_player)
 
 {{< anchor "media_player-speaker-examples" >}}
 

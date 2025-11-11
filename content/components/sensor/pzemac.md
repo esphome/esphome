@@ -30,7 +30,7 @@ for more information.
 > This page refers to version V3 of the PZEM004T.
 > For using the older V1 variant of this sensor please see {{< docref "pzem004t" "pzem004t" >}}.
 
-The communication with this component is done via a [UART](/components/uart) using [Modbus](#modbus).
+The communication with this component is done via a [UART](/components/uart) using [Modbus](/components/modbus#modbus).
 You must therefore have a `uart:` entry in your configuration with both the TX and RX pins set
 to some pins on your board and the baud rate set to 9600.
 
@@ -153,7 +153,7 @@ modbus_controller:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "pzem004t/" >}}
 - {{< docref "pzemdc/" >}}
 - {{< apiref "pzemac/pzemac.h" "pzemac/pzemac.h" >}}

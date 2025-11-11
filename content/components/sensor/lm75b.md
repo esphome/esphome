@@ -37,6 +37,6 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "lm75b/lm75b.h" "lm75b/lm75b.h" >}}
 - [Datasheet](https://www.nxp.com/docs/en/data-sheet/LM75B.pdf)

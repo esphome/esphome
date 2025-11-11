@@ -33,7 +33,7 @@ All display components inherit these configuration variables.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. Required if there are multiple displays.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
   See [Display Rendering Engine](#display-engine) for more information.
 
 All *graphical* displays also inherit these configuration variables.
@@ -50,7 +50,7 @@ All *graphical* displays also inherit these configuration variables.
 ESPHome's own powerful rendering engine can handle many common tasks such as drawing basic shapes,
 printing text with fonts of your choice, or even rendering images.
 
-To achieve all this flexibility displays tie in directly into ESPHome's [lambda system](#config-lambda).
+To achieve all this flexibility displays tie in directly into ESPHome's [lambda system](/automations/templates#config-lambda).
 So when you want to write some text or sensor values to the screen you will be writing in C++ code
 using an API that is designed to
 
@@ -69,7 +69,7 @@ So, first a few basics: When setting up a display platform in ESPHome there will
 option called `lambda:` which will be called every time ESPHome wants to re-render the display.
 In each cycle, the display is automatically cleared before the lambda is executed. You can disable
 this behavior by setting `auto_clear_enabled: false`.
-In the lambda, you can write code like in any [lambda](#config-lambda) in ESPHome. Display
+In the lambda, you can write code like in any [lambda](/automations/templates#config-lambda) in ESPHome. Display
 lambdas are additionally passed a variable called `it` which represents the rendering engine object.
 
 {{< img src="display_rendering_line.png" alt="Image" class="align-center" >}}
@@ -201,7 +201,7 @@ You can view the full API documentation for the rendering engine in the "API Ref
 
 ### Drawing Static Text
 
-To be able to display text, you need to prepare some fonts. ESPHome's [font renderer](#display-fonts) allows you to use OpenType/TrueType/Bitmap fonts for your texts. This is very flexiblle because you can prepare various sets of fonts at different sizes with a different number of glyphs which is extremely convenient when we're talking about flash space.
+To be able to display text, you need to prepare some fonts. ESPHome's [font renderer](/components/font#display-fonts) allows you to use OpenType/TrueType/Bitmap fonts for your texts. This is very flexiblle because you can prepare various sets of fonts at different sizes with a different number of glyphs which is extremely convenient when we're talking about flash space.
 
 In your display code, you can render static text by referencing the font and just entering your string enclosed in double quotes:
 
@@ -375,7 +375,7 @@ display:
 
 ### Displaying Time
 
-You can display current time using a time component. Please see the example on the [time documentation](#strftime).
+You can display current time using a time component. Please see the example on the [time documentation](/components/time#strftime).
 
 {{< anchor "clipping" >}}
 
@@ -534,7 +534,7 @@ on_...:
 ```
 
 > [!NOTE]
-> To trigger a redraw right after the page show use a [component.update](#component-update_action)
+> To trigger a redraw right after the page show use a [component.update](/automations/actions#component-update_action)
 > action:
 >
 > ```yaml
@@ -619,9 +619,9 @@ be sure to **include a link to where you purchased the display** so that we can 
 - {{< docref "/components/display/mipi_spi" >}}
 - {{< docref "/components/display/mipi_rgb" >}}
 - {{< docref "/components/display/mipi_dsi" >}}
-- [Fonts](#display-fonts)
-- [Graph Component](#display-graphs)
-- [QR Code Component](#display-qrcode)
-- [Image Component](#display-image)
-- [Animation Component](#display-animation)
-- [Online Image](#online_image)
+- [Fonts](/components/font#display-fonts)
+- [Graph Component](/components/graph#display-graphs)
+- [QR Code Component](/components/qr_code#display-qrcode)
+- [Image Component](/components/image#display-image)
+- [Animation Component](/components/animation#display-animation)
+- [Online Image](/components/online_image#online_image)

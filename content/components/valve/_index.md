@@ -33,7 +33,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the valve. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and you want the valve
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and you want the valve
 > to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the sensor. See
@@ -53,13 +53,13 @@ Advanced options:
   <https://developers.home-assistant.io/docs/core/entity/#generic-properties> for a list of available options. Set to
   `""` to remove the default entity category.
 
-- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
+- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
 MQTT options:
 
 - **position_state_topic** (*Optional*, string): The topic to publish valve position changes to.
 - **position_command_topic** (*Optional*, string): The topic to receive valve position commands on.
-- All other options from [MQTT Component](#config-mqtt-component).
+- All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
 {{< anchor "valve-open_action" >}}
 
@@ -74,7 +74,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(valve_1).make_call();
@@ -95,7 +95,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(valve_1).make_call();
@@ -116,7 +116,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(valve_1).make_call();
@@ -138,7 +138,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(valve_1).make_call();
@@ -172,7 +172,7 @@ Configuration variables:
   - `1.0` = `100%` = `OPEN`
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(valve_1).make_call();
@@ -185,7 +185,7 @@ Configuration variables:
 
 ## Lambdas
 
-From [lambdas](#config-lambda), you can access the current state of the valve (note that these fields are
+From [lambdas](/automations/templates#config-lambda), you can access the current state of the valve (note that these fields are
 read-only, if you want to act on the valve, use the `make_call()` method as shown above).
 
 - `position`  : Retrieve the current position of the valve, as a value between `0.0` (closed) and `1.0` (open).

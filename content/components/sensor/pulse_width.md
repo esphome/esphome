@@ -36,5 +36,5 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "pulse_width/pulse_width.h" "pulse_width/pulse_width.h" >}}

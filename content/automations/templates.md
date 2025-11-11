@@ -98,14 +98,14 @@ using the lambda syntax as described/shown above.
 
 ## All Lambda Calls
 
-- [Sensor](#sensor-lambda_calls)
-- [Binary Sensor](#binary_sensor-lambda_calls)
-- [Switch](#switch-lambda_calls)
-- [Display](#display-engine)
-- [Cover](#cover-lambda_calls)
-- [Text Sensor](#text_sensor-lambda_calls)
-- [Stepper](#stepper-lambda_calls)
-- [Number](#number-lambda_calls)
+- [Sensor](/components/sensor#sensor-lambda_calls)
+- [Binary Sensor](/components/binary_sensor#binary_sensor-lambda_calls)
+- [Switch](/components/switch#switch-lambda_calls)
+- [Display](/components/display#display-engine)
+- [Cover](/components/cover#cover-lambda_calls)
+- [Text Sensor](/components/text_sensor#text_sensor-lambda_calls)
+- [Stepper](/components/stepper#stepper-lambda_calls)
+- [Number](/components/number#number-lambda_calls)
 
 ## See Also
 

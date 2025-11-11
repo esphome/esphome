@@ -11,7 +11,7 @@ The `power_supply` component allows you to have a high power mode for
 certain outputs. For example, if you're using an [ATX powersupply](https://en.wikipedia.org/wiki/ATX) to power your LED strips,
 you usually don't want to have the power supply on all the time while
 the output is not on. The power supply component can be attached to any
-[Output Component](#output) and
+[Output Component](/components/output#output) and
 will automatically switch on if any of the outputs are on. Furthermore,
 it also has a cooldown time that keeps the power supply on for a while
 after the last output has been disabled.
@@ -45,7 +45,7 @@ power_supply:
   until the delay has elapsed.) This is useful for power supplies that will never be turned off and avoids the need
   to specifically configure the power supply in a different component.
 
-See the [output component base configuration](#config-output)
+See the [output component base configuration](/components/output#config-output)
 for information on how to apply the power supply for a specific output.
 
 ## ATX Power Supplies

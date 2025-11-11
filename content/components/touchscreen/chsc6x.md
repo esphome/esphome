@@ -30,7 +30,7 @@ touchscreen:
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually set the ID of this touchscreen.
 - **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The touch detection pin.
 
-- All other options from [Touchscreen](#config-touchscreen).
+- All other options from [Touchscreen](/components/touchscreen#config-touchscreen).
 
 ### Sample config for the ESP32S3
 

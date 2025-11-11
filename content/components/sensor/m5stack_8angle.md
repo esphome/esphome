@@ -66,7 +66,7 @@ binary_sensor:
 ### Configuration variables
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `10s`.
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Lights
 
@@ -84,7 +84,7 @@ light:
 
 ### Configuration variables
 
-- All options from [Light](#config-light).
+- All options from [Light](/components/light#config-light).
 
 ## Read knob's positions and switch state in Lambdas
 
@@ -123,7 +123,7 @@ light:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "/components/binary_sensor" >}}
 - {{< docref "/components/light" >}}
 - {{< docref "template/" >}}

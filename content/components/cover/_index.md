@@ -31,7 +31,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the cover. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
 > you want the cover to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the
@@ -54,7 +54,7 @@ Advanced options:
   for a list of available options.
   Set to `""` to remove the default entity category.
 
-- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
+- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
 MQTT options:
 
@@ -70,7 +70,7 @@ MQTT options:
 - **tilt_command_topic** (*Optional*, string): The topic to receive
   cover tilt commands on.
 
-- All other options from [MQTT Component](#config-mqtt-component).
+- All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
 {{< anchor "cover-open_action" >}}
 
@@ -85,7 +85,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(cover_1).make_call();
@@ -106,7 +106,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(cover_1).make_call();
@@ -127,7 +127,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(cover_1).make_call();
@@ -150,7 +150,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(cover_1).make_call();
@@ -187,7 +187,7 @@ Configuration variables:
 - **tilt** (*Optional*, float): The tilt position to set. In range 0% - 100%.
 
 > [!NOTE]
-> This action can also be expressed in [lambdas](#config-lambda):
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > auto call = id(cover_1).make_call();
@@ -200,7 +200,7 @@ Configuration variables:
 
 ## Lambdas
 
-From [lambdas](#config-lambda), you can access the current state of the cover (note that these
+From [lambdas](/automations/templates#config-lambda), you can access the current state of the cover (note that these
 fields are read-only, if you want to act on the cover, use the `make_call()` method as shown above).
 
 - `position`  : Retrieve the current position of the cover, as a value between `0.0` (closed) and `1.0` (open).

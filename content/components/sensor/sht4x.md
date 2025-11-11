@@ -57,6 +57,6 @@ for more information about heater operation.
 
 - {{< docref "/components/sensor/sht3xd" >}}
 - {{< docref "/components/sensor/shtcx" >}}
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< apiref "sht4x/sht4x.h" "sht4x/sht4x.h" >}}

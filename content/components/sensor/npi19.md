@@ -88,7 +88,7 @@ compensation.
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - [NPI-19 Product Page](https://www.amphenol-sensors.com/en/novasensor/pressure-sensors/3358-npi-19-i2c)
 - [NPI-19 Datasheet](https://www.amphenol-sensors.com/hubfs/AAS-920-699F-NovaSensor-NPI-19-I2C-061322-web.pdf)
 - [NPI-19 Product Application Note](https://www.amphenol-sensors.com/hubfs/I2C%20NPI-19%20product%20application%20Note.pdf)

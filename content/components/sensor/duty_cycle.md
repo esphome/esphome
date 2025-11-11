@@ -35,5 +35,5 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "duty_cycle/duty_cycle_sensor.h" "duty_cycle/duty_cycle_sensor.h" >}}

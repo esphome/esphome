@@ -12,7 +12,7 @@ The sensor will be true when the key is pressed.
 ## Configuration variables
 
 - **key** (**Required**): The ID of an [SDL key](https://www.libsdl.org/release/SDL-1.2.15/docs/html/sdlkey.html).
-- All other variables from [Binary Sensor](#config-binary_sensor).
+- All other variables from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 Example:
 
@@ -26,4 +26,4 @@ binary_sensor:
 ## See Also
 
 - {{< docref "/components/host" "Host Platform" >}}
-- [SDL display](#sdl)
+- [SDL display](/components/display/sdl#sdl)

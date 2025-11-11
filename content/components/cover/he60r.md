@@ -39,7 +39,7 @@ cover:
 
 - **open_duration** (*Optional*, [Time](/guides/configuration-types#time)): The time required for the door to fully open from the closed position. Default 15s.
 - **close_duration** (*Optional*, [Time](/guides/configuration-types#time)): The time required for the door to fully close from the open position. Default 15s.
-- All other options from [Cover](#config-cover).
+- All other options from [Cover](/components/cover#config-cover).
 
 The open and close duration serve to estimate the position to provide feedback during travel and for partial open/close
 requests. These can be adjusted according to your door's actual operation. Enabling DEBUG logging will report the
@@ -97,4 +97,4 @@ binary_sensor:
 
 - {{< docref "index/" >}}
 - [Automation](/automations)
-- [GPIO Binary Sensor](#gpio-binary-sensor)
+- [GPIO Binary Sensor](/components/binary_sensor/gpio#gpio-binary-sensor)

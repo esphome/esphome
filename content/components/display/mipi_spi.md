@@ -98,7 +98,7 @@ display:
 
 ### Configuration options
 
-All [graphical display configuration](#display-configuration) options are available, plus the following. For integrated display boards
+All [graphical display configuration](/components/display#display-configuration) options are available, plus the following. For integrated display boards
 most of the configuration will be set by default, but can be overridden if needed.
 
 - **model** (**Required**): Chosen from the lists of supported chips and models above, or `CUSTOM` for custom displays.

@@ -103,7 +103,7 @@ climate:
 - **on_alarm_start** (*Optional*, [Automation](/automations)): (supported only by hOn) Automation to perform when AC activates a new alarm. See [`on_alarm_start` Trigger](#haier-on_alarm_start).
 - **on_alarm_end** (*Optional*, [Automation](/automations)): (supported only by hOn) Automation to perform when AC deactivates a new alarm. See [`on_alarm_end` Trigger](#haier-on_alarm_end).
 - **on_status_message** (*Optional*, [Automation](/automations)): Automation to perform when status message received from AC. See [`on_status_message` Trigger](#haier-on_status_message).
-- All other options from [Climate](#config-climate).
+- All other options from [Climate](/components/climate#config-climate).
 
 ## Automations
 
@@ -111,7 +111,7 @@ climate:
 
 ### `on_alarm_start` Trigger
 
-This automation will be triggered when a new alarm is activated by AC. The error code of the alarm will be given in the variable `code` (`uint8_t`  ), error message in the variable `message` (`const char *`  ). Those variables can be used in [lambdas](#config-lambda).
+This automation will be triggered when a new alarm is activated by AC. The error code of the alarm will be given in the variable `code` (`uint8_t`  ), error message in the variable `message` (`const char *`  ). Those variables can be used in [lambdas](/automations/templates#config-lambda).
 
 ```yaml
 climate:
@@ -128,7 +128,7 @@ climate:
 
 ### `on_alarm_end` Trigger
 
-This automation will be triggered when a previously activated alarm is deactivated by AC. The error code of the alarm will be given in the variable `code` (`uint8_t`  ), error message in the variable `message` (`const char *`  ). Those variables can be used in [lambdas](#config-lambda).
+This automation will be triggered when a previously activated alarm is deactivated by AC. The error code of the alarm will be given in the variable `code` (`uint8_t`  ), error message in the variable `message` (`const char *`  ). Those variables can be used in [lambdas](/automations/templates#config-lambda).
 
 ```yaml
 climate:
@@ -145,7 +145,7 @@ climate:
 
 ### `on_status_message` Trigger
 
-This automation will be triggered when component receives new status packet from AC. Raw message binary (without header and checksum) will be provided in the variable `data` (`const char *`  ), message length in the variable `data_size` (`uint8_t`  ). Those variables can be used in [lambdas](#config-lambda).
+This automation will be triggered when component receives new status packet from AC. Raw message binary (without header and checksum) will be provided in the variable `data` (`const char *`  ), message length in the variable `data_size` (`uint8_t`  ). Those variables can be used in [lambdas](/automations/templates#config-lambda).
 This trigger can be used to support some features that unique for the model and not supported by others.
 
 ```yaml

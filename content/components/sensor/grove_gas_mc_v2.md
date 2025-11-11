@@ -16,7 +16,7 @@ Compounds (VOCs).
 > The Grove Multichannel Gas Sensor V2 is a qualitative, not quantitative, sensor.
 > This means values reported back are raw ADC values. Values are **not** in a common unit
 > of measurement, such as PPM (parts per million). If you have known baseline readings
-> for any of the gases, [Sensor Filters](#sensor-filters) could be used to calibrate the raw readings.
+> for any of the gases, [Sensor Filters](/components/sensor#sensor-filters) could be used to calibrate the raw readings.
 
 {{< img src="grove-gas-mc-v2.png" alt="Image" caption="Grove Multichannel Gas Sensor V2" width="50.0%" class="align-center" >}}
 
@@ -72,6 +72,6 @@ than 6 months.
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - [Grove Multichannel V2 Library](https://github.com/Seeed-Studio/Seeed_Arduino_MultiGas)
 - {{< apiref "grove_gas_mc_v2/grove_gas_mc_v2.h" "grove_gas_mc_v2/grove_gas_mc_v2.h" >}}

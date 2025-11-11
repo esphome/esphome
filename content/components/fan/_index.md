@@ -30,7 +30,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the fan. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
 > you want the fan to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the fan in the frontend.
@@ -57,7 +57,7 @@ Configuration variables:
   for a list of available options.
   Set to `""` to remove the default entity category.
 
-- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
+- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
 MQTT options:
 
@@ -85,7 +85,7 @@ MQTT options:
 - **speed_command_topic** (*Optional*, string): The topic to receive
   speed commands on (options: LOW, MEDIUM, HIGH).
 
-- All other options from [MQTT Component](#config-mqtt-component).
+- All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
 Automation triggers:
 
@@ -304,7 +304,7 @@ fan:
 
 ## Lambda calls
 
-From [lambdas](#config-lambda), you can call several methods on all fans to do some
+From [lambdas](/automations/templates#config-lambda), you can call several methods on all fans to do some
 advanced stuff (see the full API Reference for more info).
 
 - `state`  : Retrieve the current state (on/off) of the fan.

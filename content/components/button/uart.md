@@ -27,7 +27,7 @@ button:
   or a list of bytes.
 
 - **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the UART hub.
-- All other options from [Button](#config-button).
+- All other options from [Button](/components/button#config-button).
 
 ## See Also
 

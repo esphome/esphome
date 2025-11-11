@@ -29,7 +29,7 @@ voice_assistant:
 
 ## Configuration variables
 
-- **microphone** (**Required**, [Microphone Source Configuration](#config-microphone-source)): The
+- **microphone** (**Required**, [Microphone Source Configuration](/components/microphone#config-microphone-source)): The
   {{< docref "/components/microphone/index" "microphone" >}} settings to use for input.
 
 - **micro_wake_word** (*Optional*, [ID](/guides/configuration-types#id)): The {{< docref "/components/micro_wake_word" "micro_wake_word" >}}

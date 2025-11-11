@@ -48,7 +48,7 @@ rf_bridge:
 ## `on_code_received` Trigger
 
 With this configuration option you can write complex automations whenever a code is
-received by the bridge. To use the code, use a [lambda](#config-lambda) template.
+received by the bridge. To use the code, use a [lambda](/automations/templates#config-lambda) template.
 The code and the corresponding protocol timings are available inside that lambda under the
 variables named `code`, `sync`, `high` and `low`.
 
@@ -88,7 +88,7 @@ Configuration options:
 * **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the RF Bridge if you have multiple bridges or multiple bridge components.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(rf_bridge).send_code(0x700, 0x800, 0x1000, 0xABC123);
@@ -113,7 +113,7 @@ Configuration options:
 * **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the RF Bridge if you have multiple components.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(rf_bridge).beep(100);
@@ -137,7 +137,7 @@ Configuration options:
 * **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the RF Bridge if you have multiple components.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(rf_bridge).learn();
@@ -167,7 +167,7 @@ Configuration options:
 * **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the RF Bridge if you have multiple components.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(rf_bridge).send_raw("AAA5070008001000ABC12355");
@@ -186,7 +186,7 @@ You can see a list of available commands and format in the [Portisch Wiki](https
 ### `on_advanced_code_received` Trigger
 
 Similar to [`on_code_received` Trigger](#rf_bridge-on_code_received), this trigger receives the codes after advanced sniffing is started.
-To use the code, use a [lambda](#config-lambda) template, the code and the corresponding protocol and length
+To use the code, use a [lambda](/automations/templates#config-lambda) template, the code and the corresponding protocol and length
 are available inside that lambda under the variables named `code`, `protocol` and `length`.
 
 ```yaml
@@ -222,7 +222,7 @@ Configuration options:
 * **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the RF Bridge if you have multiple components.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(rf_bridge).send_advanced_code(0x04, 0x01, "ABC123");
@@ -246,7 +246,7 @@ Configuration options:
 * **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the RF Bridge if you have multiple components.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(rf_bridge).start_advanced_sniffing();
@@ -269,7 +269,7 @@ Configuration options:
 * **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the RF Bridge if you have multiple components.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(rf_bridge).stop_advanced_sniffing();
@@ -301,7 +301,7 @@ Configuration options:
 * **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the RF Bridge if you have multiple components.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
 > id(rf_bridge).start_bucket_sniffing();
@@ -484,7 +484,7 @@ cover:
 ## See Also
 
 * {{< apiref "rf_bridge/rf_bridge.h" "rf_bridge/rf_bridge.h" >}}
-* [Delaying Remote Transmissions](#lambda_magic_rf_queues)
+* [Delaying Remote Transmissions](/cookbook/lambda_magic#lambda_magic_rf_queues)
 * [RF-Bridge-EFM8BB1](https://github.com/Portisch/RF-Bridge-EFM8BB1) by [Portisch](https://github.com/Portisch)
 * [Mightymos firmware](https://github.com/mightymos/RF-Bridge-OB38S003)
 * {{< docref "/components/uart" >}}

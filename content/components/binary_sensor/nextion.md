@@ -46,10 +46,10 @@ binary_sensor:
 - **page_id** (*Optional*, string): The ID of the page the component is on. Use `0`   for the default page.
 - **component_id** (*Optional*, string): The ID (the number, not name!) of the component to track.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The duration to update the sensor. If using a [Nextion Custom Binary Sensor Protocol](#nextion_custom_binary_sensor_protocol) this should not be used
-- **background_color** (*Optional*, [Color](#config-color)): The background color
-- **foreground_color** (*Optional*, [Color](#config-color)): The foreground color
+- **background_color** (*Optional*, [Color](/components/display#config-color)): The background color
+- **foreground_color** (*Optional*, [Color](/components/display#config-color)): The foreground color
 - **visible** (*Optional*, boolean): Visible or not
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 **Touch Sensor:**
 The Nextion will send a **page_id** and **component_id** when the *Send Component ID* check box is selected for the component. To enable
@@ -57,7 +57,7 @@ this native event **page_id** and **component_id** are required. No [Nextion Cus
 
 > [!NOTE]
 > `background_color(s)`, `foreground_color(s)`   and `visible`   do not retain their state on page change. [Binary Sensor Settings](#nextion_binary_sensor_settings).
-> A [Nextion Sensor](#nextion_sensor) with a custom protocol sending the current page can be used to execute the API call [Update Components By Prefix](#update_components_by_prefix) to update all the components for that page
+> A [Nextion Sensor](/components/sensor/nextion#nextion_sensor) with a custom protocol sending the current page can be used to execute the API call [Update Components By Prefix](/components/display/nextion#update_components_by_prefix) to update all the components for that page
 
 Example:
 
@@ -129,7 +129,7 @@ on_...:
 
 ## Lambda Calls
 
-From [lambdas](#config-lambda), you can call several methods to access some
+From [lambdas](/automations/templates#config-lambda), you can call several methods to access some
 more advanced functions (see the full {{< apiref "nextion/binary_sensor/nextion_binarysensor.h" "nextion/binary_sensor/nextion_binarysensor.h" >}} for more info).
 
 {{< anchor "nextion_binary_sensor_set_state" >}}

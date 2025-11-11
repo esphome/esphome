@@ -12,7 +12,7 @@ This sensor allows you to use A02YYUW waterproof ultrasonic sensor by DFRobot
 with ESPHome to measure distances. This sensor can measure
 ranges between 3 centimeters and 450 centimeters with a resolution of 1 milimeter.
 
-Since this sensor reads multiple times per second, [Sensor Filters](#sensor-filters) are highly recommended.
+Since this sensor reads multiple times per second, [Sensor Filters](/components/sensor#sensor-filters) are highly recommended.
 
 To use the sensor, first set up an [UART Bus](/components/uart) with a baud rate of 9600 and connect the sensor to the specified pin.
 
@@ -37,6 +37,6 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - [UART Bus](/components/uart)
 - {{< apiref "a02yyuw/a02yyuw.h" "a02yyuw/a02yyuw.h" >}}

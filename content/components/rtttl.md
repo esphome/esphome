@@ -54,10 +54,10 @@ rtttl:
 
 ## Configuration variables
 
-- **output** (**Exclusive**, [ID](/guides/configuration-types#id)): The id of the [float output](#output) to use for
+- **output** (**Exclusive**, [ID](/guides/configuration-types#id)): The id of the [float output](/components/output#output) to use for
   this buzzer.
 
-- **speaker** (**Exclusive**, [ID](/guides/configuration-types#id)): The id of the [speaker](#i2s_audio) to play the song on.
+- **speaker** (**Exclusive**, [ID](/guides/configuration-types#id)): The id of the [speaker](/components/i2s_audio#i2s_audio) to play the song on.
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **gain** (*Optional*, Percentage): With this value you can set the volume of the sound.
 - **on_finished_playback** (*Optional*, [Automation](/automations)): An action to be

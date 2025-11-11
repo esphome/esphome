@@ -21,7 +21,7 @@ switch:
 
 ## Configuration variables
 
-- All options from [Switch](#config-switch).
+- All options from [Switch](/components/switch#config-switch).
 
 ## See Also
 

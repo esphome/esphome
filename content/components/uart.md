@@ -26,7 +26,7 @@ receive/send data at using the `baud_rate` option. Two common baud rates are 960
 
 In some cases only **TX** or **RX** exists as the device at the other end only accepts data or sends data.
 
-The UART component may be used as a platform for the [Packet Transport Component](#packet-transport) component, enabling
+The UART component may be used as a platform for the [Packet Transport Component](/components/packet_transport#packet-transport) component, enabling
 sensor data to be sent directly from one ESPHome node to another over a UART bus. When using RS485 this can operate in
 a multi-drop configuration.
 

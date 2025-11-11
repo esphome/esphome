@@ -7,14 +7,14 @@ params:
     image: language-cpp.svg
 ---
 
-Here are a couple recipes for various interesting things you can do with [Lambdas](#config-lambda) in ESPHome.
-These don't require external components and demonstrate how powerful [Lambdas](#config-lambda) can be.
+Here are a couple recipes for various interesting things you can do with [Lambdas](/automations/templates#config-lambda) in ESPHome.
+These don't require external components and demonstrate how powerful [Lambdas](/automations/templates#config-lambda) can be.
 
 {{< anchor "lambda_magic_pages" >}}
 
 ## Display pages alternative
 
-Some displays like [lcd_pcf8574 Component](#lcd-pcf8574) don't support pages natively, but you can easily implement them
+Some displays like [lcd_pcf8574 Component](/components/display/lcd_display#lcd-pcf8574) don't support pages natively, but you can easily implement them
 using Lambdas:
 
 ```yaml
@@ -281,5 +281,5 @@ sensor:
 
 ## See Also
 
-- [Templates](#config-lambda)
+- [Templates](/automations/templates#config-lambda)
 - [Automation](/automations)

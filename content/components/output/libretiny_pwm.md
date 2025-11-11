@@ -33,7 +33,7 @@ light:
 - **frequency** (*Optional*, frequency): The frequency to run the PWM with. Lower frequencies
   have more visual artifacts, but can represent much more colors. Defaults to `1000 Hz`.
 
-- All other options from [Output](#config-output).
+- All other options from [Output](/components/output#config-output).
 
 {{< anchor "output-libretiny_pwm-set_frequency_action" >}}
 

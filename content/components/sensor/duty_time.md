@@ -35,7 +35,7 @@ sensor:
 - **sensor** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the `binary_sensor` to track the duty time. *May not be
   used with* `lambda`.
 
-- **lambda** (*Optional*, [lambda](#config-lambda)): Lambda that will be called in a loop to get the current
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): Lambda that will be called in a loop to get the current
   state of the tracked object. *May not be used with* `sensor`.
 
 - **last_time** (*Optional*): Information of the last switch-on time sensor.
@@ -51,7 +51,7 @@ sensor:
 
 ## Automations
 
-In addition to all basic [sensor automations](#sensor-automations), the component supports the automations below.
+In addition to all basic [sensor automations](/components/sensor#sensor-automations), the component supports the automations below.
 
 {{< anchor "sensor-duty_time-start_action" >}}
 
@@ -108,7 +108,7 @@ on_...:
 ## See Also
 
 - [Base Sensor Configuration](/components/sensor)
-- [Templates](#config-lambda)
+- [Templates](/automations/templates#config-lambda)
 - [Automation](/automations)
 - {{< docref "/components/binary_sensor" >}}
 - {{< apiref "duty_time/duty_time_sensor.h" "duty_time/duty_time_sensor.h" >}}

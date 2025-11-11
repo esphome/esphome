@@ -50,7 +50,7 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< apiref "aht10/aht10.h" "aht10/aht10.h" >}}
 - [AHT10 Library](https://github.com/Thinary/AHT10) by [Thinary Electronic](https://github.com/Thinary)

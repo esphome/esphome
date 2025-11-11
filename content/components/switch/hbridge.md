@@ -32,7 +32,7 @@ switch:
 - **optimistic** (*optional*, boolean): Whether to operate in optimistic mode - when in this mode,
   any command sent to the switch will immediately update the reported state. Defaults to `false`, and the reported state updates only at the end of the pulse.
 
-- All other options from [Switch Component](#config-switch).
+- All other options from [Switch Component](/components/switch#config-switch).
 
 ## See Also
 

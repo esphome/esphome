@@ -70,7 +70,7 @@ on_...:
     - mhz19.calibrate_zero: my_mhz19_id
 ```
 
-You can provide an [action](#api-device-actions) to perform from Home Assistant
+You can provide an [action](/components/api#api-device-actions) to perform from Home Assistant
 
 ```yaml
 api:
@@ -119,6 +119,6 @@ switch:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - [MH-Z19 library](https://github.com/nara256/mhz19_uart) by [@nara356](https://github.com/nara256)
 - {{< apiref "mhz19/mhz19.h" "mhz19/mhz19.h" >}}

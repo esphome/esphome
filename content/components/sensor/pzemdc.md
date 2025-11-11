@@ -77,7 +77,7 @@ on_...:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "pzem004t/" >}}
 - {{< docref "pzemac/" >}}
 - {{< apiref "pzemdc/pzemdc.h" "pzemdc/pzemdc.h" >}}

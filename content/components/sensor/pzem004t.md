@@ -79,7 +79,7 @@ Your ESP shall be powered by an external power supply and cannot be connected to
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "pzemac/" >}}
 - {{< docref "pzemdc/" >}}
 - {{< apiref "pzem004t/pzem004t.h" "pzem004t/pzem004t.h" >}}

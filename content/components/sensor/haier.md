@@ -79,4 +79,4 @@ sensor:
 ## See Also
 
 - {{< docref "/components/climate/haier" "Haier Climate" >}}
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)

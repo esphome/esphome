@@ -16,7 +16,7 @@ The component is split into two parts:
 - Individual [remote receiver binary sensors](#remote-receiver-binary-sensor) which will activate when their
   respective signal is received.
 
-**See** [Setting up IR Devices](#remote-setting-up-infrared) **and** [Setting up RF Devices](#remote-setting-up-rf) **for details.**
+**See** [Setting up IR Devices](/guides/setting_up_rmt_devices#remote-setting-up-infrared) **and** [Setting up RF Devices](/guides/setting_up_rmt_devices#remote-setting-up-rf) **for details.**
 
 ```yaml
 # Example configuration entry
@@ -34,7 +34,7 @@ Multiple remote receivers can be configured as a list of dict definitions within
   Set to `all` to dump all available codecs:
 
   - **abbwelcome**: Decode and dump ABB-Welcome codes. Messages are sent via copper wires. See
-    [transmitter description](#remote_transmitter-transmit_abbwelcome) for more details.
+    [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_abbwelcome) for more details.
 
   - **aeha**: Decode and dump AEHA infrared codes.
   - **beo4**: Decode and dump B&O Beo4 infrared codes.
@@ -354,12 +354,12 @@ binary_sensor:
 - **receiver_id** (*Optional*, [ID](/guides/configuration-types#id)): The remote receiver to receive the remote code with. Required if
   multiple receivers configured.
 
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 Remote code selection (exactly one of these has to be included):
 
 - **abbwelcome**: Trigger on a decoded ABB-Welcome code with the given data, see the
-  [transmitter description](#remote_transmitter-transmit_abbwelcome) for more info.
+  [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_abbwelcome) for more info.
 
   - **source_address** (**Required**, int): The source address to trigger on.
   - **destination_address** (**Required**, int): The destination address to trigger on.
@@ -378,7 +378,7 @@ Remote code selection (exactly one of these has to be included):
 
   - **address** (**Required**, int): The address to trigger on, see dumper output for more info.
   - **data** (**Required**, 3-35 bytes list): The code to listen for, see
-    [transmitter description](#remote_transmitter-transmit_aeha) for more info. Usually you only need to copy this
+    [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_aeha) for more info. Usually you only need to copy this
     directly from the dumper output.
 
 - **beo4**: Trigger on a decoded B&O Beo4 infrared remote code with the given data.
@@ -455,7 +455,7 @@ Remote code selection (exactly one of these has to be included):
 - **haier**: Trigger on a Haier remote code with the given code.
 
   - **code** (**Required**, 13-bytes list): The code to listen for, see
-    [transmitter description](#remote_transmitter-transmit_haier) for more info. Usually you only need to copy
+    [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_haier) for more info. Usually you only need to copy
     this directly from the dumper output.
 
 - **lg**: Trigger on a decoded LG remote code with the given data.
@@ -472,7 +472,7 @@ Remote code selection (exactly one of these has to be included):
 - **midea**: Trigger on a Midea remote code with the given code.
 
   - **code** (**Required**, 5-bytes list): The code to listen for, see
-    [transmitter description](#remote_transmitter-transmit_midea) for more info. Usually you only need to copy
+    [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_midea) for more info. Usually you only need to copy
     first 5 bytes directly from the dumper output.
 
 - **nec**: Trigger on a decoded NEC remote code with the given data.
@@ -500,7 +500,7 @@ Remote code selection (exactly one of these has to be included):
 - **pronto**: Trigger on a Pronto remote code with the given code.
 
   - **data** (**Required**, string): The code to listen for, see
-    [transmitter description](#remote_transmitter-transmit_raw) for more info. Usually you only need to copy this
+    [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_raw) for more info. Usually you only need to copy this
     directly from the dumper output.
 
   - **delta** (*Optional*, integer): This parameter allows you to manually specify the allowed difference
@@ -509,7 +509,7 @@ Remote code selection (exactly one of these has to be included):
 - **raw**: Trigger on a raw remote code with the given code.
 
   - **code** (**Required**, list): The code to listen for, see
-    [transmitter description](#remote_transmitter-transmit_raw) for more info. Usually you only need to copy this
+    [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_raw) for more info. Usually you only need to copy this
     directly from the dumper output.
 
 - **rc5**: Trigger on a decoded RC5 remote code with the given data.
@@ -527,7 +527,7 @@ Remote code selection (exactly one of these has to be included):
   - **code** (**Required**, string): The remote code to listen for, copy this from the dumper output. To ignore a bit
     in the received data, use `x` at that place in the **code**.
 
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
     more info.
 
 - **rc_switch_type_a**: Trigger on a decoded RC Switch Type A remote code with the given data.
@@ -535,7 +535,7 @@ Remote code selection (exactly one of these has to be included):
   - **group** (**Required**, string): The group, binary string.
   - **device** (**Required**, string): The device in the group, binary string.
   - **state** (**Required**, boolean): The on/off state to trigger on.
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
     more info.
 
 - **rc_switch_type_b**: Trigger on a decoded RC Switch Type B remote code with the given data.
@@ -543,7 +543,7 @@ Remote code selection (exactly one of these has to be included):
   - **address** (**Required**, int): The address, int from 1 to 4.
   - **channel** (**Required**, int): The channel, int from 1 to 4.
   - **state** (**Required**, boolean): The on/off state to trigger on.
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
     more info.
 
 - **rc_switch_type_c**: Trigger on a decoded RC Switch Type C remote code with the given data.
@@ -552,7 +552,7 @@ Remote code selection (exactly one of these has to be included):
   - **group** (**Required**, int): The group. Range is 1 to 4.
   - **device** (**Required**, int): The device. Range is 1 to 4.
   - **state** (**Required**, boolean): The on/off state to trigger on.
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
     more info.
 
 - **rc_switch_type_d**: Trigger on a decoded RC Switch Type D remote code with the given data.
@@ -560,7 +560,7 @@ Remote code selection (exactly one of these has to be included):
   - **group** (**Required**, int): The group. Range is 1 to 4.
   - **device** (**Required**, int): The device. Range is 1 to 3.
   - **state** (**Required**, boolean): The on/off state to trigger on.
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
     more info.
 
 - **roomba**: Trigger on a decoded Roomba remote code with the given data.
@@ -596,7 +596,7 @@ Remote code selection (exactly one of these has to be included):
 - **mirage**: Trigger on a Mirage remote code with the given code.
 
   - **code** (**Required**, 14-bytes list): The code to listen for, see
-    [transmitter description](#remote_transmitter-transmit_mirage) for more info. Usually you only need to copy
+    [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_mirage) for more info. Usually you only need to copy
     this directly from the dumper output.
 
 - **toto**: Trigger on a decoded Toto remote code with the given data.
@@ -668,8 +668,8 @@ Remote code selection (exactly one of these has to be included):
 
 - {{< docref "index/" >}}
 - {{< docref "/components/remote_transmitter" >}}
-- [Setting up IR Devices](#remote-setting-up-infrared)
-- [Setting up RF Devices](#remote-setting-up-rf)
+- [Setting up IR Devices](/guides/setting_up_rmt_devices#remote-setting-up-infrared)
+- [Setting up RF Devices](/guides/setting_up_rmt_devices#remote-setting-up-rf)
 - {{< docref "/components/rf_bridge" >}}
 - [RCSwitch](https://github.com/sui77/rc-switch) by [Suat Özgür](https://github.com/sui77)
 - {{< apiref "remote/remote_receiver.h" "remote/remote_receiver.h" >}}

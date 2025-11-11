@@ -74,7 +74,7 @@ text_sensor:
 ### Configuration variables
 
 - **stove_state** (*Optional*): The current stove state.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Sensors
 
@@ -141,9 +141,9 @@ number:
 
 - **thermostat_temperature** (*Optional*): Number that holds the current stove thermostat value.
   - **step** (*Optional*): Temperature step. This value is used to multiply/devide the raw value when setting/reading the **thermostat_temperature**
-  - All other options from [Number](#config-number).
+  - All other options from [Number](/components/number#config-number).
 - **power_level** (*Optional*): Number that sets/reads the requested stove power.
-  All options from [Number](#config-number).
+  All options from [Number](/components/number#config-number).
 
 > [!NOTE]
 > Besides **memory_location** and **memory_address** you can specify a specific **memory_write_location** parameter.
@@ -166,7 +166,7 @@ button:
 ### Configuration variables
 
 - **custom_button** (*Optional*): Write the hex value **memory_data** to a **memory_location** and **memory_address**
-  All options from [Button](#config-button).
+  All options from [Button](/components/button#config-button).
 
 > [!NOTE]
 > Besides **memory_location** and **memory_address** you must specify a specific **memory_data** parameter.
@@ -186,7 +186,7 @@ switch:
 
 - **stove** (*Optional*): Turn the stove on or off. This switch will also reflect the current stove state.
   If the **stove_state** is "Off" the switch will be off, in all other states, the switch wil be on.
-  All options from [Switch](#config-switch).
+  All options from [Switch](/components/switch#config-switch).
 
 > [!NOTE]
 > Besides **memory_location** and **memory_address** you can specify specific **memory_data_on** and **memory_data_off** parameters.

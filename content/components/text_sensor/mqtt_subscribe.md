@@ -24,7 +24,7 @@ text_sensor:
 
 - **topic** (**Required**, string): The MQTT topic to listen for string data.
 - **qos** (*Optional*, int): The MQTT QoS to subscribe with. Defaults to `0`.
-- All other options from [Text Sensor](#config-text_sensor).
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Example Usage for Displays
 

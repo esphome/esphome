@@ -45,7 +45,7 @@ displays from the same chip family with ESPHome. As this is a somewhat higher re
 beyond the basic SPI connections, and a reasonable amount of RAM, it is not well suited for the ESP8266.
 
 > [!WARNING]
-> This component has been made redundant since this class of displays is now supported by the [MIPI SPI Display Driver](#mipi_spi).
+> This component has been made redundant since this class of displays is now supported by the [MIPI SPI Display Driver](/components/display/mipi_spi#mipi_spi).
 > This component may be removed in a future release.
 
 > [!NOTE]
@@ -72,7 +72,7 @@ display:
 
 ### Configuration variables
 
-All [graphical display configuration](#display-configuration) options are available, plus the following.
+All [graphical display configuration](/components/display#display-configuration) options are available, plus the following.
 
 - **model** (**Required**): The model of the display. Options are:
 
@@ -163,7 +163,7 @@ dimensions:
 ```
 
 To utilize the color capabilities of this display module, you'll likely want to add a `color:` section to your
-YAML configuration; please see [color](#config-color) for more detail on this configuration section.
+YAML configuration; please see [color](/components/display#config-color) for more detail on this configuration section.
 
 To use colors in your lambda:
 

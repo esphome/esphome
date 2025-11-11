@@ -37,7 +37,7 @@ globals:
 ## Configuration variables
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): Give the global variable an ID so that you can refer
-  to it later in [lambdas](#config-lambda).
+  to it later in [lambdas](/automations/templates#config-lambda).
 
 - **type** (**Required**, string): The C++ type of the global variable, for example `bool` (for `true`  /`false`  ),
   `int` (for integers), `float` (for decimal numbers), `int[50]` for an array of 50 integers, etc.

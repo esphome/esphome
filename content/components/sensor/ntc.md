@@ -122,5 +122,5 @@ interval:
 
 - {{< docref "adc/" >}}
 - {{< docref "resistance/" >}}
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "ntc/ntc.h" "ntc/ntc.h" >}}

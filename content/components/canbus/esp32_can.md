@@ -33,7 +33,7 @@ canbus:
 - **tx_enqueue_timeout** (*Optional*, [Time](/guides/configuration-types#time)): Maximum time to wait when the TX queue is full before
   dropping the message (by default, this is set to the time it takes to send 10 CAN messages at the given bit rate).
 
-- All other options from [Canbus](#config-canbus).
+- All other options from [Canbus](/components/canbus#config-canbus).
 
 {{< anchor "esp32-can-bit-rate" >}}
 

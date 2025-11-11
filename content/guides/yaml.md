@@ -366,7 +366,7 @@ recommended.
 
 Within ESPHome configuration files it's possible to embed lambdas, which are blocks of C++ code that are evaluated
 at runtime, to provide dynamic values and implement logic not possible in YAML. A lambda is defined using the
-`!lambda` tag. See [Templates](#config-lambda) for more information.
+`!lambda` tag. See [Templates](/automations/templates#config-lambda) for more information.
 
 ## See Also
 

@@ -110,10 +110,10 @@ text_sensor:
 - **elevation** (*Optional*, float): The elevation to calculate the next sunrise/sunset event
   for. Defaults to -0.833° (the horizon, slightly less than 0° to compensate for atmospheric refraction).
 
-- **format** (*Optional*, string): The format to format the time value with, see [strftime](#strftime)
+- **format** (*Optional*, string): The format to format the time value with, see [strftime](/components/time#strftime)
   for more information. Defaults to `%X`.
 
-- All other options from [Text Sensor](#config-text_sensor).
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 {{< anchor "sun-is_above_below_horizon-condition" >}}
 

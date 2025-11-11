@@ -68,7 +68,7 @@ cover:
   This will make the Home Assistant frontend show buttons for both OPEN and CLOSE actions, instead
   of hiding or disabling one of them. Defaults to `true`.
 
-- All other options from [Cover](#config-cover).
+- All other options from [Cover](/components/cover#config-cover).
 
 > [!NOTE]
 > The stop button on the UI is always enabled even when the cover is stopped and each press

@@ -23,7 +23,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the alarm control panel. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
 > you want the switch to use that name, you can set `name: None`.
 
 - **on_state** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
@@ -60,8 +60,8 @@ Configuration variables:
   when a zone has been marked as chime in the configuration, and it changes from closed to open.
   See [`on_chime` Trigger](#alarm_control_panel_on_chime_trigger).
 
-- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
-- If MQTT enabled, all other options from [MQTT Component](#config-mqtt-component).
+- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
+- If MQTT enabled, all other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
 ## Automation
 
@@ -320,7 +320,7 @@ on_...:
 
 ### lambda calls
 
-From [lambdas](#config-lambda), you can call the following methods:
+From [lambdas](/automations/templates#config-lambda), you can call the following methods:
 
 - `arm_away(code)`
 - `arm_home(code)`

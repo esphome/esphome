@@ -116,11 +116,11 @@ text_sensor:
 - **sun_gtil2_id** (*Optional*): Manually specify the ID of the sun_gtil2 instance if there are multiple.
 
 - **state** (*Optional*): The inverter's state.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **serial_number** (*Optional*): The inverter's serial number.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)

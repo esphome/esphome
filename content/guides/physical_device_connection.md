@@ -15,7 +15,7 @@ ESPHome runs on a wide variety of devices, so it's hard to list any specific
 set of tools that you need or to give instructions on how to connect. This
 guide tries to cover some of the more common flashing situations. If your
 device doesn't fit any of these situations, try and find a guide for your
-specific device in the [devices guides](#devices) or elsewhere on the
+specific device in the [devices guides](/components#devices) or elsewhere on the
 internet.
 
 ## Connecting to the ESP

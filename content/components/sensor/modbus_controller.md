@@ -35,12 +35,12 @@ and requires {{< docref "/components/modbus_controller" >}} to be configured.
   - `FP32`  : 32 bit IEEE 754 floating point from 2 registers
   - `FP32_R`  : 32 bit IEEE 754 floating point - same as FP32 but low word first
 
-- **bitmask** (*Optional*, int): sometimes multiple values are packed in a single register's response. The bitmask can be used to extract a value from the response. See [Bitmasks](#bitmasks).
+- **bitmask** (*Optional*, int): sometimes multiple values are packed in a single register's response. The bitmask can be used to extract a value from the response. See [Bitmasks](/components/modbus_controller#bitmasks).
 - **skip_updates** (*Optional*, int): By default, all sensors of a modbus_controller are updated together. For data points that don't change very frequently, updates can be skipped. A value of 5 would only update this sensor range in every 6th update cycle. Note: The modbus_controller groups components by address ranges to reduce number of transactions. All components with the same starting address will be updated in one request. `skip_updates` applies for *all* components in the same range.
-- **register_count** (*Optional*, int): The number of consecutive registers this read request should span or skip in a single command. Default is 1. See [Optimizing modbus communications](#modbus_register_count) for more details.
+- **register_count** (*Optional*, int): The number of consecutive registers this read request should span or skip in a single command. Default is 1. See [Optimizing modbus communications](/components/modbus_controller#modbus_register_count) for more details.
 - **response_size** (*Optional*, int): Size of the response for the register in bytes. Defaults to register_count*2.
 - **force_new_range** (*Optional*, boolean): If possible sensors with sequential addresses are grouped together and requested in one range. Setting `force_new_range: true` enforces the start of a new range at that address.
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated every update interval to get the new value of the sensor.
 
   Parameters passed into the lambda
@@ -58,7 +58,7 @@ and requires {{< docref "/components/modbus_controller" >}} to be configured.
 
 - **custom_command** (*Optional*, list of bytes): raw bytes for modbus command. This allows using non-standard commands. If `custom_command` is used `address` and `register_type` can't be used.
   Custom data must contain all required bytes including the modbus device address. The CRC is automatically calculated and appended to the command.
-  See [Using `custom_command`](#modbus_custom_command) how to use `custom_command`
+  See [Using `custom_command`](/components/modbus_controller#modbus_custom_command) how to use `custom_command`
 
 - **offset** (*Optional*, int): Offset from start address in bytes (only required for uncommon response encodings). If more than one register is written in a command this value is used to find the start of this datapoint relative to start address. The component calculates the size of the range based on offset and size of the value type. For `coil` or `discrete_input` registers offset is the position of the coil/register because these registers encode 8 coils in one byte.
 
@@ -96,7 +96,7 @@ The example below will send 2 modbus commands (device address 1 assumed):
 ```
 
 The `modbus` sensor platform allows you use a lambda that gets called before data is published
-using [lambdas](#config-lambda).
+using [lambdas](/automations/templates#config-lambda).
 
 The example below logs the value as parsed and the raw modbus bytes received for this register range:
 

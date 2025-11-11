@@ -172,7 +172,7 @@ esp32_ble_tracker:
 ### Battery Level Reporting
 
 If you wish to have the 'percentage of battery life remaining'
-reported as a sensor, you can make use of the [Copy Sensor](#copy-sensor) component.
+reported as a sensor, you can make use of the [Copy Sensor](/components/copy#copy-sensor) component.
 
 The examples below are based on standard alkaline-chemistry batteries;
 if you use other types of batteries you may need to adjust the

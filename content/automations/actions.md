@@ -232,7 +232,7 @@ At least one of `condition`, `all` or `any` must be provided.
 
 ### `lambda` Action
 
-This action executes an arbitrary piece of C++ code (see [Lambda](#config-lambda)).
+This action executes an arbitrary piece of C++ code (see [Lambda](/automations/templates#config-lambda)).
 
 ```yaml
 on_...:
@@ -480,7 +480,7 @@ on_...:
 
 ### `lambda` Condition
 
-This condition performs an arbitrary piece of C++ code (see [Lambda](#config-lambda))
+This condition performs an arbitrary piece of C++ code (see [Lambda](/automations/templates#config-lambda))
 and can be used to create conditional flow in actions.
 
 ```yaml

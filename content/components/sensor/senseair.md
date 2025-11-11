@@ -113,5 +113,5 @@ on_...:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "senseair/senseair.h" "senseair/senseair.h" >}}

@@ -31,7 +31,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the binary sensor. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
 > you want the binary sensor to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the
@@ -84,8 +84,8 @@ Advanced options:
   for a list of available options.
   Set to `""` to remove the default entity category.
 
-- If MQTT enabled, all other options from [MQTT Component](#config-mqtt-component).
-- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
+- If MQTT enabled, all other options from [MQTT Component](/components/mqtt#config-mqtt-component).
+- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
 ## Actions
 
@@ -108,7 +108,7 @@ The state may also be invalidated by an API call in a lambda - see the API refer
 ## Binary Sensor Filters
 
 With binary sensor filters you can customize how ESPHome handles your binary sensor values even more.
-They are similar to [Sensor Filters](#sensor-filters). All filters are processed in a pipeline.
+They are similar to [Sensor Filters](/components/sensor#sensor-filters). All filters are processed in a pipeline.
 This means all binary sensor filters are processed in the order given in the configuration (so order
 of these entries matters!)
 
@@ -224,7 +224,7 @@ Configuration variables:
 
 ### `lambda`
 
-Specify any [lambda](#config-lambda) for more complex filters. The input value from
+Specify any [lambda](/automations/templates#config-lambda) for more complex filters. The input value from
 the binary sensor is `x` and you can return `true` for ON, `false` for OFF, and `{}` to stop
 the filter chain.
 
@@ -247,7 +247,7 @@ time period, invalidate the state.
 The triggers for binary sensors in ESPHome use the lingo from computer mouses.
 For example, a `press` is triggered in the first moment when the button on your mouse is pushed down.
 
-You can access the current state of the binary sensor in [lambdas](#config-lambda) using
+You can access the current state of the binary sensor in [lambdas](/automations/templates#config-lambda) using
 `id(binary_sensor_id).state`.
 
 {{< anchor "binary_sensor-on_press" >}}
@@ -292,7 +292,7 @@ Configuration variables: See [Automation](/automations).
 
 This automation will be triggered when a new state is received (and thus combines `on_press`
 and `on_release` into one trigger). The new state will be given as the variable `x` as a boolean
-and can be used in [lambdas](#config-lambda). It will not be called when the state is invalidated; it will be called when
+and can be used in [lambdas](/automations/templates#config-lambda). It will not be called when the state is invalidated; it will be called when
 the state initially becomes valid only if `trigger_on_initial_state` is true.
 
 ```yaml
@@ -436,7 +436,7 @@ Configuration variables:
 
 > [!NOTE]
 > Getting the timing right for your use-case can sometimes be a bit difficult. If you set the
-> [global log level](#logger-log_levels) to `VERBOSE`, the multi click trigger shows logs
+> [global log level](/components/logger#logger-log_levels) to `VERBOSE`, the multi click trigger shows logs
 > about what stopped the trigger from happening.
 
 You can use an `OFF` timing at the end of the timing sequence to differentiate between different
@@ -484,7 +484,7 @@ on_...:
 
 ### lambda calls
 
-From [lambdas](#config-lambda), you can call several methods on all binary sensors to do some
+From [lambdas](/automations/templates#config-lambda), you can call several methods on all binary sensors to do some
 advanced stuff.
 
 - `publish_state()`  : Manually cause the binary sensor to publish and store a state from anywhere

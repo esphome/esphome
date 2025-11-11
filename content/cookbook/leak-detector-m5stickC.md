@@ -71,7 +71,7 @@ Once everything is hooked up and flashed, enable `esp32_touch:` `setup_mode: tru
 setting on the touch-sensitive binary sensor (GPIO33) to find the proper value for your particular moisture sensor and
 cabling situation. Grab a glass of water for testing, another for yourself, and dip away while watching the logs.
 Your goal is to find a threshold value that is sufficient to trigger the binary sensor in water, but not otherwise.
-See [ESP32 Touch Pad](#esp32-touch-binary-sensor) for more information.
+See [ESP32 Touch Pad](/components/binary_sensor/esp32_touch#esp32-touch-binary-sensor) for more information.
 
 ------------
 

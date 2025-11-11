@@ -36,7 +36,7 @@ output:
 - **write_action** (**Required**, [Automation](/automations)): An automation to perform
   when the state of the output is updated.
 
-- All other options from [Output](#config-output).
+- All other options from [Output](/components/output#config-output).
 
 See {{< apiclass "output::BinaryOutput" "output::BinaryOutput" >}} and {{< apiclass "output::FloatOutput" "output::FloatOutput" >}}.
 

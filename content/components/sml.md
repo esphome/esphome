@@ -99,7 +99,7 @@ text_sensor:
 - **server_id** (*Optional*, string): Specify the device's server_id to retrieve the OBIS code from. Should be specified if more then one device is connected to the same hardware sensor component.
 - **sml_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the [SML platform](#sml-platform)
 - **format** (*Optional*, string): Override the automatic interpretation of the transmitted binary data value. Possible values (`int`, `uint`, `bool`, `hex`, `text`).
-- All other options from [Text Sensor](#config-text_sensor).
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Automations
 
@@ -121,7 +121,7 @@ identifies your smart meter. If you have only one hardware component attached to
 don't have to care about the server id and you may ommit it in your configuration.
 
 In order to get the server id and the available OBIS codes provided by your smart meter, simply set up the
-[SML platform](#sml-platform) and observe the log output (the [log level](#logger-log_levels)
+[SML platform](#sml-platform) and observe the log output (the [log level](/components/logger#logger-log_levels)
 must be set to at least `debug`  !).
 
 Your log output will show something like this:

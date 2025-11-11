@@ -114,7 +114,7 @@ configure this amount. Possible oversampling values:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "bme280/" >}}
 - {{< docref "bmp280/" >}}
 - {{< docref "bme680/" >}}
