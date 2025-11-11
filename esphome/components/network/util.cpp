@@ -45,7 +45,7 @@ bool is_available() {
 #endif
 
 #ifdef USE_HOST
-        return true;  // Assume its connected
+  return true;  // Assume its connected
 #endif
   return false;
 }
