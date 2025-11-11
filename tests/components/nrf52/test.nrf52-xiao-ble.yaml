@@ -5,3 +5,5 @@ nrf52:
       inverted: true
       mode:
         output: true
+  reg0:
+    voltage: default
