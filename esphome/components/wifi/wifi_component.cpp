@@ -199,7 +199,7 @@ static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;
 
 /// Cooldown duration in milliseconds after adapter restart or repeated failures
 /// Allows WiFi hardware to stabilize before next connection attempt
-static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 2500;
+static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 1000;
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
