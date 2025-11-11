@@ -11,8 +11,6 @@ from esphome.components.esp32 import (
     get_esp32_variant,
 )
 from esphome.components.esp32.const import (
-    KEY_ESP32,
-    KEY_PSRAM_GUARANTEED,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -36,6 +34,9 @@ CODEOWNERS = ["@esphome/core"]
 DOMAIN = "psram"
 
 DEPENDENCIES = [PLATFORM_ESP32]
+
+# PSRAM availability tracking for cross-component coordination
+KEY_PSRAM_GUARANTEED = "psram_guaranteed"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -144,7 +145,7 @@ def _store_psram_guaranteed(config):
     before any to_code() functions run.
     """
     psram_guaranteed = not config[CONF_DISABLED] and not config[CONF_IGNORE_NOT_FOUND]
-    CORE.data[KEY_ESP32][KEY_PSRAM_GUARANTEED] = psram_guaranteed
+    CORE.data[KEY_PSRAM_GUARANTEED] = psram_guaranteed
     return config
 
 

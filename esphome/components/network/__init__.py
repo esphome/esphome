@@ -2,7 +2,7 @@ import ipaddress
 
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components.esp32.const import KEY_ESP32, KEY_PSRAM_GUARANTEED
+from esphome.components.psram import KEY_PSRAM_GUARANTEED
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -126,7 +126,7 @@ async def to_code(config):
         and CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
     ):
         # Check if PSRAM is guaranteed (set by psram component during final validation)
-        psram_guaranteed = CORE.data.get(KEY_ESP32, {}).get(KEY_PSRAM_GUARANTEED, False)
+        psram_guaranteed = CORE.data.get(KEY_PSRAM_GUARANTEED, False)
 
         if psram_guaranteed:
             # PSRAM is guaranteed - use aggressive settings

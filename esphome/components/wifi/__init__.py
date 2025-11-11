@@ -3,11 +3,11 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
-from esphome.components.esp32.const import KEY_ESP32, KEY_PSRAM_GUARANTEED
 from esphome.components.network import (
     KEY_HIGH_PERFORMANCE_NETWORKING,
     ip_address_literal,
 )
+from esphome.components.psram import KEY_PSRAM_GUARANTEED
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.config_validation import only_with_esp_idf
@@ -456,7 +456,7 @@ async def to_code(config):
         and CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
     ):
         # Check if PSRAM is guaranteed (set by psram component during final validation)
-        psram_guaranteed = CORE.data.get(KEY_ESP32, {}).get(KEY_PSRAM_GUARANTEED, False)
+        psram_guaranteed = CORE.data.get(KEY_PSRAM_GUARANTEED, False)
 
         # Always allocate WiFi buffers in PSRAM if available
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
