@@ -16,6 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 # High performance networking tracking infrastructure
 # Components can request high performance networking and this configures lwip and WiFi settings
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
+CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 
 network_ns = cg.esphome_ns.namespace("network")
 IPAddress = network_ns.class_("IPAddress")
@@ -112,6 +113,7 @@ CONFIG_SCHEMA = cv.Schema(
             ),
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
+        cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.boolean,
     }
 )
 
@@ -122,12 +124,23 @@ async def to_code(config):
     if CORE.using_arduino and CORE.is_esp32:
         cg.add_library("Networking", None)
 
-    # Apply high performance networking settings if requested by any component
-    if (
-        CORE.is_esp32
-        and CORE.using_esp_idf
-        and CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
-    ):
+    # Apply high performance networking settings
+    # Config can explicitly enable/disable, or default to component-driven behavior
+    enable_high_perf = config.get(CONF_ENABLE_HIGH_PERFORMANCE)
+    component_requested = CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
+
+    # Explicit config overrides component request
+    should_enable = (
+        enable_high_perf if enable_high_perf is not None else component_requested
+    )
+
+    # Log when user explicitly disables but a component requested it
+    if enable_high_perf is False and component_requested:
+        _LOGGER.info(
+            "High performance networking disabled by user configuration (overriding component request)"
+        )
+
+    if CORE.is_esp32 and CORE.using_esp_idf and should_enable:
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = CORE.data.get(KEY_PSRAM_GUARANTEED, False)
 
