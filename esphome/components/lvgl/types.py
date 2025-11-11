@@ -1,8 +1,10 @@
 import sys
 
 from esphome import automation, codegen as cg
+from esphome.automation import register_action
 from esphome.config_validation import Schema
 from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_TEXT, CONF_VALUE
+from esphome.core import EsphomeError
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.cpp_types import esphome_ns
 
@@ -124,13 +126,16 @@ class WidgetType:
         schema=None,
         modify_schema=None,
         lv_name=None,
+        is_mock: bool = False,
     ):
         """
         :param name: The widget name, e.g. "bar"
         :param w_type: The C type of the widget
         :param parts: What parts this widget supports
         :param schema: The config schema for defining a widget
-        :param modify_schema: A schema to update the widget
+        :param modify_schema: A schema to update the widget, defaults to the same as the schema
+        :param lv_name: The name of the LVGL widget in the LVGL library, if different from the name
+        :param is_mock: Whether this widget is a mock widget, i.e. not a real LVGL widget
         """
         self.name = name
         self.lv_name = lv_name or name
@@ -145,6 +150,22 @@ class WidgetType:
             modify_schema = Schema(modify_schema)
         self.modify_schema = modify_schema
         self.mock_obj = MockObj(f"lv_{self.lv_name}", "_")
+
+        # Local import to avoid circular import
+        from .automation import update_to_code
+        from .schemas import WIDGET_TYPES, create_modify_schema
+
+        if not is_mock:
+            if self.name in WIDGET_TYPES:
+                raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
+            WIDGET_TYPES[self.name] = self
+
+            # Register the update action automatically
+            register_action(
+                f"lvgl.{self.name}.update",
+                ObjUpdateAction,
+                create_modify_schema(self),
+            )(update_to_code)
 
     @property
     def animated(self):
