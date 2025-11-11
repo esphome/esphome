@@ -43,3 +43,5 @@ DriverChip(
         (0x29, 0x00),
     ],
 )
+# fmt: on
+
