@@ -293,7 +293,7 @@ void WiFiComponent::start_initial_connection_() {
     this->selected_sta_index_ = 0;
     this->retry_phase_ = WiFiRetryPhase::EXPLICIT_HIDDEN;
     WiFiAP params = this->build_params_for_current_phase_();
-    this->start_connecting(params, false);
+    this->start_connecting(params);
   } else {
     ESP_LOGI(TAG, "Starting scan");
     this->start_scanning();
@@ -375,13 +375,13 @@ void WiFiComponent::start() {
     // Without saved data, try first configured network or use normal flow
     if (loaded_fast_connect) {
       ESP_LOGI(TAG, "Starting fast_connect (saved) " LOG_SECRET("'%s'"), params.get_ssid().c_str());
-      this->start_connecting(params, false);
+      this->start_connecting(params);
     } else if (!this->sta_.empty() && !this->sta_[0].get_hidden()) {
       // No saved data, but have configured networks - try first non-hidden network
       ESP_LOGI(TAG, "Starting fast_connect (config) " LOG_SECRET("'%s'"), this->sta_[0].get_ssid().c_str());
       this->selected_sta_index_ = 0;
       params = this->build_params_for_current_phase_();
-      this->start_connecting(params, false);
+      this->start_connecting(params);
     } else {
       // No saved data and (no networks OR first is hidden) - use normal flow
       this->start_initial_connection_();
@@ -454,8 +454,7 @@ void WiFiComponent::loop() {
         this->check_scanning_finished();
         break;
       }
-      case WIFI_COMPONENT_STATE_STA_CONNECTING:
-      case WIFI_COMPONENT_STATE_STA_CONNECTING_2: {
+      case WIFI_COMPONENT_STATE_STA_CONNECTING: {
         this->status_set_warning(LOG_STR("associating to network"));
         this->check_connecting_finished();
         break;
@@ -663,7 +662,7 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   this->set_sta(sta);
 }
 
-void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
+void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // Log connection attempt at INFO level with priority
   std::string bssid_formatted;
   float priority = 0.0f;
@@ -731,11 +730,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
     return;
   }
 
-  if (!two) {
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
-  } else {
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
-  }
+  this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
   this->action_started_ = millis();
 }
 
@@ -1016,7 +1011,7 @@ void WiFiComponent::check_scanning_finished() {
   WiFiAP params = this->build_params_for_current_phase_();
   // Ensure we're in SCAN_CONNECTING phase when connecting with scan results
   // (needed when scan was started directly without transition_to_phase_, e.g., initial scan)
-  this->start_connecting(params, false);
+  this->start_connecting(params);
 }
 
 void WiFiComponent::dump_config() {
@@ -1444,9 +1439,8 @@ void WiFiComponent::retry_connect() {
   // After exhausting all networks in a phase, selected_sta_index_ may be -1
   // In that case, skip connection and let next wifi_loop() handle phase transition
   if (this->selected_sta_index_ >= 0) {
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
     WiFiAP params = this->build_params_for_current_phase_();
-    this->start_connecting(params, true);
+    this->start_connecting(params);
   }
 }
 
