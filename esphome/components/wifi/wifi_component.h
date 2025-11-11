@@ -385,12 +385,11 @@ class WiFiComponent : public Component {
   /// Find next SSID that wasn't in scan results (might be hidden)
   /// Returns index of next potentially hidden SSID, or -1 if none found
   /// @param start_index Start searching from index after this (-1 to start from beginning)
-  /// @param include_explicit_hidden If true, include SSIDs marked hidden:true. If false, only find truly hidden SSIDs.
-  int8_t find_next_hidden_sta_(int8_t start_index, bool include_explicit_hidden = true);
+  int8_t find_next_hidden_sta_(int8_t start_index);
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
-  /// Clear BSSID priority tracking if all priorities are identical (saves memory)
-  void clear_priorities_if_all_same_();
+  /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
+  void clear_priorities_if_all_min_();
   /// Advance to next target (AP/SSID) within current phase, or increment retry counter
   /// Called when staying in the same phase after a failed connection attempt
   void advance_to_next_target_or_increment_retry_();
