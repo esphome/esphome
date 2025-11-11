@@ -28,6 +28,7 @@ class ModbusController;
 class SensorItem {
  public:
   virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
+  virtual void on_write_response(const std::vector<uint8_t> &data);
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
   size_t virtual get_register_size() const {
@@ -89,15 +90,15 @@ struct RegisterRange {
   uint16_t start_address;
   ModbusRegisterType register_type;
   uint8_t register_count;
-  uint16_t skip_updates;                            // the config value
-  SensorSet sensors;                                // all sensors of this range
-  std::unique_ptr<ModbusCommandItem> command_item;  // the command item for this range
+  uint16_t skip_updates;  // the config value
+  SensorSet sensors;      // all sensors of this range
 };
 
 class ModbusCommandItem : public modbus::ModbusClientDevice {
  public:
-  static const size_t MAX_PAYLOAD_BYTES = 240;
+  ModbusCommandItem(ModbusController *controller = nullptr);
   ModbusController *controller{nullptr};
+  SensorSet sensors;  // all sensors of this range
   /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
@@ -106,6 +107,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   void on_modbus_no_response() override;
   uint16_t register_address{0};
   uint16_t register_count{0};
+  uint16_t skip_updates{0};
   ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
   ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
   std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
@@ -126,17 +128,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   static ModbusCommandItem create_read_command(
       ModbusController *controller, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
-          &&handler);
-  /** Create modbus read command
-   *  Function code 02-04
-   * @param controller pointer to the controller
-   * @param function_code modbus function code for the read command
-   * @param start_address modbus address of the first register to read
-   * @param register_count number of registers to read
-   * @return ModbusCommandItem with the prepared command
-   */
-  static ModbusCommandItem create_read_command(ModbusController *controller, ModbusRegisterType register_type,
-                                               uint16_t start_address, uint16_t register_count);
+          &&handler = nullptr);
+
   /** Create modbus read command
    *  Function code 02-04
    * @param controller pointer to the controller
@@ -217,17 +210,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   void setup() override;
   void update() override;
   void set_online(bool online, const ModbusCommandItem &command_item);
+  void increment_non_response_count();
 
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
-  /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
-  // TODO: MOve this to CommandItem
-  void on_register_data(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
-  /// default delegate called by process_modbus_data when a response for a write response has retrieved from the
-  /// incoming queue
-  // TODO: Move to CommandItem
-  void on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
-                                  const std::vector<uint8_t> &data);
   /// called by esphome generated code to set the offline_skip_updates
   void set_offline_skip_updates(uint16_t offline_skip_updates) { this->offline_skip_updates_ = offline_skip_updates; }
   /// get if the module is offline, didn't respond the last command
@@ -249,16 +235,14 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   friend ModbusCommandItem;
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
-  // find register in sensormap. Returns iterator with all registers having the same start address
-  SensorSet find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const;
   /// submit the read command for the address range to the send queue
-  void update_range_(RegisterRange &r);
+  void update_range_(ModbusCommandItem &cmd);
   /// dump the parsed sensormap for diagnostics
   void dump_sensors_();
   /// Collection of all sensors for this component
   SensorSet sensorset_;
   /// Continuous range of modbus registers
-  std::vector<RegisterRange> register_ranges_{};
+  std::vector<ModbusCommandItem> command_items_{};
   /// count updates to enable skipping
   uint16_t update_counter_{0};
   /// count updates to enable skipping

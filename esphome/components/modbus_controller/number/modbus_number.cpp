@@ -48,11 +48,7 @@ void ModbusNumber::control(float value) {
 
   if (!data.empty()) {
     ESP_LOGV(TAG, "Modbus Number write raw: %s", format_hex_pretty(data).c_str());
-    write_cmd = ModbusCommandItem::create_custom_command(
-        this->parent_, data,
-        [this, write_cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-          this->parent_->on_write_register_response(write_cmd.register_type, this->start_address, data);
-        });
+    write_cmd = ModbusCommandItem::create_custom_command(this->parent_, data);
   } else {
     data = float_to_payload(write_value, this->sensor_value_type);
 
@@ -72,9 +68,7 @@ void ModbusNumber::control(float value) {
     // publish new value
     write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
                                                       const std::vector<uint8_t> &data) {
-      // gets called when the write command is ack'd from the device
-      this->parent_->on_write_register_response(write_cmd.register_type, start_address, data);
-      this->publish_state(value);
+      this->publish_state(value);  // TODO: Do we really need to publish here again?
     };
   }
   this->parent_->queue_command(write_cmd);
