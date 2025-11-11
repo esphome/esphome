@@ -425,6 +425,8 @@ async def to_code(config):
 
     # Track if any network uses Enterprise authentication
     has_eap = False
+    # Track if any network uses manual IP
+    has_manual_ip = False
 
     # Initialize FixedVector with the count of networks
     networks = config.get(CONF_NETWORKS, [])
@@ -438,11 +440,15 @@ async def to_code(config):
         for network in networks:
             if CONF_EAP in network:
                 has_eap = True
+            if network.get(CONF_MANUAL_IP) or config.get(CONF_MANUAL_IP):
+                has_manual_ip = True
             cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
         ip_config = conf.get(CONF_MANUAL_IP)
+        if ip_config:
+            has_manual_ip = True
         cg.with_local_variable(
             conf[CONF_ID],
             WiFiAP(),
@@ -457,6 +463,10 @@ async def to_code(config):
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
+
+    # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
+    if has_manual_ip:
+        cg.add_define("USE_WIFI_MANUAL_IP")
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
