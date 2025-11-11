@@ -379,7 +379,6 @@ class WiFiComponent : public Component {
   /// Find next SSID that wasn't in scan results (might be hidden)
   /// Returns index of next potentially hidden SSID, or -1 if none found
   /// @param start_index Start searching from index after this (-1 to start from beginning)
-  /// @param include_explicit_hidden If true, include SSIDs marked hidden:true. If false, only find truly hidden SSIDs.
   int8_t find_next_hidden_sta_(int8_t start_index);
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
