@@ -253,17 +253,19 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
   return false;
 }
 
-int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index, bool include_explicit_hidden) {
+int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
   // Find next SSID that wasn't in scan results (might be hidden)
+  bool include_explicit_hidden = !this->went_through_explicit_hidden_phase_();
   // Start searching from start_index + 1
   for (size_t i = start_index + 1; i < this->sta_.size(); i++) {
     const auto &sta = this->sta_[i];
 
     // Skip networks that were already tried in EXPLICIT_HIDDEN phase
     // Those are: networks marked hidden:true that appear before the first non-hidden network
+    // If all networks are hidden (first_non_hidden_idx == -1), skip all of them
     if (!include_explicit_hidden && sta.get_hidden()) {
       int8_t first_non_hidden_idx = this->find_first_non_hidden_index_();
-      if (first_non_hidden_idx >= 0 && static_cast<int8_t>(i) < first_non_hidden_idx) {
+      if (first_non_hidden_idx < 0 || static_cast<int8_t>(i) < first_non_hidden_idx) {
         ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (explicit hidden, already tried)", sta.get_ssid().c_str());
         continue;
       }
@@ -1003,6 +1005,12 @@ void WiFiComponent::check_scanning_finished() {
     // No scan results matched our configured networks - transition directly to hidden mode
     // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
     this->transition_to_phase_(WiFiRetryPhase::RETRY_HIDDEN);
+    // If no hidden networks to try, skip connection attempt (will be handled on next loop)
+    if (this->selected_sta_index_ == -1) {
+      this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+      this->action_started_ = millis();
+      return;
+    }
     // Now start connection attempt in hidden mode
   } else if (this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING)) {
     return;  // scan started, wait for next loop iteration
@@ -1145,7 +1153,12 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::EXPLICIT_HIDDEN;
       }
 
-      // No more consecutive explicitly hidden networks - proceed to scanning
+      // No more consecutive explicitly hidden networks
+      // If ALL networks are hidden, skip scanning and go directly to restart
+      if (this->find_first_non_hidden_index_() < 0) {
+        return WiFiRetryPhase::RESTARTING_ADAPTER;
+      }
+      // Otherwise proceed to scanning for non-hidden networks
       return WiFiRetryPhase::SCAN_CONNECTING;
     }
 
@@ -1163,7 +1176,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // Its priority has been decreased, so on next scan it will be sorted lower
       // and we'll try the next best BSSID.
       // Check if there are any potentially hidden networks to try
-      if (this->find_next_hidden_sta_(-1, !this->went_through_explicit_hidden_phase_()) >= 0) {
+      if (this->find_next_hidden_sta_(-1) >= 0) {
         return WiFiRetryPhase::RETRY_HIDDEN;  // Found hidden networks to try
       }
       // No hidden networks - always go through RESTARTING_ADAPTER phase
@@ -1180,8 +1193,13 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 
         // Exhausted retries on current SSID - check if there are more potentially hidden SSIDs to try
         if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-          // More SSIDs available - stay in RETRY_HIDDEN, advance will happen in retry_connect()
-          return WiFiRetryPhase::RETRY_HIDDEN;
+          // Check if find_next_hidden_sta_() would actually find another hidden SSID
+          // as it might have been seen in the scan results and we want to skip those
+          // otherwise we will get stuck in RETRY_HIDDEN phase
+          if (this->find_next_hidden_sta_(this->selected_sta_index_) != -1) {
+            // More hidden SSIDs available - stay in RETRY_HIDDEN, advance will happen in retry_connect()
+            return WiFiRetryPhase::RETRY_HIDDEN;
+          }
         }
       }
       // Exhausted all potentially hidden SSIDs - always go through RESTARTING_ADAPTER
@@ -1206,8 +1224,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
 /// - Performing phase-specific initialization (e.g., advancing AP index, starting scans)
 ///
 /// @param new_phase The phase we're transitioning TO
-/// @return true if an async scan was started (caller should wait for completion)
-///         false if no scan started (caller can proceed with connection attempt)
+/// @return true if connection attempt should be skipped (scan started or no networks to try)
+///         false if caller can proceed with connection attempt
 bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   WiFiRetryPhase old_phase = this->retry_phase_;
 
@@ -1265,7 +1283,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
         // In that case, skip networks marked hidden:true (already tried)
         // Otherwise, include them (they haven't been tried yet)
-        this->selected_sta_index_ = this->find_next_hidden_sta_(-1, !this->went_through_explicit_hidden_phase_());
+        this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
 
         if (this->selected_sta_index_ == -1) {
           ESP_LOGD(TAG, "All SSIDs visible or already tried, skipping hidden mode");
@@ -1411,8 +1429,7 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
     // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
     // In that case, skip networks marked hidden:true (already tried)
     // Otherwise, include them (they haven't been tried yet)
-    int8_t next_index =
-        this->find_next_hidden_sta_(this->selected_sta_index_, !this->went_through_explicit_hidden_phase_());
+    int8_t next_index = this->find_next_hidden_sta_(this->selected_sta_index_);
     if (next_index != -1) {
       // Found another potentially hidden SSID
       this->selected_sta_index_ = next_index;
