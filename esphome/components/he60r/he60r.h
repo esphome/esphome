@@ -13,7 +13,6 @@ class HE60rCover : public cover::Cover, public Component, public uart::UARTDevic
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   void set_open_duration(uint32_t duration) { this->open_duration_ = duration; }
   void set_close_duration(uint32_t duration) { this->close_duration_ = duration; }

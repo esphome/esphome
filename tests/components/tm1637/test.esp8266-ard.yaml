@@ -1,5 +1,5 @@
 substitutions:
-  clk_pin: GPIO14
-  dio_pin: GPIO13
+  clk_pin: GPIO0
+  dio_pin: GPIO2
 
 <<: !include common.yaml

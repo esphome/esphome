@@ -7,7 +7,6 @@ namespace ssd1306_i2c {
 static const char *const TAG = "ssd1306_i2c";
 
 void I2CSSD1306::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up I2C SSD1306...");
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);
@@ -24,16 +23,19 @@ void I2CSSD1306::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  External VCC: %s", YESNO(this->external_vcc_));
-  ESP_LOGCONFIG(TAG, "  Flip X: %s", YESNO(this->flip_x_));
-  ESP_LOGCONFIG(TAG, "  Flip Y: %s", YESNO(this->flip_y_));
-  ESP_LOGCONFIG(TAG, "  Offset X: %d", this->offset_x_);
-  ESP_LOGCONFIG(TAG, "  Offset Y: %d", this->offset_y_);
-  ESP_LOGCONFIG(TAG, "  Inverted Color: %s", YESNO(this->invert_));
+  ESP_LOGCONFIG(TAG,
+                "  External VCC: %s\n"
+                "  Flip X: %s\n"
+                "  Flip Y: %s\n"
+                "  Offset X: %d\n"
+                "  Offset Y: %d\n"
+                "  Inverted Color: %s",
+                YESNO(this->external_vcc_), YESNO(this->flip_x_), YESNO(this->flip_y_), this->offset_x_,
+                this->offset_y_, YESNO(this->invert_));
   LOG_UPDATE_INTERVAL(this);
 
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with SSD1306 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 void I2CSSD1306::command(uint8_t value) { this->write_byte(0x00, value); }

@@ -66,11 +66,10 @@ PROTOCOL_NAMES = {
 
 def _validate(config):
     for conf, models in SUPPORTED_OPTIONS.items():
-        if conf in config:
-            if config[CONF_MODEL] not in models:
-                raise cv.Invalid(
-                    f"{conf} is only available on {' and '.join(models)}, not {config[CONF_MODEL]}"
-                )
+        if conf in config and config[CONF_MODEL] not in models:
+            raise cv.Invalid(
+                f"{conf} is only available on {' and '.join(models)}, not {config[CONF_MODEL]}"
+            )
     return config
 
 
@@ -111,8 +110,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_INTENSITY,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PRECIPITATION_INTENSITY,
                 state_class=STATE_CLASS_MEASUREMENT,
+                icon="mdi:weather-rainy",
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,

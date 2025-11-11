@@ -1,0 +1,13 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  map: !include common.yaml
+
+display:
+  spi_id: spi_bus
+  platform: ili9xxx
+  id: main_lcd
+  model: ili9342
+  cs_pin: 12
+  dc_pin: 13
+  reset_pin: 21
+  invert_colors: false

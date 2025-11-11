@@ -50,7 +50,6 @@ class AS5600Component : public Component, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   /// HARDWARE_LATE setup priority
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // configuration setters
   void set_dir_pin(InternalGPIOPin *pin) { this->dir_pin_ = pin; }

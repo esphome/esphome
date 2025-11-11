@@ -8,7 +8,7 @@ namespace rp2040 {
 
 static const char *const TAG = "rp2040";
 
-static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
+static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   if (flags == gpio::FLAG_INPUT) {  // NOLINT(bugprone-branch-clone)
     return INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
@@ -25,14 +25,16 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
 }
 
 struct ISRPinArg {
+  uint32_t mask;
   uint8_t pin;
   bool inverted;
 };
 
 ISRInternalGPIOPin RP2040GPIOPin::to_isr() const {
   auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
-  arg->pin = pin_;
-  arg->inverted = inverted_;
+  arg->pin = this->pin_;
+  arg->inverted = this->inverted_;
+  arg->mask = 1 << this->pin_;
   return ISRInternalGPIOPin((void *) arg);
 }
 
@@ -81,21 +83,36 @@ void RP2040GPIOPin::detach_interrupt() const { detachInterrupt(pin_); }
 using namespace rp2040;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  return bool(digitalRead(arg->pin)) != arg->inverted;  // NOLINT
+  auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
+  return bool(sio_hw->gpio_in & arg->mask) != arg->inverted;
 }
+
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);  // NOLINT
+  auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
+  if (value != arg->inverted) {
+    sio_hw->gpio_set = arg->mask;
+  } else {
+    sio_hw->gpio_clr = arg->mask;
+  }
 }
+
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   // TODO: implement
   // auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
   // GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1UL << arg->pin);
 }
+
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  pinMode(arg->pin, flags_to_mode(flags, arg->pin));  // NOLINT
+  auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
+  if (flags & gpio::FLAG_OUTPUT) {
+    sio_hw->gpio_oe_set = arg->mask;
+  } else if (flags & gpio::FLAG_INPUT) {
+    sio_hw->gpio_oe_clr = arg->mask;
+    hw_write_masked(&padsbank0_hw->io[arg->pin],
+                    (bool_to_bit(flags & gpio::FLAG_PULLUP) << PADS_BANK0_GPIO0_PUE_LSB) |
+                        (bool_to_bit(flags & gpio::FLAG_PULLDOWN) << PADS_BANK0_GPIO0_PDE_LSB),
+                    PADS_BANK0_GPIO0_PUE_BITS | PADS_BANK0_GPIO0_PDE_BITS);
+  }
 }
 
 }  // namespace esphome

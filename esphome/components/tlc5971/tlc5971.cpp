@@ -13,8 +13,6 @@ void TLC5971::setup() {
   this->clock_pin_->digital_write(true);
 
   this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
-
-  ESP_LOGCONFIG(TAG, "Done setting up TLC5971 output component.");
 }
 void TLC5971::dump_config() {
   ESP_LOGCONFIG(TAG, "TLC5971:");
@@ -24,8 +22,10 @@ void TLC5971::dump_config() {
 }
 
 void TLC5971::loop() {
-  if (!this->update_)
+  if (!this->update_) {
+    this->disable_loop();
     return;
+  }
 
   uint32_t command;
 
@@ -93,6 +93,7 @@ void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {
     return;
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
+    this->enable_loop();
   }
   this->pwm_amounts_[channel] = value;
 }

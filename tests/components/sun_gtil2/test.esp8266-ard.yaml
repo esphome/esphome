@@ -1,4 +1,7 @@
 substitutions:
-  rx_pin: GPIO5
+  rx_pin: GPIO0
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
 
 <<: !include common.yaml

@@ -1,0 +1,11 @@
+# Common UART configuration for RP2040 Arduino tests - 115200 baud
+
+substitutions:
+  tx_pin: GPIO0
+  rx_pin: GPIO1
+
+uart:
+  - id: uart_bus
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 115200

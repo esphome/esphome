@@ -16,7 +16,6 @@ class BLEBinaryOutput : public output::BinaryOutput, public BLEClientNode, publi
  public:
   void dump_config() override;
   void loop() override {}
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_service_uuid16(uint16_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
   void set_service_uuid32(uint32_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_service_uuid128(uint8_t *uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }

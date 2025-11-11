@@ -1,6 +1,5 @@
 #include "ld2410.h"
 
-#include <utility>
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
@@ -8,94 +7,262 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
-#define highbyte(val) (uint8_t)((val) >> 8)
-#define lowbyte(val) (uint8_t)((val) &0xff)
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace ld2410 {
 
 static const char *const TAG = "ld2410";
+static const char *const UNKNOWN_MAC = "unknown";
+static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
-LD2410Component::LD2410Component() {}
+enum BaudRate : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8,
+};
+
+enum DistanceResolution : uint8_t {
+  DISTANCE_RESOLUTION_0_2 = 0x01,
+  DISTANCE_RESOLUTION_0_75 = 0x00,
+};
+
+enum LightFunction : uint8_t {
+  LIGHT_FUNCTION_OFF = 0x00,
+  LIGHT_FUNCTION_BELOW = 0x01,
+  LIGHT_FUNCTION_ABOVE = 0x02,
+};
+
+enum OutPinLevel : uint8_t {
+  OUT_PIN_LEVEL_LOW = 0x00,
+  OUT_PIN_LEVEL_HIGH = 0x01,
+};
+
+enum PeriodicData : uint8_t {
+  DATA_TYPES = 6,
+  TARGET_STATES = 8,
+  MOVING_TARGET_LOW = 9,
+  MOVING_TARGET_HIGH = 10,
+  MOVING_ENERGY = 11,
+  STILL_TARGET_LOW = 12,
+  STILL_TARGET_HIGH = 13,
+  STILL_ENERGY = 14,
+  DETECT_DISTANCE_LOW = 15,
+  DETECT_DISTANCE_HIGH = 16,
+  MOVING_SENSOR_START = 19,
+  STILL_SENSOR_START = 28,
+  LIGHT_SENSOR = 37,
+  OUT_PIN_SENSOR = 38,
+};
+
+enum PeriodicDataValue : uint8_t {
+  HEADER = 0xAA,
+  FOOTER = 0x55,
+  CHECK = 0x00,
+};
+
+enum AckData : uint8_t {
+  COMMAND = 6,
+  COMMAND_STATUS = 7,
+};
+
+// Memory-efficient lookup tables
+struct StringToUint8 {
+  const char *str;
+  const uint8_t value;
+};
+
+struct Uint8ToString {
+  const uint8_t value;
+  const char *str;
+};
+
+constexpr StringToUint8 BAUD_RATES_BY_STR[] = {
+    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
+    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
+    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800},
+};
+
+constexpr StringToUint8 DISTANCE_RESOLUTIONS_BY_STR[] = {
+    {"0.2m", DISTANCE_RESOLUTION_0_2},
+    {"0.75m", DISTANCE_RESOLUTION_0_75},
+};
+
+constexpr Uint8ToString DISTANCE_RESOLUTIONS_BY_UINT[] = {
+    {DISTANCE_RESOLUTION_0_2, "0.2m"},
+    {DISTANCE_RESOLUTION_0_75, "0.75m"},
+};
+
+constexpr StringToUint8 LIGHT_FUNCTIONS_BY_STR[] = {
+    {"off", LIGHT_FUNCTION_OFF},
+    {"below", LIGHT_FUNCTION_BELOW},
+    {"above", LIGHT_FUNCTION_ABOVE},
+};
+
+constexpr Uint8ToString LIGHT_FUNCTIONS_BY_UINT[] = {
+    {LIGHT_FUNCTION_OFF, "off"},
+    {LIGHT_FUNCTION_BELOW, "below"},
+    {LIGHT_FUNCTION_ABOVE, "above"},
+};
+
+constexpr StringToUint8 OUT_PIN_LEVELS_BY_STR[] = {
+    {"low", OUT_PIN_LEVEL_LOW},
+    {"high", OUT_PIN_LEVEL_HIGH},
+};
+
+constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
+    {OUT_PIN_LEVEL_LOW, "low"},
+    {OUT_PIN_LEVEL_HIGH, "high"},
+};
+
+// Helper functions for lookups
+template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
+  for (const auto &entry : arr) {
+    if (strcmp(str, entry.str) == 0)
+      return entry.value;
+  }
+  return 0xFF;  // Not found
+}
+
+template<size_t N> const char *find_str(const Uint8ToString (&arr)[N], uint8_t value) {
+  for (const auto &entry : arr) {
+    if (value == entry.value)
+      return entry.str;
+  }
+  return "";  // Not found
+}
+
+// Commands
+static constexpr uint8_t CMD_ENABLE_CONF = 0xFF;
+static constexpr uint8_t CMD_DISABLE_CONF = 0xFE;
+static constexpr uint8_t CMD_ENABLE_ENG = 0x62;
+static constexpr uint8_t CMD_DISABLE_ENG = 0x63;
+static constexpr uint8_t CMD_MAXDIST_DURATION = 0x60;
+static constexpr uint8_t CMD_QUERY = 0x61;
+static constexpr uint8_t CMD_GATE_SENS = 0x64;
+static constexpr uint8_t CMD_QUERY_VERSION = 0xA0;
+static constexpr uint8_t CMD_QUERY_DISTANCE_RESOLUTION = 0xAB;
+static constexpr uint8_t CMD_SET_DISTANCE_RESOLUTION = 0xAA;
+static constexpr uint8_t CMD_QUERY_LIGHT_CONTROL = 0xAE;
+static constexpr uint8_t CMD_SET_LIGHT_CONTROL = 0xAD;
+static constexpr uint8_t CMD_SET_BAUD_RATE = 0xA1;
+static constexpr uint8_t CMD_BT_PASSWORD = 0xA9;
+static constexpr uint8_t CMD_QUERY_MAC_ADDRESS = 0xA5;
+static constexpr uint8_t CMD_RESET = 0xA2;
+static constexpr uint8_t CMD_RESTART = 0xA3;
+static constexpr uint8_t CMD_BLUETOOTH = 0xA4;
+// Commands values
+static constexpr uint8_t CMD_MAX_MOVE_VALUE = 0x00;
+static constexpr uint8_t CMD_MAX_STILL_VALUE = 0x01;
+static constexpr uint8_t CMD_DURATION_VALUE = 0x02;
+// Bitmasks for target states
+static constexpr uint8_t MOVE_BITMASK = 0x01;
+static constexpr uint8_t STILL_BITMASK = 0x02;
+// Header & Footer size
+static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
+// Command Header & Footer
+static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
+static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
+// Data Header & Footer
+static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
+static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
+// MAC address the module uses when Bluetooth is disabled
+static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
+
+static inline int two_byte_to_int(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
+
+static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
+  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
+}
 
 void LD2410Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "LD2410:");
+  std::string mac_str =
+      mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
+  std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
+                                    this->version_[4], this->version_[3], this->version_[2]);
+  ESP_LOGCONFIG(TAG,
+                "LD2410:\n"
+                "  Firmware version: %s\n"
+                "  MAC address: %s",
+                version.c_str(), mac_str.c_str());
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "TargetBinarySensor", this->target_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "MovingTargetBinarySensor", this->moving_target_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "StillTargetBinarySensor", this->still_target_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "OutPinPresenceStatusBinarySensor", this->out_pin_presence_status_binary_sensor_);
-#endif
-#ifdef USE_SWITCH
-  LOG_SWITCH("  ", "EngineeringModeSwitch", this->engineering_mode_switch_);
-  LOG_SWITCH("  ", "BluetoothSwitch", this->bluetooth_switch_);
-#endif
-#ifdef USE_BUTTON
-  LOG_BUTTON("  ", "ResetButton", this->reset_button_);
-  LOG_BUTTON("  ", "RestartButton", this->restart_button_);
-  LOG_BUTTON("  ", "QueryButton", this->query_button_);
+  ESP_LOGCONFIG(TAG, "Binary Sensors:");
+  LOG_BINARY_SENSOR("  ", "Target", this->target_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "StillTarget", this->still_target_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "OutPinPresenceStatus", this->out_pin_presence_status_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "LightSensor", this->light_sensor_);
-  LOG_SENSOR("  ", "MovingTargetDistanceSensor", this->moving_target_distance_sensor_);
-  LOG_SENSOR("  ", "StillTargetDistanceSensor", this->still_target_distance_sensor_);
-  LOG_SENSOR("  ", "MovingTargetEnergySensor", this->moving_target_energy_sensor_);
-  LOG_SENSOR("  ", "StillTargetEnergySensor", this->still_target_energy_sensor_);
-  LOG_SENSOR("  ", "DetectionDistanceSensor", this->detection_distance_sensor_);
-  for (sensor::Sensor *s : this->gate_still_sensors_) {
-    LOG_SENSOR("  ", "NthGateStillSesnsor", s);
+  ESP_LOGCONFIG(TAG, "Sensors:");
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "Light", this->light_sensor_);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "DetectionDistance", this->detection_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetDistance", this->moving_target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetEnergy", this->moving_target_energy_sensor_);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetDistance", this->still_target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetEnergy", this->still_target_energy_sensor_);
+  for (auto &s : this->gate_move_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "GateMove", s);
   }
-  for (sensor::Sensor *s : this->gate_move_sensors_) {
-    LOG_SENSOR("  ", "NthGateMoveSesnsor", s);
+  for (auto &s : this->gate_still_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "GateStill", s);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
-  LOG_TEXT_SENSOR("  ", "MacTextSensor", this->mac_text_sensor_);
-#endif
-#ifdef USE_SELECT
-  LOG_SELECT("  ", "LightFunctionSelect", this->light_function_select_);
-  LOG_SELECT("  ", "OutPinLevelSelect", this->out_pin_level_select_);
-  LOG_SELECT("  ", "DistanceResolutionSelect", this->distance_resolution_select_);
-  LOG_SELECT("  ", "BaudRateSelect", this->baud_rate_select_);
+  ESP_LOGCONFIG(TAG, "Text Sensors:");
+  LOG_TEXT_SENSOR("  ", "Mac", this->mac_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
 #endif
 #ifdef USE_NUMBER
-  LOG_NUMBER("  ", "LightThresholdNumber", this->light_threshold_number_);
-  LOG_NUMBER("  ", "MaxStillDistanceGateNumber", this->max_still_distance_gate_number_);
-  LOG_NUMBER("  ", "MaxMoveDistanceGateNumber", this->max_move_distance_gate_number_);
-  LOG_NUMBER("  ", "TimeoutNumber", this->timeout_number_);
-  for (number::Number *n : this->gate_still_threshold_numbers_) {
-    LOG_NUMBER("  ", "Still Thresholds Number", n);
-  }
+  ESP_LOGCONFIG(TAG, "Numbers:");
+  LOG_NUMBER("  ", "LightThreshold", this->light_threshold_number_);
+  LOG_NUMBER("  ", "MaxMoveDistanceGate", this->max_move_distance_gate_number_);
+  LOG_NUMBER("  ", "MaxStillDistanceGate", this->max_still_distance_gate_number_);
+  LOG_NUMBER("  ", "Timeout", this->timeout_number_);
   for (number::Number *n : this->gate_move_threshold_numbers_) {
-    LOG_NUMBER("  ", "Move Thresholds Number", n);
+    LOG_NUMBER("  ", "MoveThreshold", n);
+  }
+  for (number::Number *n : this->gate_still_threshold_numbers_) {
+    LOG_NUMBER("  ", "StillThreshold", n);
   }
 #endif
-  this->read_all_info();
-  ESP_LOGCONFIG(TAG, "  Throttle_ : %ums", this->throttle_);
-  ESP_LOGCONFIG(TAG, "  MAC Address : %s", const_cast<char *>(this->mac_.c_str()));
-  ESP_LOGCONFIG(TAG, "  Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
+#ifdef USE_SELECT
+  ESP_LOGCONFIG(TAG, "Selects:");
+  LOG_SELECT("  ", "BaudRate", this->baud_rate_select_);
+  LOG_SELECT("  ", "DistanceResolution", this->distance_resolution_select_);
+  LOG_SELECT("  ", "LightFunction", this->light_function_select_);
+  LOG_SELECT("  ", "OutPinLevel", this->out_pin_level_select_);
+#endif
+#ifdef USE_SWITCH
+  ESP_LOGCONFIG(TAG, "Switches:");
+  LOG_SWITCH("  ", "Bluetooth", this->bluetooth_switch_);
+  LOG_SWITCH("  ", "EngineeringMode", this->engineering_mode_switch_);
+#endif
+#ifdef USE_BUTTON
+  ESP_LOGCONFIG(TAG, "Buttons:");
+  LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
+  LOG_BUTTON("  ", "Query", this->query_button_);
+  LOG_BUTTON("  ", "Restart", this->restart_button_);
+#endif
 }
 
-void LD2410Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LD2410...");
-  this->read_all_info();
-  ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
-  ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
-  ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
-}
+void LD2410Component::setup() { this->read_all_info(); }
 
 void LD2410Component::read_all_info() {
   this->set_config_mode_(true);
   this->get_version_();
   this->get_mac_();
   this->get_distance_resolution_();
-  this->get_light_control_();
+  this->query_light_control_();
   this->query_parameters_();
   this->set_config_mode_(false);
 #ifdef USE_SELECT
   const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
-  if (this->baud_rate_select_ != nullptr && this->baud_rate_select_->state != baud_rate) {
+  if (this->baud_rate_select_ != nullptr) {
     this->baud_rate_select_->publish_state(baud_rate);
   }
 #endif
@@ -108,66 +275,51 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
-  const int max_line_length = 80;
-  static uint8_t buffer[max_line_length];
-
-  while (available()) {
-    this->readline_(read(), buffer, max_line_length);
+  while (this->available()) {
+    this->readline_(this->read());
   }
 }
 
-void LD2410Component::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len) {
+void LD2410Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);
-  // frame start bytes
-  this->write_array(CMD_FRAME_HEADER, 4);
+  // frame header bytes
+  this->write_array(CMD_FRAME_HEADER, sizeof(CMD_FRAME_HEADER));
   // length bytes
-  int len = 2;
-  if (command_value != nullptr)
+  uint8_t len = 2;
+  if (command_value != nullptr) {
     len += command_value_len;
-  this->write_byte(lowbyte(len));
-  this->write_byte(highbyte(len));
-
-  // command
-  this->write_byte(lowbyte(command));
-  this->write_byte(highbyte(command));
-
+  }
+  // 2 length bytes (low, high) + 2 command bytes (low, high)
+  uint8_t len_cmd[] = {len, 0x00, command, 0x00};
+  this->write_array(len_cmd, sizeof(len_cmd));
   // command value bytes
   if (command_value != nullptr) {
-    for (int i = 0; i < command_value_len; i++) {
-      this->write_byte(command_value[i]);
-    }
+    this->write_array(command_value, command_value_len);
   }
-  // frame end bytes
-  this->write_array(CMD_FRAME_END, 4);
-  // FIXME to remove
-  delay(50);  // NOLINT
+  // frame footer bytes
+  this->write_array(CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
+
+  if (command != CMD_ENABLE_CONF && command != CMD_DISABLE_CONF) {
+    delay(50);  // NOLINT
+  }
 }
 
-void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
-  if (len < 12)
-    return;  // 4 frame start bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame end bytes
-  if (buffer[0] != 0xF4 || buffer[1] != 0xF3 || buffer[2] != 0xF2 || buffer[3] != 0xF1)  // check 4 frame start bytes
+void LD2410Component::handle_periodic_data_() {
+  // 4 frame header bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame footer bytes
+  // data header=0xAA, data footer=0x55, crc=0x00
+  if (this->buffer_pos_ < 12 || !ld2410::validate_header_footer(DATA_FRAME_HEADER, this->buffer_data_) ||
+      this->buffer_data_[7] != HEADER || this->buffer_data_[this->buffer_pos_ - 6] != FOOTER ||
+      this->buffer_data_[this->buffer_pos_ - 5] != CHECK) {
     return;
-  if (buffer[7] != HEAD || buffer[len - 6] != END || buffer[len - 5] != CHECK)  // Check constant values
-    return;  // data head=0xAA, data end=0x55, crc=0x00
-
-  /*
-    Reduce data update rate to prevent home assistant database size grow fast
-  */
-  int32_t current_millis = millis();
-  if (current_millis - last_periodic_millis_ < this->throttle_)
-    return;
-  last_periodic_millis_ = current_millis;
-
+  }
   /*
     Data Type: 7th
     0x01: Engineering mode
     0x02: Normal mode
   */
-  bool engineering_mode = buffer[DATA_TYPES] == 0x01;
+  bool engineering_mode = this->buffer_data_[DATA_TYPES] == 0x01;
 #ifdef USE_SWITCH
-  if (this->engineering_mode_switch_ != nullptr &&
-      current_millis - last_engineering_mode_change_millis_ > this->throttle_) {
+  if (this->engineering_mode_switch_ != nullptr) {
     this->engineering_mode_switch_->publish_state(engineering_mode);
   }
 #endif
@@ -179,15 +331,15 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
     0x02 = Still targets
     0x03 = Moving+Still targets
   */
-  char target_state = buffer[TARGET_STATES];
+  char target_state = this->buffer_data_[TARGET_STATES];
   if (this->target_binary_sensor_ != nullptr) {
     this->target_binary_sensor_->publish_state(target_state != 0x00);
   }
   if (this->moving_target_binary_sensor_ != nullptr) {
-    this->moving_target_binary_sensor_->publish_state(CHECK_BIT(target_state, 0));
+    this->moving_target_binary_sensor_->publish_state(target_state & MOVE_BITMASK);
   }
   if (this->still_target_binary_sensor_ != nullptr) {
-    this->still_target_binary_sensor_->publish_state(CHECK_BIT(target_state, 1));
+    this->still_target_binary_sensor_->publish_state(target_state & STILL_BITMASK);
   }
 #endif
   /*
@@ -198,246 +350,200 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
     Detect distance: 16~17th bytes
   */
 #ifdef USE_SENSOR
-  if (this->moving_target_distance_sensor_ != nullptr) {
-    int new_moving_target_distance = this->two_byte_to_int_(buffer[MOVING_TARGET_LOW], buffer[MOVING_TARGET_HIGH]);
-    if (this->moving_target_distance_sensor_->get_state() != new_moving_target_distance)
-      this->moving_target_distance_sensor_->publish_state(new_moving_target_distance);
-  }
-  if (this->moving_target_energy_sensor_ != nullptr) {
-    int new_moving_target_energy = buffer[MOVING_ENERGY];
-    if (this->moving_target_energy_sensor_->get_state() != new_moving_target_energy)
-      this->moving_target_energy_sensor_->publish_state(new_moving_target_energy);
-  }
-  if (this->still_target_distance_sensor_ != nullptr) {
-    int new_still_target_distance = this->two_byte_to_int_(buffer[STILL_TARGET_LOW], buffer[STILL_TARGET_HIGH]);
-    if (this->still_target_distance_sensor_->get_state() != new_still_target_distance)
-      this->still_target_distance_sensor_->publish_state(new_still_target_distance);
-  }
-  if (this->still_target_energy_sensor_ != nullptr) {
-    int new_still_target_energy = buffer[STILL_ENERGY];
-    if (this->still_target_energy_sensor_->get_state() != new_still_target_energy)
-      this->still_target_energy_sensor_->publish_state(new_still_target_energy);
-  }
-  if (this->detection_distance_sensor_ != nullptr) {
-    int new_detect_distance = this->two_byte_to_int_(buffer[DETECT_DISTANCE_LOW], buffer[DETECT_DISTANCE_HIGH]);
-    if (this->detection_distance_sensor_->get_state() != new_detect_distance)
-      this->detection_distance_sensor_->publish_state(new_detect_distance);
-  }
+  SAFE_PUBLISH_SENSOR(
+      this->moving_target_distance_sensor_,
+      ld2410::two_byte_to_int(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]))
+  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
+  SAFE_PUBLISH_SENSOR(
+      this->still_target_distance_sensor_,
+      ld2410::two_byte_to_int(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]));
+  SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
+  SAFE_PUBLISH_SENSOR(
+      this->detection_distance_sensor_,
+      ld2410::two_byte_to_int(this->buffer_data_[DETECT_DISTANCE_LOW], this->buffer_data_[DETECT_DISTANCE_HIGH]));
+
   if (engineering_mode) {
     /*
       Moving distance range: 18th byte
       Still distance range: 19th byte
-      Moving enery: 20~28th bytes
+      Moving energy: 20~28th bytes
     */
-    for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_move_sensors_.size(); i++) {
-      sensor::Sensor *s = this->gate_move_sensors_[i];
-      if (s != nullptr) {
-        s->publish_state(buffer[MOVING_SENSOR_START + i]);
-      }
+    for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+      SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
     }
     /*
       Still energy: 29~37th bytes
     */
-    for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_still_sensors_.size(); i++) {
-      sensor::Sensor *s = this->gate_still_sensors_[i];
-      if (s != nullptr) {
-        s->publish_state(buffer[STILL_SENSOR_START + i]);
-      }
+    for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+      SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
     }
     /*
       Light sensor: 38th bytes
     */
-    if (this->light_sensor_ != nullptr) {
-      int new_light_sensor = buffer[LIGHT_SENSOR];
-      if (this->light_sensor_->get_state() != new_light_sensor)
-        this->light_sensor_->publish_state(new_light_sensor);
-    }
+    SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
   } else {
-    for (auto *s : this->gate_move_sensors_) {
-      if (s != nullptr && !std::isnan(s->get_state())) {
-        s->publish_state(NAN);
-      }
+    for (auto &gate_move_sensor : this->gate_move_sensors_) {
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor)
     }
-    for (auto *s : this->gate_still_sensors_) {
-      if (s != nullptr && !std::isnan(s->get_state())) {
-        s->publish_state(NAN);
-      }
+    for (auto &gate_still_sensor : this->gate_still_sensors_) {
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor)
     }
-    if (this->light_sensor_ != nullptr && !std::isnan(this->light_sensor_->get_state())) {
-      this->light_sensor_->publish_state(NAN);
-    }
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_)
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (engineering_mode) {
-    if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
-      this->out_pin_presence_status_binary_sensor_->publish_state(buffer[OUT_PIN_SENSOR] == 0x01);
-    }
-  } else {
-    if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
-      this->out_pin_presence_status_binary_sensor_->publish_state(false);
-    }
+  if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
+    this->out_pin_presence_status_binary_sensor_->publish_state(
+        engineering_mode ? this->buffer_data_[OUT_PIN_SENSOR] == 0x01 : false);
   }
 #endif
-}
-
-const char VERSION_FMT[] = "%u.%02X.%02X%02X%02X%02X";
-
-std::string format_version(uint8_t *buffer) {
-  std::string::size_type version_size = 256;
-  std::string version;
-  do {
-    version.resize(version_size + 1);
-    version_size = std::snprintf(&version[0], version.size(), VERSION_FMT, buffer[13], buffer[12], buffer[17],
-                                 buffer[16], buffer[15], buffer[14]);
-  } while (version_size + 1 > version.size());
-  version.resize(version_size);
-  return version;
-}
-
-const char MAC_FMT[] = "%02X:%02X:%02X:%02X:%02X:%02X";
-
-const std::string UNKNOWN_MAC("unknown");
-const std::string NO_MAC("08:05:04:03:02:01");
-
-std::string format_mac(uint8_t *buffer) {
-  std::string::size_type mac_size = 256;
-  std::string mac;
-  do {
-    mac.resize(mac_size + 1);
-    mac_size = std::snprintf(&mac[0], mac.size(), MAC_FMT, buffer[10], buffer[11], buffer[12], buffer[13], buffer[14],
-                             buffer[15]);
-  } while (mac_size + 1 > mac.size());
-  mac.resize(mac_size);
-  if (mac == NO_MAC) {
-    return UNKNOWN_MAC;
-  }
-  return mac;
 }
 
 #ifdef USE_NUMBER
 std::function<void(void)> set_number_value(number::Number *n, float value) {
-  float normalized_value = value * 1.0;
-  if (n != nullptr && (!n->has_state() || n->state != normalized_value)) {
-    n->state = normalized_value;
-    return [n, normalized_value]() { n->publish_state(normalized_value); };
+  if (n != nullptr && (!n->has_state() || n->state != value)) {
+    n->state = value;
+    return [n, value]() { n->publish_state(value); };
   }
   return []() {};
 }
 #endif
 
-bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
-  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", buffer[COMMAND]);
-  if (len < 10) {
-    ESP_LOGE(TAG, "Error with last command : incorrect length");
+bool LD2410Component::handle_ack_data_() {
+  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", this->buffer_data_[COMMAND]);
+  if (this->buffer_pos_ < 10) {
+    ESP_LOGE(TAG, "Invalid length");
     return true;
   }
-  if (buffer[0] != 0xFD || buffer[1] != 0xFC || buffer[2] != 0xFB || buffer[3] != 0xFA) {  // check 4 frame start bytes
-    ESP_LOGE(TAG, "Error with last command : incorrect Header");
+  if (!ld2410::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
+    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty(this->buffer_data_, HEADER_FOOTER_SIZE).c_str());
     return true;
   }
-  if (buffer[COMMAND_STATUS] != 0x01) {
-    ESP_LOGE(TAG, "Error with last command : status != 0x01");
+  if (this->buffer_data_[COMMAND_STATUS] != 0x01) {
+    ESP_LOGE(TAG, "Invalid status");
     return true;
   }
-  if (this->two_byte_to_int_(buffer[8], buffer[9]) != 0x00) {
-    ESP_LOGE(TAG, "Error with last command , last buffer was: %u , %u", buffer[8], buffer[9]);
+  if (this->buffer_data_[8] || this->buffer_data_[9]) {
+    ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
     return true;
   }
 
-  switch (buffer[COMMAND]) {
-    case lowbyte(CMD_ENABLE_CONF):
-      ESP_LOGV(TAG, "Handled Enable conf command");
+  switch (this->buffer_data_[COMMAND]) {
+    case CMD_ENABLE_CONF:
+      ESP_LOGV(TAG, "Enable conf");
       break;
-    case lowbyte(CMD_DISABLE_CONF):
-      ESP_LOGV(TAG, "Handled Disabled conf command");
+
+    case CMD_DISABLE_CONF:
+      ESP_LOGV(TAG, "Disabled conf");
       break;
-    case lowbyte(CMD_SET_BAUD_RATE):
-      ESP_LOGV(TAG, "Handled baud rate change command");
+
+    case CMD_SET_BAUD_RATE:
+      ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate component config to %s and reinstall", this->baud_rate_select_->state.c_str());
+        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->current_option());
       }
 #endif
       break;
-    case lowbyte(CMD_VERSION):
-      this->version_ = format_version(buffer);
-      ESP_LOGV(TAG, "FW Version is: %s", const_cast<char *>(this->version_.c_str()));
+
+    case CMD_QUERY_VERSION: {
+      std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
+      std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
+                                        this->version_[4], this->version_[3], this->version_[2]);
+      ESP_LOGV(TAG, "Firmware version: %s", version.c_str());
 #ifdef USE_TEXT_SENSOR
       if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(this->version_);
+        this->version_text_sensor_->publish_state(version);
       }
 #endif
       break;
-    case lowbyte(CMD_QUERY_DISTANCE_RESOLUTION): {
-      std::string distance_resolution =
-          DISTANCE_RESOLUTION_INT_TO_ENUM.at(this->two_byte_to_int_(buffer[10], buffer[11]));
-      ESP_LOGV(TAG, "Distance resolution is: %s", const_cast<char *>(distance_resolution.c_str()));
+    }
+
+    case CMD_QUERY_DISTANCE_RESOLUTION: {
+      const auto *distance_resolution = find_str(DISTANCE_RESOLUTIONS_BY_UINT, this->buffer_data_[10]);
+      ESP_LOGV(TAG, "Distance resolution: %s", distance_resolution);
 #ifdef USE_SELECT
-      if (this->distance_resolution_select_ != nullptr &&
-          this->distance_resolution_select_->state != distance_resolution) {
+      if (this->distance_resolution_select_ != nullptr) {
         this->distance_resolution_select_->publish_state(distance_resolution);
       }
 #endif
-    } break;
-    case lowbyte(CMD_QUERY_LIGHT_CONTROL): {
-      this->light_function_ = LIGHT_FUNCTION_INT_TO_ENUM.at(buffer[10]);
-      this->light_threshold_ = buffer[11] * 1.0;
-      this->out_pin_level_ = OUT_PIN_LEVEL_INT_TO_ENUM.at(buffer[12]);
-      ESP_LOGV(TAG, "Light function is: %s", const_cast<char *>(this->light_function_.c_str()));
-      ESP_LOGV(TAG, "Light threshold is: %f", this->light_threshold_);
-      ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(this->out_pin_level_.c_str()));
+      break;
+    }
+
+    case CMD_QUERY_LIGHT_CONTROL: {
+      this->light_function_ = this->buffer_data_[10];
+      this->light_threshold_ = this->buffer_data_[11];
+      this->out_pin_level_ = this->buffer_data_[12];
+      const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
+      const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
+      ESP_LOGV(TAG,
+               "Light function: %s\n"
+               "Light threshold: %u\n"
+               "Out pin level: %s",
+               light_function_str, this->light_threshold_, out_pin_level_str);
 #ifdef USE_SELECT
-      if (this->light_function_select_ != nullptr && this->light_function_select_->state != this->light_function_) {
-        this->light_function_select_->publish_state(this->light_function_);
+      if (this->light_function_select_ != nullptr) {
+        this->light_function_select_->publish_state(light_function_str);
       }
-      if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->state != this->out_pin_level_) {
-        this->out_pin_level_select_->publish_state(this->out_pin_level_);
+      if (this->out_pin_level_select_ != nullptr) {
+        this->out_pin_level_select_->publish_state(out_pin_level_str);
       }
 #endif
 #ifdef USE_NUMBER
-      if (this->light_threshold_number_ != nullptr &&
-          (!this->light_threshold_number_->has_state() ||
-           this->light_threshold_number_->state != this->light_threshold_)) {
-        this->light_threshold_number_->publish_state(this->light_threshold_);
+      if (this->light_threshold_number_ != nullptr) {
+        this->light_threshold_number_->publish_state(static_cast<float>(this->light_threshold_));
       }
 #endif
-    } break;
-    case lowbyte(CMD_MAC):
-      if (len < 20) {
+      break;
+    }
+    case CMD_QUERY_MAC_ADDRESS: {
+      if (this->buffer_pos_ < 20) {
         return false;
       }
-      this->mac_ = format_mac(buffer);
-      ESP_LOGV(TAG, "MAC Address is: %s", const_cast<char *>(this->mac_.c_str()));
+
+      this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
+      if (this->bluetooth_on_) {
+        std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
+      }
+
+      std::string mac_str =
+          mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
+      ESP_LOGV(TAG, "MAC address: %s", mac_str.c_str());
 #ifdef USE_TEXT_SENSOR
       if (this->mac_text_sensor_ != nullptr) {
-        this->mac_text_sensor_->publish_state(this->mac_);
+        this->mac_text_sensor_->publish_state(mac_str);
       }
 #endif
 #ifdef USE_SWITCH
       if (this->bluetooth_switch_ != nullptr) {
-        this->bluetooth_switch_->publish_state(this->mac_ != UNKNOWN_MAC);
+        this->bluetooth_switch_->publish_state(this->bluetooth_on_);
       }
 #endif
       break;
-    case lowbyte(CMD_GATE_SENS):
-      ESP_LOGV(TAG, "Handled sensitivity command");
+    }
+
+    case CMD_GATE_SENS:
+      ESP_LOGV(TAG, "Sensitivity");
       break;
-    case lowbyte(CMD_BLUETOOTH):
-      ESP_LOGV(TAG, "Handled bluetooth command");
+
+    case CMD_BLUETOOTH:
+      ESP_LOGV(TAG, "Bluetooth");
       break;
-    case lowbyte(CMD_SET_DISTANCE_RESOLUTION):
-      ESP_LOGV(TAG, "Handled set distance resolution command");
+
+    case CMD_SET_DISTANCE_RESOLUTION:
+      ESP_LOGV(TAG, "Set distance resolution");
       break;
-    case lowbyte(CMD_SET_LIGHT_CONTROL):
-      ESP_LOGV(TAG, "Handled set light control command");
+
+    case CMD_SET_LIGHT_CONTROL:
+      ESP_LOGV(TAG, "Set light control");
       break;
-    case lowbyte(CMD_BT_PASSWORD):
-      ESP_LOGV(TAG, "Handled set bluetooth password command");
+
+    case CMD_BT_PASSWORD:
+      ESP_LOGV(TAG, "Set bluetooth password");
       break;
-    case lowbyte(CMD_QUERY):  // Query parameters response
-    {
-      if (buffer[10] != 0xAA)
+
+    case CMD_QUERY: {  // Query parameters response
+      if (this->buffer_data_[10] != HEADER)
         return true;  // value head=0xAA
 #ifdef USE_NUMBER
       /*
@@ -445,29 +551,31 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
         Still distance range: 14th byte
       */
       std::vector<std::function<void(void)>> updates;
-      updates.push_back(set_number_value(this->max_move_distance_gate_number_, buffer[12]));
-      updates.push_back(set_number_value(this->max_still_distance_gate_number_, buffer[13]));
+      updates.push_back(set_number_value(this->max_move_distance_gate_number_, this->buffer_data_[12]));
+      updates.push_back(set_number_value(this->max_still_distance_gate_number_, this->buffer_data_[13]));
       /*
         Moving Sensitivities: 15~23th bytes
       */
       for (std::vector<number::Number *>::size_type i = 0; i != this->gate_move_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], buffer[14 + i]));
+        updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[14 + i]));
       }
       /*
         Still Sensitivities: 24~32th bytes
       */
       for (std::vector<number::Number *>::size_type i = 0; i != this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], buffer[23 + i]));
+        updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[23 + i]));
       }
       /*
         None Duration: 33~34th bytes
       */
-      updates.push_back(set_number_value(this->timeout_number_, this->two_byte_to_int_(buffer[32], buffer[33])));
+      updates.push_back(set_number_value(this->timeout_number_,
+                                         ld2410::two_byte_to_int(this->buffer_data_[32], this->buffer_data_[33])));
       for (auto &update : updates) {
         update();
       }
 #endif
-    } break;
+      break;
+    }
     default:
       break;
   }
@@ -475,78 +583,78 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
   return true;
 }
 
-void LD2410Component::readline_(int readch, uint8_t *buffer, int len) {
-  static int pos = 0;
+void LD2410Component::readline_(int readch) {
+  if (readch < 0) {
+    return;  // No data available
+  }
 
-  if (readch >= 0) {
-    if (pos < len - 1) {
-      buffer[pos++] = readch;
-      buffer[pos] = 0;
+  if (this->buffer_pos_ < MAX_LINE_LENGTH - 1) {
+    this->buffer_data_[this->buffer_pos_++] = readch;
+    this->buffer_data_[this->buffer_pos_] = 0;
+  } else {
+    // We should never get here, but just in case...
+    ESP_LOGW(TAG, "Max command length exceeded; ignoring");
+    this->buffer_pos_ = 0;
+  }
+  if (this->buffer_pos_ < 4) {
+    return;  // Not enough data to process yet
+  }
+  if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
+    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty(this->buffer_data_, this->buffer_pos_).c_str());
+    this->handle_periodic_data_();
+    this->buffer_pos_ = 0;  // Reset position index for next message
+  } else if (ld2410::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
+    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty(this->buffer_data_, this->buffer_pos_).c_str());
+    if (this->handle_ack_data_()) {
+      this->buffer_pos_ = 0;  // Reset position index for next message
     } else {
-      pos = 0;
-    }
-    if (pos >= 4) {
-      if (buffer[pos - 4] == 0xF8 && buffer[pos - 3] == 0xF7 && buffer[pos - 2] == 0xF6 && buffer[pos - 1] == 0xF5) {
-        ESP_LOGV(TAG, "Will handle Periodic Data");
-        this->handle_periodic_data_(buffer, pos);
-        pos = 0;  // Reset position index ready for next time
-      } else if (buffer[pos - 4] == 0x04 && buffer[pos - 3] == 0x03 && buffer[pos - 2] == 0x02 &&
-                 buffer[pos - 1] == 0x01) {
-        ESP_LOGV(TAG, "Will handle ACK Data");
-        if (this->handle_ack_data_(buffer, pos)) {
-          pos = 0;  // Reset position index ready for next time
-        } else {
-          ESP_LOGV(TAG, "ACK Data incomplete");
-        }
-      }
+      ESP_LOGV(TAG, "Ack Data incomplete");
     }
   }
 }
 
 void LD2410Component::set_config_mode_(bool enable) {
-  uint8_t cmd = enable ? CMD_ENABLE_CONF : CMD_DISABLE_CONF;
-  uint8_t cmd_value[2] = {0x01, 0x00};
-  this->send_command_(cmd, enable ? cmd_value : nullptr, 2);
+  const uint8_t cmd = enable ? CMD_ENABLE_CONF : CMD_DISABLE_CONF;
+  const uint8_t cmd_value[2] = {0x01, 0x00};
+  this->send_command_(cmd, enable ? cmd_value : nullptr, sizeof(cmd_value));
 }
 
 void LD2410Component::set_bluetooth(bool enable) {
   this->set_config_mode_(true);
-  uint8_t enable_cmd_value[2] = {0x01, 0x00};
-  uint8_t disable_cmd_value[2] = {0x00, 0x00};
-  this->send_command_(CMD_BLUETOOTH, enable ? enable_cmd_value : disable_cmd_value, 2);
+  const uint8_t cmd_value[2] = {enable ? (uint8_t) 0x01 : (uint8_t) 0x00, 0x00};
+  this->send_command_(CMD_BLUETOOTH, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::set_distance_resolution(const std::string &state) {
+void LD2410Component::set_distance_resolution(const char *state) {
   this->set_config_mode_(true);
-  uint8_t cmd_value[2] = {DISTANCE_RESOLUTION_ENUM_TO_INT.at(state), 0x00};
-  this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, 2);
+  const uint8_t cmd_value[2] = {find_uint8(DISTANCE_RESOLUTIONS_BY_STR, state), 0x00};
+  this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::set_baud_rate(const std::string &state) {
+void LD2410Component::set_baud_rate(const char *state) {
   this->set_config_mode_(true);
-  uint8_t cmd_value[2] = {BAUD_RATE_ENUM_TO_INT.at(state), 0x00};
-  this->send_command_(CMD_SET_BAUD_RATE, cmd_value, 2);
+  const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
+  this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
 
 void LD2410Component::set_bluetooth_password(const std::string &password) {
   if (password.length() != 6) {
-    ESP_LOGE(TAG, "set_bluetooth_password(): invalid password length, must be exactly 6 chars '%s'", password.c_str());
+    ESP_LOGE(TAG, "Password must be exactly 6 chars");
     return;
   }
   this->set_config_mode_(true);
   uint8_t cmd_value[6];
   std::copy(password.begin(), password.end(), std::begin(cmd_value));
-  this->send_command_(CMD_BT_PASSWORD, cmd_value, 6);
+  this->send_command_(CMD_BT_PASSWORD, cmd_value, sizeof(cmd_value));
   this->set_config_mode_(false);
 }
 
 void LD2410Component::set_engineering_mode(bool enable) {
+  const uint8_t cmd = enable ? CMD_ENABLE_ENG : CMD_DISABLE_ENG;
   this->set_config_mode_(true);
-  last_engineering_mode_change_millis_ = millis();
-  uint8_t cmd = enable ? CMD_ENABLE_ENG : CMD_DISABLE_ENG;
   this->send_command_(cmd, nullptr, 0);
   this->set_config_mode_(false);
 }
@@ -560,14 +668,17 @@ void LD2410Component::factory_reset() {
 void LD2410Component::restart_() { this->send_command_(CMD_RESTART, nullptr, 0); }
 
 void LD2410Component::query_parameters_() { this->send_command_(CMD_QUERY, nullptr, 0); }
-void LD2410Component::get_version_() { this->send_command_(CMD_VERSION, nullptr, 0); }
+
+void LD2410Component::get_version_() { this->send_command_(CMD_QUERY_VERSION, nullptr, 0); }
+
 void LD2410Component::get_mac_() {
-  uint8_t cmd_value[2] = {0x01, 0x00};
-  this->send_command_(CMD_MAC, cmd_value, 2);
+  const uint8_t cmd_value[2] = {0x01, 0x00};
+  this->send_command_(CMD_QUERY_MAC_ADDRESS, cmd_value, sizeof(cmd_value));
 }
+
 void LD2410Component::get_distance_resolution_() { this->send_command_(CMD_QUERY_DISTANCE_RESOLUTION, nullptr, 0); }
 
-void LD2410Component::get_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
+void LD2410Component::query_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
 
 #ifdef USE_NUMBER
 void LD2410Component::set_max_distances_timeout() {
@@ -597,8 +708,7 @@ void LD2410Component::set_max_distances_timeout() {
                        0x00,
                        0x00};
   this->set_config_mode_(true);
-  this->send_command_(CMD_MAXDIST_DURATION, value, 18);
-  delay(50);  // NOLINT
+  this->send_command_(CMD_MAXDIST_DURATION, value, sizeof(value));
   this->query_parameters_();
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);
@@ -627,17 +737,16 @@ void LD2410Component::set_gate_threshold(uint8_t gate) {
   uint8_t value[18] = {0x00, 0x00, lowbyte(gate),   highbyte(gate),   0x00, 0x00,
                        0x01, 0x00, lowbyte(motion), highbyte(motion), 0x00, 0x00,
                        0x02, 0x00, lowbyte(still),  highbyte(still),  0x00, 0x00};
-  this->send_command_(CMD_GATE_SENS, value, 18);
-  delay(50);  // NOLINT
+  this->send_command_(CMD_GATE_SENS, value, sizeof(value));
   this->query_parameters_();
   this->set_config_mode_(false);
 }
 
-void LD2410Component::set_gate_still_threshold_number(int gate, number::Number *n) {
+void LD2410Component::set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
   this->gate_still_threshold_numbers_[gate] = n;
 }
 
-void LD2410Component::set_gate_move_threshold_number(int gate, number::Number *n) {
+void LD2410Component::set_gate_move_threshold_number(uint8_t gate, number::Number *n) {
   this->gate_move_threshold_numbers_[gate] = n;
 }
 #endif
@@ -645,35 +754,34 @@ void LD2410Component::set_gate_move_threshold_number(int gate, number::Number *n
 void LD2410Component::set_light_out_control() {
 #ifdef USE_NUMBER
   if (this->light_threshold_number_ != nullptr && this->light_threshold_number_->has_state()) {
-    this->light_threshold_ = this->light_threshold_number_->state;
+    this->light_threshold_ = static_cast<uint8_t>(this->light_threshold_number_->state);
   }
 #endif
 #ifdef USE_SELECT
   if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = this->light_function_select_->state;
+    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option());
   }
   if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->has_state()) {
-    this->out_pin_level_ = this->out_pin_level_select_->state;
+    this->out_pin_level_ = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option());
   }
 #endif
-  if (this->light_function_.empty() || this->out_pin_level_.empty() || this->light_threshold_ < 0) {
-    return;
-  }
   this->set_config_mode_(true);
-  uint8_t light_function = LIGHT_FUNCTION_ENUM_TO_INT.at(this->light_function_);
-  uint8_t light_threshold = static_cast<uint8_t>(this->light_threshold_);
-  uint8_t out_pin_level = OUT_PIN_LEVEL_ENUM_TO_INT.at(this->out_pin_level_);
-  uint8_t value[4] = {light_function, light_threshold, out_pin_level, 0x00};
-  this->send_command_(CMD_SET_LIGHT_CONTROL, value, 4);
-  delay(50);  // NOLINT
-  this->get_light_control_();
+  uint8_t value[4] = {this->light_function_, this->light_threshold_, this->out_pin_level_, 0x00};
+  this->send_command_(CMD_SET_LIGHT_CONTROL, value, sizeof(value));
+  this->query_light_control_();
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);
 }
 
 #ifdef USE_SENSOR
-void LD2410Component::set_gate_move_sensor(int gate, sensor::Sensor *s) { this->gate_move_sensors_[gate] = s; }
-void LD2410Component::set_gate_still_sensor(int gate, sensor::Sensor *s) { this->gate_still_sensors_[gate] = s; }
+// These could leak memory, but they are only set once prior to 'setup()' and should never be used again.
+void LD2410Component::set_gate_move_sensor(uint8_t gate, sensor::Sensor *s) {
+  this->gate_move_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+}
+
+void LD2410Component::set_gate_still_sensor(uint8_t gate, sensor::Sensor *s) {
+  this->gate_still_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+}
 #endif
 
 }  // namespace ld2410

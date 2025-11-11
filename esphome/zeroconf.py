@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 import logging
-from typing import Callable
 
 from zeroconf import (
     AddressResolver,
@@ -18,6 +18,8 @@ from esphome.storage_json import StorageJSON, ext_storage_path
 
 _LOGGER = logging.getLogger(__name__)
 
+DEFAULT_TIMEOUT = 10.0
+DEFAULT_TIMEOUT_MS = DEFAULT_TIMEOUT * 1000
 
 _BACKGROUND_TASKS: set[asyncio.Task] = set()
 
@@ -66,8 +68,11 @@ class DashboardBrowser(AsyncServiceBrowser):
 
 
 class DashboardImportDiscovery:
-    def __init__(self) -> None:
+    def __init__(
+        self, on_update: Callable[[str, DiscoveredImport | None], None] | None = None
+    ) -> None:
         self.import_state: dict[str, DiscoveredImport] = {}
+        self.on_update = on_update
 
     def browser_callback(
         self,
@@ -83,7 +88,9 @@ class DashboardImportDiscovery:
             state_change,
         )
         if state_change == ServiceStateChange.Removed:
-            self.import_state.pop(name, None)
+            removed = self.import_state.pop(name, None)
+            if removed and self.on_update:
+                self.on_update(name, None)
             return
 
         if state_change == ServiceStateChange.Updated and name not in self.import_state:
@@ -107,7 +114,7 @@ class DashboardImportDiscovery:
         self, zeroconf: Zeroconf, info: AsyncServiceInfo, service_type: str, name: str
     ) -> None:
         """Process a service info."""
-        if await info.async_request(zeroconf, timeout=3000):
+        if await info.async_request(zeroconf, timeout=DEFAULT_TIMEOUT_MS):
             self._process_service_info(name, info)
 
     def _process_service_info(self, name: str, info: ServiceInfo) -> None:
@@ -137,7 +144,7 @@ class DashboardImportDiscovery:
         if friendly_name is not None:
             friendly_name = friendly_name.decode()
 
-        self.import_state[name] = DiscoveredImport(
+        discovered = DiscoveredImport(
             friendly_name=friendly_name,
             device_name=node_name,
             package_import_url=import_url,
@@ -145,6 +152,10 @@ class DashboardImportDiscovery:
             project_version=project_version,
             network=network,
         )
+        is_new = name not in self.import_state
+        self.import_state[name] = discovered
+        if is_new and self.on_update:
+            self.on_update(name, discovered)
 
     def update_device_mdns(self, node_name: str, version: str):
         storage_path = ext_storage_path(node_name + ".yaml")
@@ -164,7 +175,9 @@ class DashboardImportDiscovery:
 
 
 class EsphomeZeroconf(Zeroconf):
-    def resolve_host(self, host: str, timeout: float = 3.0) -> list[str] | None:
+    def resolve_host(
+        self, host: str, timeout: float = DEFAULT_TIMEOUT
+    ) -> list[str] | None:
         """Resolve a host name to an IP address."""
         info = AddressResolver(f"{host.partition('.')[0]}.local.")
         if (
@@ -177,7 +190,7 @@ class EsphomeZeroconf(Zeroconf):
 
 class AsyncEsphomeZeroconf(AsyncZeroconf):
     async def async_resolve_host(
-        self, host: str, timeout: float = 3.0
+        self, host: str, timeout: float = DEFAULT_TIMEOUT
     ) -> list[str] | None:
         """Resolve a host name to an IP address."""
         info = AddressResolver(f"{host.partition('.')[0]}.local.")

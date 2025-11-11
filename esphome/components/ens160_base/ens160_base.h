@@ -18,7 +18,6 @@ class ENS160Component : public PollingComponent, public sensor::Sensor {
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void send_env_data_();

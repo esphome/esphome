@@ -19,9 +19,8 @@ from ..widgets import get_widgets, wait_for_widgets
 
 LVGLText = lvgl_ns.class_("LVGLText", text.Text)
 
-CONFIG_SCHEMA = text.TEXT_SCHEMA.extend(
+CONFIG_SCHEMA = text.text_schema(LVGLText).extend(
     {
-        cv.GenerateID(): cv.declare_id(LVGLText),
         cv.Required(CONF_WIDGET): cv.use_id(LvText),
     }
 )

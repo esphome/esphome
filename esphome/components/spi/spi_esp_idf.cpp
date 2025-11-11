@@ -11,34 +11,26 @@ static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(SPIInterface channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                bool write_only)
-      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel), write_only_(write_only) {
-    spi_device_interface_config_t config = {};
-    config.mode = static_cast<uint8_t>(mode);
-    config.clock_speed_hz = static_cast<int>(data_rate);
-    config.spics_io_num = -1;
-    config.flags = 0;
-    config.queue_size = 1;
-    config.pre_cb = nullptr;
-    config.post_cb = nullptr;
-    if (bit_order == BIT_ORDER_LSB_FIRST)
-      config.flags |= SPI_DEVICE_BIT_LSBFIRST;
-    if (write_only)
-      config.flags |= SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_NO_DUMMY;
-    esp_err_t const err = spi_bus_add_device(channel, &config, &this->handle_);
-    if (err != ESP_OK)
-      ESP_LOGE(TAG, "Add device failed - err %X", err);
+                bool release_device, bool write_only)
+      : SPIDelegate(data_rate, bit_order, mode, cs_pin),
+        channel_(channel),
+        release_device_(release_device),
+        write_only_(write_only) {
+    if (!this->release_device_)
+      add_device_();
   }
 
   bool is_ready() override { return this->handle_ != nullptr; }
 
   void begin_transaction() override {
+    if (this->release_device_)
+      this->add_device_();
     if (this->is_ready()) {
       if (spi_device_acquire_bus(this->handle_, portMAX_DELAY) != ESP_OK)
         ESP_LOGE(TAG, "Failed to acquire SPI bus");
       SPIDelegate::begin_transaction();
     } else {
-      ESP_LOGW(TAG, "spi_setup called before initialisation");
+      ESP_LOGW(TAG, "SPI device not ready, cannot begin transaction");
     }
   }
 
@@ -46,6 +38,10 @@ class SPIDelegateHw : public SPIDelegate {
     if (this->is_ready()) {
       SPIDelegate::end_transaction();
       spi_device_release_bus(this->handle_);
+      if (this->release_device_) {
+        spi_bus_remove_device(this->handle_);
+        this->handle_ = nullptr;  // reset handle to indicate no device is registered
+      }
     }
   }
 
@@ -189,8 +185,30 @@ class SPIDelegateHw : public SPIDelegate {
   void read_array(uint8_t *ptr, size_t length) override { this->transfer(nullptr, ptr, length); }
 
  protected:
+  bool add_device_() {
+    spi_device_interface_config_t config = {};
+    config.mode = static_cast<uint8_t>(this->mode_);
+    config.clock_speed_hz = static_cast<int>(this->data_rate_);
+    config.spics_io_num = -1;
+    config.flags = 0;
+    config.queue_size = 1;
+    config.pre_cb = nullptr;
+    config.post_cb = nullptr;
+    if (this->bit_order_ == BIT_ORDER_LSB_FIRST)
+      config.flags |= SPI_DEVICE_BIT_LSBFIRST;
+    if (this->write_only_)
+      config.flags |= SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_NO_DUMMY;
+    esp_err_t const err = spi_bus_add_device(this->channel_, &config, &this->handle_);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Add device failed - err %X", err);
+      return false;
+    }
+    return true;
+  }
+
   SPIInterface channel_{};
   spi_device_handle_t handle_{};
+  bool release_device_{false};
   bool write_only_{false};
 };
 
@@ -211,11 +229,19 @@ class SPIBusHw : public SPIBus {
       buscfg.data1_io_num = data_pins[1];
       buscfg.data2_io_num = data_pins[2];
       buscfg.data3_io_num = data_pins[3];
-      buscfg.data4_io_num = -1;
-      buscfg.data5_io_num = -1;
-      buscfg.data6_io_num = -1;
-      buscfg.data7_io_num = -1;
-      buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
+      if (data_pins.size() == 8) {
+        buscfg.data4_io_num = data_pins[4];
+        buscfg.data5_io_num = data_pins[5];
+        buscfg.data6_io_num = data_pins[6];
+        buscfg.data7_io_num = data_pins[7];
+        buscfg.flags |= SPICOMMON_BUSFLAG_OCTAL;
+      } else {
+        buscfg.data4_io_num = -1;
+        buscfg.data5_io_num = -1;
+        buscfg.data6_io_num = -1;
+        buscfg.data7_io_num = -1;
+        buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
+      }
     }
     buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
@@ -223,9 +249,10 @@ class SPIBusHw : public SPIBus {
       ESP_LOGE(TAG, "Bus init failed - err %X", err);
   }
 
-  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) override {
-    return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin,
-                             Utility::get_pin_no(this->sdi_pin_) == -1);
+  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                            bool release_device, bool write_only) override {
+    return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin, release_device,
+                             write_only || Utility::get_pin_no(this->sdi_pin_) == -1);
   }
 
  protected:
