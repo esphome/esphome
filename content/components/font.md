@@ -176,7 +176,7 @@ it.horizontal_line(0, height, it.get_width());
 
   - **url** (**Required**, string): The URL of the TrueType or bitmap font file.
 
-- **id** (**Required**, [ID](#config-id)): The ID with which you will be able to reference the font later
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID with which you will be able to reference the font later
   in your display code.
 
 - **size** (*Optional*, int): The desired size of the font. This will be the size (height) of the font in pixels

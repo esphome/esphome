@@ -39,7 +39,7 @@ The `modbus_controller` platform creates an output from a modbus_controller. The
   Parameters passed into the lambda
 
   - **x** (float or bool): The float value to be sent to the modbus device for `register_type: holding` or the boolean value to be sent to the modbus device for `register_type: coil`
-  - **payload** (``std::vector<uint16_t>&payload``):
+  - **payload** (`std::vector<uint16_t>&payload`):
 
     - for `register_type: holding`  : empty vector for the payload. The lamdba can add 16 bit raw modbus register words.
     - for `register_type: coil`  : empty vector for the payload. If payload is set in the lambda it is sent as a custom command and must include all required bytes for a modbus request
@@ -54,7 +54,7 @@ The `modbus_controller` platform creates an output from a modbus_controller. The
   - `return {};` if you don't want write the command to the device (or do it from the lambda).
 
 - **offset** (*Optional*, int): Offset from start address in bytes (only required for uncommon response encodings). If more than one register is written in a command this value is used to find the start of this datapoint relative to start address. The component calculates the size of the range based on offset and size of the value type.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 All other options from [Output](#config-output).
 

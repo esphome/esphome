@@ -13,7 +13,7 @@ with ESPHome.
 
 {{< img src="nextion-full.jpg" alt="Image" caption="Nextion display" width="75.0%" class="align-center" >}}
 
-Communication with the Nextion display is done via a serial interface, so you'll need to have a [UART Bus](#uart)
+Communication with the Nextion display is done via a serial interface, so you'll need to have a [UART Bus](/components/uart)
 in your configuration with both `rx_pin` and `tx_pin` configured. These pins must then be connected to the
 respective pins on the display.
 
@@ -49,7 +49,7 @@ display:
 
 ## Configuration variables
 
-- **uart_id** (*Optional*, [ID](#config-id)): The ID of the [UART Bus](#uart) you wish to use for this display. Specify this
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the [UART Bus](/components/uart) you wish to use for this display. Specify this
   when you have multiple UART configurations.
 
 - **brightness** (*Optional*, percentage): When specified, the display brightness will be set to this value at boot.
@@ -57,10 +57,10 @@ display:
   display. See [Rendering Lambda](#display-nextion_lambda) for more information. This is typically empty. The individual components
   for the Nextion will handle almost all functions needed for updating display elements.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to call the lambda to update the display.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to call the lambda to update the display.
   Defaults to `5s`.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **tft_url** (*Optional*, string): The URL from which to download the TFT file for display firmware updates (Nextion
   OTA). See [Nextion Upload](#nextion_upload_tft).
 
@@ -72,11 +72,11 @@ display:
 - **start_up_page** (*Optional*, int): Sets the page to display when ESPHome connects to the Nextion. (Nextion shows page 0 on start-up by default).
 - **wake_up_page** (*Optional*, int): Sets the page to display after waking up
 - **exit_reparse_on_start** (*Optional*, boolean): Request the Nextion exit Active Reparse Mode before setup of the display. Defaults to `false`.
-- **on_setup** (*Optional*, [Action](#config-action)): An action to be performed after ESPHome connects to the Nextion. See [Nextion Automation](#nextion-on_setup).
-- **on_sleep** (*Optional*, [Action](#config-action)): An action to be performed when the Nextion goes to sleep. See [Nextion Automation](#nextion-on_sleep).
-- **on_wake** (*Optional*, [Action](#config-action)): An action to be performed when the Nextion wakes up. See [Nextion Automation](#nextion-on_sleep).
-- **on_page** (*Optional*, [Action](#config-action)): An action to be performed after a page change. See [Nextion Automation](#nextion-on_page).
-- **on_touch** (*Optional*, [Action](#config-action)): An action to be performed after a touch event (press or release). See [Nextion Automation](#nextion-on_touch).
+- **on_setup** (*Optional*, [Action](/automations/actions#all-actions)): An action to be performed after ESPHome connects to the Nextion. See [Nextion Automation](#nextion-on_setup).
+- **on_sleep** (*Optional*, [Action](/automations/actions#all-actions)): An action to be performed when the Nextion goes to sleep. See [Nextion Automation](#nextion-on_sleep).
+- **on_wake** (*Optional*, [Action](/automations/actions#all-actions)): An action to be performed when the Nextion wakes up. See [Nextion Automation](#nextion-on_sleep).
+- **on_page** (*Optional*, [Action](/automations/actions#all-actions)): An action to be performed after a page change. See [Nextion Automation](#nextion-on_page).
+- **on_touch** (*Optional*, [Action](/automations/actions#all-actions)): An action to be performed after a touch event (press or release). See [Nextion Automation](#nextion-on_touch).
 - **auto_wake_on_touch** (*Optional*, boolean): If set to `true`, the Nextion will be configured to wake from sleep
   when touched.
 
@@ -84,10 +84,10 @@ display:
   skipped. When set to `true`, the connection will be established without performing the handshake. This can be
   useful when using Nextion Simulator. Defaults to `false`.
 
-- **on_buffer_overflow** (*Optional*, [Action](#config-action)): An action to be performed when the Nextion
+- **on_buffer_overflow** (*Optional*, [Action](/automations/actions#all-actions)): An action to be performed when the Nextion
   reports a buffer overflow. See [Nextion Automation](#nextion-on_buffer_overflow).
 
-- **command_spacing** (*Optional*, [Time](#config-time)): Sets the minimum time between commands sent to the Nextion display.
+- **command_spacing** (*Optional*, [Time](/guides/configuration-types#time)): Sets the minimum time between commands sent to the Nextion display.
   A higher value can help prevent buffer overflows but will result in slower interface updates.
   Range is `0-255ms`. Defaults to `0ms` (disabled).
 

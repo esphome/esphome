@@ -146,5 +146,5 @@ select:
 - {{< docref "/components/switch/modbus_controller" >}}
 - {{< docref "/components/number/modbus_controller" >}}
 - {{< docref "/components/text_sensor/modbus_controller" >}}
-- [Automation](#automation)
+- [Automation](/automations)
 - <https://www.modbustools.com/modbus.html>

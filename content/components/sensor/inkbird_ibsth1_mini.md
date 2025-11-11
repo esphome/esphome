@@ -46,19 +46,19 @@ sensor:
 - **mac_address** (**Required**, MAC Address): The MAC address of the Inkbird IBS-TH1 device.
 - **temperature** (*Optional*): The information for the temperature sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **external_temperature** (*Optional*): The information for the external temperature sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **humidity** (*Optional*): The information for the humidity sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **battery_level** (*Optional*): The information for the battery level sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 ## Setting Up Devices
 

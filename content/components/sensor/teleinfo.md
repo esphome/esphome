@@ -22,7 +22,7 @@ let you retrieve detailed power consumption or power production.
 There is plenty of example on the web.
 
 As the communication with the Teleinformation is done using UART, you need to
-have an [UART bus](#uart) in your configuration with the `rx_pin`
+have an [UART bus](/components/uart) in your configuration with the `rx_pin`
 connected to the output of the optocoupler component. Additionally, you need to
 set the baud rate to 9600bps if counter is configured to work in standard
 mode or 1200bps in historical mode. To find out which mode you are using,
@@ -51,13 +51,13 @@ In teleinfo platform:
   With historical mode, baudrate of 1200 must be used whereas 9600 must be used in
   standard mode. Defaults to `false`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the [UART Component](#uart) if you want
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [UART Component](/components/uart) if you want
   to use multiple UART buses.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation or multiple hubs.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation or multiple hubs.
 
 ### Sensor
 
@@ -84,8 +84,8 @@ sensor:
 ```
 
 - **tag_name** (**Required**, string): Specify the tag you want to retrieve from the Teleinformation.
-- **teleinfo_id** (*Optional*, [ID](#config-id)): Specify the ID of used hub.
-- All other options from [Sensor](#config-sensor).
+- **teleinfo_id** (*Optional*, [ID](/guides/configuration-types#id)): Specify the ID of used hub.
+- All other options from [Sensor](/components/sensor).
 
 ### Text Sensor
 
@@ -98,7 +98,7 @@ text_sensor:
 ```
 
 - **tag_name** (**Required**, string): Specify the tag you want to retrieve from the Teleinformation.
-- **teleinfo_id** (*Optional*, [ID](#config-id)): Specify the ID of used hub.
+- **teleinfo_id** (*Optional*, [ID](/guides/configuration-types#id)): Specify the ID of used hub.
 - All other options from [Text Sensor](#config-text_sensor).
 
 ## See Also

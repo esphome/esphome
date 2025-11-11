@@ -156,7 +156,7 @@ MQTT options:
 
 ### `climate.control` Action
 
-This is an [Action](#config-action) for setting parameters for climate devices.
+This is an [Action](/automations/actions#all-actions) for setting parameters for climate devices.
 
 ```yaml
 - climate.control:
@@ -167,8 +167,8 @@ This is an [Action](#config-action) for setting parameters for climate devices.
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the climate device to control.
-- **mode** (*Optional*, string, [templatable](#config-templatable)): Put the climate device
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the climate device to control.
+- **mode** (*Optional*, string, [templatable](/automations/templates)): Put the climate device
   in a specific mode. One of
 
   - `OFF` - The device is manually set to off, the device is inactive.
@@ -179,33 +179,33 @@ Configuration variables:
   - `FAN_ONLY` - The device only has the fan enabled, no heating or cooling is taking place.
   - `DRY` - The device is set to dry/humidity mode.
 
-- **target_temperature** (*Optional*, float, [templatable](#config-templatable)): Set the
+- **target_temperature** (*Optional*, float, [templatable](/automations/templates)): Set the
   target temperature of a climate device.
 
-- **target_temperature_low** (*Optional*, float, [templatable](#config-templatable)): Set the
+- **target_temperature_low** (*Optional*, float, [templatable](/automations/templates)): Set the
   lower target temperature of a climate device with a two-point target temperature.
 
-- **target_temperature_high** (*Optional*, float, [templatable](#config-templatable)): Set the
+- **target_temperature_high** (*Optional*, float, [templatable](/automations/templates)): Set the
   higher target temperature of a climate device with a two-point target temperature.
 
-- **target_humidity** (*Optional*, float, [templatable](#config-templatable)): Set the
+- **target_humidity** (*Optional*, float, [templatable](/automations/templates)): Set the
   target humidity of a climate device.
 
-- **preset** (*Optional*, string, [templatable](#config-templatable)): Set the preset
+- **preset** (*Optional*, string, [templatable](/automations/templates)): Set the preset
   of the climate device. One of `ECO`, `AWAY`, `BOOST`, `COMFORT`, `HOME`, `SLEEP`,
   `ACTIVITY`.
 
-- **custom_preset** (*Optional*, string, [templatable](#config-templatable)): Set one of the
+- **custom_preset** (*Optional*, string, [templatable](/automations/templates)): Set one of the
   supported custom_presets of the climate device.
 
-- **fan_mode** (*Optional*, string, [templatable](#config-templatable)): Set the fan mode
+- **fan_mode** (*Optional*, string, [templatable](/automations/templates)): Set the fan mode
   of the climate device. One of `ON`, `OFF`, `AUTO`, `LOW`, `MEDIUM`, `HIGH`, `MIDDLE`,
   `FOCUS`, `DIFFUSE`, `QUIET`.
 
-- **custom_fan_mode** (*Optional*, string, [templatable](#config-templatable)): Set one of the
+- **custom_fan_mode** (*Optional*, string, [templatable](/automations/templates)): Set one of the
   supported custom_fan_modes of the climate device.
 
-- **swing_mode** (*Optional*, string, [templatable](#config-templatable)): Set the swing mode
+- **swing_mode** (*Optional*, string, [templatable](/automations/templates)): Set the swing mode
   of the climate device. One of `OFF`, `BOTH`, `VERTICAL`, `HORIZONTAL`.
 
 {{< anchor "climate-lambda_calls" >}}

@@ -71,7 +71,7 @@ Advanced options:
 
   - **name** (**Required**, string): Name of the project
   - **version** (**Required**, string): Version of the project
-  - **on_update** (*Optional*, [Automation](#automation)): An automation to perform when the device firmware is updated.
+  - **on_update** (*Optional*, [Automation](/automations)): An automation to perform when the device firmware is updated.
     This compares the above `version` field with the `version` that was in the previous firmware
     as long as the `name` matches.
     The `version` is stored in flash memory when the firmware is first run for future comparisons.
@@ -88,13 +88,13 @@ Advanced options:
 
 Automations:
 
-- **on_boot** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_boot** (*Optional*, [Automation](/automations)): An automation to perform
   when the node starts. See [`on_boot`](#esphome-on_boot).
 
-- **on_shutdown** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_shutdown** (*Optional*, [Automation](/automations)): An automation to perform
   right before the node shuts down. See [`on_shutdown`](#esphome-on_shutdown).
 
-- **on_loop** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_loop** (*Optional*, [Automation](/automations)): An automation to perform
   on each `loop()` iteration. See [`on_loop`](#esphome-on_loop).
 
 {{< anchor "esphome-on_boot" >}}
@@ -127,7 +127,7 @@ esphome:
   - `200.0`  : Network connections like MQTT/native API are set up at this priority.
   - `-100.0`  : At this priority, pretty much everything should already be initialized.
 
-- See [Automation](#automation).
+- See [Automation](/automations).
 
 {{< anchor "esphome-on_shutdown" >}}
 
@@ -157,7 +157,7 @@ esphome:
   Please note this is an ESPHome-internal value and any change will not be marked as a breaking change.
   Defaults to `600`. For priority values refer to the list in the [`on_boot`](#esphome-on_boot) section.
 
-- See [Automation](#automation).
+- See [Automation](/automations).
 
 {{< anchor "esphome-on_loop" >}}
 
@@ -275,7 +275,7 @@ preferences:
 
 ### Configuration variables
 
-- **flash_write_interval** (*Optional*, [Time](#config-time)): Customize the frequency in which data is
+- **flash_write_interval** (*Optional*, [Time](/guides/configuration-types#time)): Customize the frequency in which data is
   flushed to the flash. This setting helps to prevent rapid changes to a component from being quickly
   written to the flash and wearing it out. Defaults to `1min`. Set to `never` to disable this feature.
 

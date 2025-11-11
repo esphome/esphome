@@ -35,10 +35,10 @@ output:
 
 ## Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): The id to use for this output component.
-- **cs_pin** (**Required**, [Pin Schema](#config-pin_schema)): Chip Select pin
-- **inc_pin** (**Required**, [Pin Schema](#config-pin_schema)): Increment pin
-- **ud_pin** (**Required**, [Pin Schema](#config-pin_schema)): Up/Down pin
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Chip Select pin
+- **inc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Increment pin
+- **ud_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Up/Down pin
 - **initial_value** (*Optional*, float): Manually specify the initial potentiometer value, between `0.01` and `1.0`. Defaults to `1.0`.
 - **step_delay** (*Optional*, int): Manually specify the delay between steps (in microseconds) between `1us` and `100us`. Defaults to `1us`.
 - All other options from [Output](#config-output).

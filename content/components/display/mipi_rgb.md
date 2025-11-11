@@ -71,13 +71,13 @@ display:
 - **rotation** (*Optional*): Rotate the display presentation in software. Choose one of `0°`, `90°`, `180°`, or `270°`.
   This option cannot be used with `transform`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `5s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `5s`.
 - **auto_clear_enabled** (*Optional*, boolean): If the display should be cleared before each update. Defaults to `true`
   if a lambda or pages are configured, false otherwise.
 - **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
   See [Display Rendering Engine](#display-engine) for more information.
 - **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **dimensions** (**Required**): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`)
   or with separate config keys.
 
@@ -89,18 +89,18 @@ display:
 
 - **data_pins** (**Required**): A list of pins used for the databus. Specified in 3 groups.
 
-  - **red** (**Required**, [Pin Schema](#config-pin_schema)): Exactly 5 pins for the red databits, listed from least
+  - **red** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Exactly 5 pins for the red databits, listed from least
     to most significant bit.
-  - **green** (**Required**, [Pin Schema](#config-pin_schema)): Exactly 6 pins for the green databits, listed from
+  - **green** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Exactly 6 pins for the green databits, listed from
     least to most significant bit.
-  - **blue** (**Required**, [Pin Schema](#config-pin_schema)): Exactly 5 pins for the blue databits, listed from
+  - **blue** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Exactly 5 pins for the blue databits, listed from
     least to most significant bit.
 
-- **de_pin** (**Required**, [Pin Schema](#config-pin_schema)): The DE pin.
-- **pclk_pin** (**Required**, [Pin Schema](#config-pin_schema)): The PCLK pin.
-- **hsync_pin** (**Required**, [Pin Schema](#config-pin_schema)): The Horizontal sync pin.
-- **vsync_pin** (**Required**, [Pin Schema](#config-pin_schema)): The Vertical sync pin.
-- **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin.
+- **de_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DE pin.
+- **pclk_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The PCLK pin.
+- **hsync_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The Horizontal sync pin.
+- **vsync_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The Vertical sync pin.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin.
 - **hsync_pulse_width** (*Optional*, int): The horizontal sync pulse width.
 - **hsync_front_porch** (*Optional*, int): The horizontal front porch length.
 - **hsync_back_porch** (*Optional*, int): The horizontal back porch length.
@@ -118,12 +118,12 @@ for suitable values. These specify timing requirements for the display.
 
 Displays needing a custom init sequence require an SPI bus to be configured, plus these options:
 
-- **dc_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The DC pin.
+- **dc_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin.
 - **data_rate** (*Optional*): Set the data rate of the SPI interface to the display. One of `80MHz` , `40MHz` ,
     `20MHz` , `10MHz` , `5MHz` , `2MHz` , `1MHz` (default), `200kHz` , `75kHz` or `1kHz` .
 - **spi_mode** (*Optional*): Set the mode for the SPI interface to the display. Default is `MODE0` but some displays
   require `MODE3` .
-- **spi_id** (*Optional*, [ID](#config-id)): The ID of the SPI interface to use - may be omitted if only one SPI bus
+- **spi_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the SPI interface to use - may be omitted if only one SPI bus
   is configured.
 - **init_sequence** (*Optional*, A list of byte arrays): Specifies the init sequence for the display.
   Predefined boards

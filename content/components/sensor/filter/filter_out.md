@@ -7,20 +7,16 @@ headless: true
 
 ```yaml
 # Example configuration entry
-- platform: wifi_signal
-  # ...
-  filters:
-    - filter_out: 85.0
+filters:
+  - filter_out: 85.0
 ```
 
 A list of values may be supplied, and values are templatable:
 
 ```yaml
 # Example configuration entry
-- platform: wifi_signal
-  # ...
-  filters:
-    - filter_out:
-        - 85.0
-        - !lambda return id(some_sensor).state;
+filters:
+  - filter_out:
+      - 85.0
+      - !lambda return id(some_sensor).state;
 ```

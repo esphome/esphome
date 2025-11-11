@@ -16,7 +16,7 @@ microphone platforms.
 
 Configuration variables:
 
-- **on_data** (*Optional*, [Automation](#automation)): An automation to
+- **on_data** (*Optional*, [Automation](/automations)): An automation to
   perform when new data is received.
 
 {{< anchor "config-microphone-source" >}}
@@ -27,7 +27,7 @@ A microphone source configuration is used by components to ensure that it receiv
 
 Configuration variables:
 
-- **microphone** (**Required**, [ID](#config-id)): The {{< docref "/components/microphone/index" "microphone" >}} to use for input.
+- **microphone** (**Required**, [ID](/guides/configuration-types#id)): The {{< docref "/components/microphone/index" "microphone" >}} to use for input.
 - **bits_per_sample** (*Optional*, int): The bits per sample to use as input to the component.
   May be restricted by the component to a specific value.
 
@@ -47,7 +47,7 @@ your configuration YAML.
 
 Configuration variables:
 
-**id** (*Optional*, [ID](#config-id)): The microphone to control. Defaults to the only one in YAML.
+**id** (*Optional*, [ID](/guides/configuration-types#id)): The microphone to control. Defaults to the only one in YAML.
 
 {{< anchor "microphone-capture" >}}
 
@@ -97,7 +97,7 @@ microphone:
 
 Configuration variables:
 
-- **id** (*Optional*, [ID](#config-id)): The microphone to check. Defaults to the only one in YAML.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The microphone to check. Defaults to the only one in YAML.
 
 {{< anchor "microphone-conditions" >}}
 
@@ -108,7 +108,7 @@ your configuration YAML.
 
 Configuration variables:
 
-**id** (*Optional*, [ID](#config-id)): The microphone to check. Defaults to the only one in YAML.
+**id** (*Optional*, [ID](/guides/configuration-types#id)): The microphone to check. Defaults to the only one in YAML.
 
 {{< anchor "microphone-is_capturing" >}}
 

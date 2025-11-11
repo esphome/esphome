@@ -37,14 +37,14 @@ wifi:
 - **variant** (*Required*, string): The variant of the ESP32 co-processor that is used by the
   host. One of `ESP32`, `ESP32S2`, `ESP32S3`, `ESP32C2`, `ESP32C3` and `ESP32C6`.
 
-- **clk_pin** (*Required*, [Pin](#config-pin)): The SDIO clock pin.
-- **cmd_pin** (*Required*, [Pin](#config-pin)): The SDIO command pin.
-- **d0_pin** (*Required*, [Pin](#config-pin)): The SDIO d0 pin.
-- **d1_pin** (*Required*, [Pin](#config-pin)): The SDIO d1 pin.
-- **d2_pin** (*Required*, [Pin](#config-pin)): The SDIO d2 pin.
-- **d3_pin** (*Required*, [Pin](#config-pin)): The SDIO d3 pin.
+- **clk_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO clock pin.
+- **cmd_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO command pin.
+- **d0_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO d0 pin.
+- **d1_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO d1 pin.
+- **d2_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO d2 pin.
+- **d3_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO d3 pin.
 - **slot** (*Optional*, int): The SDIO slot number. Defaults to 1.
-- **reset_pin** (*Required*, [Pin](#config-pin)): The reset pin of the co-processor.
+- **reset_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The reset pin of the co-processor.
 - **active_high** (*Required*, boolean): If enabled, the co-processor is active when reset is
   high. If disabled, the co-processor is active when reset is low.
 

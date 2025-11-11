@@ -24,7 +24,7 @@ This component can operate in one of two ways:
   upper set point while heating is activated when the observed temperature drops below the lower set point; in other words,
   the controller is able to both raise and lower the temperature as required.
 
-This component/controller automatically determines which mode it should operate in based on what [actions](#config-action)
+This component/controller automatically determines which mode it should operate in based on what [actions](/automations/actions#all-actions)
 are configured -- more on this in a moment. Two parameters define the set points; they are `target_temperature_low` and
 `target_temperature_high`. In single-point mode, however, only one is used. The set point(s) may be adjusted through the
 front-end user interface. The screenshot below illustrates a thermostat controller in dual-point mode, where two set points
@@ -32,7 +32,7 @@ are available.
 
 {{< img src="climate-ui.png" alt="Image" caption="Dual-setpoint climate UI" width="60.0%" class="align-center" >}}
 
-This component works by triggering a number of [actions](#config-action) as required to keep the observed
+This component works by triggering a number of [actions](/automations/actions#all-actions) as required to keep the observed
 temperature above/below/within the target range as defined by the set point(s). In general, when the observed temperature
 drops below `target_temperature_low` the controller will trigger the `heat_action` to activate heating. When the observed
 temperature exceeds `target_temperature_high`  the controller will trigger the `cool_action` or the `fan_only_action`
@@ -40,7 +40,7 @@ temperature exceeds `target_temperature_high`  the controller will trigger the `
 controller will trigger the `idle_action` to stop heating/cooling. Please see the next section for more detail.
 
 A number of fan control modes are built into the climate/thermostat interface in Home Assistant; this component may also be
-configured to trigger [actions](#config-action) based on the entire range (at the time this document was written) of fan
+configured to trigger [actions](/automations/actions#all-actions) based on the entire range (at the time this document was written) of fan
 modes that Home Assistant offers.
 
 ```yaml
@@ -109,7 +109,7 @@ climate:
 ## Controller Behavior and Hysteresis
 
 In addition to the set points, hysteresis values determine how far the temperature may vary from the set point value(s)
-before an [action](#config-action) (cooling, heating, etc.) is triggered. They each default to 0.5 °C. They are:
+before an [action](/automations/actions#all-actions) (cooling, heating, etc.) is triggered. They each default to 0.5 °C. They are:
 
 - `cool_deadband`  : The minimum temperature differential (temperature above the set point) before **engaging** cooling
 - `cool_overrun`  : The minimum temperature differential (cooling beyond the set point) before **disengaging** cooling
@@ -139,7 +139,7 @@ need to carefully consider the context of the word in the upcoming section, as i
 will otherwise lead to some ambiguity.
 
 - **ESPHome Action**: A task the ESPHome application performs as requested, such as
-  turning on a switch. See [Action](#config-action).
+  turning on a switch. See [Action](/automations/actions#all-actions).
 
 - **Climate Action**: What the climate device is actively doing
 - **Climate Mode**: What the climate device should (or should not) do
@@ -160,40 +160,40 @@ Got all that? Great. Let's take a closer look at some configuration.
 
 The thermostat controller uses the sensor to determine whether it should heat or cool.
 
-- **sensor** (**Required**, [ID](#config-id)): The sensor that is used to measure the current temperature.
-- **humidity_sensor** (*Optional*, [ID](#config-id)): The sensor that is used to measure the current humidity.
-  This may be used for humidity control; see [Humidity Control Actions](#humidity-control-actions).
+- **sensor** (**Required**, [ID](/guides/configuration-types#id)): The sensor that is used to measure the current temperature.
+- **humidity_sensor** (*Optional*, [ID](/guides/configuration-types#id)): If specified, this sensor is used to measure
+  the current humidity. This may be used for humidity control; see [Humidity Control Actions](#humidity-control-actions).
 
 ### Heating and Cooling Actions
 
 These are triggered when the climate control **action** is changed by the thermostat controller. Here,
 "action" takes on both meanings described above, as these are both climate actions *and* ESPHome
-[actions](#config-action). These should be used to activate heating, cooling, etc. devices.
+[actions](/automations/actions#all-actions). These should be used to activate heating, cooling, etc. devices.
 
-- **idle_action** (**Required**, [Action](#config-action)): The action to call when
+- **idle_action** (**Required**, [Action](/automations/actions#all-actions)): The action to call when
   the climate device should enter its idle state (not cooling, not heating).
 
-- **heat_action** (*Optional*, [Action](#config-action)): The action to call when
+- **heat_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device should enter heating mode to increase the current temperature.
 
-- **supplemental_heating_action** (*Optional*, [Action](#config-action)): The action
+- **supplemental_heating_action** (*Optional*, [Action](/automations/actions#all-actions)): The action
   to call when the climate device should activate supplemental heating to (more aggressively)
   increase the current temperature. *This action is called repeatedly at an interval defined by*
   `max_heating_run_time` *(see below).*
 
-- **cool_action** (*Optional*, [Action](#config-action)): The action to call when
+- **cool_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device should enter cooling mode to decrease the current temperature.
 
-- **supplemental_cooling_action** (*Optional*, [Action](#config-action)): The action
+- **supplemental_cooling_action** (*Optional*, [Action](/automations/actions#all-actions)): The action
   to call when the climate device should activate supplemental cooling to (more aggressively)
   decrease the current temperature. *This action is called repeatedly at an interval defined by*
   `max_cooling_run_time` *(see below).*
 
-- **dry_action** (*Optional*, [Action](#config-action)): The action to call when
+- **dry_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device should perform its drying (dehumidification) action. The thermostat
   controller does not trigger this action; it is invoked by `dry_mode` (see below).
 
-- **fan_only_action** (*Optional*, [Action](#config-action)): The action to call when
+- **fan_only_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device should activate its fan only (but does not heat or cool). When `fan_only_cooling`
   is set to `false`, the thermostat controller immediately triggers this action when set to
   `fan_only_mode`  ; however, when `fan_only_cooling` is set to `true`, this action is called
@@ -211,34 +211,34 @@ display the single-point climate user interface for the device.
 ### Heating and Cooling Modes
 
 These are triggered when the climate control **mode** is changed. Note the absence of "action" in the
-parameter name here -- these are still ESPHome [actions](#config-action), however they are *not*
-climate actions. Instead, they are climate *modes*. These [actions](#config-action) are useful
+parameter name here -- these are still ESPHome [actions](/automations/actions#all-actions), however they are *not*
+climate actions. Instead, they are climate *modes*. These [actions](/automations/actions#all-actions) are useful
 in that they could be used, for example, to toggle a group of LEDs on and/or off to provide a visual
 indication of the current climate mode.
 
-- **heat_mode** (*Optional*, [Action](#config-action)): The action to call when
+- **heat_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device is placed into heat mode (it may heat as required, but not cool).
 
-- **cool_mode** (*Optional*, [Action](#config-action)): The action to call when
+- **cool_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device is placed into cool mode (it may cool as required, but not heat).
 
-- **dry_mode** (*Optional*, [Action](#config-action)): The action to call when
+- **dry_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device is placed into dry mode (for dehumidification).
 
-- **fan_only_mode** (*Optional*, [Action](#config-action)): The action to call when
+- **fan_only_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device is placed into fan-only mode (it may not heat or cool, but will activate
   its fan either immediately or, when `fan_only_cooling` is `true`, as needed based on the upper
   target temperature value).
 
-- **heat_cool_mode** (*Optional*, [Action](#config-action)): The action to call when
+- **heat_cool_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device is placed into "heat/cool" mode (it may both cool and heat as required).
 
-- **auto_mode** (*Optional*, [Action](#config-action)): The action to call when
+- **auto_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device is placed into "auto" mode (it may both cool and heat as required). This mode is
   different from `heat_cool_mode` (above) in that it takes control of the set points away from the user;
   it's generally intended for exclusive use by automations.
 
-- **off_mode** (*Optional*, [Action](#config-action)): The action to call when
+- **off_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device is placed into "off" mode (it is completely disabled).
 
 **The above actions are not to be used to activate cooling or heating devices!**
@@ -246,54 +246,54 @@ See the previous section for those.
 
 ### Fan Mode Actions
 
-These are triggered when the climate control fan mode is changed. These are ESPHome [actions](#config-action).
+These are triggered when the climate control fan mode is changed. These are ESPHome [actions](/automations/actions#all-actions).
 These should be used to control the fan only, if available.
 
-- **fan_mode_auto_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_auto_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should be set to "auto" mode (the fan is controlled by the climate control system as required).
 
-- **fan_mode_on_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_on_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should run continuously.
 
-- **fan_mode_off_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_off_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should never run.
 
-- **fan_mode_low_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_low_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should run at its minimum speed.
 
-- **fan_mode_medium_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_medium_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should run at an intermediate speed.
 
-- **fan_mode_high_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_high_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should run at its maximum speed.
 
-- **fan_mode_middle_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_middle_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should direct its airflow at an intermediate area.
 
-- **fan_mode_focus_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_focus_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should direct its airflow at a specific area.
 
-- **fan_mode_diffuse_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_diffuse_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should direct its airflow over a broad area.
 
-- **fan_mode_quiet_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **fan_mode_quiet_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should run at quiet speed.
 
 ### Swing Mode Actions
 
-These are triggered when the climate control swing mode is changed. These are ESPHome [actions](#config-action).
+These are triggered when the climate control swing mode is changed. These are ESPHome [actions](/automations/actions#all-actions).
 These should be used to control the fan only, if available.
 
-- **swing_off_action** (*Optional*, [Action](#config-action)): The action to call when the fan should
+- **swing_off_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan should
   remain in a stationary position.
 
-- **swing_horizontal_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **swing_horizontal_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should oscillate in a horizontal direction.
 
-- **swing_vertical_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **swing_vertical_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should oscillate in a vertical direction.
 
-- **swing_both_action** (*Optional*, [Action](#config-action)): The action to call when the fan
+- **swing_both_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the fan
   should oscillate in horizontal and vertical directions.
 
 ### Humidity Control Actions
@@ -400,7 +400,7 @@ climate:
         mode: HEAT_COOL
 ```
 
-- **preset_change**: (*Optional*, [Action](#config-action)): The action to call when the preset is changed. This
+- **preset_change**: (*Optional*, [Action](/automations/actions#all-actions)): The action to call when the preset is changed. This
   will be called either when a user changes the mode through the Home Assistant UI or through a call to `climate.control`
 
 ```yaml
@@ -481,11 +481,11 @@ climate:
 
 ### Additional Actions/Behavior
 
-- **target_humidity_change_action** (*Optional*, [Action](#config-action)): The action to call when the
-  thermostat's target humidity is changed.
+- **target_humidity_change_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
+  the thermostat's target humidity is changed.
 
-- **target_temperature_change_action** (*Optional*, [Action](#config-action)): The action to call when the
-  thermostat's target temperature(s) is/are changed.
+- **target_temperature_change_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
+  the thermostat's target temperature(s) is/are changed.
 
 - **startup_delay** (*Optional*, boolean): If set to `true`, when ESPHome starts, `min_cooling_off_time`,
   `min_fanning_off_time`, and `min_heating_off_time` must elapse before each respective action may be invoked.
@@ -510,38 +510,38 @@ climate:
   `heat_action` is called. This is useful for forced-air systems where the fan typically runs with heating.
   Defaults to `false`.
 
-- **max_cooling_run_time** (*Required with* `supplemental_cooling_action`, [Time](#config-time)): Duration after
+- **max_cooling_run_time** (*Required with* `supplemental_cooling_action`, [Time](/guides/configuration-types#time)): Duration after
   which `supplemental_cooling_action` will be called when cooling is active. Note that
   `supplemental_cooling_action` will be called repeatedly at an interval defined by this parameter, as well,
   enabling multiple stages of supplemental (auxiliary/emergency) cooling.
 
-- **max_heating_run_time** (*Required with* `supplemental_heating_action`, [Time](#config-time)): Duration after
+- **max_heating_run_time** (*Required with* `supplemental_heating_action`, [Time](/guides/configuration-types#time)): Duration after
   which `supplemental_heating_action` will be called when heating is active. Note that
   `supplemental_heating_action` will be called repeatedly at an interval defined by this parameter, as well,
   enabling multiple stages of supplemental (auxiliary/emergency) heating.
 
-- **min_cooling_off_time** (*Required with* `cool_action`, [Time](#config-time)): Minimum duration the cooling action
+- **min_cooling_off_time** (*Required with* `cool_action`, [Time](/guides/configuration-types#time)): Minimum duration the cooling action
   must be disengaged before it may be engaged.
 
-- **min_cooling_run_time** (*Required with* `cool_action`, [Time](#config-time)): Minimum duration the cooling action
+- **min_cooling_run_time** (*Required with* `cool_action`, [Time](/guides/configuration-types#time)): Minimum duration the cooling action
   must be engaged before it may be disengaged.
 
-- **min_fanning_off_time** (*Required with* `fan_only_action`, [Time](#config-time)): Minimum duration the fanning
+- **min_fanning_off_time** (*Required with* `fan_only_action`, [Time](/guides/configuration-types#time)): Minimum duration the fanning
   action must be disengaged before it may be engaged.
 
-- **min_fanning_run_time** (*Required with* `fan_only_action`, [Time](#config-time)): Minimum duration the fanning
+- **min_fanning_run_time** (*Required with* `fan_only_action`, [Time](/guides/configuration-types#time)): Minimum duration the fanning
   action must be engaged before it may be disengaged.
 
-- **min_heating_off_time** (*Required with* `heat_action`, [Time](#config-time)): Minimum duration the heating action
+- **min_heating_off_time** (*Required with* `heat_action`, [Time](/guides/configuration-types#time)): Minimum duration the heating action
   must be disengaged before it may be engaged.
 
-- **min_heating_run_time** (*Required with* `heat_action`, [Time](#config-time)): Minimum duration the heating action
+- **min_heating_run_time** (*Required with* `heat_action`, [Time](/guides/configuration-types#time)): Minimum duration the heating action
   must be engaged before it may be disengaged.
 
-- **min_idle_time** (**Required**, [Time](#config-time)): Minimum duration the idle action must be active before calling
+- **min_idle_time** (**Required**, [Time](/guides/configuration-types#time)): Minimum duration the idle action must be active before calling
   another climate action.
 
-- **min_fan_mode_switching_time** (*Required with any* `fan_mode` *action*, [Time](#config-time)): Minimum duration
+- **min_fan_mode_switching_time** (*Required with any* `fan_mode` *action*, [Time](/guides/configuration-types#time)): Minimum duration
   any given fan mode must be active before it may be changed.
 
 Note that `min_temperature` and `max_temperature` from the base climate component are used to define
@@ -550,16 +550,16 @@ the range of allowed temperature values in the thermostat component. See {{< doc
 ### Hysteresis Values
 
 - **cool_deadband** (*Optional*, float): The minimum temperature differential (temperature above the set point)
-  before calling the cooling [action](#config-action). Defaults to 0.5 °C.
+  before calling the cooling [action](/automations/actions#all-actions). Defaults to 0.5 °C.
 
 - **cool_overrun** (*Optional*, float): The minimum temperature differential (cooling beyond the set point)
-  before calling the idle [action](#config-action). Defaults to 0.5 °C.
+  before calling the idle [action](/automations/actions#all-actions). Defaults to 0.5 °C.
 
 - **heat_deadband** (*Optional*, float): The minimum temperature differential (temperature below the set point)
-  before calling the heating [action](#config-action). Defaults to 0.5 °C.
+  before calling the heating [action](/automations/actions#all-actions). Defaults to 0.5 °C.
 
 - **heat_overrun** (*Optional*, float): The minimum temperature differential (heating beyond the set point)
-  before calling the idle [action](#config-action). Defaults to 0.5 °C.
+  before calling the idle [action](/automations/actions#all-actions). Defaults to 0.5 °C.
 
 - **humidity_hysteresis** (*Optional*, float): The maximum humidity differential (above/below the set point)
   before calling the respective humidity control [action](#config-action). Defaults to 1%.
@@ -582,4 +582,4 @@ Please see the {{< docref "bang_bang" "Bang-Bang" >}} component's documentation 
 - {{< docref "/components/climate" >}}
 - {{< docref "/components/sensor" >}}
 - {{< docref "bang_bang" "Bang-Bang" >}}
-- [All Actions](#config-action)
+- [All Actions](/automations/actions#all-actions)

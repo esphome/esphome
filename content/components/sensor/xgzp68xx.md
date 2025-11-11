@@ -26,7 +26,7 @@ different device even though it has an identical model number to the <= v3.0 dev
 
 {{< img src="6897d.jpg" alt="Image" caption="XGZP6897D Differential Pressure Sensor. (Credit: [CFSensor](https://cfsensor.net/i2c-differential-pressure-sensor-xgzp6897d/), image cropped and compressed)" width="30.0%" class="align-center" >}}
 
-To use the sensor, set up an [I²C Bus](#i2c) and connect the sensor to the specified pins.
+To use the sensor, set up an [I²C Bus](/components/i2c) and connect the sensor to the specified pins.
 
 ```yaml
 # Example configuration entry
@@ -45,11 +45,11 @@ sensor:
 
 ## Configuration variables
 
-- **temperature** (*Optional*): All options from [Sensor](#config-sensor).
-- **pressure** (*Optional*): All options from [Sensor](#config-sensor).
+- **temperature** (*Optional*): All options from [Sensor](/components/sensor).
+- **pressure** (*Optional*): All options from [Sensor](/components/sensor).
   - **oversampling** (*Optional*): One of `256x`, `512x`, `1024x`, `2048x`, `4096x`, `8192x`, `16384x`, `32768x`. It is not possible to disable oversampling. If not specified, this defaults to `4096x`.
 - **k_value** (*Optional*, int): The K value comes from the list below. It will default to 4096 if not specified.
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the sensor. Defaults to `60s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
 
 ## Usage
 

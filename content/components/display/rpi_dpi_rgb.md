@@ -69,28 +69,28 @@ display:
 
 - **data_pins** (**Required**): A list of pins used for the databus. Specified in 3 groups:
 
-  - **red** (**Required**, [Pin Schema](#config-pin_schema)): Exactly 5 pin numbers for the red databits, listed from least to most significant bit.
-  - **green** (**Required**, [Pin Schema](#config-pin_schema)): Exactly 6 pin numbers for the green databits, listed from least to most significant bit.
-  - **blue** (**Required**, [Pin Schema](#config-pin_schema)): Exactly 5 pin numbers for the blue databits, listed from least to most significant bit.
+  - **red** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Exactly 5 pin numbers for the red databits, listed from least to most significant bit.
+  - **green** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Exactly 6 pin numbers for the green databits, listed from least to most significant bit.
+  - **blue** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Exactly 5 pin numbers for the blue databits, listed from least to most significant bit.
 
-- **de_pin** (**Required**, [Pin Schema](#config-pin_schema)): The DE pin
-- **pclk_pin** (**Required**, [Pin Schema](#config-pin_schema)): The PCLK pin.
-- **hsync_pin** (**Required**, [Pin Schema](#config-pin_schema)): The Horizontal sync pin.
-- **vsync_pin** (**Required**, [Pin Schema](#config-pin_schema)): The Vertical sync pin.
-- **enable_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The ENABLE pin.
-- **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin.
+- **de_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DE pin
+- **pclk_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The PCLK pin.
+- **hsync_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The Horizontal sync pin.
+- **vsync_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The Vertical sync pin.
+- **enable_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The ENABLE pin.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin.
 - **hsync_pulse_width** (*Optional*, int): The horizontal sync pulse width.
 - **hsync_front_porch** (*Optional*, int): The horizontal front porch length.
 - **hsync_back_porch** (*Optional*, int): The horizontal back porch length.
 - **vsync_pulse_width** (*Optional*, int): The vertical sync pulse width.
 - **vsync_front_porch** (*Optional*, int): The vertical front porch length.
 - **vsync_back_porch** (*Optional*, int): The vertical back porch length.
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `5s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `5s`.
 - **auto_clear_enabled** (*Optional*, boolean): If the display should be cleared before each update. Defaults to `true` if a lambda or pages are configured, false otherwise.
   or to keep the existing display content (must overwrite explicitly, e.g., only on data change).
 
 - **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **color_order** (*Optional*): Should be one of `bgr` (default) or `rgb`.
 - **dimensions** (**Required**): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`  ) or with separate config keys.
 

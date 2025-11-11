@@ -21,7 +21,7 @@ touchscreen:
 
 ### Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): Manually set the ID of this touchscreen.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually set the ID of this touchscreen.
 
 - All other options from [Touchscreen](#config-touchscreen).
 

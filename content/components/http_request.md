@@ -18,10 +18,10 @@ http_request:
 
 ## Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **follow_redirects** (*Optional*, boolean): Enable following HTTP redirects. Defaults to `true`.
 - **redirect_limit** (*Optional*, integer): Maximum amount of redirects to follow when enabled. Defaults to `3`.
-- **timeout** (*Optional*, [Time](#config-time)): Timeout for request. Defaults to `4.5s`.
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Timeout for request. Defaults to `4.5s`.
 - **useragent** (*Optional*, string): User-Agent header for requests. Defaults to
   `ESPHome/<version> (https://esphome.io)` where `<version>` is the version of ESPHome the device is running.
   For example: `ESPHome/2024.6.0 (https://esphome.io)`
@@ -32,7 +32,7 @@ http_request:
   Mozilla's NSS root certificate store. **May only be set to true when using the ESP-IDF framework; must be explicitly
   set to false when using the Arduino framework.**
 
-- **watchdog_timeout** (*Optional*, [Time](#config-time)): Change the watchdog timeout during connection/data transfer.
+- **watchdog_timeout** (*Optional*, [Time](/guides/configuration-types#time)): Change the watchdog timeout during connection/data transfer.
   May be useful on slow connections or connections with high latency. **Do not change this value unless you are
   experiencing device reboots due to watchdog timeouts;** doing so may prevent the device from rebooting due to a
   legitimate problem. **Only available on ESP32 and RP2040**.
@@ -78,13 +78,13 @@ http_request:
 
 ## Actions
 
-The `http_request` component supports a number of [actions](#config-action) that can be used to send requests.
+The `http_request` component supports a number of [actions](/automations/actions#all-actions) that can be used to send requests.
 
 {{< anchor "http_request-get_action" >}}
 
 ### `http_request.get` Action
 
-This [action](#config-action) sends a GET request.
+This [action](/automations/actions#all-actions) sends a GET request.
 
 ```yaml
 on_...:
@@ -105,8 +105,8 @@ on_...:
 
 #### Configuration variables
 
-- **url** (**Required**, string, [templatable](#config-templatable)): URL to which to send the request.
-- **request_headers** (*Optional*, mapping): Map of HTTP headers. Values are [templatable](#config-templatable).
+- **url** (**Required**, string, [templatable](/automations/templates)): URL to which to send the request.
+- **request_headers** (*Optional*, mapping): Map of HTTP headers. Values are [templatable](/automations/templates).
 - **collect_headers** (*Optional*, list of strings): List of the names of HTTP headers to collect from the response.
 - **capture_response** (*Optional*, boolean): when set to `true`, the response data will be captured and placed into
   the `body` variable as a `std::string` for use in [lambdas](#config-lambda). Defaults to `false`.
@@ -114,14 +114,14 @@ on_...:
 - **max_response_buffer_size** (*Optional*, integer): The maximum buffer size to be used to store the response.
   Defaults to `1 kB`.
 
-- **on_response** (*Optional*, [Automation](#automation)): An automation to perform after the request is received.
-- **on_error** (*Optional*, [Automation](#automation)): An automation to perform if the request cannot be completed.
+- **on_response** (*Optional*, [Automation](/automations)): An automation to perform after the request is received.
+- **on_error** (*Optional*, [Automation](/automations)): An automation to perform if the request cannot be completed.
 
 {{< anchor "http_request-post_action" >}}
 
 ### `http_request.post` Action
 
-This [action](#config-action) sends a POST request.
+This [action](/automations/actions#all-actions) sends a POST request.
 
 ```yaml
 on_...:
@@ -137,8 +137,8 @@ on_...:
 
 #### Configuration variables
 
-- **body** (*Optional*, string, [templatable](#config-templatable)): A HTTP body string to send with request.
-- **json** (*Optional*, mapping): A HTTP body in JSON format. Values are [templatable](#config-templatable).
+- **body** (*Optional*, string, [templatable](/automations/templates)): A HTTP body string to send with request.
+- **json** (*Optional*, mapping): A HTTP body in JSON format. Values are [templatable](/automations/templates).
   See [Examples](#http_request-examples).
 
 - All other options from [`http_request.get` Action](#http_request-get_action).
@@ -147,7 +147,7 @@ on_...:
 
 ### `http_request.send` Action
 
-This [action](#config-action) sends a request.
+This [action](/automations/actions#all-actions) sends a request.
 
 ```yaml
 on_...:

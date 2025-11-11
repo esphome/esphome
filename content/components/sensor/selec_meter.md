@@ -13,7 +13,7 @@ with ESPHome.
 
 {{< img src="selec_meter_em2m.jpg" alt="Image" caption="Selec EM2M Energy Monitor." width="50.0%" class="align-center" >}}
 
-The communication with this component is done via a [UART](#uart) using [Modbus](#modbus).
+The communication with this component is done via a [UART](/components/uart) using [Modbus](#modbus).
 You must therefore have a `uart:` entry in your configuration with both the TX and RX pins set
 to some pins on your board and the baud rate set to 9600.
 
@@ -66,57 +66,57 @@ sensor:
 ## Configuration variables
 
 - **total_active_energy** (*Optional*): Use the total active energy value of the sensor in kilo watt
-  hours. All options from [Sensor](#config-sensor).
+  hours. All options from [Sensor](/components/sensor).
 
 - **import_active_energy** (*Optional*): Use the import active energy value of the sensor in kilo watt
-  hours. All options from [Sensor](#config-sensor).
+  hours. All options from [Sensor](/components/sensor).
 
 - **export_active_energy** (*Optional*): Use the export active energy value of the sensor in kilo watt
-  hours. All options from [Sensor](#config-sensor).
+  hours. All options from [Sensor](/components/sensor).
 
 - **total_reactive_energy** (*Optional*): Use the total reactive energy value of the sensor in
-  kilo volt amps reactive hours. All options from [Sensor](#config-sensor).
+  kilo volt amps reactive hours. All options from [Sensor](/components/sensor).
 
 - **import_reactive_energy** (*Optional*): Use the import reactive energy value of the sensor in
-  kilo volt amps reactive hours. All options from [Sensor](#config-sensor).
+  kilo volt amps reactive hours. All options from [Sensor](/components/sensor).
 
 - **export_reactive_energy** (*Optional*): Use the export reactive energy value of the sensor in
-  kilo volt amps reactive hours. All options from [Sensor](#config-sensor).
+  kilo volt amps reactive hours. All options from [Sensor](/components/sensor).
 
 - **apparent_energy** (*Optional*): Use the apparent energy value of the sensor in
-  kilo volt amps hours. All options from [Sensor](#config-sensor).
+  kilo volt amps hours. All options from [Sensor](/components/sensor).
 
 - **active_power** (*Optional*): Use the (active) power value of the sensor in watts. All options
-  from [Sensor](#config-sensor).
+  from [Sensor](/components/sensor).
 
 - **reactive_power** (*Optional*): Use the reactive power value of the sensor in VAR. All
-  options from [Sensor](#config-sensor).
+  options from [Sensor](/components/sensor).
 
 - **apparent_power** (*Optional*): Use the apparent power value of the sensor in VA. All
-  options from [Sensor](#config-sensor).
+  options from [Sensor](/components/sensor).
 
 - **voltage** (*Optional*): Use the voltage value of the sensor in volts.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **current** (*Optional*): Use the current value of the sensor in amperes. All options from
-  [Sensor](#config-sensor).
+  [Sensor](/components/sensor).
 
 - **power_factor** (*Optional*): Use the power factor value of the sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **frequency** (*Optional*): Use the frequency value of the sensor in hertz.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **maximum_demand_active_power** (*Optional*): Use the maximum demand (active) power value of the sensor in watts. All options
-  from [Sensor](#config-sensor).
+  from [Sensor](/components/sensor).
 
 - **maximum_demand_reactive_power** (*Optional*): Use the maximum demand reactive power value of the sensor in VAR. All
-  options from [Sensor](#config-sensor).
+  options from [Sensor](/components/sensor).
 
 - **maximum_demand_apparent_power** (*Optional*): Use the maximum demand apparent power value of the sensor in VA. All
-  options from [Sensor](#config-sensor).
+  options from [Sensor](/components/sensor).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 - **address** (*Optional*, int): The address of the sensor if multiple sensors are attached to

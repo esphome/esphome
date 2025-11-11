@@ -43,5 +43,5 @@ The following entity domains from Home Assistant are supported by this platform.
 
 ## See Also
 
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "homeassistant/switch/homeassistant_switch.h" "homeassistant/switch/homeassistant_switch.h" >}}

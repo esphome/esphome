@@ -282,4 +282,4 @@ sensor:
 ## See Also
 
 - [Templates](#config-lambda)
-- [Automation](#automation)
+- [Automation](/automations)

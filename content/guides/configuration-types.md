@@ -23,8 +23,7 @@ ID twice.
 
 Because ESPHome converts your configuration into C++ code and the
 IDs are in reality just C++ variable names, they must also adhere to
-C++'s naming conventions. [C++ Variablenames](https://venus.cs.qc.cuny.edu/~krishna/cs111/lectures/D3_C++_Variables.pdf)
-…
+[C++'s naming conventions](https://en.cppreference.com/w/cpp/language/identifiers)…
 
 - … must start with a letter and can end with numbers.
 - … must not have a space in the name.
@@ -126,6 +125,14 @@ Advanced options:
 
   If you are *absolutely* sure that you are using a strapping pin for I/O in a way that will not cause problems,
   you can suppress the warning by setting this option to `true` in the pin configuration.
+
+- **ignore_pin_validation_error** (*Optional*, boolean): Certain pins on ESP32 chips are reserved
+  for internal functions like flash memory interface (for example, GPIO 6-11 on most ESP32 variants). ESPHome
+  will raise an error if you try to use these reserved pins.
+
+  However, some ESP32 board designs wire specific flash configurations that free up certain pins for general use.
+  If you are *absolutely* certain that your specific board design allows a normally-reserved pin to be used,
+  you can suppress the error by setting this option to `true`. Defaults to `false`.
 
 {{< anchor "config-time" >}}
 

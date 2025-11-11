@@ -19,6 +19,7 @@ temperatures) and note the resistance values at these temperatures.
 Then enter these values in the calibration parameter:
 
 ```yaml
+# Example configuration entry
 - platform: template
   id: to_ntc_resistance_sensor1
   unit_of_measurement: "Ohm"
@@ -33,10 +34,11 @@ Then enter these values in the calibration parameter:
           - 14.674kOhm -> 15°C
 ```
 
-The filter determines coefficients for the `Steinhart-Hart`_ equation from the specified
+The filter determines coefficients for the [Steinhart-Hart](https://en.wikipedia.org/wiki/Steinhart%E2%80%93Hart_equation) equation from the specified
 pairs of values which can also be specified directly as an alternative.
 
 ```yaml
+# Example configuration entry
 - platform: template
   id: to_ntc_resistance_sensor2
   unit_of_measurement: "Ohm"
@@ -59,6 +61,7 @@ An output component can accept values in the range of `0..1` (see [`output.set_l
 so that scaling with the actual resistance value of the simulated NTC is required.
 
 ```yaml
+# Example configuration entry
 on_value:
   then:
     - output.set_level:

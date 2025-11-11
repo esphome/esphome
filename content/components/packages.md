@@ -127,7 +127,7 @@ For each package:
   - list of objects containing `path` and `vars`
 
 - **ref** (*Optional*, string): The Git ref(erence) to be used when pulling content from the repository.
-- **refresh** (*Optional*, [Time](#config-time)): The interval at which the content from the repository should be refreshed.
+- **refresh** (*Optional*, [Time](/guides/configuration-types#time)): The interval at which the content from the repository should be refreshed.
 
 ## Packages as Templates
 

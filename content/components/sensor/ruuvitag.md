@@ -56,57 +56,57 @@ sensor:
 
 - **humidity** (*Optional*): The information for the humidity sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **temperature** (*Optional*): The information for the temperature sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **pressure** (*Optional*): The information for the pressure sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **acceleration** (*Optional*): The information for the acceleration
   sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **acceleration_x** (*Optional*): The information for the acceleration x
   sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **acceleration_y** (*Optional*): The information for the acceleration y
   sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **acceleration_z** (*Optional*): The information for the acceleration z
   sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **battery_voltage** (*Optional*): The information for the battery voltage
   sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **tx_power** (*Optional*): The information for the transmit power
   sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
   - Only available if RAWv2 protocol is used.
 
 - **movement_counter** (*Optional*): The information for the movement count
   sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
   - Only available if RAWv2 protocol is used.
 
 - **measurement_sequence_number** (*Optional*): The information for the
   measurement sequence number sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
   - Only available if RAWv2 protocol is used.
 
 ## Setting Up Devices

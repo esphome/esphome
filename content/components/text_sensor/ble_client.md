@@ -30,19 +30,19 @@ text_sensor:
 
 ## Configuration variables
 
-- **ble_client_id** (**Required**, [ID](#config-id)): ID of the associated BLE client.
+- **ble_client_id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 - **service_uuid** (**Required**, UUID): UUID of the service on the device.
 - **characteristic_uuid** (**Required**, UUID): UUID of the service's characteristic to query.
 - **descriptor_uuid** (*Optional*, UUID): UUID of the characteristic's descriptor to query.
 - **notify** (*Optional*, boolean): Instruct the server to send notifications for this
   characteristic. Defaults to `false`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to poll the device. Defaults to `60s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to poll the device. Defaults to `60s`.
 - All other options from [Text Sensor](#config-text_sensor).
 
 Automations:
 
-- **on_notify** (*Optional*, [Automation](#automation)): An automation to
+- **on_notify** (*Optional*, [Automation](/automations)): An automation to
   perform when a notify message is received from the device. See [`on_notify`](#ble_text_sensor-on_notify).
 
 ## BLE Sensor Automation

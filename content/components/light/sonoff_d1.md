@@ -29,7 +29,7 @@ To replace the stock firmware with ESPHome you will need to locate GPIO0 pin and
 Before using this components make sure:
 
 - board is configured to `esp8285`
-- [UART bus](#uart) is configured with default RX / TX pins and 9600 baud rate
+- [UART bus](/components/uart) is configured with default RX / TX pins and 9600 baud rate
 - {{< docref "/components/logger" "logger" >}} to the serial port is disabled by setting `baud_rate` to `0`
 - in case you need light state restoration on power up, make sure `restore_from_flash` is set to `true` in the {{< docref "/components/esp8266" "ESP8266 platform" >}}
 

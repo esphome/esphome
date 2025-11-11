@@ -12,7 +12,7 @@ allows you to play sound and music stored in an SD card or USB flash drive.
 
 {{< img src="dfplayer-full.jpg" alt="Image" caption="DF-Player mini Module." width="50.0%" class="align-center" >}}
 
-For this component to work you need to have set up a [UART bus](#uart) in your configuration.
+For this component to work you need to have set up a [UART bus](/components/uart) in your configuration.
 
 ## Overview
 
@@ -31,9 +31,9 @@ dfplayer:
 
 ## Configuration variables
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the UART hub.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
-- **on_finished_playback** (*Optional*, [Automation](#automation)): An action to be
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the UART hub.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- **on_finished_playback** (*Optional*, [Automation](/automations)): An action to be
   performed when playback is finished.
 
 ## `dfplayer.is_playing` Condition
@@ -86,10 +86,10 @@ on_...:
 
 Configuration options:
 
-- **file** (*Optional*, int, [templatable](#config-templatable)): The global track
+- **file** (*Optional*, int, [templatable](/automations/templates)): The global track
   number (from all tracks in the device). If not specified plays the first track.
 
-- **loop** (*Optional*, boolean, [templatable](#config-templatable)): Repeats playing
+- **loop** (*Optional*, boolean, [templatable](/automations/templates)): Repeats playing
   the same track. Defaults to `false`.
 
 ## `dfplayer.play_mp3` Action
@@ -120,7 +120,7 @@ on_...:
 
 Configuration options:
 
-- **file** (**Required**, int, [templatable](#config-templatable)): The file number
+- **file** (**Required**, int, [templatable](/automations/templates)): The file number
   inside the `mp3` folder to play.
 
 ## `dfplayer.play_folder` Action
@@ -153,11 +153,11 @@ on_...:
 
 Configuration options:
 
-- **folder** (**Required**, int, [templatable](#config-templatable)): The folder number.
-- **file** (*Optional*, int, [templatable](#config-templatable)): The file number
+- **folder** (**Required**, int, [templatable](/automations/templates)): The folder number.
+- **file** (*Optional*, int, [templatable](/automations/templates)): The file number
   inside the folder to play. Optional only if `loop` is not set.
 
-- **loop** (*Optional*, boolean, [templatable](#config-templatable)): Repeats playing
+- **loop** (*Optional*, boolean, [templatable](/automations/templates)): Repeats playing
   all files in the folder. Causes `file` to be ignored. Defaults to `false`.
 
 ## `dfplayer.set_device` Action
@@ -185,7 +185,7 @@ on_...:
 
 Configuration options:
 
-- **volume** (**Required**, int, [templatable](#config-templatable)): The volume value.
+- **volume** (**Required**, int, [templatable](/automations/templates)): The volume value.
   Valid values goes from `0` to `30`.
 
 ## `dfplayer.volume_up` Action
@@ -289,7 +289,7 @@ on_...:
 
 ## All actions
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID of the DFPlayer if you have multiple components.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the DFPlayer if you have multiple components.
 
 ## Test setup
 

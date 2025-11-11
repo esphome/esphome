@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Comment
         id: create-comment
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             const result = await github.rest.issues.createComment({
@@ -32,11 +32,20 @@ jobs:
 
       - name: Get Component name
         id: get_component
-        run: |-
-          comment="${{ github.event.comment.body }}"
-          component=$(echo $comment | sed -n 's/^@esphomebot generate image //p')
-          echo "name=$component" >> $GITHUB_OUTPUT
-          echo "name_lower=${component,,}" >> $GITHUB_OUTPUT
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          # Extract component name using bash parameter expansion (no external commands)
+          component="${COMMENT_BODY#@esphomebot generate image }"
+
+          # Validate component name: only lowercase alphanumeric and underscores
+          if [[ "$component" =~ ^[a-z0-9_]+$ ]]; then
+            echo "name=$component" >> $GITHUB_OUTPUT
+            echo "name_lower=${component,,}" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Invalid component name. Must contain only lowercase letters, numbers, and underscores."
+            exit 1
+          fi
 
   generate:
     name: Generate
@@ -50,14 +59,14 @@ jobs:
           component: ${{ needs.prepare.outputs.name }}
 
       - name: Upload
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         id: upload-artifact
         with:
           name: ${{ needs.prepare.outputs.name }}
           path: ${{ needs.prepare.outputs.name_lower }}.svg
 
       - name: Update Comment
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             await github.rest.issues.updateComment({

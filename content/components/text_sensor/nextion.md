@@ -33,9 +33,9 @@ text_sensor:
 
 ## Configuration variables
 
-- **nextion_id** (*Optional*, [ID](#config-id)): The ID of the Nextion display.
+- **nextion_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the Nextion display.
 - **component_name** (*Optional*, string): The name of the Nextion component.
-- **update_interval** (*Optional*, [Time](#config-time)): The duration to update the sensor. If using a [Nextion Custom Text Sensor Protocol](#nextion_custom_text_sensor_protocol) this should not be used
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The duration to update the sensor. If using a [Nextion Custom Text Sensor Protocol](#nextion_custom_text_sensor_protocol) this should not be used
 - **background_color** (*Optional*, [Color](#config-color)): The background color
 - **foreground_color** (*Optional*, [Color](#config-color)): The foreground color
 - **font_id** (*Optional*, int): The font id for the component
@@ -86,12 +86,12 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the Nextion text sensor.
-- **state** (**Required**, string, [templatable](#config-templatable)): The string to publish.
-- **publish_state** (*Optional*, bool, [templatable](#config-templatable)): Publish new state to Home Assistant.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the Nextion text sensor.
+- **state** (**Required**, string, [templatable](/automations/templates)): The string to publish.
+- **publish_state** (*Optional*, bool, [templatable](/automations/templates)): Publish new state to Home Assistant.
   Default is true.
 
-- **send_to_nextion** (*Optional*, bool, [templatable](#config-templatable)): Publish new state to Nextion
+- **send_to_nextion** (*Optional*, bool, [templatable](/automations/templates)): Publish new state to Nextion
   display which will update component. Default is true.
 
 > [!NOTE]

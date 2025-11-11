@@ -7,6 +7,7 @@ Perform a simple mathematical operation over the sensor values. The input value 
 the result of the lambda is used as the output (use `return`  ).
 
 ```yaml
+# Example configuration entry
 filters:
   - lambda: return x * (9.0/5.0) + 32.0;
 ```
@@ -17,6 +18,7 @@ result in integers (not floating point values).
 To prevent values from being published, return `{}`  :
 
 ```yaml
+# Example configuration entry
 filters:
   - lambda: |-
       if (x < 10) return {};

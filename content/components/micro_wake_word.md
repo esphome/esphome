@@ -30,7 +30,7 @@ micro_wake_word:
 - **stop_after_detection** (*Optional*, boolean): Whether to stop the component after detecting a wake word. Defaults to `true`.
 - **models** (**Required**, list): The models to use. Only the first model is enabled by default on the first boot. Each model's enabled state is then saved/restored to/from the flash.
 
-  - **id** (*Optional*, [ID](#config-id)): The optional ID used for the model actions below.
+  - **id** (*Optional*, [ID](/guides/configuration-types#id)): The optional ID used for the model actions below.
   - **model** (**Required**, string): This can be one of:
 
     - A simple name of a model that exists in the official [ESPHome Models repository](https://github.com/esphome/micro-wake-word-models).

@@ -8,12 +8,12 @@ params:
 ---
 
 The `Havells Inverter` sensor platform allows you to use Havells inverter data reading on modbus
-([website](https://www.havells.com/en/consumer/solar/solar-on-grid-inverter-and-solutions/solar-on-grid-inverter.html))
+([website](https://havells.com/business/discover-solar-solutions))
 with ESPHome.
 
 {{< img src="havellsgti5000d.jpg" alt="Image" caption="Havells On Grid Solar Inverter." width="50.0%" class="align-center" >}}
 
-The communication with this component is done via a [UART](#uart) using [Modbus](#modbus).
+The communication with this component is done via a [UART](/components/uart) using [Modbus](#modbus).
 You must therefore have a `uart:` and `modbus:` entry in your configuration with both the TX and RX pins set
 to some pins on your board and the baud rate set to 9600.
 
@@ -96,10 +96,10 @@ sensor:
 - **phase_a** (*Optional*): The group of exposed sensors for Phase A/1.
 
   - **current** (*Optional*): Use the current value of the sensor in amperes. All options from
-    [Sensor](#config-sensor).
+    [Sensor](/components/sensor).
 
   - **voltage** (*Optional*): Use the voltage value of the sensor in volts.
-    All options from [Sensor](#config-sensor).
+    All options from [Sensor](/components/sensor).
 
 - **phase_b** (*Optional*): The group of exposed sensors for Phase B/2 on applicable inverters.
 
@@ -112,70 +112,70 @@ sensor:
 - **pv1** (*Optional*): The group of exposed sensors for Photo Voltaic 1.
 
   - **current** (*Optional*): Use the current value of the sensor in amperes. All options from
-    [Sensor](#config-sensor).
+    [Sensor](/components/sensor).
 
   - **voltage** (*Optional*): Use the voltage value of the sensor in volts.
-    All options from [Sensor](#config-sensor).
+    All options from [Sensor](/components/sensor).
 
   - **active_power** (*Optional*): Use the (active) power value of the sensor in watts. All options
-    from [Sensor](#config-sensor).
+    from [Sensor](/components/sensor).
 
   - **voltage_sampled_by_secondary_cpu** (*Optional*): Use the photo voltiac's voltage sampled by
-    slave CPU value of the sensor in volts. All options from [Sensor](#config-sensor).
+    slave CPU value of the sensor in volts. All options from [Sensor](/components/sensor).
 
   - **insulation_of_p_to_ground** (*Optional*): Use the insulation of photo voltiac's +ve terminal to
-    ground value of the sensor in kilo ohms. All options from [Sensor](#config-sensor).
+    ground value of the sensor in kilo ohms. All options from [Sensor](/components/sensor).
 
 - **pv2** (*Optional*): The group of exposed sensors for Photo Voltaic 2.
 
   - All options from **pv1**
 
 - **active_power** (*Optional*): Use the (active) power value of the sensor in watts. All options
-  from [Sensor](#config-sensor).
+  from [Sensor](/components/sensor).
 
 - **reactive_power** (*Optional*): Use the reactive power value of the sensor in VAR. All
-  options from [Sensor](#config-sensor).
+  options from [Sensor](/components/sensor).
 
 - **frequency** (*Optional*): Use the frequency value of the sensor in hertz.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **energy_production_day** (*Optional*): Use the export active energy value for same day of the
-  sensor in kilo watt hours. All options from [Sensor](#config-sensor).
+  sensor in kilo watt hours. All options from [Sensor](/components/sensor).
 
 - **total_energy_production** (*Optional*): Use the total exported energy value of the sensor in
-  kilo watt hours. All options from [Sensor](#config-sensor).
+  kilo watt hours. All options from [Sensor](/components/sensor).
 
 - **total_generation_time** (*Optional*): Use the total generation time value of the sensor in
-  hours. All options from [Sensor](#config-sensor).
+  hours. All options from [Sensor](/components/sensor).
 
 - **today_generation_time** (*Optional*): Use the day generation time value for same day of the
-  sensor in minutes. All options from [Sensor](#config-sensor).
+  sensor in minutes. All options from [Sensor](/components/sensor).
 
 - **inverter_module_temp** (*Optional*): Use the inverter module temperature value of the sensor in
-  degree celsius. All options from [Sensor](#config-sensor).
+  degree celsius. All options from [Sensor](/components/sensor).
 
 - **inverter_inner_temp** (*Optional*): Use the inverter inner temperature value of the sensor in
-  degree celsius. All options from [Sensor](#config-sensor).
+  degree celsius. All options from [Sensor](/components/sensor).
 
 - **inverter_bus_voltage** (*Optional*): Use the inverter bus voltage value of the sensor in volts.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **insulation_of_pv_n_to_ground** (*Optional*): Use the insulation of photo voltiacs's
-  -ve terminal to ground value of the sensor in kilo ohms. All options from [Sensor](#config-sensor).
+  -ve terminal to ground value of the sensor in kilo ohms. All options from [Sensor](/components/sensor).
 
 - **gfci_value** (*Optional*): Use the GFCI value of the sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **dci_of_r** (*Optional*): Use the DCI of R value of the sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **dci_of_s** (*Optional*): Use the DCI of S value of the sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **dci_of_t** (*Optional*): Use the DCI of T value of the sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 - **address** (*Optional*, int): The address of the sensor if multiple sensors are attached to

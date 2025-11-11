@@ -65,7 +65,7 @@ MQTT options:
 
 ## `valve.open` Action
 
-This [action](#config-action) opens the valve with the given ID when executed.
+This [action](/automations/actions#all-actions) opens the valve with the given ID when executed.
 
 ```yaml
 on_...:
@@ -86,7 +86,7 @@ on_...:
 
 ## `valve.close` Action
 
-This [action](#config-action) closes the valve with the given ID when executed.
+This [action](/automations/actions#all-actions) closes the valve with the given ID when executed.
 
 ```yaml
 on_...:
@@ -107,7 +107,7 @@ on_...:
 
 ## `valve.stop` Action
 
-This [action](#config-action) stops the valve with the given ID when executed.
+This [action](/automations/actions#all-actions) stops the valve with the given ID when executed.
 
 ```yaml
 on_...:
@@ -128,7 +128,7 @@ on_...:
 
 ## `valve.toggle` Action
 
-This [action](#config-action) toggles the valve with the given ID when executed, cycling through the states
+This [action](/automations/actions#all-actions) toggles the valve with the given ID when executed, cycling through the states
 close/stop/open/stop... This allows the valve to be controlled by a single push button.
 
 ```yaml
@@ -150,7 +150,7 @@ on_...:
 
 ## `valve.control` Action
 
-This [action](#config-action) is a more generic version of the other valve actions and allows all valve attributes
+This [action](/automations/actions#all-actions) is a more generic version of the other valve actions and allows all valve attributes
 to be set.
 
 ```yaml
@@ -163,7 +163,7 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The valve to control.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The valve to control.
 - **stop** (*Optional*, boolean): Whether to stop the valve.
 - **state** (*Optional*, string): The state to set the valve to - one of `OPEN` or `CLOSE`.
 - **position** (*Optional*, float): The valve position to set.

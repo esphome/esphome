@@ -31,26 +31,26 @@ ota:
 
 ## Configuration variables
 
-- **on_begin** (*Optional*, [Automation](#automation)): An action to be performed when an OTA update is started.
+- **on_begin** (*Optional*, [Automation](/automations)): An action to be performed when an OTA update is started.
    See [`on_begin`](#ota-on_begin).
 
-- **on_progress** (*Optional*, [Automation](#automation)): An action to be performed (approximately each second)
+- **on_progress** (*Optional*, [Automation](/automations)): An action to be performed (approximately each second)
    while an OTA update is in progress. See [`on_progress`](#ota-on_progress).
 
-- **on_end** (*Optional*, [Automation](#automation)): An action to be performed after a successful OTA update.
+- **on_end** (*Optional*, [Automation](/automations)): An action to be performed after a successful OTA update.
    See [`on_end`](#ota-on_end).
 
-- **on_error** (*Optional*, [Automation](#automation)): An action to be performed after a failed OTA update.
+- **on_error** (*Optional*, [Automation](/automations)): An action to be performed after a failed OTA update.
    See [`on_error`](#ota-on_error).
 
-- **on_state_change** (*Optional*, [Automation](#automation)): An action to be performed when an OTA update state
+- **on_state_change** (*Optional*, [Automation](/automations)): An action to be performed when an OTA update state
    change happens. See [`on_state_change`](#ota-on_state_change).
 
 {{< anchor "ota-automations" >}}
 
 ## OTA Automations
 
-The OTA component provides various [automations](#automation) that can be used to provide feedback during the OTA
+The OTA component provides various [automations](/automations) that can be used to provide feedback during the OTA
 update process. When using these automation triggers, note that:
 
 - OTA updates block the main application loop while in progress. You won't be able to represent state changes using

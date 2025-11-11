@@ -31,7 +31,7 @@ esp32_ble_beacon:
 - **uuid** (**Required**): The [universally unique identifier](https://en.wikipedia.org/wiki/Universally_unique_identifier)
   to identify the beacon.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for code generation.
 
 Advanced options:
 
@@ -42,11 +42,11 @@ Advanced options:
 - **minor** (*Optional*, int): The iBeacon minor identifier of this beacon. Usually used to
   identify beacons within an iBeacon group. Defaults to `61958`.
 
-- **min_interval** (*Optional*, [Time](#config-time)): The iBeacon minimum transmit interval in milliseconds from 20 to 10240.
+- **min_interval** (*Optional*, [Time](/guides/configuration-types#time)): The iBeacon minimum transmit interval in milliseconds from 20 to 10240.
   Setting this less than `max_interval` gives the BLE hardware a better chance to avoid
   collisions with other BLE transmissions. Defaults to the iBeacon specification's defined interval: `100ms`.
 
-- **max_interval** (*Optional*, [Time](#config-time)): The iBeacon maximum transmit interval in milliseconds from 20 to 10240.
+- **max_interval** (*Optional*, [Time](/guides/configuration-types#time)): The iBeacon maximum transmit interval in milliseconds from 20 to 10240.
   Setting this greater than `min_interval` gives the BLE hardware a better chance to avoid
   collisions with other BLE transmissions. Defaults to the iBeacon specification's defined interval: `100ms`.
 
@@ -83,7 +83,7 @@ Then, just compile and flash the ESP32.
 
 When everything is set up correctly, you should see a show up using your iBeacon scanner of choice. On iPhones,
 this should already work from the Bluetooth screen (not tested), on Android, you will need to use an app like
-["Beacon Scanner"](https://play.google.com/store/apps/details?id=com.bridou_n.beaconscanner) by Nicolas Bridoux.
+["nRF Connect for Mobile"](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp).
 
 For using these beacons to track the location of your phone, you will need to use another app. For example, I used
 [this guide by the owntracks](https://owntracks.org/booklet/features/beacons/) app to let my Home Automation system

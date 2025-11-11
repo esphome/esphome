@@ -62,7 +62,7 @@ switch:
      id: dehumidifier1
 ```
 
-First, we have to give the dehumidifier `switch` an [ID](#config-id) so that we can refer to it inside of our
+First, we have to give the dehumidifier `switch` an [ID](/guides/configuration-types#id) so that we can refer to it inside of our
 automation.
 
 {{< anchor "actions-trigger" >}}
@@ -213,19 +213,19 @@ on_...:
 
 At least one of `condition`, `all` or `any` must be provided.
 
-- **condition** (*Optional*, [Condition](#config-condition)): The condition to check to determine which branch to take.
+- **condition** (*Optional*, [Condition](#all-conditions)): The condition to check to determine which branch to take.
   If this is configured with a list of conditions then they must all be true for the condition to be true.
 
-- **all** (*Optional*, [Condition](#config-condition)): Takes a list of conditions, all of which must be true (and is
+- **all** (*Optional*, [Condition](#all-conditions)): Takes a list of conditions, all of which must be true (and is
   therefore equivalent to `condition`  .)
 
-- **any** (*Optional*, [Condition](#config-condition)): Takes a list of conditions; if at least one is true, the
+- **any** (*Optional*, [Condition](#all-conditions)): Takes a list of conditions; if at least one is true, the
   condition will be true.
 
-- **then** (*Optional*, [Action](#config-action)): The action to perform if the condition evaluates to true.
+- **then** (*Optional*, [Action](#all-actions)): The action to perform if the condition evaluates to true.
   Defaults to doing nothing.
 
-- **else** (*Optional*, [Action](#config-action)): The action to perform if the condition evaluates to false.
+- **else** (*Optional*, [Action](#all-actions)): The action to perform if the condition evaluates to false.
   Defaults to doing nothing.
 
 {{< anchor "lambda_action" >}}
@@ -266,7 +266,7 @@ on_...:
 - **count** (**Required**, int): The number of times the action should be repeated. The counter is available to
   lambdas using the implicit script parameter `iteration`.
 
-- **then** (**Required**, [Action](#config-action)): The action to repeat.
+- **then** (**Required**, [Action](#all-actions)): The action to repeat.
 
 {{< anchor "wait_until_action" >}}
 
@@ -299,8 +299,8 @@ on_...:
 
 #### Configuration variables
 
-- **condition** (**Required**, [Condition](#config-condition)): The condition to wait to become true.
-- **timeout** (*Optional*, [Time](#config-time)): Time to wait before timing out. Defaults to never timing out.
+- **condition** (**Required**, [Condition](#all-conditions)): The condition to wait to become true.
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Time to wait before timing out. Defaults to never timing out.
 
 {{< anchor "while_action" >}}
 
@@ -323,10 +323,10 @@ on_...:
 
 #### Configuration variables
 
-- **condition** (**Required**, [Condition](#config-condition)): The condition to check to determine whether or not to
+- **condition** (**Required**, [Condition](#all-conditions)): The condition to check to determine whether or not to
   execute.
 
-- **then** (**Required**, [Action](#config-action)): The action to perform until the condition evaluates to false.
+- **then** (**Required**, [Action](#all-actions)): The action to perform until the condition evaluates to false.
 
 {{< anchor "component-update_action" >}}
 
@@ -457,10 +457,10 @@ on_...:
 
 #### Configuration variables
 
-- **time** (**Required**, [templatable](#config-templatable), [Time](#config-time)):
+- **time** (**Required**, [templatable](/automations/templates), [Time](/guides/configuration-types#time)):
   The time for which the condition has to have been true.
 
-- **condition** (**Required**, [condition](#config-condition)): The condition to check.
+- **condition** (**Required**, [condition](#all-conditions)): The condition to check.
 
 ### `component.is_idle` Condition
 

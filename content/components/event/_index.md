@@ -46,7 +46,7 @@ Configuration variables:
 
 One of `id` or `name` is required.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation. At least one of **id** and **name** must be specified.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the event. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
@@ -79,7 +79,7 @@ One of `id` or `name` is required.
 
 Automations:
 
-- **on_event** (*Optional*, [Automation](#automation)): An automation to perform when an event is triggered.
+- **on_event** (*Optional*, [Automation](/automations)): An automation to perform when an event is triggered.
 
 MQTT options:
 
@@ -104,7 +104,7 @@ event:
             ESP_LOGD("main", "Event %s triggered.", event_type.c_str());
 ```
 
-Configuration variables: see [Automation](#automation).
+Configuration variables: see [Automation](/automations).
 
 ### `event.trigger` Action
 
@@ -118,7 +118,7 @@ This action allows for the triggering of an event from within an automation.
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the event.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the event.
 - **event_type** (**Required**, string): The type of event to trigger.
 
 {{< anchor "event-lambda_calls" >}}

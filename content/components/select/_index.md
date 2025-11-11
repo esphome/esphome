@@ -55,7 +55,7 @@ Configuration variables:
 
 Automations:
 
-- **on_value** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_value** (*Optional*, [Automation](/automations)): An automation to perform
   when a new value is published. See [`on_value`](#select-on_value).
 
 MQTT Options:
@@ -86,13 +86,13 @@ select:
             args: ["x.c_str()", "i"]
 ```
 
-Configuration variables: See [Automation](#automation).
+Configuration variables: See [Automation](/automations).
 
 {{< anchor "select-set_action" >}}
 
 ### `select.set` Action
 
-This is an [Action](#config-action) for setting the active option using an option value.
+This is an [Action](/automations/actions#all-actions) for setting the active option using an option value.
 
 ```yaml
 - select.set:
@@ -102,8 +102,8 @@ This is an [Action](#config-action) for setting the active option using an optio
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the select to set.
-- **option** (**Required**, string, [templatable](#config-templatable)):
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
+- **option** (**Required**, string, [templatable](/automations/templates)):
   The option to set the select to.
 
 When a non-existing option value is used, a warning is logged and the state of
@@ -113,7 +113,7 @@ the select is left as-is.
 
 ### `select.set_index` Action
 
-This is an [Action](#config-action) for setting the active option using its index offset.
+This is an [Action](/automations/actions#all-actions) for setting the active option using its index offset.
 
 ```yaml
 - select.set_index:
@@ -123,8 +123,8 @@ This is an [Action](#config-action) for setting the active option using its inde
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the select to set.
-- **index** (**Required**, int, [templatable](#config-templatable)):
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
+- **index** (**Required**, int, [templatable](/automations/templates)):
   The index offset of the option to be activated.
 
 When a non-existing index value is used, a warning is logged and the state of
@@ -134,7 +134,7 @@ the select is left as-is.
 
 ### `select.next` Action
 
-This is an [Action](#config-action) for selecting the next option in a select component.
+This is an [Action](/automations/actions#all-actions) for selecting the next option in a select component.
 
 ```yaml
 - select.next:
@@ -147,7 +147,7 @@ This is an [Action](#config-action) for selecting the next option in a select co
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the select to set.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
 - **cycle** (*Optional*, boolean): Whether or not to jump back to the first option
   of the select when the last option is currently selected. Defaults to `true`.
 
@@ -155,7 +155,7 @@ Configuration variables:
 
 ### `select.previous` Action
 
-This is an [Action](#config-action) for selecting the previous option in
+This is an [Action](/automations/actions#all-actions) for selecting the previous option in
 a select component.
 
 ```yaml
@@ -169,7 +169,7 @@ a select component.
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the select to set.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
 - **cycle** (*Optional*, boolean): Whether or not to jump to the last option
   of the select when the first option is currently selected. Defaults to `true`.
 
@@ -177,7 +177,7 @@ Configuration variables:
 
 ### `select.first` Action
 
-This is an [Action](#config-action) for selecting the first option in
+This is an [Action](/automations/actions#all-actions) for selecting the first option in
 a select component.
 
 ```yaml
@@ -190,13 +190,13 @@ a select component.
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the select to set.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
 
 {{< anchor "select-last_action" >}}
 
 ### `select.last` Action
 
-This is an [Action](#config-action) for selecting the last option in
+This is an [Action](/automations/actions#all-actions) for selecting the last option in
 a select component.
 
 ```yaml
@@ -209,13 +209,13 @@ a select component.
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the select to set.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
 
 {{< anchor "select-operation_action" >}}
 
 ### `select.operation` Action
 
-This is an [Action](#config-action) that can be used to change the active
+This is an [Action](/automations/actions#all-actions) that can be used to change the active
 option in a select component (first, last, previous or next), using a generic
 templatable action call.
 
@@ -235,14 +235,14 @@ templatable action call.
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the select to set.
-- **operation** (**Required**, string, [templatable](#config-templatable)): The
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
+- **operation** (**Required**, string, [templatable](/automations/templates)): The
   operation to perform. One of `FIRST`, `LAST`, `PREVIOUS` or
   `NEXT` (case insensitive). When writing a lambda for this field, then return
   one of the following enum values: `SELECT_OP_FIRST`, `SELECT_OP_LAST`,
   `SELECT_OP_PREVIOUS` or `SELECT_OP_NEXT`.
 
-- **cycle** (*Optional*, bool, [templatable](#config-templatable)):
+- **cycle** (*Optional*, bool, [templatable](/automations/templates)):
   Can be used for options `NEXT` and `PREVIOUS` to specify whether or not to
   wrap around the options list when respectively the last or first option in
   the select is currently active.

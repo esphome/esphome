@@ -31,7 +31,7 @@ psram:
   1/16th, but also increases the rated temperature range of some ESP32 modules.
 
 - **disabled** (*Optional*, bool): Don't try to initialize the PSRAM. This is needed if one of the configured components autoloads psram
-  but the ESP32 module doesn't have PSRAM and you need to use one of the PSRAM control lines for something else. e.g. ethernet. Defaults to ``false``.
+  but the ESP32 module doesn't have PSRAM and you need to use one of the PSRAM control lines for something else. e.g. ethernet. Defaults to `false`.
 
 - **ignore_not_found** (*Optional*, bool): When ``true`` (default), the firmware ignores PSRAM initialisation failures and continues to boot.
   When ``false``, other components can configure larger WiFi buffers for faster data transfer, but **PSRAM must be available or the device will

@@ -50,7 +50,7 @@ Configuration variables:
   for a list of available options.
   Set to `""` to remove the default entity category.
 
-- **time_id** (*Optional*, [ID](#config-id)): The ID of the time entity. Automatically set
+- **time_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the time entity. Automatically set
   to the ID of a time component if only a single one is defined. Required if `on_time` is used.
 
 - If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
@@ -61,7 +61,7 @@ MQTT Options:
 
 Time and DateTime Options:
 
-- **on_time** (*Optional*, [Automation](#automation)): Automation to run when the current datetime or time matches the current state.
+- **on_time** (*Optional*, [Automation](/automations)): Automation to run when the current datetime or time matches the current state.
   Only valid on `time` or `datetime` types. Use of `on_time` causes `time_id` to be required, `time_id` will be automatically assigned if a time source exists in the config, and will cause an invalid configuration if there is no {{< docref "/components/time" >}} configured.
 
 ## Automation
@@ -89,7 +89,7 @@ datetime:
             }
 ```
 
-Configuration variables: See [Automation](#automation).
+Configuration variables: See [Automation](/automations).
 
 ## Date Automation
 
@@ -97,7 +97,7 @@ Configuration variables: See [Automation](#automation).
 
 ### `datetime.date.set` Action
 
-This is an [Action](#config-action) for setting a datetime date state.
+This is an [Action](/automations/actions#all-actions) for setting a datetime date state.
 The `date` provided can be in one of 3 formats:
 
 ```yaml
@@ -124,8 +124,8 @@ The `date` provided can be in one of 3 formats:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the datetime to set.
-- **date** (**Required**, string, date parts, [templatable](#config-templatable)):
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the datetime to set.
+- **date** (**Required**, string, date parts, [templatable](/automations/templates)):
   The value to set the datetime to.
 
 {{< anchor "datetime-lambda_calls" >}}
@@ -163,7 +163,7 @@ advanced stuff (see the full API Reference for more info).
 
 ### `datetime.time.set` Action
 
-This is an [Action](#config-action) for setting a datetime time state.
+This is an [Action](/automations/actions#all-actions) for setting a datetime time state.
 The `time` provided can be in one of 3 formats:
 
 ```yaml
@@ -190,8 +190,8 @@ The `time` provided can be in one of 3 formats:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the datetime to set.
-- **time** (**Required**, string, time parts, [templatable](#config-templatable)):
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the datetime to set.
+- **time** (**Required**, string, time parts, [templatable](/automations/templates)):
   The value to set the datetime to.
 
 {{< anchor "datetime-time-lambda_calls" >}}
@@ -229,7 +229,7 @@ advanced stuff (see the full API Reference for more info).
 
 ### `datetime.datetime.set` Action
 
-This is an [Action](#config-action) for setting a datetime datetime state.
+This is an [Action](/automations/actions#all-actions) for setting a datetime datetime state.
 The `datetime` provided can be in one of 3 formats:
 
 ```yaml
@@ -259,8 +259,8 @@ The `datetime` provided can be in one of 3 formats:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the datetime to set.
-- **datetime** (**Required**, string, datetime parts, [templatable](#config-templatable)):
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the datetime to set.
+- **datetime** (**Required**, string, datetime parts, [templatable](/automations/templates)):
   The value to set the datetime to.
 
 {{< anchor "datetime-datetime-lambda_calls" >}}

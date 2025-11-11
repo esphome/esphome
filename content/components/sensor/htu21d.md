@@ -8,7 +8,7 @@ params:
 ---
 
 The HTU21D Temperature & Humidity component allows you to use HTU21D, Si7021 and SHT21 sensors with
-ESPHome. The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
+ESPHome. The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 Example sensors:
 
@@ -34,17 +34,18 @@ sensor:
 ## Configuration variables
 
 - **temperature** (*Optional*): The information for the temperature sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **humidity** (*Optional*): The information for the humidity sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **heater** (*Optional*): The information for the heater sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the sensor. Defaults to `60s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
 
-- **model** (*Optional*): Possible values are HTU21D, SI7021, SHT21. Defaults to HTU21D.
+- **model** (*Optional*): Possible values are HTU21D, SI7021, SHT21. Some boards may be mislabeled. If you
+  encounter I2C errors, try using HTU21D. Defaults to HTU21D.
 
 The heater may be enabled to help correct the reading; see the datasheet for more information.
 

@@ -24,7 +24,7 @@ Currently, most displays managed by Esphome are single-color E-Ink displays; but
 
 {{< img src="waveshare_epaper_7color_acep-full.jpg" alt="Image" caption="Waveshare E-Paper 7.3 Inch ACeP 7-Color E-Paper Display." width="75.0%" class="align-center" >}}
 
-The communication ESPHome has chosen to use for this integration is 4-wire [SPI](#spi), as it's the most stable and high-speed. So you need to make sure your board is set to the 4-wire SPI mode and have an `spi:` section in your
+The communication ESPHome has chosen to use for this integration is 4-wire [SPI](/components/spi), as it's the most stable and high-speed. So you need to make sure your board is set to the 4-wire SPI mode and have an `spi:` section in your
 configuration.
 
 | **E-Paper Pin**    | **ESP Pin** | **ESPHome Option** |
@@ -81,8 +81,8 @@ lambda: |-
 
 ## Configuration variables
 
-- **cs_pin** (**Required**, [Pin Schema](#config-pin_schema)): The CS pin.
-- **dc_pin** (**Required**, [Pin Schema](#config-pin_schema)): The DC pin.
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin.
+- **dc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin.
 - **model** (**Required**): The model of the E-Paper display. Options are:
 
   - `1.54in`
@@ -131,8 +131,8 @@ lambda: |-
 > [!WARNING]
 > The BUSY pin on the `gdew0154m09`, the `Waveshare 7.30in-f` and the `Waveshare 7.50in V2` models must be inverted to prevent permanent display damage. Set the busy pin to `inverted: true` in the config.
 
-- **busy_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The BUSY pin. Defaults to not connected.
-- **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin. Defaults to not connected.
+- **busy_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The BUSY pin. Defaults to not connected.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin. Defaults to not connected.
   Make sure you pull this pin high (by connecting it to 3.3V with a resistor) if not connected to a GPIO pin.
   The 2.13" B74 and V2 display variants require the reset pin.
 
@@ -146,18 +146,18 @@ lambda: |-
   do a full-redraw every x-th time using this option. Defaults to `30` on the described models and a full update for
   all other models.
 
-- **reset_duration** (*Optional*, [Time](#config-time)): Duration for the display reset operation. Defaults to `200ms`.
+- **reset_duration** (*Optional*, [Time](/guides/configuration-types#time)): Duration for the display reset operation. Defaults to `200ms`.
   Setting this value to `2ms` may resolve issues with newer e-Paper Driver modules (e.g. Rev 2.1).
 
 - **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
   See [Display Rendering Engine](#display-engine) for more information.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `1s`, use `never` to only manually update the screen via `component.update`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`, use `never` to only manually update the screen via `component.update`.
 - **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
-- **spi_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the [SPI Component](#spi) if you want
+- **spi_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [SPI Component](/components/spi) if you want
   to use multiple SPI buses.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 ## See Also
 

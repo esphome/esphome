@@ -18,7 +18,7 @@ script:
 
 ## Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): The [ID](#config-id) of the script. Use this to interact with the script
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The [ID](/guides/configuration-types#id) of the script. Use this to interact with the script
   using the script actions.
 
 - **mode** (*Optional*, string): Controls what happens when a script is invoked while it is still running from one or
@@ -47,7 +47,7 @@ script:
   that must be provided in order to execute. All parameters defined here are mandatory and must be given when calling
   the script.
 
-- **then** (**Required**, [Action](#config-action)): The action to perform.
+- **then** (**Required**, [Action](/automations/actions#all-actions)): The action to perform.
 
 {{< anchor "script-parameters" >}}
 
@@ -165,7 +165,7 @@ This can't be used in a lambda as it would block all functioning of the device. 
 
 ## `script.is_running` Condition
 
-This [condition](#config-condition) allows you to check if a given script is running. In case scripts are run in
+This [condition](/automations/actions#all-conditions) allows you to check if a given script is running. In case scripts are run in
 `parallel`, this condition only tells you if at least one script of the given id is running, not how many. Not
 designed for use with [while](#while_action); instead try [script.wait](#script-wait_action).
 

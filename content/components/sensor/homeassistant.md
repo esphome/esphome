@@ -44,7 +44,7 @@ sensor:
 - **attribute** (*Optional*, string): The name of the state attribute to import from the
   specified entity. The entity state is used when this option is omitted.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 > [!NOTE]
 > The sensors implemented by this component are by default `internal`, to avoid exporting them back to
@@ -55,5 +55,5 @@ sensor:
 ## See Also
 
 - [Sensor Filters](#sensor-filters)
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "homeassistant/sensor/homeassistant_sensor.h" "homeassistant/sensor/homeassistant_sensor.h" >}}

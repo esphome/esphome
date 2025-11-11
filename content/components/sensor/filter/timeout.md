@@ -13,7 +13,7 @@ This filter particularly is useful when:
 - placed ahead of a throttle filter to ensure that the last value published will pass through the throttle.
 
 ```yaml
-# Example filters:
+# Example configuration entry
 filters:
   - timeout: 10s  # sent value will be NaN
   - timeout:

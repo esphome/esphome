@@ -176,7 +176,7 @@ binary_sensor:
 
 This is an advanced feature of ESPHome. Almost all pins can
 optionally have a more complicated configuration schema with options for
-inversion and pinMode - the [Pin Schema](#config-pin_schema).
+inversion and pinMode - the [Pin Schema](/guides/configuration-types#pin-schema).
 
 This time when uploading, you don't need to have the device plugged in
 through USB again. The upload will magically happen “over the air”.

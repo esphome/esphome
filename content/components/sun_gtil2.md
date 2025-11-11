@@ -24,7 +24,7 @@ controller board to the display board.
 {{< img src="sun_gtil2_schematic.png" alt="Image" caption="Simplified connection diagram"
     width="75.0%" class="align-center" >}}
 
-As the data is read from the inverter using UART, you need to have an [UART bus](#uart) in your
+As the data is read from the inverter using UART, you need to have an [UART bus](/components/uart) in your
 configuration with the `rx_pin` connected to the TX pin of the inverter's controller board. Additionally, you
 need to set the `baud_rate` to 9600.
 
@@ -40,7 +40,7 @@ sun_gtil2:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): The id to use for this component.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this component.
 - **uart_id** (*Optional*): The UART Bus ID for receiving messages sent from the inverter's controller to the display.
 
 ## Sensor
@@ -80,22 +80,22 @@ sensor:
 - **sun_gtil2_id** (*Optional*): Manually specify the ID of the sun_gtil2 instance if there are multiple.
 
 - **temperature** (*Optional*): The temperature of your inverter's heatsink.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **dc_voltage** (*Optional*): The voltage of your DC source. (battery or solar panels)
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **ac_voltage** (*Optional*): The grid voltage measured by the inverter.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **dc_power** (*Optional*): The inverter's input power.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **ac_power** (*Optional*): The inverter's output power.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **limiter_power** (*Optional*): The power measured by the inverter's "Internal" limiter.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 ## Text Sensor
 

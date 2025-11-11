@@ -41,8 +41,8 @@ esp32_ble_server:
   packet. Should be a list of bytes, where the first two are the little-endian representation of the 16-bit
   manufacturer ID as assigned by the Bluetooth SIG.
 
-- **on_connect** (*Optional*, [Automation](#automation)): An action to be performed when a client connects to the BLE server. It provides the `id` variable which contains the ID of the client that connected.
-- **on_disconnect** (*Optional*, [Automation](#automation)): An action to be performed when a client disconnects from the BLE server. It provides the `id` variable which contains the ID of the client that disconnected.
+- **on_connect** (*Optional*, [Automation](/automations)): An action to be performed when a client connects to the BLE server. It provides the `id` variable which contains the ID of the client that connected.
+- **on_disconnect** (*Optional*, [Automation](/automations)): An action to be performed when a client disconnects from the BLE server. It provides the `id` variable which contains the ID of the client that disconnected.
 - **services** (*Optional*, list of [Service Configuration](#esp32_ble_server-service)): A list of services to expose on the BLE GATT server.
 
 {{< anchor "esp32_ble_server-service" >}}
@@ -108,7 +108,7 @@ esp32_ble_server:
 - **write_no_response** (*Optional*, boolean): If the characteristic should be writable without a response. Defaults to `false`.
 - **value** (*Optional*, [Value Configuration](#esp32_ble_server-value)): The value of the characteristic.
 - **descriptors** (*Optional*, list of [Descriptor Configuration](#esp32_ble_server-descriptor)): A list of descriptors to expose in this characteristic.
-- **on_write** (*Optional*, [Automation](#automation)): An action to be performed when the characteristic is written to. The characteristic must have the `write` property. See [`on_write` Trigger](#esp32_ble_server-characteristic-on_write).
+- **on_write** (*Optional*, [Automation](/automations)): An action to be performed when the characteristic is written to. The characteristic must have the `write` property. See [`on_write` Trigger](#esp32_ble_server-characteristic-on_write).
 
 {{< anchor "esp32_ble_server-descriptor" >}}
 
@@ -132,7 +132,7 @@ esp32_ble_server:
 
 - **id** (*Optional*, string): An ID to refer to this descriptor in automations.
 - **uuid** (**Required**, string, int): The UUID of the descriptor.
-- **value** (**Required**, [Value Configuration](#esp32_ble_server-value)): The value of the descriptor. [templatable](#config-templatable) values are not allowed. In order to set the value of a descriptor dynamically, use the [`ble_server.descriptor.set_value` Action](#esp32_ble_server-descriptor-set_value) action.
+- **value** (**Required**, [Value Configuration](#esp32_ble_server-value)): The value of the descriptor. [templatable](/automations/templates) values are not allowed. In order to set the value of a descriptor dynamically, use the [`ble_server.descriptor.set_value` Action](#esp32_ble_server-descriptor-set_value) action.
 
 {{< anchor "esp32_ble_server-value" >}}
 
@@ -177,8 +177,8 @@ esp32_ble_server:
 
 ### Configuration variables
 
-- **data** (**Required**, string, int, float, boolean, list of bytes, [templatable](#config-templatable)): The value of the characteristic or descriptor. For [templatable](#config-templatable) values, the lambda function must return a `std::vector<uint8_t>` (you may use the `bytebuffer::ByteBuffer` helper class to transform different data types into a byte array). The value is computed each time the characteristic is read.
-- **type** (*Optional*, string): The C++ type of the value. The available values are `uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`, `int8_t`, `int16_t`, `int32_t`, `int64_t`, `float`, `double` and `string`. It must be defined if the value is not [templatable](#config-templatable).
+- **data** (**Required**, string, int, float, boolean, list of bytes, [templatable](/automations/templates)): The value of the characteristic or descriptor. For [templatable](/automations/templates) values, the lambda function must return a `std::vector<uint8_t>` (you may use the `bytebuffer::ByteBuffer` helper class to transform different data types into a byte array). The value is computed each time the characteristic is read.
+- **type** (*Optional*, string): The C++ type of the value. The available values are `uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`, `int8_t`, `int16_t`, `int32_t`, `int64_t`, `float`, `double` and `string`. It must be defined if the value is not [templatable](/automations/templates).
 - **endianness** (*Optional*, string): The endianness of the value. Can be `BIG` or `LITTLE`. Defaults to `LITTLE`.
 - **string_encoding** (*Optional*, string): The encoding of the string. Only applicable if the type is `string`. The conversion is done in Python before compilation, so the encoding must be a valid [Python encoding](https://docs.python.org/3/library/codecs.html#standard-encodings). Defaults to `utf-8`.
 

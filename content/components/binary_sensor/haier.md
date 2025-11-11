@@ -32,7 +32,7 @@ binary_sensor:
 
 ## Configuration variables
 
-- **haier_id** (**Required**, [ID](#config-id)): The id of haier climate component
+- **haier_id** (**Required**, [ID](/guides/configuration-types#id)): The id of haier climate component
 - **compressor_status** (*Optional*): A binary sensor that indicates Haier climate compressor activity.
   All options from [Binary Sensor](#config-binary_sensor).
 

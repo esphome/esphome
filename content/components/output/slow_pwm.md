@@ -29,14 +29,14 @@ output:
 
 ## Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): The id to use for this output component.
-- **period** (**Required**, [Time](#config-time)): The duration of each cycle. (i.e. a 10s
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
+- **period** (**Required**, [Time](/guides/configuration-types#time)): The duration of each cycle. (i.e. a 10s
   period at 50% duty would result in the pin being turned on for 5s, then off for 5s)
 
-- **pin** (*Optional*, [Pin Schema](#config-pin_schema)): The pin to pulse.
-- **state_change_action** (*Optional*, [Automation](#automation)): An automation to perform when the load is switched. If a lambda is used the boolean `state` parameter holds the new status.
-- **turn_on_action** (*Optional*, [Automation](#automation)): An automation to perform when the load is turned on. Can be used to control for example a switch or output component.
-- **turn_off_action** (*Optional*, [Automation](#automation)): An automation to perform when the load is turned off. `turn_on_action` and `turn_off_action` must be configured together.
+- **pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin to pulse.
+- **state_change_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is switched. If a lambda is used the boolean `state` parameter holds the new status.
+- **turn_on_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is turned on. Can be used to control for example a switch or output component.
+- **turn_off_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is turned off. `turn_on_action` and `turn_off_action` must be configured together.
 - **restart_cycle_on_state_change** (*Optional*, boolean): Restart a timer of a cycle
   when new state is set. Defaults to `false`.
 

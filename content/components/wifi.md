@@ -74,7 +74,7 @@ wifi:
   - **manual_ip** (*Optional*): Manually set the IP options for the AP. Same options as
     manual_ip for station mode.
 
-  - **ap_timeout** (*Optional*, [Time](#config-time)): The time after which to enable the
+  - **ap_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The time after which to enable the
     configured fallback hotspot. Can be disabled by setting this to `0s`, which requires manually starting the AP by
     other means (eg: from a button press). Defaults to `1min`.
 
@@ -82,7 +82,7 @@ wifi:
   For example, if it's set to `.local`, all uploads will be sent to `<HOSTNAME>.local`.
   Defaults to `.local`.
 
-- **reboot_timeout** (*Optional*, [Time](#config-time)): The amount of time to wait before rebooting when no
+- **reboot_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time to wait before rebooting when no
   WiFi connection exists. Can be disabled by setting this to `0s`, but note that the low level IP stack currently
   seems to have issues with WiFi where a full reboot is required to get the interface back working. Defaults to `15min`.
   Does not apply when in access point mode.
@@ -107,13 +107,13 @@ wifi:
 - **enable_btm** (*Optional*, bool): Only on `esp32`. Enable 802.11v BSS Transition Management support.
 - **enable_rrm** (*Optional*, bool): Only on `esp32`. Enable 802.11k Radio Resource Management support.
 
-- **on_connect** (*Optional*, [Automation](#automation)): An action to be performed when a connection is established.
-- **on_disconnect** (*Optional*, [Automation](#automation)): An action to be performed when the connection is dropped.
+- **on_connect** (*Optional*, [Automation](/automations)): An action to be performed when a connection is established.
+- **on_disconnect** (*Optional*, [Automation](/automations)): An action to be performed when the connection is dropped.
 - **enable_on_boot** (*Optional*, boolean): If enabled, the WiFi interface will be enabled on boot. Defaults to `true`.
 - **use_psram** (*Optional*, boolean): For ESP32 only, requests that the WiFi libraries try to allocate memory from PSRAM.
   Defaults to `false`. Requires PSRAM to be configured.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 ## Access Point Mode
 
@@ -367,18 +367,18 @@ on_...:
 
 #### Configuration variables
 
-- **ssid** (**Required**, string, [templatable](#config-templatable)): The name of the WiFi access point.
-- **password** (**Required**, string, [templatable](#config-templatable)): The password of the WiFi access point.
+- **ssid** (**Required**, string, [templatable](/automations/templates)): The name of the WiFi access point.
+- **password** (**Required**, string, [templatable](/automations/templates)): The password of the WiFi access point.
   Leave empty for no password.
 
-- **save** (*Optional*, boolean, [templatable](#config-templatable)): If set to `true`, the SSID and password will be
+- **save** (*Optional*, boolean, [templatable](/automations/templates)): If set to `true`, the SSID and password will be
   saved in persistent memory. Defaults to `true`.
 
-- **timeout** (*Optional*, [Time](#config-time), [templatable](#config-templatable)): The time to wait for the connection
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time), [templatable](/automations/templates)): The time to wait for the connection
   to be established. Defaults to 30 seconds.
 
-- **on_connect** (*Optional*, [Automation](#automation)): An action to be performed when a connection is established.
-- **on_error** (*Optional*, [Automation](#automation)): An action to be performed when the connection fails.
+- **on_connect** (*Optional*, [Automation](/automations)): An action to be performed when a connection is established.
+- **on_error** (*Optional*, [Automation](/automations)): An action to be performed when the connection fails.
 
 ## Conditions
 
@@ -386,7 +386,7 @@ on_...:
 
 ### `wifi.connected` Condition
 
-This [Condition](#config-condition) checks if the WiFi client is currently connected to a station.
+This [Condition](/automations/actions#all-conditions) checks if the WiFi client is currently connected to a station.
 
 ```yaml
 on_...:
@@ -403,7 +403,7 @@ The lambda equivalent for this is `id(wifi_id).is_connected()`.
 
 ### `wifi.enabled` Condition
 
-This [Condition](#config-condition) checks if WiFi is currently enabled or not.
+This [Condition](/automations/actions#all-conditions) checks if WiFi is currently enabled or not.
 
 ```yaml
 on_...:

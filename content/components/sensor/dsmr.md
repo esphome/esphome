@@ -19,7 +19,7 @@ This component is passive, it does not transmit any data to your equipment, the 
 data which this component decodes and updates the configured sensors at the pace the data is received.
 
 - For official information about DSMR refer to: [DSMR Document](https://www.netbeheernederland.nl/dossiers/slimme-meter-15)
-- For official information about the P1 port refer to: [P1 Companion Standard](https://www.netbeheernederland.nl/_upload/Files/Slimme_meter_15_a727fce1f1.pdf)
+- For official information about the P1 port refer to: [P1 Companion Standard](https://www.netbeheernederland.nl/sites/default/files/2024-02/dsmr_5.0.2_p1_companion_standard.pdf)
 
 ```yaml
 # Example configuration entry
@@ -41,7 +41,7 @@ text_sensor:
 
 Configuration variables:
 
-- **decryption_key** (*Optional*, string, [templatable](#config-templatable), 32 characters, case insensitive): The key to decrypt the
+- **decryption_key** (*Optional*, string, [templatable](/automations/templates), 32 characters, case insensitive): The key to decrypt the
   telegrams. Used in Lux only.
 
 - **gas_mbus_id** (*Optional*, int): The id of the gas meter. Defaults to `1`.
@@ -52,20 +52,20 @@ Configuration variables:
 - **max_telegram_length** (*Optional*, integer): The size of the buffer used for reading DSMR telegrams. Increase
   if you are reading from a smart meter that sends large telegrams. Defaults to `1500`.
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the UART hub.
-- **request_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The pin that can be used for controlling
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the UART hub.
+- **request_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin that can be used for controlling
   the P1 port's Data Request pin. Defaults to not using a Data Request pin.
   See [Using the P1 Data Request pin](#sensor-dsmr-request_pin).
 
-- **request_interval** (*Optional*, [Time](#config-time)): The minimum time between two telegram readings.
+- **request_interval** (*Optional*, [Time](/guides/configuration-types#time)): The minimum time between two telegram readings.
   Defaults to `0ms`, meaning that the pace at which the smart meter sends its data determines the update frequency.
   This works best in combination with a `request_pin`, but this option will work without one too.
 
-- **receive_timeout** (*Optional*, [Time](#config-time)): The timeout on incoming data while reading a telegram.
+- **receive_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout on incoming data while reading a telegram.
   When no new data arrive within the given timeout, the device will consider the current telegram a loss and
   starts looking for the header of the next telegram. Defaults to `200ms`.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID of the DSMR if you have multiple components.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the DSMR if you have multiple components.
 
 ## Sensor
 
@@ -78,143 +78,143 @@ Configuration variables:
 
 - **energy_delivered_tariff1** (*Optional*): Energy Consumed Tariff 1.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **energy_delivered_tariff2** (*Optional*): Energy Consumed Tariff 2.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **energy_returned_tariff1** (*Optional*): Energy Produced Tariff 1.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **energy_returned_tariff2** (*Optional*): Energy Produced Tariff 2.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **power_delivered** (*Optional*): Power Consumed.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **power_returned** (*Optional*): Power Produced.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **electricity_failures** (*Optional*): Electricity Failures.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **electricity_long_failures** (*Optional*): Long Electricity Failures.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **electricity_sags_l1** (*Optional*): Number of voltage sags in phase L1.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **electricity_sags_l2** (*Optional*): Number of voltage sags in phase L2.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **electricity_sags_l3** (*Optional*): Number of voltage sags in phase L3.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **electricity_swells_l1** (*Optional*): Number of voltage swells in phase L1.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **electricity_swells_l2** (*Optional*): Number of voltage swells in phase L2.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **electricity_swells_l3** (*Optional*): Number of voltage swells in phase L3.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **voltage_l1** (*Optional*): Voltage Phase 1.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **voltage_l2** (*Optional*): Voltage Phase 2.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **voltage_l3** (*Optional*): Voltage Phase 3.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **current_l1** (*Optional*): Current Phase 1.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **current_l2** (*Optional*): Current Phase 2.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **current_l3** (*Optional*): Current Phase 3.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **power_delivered_l1** (*Optional*): Power Consumed Phase 1.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **power_delivered_l2** (*Optional*): Power Consumed Phase 2.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **power_delivered_l3** (*Optional*): Power Consumed Phase 3.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **power_returned_l1** (*Optional*): Power Produced Phase 1.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **power_returned_l2** (*Optional*): Power Produced Phase 2.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **power_returned_l3** (*Optional*): Power Produced Phase 3.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **gas_delivered** (*Optional*): Gas Consumed.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **water_delivered** (*Optional*): Water Consumed.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 Belgium
 
 - **gas_delivered_be** (*Optional*): Gas Consumed Belgium.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **active_energy_import_current_average_demand** (*Optional*): Current Average Quarterly Demand for Peak Tarrif Belgium.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **active_energy_import_maximum_demand_running_month** (*Optional*): Current Month's Maximum Quarterly Demand for Peak Tarrif Belgium.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **active_energy_import_maximum_demand_last_13_months** (*Optional*): 13 Month Maximum Quarterly Demand for Peak Tarrif Belgium.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 Luxembourg
 
 - **energy_delivered_lux** (*Optional*): Energy Consumed Luxembourg
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **energy_returned_lux** (*Optional*): Energy Produced Luxembourg
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 ## Text Sensor
 

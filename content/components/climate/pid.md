@@ -27,9 +27,6 @@ temperature to a user-specified setpoint.
 > keep the temperature as constant as possible, and smooth out oscillations otherwise produced by
 > classic thermostats.
 
-Explaining how PID controllers work in detail is out of scope of this documentation entry,
-but there's a nice article explaining the function principle at <https://blog.opticontrols.com/archives/344>.
-
 ```yaml
 # Example configuration entry
 climate:
@@ -51,20 +48,20 @@ climate:
 
 ## Configuration variables
 
-- **sensor** (**Required**, [ID](#config-id)): The sensor that is used to measure the current
+- **sensor** (**Required**, [ID](/guides/configuration-types#id)): The sensor that is used to measure the current
   temperature.
 
-- **humidity_sensor** (*Optional*, [ID](#config-id)): If specified, this sensor is used to measure the current humidity.
+- **humidity_sensor** (*Optional*, [ID](/guides/configuration-types#id)): If specified, this sensor is used to measure the current humidity.
   This is used for information only and does not influence temperature control.
 
 - **default_target_temperature** (**Required**, float): The default target temperature (setpoint)
   for the control algorithm. This can be dynamically set in the frontend later.
 
-- **heat_output** (*Optional*, [ID](#config-id)): The ID of a [float output](#config-output)
+- **heat_output** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [float output](#config-output)
   that increases the current temperature. At least one of `heat_output` and `cool_output` must
   be specified.
 
-- **cool_output** (*Optional*, [ID](#config-id)): The ID of a [float output](#config-output)
+- **cool_output** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [float output](#config-output)
   that decreases the current temperature. At least one of `heat_output` and `cool_output` must
   be specified.
 
@@ -99,7 +96,7 @@ climate:
     which is no sampling/averaging.
 
 - **deadband_parameters** (*Optional*): Enables a deadband to stabilise and minimise changes in the
-  output when the temperature is close to the target temperature. See `Deadband Setup`_.
+  output when the temperature is close to the target temperature. See [Deadband Setup](#deadband-setup).
 
   - **threshold_high/threshold_low** (**Required**, float): Specifies a high/low
     threshold defining the deadband around the target temperature. For instance with
@@ -123,7 +120,7 @@ climate:
 
 To set up a PID climate controller, you need a couple of components:
 
-- A [Sensor](#config-sensor) to read the current temperature (`sensor`  ).
+- A [Sensor](/components/sensor) to read the current temperature (`sensor`  ).
 - At least one [float output](#config-output) to drive for heating or cooling (or both).
   This could for example be a PWM output via {{< docref "/components/output/sigma_delta_output" >}} or {{< docref "/components/output/slow_pwm" >}} that drives a heating unit.
 
@@ -162,7 +159,7 @@ deadband_parameters:
 ```
 
 In this example the deadband is between `20.0°C - 21.5°C`. The PID controller will limit any output
-variation inside this deadband. How it limits depends on how you set the `Deadband Multipliers`_.
+variation inside this deadband. How it limits depends on how you set the [Deadband Multipliers](#deadband-multipliers).
 
 {{< img src="deadband1.png" alt="Image" >}}
 
@@ -344,7 +341,7 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): ID of the PID Climate to start autotuning for.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the PID Climate to start autotuning for.
 - **noiseband** (*Optional*, float): The noiseband of the process (=sensor) variable. The value
   of the PID controller must be able to reach this value. Defaults to `0.25`.
 
@@ -376,7 +373,7 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): ID of the PID Climate to start autotuning for.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the PID Climate to start autotuning for.
 - **kp** (**Required**, float): The factor for the proportional term of the PID controller.
 - **ki** (*Optional*, float): The factor for the integral term of the PID controller.
   Defaults to `0`.
@@ -397,7 +394,7 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): ID of the PID Climate being reset.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the PID Climate being reset.
 
 ## `pid` Sensor
 
@@ -426,11 +423,11 @@ Configuration variables:
   - `KI` - The current factor for the integral term of the PID controller.
   - `KD` - The current factor for the differential term of the PID controller.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 Advanced options:
 
-- **climate_id** (*Optional*, [ID](#config-id)): The ID of the pid climate to get the values from.
+- **climate_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the pid climate to get the values from.
 
 ## See Also
 
@@ -443,6 +440,5 @@ Advanced options:
 - {{< docref "/components/climate" >}}
 - {{< docref "/components/output/sigma_delta_output" >}}
 - {{< docref "/components/output/slow_pwm" >}}
-- [Principles of PID](https://blog.opticontrols.com/archives/344)
 - {{< apiref "pid/pid_climate.h" "pid/pid_climate.h" >}}
 - {{< apiref "PID Autotuner" "pid/pid_autotuner.h" >}}

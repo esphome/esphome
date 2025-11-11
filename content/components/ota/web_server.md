@@ -36,8 +36,8 @@ ota:
 
 ## Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
-- All [automations](#automation) supported by {{< docref "/components/ota" >}}.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- All [automations](/automations) supported by {{< docref "/components/ota" >}}.
 
 > [!NOTE]
 > This platform requires the {{< docref "/components/web_server" >}} component to be configured in your device.

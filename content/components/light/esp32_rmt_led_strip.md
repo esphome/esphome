@@ -21,7 +21,7 @@ light:
 
 ## Configuration variables
 
-- **pin** (**Required**, [Pin](#config-pin)): The pin for the data line of the light.
+- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin for the data line of the light.
 - **num_leds** (**Required**, int): The number of LEDs in the strip.
 - **chipset** (**Required**, enum): The name of the chipset used; determines signal timing. Not required if
   [specifying the timings manually](#esp32-rmt-led-strip-manual_timings).
@@ -43,7 +43,7 @@ light:
 
 - **is_rgbw** (*Optional*, boolean): Set to `true` if the strip is RGBW. Defaults to `false`.
 - **is_wrgb** (*Optional*, boolean): Set to `true` if the strip is WRGB. Defaults to `false`.
-- **max_refresh_rate** (*Optional*, [Time](#config-time)): A time interval used to limit the number of commands a light
+- **max_refresh_rate** (*Optional*, [Time](/guides/configuration-types#time)): A time interval used to limit the number of commands a light
   can handle per second. For example, `16ms` will limit the light to a refresh rate of about 60Hz. Defaults to
   sending commands as quickly as changes are made to the lights.
 
@@ -78,14 +78,14 @@ light:
 These can be used if you know the timings and your chipset is not set above. If you have a new specific chipset,
 please consider adding support to the codebase and add it to the list above.
 
-- **bit0_high** (*Optional*, [Time](#config-time)): The time to hold the data line high for a `0` bit.
-- **bit0_low** (*Optional*, [Time](#config-time)): The time to hold the data line low for a `0` bit.
-- **bit1_high** (*Optional*, [Time](#config-time)): The time to hold the data line high for a `1` bit.
-- **bit1_low** (*Optional*, [Time](#config-time)): The time to hold the data line low for a `1` bit.
-- **reset_high** (*Optional*, [Time](#config-time)): The time to hold the data line high after writing
+- **bit0_high** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line high for a `0` bit.
+- **bit0_low** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line low for a `0` bit.
+- **bit1_high** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line high for a `1` bit.
+- **bit1_low** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line low for a `1` bit.
+- **reset_high** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line high after writing
   the state. Defaults to `0 us`.
 
-- **reset_low** (*Optional*, [Time](#config-time)): The time to hold the data line low after writing
+- **reset_low** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line low after writing
   the state. Defaults to `0 us`.
 
 ## See Also

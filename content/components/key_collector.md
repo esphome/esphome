@@ -46,8 +46,8 @@ key_collector:
 
 ### Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): Set the ID of this entry for use in lambdas.
-- **source_id** (*Optional*, [ID](#config-id)): The ID of the key input device.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Set the ID of this entry for use in lambdas.
+- **source_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the key input device.
 - **min_length** (*Optional*, integer): The minimal length of the desired key sequence. Below
   this, `on_result` automation will not trigger even if any of the `end_keys` was pressed.
 
@@ -63,7 +63,7 @@ key_collector:
 - **allowed_keys** (*Optional*, string): Keys allowed to be used. If not specified, then any otherwise
   unused keys will be allowed.
 
-- **timeout** (*Optional*, [Time](#config-time)): Timeout after which to cancel building the sequence and delete all the keys.
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Timeout after which to cancel building the sequence and delete all the keys.
 - **enable_on_boot** (*Optional*, boolean): If enabled, this key collector will be enabled on boot. Defaults to `true`.
 
 At least one of `end_keys` or `max_length` have to be specified. The rest are optional.
@@ -72,19 +72,19 @@ accepted until an end key is pressed.
 
 ## Triggers
 
-- **on_progress** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_progress** (*Optional*, [Automation](/automations)): An automation to perform
   when keys are pressed. The current sequence of pressed keys is placed in a `vector<uint8_t>` variable `x`
   and `start` holds the start key that activated this sequence or else `0`.
   Useful if you want to have a display showing the current value or number of key presses,
   or a speaker beeping when keys are being pressed.
 
-- **on_result** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_result** (*Optional*, [Automation](/automations)): An automation to perform
   when the sequence has been finished (eg. `max_length` has been reached or one of
   the `end_keys` was pressed). The finalized key sequence is placed in a `vector<uint8_t>` variable `x`,
   `start` holds the start key that activated this sequence or else `0`, and
   `end` holds the end key that terminated this sequence or else `0`.
 
-- **on_timeout** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_timeout** (*Optional*, [Automation](/automations)): An automation to perform
   if the timeout happens. The current sequence of pressed keys is placed in a `vector<uint8_t>` variable `x`
   and `start` holds the start key that activated this sequence or else `0`.
 

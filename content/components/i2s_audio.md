@@ -21,10 +21,10 @@ i2s_audio:
 
 ## Configuration variables
 
-- **i2s_lrclk_pin** (**Required**, [Pin](#config-pin)): The GPIO pin to use for the I²S `LRCLK` *(Left/Right Clock)* signal, also referred to as `WS` *(Word Select)* or `FS` *(Frame Sync)*.
-- **i2s_bclk_pin** (*Optional*, [Pin](#config-pin)): The GPIO pin to use for the I²S `BCLK` *(Bit Clock)* signal, also referred to as `SCK` *(Serial Clock)*.
-- **i2s_mclk_pin** (*Optional*, [Pin](#config-pin)): The GPIO pin to use for the I²S `MCLK` *(Master Clock)* signal.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID for this I²S bus if you need multiple.
+- **i2s_lrclk_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The GPIO pin to use for the I²S `LRCLK` *(Left/Right Clock)* signal, also referred to as `WS` *(Word Select)* or `FS` *(Frame Sync)*.
+- **i2s_bclk_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The GPIO pin to use for the I²S `BCLK` *(Bit Clock)* signal, also referred to as `SCK` *(Serial Clock)*.
+- **i2s_mclk_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The GPIO pin to use for the I²S `MCLK` *(Master Clock)* signal.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this I²S bus if you need multiple.
 - **use_legacy** (*Optional, boolean*): Use the legacy I²S driver when using esp-idf framework version 5.x.x. Not valid for Arduino framework or esp-idf version < 5. All `i2s_audio` components need to use the same setting. Defaults to `false`.
 
 ## See also

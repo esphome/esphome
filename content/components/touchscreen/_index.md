@@ -38,15 +38,15 @@ touchscreen:
 
 ### Configuration variables
 
-- **display** (**Required**, [ID](#config-id)): The display to use this touchscreen with.
+- **display** (**Required**, [ID](/guides/configuration-types#id)): The display to use this touchscreen with.
 - **transform** (*Optional*): Transform the touchscreen presentation using hardware. All defaults are `false`.
 
   - **swap_xy** (*Optional*, boolean): If true, exchange the x and y axes.
   - **mirror_x** (*Optional*, boolean): If true, mirror the x axis.
   - **mirror_y** (*Optional*, boolean): If true, mirror the y axis.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The touchscreen polling interval - used only if an interrupt pin is not in use. Defaults to `50ms`.
-- **touch_timeout** (*Optional*, [Time](#config-time)): A timeout for touchscreens that do not report the end of touch. The default varies depending on the touchscreen.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The touchscreen polling interval - used only if an interrupt pin is not in use. Defaults to `50ms`.
+- **touch_timeout** (*Optional*, [Time](/guides/configuration-types#time)): A timeout for touchscreens that do not report the end of touch. The default varies depending on the touchscreen.
 - **calibration** (*Optional*): Some touchscreens require calibration on a per-device basis.
 
   - **x_min** (**Required**, int): The raw value corresponding to the left
@@ -66,13 +66,13 @@ touchscreen:
 
       (or right if `swap_xy` is specified) edge of the touchscreen.
 
-- **on_touch** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_touch** (*Optional*, [Automation](/automations)): An automation to perform
   when the touchscreen is touched. See [`on_touch` Trigger](#touchscreen-on_touch).
 
-- **on_update** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_update** (*Optional*, [Automation](/automations)): An automation to perform
   when the touchscreen is touched. See [`on_update` Trigger](#touchscreen-on_update).
 
-- **on_release** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_release** (*Optional*, [Automation](/automations)): An automation to perform
   when the touchscreen is no longer touched. See [`on_release` Trigger](#touchscreen-on_release).
 
 {{< anchor "touchscreen-touchpoint" >}}
@@ -268,15 +268,15 @@ binary_sensor:
 
 ### Configuration variables
 
-- **touchscreen_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the touchscreen.
+- **touchscreen_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the touchscreen.
 - **x_min** (**Required**, int): Left coordinate of the screen area to be detected as the virtual button.
 - **x_max** (**Required**, int): Right coordinate of the screen area to be detected as the virtual button.
 - **y_min** (**Required**, int): Top coordinate of the screen area to be detected as the virtual button.
 - **y_max** (**Required**, int): Bottom coordinate of the screen area to be detected as the virtual button.
-- **page_id** (*Optional*, [ID](#config-id)): Only trigger this binary sensor if the display is showing this page.
+- **page_id** (*Optional*, [ID](/guides/configuration-types#id)): Only trigger this binary sensor if the display is showing this page.
   Cannot be used with `pages`.
 
-- **pages** (*Optional*, list of [ID](#config-id)): Only trigger this binary sensor if the display is showing one of these pages.
+- **pages** (*Optional*, list of [ID](/guides/configuration-types#id)): Only trigger this binary sensor if the display is showing one of these pages.
   Cannot be used with `page_id`.
 
 - **use_raw** (*Optional*, boolean): Some touch screens are larger than the underlying screen, and use this extra

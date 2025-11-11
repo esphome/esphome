@@ -36,8 +36,8 @@ calculation assumes that both lights have the same illuminance, which might not 
 
 ## Configuration variables
 
-- **cold_white** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the cold white channel.
-- **warm_white** (**Required**, [ID](#config-id)): The id of the float [Output Component](#output) to use for the warm white channel.
+- **cold_white** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the cold white channel.
+- **warm_white** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the warm white channel.
 - **cold_white_color_temperature** (*Optional*, float): The color temperature (in [mireds](https://en.wikipedia.org/wiki/Mired) or Kelvin)
   of the cold white channel. Note that this option is required to control the mixing from Home Assistant.
 

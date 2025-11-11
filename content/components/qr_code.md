@@ -19,7 +19,7 @@ qr_code:
 
 ## Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): The ID with which you will be able to reference the QR-code later
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID with which you will be able to reference the QR-code later
   in your display code.
 
 - **value** (**Required**, string): The string which you want to encode in the QR-code.

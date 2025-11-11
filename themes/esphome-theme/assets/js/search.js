@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('keydown', function (event) {
         if (!(searchInput === document.activeElement) && event.key === '/') { // Use '/' key as trigger
             event.preventDefault(); // Prevent the '/' key from being entered in the search box
-            if (isMobile)
+            if (isMobileScreen())
                 openMenu();
             searchInput.focus();
         }

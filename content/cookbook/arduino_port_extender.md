@@ -37,7 +37,7 @@ esphome:
       - arduino_port_expander.h
 ```
 
-Setup your [I²C Bus](#i2c) and assign it an `id`  :
+Setup your [I²C Bus](/components/i2c) and assign it an `id`  :
 
 ```yaml
 i2c:
@@ -134,7 +134,7 @@ sensor:
           - throttle: 2s
 ```
 
-The listed `sensors` supports all options from [Sensor](#config-sensor) like
+The listed `sensors` supports all options from [Sensor](/components/sensor) like
 automations and filters.
 
 > [!NOTE]

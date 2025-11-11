@@ -8,7 +8,7 @@ will only pass forward values that are *either* at least 1s old or are if the ab
 difference is at least 5.0.
 
 ```yaml
-# Example filters:
+# Example configuration entry
 filters:
   - or:
     - throttle: 1s

@@ -15,7 +15,7 @@ Supported widgets are [`arc`](#lvgl-widget-arc), [`bar`](#lvgl-widget-bar), [`sl
 ## Configuration variables
 
 - **widget** (**Required**): The ID of a supported widget configured in LVGL, which will reflect the state of the sensor.
-- All other variables from [Sensor](#config-sensor).
+- All other variables from [Sensor](/components/sensor).
 
 Example:
 

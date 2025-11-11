@@ -37,7 +37,7 @@ sensor:
 ## Configuration variables
 
 - **sensor_datapoint** (**Required**, int): The datapoint id number of the sensor.
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 ## See Also
 

@@ -9,8 +9,8 @@ params:
 
 The `ags10` sensor platform VOC sensor allows you to use your ASAIR AGS10
 ([datasheet](http://www.aosong.com/userfiles/files/Datasheet%20AGS10.pdf),
-`ASAIR`_ ) sensors with
-ESPHome. The [I²C Bus](#i2c) is
+[ASAIR](http://www.aosong.com/en/products-86.html)) sensors with
+ESPHome. The [I²C Bus](/components/i2c) is
 required to be set up in your configuration for this sensor to work.
 
 > [!NOTE]
@@ -29,19 +29,19 @@ sensor:
 ## Configuration variables
 
 - **tvoc** (**Required**): The information for the total Volatile Organic Compounds sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **address** (*Optional*, int): Manually specify the I²C address of
   the sensor. Defaults to `0x1A`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 - **version** (*Optional*): The firmware version of the sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **resistance** (*Optional*): The initial value of the sensor resistance.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 ## Actions
 
@@ -68,7 +68,7 @@ on_...:
 
 Configuration option:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the AGS10 sensor.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the AGS10 sensor.
 - **mode** (**Required**, enum): One of supported modes:
 
   - `FACTORY_DEFAULT` - reset to the factory zero-point
@@ -101,7 +101,7 @@ on_...:
 
 Configuration options:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the AGS10 sensor.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the AGS10 sensor.
 - **address** (**Required**, int): New I2C address.
 
 ## See Also

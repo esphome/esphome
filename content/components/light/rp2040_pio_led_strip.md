@@ -23,7 +23,7 @@ light:
 
 ## Configuration variables
 
-- **pin** (**Required**, [Pin](#config-pin)): The pin for the data line of the light.
+- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin for the data line of the light.
 - **num_leds** (**Required**, int): The number of LEDs in the strip.
 - **pio** (**Required**, int): The PIO peripheral to use. If using multiple strips, you can use up to 4 strips per PIO. Must be one of `0` or `1`.
 
@@ -50,10 +50,10 @@ light:
 These can be used if you know the timings and your chipset is not set above. If you have a new specific chipset,
 please consider adding support to the codebase and add it to the list above.
 
-- **bit0_high** (*Optional*, [Time](#config-time)): The time to hold the data line high for a `0` bit.
-- **bit0_low** (*Optional*, [Time](#config-time)): The time to hold the data line low for a `0` bit.
-- **bit1_high** (*Optional*, [Time](#config-time)): The time to hold the data line high for a `1` bit.
-- **bit1_low** (*Optional*, [Time](#config-time)): The time to hold the data line low for a `1` bit.
+- **bit0_high** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line high for a `0` bit.
+- **bit0_low** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line low for a `0` bit.
+- **bit1_high** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line high for a `1` bit.
+- **bit1_low** (*Optional*, [Time](/guides/configuration-types#time)): The time to hold the data line low for a `1` bit.
 
 ## See Also
 

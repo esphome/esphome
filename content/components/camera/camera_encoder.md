@@ -7,7 +7,7 @@ params:
     image: camera.svg
 ---
 
-The ``camera_encoder`` component provides image compression support for software-based cameras or cameras without
+The `camera_encoder` component provides image compression support for software-based cameras or cameras without
 internal compression. It allows raw camera frames to be compressed into a format suitable for transmission to API
 clients, such as Home Assistant, which expect JPEG-compressed images.
 
@@ -27,21 +27,21 @@ camera_encoder:
 
 ## Configuration variables
 
-- **type** (*Optional*): ``esp32_camera``
+- **type** (*Optional*): `esp32_camera`
 
 ## esp32_camera Options
 
 - **quality** (*Optional*, int): Sets JPEG compression quality.
-  Valid values range from ``1`` (lowest quality, highest compression) to ``100`` (best quality, least compression). Defaults: ``80``.
+  Valid values range from `1` (lowest quality, highest compression) to `100` (best quality, least compression). Defaults: `80`.
 
 - **buffer_size** (*Optional*, int): Initial size of the output buffer in bytes, used to store the JPEG-encoded image data.
   - Minimum: 1024 bytes
   - Maximum: 2097152 bytes (2 MB), sufficient for ESP32-S3 and ESP32-P4
-  - Default: ``4096``.
+  - Default: `4096`.
 
-- **buffer_expand_size** (*Optional*, int): Number of bytes to expand the output buffer if it is too small to hold the JPEG-encoded image. A value of ``0`` disables expansion.
+- **buffer_expand_size** (*Optional*, int): Number of bytes to expand the output buffer if it is too small to hold the JPEG-encoded image. A value of `0` disables expansion.
   - Maximum: 2097152 bytes (2 MB), sufficient for ESP32-S3 and ESP32-P4
-  - Default: ``1024``.
+  - Default: `1024`.
 
 ## See Also
 

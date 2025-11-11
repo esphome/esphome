@@ -68,15 +68,15 @@ sensor:
   See also [this guide by Texas Instruments](https://dev.ti.com/tirex/explore/content/simplelink_academy_cc2640r2sdk_5_10_02_00/modules/blestack/ble_scan_adv_basic/ble_scan_adv_basic.html#scanning-basics)
   for reference.
 
-  - **interval** (*Optional*, [Time](#config-time)): The interval between each consecutive scan window.
+  - **interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval between each consecutive scan window.
     This is the time the ESP spends on each of the 3 BLE advertising channels.
     Defaults to `320ms`.
 
-  - **window** (*Optional*, [Time](#config-time)): The time the ESP is actively listening for packets
+  - **window** (*Optional*, [Time](/guides/configuration-types#time)): The time the ESP is actively listening for packets
     on a channel during each scan interval. If this is close to the `interval` value, the ESP will
     spend more time listening to packets (but also consume more power). Defaults to `30ms`
 
-  - **duration** (*Optional*, [Time](#config-time)): The duration of each complete scan. This has no real
+  - **duration** (*Optional*, [Time](/guides/configuration-types#time)): The duration of each complete scan. This has no real
     impact on the device but can be used to debug the BLE stack. Defaults to `5min`.
 
   - **active** (*Optional*, boolean): Whether to actively send scan requests to request more data
@@ -87,29 +87,29 @@ sensor:
   - **continuous** (*Optional*, boolean): Whether to scan continuously (forever) or to only scan when
     asked to start a scan (with start_scan action). Defaults to `true`.
 
-  - **software_coexistence** (*Optional*, boolean): When enabled, software coexistence will
-    briefly prioritize Bluetooth over Wi-Fi during the initial establishment of BLE connections,
-    which can improve reliability. Only available if `wifi` component is configured.
-    Defaults to `true`.
+- **software_coexistence** (*Optional*, boolean): When enabled, software coexistence will
+  briefly prioritize Bluetooth over Wi-Fi during the initial establishment of BLE connections,
+  which can improve reliability. Only available if `wifi` component is configured.
+  Defaults to `true`.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID for this ESP32 BLE Hub.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this ESP32 BLE Hub.
 - **max_connections** (*Optional*, int): **DEPRECATED** - This option has been moved to the {{< docref "esp32_ble/" >}} component.
   Please configure `max_connections` there instead. This option is kept for backward compatibility only. This option will be removed in ESPHome 2026.10.0.
 
 Automations:
 
-- **on_ble_advertise** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_ble_advertise** (*Optional*, [Automation](/automations)): An automation to perform
   when a Bluetooth advertising is received. See [`on_ble_advertise` Trigger](#esp32_ble_tracker-on_ble_advertise).
 
-- **on_ble_manufacturer_data_advertise** (*Optional*, [Automation](#automation)): An automation to
+- **on_ble_manufacturer_data_advertise** (*Optional*, [Automation](/automations)): An automation to
   perform when a Bluetooth advertising with manufacturer data is received. See
   [`on_ble_manufacturer_data_advertise` Trigger](#esp32_ble_tracker-on_ble_manufacturer_data_advertise).
 
-- **on_ble_service_data_advertise** (*Optional*, [Automation](#automation)): An automation to
+- **on_ble_service_data_advertise** (*Optional*, [Automation](/automations)): An automation to
   perform when a Bluetooth advertising with service data is received. See
   [`on_ble_service_data_advertise` Trigger](#esp32_ble_tracker-on_ble_service_data_advertise).
 
-- **on_scan_end** (*Optional*, [Automation](#automation)): An automation to perform when
+- **on_scan_end** (*Optional*, [Automation](/automations)): An automation to perform when
   a BLE scan has completed (the duration of the scan). This works with continuous set to true or false.
 
 ## ESP32 Bluetooth Low Energy Tracker Automation
@@ -149,7 +149,7 @@ esp32_ble_tracker:
 #### Configuration variables
 
 - **mac_address** (*Optional*, list of MAC Address): The MAC address to filter for this automation.
-- See [Automation](#automation).
+- See [Automation](/automations).
 
 {{< anchor "esp32_ble_tracker-on_ble_manufacturer_data_advertise" >}}
 
@@ -179,7 +179,7 @@ esp32_ble_tracker:
 
 - **mac_address** (*Optional*, MAC Address): The MAC address to filter for this automation.
 - **manufacturer_id** (**Required**, string): 16 bit, 32 bit, or 128 bit BLE Manufacturer ID.
-- See [Automation](#automation).
+- See [Automation](/automations).
 
 {{< anchor "esp32_ble_tracker-on_ble_service_data_advertise" >}}
 
@@ -206,7 +206,7 @@ esp32_ble_tracker:
 
 - **mac_address** (*Optional*, MAC Address): The MAC address to filter for this automation.
 - **service_uuid** (**Required**, string): 16 bit, 32 bit, or 128 bit BLE Service UUID.
-- See [Automation](#automation).
+- See [Automation](/automations).
 
 ### `on_scan_end` Trigger
 
@@ -226,7 +226,7 @@ esp32_ble_tracker:
 
 - None
 
-- See [Automation](#automation).
+- See [Automation](/automations).
 
 ### `esp32_ble_tracker.start_scan` Action
 

@@ -35,10 +35,10 @@ output:
 
 ## Configuration variables
 
-- **ble_client_id** (**Required**, [ID](#config-id)): ID of the associated BLE client.
+- **ble_client_id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 - **service_uuid** (**Required**, UUID): UUID of the service on the device.
 - **characteristic_uuid** (**Required**, UUID): UUID of the service's characteristic to write to.
-- **id** (*Optional*, [ID](#config-id)): The ID to use for code generation, and for reference by dependent components.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID to use for code generation, and for reference by dependent components.
 - **require_response** (*Optional*, boolean): Control whether to require a remote response from the device when writing.
   Whether or not this is required will vary by device. Defaults to `false`
 

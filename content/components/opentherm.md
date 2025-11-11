@@ -53,7 +53,7 @@ opentherm:
   from disabling interrupts while we are talking to the boiler. Enable if you experience a lot of random intermittent
   invalid response errors (very likely to happen while using Dallas temperature sensors).
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation. Required if you have
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. Required if you have
   multiple busses.
 
 #### Optional Boiler-specific Configuration

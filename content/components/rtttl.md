@@ -54,13 +54,13 @@ rtttl:
 
 ## Configuration variables
 
-- **output** (**Exclusive**, [ID](#config-id)): The id of the [float output](#output) to use for
+- **output** (**Exclusive**, [ID](/guides/configuration-types#id)): The id of the [float output](#output) to use for
   this buzzer.
 
-- **speaker** (**Exclusive**, [ID](#config-id)): The id of the [speaker](#i2s_audio) to play the song on.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **speaker** (**Exclusive**, [ID](/guides/configuration-types#id)): The id of the [speaker](#i2s_audio) to play the song on.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **gain** (*Optional*, Percentage): With this value you can set the volume of the sound.
-- **on_finished_playback** (*Optional*, [Automation](#automation)): An action to be
+- **on_finished_playback** (*Optional*, [Automation](/automations)): An action to be
   performed when playback is finished.
 
 Note: You can only use the **output** or **speaker** variable, not both at the same time.
@@ -77,7 +77,7 @@ on_...:
 
 Configuration options:
 
-- **rtttl** (**Required**, string, [templatable](#config-templatable)): The rtttl string.
+- **rtttl** (**Required**, string, [templatable](/automations/templates)): The rtttl string.
 
 You can find many rtttl strings online on the web, they must start with a name, then a colon: `:` symbol
 and more codes of the song itself. Tip: you can try playing with the values of d=16,o=6,b=95 and make the
@@ -95,7 +95,7 @@ on_...:
 
 ## All actions
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID of the rtttl if you have multiple components.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the rtttl if you have multiple components.
 
 ## `rtttl.is_playing` Condition
 

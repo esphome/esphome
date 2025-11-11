@@ -9,8 +9,6 @@ readings have been skipped, this filter does nothing.
 
 ```yaml
 # Example configuration entry
-- platform: wifi_signal
-  # ...
-  filters:
-    - skip_initial: 3
+filters:
+  - skip_initial: 3
 ```

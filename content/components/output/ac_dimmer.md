@@ -20,7 +20,7 @@ which supports phase control dimming to your ESPHome project.
 There are several already made boards which are compatible with this component, such as the
 [RobotDyn dimmer](https://robotdyn.com/ac-light-dimmer-module-1-channel-3-3v-5v-logic-ac-50-60hz-220v-110v.html).
 
-{{< img src="robotdyn_dimmer.jpg" alt="Image" caption="RobotDyn Module. Image by `RobotDyn`_" width="50.0%" class="align-center" >}}
+{{< img src="robotdyn_dimmer.jpg" alt="Image" caption="RobotDyn Module. Image by RobotDyn" width="50.0%" class="align-center" >}}
 
 ```yaml
 # Example configuration entry
@@ -42,10 +42,10 @@ light:
 
 ## Configuration variables
 
-- **gate_pin** (**Required**, [Pin](#config-pin)): The pin used to control the Triac or
+- **gate_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin used to control the Triac or
   Mosfet.
 
-- **zero_cross_pin** (**Required**, [Pin](#config-pin)): The pin used to sense the AC
+- **zero_cross_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin used to sense the AC
   Zero cross event, you can have several dimmers controlled with the same zero cross
   detector, in such case duplicate the `zero_cross_pin` config on each output. When
   doing so, `allow_other_uses` pin schema option **must** be set to `true` to
@@ -62,7 +62,7 @@ light:
   Try to use this for dimmable LED lights, it might help turning on at low brightness
   levels. On Halogen lamps it might show at initial flicker. Defaults to `false`.
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - All other options from [Output](#config-output).
 
 Dimming lights with phase control can be tricky, the minimum level your light turns on

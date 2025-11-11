@@ -74,13 +74,13 @@ sensor:
 
 ## Configuration variables
 
-- **sensor** (**Required**, [ID](#config-id)): The sensor to read the resistance values from
+- **sensor** (**Required**, [ID](/guides/configuration-types#id)): The sensor to read the resistance values from
   to convert to temperature readings.
 
 - **calibration** (**Required**, float): The calibration parameters of the sensor - see above
   for more details.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 ## Self-Heating
 

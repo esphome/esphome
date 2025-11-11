@@ -12,7 +12,7 @@ with improved state management and non-blocking operation. This component implem
 queue-based state machine that eliminates blocking waits for the busy pin and provides
 better integration with ESPHome's async architecture.
 
-The communication method uses 4-wire [SPI](#spi), so you need to have an `spi:` section in your
+The communication method uses 4-wire [SPI](/components/spi), so you need to have an `spi:` section in your
 configuration.
 
 The driver supports a number of displays and there are also specific configurations for ESP32 boards with integrated displays.
@@ -29,7 +29,7 @@ display:
 ## Supported displays
 
 | Model name             | Manufacturer | Product Description                                        |
-|------------------------|--------------|------------------------------------------------------------|
+| ---------------------- | ------------ | ---------------------------------------------------------- |
 | Spectra-E6             | Eink         | <https://www.eink.com/brand/detail/Spectra6>               |
 | Seeed-reTerminal-E1002 | Seeed Studio | <https://www.seeedstudio.com/reTerminal-E1002-p-6533.html> |
 
@@ -39,26 +39,26 @@ When using a model defining an integrated ESP32 display board most of the config
 but can be overridden if needed.
 
 - **model** (**Required**): The model of the ePaper display. See the table above for options.
-- **cs_pin** (**Required**, [Pin Schema](#config-pin_schema)): The CS pin. Predefined for integrated boards.
-- **dc_pin** (**Required**, [Pin Schema](#config-pin_schema)): The DC pin. Predefined for integrated boards.
-- **busy_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The BUSY pin, if used.
-- **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin, if used.
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin. Predefined for integrated boards.
+- **dc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin. Predefined for integrated boards.
+- **busy_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The BUSY pin, if used.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin, if used.
   Make sure you pull this pin high (by connecting it to 3.3V with a resistor) if not connected to a GPIO pin.
 
 - **rotation** (*Optional*): Set the rotation of the display. Everything you draw in `lambda:` will be rotated
   by this option. One of `0°` (default), `90°`, `180°`, `270°`.
 
-- **reset_duration** (*Optional*, [Time](#config-time)): Duration for the display reset operation. Defaults to `200ms`.
+- **reset_duration** (*Optional*, [Time](/guides/configuration-types#time)): Duration for the display reset operation. Defaults to `200ms`.
 
 - **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
   See [Display Rendering Engine](#display-engine) for more information.
 - **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `60s`,
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `60s`,
   use `never` to only manually update the screen via `component.update`.
-- **spi_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the [SPI Component](#spi) if you want
+- **spi_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [SPI Component](/components/spi) if you want
   to use multiple SPI buses.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 ## See Also
 

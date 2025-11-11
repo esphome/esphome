@@ -15,8 +15,8 @@ bit depth which means the output is not that accurate for frequencies above ~300
 
 ## Configuration variables
 
-- **pin** (**Required**, [Pin](#config-pin)): The pin to use LEDC on. Can only be GPIO0-GPIO33.
-- **id** (**Required**, [ID](#config-id)): The id to use for this output component.
+- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin to use LEDC on. Can only be GPIO0-GPIO33.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
 - **frequency** (*Optional*, float): At which frequency to run the LEDC
   channel's timer. Defaults to 1000Hz.
 
@@ -110,7 +110,7 @@ This means that there are only 4 steps between each value.
 
 ## `output.ledc.set_frequency` Action
 
-This [Action](#config-action) allows you to manually change the frequency of an LEDC
+This [Action](/automations/actions#all-actions) allows you to manually change the frequency of an LEDC
 channel at runtime. Use cases include controlling a passive buzzer (for pitch control).
 
 ```yaml
@@ -122,8 +122,8 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the LEDC output to change.
-- **frequency** (**Required**, [templatable](#config-templatable), float): The frequency
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the LEDC output to change.
+- **frequency** (**Required**, [templatable](/automations/templates), float): The frequency
   to set in hertz.
 
 ## See Also

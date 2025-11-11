@@ -44,5 +44,5 @@ binary_sensor:
 
 ## See Also
 
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "homeassistant/binary_sensor/homeassistant_binary_sensor.h" "homeassistant/binary_sensor/homeassistant_binary_sensor.h" >}}

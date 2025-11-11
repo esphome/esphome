@@ -9,7 +9,7 @@ params:
 
 The ZyAura CO2 & Temperature & Humidity sensor allows you to use your
 [ZGm05(3)(U)](http://www.zyaura.com/products/ZGm05.asp)
-([MT8057](https://masterkit.ru/shop/1266110), [MT8057S](https://medgadgets.ru/shop/kit-mt8057.html)),
+[MT8057](https://masterkit.ru/shop/1266110),
 [ZG1683R(U)](http://www.zyaura.com/products/ZG1683R.asp) ([MT8060](https://masterkit.ru/shop/1921398)),
 [ZG1583RUD](http://www.zyaura.com/products/ZG1583RUD.asp)
 monitors with ESPHome.
@@ -34,21 +34,21 @@ sensor:
 
 ## Configuration variables
 
-- **clock_pin** (**Required**, [Pin](#config-pin)): The pin where the clock bus is connected.
-- **data_pin** (**Required**, [Pin](#config-pin)): The pin where the data bus is connected.
+- **clock_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin where the clock bus is connected.
+- **data_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin where the data bus is connected.
 - **co2** (*Optional*): The information for the CO2 sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **temperature** (*Optional*): The information for the temperature sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **humidity** (*Optional*): The information for the humidity sensor
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 > [!NOTE]

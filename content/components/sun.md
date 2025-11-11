@@ -26,7 +26,7 @@ time:
 
 - **latitude** (**Required**, float): The latitude for performing the calculation.
 - **longitude** (**Required**, float): The longitude for performing the calculation.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 ## Triggers
 
@@ -49,13 +49,13 @@ sun:
         - logger.log: Good evening!
 ```
 
-- **on_sunrise** (*Optional*, [Automation](#automation)): An automation to perform at sunrise
+- **on_sunrise** (*Optional*, [Automation](/automations)): An automation to perform at sunrise
   when the sun crosses a specified angle.
 
   - **elevation** (*Optional*, float): The elevation to cross. Defaults to -0.833° (the horizon, slightly less than 0°
     to compensate for atmospheric refraction).
 
-- **on_sunset** (*Optional*, [Automation](#automation)): An automation to perform at sunset
+- **on_sunset** (*Optional*, [Automation](/automations)): An automation to perform at sunset
   when the sun crosses a specified angle.
 
   - **elevation** (*Optional*, float): The elevation to cross. Defaults to -0.833° (the horizon, slightly less than 0°
@@ -83,7 +83,7 @@ sensor:
 - **type** (**Required**, string): The type of value to track. One of `elevation` and
   `azimuth`.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 ## Text Sensor
 
@@ -119,7 +119,7 @@ text_sensor:
 
 ## `sun.is_above_horizon` / `sun.is_below_horizon` Conditions
 
-The `sun.is_above_horizon` and `sun.is_below_horizon` [conditions](#config-condition)
+The `sun.is_above_horizon` and `sun.is_below_horizon` [conditions](/automations/actions#all-conditions)
 allow you to check if the sun is currently above or below the horizon.
 
 ```yaml

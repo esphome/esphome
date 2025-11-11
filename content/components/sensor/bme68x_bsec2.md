@@ -12,17 +12,17 @@ params:
 The `bme68x_bsec2_i2c` sensor platform allows you to use your
 [BME680](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme680-ds001.pdf) and
 [BME688](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf)
-(`Adafruit`_, `Pimoroni`_) temperature, humidity, pressure and gas sensors with ESPHome via the Bosch Sensortec
+([Adafruit](https://www.adafruit.com/product/3660), [Pimoroni](https://shop.pimoroni.com/products/bme680-breakout)) temperature, humidity, pressure and gas sensors with ESPHome via the Bosch Sensortec
 Environmental Cluster 2 (BSEC2) software library. The use of Bosch's proprietary algorithms provide an Index for Air
 Quality (IAQ) measurement derived from the gas resistance sensor's response to specific Volatile Organic Compounds
 (VOCs). The BSEC software also provides estimated values for CO₂ and Breath Volatile Organic Compounds (b-VOC) using
 a correlation between VOC and CO₂ in a human's exhaled breath.
 
-The [I²C](#i2c) is required to be set up in your configuration for this sensor to work.
+The [I²C](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 > [!NOTE]
 > The BSEC2 library is only available for use after accepting its software license agreement. By enabling this
-> component in your configuration, you are explicitly agreeing to the terms of the `BSEC license agreement`_. Note
+> component in your configuration, you are explicitly agreeing to the terms of the [BSEC license agreement](https://www.bosch-sensortec.com/media/boschsensortec/downloads/software/bme688_development_software/2024_12/20241219_clickthrough_license_terms_bsec_bme680_bme688_bme690.pdf). Note
 > that the license forbids distribution of any compiled firmware binaries that include this component.
 
 {{< img src="bme680-full.jpg" alt="Image" caption="BME680 Temperature, Pressure, Humidity & Gas Sensor." width="50.0%" class="align-center" >}}
@@ -44,7 +44,7 @@ bme68x_bsec2_i2c:
 - **address** (_Optional_, int): Manually specify the I²C address of the sensor. Defaults to `0x76`. The sensor can
   also be configured to use `0x77`.
 
-- **i2c_id** (**Optional**, [ID](#config-id)): The ID of the [I²C bus](#i2c) the bme68x is connected to.
+- **i2c_id** (**Optional**, [ID](/guides/configuration-types#id)): The ID of the [I²C bus](/components/i2c) the bme68x is connected to.
 - **model** (_Required_, string): The model of the connected sensor; either `BME680` or `BME688`.
 - **algorithm_output** (_Optional_, string): The output of the BSEC2 algorithm. Either `classification` (default) or
   `regression`. _Only valid when model is BME688._
@@ -64,10 +64,10 @@ bme68x_bsec2_i2c:
   value is subtracted from the reading (for example, if the sensor reads 5°C higher than expected, set this to `5`  )
   and also corrects the relative humidity readings. Defaults to `0`.
 
-- **state_save_interval** (_Optional_, [Time](#config-time)): The minimum interval at which to save the calibrated BSEC2
+- **state_save_interval** (_Optional_, [Time](/guides/configuration-types#time)): The minimum interval at which to save the calibrated BSEC2
   algorithm state to flash so that calibration doesn't have to start from scratch on device restart. Defaults to `6h`.
 
-- **id** (_Optional_, [ID](#config-id)): Manually specify the ID used for code generation. Use this ID in the sensor
+- **id** (_Optional_, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. Use this ID in the sensor
   section to refer to the correct BME68x sensor if you have more than one device. This will also be used to refer to
   the calibrated BSEC2 algorithm state saved to flash.
 
@@ -93,7 +93,7 @@ sensor:
 
 ### Configuration variables
 
-- **bme68x_bsec2_id** (_Optional_, [ID](#config-id)): The ID of the `bme68x_bsec2_i2c` component sensors will refer
+- **bme68x_bsec2_id** (_Optional_, [ID](/guides/configuration-types#id)): The ID of the `bme68x_bsec2_i2c` component sensors will refer
   to. Useful when multiple devices are present in your configuration.
 
 - **temperature** (_Optional_): Configuration for the temperature sensor.
@@ -101,45 +101,45 @@ sensor:
   - **sample_rate** (_Optional_, string): Optional sample rate override for this sensor. Can be `LP` for low power
     consumption, sampling every 3 seconds or `ULP` for ultra-low power, sampling every 5 minutes.
 
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **pressure** (_Optional_): Configuration for the pressure sensor.
 
   - **sample_rate** (_Optional_, string): Optional sample rate override for this sensor. Can be `LP` for low power
     consumption, sampling every 3 seconds or `ULP` for ultra-low power, sampling every 5 minutes.
 
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **humidity** (_Optional_): Configuration for the humidity sensor.
 
   - **sample_rate** (_Optional_, string): Optional sample rate override for this sensor. Can be `LP` for low power
     consumption, sampling every 3 seconds or `ULP` for ultra-low power, sampling every 5 minutes.
 
-  - All other options from [Sensor](#config-sensor).
+  - All other options from [Sensor](/components/sensor).
 
 - **gas_resistance** (_Optional_): Configuration for the gas sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **iaq** (_Optional_): Configuration for the IAQ sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **iaq_static** (_Optional_): Configuration for the IAQ static sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **iaq_accuracy** (_Optional_): Configuration for the numeric IAQ accuracy sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **co2_equivalent** (_Optional_): Configuration for the CO₂ equivalent sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **breath_voc_equivalent** (_Optional_): Configuration for the Breath VOC equivalent humidity sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 ## Text Sensor
 
@@ -154,7 +154,7 @@ text_sensor:
 
 ### Configuration variables
 
-- **bme68x_bsec2_id** (_Optional_, [ID](#config-id)): The ID of the `bme68x_bsec2_i2c` component the text sensor
+- **bme68x_bsec2_id** (_Optional_, [ID](/guides/configuration-types#id)): The ID of the `bme68x_bsec2_i2c` component the text sensor
   will refer to. Useful when multiple devices are present in your configuration.
 
 - **iaq_accuracy** (_Optional_): Configuration for the IAQ accuracy sensor. Shows: `Stabilizing`, `Uncertain`,
@@ -215,11 +215,11 @@ The selected b-VOC gasses are as follows:
 
 | Compound           | Molar fraction |
 | ------------------ | -------------- |
-| `Ethane`_          | 5 ppm          |
-| `Isoprene`_        | 10 ppm         |
-| `Ethanol`_ | 10 ppm |
-| `Acetone`_ | 50 ppm |
-| `Carbon Monoxide`_ | 15 ppm |
+| [Ethane](https://en.wikipedia.org/wiki/Ethane)          | 5 ppm          |
+| [Isoprene](https://en.wikipedia.org/wiki/Isoprene)        | 10 ppm         |
+| [Ethanol](https://en.wikipedia.org/wiki/Ethanol) | 10 ppm |
+| [Acetone](https://en.wikipedia.org/wiki/Acetone) | 50 ppm |
+| [Carbon Monoxide](https://en.wikipedia.org/wiki/Carbon_monoxide) | 15 ppm |
 
 {{< anchor "bsec2-calibration" >}}
 
@@ -247,6 +247,5 @@ saved to flash so that the process does not have to start from scratch on device
 - {{< apiref "bme68x_bsec2_i2c/bme68x_bsec2_i2c.h" "bme68x_bsec2_i2c/bme68x_bsec2_i2c.h" >}}
 - [BME680 datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme680-ds001.pdf)
 - [BME688 datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf)
-- [BME680 VOC classification](https://community.bosch-sensortec.com/t5/MEMS-sensors-forum/BME680-VOC-classification/td-p/26154)
 - [Bosch BSEC2 Library](https://github.com/boschsensortec/Bosch-BSEC2-Library) by [Bosch Sensortec](https://www.bosch-sensortec.com/)
 - [Bosch Sensortec Community](https://community.bosch-sensortec.com/)

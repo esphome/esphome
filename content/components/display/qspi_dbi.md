@@ -27,7 +27,7 @@ This driver has been tested with the following displays:
 ## Usage
 
 This component requires an ESP32 and the use of
-ESP-IDF. PSRAM is a requirement due to the size of the display buffer. A [quad SPI bus](#spi) interface must be configured.
+ESP-IDF. PSRAM is a requirement due to the size of the display buffer. A [quad SPI bus](/components/spi) interface must be configured.
 
 {{< img src="t4-s3.jpg" alt="Image" caption="Lilygo T4-S3" width="75.0%" class="align-center" >}}
 
@@ -62,16 +62,16 @@ display:
   - `AXS15231`
 
 - **init_sequence** (*Optional*, A list of byte arrays): Specifies the init sequence for the display. This is required when using the `CUSTOM` model - but may be empty. If specified for other models this data will be sent after the pre-configured sequence.
-- **cs_pin** (**Required**, [Pin Schema](#config-pin_schema)): The chip select pin.
-- **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin.
-- **enable_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The display enable pin.
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The chip select pin.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin.
+- **enable_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The display enable pin.
 - **brightness** (*Optional*, int): A brightness value in the range 0-255
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `5s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `5s`.
 - **auto_clear_enabled** (*Optional*, boolean): Whether to automatically clear the display data before each lambda call,
   or to keep the existing display content (must overwrite explicitly, e.g., only on data change). Defaults to `true` if a lambda or pages are configured, false otherwise.
 
 - **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **color_order** (*Optional*): Should be one of `rgb` (default) or `bgr`.
 - **dimensions** (**Required**): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`  ) or with separate config keys.
   - **height** (**Required**, int): Specifies height of display in pixels.

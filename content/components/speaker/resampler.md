@@ -30,8 +30,8 @@ speaker:
 
 ## Configuration variables
 
-- **output_speaker** (**Required**, [ID](#config-id)): The {{< docref "/components/speaker/index" "speaker" >}} to output the resampled audio.
-- **buffer_duration** (*Optional*, [Time](#config-time)): The duration of the internal ring buffer. Larger values may reduce stuttering but use more memory. Defaults to `500ms`.
+- **output_speaker** (**Required**, [ID](/guides/configuration-types#id)): The {{< docref "/components/speaker/index" "speaker" >}} to output the resampled audio.
+- **buffer_duration** (*Optional*, [Time](/guides/configuration-types#time)): The duration of the internal ring buffer. Larger values may reduce stuttering but use more memory. Defaults to `500ms`.
 - **bits_per_sample** (*Optional*, positive integer): The audio sample bit depth after resampling. Defaults to the output speaker's bits per sample.
 - **sample_rate** (*Optional*, positive integer): Sample rate to convert to. Must be between `8000` and `48000`. Defaults to the output speaker's sample rate.
 - **filters** (*Optional*, positive integer): The number of windowed sinc interpolation filters to use. Must be between `2` and `1024`. Defaults to `16`.

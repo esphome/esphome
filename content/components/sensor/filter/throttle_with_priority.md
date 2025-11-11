@@ -9,7 +9,7 @@ checks if the last incoming value is at least `specified time period` old. If it
 value, the value is not passed forward.
 
 ```yaml
-# Example filters:
+# Example configuration entry
 filters:
   - throttle_with_priority:
       timeout: 1s

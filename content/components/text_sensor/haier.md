@@ -24,7 +24,7 @@ text_sensor:
 
 ## Configuration variables
 
-- **haier_id** (**Required**, [ID](#config-id)): The id of haier climate component
+- **haier_id** (**Required**, [ID](/guides/configuration-types#id)): The id of haier climate component
 - **appliance_name** (*Optional*): A text sensor that indicates Haier appliance name.
   All options from [Text Sensor](#config-text_sensor).
 

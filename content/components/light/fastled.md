@@ -54,14 +54,14 @@ light:
 - **chipset** (**Required**, string): Set a chipset to use.
   See [Supported Chipsets](#fastled_clockless-chipsets) for options.
 
-- **pin** (**Required**, [Pin](#config-pin)): The pin for the data line of the FastLED light.
+- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin for the data line of the FastLED light.
 - **num_leds** (**Required**, int): The number of LEDs attached.
 - **rgb_order** (*Optional*, string): The order of the RGB channels. Use this if your
   light doesn't seem to map the RGB light channels correctly. For example if your light
   shows up green when you set a red color through the frontend. Valid values are `RGB`,
   `RBG`, `GRB`, `GBR`, `BRG` and `BGR`. Defaults to `RGB`.
 
-- **max_refresh_rate** (*Optional*, [Time](#config-time)):
+- **max_refresh_rate** (*Optional*, [Time](/guides/configuration-types#time)):
   A time interval used to limit the number of commands a light can handle per second. For example
   16ms will limit the light to a refresh rate of about 60Hz. Defaults to the default value for the used chipset.
 
@@ -127,15 +127,15 @@ light:
 ### Configuration variables
 
 - **chipset** (**Required**, string): Set a chipset to use. See [Supported Chipsets](#fastled_spi-chipsets) for options.
-- **data_pin** (**Required**, [Pin](#config-pin)): The pin for the data line of the FastLED light.
-- **clock_pin** (**Required**, [Pin](#config-pin)): The pin for the clock line of the FastLED light.
+- **data_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin for the data line of the FastLED light.
+- **clock_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin for the clock line of the FastLED light.
 - **num_leds** (**Required**, int): The number of LEDs attached.
 - **rgb_order** (*Optional*, string): The order of the RGB channels. Use this if your
   light doesn't seem to map the RGB light channels correctly. For example if your light
   shows up green when you set a red color through the frontend. Valid values are `RGB`,
   `RBG`, `GRB`, `GBR`, `BRG` and `BGR`. Defaults to `RGB`.
 
-- **max_refresh_rate** (*Optional*, [Time](#config-time)):
+- **max_refresh_rate** (*Optional*, [Time](/guides/configuration-types#time)):
   A time interval used to limit the number of commands a light can handle per second. For example
   16ms will limit the light to a refresh rate of about 60Hz. Defaults to the default value for the used chipset.
 

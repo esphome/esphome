@@ -58,7 +58,7 @@ The actions `turn_off` and `turn_on` are optional and based on the platform impl
 
 Configuration variables:
 
-**id** (*Optional*, [ID](#config-id)): The media player to control. Defaults to the only one in YAML.
+**id** (*Optional*, [ID](/guides/configuration-types#id)): The media player to control. Defaults to the only one in YAML.
 
 {{< anchor "media_player-play" >}}
 

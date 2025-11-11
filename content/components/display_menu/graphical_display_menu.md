@@ -41,8 +41,8 @@ graphical_display_menu:
 
 Configuration variables:
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
-- **display** (*Optional*, [ID](#config-id)): ID of the display to render to. See
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- **display** (*Optional*, [ID](/guides/configuration-types#id)): ID of the display to render to. See
   [Drawing Modes](#drawing_modes) for more details
 
 - **font** (**Required**, [Font](#display-fonts)): Specifies the font to use
@@ -54,7 +54,7 @@ Configuration variables:
 
 Automations:
 
-- **on_redraw** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_redraw** (*Optional*, [Automation](/automations)): An automation to perform
   when the menu needs to be redrawn. This can be useful if your display has slow refresh rates.
   For example E-Ink displays that are used with `display_interval: never`.
 

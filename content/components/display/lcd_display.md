@@ -28,7 +28,7 @@ with ESPHome. This component is only for LCDs that display individual characters
 
 `lcd_pcf8574` is for LCD displays with a PCF8574 GPIO expander module connected to all the data pins. This has the
 benefit that you only need to connect two data wires to the ESP instead of the six or ten as with the [lcd_gpio Component](#lcd-gpio).
-The communication happens via [I²C Bus](#i2c), you need to have an `i2c:` section in your configuration.
+The communication happens via [I²C Bus](/components/i2c), you need to have an `i2c:` section in your configuration.
 
 {{< img src="lcd-pcf8574.jpg" alt="Image" caption="LCD Display with a PCF8574 board attached on the back" width="75.0%" class="align-center" >}}
 
@@ -51,12 +51,12 @@ display:
 - **dimensions** (**Required**, string): The dimensions of the display with `COLUMNSxROWS`. If you're not
   sure, power the display up and just count them.
 
-- **address** (*Optional*, int): The [I²C](#i2c) address of the PCF8574 chip, defaults to `0x3F`.
+- **address** (*Optional*, int): The [I²C](/components/i2c) address of the PCF8574 chip, defaults to `0x3F`.
 - **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
   See [Rendering Lambda](#display-lcd_lambda) for more information.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `1s`.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 > [!NOTE]
 > If you're not seeing anything on the display, try turning the contrast potentiometer around on the
@@ -93,19 +93,19 @@ display:
 - **dimensions** (**Required**, string): The dimensions of the display with `COLUMNSxROWS`. If you're not
   sure, power the display on, turn contrast high up and just count them.
 
-- **data_pins** (**Required**, list of [pins](#config-pin_schema)): A list of the data pins you
+- **data_pins** (**Required**, list of [pins](/guides/configuration-types#pin-schema)): A list of the data pins you
   have hooked up to the LCD. The list can either be 4 items long (operating in 4-bit mode with
   either the first 4 data pins connected or the last 4 data pins connected), or 8 items long (when you have
   connected all 8 data pins).
 
-- **enable_pin** (**Required**, [pin](#config-pin_schema)): The pin you have `E` (`06`  ) hooked up to.
-- **rs_pin** (**Required**, [pin](#config-pin_schema)): The pin you have `RS` (`04`  ) hooked up to.
-- **rw_pin** (*Optional*, [pin](#config-pin_schema)): Optionally set the pin you have `R/W` (`05`  ) hooked up to. You can also just permanently connect that pin to `GND`.
+- **enable_pin** (**Required**, [pin](/guides/configuration-types#pin-schema)): The pin you have `E` (`06`  ) hooked up to.
+- **rs_pin** (**Required**, [pin](/guides/configuration-types#pin-schema)): The pin you have `RS` (`04`  ) hooked up to.
+- **rw_pin** (*Optional*, [pin](/guides/configuration-types#pin-schema)): Optionally set the pin you have `R/W` (`05`  ) hooked up to. You can also just permanently connect that pin to `GND`.
 - **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
   See [Rendering Lambda](#display-lcd_lambda) for more information.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `1s`.
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 > [!NOTE]
 > If you're not seeing anything on the display, make sure you apply `3.3V` to the `VEE` (`03`  ) contrast control

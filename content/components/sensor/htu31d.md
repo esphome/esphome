@@ -8,13 +8,13 @@ params:
 ---
 
 The HTU31D Temperature & Humidity component allows you to use HTU31D sensors with
-ESPHome. The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
+ESPHome. The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 Example sensors:
 
 - ([Adafruit](https://www.adafruit.com/product/4832))
 
-{{< img src="htu31d.jpg" alt="Image" caption="HTU31D Temperature & Humidity Sensor. Image by `Adafruit`_." width="50.0%" class="align-center" >}}
+{{< img src="htu31d.jpg" alt="Image" caption="HTU31D Temperature & Humidity Sensor. Image by [Adafruit](https://www.adafruit.com)." width="50.0%" class="align-center" >}}
 
 {{< img src="temperature-humidity.png" alt="Image" width="80.0%" class="align-center" >}}
 
@@ -31,12 +31,12 @@ sensor:
 ## Configuration variables
 
 - **temperature** (*Optional*): The information for the temperature sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
 - **humidity** (*Optional*): The information for the humidity sensor.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the sensor. Defaults to `60s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
 
 ## See Also
 

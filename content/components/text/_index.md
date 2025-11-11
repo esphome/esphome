@@ -57,7 +57,7 @@ Configuration variables:
 
 Automations:
 
-- **on_value** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_value** (*Optional*, [Automation](/automations)): An automation to perform
   when a new value is published. See [`on_value`](#text-on_value).
 
 MQTT Options:
@@ -87,13 +87,13 @@ text:
             args: ["x.c_str()"]
 ```
 
-Configuration variables: See [Automation](#automation).
+Configuration variables: See [Automation](/automations).
 
 {{< anchor "text-set_action" >}}
 
 ### `text.set` Action
 
-This is an [Action](#config-action) for setting a text state.
+This is an [Action](/automations/actions#all-actions) for setting a text state.
 
 ```yaml
 - text.set:
@@ -103,8 +103,8 @@ This is an [Action](#config-action) for setting a text state.
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the text to set.
-- **value** (**Required**, string, [templatable](#config-templatable)):
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the text to set.
+- **value** (**Required**, string, [templatable](/automations/templates)):
   The value to set the text to.
 
 {{< anchor "text-lambda_calls" >}}

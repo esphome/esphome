@@ -56,10 +56,10 @@ Configuration variables:
 
 Automations:
 
-- **on_value** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_value** (*Optional*, [Automation](/automations)): An automation to perform
   when a new value is published. See [`on_value`](#text_sensor-on_value).
 
-- **on_raw_value** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_raw_value** (*Optional*, [Automation](/automations)): An automation to perform
   when a new value is received that hasn't passed through any filters. See [`on_raw_value`](#text_sensor-on_raw_value).
 
 {{< anchor "text_sensor-filters" >}}
@@ -207,7 +207,7 @@ text_sensor:
             ESP_LOGD("main", "The current version is %s", x.c_str());
 ```
 
-Configuration variables: See [Automation](#automation).
+Configuration variables: See [Automation](/automations).
 
 {{< anchor "text_sensor-on_raw_value" >}}
 
@@ -226,13 +226,13 @@ text_sensor:
             ESP_LOGD("main", "The current version is %s", x.c_str());
 ```
 
-Configuration variables: See [Automation](#automation).
+Configuration variables: See [Automation](/automations).
 
 {{< anchor "text_sensor-state_condition" >}}
 
 ## `text_sensor.state` Condition
 
-This [Condition](#config-condition) allows you to check if a given text sensor
+This [Condition](/automations/actions#all-conditions) allows you to check if a given text sensor
 has a specific state.
 
 ```yaml
@@ -247,8 +247,8 @@ on_...:
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The text sensor ID.
-- **state** (**Required**, [templatable](#config-templatable), string): The state to compare
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The text sensor ID.
+- **state** (**Required**, [templatable](/automations/templates), string): The state to compare
   to.
 
 > [!NOTE]

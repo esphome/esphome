@@ -39,7 +39,6 @@ unless it's truly exceptional, etc.
 - [ESPHome 12v Fan Controller with PID Climate](https://github.com/patrickcollins12/esphome-fan-controller) by {{< ghuser name="patrickcollins12" >}}
 - [Sonoff 4CH Irrigation Controller with Nextion Display](https://github.com/bruxy70/Irrigation-with-display) by {{< ghuser name="bruxy70" >}}
 - [Automated Bathroom Ventilation](https://www.youtube.com/watch?v=weBDnmrQYOs) by [Intermittent Technology](https://intermit.tech)
-- [ESPHome MP3 Sound Machine](https://selfhostedhome.com/esp8266-mp3-sound-machine/) by [Self Hosted Home](https://selfhostedhome.com)
 - [Detecting Sound with ESP8266](https://thibmaek.com/posts/detecting-sound-level-using-esp8266-and-esphome) by [Thibault Maekelbergh](https://thibmaek.com)
 - [SW420 Vibration Sensor with Remote Notifications](https://github.com/rmooreID/Home-Assistant-Appliance-Monitor/) by {{< ghuser name="rmooreID" >}}
 - [DIY Irrigation Controller (with Internal Scheduler + Lovelace UI)](https://brianhanifin.com/posts/diy-irrigation-controller-esphome-home-assistant/) by {{< ghuser name="BrianHanifin" >}}

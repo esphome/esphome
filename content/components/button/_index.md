@@ -66,7 +66,7 @@ Configuration variables:
 
 Automations:
 
-- **on_press** (*Optional*, [Automation](#automation)): An automation to perform
+- **on_press** (*Optional*, [Automation](/automations)): An automation to perform
   when the button is pressed. See [`on_press`](#button-on_press).
 
 MQTT options:
@@ -90,13 +90,13 @@ button:
         - logger.log: Button Pressed
 ```
 
-Configuration variables: see [Automation](#automation).
+Configuration variables: see [Automation](/automations).
 
 {{< anchor "button-press_action" >}}
 
 ### `button.press` Action
 
-This is an [Action](#config-action) for pressing a button in an Automation.
+This is an [Action](/automations/actions#all-actions) for pressing a button in an Automation.
 
 ```yaml
 - button.press: my_button
@@ -104,7 +104,7 @@ This is an [Action](#config-action) for pressing a button in an Automation.
 
 Configuration variables:
 
-- **id** (**Required**, [ID](#config-id)): The ID of the button to set.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the button to set.
 
 > [!NOTE]
 > Buttons are designed to trigger an action on a device from Home Assistant, and have an unidirectional flow from

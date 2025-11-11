@@ -23,7 +23,7 @@ ESPHome.
 > The PZEM-004, however, is still working (and selling) with this protocol and does not use modbus.
 > For using the newer V3 variant of this sensor please see {{< docref "pzemac" "pzemac" >}}.
 
-The communication with this component is done via a [UART](#uart).
+The communication with this component is done via a [UART](/components/uart).
 You must therefore have a `uart:` entry in your configuration with both the TX and RX pins set
 to some pins on your board and the baud rate set to 9600.
 
@@ -50,18 +50,18 @@ sensor:
 ## Configuration variables
 
 - **current** (*Optional*): Use the current value of the sensor in amperes. All options from
-  [Sensor](#config-sensor).
+  [Sensor](/components/sensor).
 
 - **power** (*Optional*): Use the (active) power value of the sensor in watts. All options from
-  [Sensor](#config-sensor).
+  [Sensor](/components/sensor).
 
 - **voltage** (*Optional*): Use the voltage value of the sensor in volts.
-  All options from [Sensor](#config-sensor).
+  All options from [Sensor](/components/sensor).
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
-- **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the [UART Component](#uart) if you want
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [UART Component](/components/uart) if you want
   to use multiple UART buses.
 
 ## Hardware considerations

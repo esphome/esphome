@@ -29,7 +29,7 @@ sensor:
 
 ## Configuration variables
 
-- **sensor** (**Required**, [ID](#config-id)): The ID of the sensor to integrate over time.
+- **sensor** (**Required**, [ID](/guides/configuration-types#id)): The ID of the sensor to integrate over time.
 - **time_unit** (**Required**, string): The time unit to integrate with, one of
   `ms`, `s`, `min`, `h` or `d`.
 
@@ -40,13 +40,13 @@ sensor:
   that the value can be restored upon power cycle or reboot.
   Warning: this option can wear out your flash. Defaults to `false`.
 
-- All other options from [Sensor](#config-sensor).
+- All other options from [Sensor](/components/sensor).
 
 {{< anchor "sensor-integration-reset_action" >}}
 
 ## `sensor.integration.reset` Action
 
-This [Action](#config-action) allows you to reset the value of the integration sensor
+This [Action](/automations/actions#all-actions) allows you to reset the value of the integration sensor
 to zero. For example this can be used to reset the integration sensor to zero at midnight with
 a time-based automation.
 

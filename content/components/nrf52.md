@@ -71,7 +71,7 @@ There are two ways to reference GPIO pins:
 
 ## DFU (Device Firmware Update)
 
-The ``dfu`` component enables automatic entry into **DFU (Device Firmware Update)** mode by monitoring
+The `dfu` component enables automatic entry into **DFU (Device Firmware Update)** mode by monitoring
 the USB CDC serial connection. When a host opens the port at **1200 baud**, the component triggers
 a reset via a GPIO pin to put the device into DFU mode.
 
@@ -93,7 +93,7 @@ nrf52:
 
 ### Configuration variables
 
-- **reset_pin** (*Required*, [Pin](#config-pin)): The pin to use for trigger a hardware reset. This pin should be connected to the MCU's reset line or to a circuit that causes the bootloader to enter DFU mode after reset.
+- **reset_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The pin to use for trigger a hardware reset. This pin should be connected to the MCU's reset line or to a circuit that causes the bootloader to enter DFU mode after reset.
 
 ## See Also
 

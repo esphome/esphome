@@ -32,7 +32,7 @@ Newer Haier models using a module called ESP32-for-Haier. It is an ESP32 single-
 
 Also, you can use any other ESP32, ESP8266, or an RPI pico W board. In this case, you will need to cut the original wire or make a connector yourself (the board has a JST SM04B-GHS-TB connector)
 
-This component requires a [UART bus](#uart) to be setup.
+This component requires a [UART bus](/components/uart) to be setup.
 
 ```yaml
 # Example configuration entry
@@ -86,10 +86,10 @@ climate:
 
 ## Configuration variables
 
-- **uart_id** (*Optional*, [ID](#config-id)): ID of the UART port to communicate with AC.
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): ID of the UART port to communicate with AC.
 - **protocol** (*Optional*, string): Defines communication protocol with AC. Possible values: `hon` or `smartair2`. The default value is `smartair2`.
 - **wifi_signal** (*Optional*, boolean): If `true` - send wifi signal level to AC.
-- **answer_timeout** (*Optional*, [Time](#config-time)): Responce timeout. The default value is `200ms`.
+- **answer_timeout** (*Optional*, [Time](/guides/configuration-types#time)): Responce timeout. The default value is `200ms`.
 - **alternative_swing_control** (*Optional*, boolean): (supported by smartAir2 only) If `true` - use alternative values to control swing mode. Use only if the original control method is not working for your AC.
 - **status_message_header_size** (*Optional*, int): (supported only by hOn) Define the header size of the status message. Can be used to handle some protocol variations. Use only if you are sure what you are doing. The default value: `0`.
 - **control_packet_size** (*Optional*, int): (supported only by hOn) Define the size of the control packet. Can help with some newer models of ACs that use bigger packets. The default value: `10`.
@@ -100,9 +100,9 @@ climate:
 - **supported_modes** (*Optional*, list): Can be used to disable some of AC modes. Possible values: `'OFF'`, `HEAT_COOL`, `COOL`, `HEAT`, `DRY`, `FAN_ONLY`.
 - **supported_swing_modes** (*Optional*, list): Can be used to disable some swing modes if your AC does not support it. Possible values: `'OFF'`, `VERTICAL`, `HORIZONTAL`, `BOTH`.
 - **supported_presets** (*Optional*, list): Can be used to disable some presets. Possible values for smartair2 are: `AWAY`, `BOOST`, `COMFORT`. Possible values for hOn are: `AWAY`, `BOOST`, `SLEEP`. `AWAY` preset can be enabled only in `HEAT` mode, it is disabled by default.
-- **on_alarm_start** (*Optional*, [Automation](#automation)): (supported only by hOn) Automation to perform when AC activates a new alarm. See [`on_alarm_start` Trigger](#haier-on_alarm_start).
-- **on_alarm_end** (*Optional*, [Automation](#automation)): (supported only by hOn) Automation to perform when AC deactivates a new alarm. See [`on_alarm_end` Trigger](#haier-on_alarm_end).
-- **on_status_message** (*Optional*, [Automation](#automation)): Automation to perform when status message received from AC. See [`on_status_message` Trigger](#haier-on_status_message).
+- **on_alarm_start** (*Optional*, [Automation](/automations)): (supported only by hOn) Automation to perform when AC activates a new alarm. See [`on_alarm_start` Trigger](#haier-on_alarm_start).
+- **on_alarm_end** (*Optional*, [Automation](/automations)): (supported only by hOn) Automation to perform when AC deactivates a new alarm. See [`on_alarm_end` Trigger](#haier-on_alarm_end).
+- **on_status_message** (*Optional*, [Automation](/automations)): Automation to perform when status message received from AC. See [`on_status_message` Trigger](#haier-on_status_message).
 - All other options from [Climate](#config-climate).
 
 ## Automations
@@ -211,7 +211,7 @@ on_...:
 
 ### `climate.haier.health_on` Action
 
-Turn on health mode ([UV light sterilization](https://www.haierhvac.eu/en/node/1809)).
+Turn on health mode (UV light sterilization).
 
 ```yaml
 on_...:

@@ -45,28 +45,28 @@ cover:
 
 ## Configuration variables
 
-- **open_action** (**Required**, [Action](#config-action)): The action that should
+- **open_action** (**Required**, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote requests the cover to be opened.
 
-- **open_duration** (**Required**, [Time](#config-time)): The amount of time it takes the cover
+- **open_duration** (**Required**, [Time](/guides/configuration-types#time)): The amount of time it takes the cover
   to open up from the fully-closed state.
 
-- **open_endstop** (**Required**, [ID](#config-id)): The ID of the
+- **open_endstop** (**Required**, [ID](/guides/configuration-types#id)): The ID of the
   [Binary Sensor](#config-binary_sensor) that turns on when the open position is reached.
 
-- **close_action** (**Required**, [Action](#config-action)): The action that should
+- **close_action** (**Required**, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote requests the cover to be closed.
 
-- **close_duration** (**Required**, [Time](#config-time)): The amount of time it takes the cover
+- **close_duration** (**Required**, [Time](/guides/configuration-types#time)): The amount of time it takes the cover
   to close from the fully-open state.
 
-- **close_endstop** (**Required**, [ID](#config-id)): The ID of the
+- **close_endstop** (**Required**, [ID](/guides/configuration-types#id)): The ID of the
   [Binary Sensor](#config-binary_sensor) that turns on when the closed position is reached.
 
-- **stop_action** (**Required**, [Action](#config-action)): The action that should
+- **stop_action** (**Required**, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote requests the cover to stop or an endstop is reached.
 
-- **max_duration** (*Optional*, [Time](#config-time)): The maximum duration the cover should be opening
+- **max_duration** (*Optional*, [Time](/guides/configuration-types#time)): The maximum duration the cover should be opening
   or closing. Useful for protecting from dysfunctional endstops.
 
 - All other options from [Cover](#config-cover).
@@ -74,5 +74,5 @@ cover:
 ## See Also
 
 - {{< docref "index/" >}}
-- [Automation](#automation)
+- [Automation](/automations)
 - {{< apiref "endstop/endstop_cover.h" "endstop/endstop_cover.h" >}}

@@ -51,12 +51,12 @@ graph:
 
 ## Configuration variables
 
-- **id** (**Required**, [ID](#config-id)): The ID with which you will be able to reference the graph later
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID with which you will be able to reference the graph later
   in your display code.
 
 - **width** (**Required**, int): The graph width in pixels
 - **height** (**Required**, int): The graph height in pixels
-- **duration** (**Required**, [Time](#config-time)): The total graph history duration.
+- **duration** (**Required**, [Time](/guides/configuration-types#time)): The total graph history duration.
 - **border** (*Optional*, boolean): Specifies if a border will be drawn around the graph. Default is True.
 - **x_grid** (*Optional*): Specifies the time per division. If not specified, no vertical grid will be drawn.
 - **y_grid** (*Optional*, float): Specifies the number of units per division. If not specified, no horizontal grid will be drawn.
@@ -69,7 +69,7 @@ graph:
 
 Trace specific fields:
 
-- **sensor** (*Optional*, [ID](#config-id)): The sensor value to plot
+- **sensor** (*Optional*, [ID](/guides/configuration-types#id)): The sensor value to plot
 - **line_thickness** (*Optional*): Defaults to 3
 - **line_type** (*Optional*): Specifies the plot line-type. Can be one of the following: `SOLID`, `DOTTED`, `DASHED`. Defaults to `SOLID`.
 - **continuous** (*Optional*): connects the individual points to make a continuous line. Defaults to `false`.

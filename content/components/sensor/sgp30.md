@@ -9,7 +9,7 @@ params:
 
 The `sgp30` sensor platform allows you to use your Sensirion SGP30 multi-pixel gas
 ([datasheet](https://sensirion.com/media/documents/984E0DD5/61644B8B/Sensirion_Gas_Sensors_Datasheet_SGP30.pdf)) sensors or the SVM30 breakout-boards ([product page](https://sensirion.com/products/catalog/SVM30/)) with ESPHome.
-The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
+The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
 
 {{< img src="eco2-tvoc.png" alt="Image" width="80.0%" class="align-center" >}}
 
@@ -27,11 +27,11 @@ sensor:
 
 - **eco2** (*Optional*): The information for the CO₂eq. sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **tvoc** (*Optional*): The information for the total Volatile Organic Compounds sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **store_baseline** (*Optional*, boolean): Store the sensor baselines persistently when calculated or updated.
   Defaults to `true`.
@@ -39,7 +39,7 @@ sensor:
 - **address** (*Optional*, int): Manually specify the I²C address of the sensor.
   Defaults to `0x58`.
 
-- **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 Advanced:
@@ -52,18 +52,18 @@ Advanced:
 
 - **eco2_baseline** (*Optional*): The information for the CO₂eq. baseline value sensor. Baseline value is published in decimals.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **tvoc_baseline** (*Optional*): The information for the TVOC baseline value sensor. Baseline value is published in decimals.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor).
 
 - **compensation** (*Optional*): The block containing sensors used for compensation. Both values must be supplied in order to be able to generate the absolute humidity to be reported to the sensor.
 
-  - **temperature_source** (*Optional*, [ID](#config-id)): Give an external temperature sensor ID
+  - **temperature_source** (*Optional*, [ID](/guides/configuration-types#id)): Give an external temperature sensor ID
     here. The data must be in Celsius. This can improve the sensor's internal calculations.
 
-  - **humidity_source** (*Optional*, [ID](#config-id)): Give an external relative humidity sensor ID
+  - **humidity_source** (*Optional*, [ID](/guides/configuration-types#id)): Give an external relative humidity sensor ID
     here. This can improve the sensor's internal calculations.
 
 {{< anchor "sgp30-calibrating" >}}

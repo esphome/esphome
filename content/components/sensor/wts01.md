@@ -35,7 +35,7 @@ sensor:
 
 ## Configuration variables
 
-- All options from [Sensor](#config-sensor).
+- All options from [Sensor](/components/sensor).
 
 > [!NOTE]
 > The WTS01 sensor is used in Sonoff TH Origin (THR316, THR320) and TH Elite (THR316D, THR320D) devices and connects to the main device using a RJ9 4C4P connector.
