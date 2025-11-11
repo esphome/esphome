@@ -122,16 +122,19 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   void play_complex(const Ts &...x) override {
     this->num_running_++;
     this->var_ = std::make_tuple(x...);
-    std::vector<uint8_t> value;
+
+    bool result;
     if (this->len_ >= 0) {
-      // Static mode: copy from flash to vector
-      value.assign(this->value_.data, this->value_.data + this->len_);
+      // Static mode: write directly from flash pointer
+      result = this->write(this->value_.data, this->len_);
     } else {
-      // Template mode: call function
-      value = this->value_.func(x...);
+      // Template mode: call function and write the vector
+      std::vector<uint8_t> value = this->value_.func(x...);
+      result = this->write(value);
     }
+
     // on write failure, continue the automation chain rather than stopping so that e.g. disconnect can work.
-    if (!write(value))
+    if (!result)
       this->play_next_(x...);
   }
 
@@ -144,21 +147,23 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
    * errors.
    */
   // initiate the write. Return true if all went well, will be followed by a WRITE_CHAR event.
-  bool write(const std::vector<uint8_t> &value) {
+  bool write(const uint8_t *data, size_t len) {
     if (this->node_state != espbt::ClientState::ESTABLISHED) {
       esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - not connected");
       return false;
     }
-    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
-    esp_err_t err = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
-                                             this->char_handle_, value.size(), const_cast<uint8_t *>(value.data()),
-                                             this->write_type_, ESP_GATT_AUTH_REQ_NONE);
+    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", len, format_hex_pretty(data, len).c_str());
+    esp_err_t err =
+        esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, len,
+                                 const_cast<uint8_t *>(data), this->write_type_, ESP_GATT_AUTH_REQ_NONE);
     if (err != ESP_OK) {
       esph_log_e(Automation::TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
       return false;
     }
     return true;
   }
+
+  bool write(const std::vector<uint8_t> &value) { return this->write(value.data(), value.size()); }
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
