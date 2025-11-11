@@ -144,6 +144,7 @@
 #define USE_TIME_TIMEZONE
 #define USE_WIFI
 #define USE_WIFI_AP
+#define USE_WIFI_MANUAL_IP
 #define USE_WIREGUARD
 #endif
 
