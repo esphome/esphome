@@ -8,8 +8,9 @@
     {{- $foundLocal := false -}}
 
     {{- if $entries -}}
+        {{- $currentPage := strings.TrimPrefix "content/" .Page.File.Path | strings.TrimSuffix ".md" -}}
         {{- range $entries -}}
-            {{- if eq .page .Page.File.Path -}}
+            {{- if eq .page $currentPage -}}
                 {{- $foundLocal = true -}}
             {{- end -}}
         {{- end -}}
