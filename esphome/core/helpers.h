@@ -1177,6 +1177,7 @@ template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 template<typename T, typename U>
 concept comparable_with = requires(T a, U b) {
   { a > b } -> std::convertible_to<bool>;
+  { a < b } -> std::convertible_to<bool>;
 };
 
 template<std::totally_ordered T, comparable_with<T> U> T clamp_at_least(T value, U min) {
