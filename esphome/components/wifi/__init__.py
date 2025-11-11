@@ -474,9 +474,11 @@ async def wifi_connected_to_code(config, condition_id, template_arg, args):
 async def wifi_enabled_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
 
+
 @automation.register_condition("wifi.ap_active", WiFiAPActiveCondition, cv.Schema({}))
 async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
+
 
 @automation.register_action("wifi.enable", WiFiEnableAction, cv.Schema({}))
 async def wifi_enable_to_code(config, action_id, template_arg, args):
