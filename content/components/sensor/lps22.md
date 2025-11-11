@@ -44,5 +44,5 @@ saving significant power.
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "lps22/lps22.h" "lps22/lps22.h" >}}

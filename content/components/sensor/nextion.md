@@ -61,8 +61,8 @@ sensor:
 - **precision** (*Optional*, int): This is for Nextion float components. This sets
   the precision that the component is set to. This typically is the `vvs1` setting of the component.
 
-- **background_color** (*Optional*, [Color](#config-color)): The background color
-- **foreground_color** (*Optional*, [Color](#config-color)): The foreground color
+- **background_color** (*Optional*, [Color](/components/display#config-color)): The background color
+- **foreground_color** (*Optional*, [Color](/components/display#config-color)): The foreground color
 - **visible** (*Optional*, boolean): Visible or not
 
 ### Waveform Settings
@@ -81,7 +81,7 @@ sensor:
 
 > [!NOTE]
 > `background_color`, `foreground_color` and `visible` do not retain their state on page change. [Sensor Settings](#nextion_sensor_settings).
-> A [Nextion Sensor](#nextion_sensor) with a custom protocol sending the current page can be used to execute the API call [Update Components By Prefix](#update_components_by_prefix) to update all the components for that page
+> A [Nextion Sensor](#nextion_sensor) with a custom protocol sending the current page can be used to execute the API call [Update Components By Prefix](/components/display/nextion#update_components_by_prefix) to update all the components for that page
 
 See [How things Update](#nextion_sensor_how_things_update) for additional information
 
@@ -140,7 +140,7 @@ Configuration variables:
 
 ### Lambda Calls
 
-From [lambdas](#config-lambda), you can call several methods to access
+From [lambdas](/automations/templates#config-lambda), you can call several methods to access
 some more advanced functions (see the full {{< apiref "nextion/sensor/nextion_sensor.h" "nextion/sensor/nextion_sensor.h" >}} for more info).
 
 {{< anchor "nextion_sensor_set_state" >}}

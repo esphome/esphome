@@ -47,7 +47,7 @@ light:
   16ms will limit the light to a refresh rate of about 60Hz. Defaults to sending commands as quickly as
   changes are made to the lights.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 ## See Also
 

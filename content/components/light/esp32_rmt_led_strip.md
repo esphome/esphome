@@ -69,7 +69,7 @@ light:
 - **use_dma** (*Optional*, boolean): Enable DMA on variants that support it. If enabled `rmt_symbols` controls
   the DMA buffer size and can be set to a large value.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 {{< anchor "esp32-rmt-led-strip-manual_timings" >}}
 

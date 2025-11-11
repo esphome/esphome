@@ -10,12 +10,12 @@ params:
 The `lvgl` text sensor platform creates a Text Sensor from an LVGL textual widget
 and requires {{< docref "/components/lvgl/index" "LVGL" >}} to be configured.
 
-Supported widgets are [`label`](#lvgl-widget-label) and [`textarea`](#lvgl-widget-textarea). A single text sensor supports only a single widget; in other words, it's not possible to have multiple widgets associated with a single ESPHome text sensor component.
+Supported widgets are [`label`](/components/lvgl/widgets#lvgl-widget-label) and [`textarea`](/components/lvgl/widgets#lvgl-widget-textarea). A single text sensor supports only a single widget; in other words, it's not possible to have multiple widgets associated with a single ESPHome text sensor component.
 
 ## Configuration variables
 
 - **widget** (**Required**): The ID of a `textarea` widget configured in LVGL, which will reflect the state of the text sensor.
-- All other variables from [Text Sensor](#config-text_sensor).
+- All other variables from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 Example:
 
@@ -32,8 +32,8 @@ text_sensor:
 ## See Also
 
 - {{< docref "/components/lvgl/index" "LVGL Main component" >}}
-- [Label widget](#lvgl-widget-label)
-- [Textarea widget](#lvgl-widget-textarea)
+- [Label widget](/components/lvgl/widgets#lvgl-widget-label)
+- [Textarea widget](/components/lvgl/widgets#lvgl-widget-textarea)
 - {{< docref "/components/binary_sensor/lvgl" >}}
 - {{< docref "/components/sensor/lvgl" >}}
 - {{< docref "/components/number/lvgl" >}}

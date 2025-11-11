@@ -26,7 +26,7 @@ update:
 - **name** (*Optional*, string): The name of the update entity. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
 > you want the light to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the update entity. See
@@ -43,7 +43,7 @@ update:
   not be exposed to the frontend (like Home Assistant). Specifying an `id` without a `name` will
 
 - **on_update_available** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform when an update is available.
-- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
+- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
 ## Automations
 

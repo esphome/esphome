@@ -53,7 +53,7 @@ bedjet:
 
 ### lambda calls
 
-From [lambdas](#config-lambda), you can call methods to do some advanced stuff.
+From [lambdas](/automations/templates#config-lambda), you can call methods to do some advanced stuff.
 
 - `.upgrade_firmware`  : Check for and install updated BedJet firmware.
 
@@ -125,7 +125,7 @@ climate:
 
       reported as the climate entity's current temperature.
 
-- All other options from [Climate](#config-climate).
+- All other options from [Climate](/components/climate#config-climate).
 
 ## `bedjet` Fan
 
@@ -146,7 +146,7 @@ fan:
 ### Configuration variables
 
 - **bedjet_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the Bedjet component.
-- Other options from [Fan](#config-fan).
+- Other options from [Fan](/components/fan#config-fan).
 
 ## `bedjet` Sensor
 
@@ -191,7 +191,7 @@ sensor:
 > and toggle those off while performing the installation. This will free up resources
 > on the ESP and allow the installation to complete.
 >
-> Additionally, you may use an [ota.on_begin](#ota-on_begin) [Automation](/automations)
+> Additionally, you may use an [ota.on_begin](/components/ota#ota-on_begin) [Automation](/automations)
 > to do this automatically:
 >
 > ```yaml

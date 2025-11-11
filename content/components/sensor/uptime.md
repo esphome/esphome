@@ -33,5 +33,5 @@ sensor:
 ## See Also
 
 - {{< docref "/components/text_sensor/uptime" >}}
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "uptime/uptime_sensor.h" "uptime/uptime_sensor.h" >}}

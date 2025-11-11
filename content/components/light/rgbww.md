@@ -8,8 +8,8 @@ params:
 ---
 
 The `rgbww` light platform creates an RGBWW (cold white + warm white)
-light from 5 [float output components](#output) (one for each channel). The cold and warm
-white channels can be controlled individually or together, see [Mixing](#cwww_mixing) for more information.
+light from 5 [float output components](/components/output#output) (one for each channel). The cold and warm
+white channels can be controlled individually or together, see [Mixing](/components/light/cwww#cwww_mixing) for more information.
 
 ```yaml
 # Example configuration entry
@@ -29,7 +29,7 @@ light:
 
 It is often favourable to calibrate/correct the color produced by an LED strip light as the
 perceived intensity of different colors will generally vary. This can be done by using
-[max_power](#config-output) on individual output channels:
+[max_power](/components/output#config-output) on individual output channels:
 
 ```yaml
 # Example configuration entry
@@ -61,17 +61,17 @@ time: `color_interlock`.
 Setting this option to `true` will result in the light having two color modes available, `RGB` and `COLD_WARM_WHITE`.
 When the `RGB` color mode is active, the white leds are turned off, and when the `COLD_WARM_WHITE` color mode is active,
 the RGB leds are turned off. Switching between these modes can be done from the Home Assistant interface, or by using
-the `color_mode` option of the [light control actions](#light-turn_on_action).
+the `color_mode` option of the [light control actions](/components/light#light-turn_on_action).
 
 ## Configuration variables
 
-- **red** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the red channel.
-- **green** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the green channel.
-- **blue** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the blue channel.
-- **cold_white** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the cold
+- **red** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the red channel.
+- **green** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the green channel.
+- **blue** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the blue channel.
+- **cold_white** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the cold
   white channel.
 
-- **warm_white** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the warm
+- **warm_white** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the warm
   white channel.
 
 - **cold_white_color_temperature** (*Optional*, float): The color temperature (in
@@ -88,9 +88,9 @@ the `color_mode` option of the [light control actions](#light-turn_on_action).
   both channels at full brightness at once. Defaults to `false`.
 
 - **color_interlock** (*Optional*, boolean): When enabled, this will prevent white leds being on at the same
-  time as RGB leds. See [Color Interlock](#rgbw_color_interlock) for more information. Defaults to `false`.
+  time as RGB leds. See [Color Interlock](/components/light/rgbw#rgbw_color_interlock) for more information. Defaults to `false`.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 ## See Also
 

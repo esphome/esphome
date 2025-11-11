@@ -26,7 +26,7 @@ binary_sensor:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The binary sensor that should be mirrored.
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Copy Button
 
@@ -41,7 +41,7 @@ button:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The button that should be mirrored.
-- All other options from [Button](#config-button).
+- All other options from [Button](/components/button#config-button).
 
 ## Copy Cover
 
@@ -56,7 +56,7 @@ cover:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The cover that should be mirrored.
-- All other options from [Cover](#config-cover).
+- All other options from [Cover](/components/cover#config-cover).
 
 ## Copy Fan
 
@@ -71,7 +71,7 @@ fan:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The fan that should be mirrored.
-- All other options from [Fan](#config-fan).
+- All other options from [Fan](/components/fan#config-fan).
 
 ## Copy Lock
 
@@ -86,7 +86,7 @@ lock:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The lock that should be mirrored.
-- All other options from [Lock](#config-lock).
+- All other options from [Lock](/components/lock#config-lock).
 
 ## Copy Number
 
@@ -101,7 +101,7 @@ number:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The number that should be mirrored.
-- All other options from [Number](#config-number).
+- All other options from [Number](/components/number#config-number).
 
 ## Copy Select
 
@@ -116,7 +116,7 @@ select:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The select that should be mirrored.
-- All other options from [Select](#config-select).
+- All other options from [Select](/components/select#config-select).
 
 {{< anchor "copy-sensor" >}}
 
@@ -148,7 +148,7 @@ switch:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The switch that should be mirrored.
-- All other options from [Switch](#config-switch).
+- All other options from [Switch](/components/switch#config-switch).
 
 ## Copy Text Sensor
 
@@ -163,7 +163,7 @@ text_sensor:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The text sensor that should be mirrored.
-- All other options from [Text Sensor](#config-text_sensor).
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Copy Text
 
@@ -178,6 +178,6 @@ text:
 ### Configuration variables
 
 - **source_id** (**Required**, [ID](/guides/configuration-types#id)): The text that should be mirrored.
-- All other options from [Text](#config-text).
+- All other options from [Text](/components/text#config-text).
 
 ## See Also

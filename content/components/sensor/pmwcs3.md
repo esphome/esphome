@@ -124,7 +124,7 @@ Configuration options:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "pmwcs3/pmwcs3.h" "pmwcs3/pmwcs3.h" >}}
 - [Temperature Compensation for Conductivity](https://www.aqion.de/site/112)
 - [PMWCS3 Library](https://github.com/tinovi/i2cArduino) by [@tinovi](https://github.com/tinovi)

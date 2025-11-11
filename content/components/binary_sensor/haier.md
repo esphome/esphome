@@ -34,22 +34,22 @@ binary_sensor:
 
 - **haier_id** (**Required**, [ID](/guides/configuration-types#id)): The id of haier climate component
 - **compressor_status** (*Optional*): A binary sensor that indicates Haier climate compressor activity.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 - **defrost_status** (*Optional*): A binary sensor that indicates defrost procedure activity.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 - **four_way_valve_status** (*Optional*): A binary sensor that indicates four way valve status.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 - **indoor_electric_heating_status** (*Optional*): A binary sensor that indicates electrical heating system activity.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 - **indoor_fan_status** (*Optional*): A binary sensor that indicates indoor fan activity.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 - **outdoor_fan_status** (*Optional*): A binary sensor that indicates outdoor fan activity.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## See Also
 

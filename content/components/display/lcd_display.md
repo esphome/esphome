@@ -52,7 +52,7 @@ display:
   sure, power the display up and just count them.
 
 - **address** (*Optional*, int): The [I²C](/components/i2c) address of the PCF8574 chip, defaults to `0x3F`.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
   See [Rendering Lambda](#display-lcd_lambda) for more information.
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`.
@@ -68,7 +68,7 @@ display:
 
 The `lcd_gpio` version of this component addresses the screen directly and does not employ a GPIO expander module.
 Each of the data pins of the LCD needs a dedicated GPIO pin on the ESP. Connecting the screen this way offers
-faster refresh, especially in conjunction with an [LCD Menu](#lcd_menu).
+faster refresh, especially in conjunction with an [LCD Menu](/components/display_menu/lcd_menu#lcd_menu).
 
 {{< img src="lcd_gpio.svg" alt="Image" caption="LCD Display GPIO pinout" width="75.0%" class="align-center" >}}
 
@@ -101,7 +101,7 @@ display:
 - **enable_pin** (**Required**, [pin](/guides/configuration-types#pin-schema)): The pin you have `E` (`06`  ) hooked up to.
 - **rs_pin** (**Required**, [pin](/guides/configuration-types#pin-schema)): The pin you have `RS` (`04`  ) hooked up to.
 - **rw_pin** (*Optional*, [pin](/guides/configuration-types#pin-schema)): Optionally set the pin you have `R/W` (`05`  ) hooked up to. You can also just permanently connect that pin to `GND`.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
   See [Rendering Lambda](#display-lcd_lambda) for more information.
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `1s`.
@@ -115,7 +115,7 @@ display:
 
 ## Rendering Lambda
 
-The LCD displays has a similar API to the fully fledged [Display Rendering Engine](#display-engine), but it's only a subset as LCD displays
+The LCD displays has a similar API to the fully fledged [Display Rendering Engine](/components/display#display-engine), but it's only a subset as LCD displays
 don't have a concept of individual pixels. In the lambda you're passed a variable called `it`
 as with all other displays. In this case however, `it` is an instance of either `GPIOLCDDisplay` or `PCF8574LCDDisplay`.
 
@@ -155,8 +155,8 @@ time:
   id: my_time
 ```
 
-Please see [Formatted Text](#display-printf) for a quick introduction into the `printf` formatting rules and
-[Displaying Time](#display-strftime) for an introduction into the `strftime` time formatting.
+Please see [Formatted Text](/components/display#display-printf) for a quick introduction into the `printf` formatting rules and
+[Displaying Time](/components/display#display-strftime) for an introduction into the `strftime` time formatting.
 
 ## User Defined Characters
 
@@ -248,8 +248,8 @@ binary_sensor:
 - {{< docref "index/" >}}
 - {{< docref "/components/switch/gpio" >}}
 - {{< docref "/components/binary_sensor/gpio" >}}
-- [LCD Menu](#lcd_menu)
-- [Add pages to LCD display](#lambda_magic_pages)
+- [LCD Menu](/components/display_menu/lcd_menu#lcd_menu)
+- [Add pages to LCD display](/cookbook/lambda_magic#lambda_magic_pages)
 - {{< docref "/components/pcf8574" >}}
 - [HD44780U (LCD-II) datasheet](https://www.sparkfun.com/datasheets/LCD/HD44780.pdf)
 - [Charset cheatsheet](https://user-images.githubusercontent.com/1550668/173113487-9c98e866-8ee4-4a3c-a83f-61fe62057c5f.png)

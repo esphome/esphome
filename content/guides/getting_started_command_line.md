@@ -143,7 +143,7 @@ docker run --rm --privileged -v "${PWD}":/config --device=/dev/ttyUSB0 -it ghcr.
 ```
 
 > [!NOTE]
-> Alternatively, you can flash the binary using [ESPHome Web or esptool](#esphome-esptool).
+> Alternatively, you can flash the binary using [ESPHome Web or esptool](/guides/faq#esphome-esptool).
 
 Now when you go to the Home Assistant **Integrations** screen (under **Configuration** panel), you
 should see the ESPHome device show up in the discovered section (although this can take up to 5 minutes).

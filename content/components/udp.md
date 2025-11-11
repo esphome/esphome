@@ -10,7 +10,7 @@ params:
 {{< anchor "udp" >}}
 
 This component allows reception and transmission of data over a network using the [User Datagram Protocol (UDP)](https://en.wikipedia.org/wiki/User_Datagram_Protocol).
-In conjunction with the [Packet Transport Component](#packet-transport) it can be used to broadcast sensor data.
+In conjunction with the [Packet Transport Component](/components/packet_transport#packet-transport) it can be used to broadcast sensor data.
 
 ```yaml
 # Example configuration entry
@@ -58,7 +58,7 @@ udp:
 
 ## Examples
 
-See the [Packet Transport Component](#packet-transport) for examples of how to use this component.
+See the [Packet Transport Component](/components/packet_transport#packet-transport) for examples of how to use this component.
 
 A more complex example is shown below:
 

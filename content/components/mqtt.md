@@ -82,7 +82,7 @@ mqtt:
   The `log_topic` has an additional configuration option:
 
   - **level** (*Optional*, string): The log level to use for MQTT logs. See
-    [Log Levels](#logger-log_levels) for options.
+    [Log Levels](/components/logger#logger-log_levels) for options.
 
 - **birth_message** (*Optional*, [MQTTMessage](#mqtt-message)): The message to send when
   a connection to the broker is established. See [Last Will And Birth Messages](#mqtt-last_will_birth) for more information.
@@ -530,7 +530,7 @@ mqtt:
 ### `on_message` Trigger
 
 With this configuration option you can write complex automations whenever an MQTT
-message on a specific topic is received. To use the message content, use a [lambda](#config-lambda)
+message on a specific topic is received. To use the message content, use a [lambda](/automations/templates#config-lambda)
 template, the message payload is available under the name `x` inside that lambda.
 
 ```yaml
@@ -569,7 +569,7 @@ mqtt:
 > ```
 
 > [!NOTE]
-> This action can also be used in [lambdas](#config-lambda):
+> This action can also be used in [lambdas](/automations/templates#config-lambda):
 >
 > ```yaml
 > mqtt:
@@ -588,7 +588,7 @@ mqtt:
 ## `on_json_message` Trigger
 
 With this configuration option you can write complex automations whenever a JSON-encoded MQTT
-message is received. To use the message content, use a [lambda](#config-lambda)
+message is received. To use the message content, use a [lambda](/automations/templates#config-lambda)
 template, the decoded message payload is available under the name `x` inside that lambda.
 
 The `x` object is of type `JsonObject` by the [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
@@ -635,7 +635,7 @@ mqtt:
 > trigger a compile failure. For example with the `delay` action.
 
 > [!NOTE]
-> This action can also be used in [lambdas](#config-lambda):
+> This action can also be used in [lambdas](/automations/templates#config-lambda):
 >
 > ```yaml
 > mqtt:
@@ -687,7 +687,7 @@ on_...:
    have a retain flag on or not. Defaults to `false`.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```yaml
 > mqtt:
@@ -728,7 +728,7 @@ on_...:
 - **topic** (**Required**, string, [templatable](/automations/templates)):
    The MQTT topic to publish the message.
 
-- **payload** (**Required**, [lambda](#config-lambda)): The message content.
+- **payload** (**Required**, [lambda](/automations/templates#config-lambda)): The message content.
 - **qos** (*Optional*, int): The [Quality of Service](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels)
    level of the topic. Defaults to 0.
 
@@ -736,7 +736,7 @@ on_...:
    have a retain flag on or not. Defaults to `false`.
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```yaml
 > mqtt:
@@ -816,7 +816,7 @@ on_...:
 ```
 
 > [!NOTE]
-> This action can also be written in [lambdas](#config-lambda):
+> This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```yaml
 > mqtt:

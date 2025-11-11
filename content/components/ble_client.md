@@ -241,7 +241,7 @@ switch:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 - **service_uuid** (**Required**, UUID): UUID of the service to write to.
 - **characteristic_uuid** (**Required**, UUID): UUID of the service's characteristic to write to.
-- **value** (**Required**, Array of bytes or [lambda](#config-lambda)): The value to be written.
+- **value** (**Required**, Array of bytes or [lambda](/automations/templates#config-lambda)): The value to be written.
 
 {{< anchor "ble_client-passkey_reply_action" >}}
 

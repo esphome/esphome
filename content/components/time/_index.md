@@ -8,7 +8,7 @@ params:
 ---
 
 The `time` component allows you to set up real time clock time sources for ESPHome.
-You can then get the current time in [lambdas](#config-lambda).
+You can then get the current time in [lambdas](/automations/templates#config-lambda).
 
 {{< anchor "base_time_config" >}}
 
@@ -225,7 +225,7 @@ In the `seconds:`, `minutes:`, ... fields you can use the following operators:
 ### `on_time_sync` Trigger
 
 This automation is triggered after a time source successfully retrieves the current time.
-See the [DS1307 configuration example](#ds1307-config_example) for a scenario
+See the [DS1307 configuration example](/components/time/ds1307#ds1307-config_example) for a scenario
 where a network time synchronization from a home assistant server trigger a write
 to an external hardware real time clock chip.
 
@@ -247,7 +247,7 @@ to an external hardware real time clock chip.
 ## Use In Lambdas
 
 To get the current local time with the time zone applied
-in [lambdas](#config-lambda), just call the `.now()` method like so:
+in [lambdas](/automations/templates#config-lambda), just call the `.now()` method like so:
 
 ```cpp
 auto time = id(sntp_time).now();

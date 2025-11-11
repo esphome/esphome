@@ -30,7 +30,7 @@ binary_sensor:
 - **debounce_mode** (*Optional*, enum): How the component debounces the motion sensor's signal. Must be one of `HYBRID`, `NATIVE`, or `RAW`. See [Debounce Modes](#debounce-modes) for details. Defaults to `HYBRID`.
 - **debounce** (*Optional*, [Time](/guides/configuration-types#time)): Only valid when using `NATIVE` debounce mode. Configures the debounce time on the sensor to reduce noise and false detections. Defaults to `1ms`.
 
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 {{< anchor "debounce-modes" >}}
 

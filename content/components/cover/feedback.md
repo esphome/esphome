@@ -97,13 +97,13 @@ Open options:
   to open up from the fully-closed state.
 
 - **open_endstop** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
-  [Binary Sensor](#config-binary_sensor) that turns on when the open position is reached.
+  [Binary Sensor](/components/binary_sensor#config-binary_sensor) that turns on when the open position is reached.
 
 - **open_sensor** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
-  [Binary Sensor](#config-binary_sensor) that turns on when the cover is moving in the open direction.
+  [Binary Sensor](/components/binary_sensor#config-binary_sensor) that turns on when the cover is moving in the open direction.
 
 - **open_obstacle_sensor** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
-  [Binary Sensor](#config-binary_sensor) that turns on when an obstacle that blocks the
+  [Binary Sensor](/components/binary_sensor#config-binary_sensor) that turns on when an obstacle that blocks the
   open direction is detected.
 
 Close options:
@@ -115,13 +115,13 @@ Close options:
   to close from the fully-open state.
 
 - **close_endstop** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
-  [Binary Sensor](#config-binary_sensor) that turns on when the closed position is reached.
+  [Binary Sensor](/components/binary_sensor#config-binary_sensor) that turns on when the closed position is reached.
 
 - **close_sensor** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
-  [Binary Sensor](#config-binary_sensor) that turns on when the cover is moving in the close direction.
+  [Binary Sensor](/components/binary_sensor#config-binary_sensor) that turns on when the cover is moving in the close direction.
 
 - **close_obstacle_sensor** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
-  [Binary Sensor](#config-binary_sensor) that turns on when an obstacle that blocks the
+  [Binary Sensor](/components/binary_sensor#config-binary_sensor) that turns on when an obstacle that blocks the
   close direction is detected.
 
 Additional options:
@@ -163,7 +163,7 @@ Additional options:
 - **obstacle_rollback** (*Optional*, percentage): The percentage of rollback the cover will perform in case of
   obstacle detection while moving. Defaults to `10%`.
 
-- All other options from [Cover](#config-cover).
+- All other options from [Cover](/components/cover#config-cover).
 
 ## Example Configurations
 

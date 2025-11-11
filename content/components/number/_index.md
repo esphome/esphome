@@ -34,7 +34,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the number. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
 > you want the number to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the number in the frontend.
@@ -63,7 +63,7 @@ Configuration variables:
   See <https://www.home-assistant.io/integrations/number/#device-class>
   for a list of available options.
 
-- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](#config-webserver-version-3-options).
+- If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
 Automations:
 
@@ -75,18 +75,18 @@ Automations:
 
 MQTT Options:
 
-- All other options from [MQTT Component](#config-mqtt-component).
+- All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
 ## Number Automation
 
-You can access the most recent state of the number in [lambdas](#config-lambda) using
+You can access the most recent state of the number in [lambdas](/automations/templates#config-lambda) using
 `id(number_id).state`.
 
 {{< anchor "number-on_value" >}}
 
 ### `on_value`
 
-This automation will be triggered when a new value is published. In [Lambdas](#config-lambda)
+This automation will be triggered when a new value is published. In [Lambdas](/automations/templates#config-lambda)
 you can get the value from the trigger with `x`.
 
 ```yaml
@@ -303,7 +303,7 @@ Configuration variables:
 
 ### lambda calls
 
-From [lambdas](#config-lambda), you can call several methods on all numbers to do some
+From [lambdas](/automations/templates#config-lambda), you can call several methods on all numbers to do some
 advanced stuff (see the full API Reference for more info).
 
 - `.make_call()`  : Make a call for updating the number value.

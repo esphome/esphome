@@ -39,7 +39,7 @@ I²C Configuration variables:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - [I2C bus](/components/i2c)
 - {{< apiref "gl_r01_i2c/gl_r01_i2c.h" "gl_r01_i2c/gl_r01_i2c.h" >}}
 - {{< apiref "gl_r01_i2c/gl_r01_i2c.cpp" "gl_r01_i2c/gl_r01_i2c.cpp" >}}

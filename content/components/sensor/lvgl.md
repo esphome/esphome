@@ -10,7 +10,7 @@ params:
 The `lvgl` sensor platform creates a sensor component from an LVGL widget
 and requires {{< docref "/components/lvgl/index" "LVGL" >}} to be configured.
 
-Supported widgets are [`arc`](#lvgl-widget-arc), [`bar`](#lvgl-widget-bar), [`slider`](#lvgl-widget-slider) and [`spinbox`](#lvgl-widget-spinbox). A single sensor supports only a single widget; in other words, it's not possible to have multiple widgets associated with a single ESPHome sensor.
+Supported widgets are [`arc`](/components/lvgl/widgets#lvgl-widget-arc), [`bar`](/components/lvgl/widgets#lvgl-widget-bar), [`slider`](/components/lvgl/widgets#lvgl-widget-slider) and [`spinbox`](/components/lvgl/widgets#lvgl-widget-spinbox). A single sensor supports only a single widget; in other words, it's not possible to have multiple widgets associated with a single ESPHome sensor.
 
 ## Configuration variables
 
@@ -32,10 +32,10 @@ sensor:
 ## See Also
 
 - {{< docref "/components/lvgl/index" "LVGL Main component" >}}
-- [Arc widget](#lvgl-widget-arc)
-- [Bar widget](#lvgl-widget-bar)
-- [Slider widget](#lvgl-widget-slider)
-- [Spinbox widget](#lvgl-widget-spinbox)
+- [Arc widget](/components/lvgl/widgets#lvgl-widget-arc)
+- [Bar widget](/components/lvgl/widgets#lvgl-widget-bar)
+- [Slider widget](/components/lvgl/widgets#lvgl-widget-slider)
+- [Spinbox widget](/components/lvgl/widgets#lvgl-widget-spinbox)
 - {{< docref "/components/binary_sensor/lvgl" >}}
 - {{< docref "/components/switch/lvgl" >}}
 - {{< docref "/components/select/lvgl" >}}

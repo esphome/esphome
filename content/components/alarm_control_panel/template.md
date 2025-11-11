@@ -54,11 +54,11 @@ alarm_control_panel:
   - `ALWAYS_DISARMED` (Default): Always start in `disarmed` state.
   - `RESTORE_DEFAULT_DISARMED`  : Restore state or default to `disarmed` state if no saved state was found.
 
-- All other options from [Alarm Control Panel](#config-alarm_control_panel)
+- All other options from [Alarm Control Panel](/components/alarm_control_panel#config-alarm_control_panel)
 
 > [!NOTE]
 > If `binary_sensors` is omitted then you're expected to trigger the alarm using
-> [`pending` Action](#alarm_control_panel_pending_action) or [`triggered` Action](#alarm_control_panel_triggered_action).
+> [`pending` Action](/components/alarm_control_panel#alarm_control_panel_pending_action) or [`triggered` Action](/components/alarm_control_panel#alarm_control_panel_triggered_action).
 
 {{< anchor "template_alarm_control_panel-trigger_modes" >}}
 

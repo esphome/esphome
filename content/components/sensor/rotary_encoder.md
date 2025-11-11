@@ -136,7 +136,7 @@ on_anticlockwise:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "pulse_counter/" >}}
 - {{< docref "template/" >}}
 - [Mechanical Input Library](https://github.com/jkDesignDE/MechInputs) by [Jochen Krapf](https://github.com/JK-de)

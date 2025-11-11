@@ -54,7 +54,7 @@ Additionally, you can use the `animation.next_frame`, `animation.prev_frame` or 
 - **resize** (*Optional*, string): If set, this will resize all the frames to fit inside the given dimensions `WIDTHxHEIGHT`
   and preserve the aspect ratio.
 
-- **type** (**Required**): Specifies how to encode image internally. See the [image component](#display-image) for
+- **type** (**Required**): Specifies how to encode image internally. See the [image component](/components/image#display-image) for
   more information.
 
   - `BINARY`  : Two colors, suitable for 1 color displays or 2 color image in color displays. Uses 1 bit
@@ -65,7 +65,7 @@ Additionally, you can use the `animation.next_frame`, `animation.prev_frame` or 
   - `RGB`  : Full RGB color stored. Uses 3 bytes per pixel, 4 with an alpha channel.
 
 - **transparency** (*Optional*): If set the alpha channel of the input image will be taken into account. The possible
-  values are `opaque` (default), `chroma_key` and `alpha_channel`. See discussion on transparency in the [image component](#display-image).
+  values are `opaque` (default), `chroma_key` and `alpha_channel`. See discussion on transparency in the [image component](/components/image#display-image).
 - **loop** (*Optional*): If you want to loop over a subset of your animation (e.g. a fire animation where the fire
   "starts", then "burns" and "dies") you can specify some frames to loop over.
 

@@ -60,7 +60,7 @@ characteristic options:
 - **characteristic_uuid** (**Required**, UUID): UUID of the service's characteristic to query.
 - **descriptor_uuid** (*Optional*, UUID): UUID of the characteristic's descriptor to query.
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID to use for code generation, and for reference by dependent components.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for converting a raw data
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for converting a raw data
   reading to a sensor value. See [Raw Data Parsing Lambda](#ble-sensor-lambda) for more information.
 
 - **notify** (*Optional*, boolean): Instruct the server to send notifications for this
@@ -125,5 +125,5 @@ Some common ones:
 
 - {{< docref "/components/ble_client" >}}
 - {{< docref "/components/text_sensor/ble_client" >}}
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "ble_sensor/ble_sensor.h" "ble_sensor/ble_sensor.h" >}}

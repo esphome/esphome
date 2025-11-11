@@ -33,15 +33,15 @@ When the Number is updated a modbus write command is created sent to the device.
 - **multiply** (*Optional*, float): multiply the new value with this factor before sending the requests. Ignored if lambda is defined.
 - **use_write_multiple** (*Optional*, boolean): By default the modbus command *Function Code 6 (Preset Single Registers)* is used for setting the holding register if only one register is set. If your device only supports *Function Code 16 (Preset Multiple Registers)* set this option to `true`.
 - **skip_updates** (*Optional*, int): By default, all sensors of a modbus_controller are updated together. For data points that don't change very frequently, updates can be skipped. A value of 5 would only update this sensor range in every 6th update cycle. Note: The modbus_controller groups components by address ranges to reduce number of transactions. All components with the same starting address will be updated in one request. `skip_updates` applies for *all* components in the same range.
-- **register_count** (*Optional*, int): The number of consecutive registers this read request should span or skip in a single command. Default is 1. See [Optimizing modbus communications](#modbus_register_count) for more details.
+- **register_count** (*Optional*, int): The number of consecutive registers this read request should span or skip in a single command. Default is 1. See [Optimizing modbus communications](/components/modbus_controller#modbus_register_count) for more details.
 - **response_size** (*Optional*): Size of the response for the register in bytes. Defaults to register_count*2.
 - **force_new_range** (*Optional*, boolean): If possible sensors with sequential addresses are grouped together and requested in one range. Setting `force_new_range: true` enforces the start of a new range at that address.
 - **offset** (*Optional*, int): Offset from start address in bytes (only required for uncommon response encodings). If more than one register is written in a command this value is used to find the start of this datapoint relative to start address. The component calculates the size of the range based on offset and size of the value type.
 - **custom_command** (*Optional*, list of bytes): raw bytes for modbus command. This allows using non-standard commands. If `custom_command` is used `address` and `register_type` can't be used.
   custom data must contain all required bytes including the modbus device address. The crc is automatically calculated and appended to the command.
-  See [Using `custom_command`](#modbus_custom_command) how to use `custom_command`
+  See [Using `custom_command`](/components/modbus_controller#modbus_custom_command) how to use `custom_command`
 
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated every update interval to get the new value of the sensor.
 
   Parameters passed into the lambda
@@ -57,7 +57,7 @@ When the Number is updated a modbus write command is created sent to the device.
   - `return <FLOATING_POINT_NUMBER>;` the new value for the sensor.
   - `return NAN;` if the state should be considered invalid to indicate an error (advanced).
 
-- **write_lambda** (*Optional*, [lambda](#config-lambda)): Lambda called before send.
+- **write_lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): Lambda called before send.
   Lambda is evaluated before the modbus write command is created.
 
   Parameters passed into the lambda
@@ -74,7 +74,7 @@ When the Number is updated a modbus write command is created sent to the device.
   - `return <anything>; and fill payload with data` if the payload is added from the lambda then these 16 bit words will be sent
   - `return {};` if you don't want write the command to the device (or do it from the lambda).
 
-- All other options from [Number](#config-number).
+- All other options from [Number](/components/number#config-number).
 
 ## Example
 

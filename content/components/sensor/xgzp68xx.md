@@ -43,5 +43,5 @@ sensor:
 ## See Also
 
 - [esphome-pressure device](https://github.com/gcormier/esphome-pressure/)
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "sdp3x/sdp3x.h" "sdp3x/sdp3x.h" >}}

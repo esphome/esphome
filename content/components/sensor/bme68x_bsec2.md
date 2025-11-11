@@ -160,7 +160,7 @@ text_sensor:
 - **iaq_accuracy** (_Optional_): Configuration for the IAQ accuracy sensor. Shows: `Stabilizing`, `Uncertain`,
   `Calibrating`, `Calibrated`.
 
-  - All other options from [Text Sensor](#config-text_sensor).
+  - All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Index for Air Quality (IAQ) Measurement
 
@@ -241,7 +241,7 @@ saved to flash so that the process does not have to start from scratch on device
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< docref "bme680/" >}}
 - {{< apiref "bme68x_bsec2_i2c/bme68x_bsec2_i2c.h" "bme68x_bsec2_i2c/bme68x_bsec2_i2c.h" >}}

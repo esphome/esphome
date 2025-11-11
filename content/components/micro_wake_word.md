@@ -26,7 +26,7 @@ micro_wake_word:
 
 ## Configuration variables
 
-- **microphone** (**Required**, [Microphone Source Configuration](#config-microphone-source)): The {{< docref "/components/microphone/index" "microphone" >}} settings to use for audio input.
+- **microphone** (**Required**, [Microphone Source Configuration](/components/microphone#config-microphone-source)): The {{< docref "/components/microphone/index" "microphone" >}} settings to use for audio input.
 - **stop_after_detection** (*Optional*, boolean): Whether to stop the component after detecting a wake word. Defaults to `true`.
 - **models** (**Required**, list): The models to use. Only the first model is enabled by default on the first boot. Each model's enabled state is then saved/restored to/from the flash.
 

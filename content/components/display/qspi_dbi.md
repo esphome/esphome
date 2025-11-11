@@ -70,7 +70,7 @@ display:
 - **auto_clear_enabled** (*Optional*, boolean): Whether to automatically clear the display data before each lambda call,
   or to keep the existing display content (must overwrite explicitly, e.g., only on data change). Defaults to `true` if a lambda or pages are configured, false otherwise.
 
-- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
+- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](/components/display#display-pages).
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **color_order** (*Optional*): Should be one of `rgb` (default) or `bgr`.
 - **dimensions** (**Required**): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`  ) or with separate config keys.
@@ -90,8 +90,8 @@ display:
 - **invert_colors** (*Optional*, boolean): With this boolean option you can invert the display colors.
 - **draw_from_origin** (*Optional*, boolean): When set, all partial display updates will start at the origin (0,0). Defaults to false.
 - **draw_rounding** (*Optional*, int): Caters for display chips that require partial drawing to be aligned to certain boundaries. Default is 2, must be a power of 2.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
-  See [Display Rendering Engine](#display-engine) for more information.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
+  See [Display Rendering Engine](/components/display#display-engine) for more information.
 
 ## Example configurations
 

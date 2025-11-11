@@ -78,7 +78,7 @@ binary_sensor:
 - **row** (*Optional*, integer): The row of the key.
 - **col** (*Optional*, integer): The column of the key.
 - **key** (*Optional*, string): The key from `keys` configuration entry above.
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 Either the `row` and `col` parameters, or the `key` parameter has to be provided.
 
@@ -89,9 +89,9 @@ Either the `row` and `col` parameters, or the `key` parameter has to be provided
 
   > [!NOTE]
   > Automatic handling of multiple keys (e.g. PIN code entry) is possible with the
-  > the [Key Collector](#key_collector) component.
+  > the [Key Collector](/components/key_collector#key_collector) component.
 
 ## See Also
 
 - {{< docref "/components/key_collector" >}}
-- [Binary Sensor](#config-binary_sensor)
+- [Binary Sensor](/components/binary_sensor#config-binary_sensor)

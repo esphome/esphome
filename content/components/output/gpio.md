@@ -23,7 +23,7 @@ output:
 
 - **pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin to turn on and off.
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
-- All other options from [Output](#config-output).
+- All other options from [Output](/components/output#config-output).
 
 > [!WARNING]
 > This is an **output component** and will not be visible from the frontend. Output components are intermediary

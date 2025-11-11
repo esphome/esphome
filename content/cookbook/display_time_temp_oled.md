@@ -154,7 +154,7 @@ display:
 - The property `has_state()` on a sensor is useful as it can take some seconds to get the data from Home Assistant and
   you may not want to display `Nan`
 
-- Refer to the rendering engine [Display Rendering Engine](#display-engine) for more features (it can draw lines and
+- Refer to the rendering engine [Display Rendering Engine](/components/display#display-engine) for more features (it can draw lines and
   circles too!)
 
 ## Add a Text-Based Sensor

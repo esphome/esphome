@@ -61,7 +61,7 @@ online_image:
   - `GRAYSCALE`  : Full scale grey. Uses 8 bits per pixel, 1 pixel per byte.
   - `RGB565`  : Lossy RGB color stored. Uses 2 bytes per pixel, 3 with an alpha channel
   - `RGB`  : Full RGB color stored. Uses 3 bytes per pixel, 4 with an alpha channel.
-- **transparency** (*Optional*): If set the alpha channel of the input image will be taken into account. The possible values are `opaque` (default), `chroma_key` and `alpha_channel`. See the discussion on transparency in the [image component](#display-image).
+- **transparency** (*Optional*): If set the alpha channel of the input image will be taken into account. The possible values are `opaque` (default), `chroma_key` and `alpha_channel`. See the discussion on transparency in the [image component](/components/image#display-image).
 - **byte_order** (*Optional*, string): For RGB565 images, the pixels are converted to 16 bit values. By default these will be stored in big endian byte order (MSB first),
   but you can override this by setting `byte_order` to `little_endian`. Options are `big_endian` (default) and `little_endian`.
   Not applicable to other image formats.
@@ -76,7 +76,7 @@ Advanced options:
 
 - **on_download_finished** (*Optional*, [Automation](/automations)): An automation to perform when the image has been successfully downloaded.
 
-The variable `cached` is a boolean available in [lambdas](#config-lambda) that indicates cache status:
+The variable `cached` is a boolean available in [lambdas](/automations/templates#config-lambda) that indicates cache status:
 
 - `true` if the image was loaded from cache (cache hit).
 - `false` if the image was freshly downloaded (cache miss).

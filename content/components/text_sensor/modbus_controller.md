@@ -20,7 +20,7 @@ and requires {{< docref "/components/modbus_controller" >}} to be configured.
 
 - **address** (**Required**, int): start address of the first register in a range (can be decimal or hexadecimal).
 - **skip_updates** (*Optional*, int): By default all sensors of a modbus_controller are updated together. For data points that don't change very frequently updates can be skipped. A value of 5 would only update this sensor range in every 6th update cycle
-- **register_count** (*Optional*, int): The number of consecutive registers this read request should span or skip in a single command. Default is 1. See [Optimizing modbus communications](#modbus_register_count) for more details.
+- **register_count** (*Optional*, int): The number of consecutive registers this read request should span or skip in a single command. Default is 1. See [Optimizing modbus communications](/components/modbus_controller#modbus_register_count) for more details.
 - **response_size** (**Required**): Number of bytes of the response.
 - **raw_encode** (*Optional*, enum): If the response is binary it can't be published directly. Since a text sensor only publishes strings the binary data can be encoded. Defaults to `ANSI`. Possible encodings are:
 
@@ -35,9 +35,9 @@ and requires {{< docref "/components/modbus_controller" >}} to be configured.
 - **force_new_range** (*Optional*, boolean): If possible sensors with sequential addresses are grouped together and requested in one range. Setting `force_new_range: true` enforces the start of a new range at that address.
 - **custom_command** (*Optional*, list of bytes): raw bytes for modbus command. This allows using non-standard commands. If `custom_command` is used `address` and `register_type` can't be used.
   custom command must contain all required bytes including the modbus device address. The crc is automatically calculated and appended to the command.
-  See [Using `custom_command`](#modbus_custom_command) how to use `custom_command`
+  See [Using `custom_command`](/components/modbus_controller#modbus_custom_command) how to use `custom_command`
 
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated every update interval to get the new value of the sensor. It is called after the encoding according to **raw_encode**.
 
   Parameters passed into the lambda
@@ -54,7 +54,7 @@ and requires {{< docref "/components/modbus_controller" >}} to be configured.
   - `return {};` uses the parsed value for the state (same as `return x;`  ).
 
 - **offset** (*Optional*, int): Offset from start address in bytes (only required for uncommon response encodings). If more than one register is written in a command this value is used to find the start of this datapoint relative to start address. The component calculates the size of the range based on offset and size of the value type. The value for offset depends on the register type.
-- All options from [Text Sensor](#config-text_sensor).
+- All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Example
 

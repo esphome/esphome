@@ -22,7 +22,7 @@ binary_sensor:
 ## Configuration variables
 
 - **sensor_datapoint** (**Required**, int): The datapoint id number of the binary sensor.
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## See Also
 

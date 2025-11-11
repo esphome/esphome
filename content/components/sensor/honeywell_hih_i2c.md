@@ -35,5 +35,5 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "honeywell_hih_i2c/honeywell_hih.h" "honeywell_hih_i2c/honeywell_hih.h" >}}

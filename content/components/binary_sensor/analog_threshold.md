@@ -15,7 +15,7 @@ When the signal is above or equal to the threshold the binary sensor is `true`
 
 It provides an *hysteresis* option to reduce instability when the source signal is noisy
 using different limits depending on the current state.
-Additionally a [delay filter](#binary_sensor-filters) could be used to only change
+Additionally a [delay filter](/components/binary_sensor#binary_sensor-filters) could be used to only change
 after a new state has been kept a minimum time.
 
 If the source sensor is uninitialized at the moment of component creation, the initial
@@ -43,7 +43,7 @@ binary_sensor:
 
   - **upper** (**Required**, float [templatable](/automations/templates)): Upper threshold, that needs to be crossed to transition from `low` to `high` states.
   - **lower** (**Required**, float [templatable](/automations/templates)): Lower threshold, that needs to be crossed to transition from `high` to `low` states.
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## See Also
 

@@ -58,7 +58,7 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< docref "mhz19/" >}}
 - [CO2mon-esp firmware](https://github.com/Anonym-tsk/co2mon-esp) by [@anonym-tsk](https://github.com/Anonym-tsk)

@@ -90,7 +90,7 @@ support within ESPHome, here's what we suggest:
 
 ## How do I install ESPHome onto my device?
 
-You can use the [ESPHome Device Builder](#installing-esphome-device-builder) directly; after editing your device's
+You can use the [ESPHome Device Builder](/guides/getting_started_hassio#installing-esphome-device-builder) directly; after editing your device's
 configuration to your liking, click "INSTALL" and follow the prompts. Note that the first time you install ESPHome onto
 a (new) device, you need to connect it with a (USB) cable; this installation method requires a browser that supports
 WebSerial, like Google Chrome or Microsoft Edge.
@@ -110,7 +110,7 @@ If you prefer the more manual way:
      1. Select "Install"
      1. Choose "Manual download"
 
-1. On some boards, you may need to force the microcontroller into its [programming mode](#esphome-phy-con-prg).
+1. On some boards, you may need to force the microcontroller into its [programming mode](/guides/physical_device_connection#esphome-phy-con-prg).
    This often isn't necessary on most modern boards/devices, but it's worth trying if you're experiencing difficulties.
 
 1. Finally, to install a firmware file, you can use:
@@ -119,7 +119,7 @@ If you prefer the more manual way:
 
        browser that supports WebSerial, like Google Chrome or Microsoft Edge.
 
-       1. Connect the board to your computer, make sure it's detected as a [serial port](#esphome-phy-con-drv) and
+       1. Connect the board to your computer, make sure it's detected as a [serial port](/guides/physical_device_connection#esphome-phy-con-drv) and
           click **Connect**.
 
        1. If prompted, allow your browser the requested permission in the pop-up box that appears.
@@ -176,7 +176,7 @@ There are a number of reasons this may happen.
   they are not capable of establishing the data connection required to communicate with your board.
 
 - ESPHome depends on your computer's operating system (OS) to enable the programming tool (`esptool.py`, for example)
-  to communicate with your microcontroller board; you may need to [install appropriate drivers](#esphome-phy-con-drv).
+  to communicate with your microcontroller board; you may need to [install appropriate drivers](/guides/physical_device_connection#esphome-phy-con-drv).
 
 - If you're trying to install ESPHome onto your device from within a Docker container, be sure you are mounting the
   device into your container using `--device=/dev/ttyUSB0`.
@@ -276,7 +276,7 @@ If you *still* can't get it to work, you might want to revisit
 That's no good. Here are some steps that resolve some problems:
 
 - **If you're having Wi-Fi problems**: See [My node keeps reconnecting randomly](#wifi-problems).
-- [Enable verbose logs](#logger-log_levels) in your ESPHome device's `logger:` section.
+- [Enable verbose logs](/components/logger#logger-log_levels) in your ESPHome device's `logger:` section.
 - **If your device is crashing**: See the {{< docref "/guides/troubleshooting" >}} guide for how to get a backtrace.
 - **Still seeing an error?** Check if there is a known issue in the
   [ESPHome issue tracker](https://github.com/esphome/esphome/issues). If not, you can create a new issue to describe
@@ -302,7 +302,7 @@ If you want the issue you're experiencing to be fixed quickly:
   Please read [How to create a Minimal, Complete, and Verifiable example](https://stackoverflow.com/help/mcve).
 
 - If it's a hardware communication issue (such as with an I²C or SPI device), try setting the
-  [log level](#logger-log_levels) to `VERY_VERBOSE` as it may provide better insight into what is going on.
+  [log level](/components/logger#logger-log_levels) to `VERY_VERBOSE` as it may provide better insight into what is going on.
 
 - Please describe what troubleshooting steps you've already tried as that may also help us track down the issue.
 
@@ -416,9 +416,9 @@ Here are some steps that may help mitigate the issue:
 - If you're using a hidden Wi-Fi network, make sure to enable `fast_connect` mode in your device's Wi-Fi
   configuration. Note that this may help with non-hidden networks, as well.
 
-- Give your ESPHome device a [static IP](#wifi-manual_ip).
+- Give your ESPHome device a [static IP](/components/wifi#wifi-manual_ip).
 - Set the `power_save_mode` to `light` in your `wifi:` configuration. Note, however, that this may exacerbate the
-  problem in some situations. See [Power Save Mode](#wifi-power_save_mode).
+  problem in some situations. See [Power Save Mode](/components/wifi#wifi-power_save_mode).
 
 - The issue seems to happen with "cheap" boards more frequently -- especially the "cheap" NodeMCU boards from eBay
   which sometimes have bad antennas.
@@ -441,7 +441,7 @@ Here are some steps that may help mitigate the issue:
 
 - Too many clients simultaneously connected to the native API server on the device may also result in this behavior.
   For example, the Home Assistant ESPHome integration and the log viewer on the
-  [ESPHome Device Builder](#installing-esphome-device-builder) each establish a connection to the device. In
+  [ESPHome Device Builder](/guides/getting_started_hassio#installing-esphome-device-builder) each establish a connection to the device. In
   production, you will likely only have a single connection from Home Assistant, making this less of an issue. Still,
   beware that attaching a log viewer might have an impact.
 
@@ -531,7 +531,7 @@ services:
 
 > [!NOTE]
 > By default, ESPHome uses mDNS to resolve device IPs on the network; this is used to determine online/offline state
-> in the [ESPHome Device Builder](#installing-esphome-device-builder). In order for this feature to work, you
+> in the [ESPHome Device Builder](/guides/getting_started_hassio#installing-esphome-device-builder). In order for this feature to work, you
 > must use Docker's host networking mode.
 >
 > The [host networking driver](https://docs.docker.com/network/drivers/host/) only works on Linux hosts; it is
@@ -546,7 +546,7 @@ services:
 > 1. Enable Avahi on both subnets (install Avahi modules on OpenWRT or pfSense).
 > 1. Enable UDP traffic from your ESPHome device's subnet to 224.0.0.251/32 on port 5353.
 >
-> Alternatively, you can configure the [ESPHome Device Builder](#installing-esphome-device-builder) to use ICMP
+> Alternatively, you can configure the [ESPHome Device Builder](/guides/getting_started_hassio#installing-esphome-device-builder) to use ICMP
 > pings to check the status of devices by setting `"status_use_ping": true` or, with Docker:
 > `-e ESPHOME_DASHBOARD_USE_PING=true`
 >
@@ -559,7 +559,7 @@ services:
 Some of ESPHome's functionality relies on {{< docref "/components/mdns" "mDNS" >}}, so, naturally, disabling it will
 cause these features to stop working.
 
-Generally speaking, disabling mDNS without setting a [static IP address](#wifi-manual_ip) (or a static DHCP lease)
+Generally speaking, disabling mDNS without setting a [static IP address](/components/wifi#wifi-manual_ip) (or a static DHCP lease)
 is bound to cause problems -- mDNS is used to determine the IP address of each ESPHome node.
 
 If you disable mDNS, expect the following repercussions:
@@ -570,7 +570,7 @@ If you disable mDNS, expect the following repercussions:
   mDNS disabled, then you will have to use a static IP address and manually add the ESPHome component with its
   (static) IP address.
 
-- Because status detection in the [ESPHome Device Builder](#installing-esphome-device-builder) uses mDNS by
+- Because status detection in the [ESPHome Device Builder](/guides/getting_started_hassio#installing-esphome-device-builder) uses mDNS by
   default, nodes with mDNS disabled will always appear as "offline". This does not affect any functionality; however,
   if you want to see the online/offline status of your nodes, you may configure the ESPHome Device Builder to ping each
   node instead. See the [notes in the Docker Reference section](#docker-reference-notes) for more information.

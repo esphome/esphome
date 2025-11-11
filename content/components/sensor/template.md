@@ -8,7 +8,7 @@ params:
 ---
 
 The `template` sensor platform allows you to create a sensor with templated values
-using [lambdas](#config-lambda).
+using [lambdas](/automations/templates#config-lambda).
 
 ```yaml
 # Example configuration entry
@@ -32,7 +32,7 @@ Possible return values for the lambda:
 
 ## Configuration variables
 
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated every update interval to get the new value of the sensor
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
@@ -111,6 +111,6 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - [Automation](/automations)
 - {{< apiref "template/sensor/template_sensor.h" "template/sensor/template_sensor.h" >}}

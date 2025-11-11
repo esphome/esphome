@@ -32,5 +32,5 @@ To use the sensor, set up an [I²C Bus](/components/i2c) and connect the sensor 
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "sdp3x/sdp3x.h" "sdp3x/sdp3x.h" >}}

@@ -13,7 +13,7 @@ states and allow **control** via your Home Assistant instance using the {{< docr
 > [!NOTE]
 > Although you might not plan to *export* states from the node and you do not need an entity of the node
 > in Home Assistant, this component still requires you to register the node under Home Assistant. See:
-> [Connecting your device to Home Assistant](#connecting-your-device-to-home-assistant).
+> [Connecting your device to Home Assistant](/guides/getting_started_hassio#connecting-your-device-to-home-assistant).
 
 ```yaml
 # Example configuration entry
@@ -26,7 +26,7 @@ switch:
 ## Configuration variables
 
 - **entity_id** (**Required**, string): The entity ID to import / control from Home Assistant.
-- All other options from [Switch](#config-switch).
+- All other options from [Switch](/components/switch#config-switch).
 
 ## Supported domains
 

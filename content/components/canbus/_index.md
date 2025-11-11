@@ -63,7 +63,7 @@ canbus:
   - `false`  : Standard 11-bit IDs *(default)*
   - `true`  : Extended 29-bit IDs
 
-- **bit_rate** (*Optional*, enum): One of the supported bit rates. See [this table](#esp32-can-bit-rate) for a
+- **bit_rate** (*Optional*, enum): One of the supported bit rates. See [this table](/components/canbus/esp32_can#esp32-can-bit-rate) for a
   list of supported bit rates by the internal CAN (TWAI) controllers of different ESP32 variants. Defaults to `125KBPS`.
 
   - `1KBPS` - Support by `esp32_can` depends on ESP32 variant

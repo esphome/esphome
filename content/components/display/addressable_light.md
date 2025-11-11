@@ -48,12 +48,12 @@ display:
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to call the lambda to update the display.
   Defaults to `16ms`.
 
-- **pixel_mapper** (*Optional*, [lambda](#config-lambda)): A lambda that returns the integer address of the LED
+- **pixel_mapper** (*Optional*, [lambda](/automations/templates#config-lambda)): A lambda that returns the integer address of the LED
   given the supplied the `x` and `y` pixel coordinate. By default, a left-to-right direct pixel mapper is used.
 
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
   `it` will be an instance of {{< apiclass "DisplayBuffer" "display::DisplayBuffer" >}}.
-  See [Display Rendering Engine](#display-engine) for more information.
+  See [Display Rendering Engine](/components/display#display-engine) for more information.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 

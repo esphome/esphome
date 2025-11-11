@@ -79,8 +79,8 @@ Trace specific fields:
 
 The legend displays trace names, current values, units, and line style samples. Only one legend per graph is supported.
 
-- **name_font** (**Required**, [Font](#display-fonts)): Font used for trace names.
-- **value_font** (*Optional*, [Font](#display-fonts)): Font used for current values. If not specified, values are not displayed.
+- **name_font** (**Required**, [Font](/components/font#display-fonts)): Font used for trace names.
+- **value_font** (*Optional*, [Font](/components/font#display-fonts)): Font used for current values. If not specified, values are not displayed.
 - **width** (*Optional*, int): Legend width in pixels. If not specified, width is automatically calculated.
 - **height** (*Optional*, int): Legend height in pixels. If not specified, height is automatically calculated.
 - **border** (*Optional*, boolean): Draw a border around the legend. Defaults to `true`.

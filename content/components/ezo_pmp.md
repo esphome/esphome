@@ -176,7 +176,7 @@ binary_sensor:
 
 #### Configuration variables
 
-- All options from [Binary Sensor](#config-binary_sensor).
+- All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 {{< anchor "ezo_pmp-is_paused_binary_sensor" >}}
 
@@ -194,7 +194,7 @@ binary_sensor:
 
 #### Configuration variables
 
-- All options from [Binary Sensor](#config-binary_sensor).
+- All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Text Sensor
 
@@ -214,7 +214,7 @@ text_sensor:
 
 #### Configuration variables
 
-- All options from [Text Sensor](#config-text_sensor).
+- All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 {{< anchor "ezo_pmp-calibration_status_text_sensor" >}}
 
@@ -232,7 +232,7 @@ text_sensor:
 
 #### Configuration variables
 
-- All options from [Text Sensor](#config-text_sensor).
+- All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Actions
 
@@ -524,7 +524,7 @@ button:
 
 ## lambda calls
 
-From [lambdas](#config-lambda), you can also access the actions on the peristaltic pump to do some
+From [lambdas](/automations/templates#config-lambda), you can also access the actions on the peristaltic pump to do some
 advanced stuff (see the full API Reference for more info). The name of the functions is the same as the name
 of the actions in YAML config.
 

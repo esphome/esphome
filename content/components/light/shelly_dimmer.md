@@ -85,7 +85,7 @@ light:
 >
 > There is no action required by the user to flash the STM32. There is no way to revert to stock firmware on the STM32 at the time of writing.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 ## See Also
 

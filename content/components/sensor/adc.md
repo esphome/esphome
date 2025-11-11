@@ -200,7 +200,7 @@ This works on SKU:DFR0654. For more information see: [manufacturer's website](ht
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "ads1115/" >}}
 - {{< docref "max6675/" >}}
 - {{< apiref "adc/adc_sensor.h" "adc/adc_sensor.h" >}}

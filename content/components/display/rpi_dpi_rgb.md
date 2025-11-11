@@ -89,7 +89,7 @@ display:
 - **auto_clear_enabled** (*Optional*, boolean): If the display should be cleared before each update. Defaults to `true` if a lambda or pages are configured, false otherwise.
   or to keep the existing display content (must overwrite explicitly, e.g., only on data change).
 
-- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
+- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](/components/display#display-pages).
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **color_order** (*Optional*): Should be one of `bgr` (default) or `rgb`.
 - **dimensions** (**Required**): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`  ) or with separate config keys.
@@ -103,8 +103,8 @@ display:
 - **pclk_inverted** (*Optional*, bool): If the pclk is active negative (default is True)
 - **invert_colors** (*Optional*): With this boolean option you can invert the display colors. **Note** some of the displays have this option set automatically to true and can't be changed.
 - **rotation** (*Optional*): Rotate the display presentation in software. Choose one of `0°`, `90°`, `180°`, or `270°`.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
-  See [Display Rendering Engine](#display-engine) for more information.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
+  See [Display Rendering Engine](/components/display#display-engine) for more information.
 
 The horizontal and vertical `pulse_width`, `front_porch` and `back_porch` values are optional, but may require
 changing for a specific display. Refer to the manufacturer's sample code for suitable values. These specify timing

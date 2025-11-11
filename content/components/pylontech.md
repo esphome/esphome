@@ -106,10 +106,10 @@ text_sensor:
 
 - **pylontech_id** (*Optional*): Manually specify the ID of the pylontech instance if there are multiple.
 - **battery** (**Required**): Which battery to monitor. 1 stands for the main battery, 2..16 for child batteries.
-- **base_state** (*Optional*): Base state. Usually reads `Dischg`, `Charge` or `Idle`. All options from [Text Sensor](#config-text_sensor).
-- **voltage_state** (*Optional*): Voltage state. Usually reads `Normal`. All options from [Text Sensor](#config-text_sensor).
-- **current_state** (*Optional*): Current state. Usually reads `Normal`. All options from [Text Sensor](#config-text_sensor).
-- **temperature_state** (*Optional*): Temperature state. Usually reads `Normal`. All options from [Text Sensor](#config-text_sensor).
+- **base_state** (*Optional*): Base state. Usually reads `Dischg`, `Charge` or `Idle`. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
+- **voltage_state** (*Optional*): Voltage state. Usually reads `Normal`. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
+- **current_state** (*Optional*): Current state. Usually reads `Normal`. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
+- **temperature_state** (*Optional*): Temperature state. Usually reads `Normal`. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Energy Monitoring
 

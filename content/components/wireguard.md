@@ -190,7 +190,7 @@ binary_sensor:
       name: 'WireGuard Status'
 ```
 
-All options from [Binary Sensor](#config-binary_sensor) can be added to the
+All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor) can be added to the
 above configuration.
 
 ### Enabled Binary Sensor
@@ -205,7 +205,7 @@ binary_sensor:
       name: 'WireGuard Enabled'
 ```
 
-All options from [Binary Sensor](#config-binary_sensor) can be added to the
+All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor) can be added to the
 above configuration.
 
 ### Latest Handshake Sensor
@@ -235,7 +235,7 @@ text_sensor:
       name: 'WireGuard Address'
 ```
 
-All options from [Text Sensor](#config-text_sensor) can be added to the
+All options from [Text Sensor](/components/text_sensor#config-text_sensor) can be added to the
 above configuration.
 
 {{< anchor "wireguard-actions" >}}
@@ -258,7 +258,7 @@ The lambda equivalent is `id(wireguard_id).disable()`.
 
 > [!NOTE]
 > To disable WireGuard® since device boot you can execute this action
-> in the [`on_boot`](#esphome-on_boot) step.
+> in the [`on_boot`](/components/esphome#esphome-on_boot) step.
 
 ### `wireguard.enable`
 

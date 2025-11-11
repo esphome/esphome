@@ -95,7 +95,7 @@ number:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< docref "dht/" >}}
 - {{< docref "dht12/" >}}

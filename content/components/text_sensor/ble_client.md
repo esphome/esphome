@@ -38,7 +38,7 @@ text_sensor:
   characteristic. Defaults to `false`.
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to poll the device. Defaults to `60s`.
-- All other options from [Text Sensor](#config-text_sensor).
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 Automations:
 
@@ -60,5 +60,5 @@ A variable `x` of type `std::string` is passed to the automation for use in lamb
 
 - {{< docref "/components/ble_client" >}}
 - {{< docref "/components/sensor/ble_client" >}}
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "ble_text_sensor/ble_text_sensor.h" "ble_text_sensor/ble_text_sensor.h" >}}

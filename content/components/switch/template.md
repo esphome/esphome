@@ -36,7 +36,7 @@ Possible return values for the optional lambda:
 
 ## Configuration variables
 
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated repeatedly to get the current state of the switch.
 
 - **turn_on_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
@@ -53,7 +53,7 @@ Possible return values for the optional lambda:
   This will make the Home Assistant frontend show buttons for both ON and OFF actions, instead
   of hiding one of them when the switch is ON/OFF. Defaults to `false`.
 
-- All other options from [Switch](#config-switch).
+- All other options from [Switch](/components/switch#config-switch).
 
 {{< anchor "switch-template-publish_action" >}}
 

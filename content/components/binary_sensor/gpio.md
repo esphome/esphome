@@ -62,7 +62,7 @@ binary_sensor:
   - `RISING`  : Trigger only on rising edge (low to high)
   - `FALLING`  : Trigger only on falling edge (high to low)
 
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Interrupt Mode vs Polling Mode
 
@@ -135,7 +135,7 @@ binary_sensor:
 ## Debouncing Values
 
 Some binary sensors are a bit unstable and quickly transition between the ON and OFF state while
-they're pressed. To fix this and debounce the signal, use the [binary sensor filters](#binary_sensor-filters):
+they're pressed. To fix this and debounce the signal, use the [binary sensor filters](/components/binary_sensor#binary_sensor-filters):
 
 ```yaml
 # Example configuration entry

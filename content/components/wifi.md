@@ -181,7 +181,7 @@ network doesn't allow for `.local` addresses. When a manual IP is in your config
 the OTA process will automatically choose that as the target for the upload.
 
 > [!NOTE]
-> See also [Changing ESPHome Node Name](#esphome-changing_node_name).
+> See also [Changing ESPHome Node Name](/components/esphome#esphome-changing_node_name).
 
 {{< anchor "wifi-power_save_mode" >}}
 

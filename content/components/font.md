@@ -11,7 +11,7 @@ params:
 
 ESPHome's graphical rendering engine also has a powerful font drawer which integrates seamlessly into the system. You have the option to use **any** OpenType/TrueType (`.ttf`, `.otf`, `.woff`  ) font file at **any** size, as well as fixed-size [PCF](https://en.wikipedia.org/wiki/Portable_Compiled_Format) and [BDF](https://en.wikipedia.org/wiki/Glyph_Bitmap_Distribution_Format) bitmap fonts.
 
-These fonts can be used in ESPHome's [own rendering engine](#display-engine) or in the {{< docref "/components/lvgl/index" "LVGL Graphics" >}} component.
+These fonts can be used in ESPHome's [own rendering engine](/components/display#display-engine) or in the {{< docref "/components/lvgl/index" "LVGL Graphics" >}} component.
 
 To use fonts you can either
 
@@ -233,7 +233,7 @@ it.horizontal_line(0, height, it.get_width());
 ## See Also
 
 - {{< apiref "display/display_buffer.h" "display/display_buffer.h" >}}
-- [Display Rendering Engine](#display-engine)
+- [Display Rendering Engine](/components/display#display-engine)
 - {{< docref "/components/lvgl" >}}
 - [MDI cheatsheet](https://pictogrammers.com/library/mdi/)
 - [MDI font repository](https://github.com/Pictogrammers/pictogrammers.github.io/tree/main/%40mdi/font/)

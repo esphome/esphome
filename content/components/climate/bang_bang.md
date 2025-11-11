@@ -86,7 +86,7 @@ climate:
 - **cool_action** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device wants to cooling mode and decrease the current temperature.
 
-- All other options from [Climate](#config-climate).
+- All other options from [Climate](/components/climate#config-climate).
 
 Advanced options:
 

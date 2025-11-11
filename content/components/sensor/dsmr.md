@@ -222,60 +222,60 @@ Configuration variables:
 
 - **identification** (*Optional*): DSMR Identification
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **p1_version** (*Optional*): DSMR Version
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **timestamp** (*Optional*): Timestamp
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **electricity_tariff** (*Optional*): The current tariff. According to the specs value
   '0001' means 'normal tariff' and value '0002' means 'low tariff'. Your meter may report differently.
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **electricity_failure_log** (*Optional*): Electricity Failure Log
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **message_short** (*Optional*): Message Short
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **message_long** (*Optional*): Message Long
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **gas_equipment_id** (*Optional*): Gas Equipment ID.
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **water_equipment_id** (*Optional*): Water Equipment ID
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **sub_equipment_id** (*Optional*): Sub Equipment ID
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **gas_delivered_text** (*Optional*): A text sensor which unformatted gas data. You need to
   apply a custom parsing of this value depending on your meter format.
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **telegram** (*Optional*): The (decrypted) unparsed telegram, marked as internal sensor.
   Can also be used to trigger an action based on the last values.
 
-  - All other options from [Text Sensor](#config-text_sensor).
+  - All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 Belgium
 
 - **p1_version_be** (*Optional*): DSMR Version Belgium
 
-  - All options from [Text Sensor](#config-text_sensor).
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Older DSMR meters support
 

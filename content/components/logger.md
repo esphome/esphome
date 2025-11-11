@@ -206,7 +206,7 @@ However, the `wifi` tag has `VERBOSE` level enabled, and shown.
 
 Print a formatted message to the logs.
 
-In the `format` option, you can use `printf`  -style formatting (see [Formatted Text](#display-printf)).
+In the `format` option, you can use `printf`  -style formatting (see [Formatted Text](/components/display#display-printf)).
 
 ```yaml
 on_...:
@@ -221,8 +221,8 @@ on_...:
 
 Configuration options:
 
-- **format** (**Required**, string): The format for the message in [printf-style](#display-printf).
-- **args** (*Optional*, list of [lambda](#config-lambda)): The optional arguments for the
+- **format** (**Required**, string): The format for the message in [printf-style](/components/display#display-printf).
+- **args** (*Optional*, list of [lambda](/automations/templates#config-lambda)): The optional arguments for the
    format message.
 
 - **level** (*Optional*, string): The [log level](#logger-log_levels) to print the message
@@ -260,7 +260,7 @@ on_...:
 ### `on_message`
 
 This automation will be triggered when a new message is added to the log.
-In [lambdas](#config-lambda) you can get the message, log level and tag from the trigger
+In [lambdas](/automations/templates#config-lambda) you can get the message, log level and tag from the trigger
 using `message` (`const char *`  ), `level` (`int`  ) and `tag` (`const char *`  ).
 
 ```yaml

@@ -66,9 +66,9 @@ sensor:
     - SDK, Core & Boot versions
     - Reset reason & information
 
-  Accepts all options from [Text Sensor](#config-text_sensor).
+  Accepts all options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
-- **reset_reason** (*Optional*): Reports the last reboot reason in a human-readable form. Accepts all options from [Text Sensor](#config-text_sensor).
+- **reset_reason** (*Optional*): Reports the last reboot reason in a human-readable form. Accepts all options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Sensor
 
@@ -101,7 +101,7 @@ Enables logging output over **SEGGER RTT** (Real Time Transfer), allowing non-in
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "logger/" >}}
 - {{< docref "/guides/troubleshooting" >}} - Troubleshooting guide for debugging crashes and boot failures
 - {{< apiref "debug/debug_component.h" "debug/debug_component.h" >}}

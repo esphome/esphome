@@ -45,7 +45,7 @@ binary_sensor:
 - **uid** (*Optional*, string): The unique ID of the NFC tag. This is a hyphen-separated list of hexadecimal values.
   For example: `74-10-37-94`. May not be used with `ndef_contains` and/or `tag_id` (above).
 
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 {{< anchor "nfc-setting_up_tags" >}}
 

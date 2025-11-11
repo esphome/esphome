@@ -31,7 +31,7 @@ update:
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval at which to check for (**not install**) updates.
   Defaults to 6 hours.
 
-- All other options from [Update](#config-update).
+- All other options from [Update](/components/update#config-update).
 
 {{< anchor "update_http_request-manifest_format" >}}
 

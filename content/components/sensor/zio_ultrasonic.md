@@ -35,5 +35,5 @@ sensor:
 ## See Also
 
 - {{< docref "/components/sensor/ultrasonic" "Ultrasonic Sensor Component" >}}
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "template/" >}}

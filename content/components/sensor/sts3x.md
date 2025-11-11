@@ -36,7 +36,7 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "dht/" >}}
 - {{< docref "dht12/" >}}
 - {{< docref "hdc1080/" >}}

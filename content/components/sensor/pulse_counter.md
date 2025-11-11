@@ -54,7 +54,7 @@ sensor:
 ## Converting units
 
 The sensor defaults to measuring its values using a unit of measurement
-of “pulses/min”. You can change this by using [Sensor Filters](#sensor-filters).
+of “pulses/min”. You can change this by using [Sensor Filters](/components/sensor#sensor-filters).
 For example, if you're using the pulse counter with a photodiode to
 count the light pulses on a power meter, you can do the following:
 
@@ -154,7 +154,7 @@ circuiting the wire by mistake.
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "/components/sensor/pulse_meter" >}}
 - {{< docref "rotary_encoder/" >}}
 - [esp-idf Pulse Counter API](https://docs.espressif.com/projects/esp-idf/en/latest/api-reference/peripherals/pcnt.html).

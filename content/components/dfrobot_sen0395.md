@@ -116,13 +116,13 @@ binary_sensor:
 - **dfrobot_sen0395_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the DFRobot mmWave component defined above.
   Required when multiple instances of the `dfrobot_sen0395` component are defined.
 
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 {{< anchor "dfrobot_sen0395-switch" >}}
 
 ## Switch
 
-[Switch components](#config-switch) are used to enable/disable various module features/functions.
+[Switch components](/components/switch#config-switch) are used to enable/disable various module features/functions.
 
 ```yaml
 switch:
@@ -149,7 +149,7 @@ switch:
   - `turn_on_led`  : when enabled, the mmWave sensor's LED blinks during operation; when disabled, the LED will always
     remain off.
 
-- All other options from [Switch](#config-switch).
+- All other options from [Switch](/components/switch#config-switch).
 
 {{< anchor "dfrobot_sen0395-actions" >}}
 
@@ -250,6 +250,6 @@ on_...:
 ## See Also
 
 - [UART bus](/components/uart)
-- [Binary Sensor](#config-binary_sensor)
+- [Binary Sensor](/components/binary_sensor#config-binary_sensor)
 - [ID](/guides/configuration-types#id)
 - [DFRobot mmWave Radar Wiki page](https://wiki.dfrobot.com/mmWave_Radar_Human_Presence_Detection_SKU_SEN0395)

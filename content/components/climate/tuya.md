@@ -109,7 +109,7 @@ If the device has different multipliers for current and target temperatures, **t
 - **current_temperature_multiplier** (*Optional*, float): A multiplier to modify the current temperature value.
 - **target_temperature_multiplier** (*Optional*, float): A multiplier to modify the target temperature value.
 
-- All other options from [Climate](#config-climate).
+- All other options from [Climate](/components/climate#config-climate).
 
 {{< anchor "active_state_detection" >}}
 

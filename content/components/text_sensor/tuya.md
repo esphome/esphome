@@ -23,7 +23,7 @@ text_sensor:
 ## Configuration variables
 
 - **sensor_datapoint** (**Required**, int): The datapoint id number of the sensor.
-- All other options from [Text Sensor](#config-text_sensor).
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## See Also
 

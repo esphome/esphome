@@ -92,7 +92,7 @@ climate:
 
 - **address** (**Required**, int): The 16 bit device address of the thermostat. See [Getting started](#uponor-gettingstarted) on how to find the address.
 - **uponor_smatrix_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the `uponor_smatrix` hub component if you want to use multiple hub components on one ESPHome device.
-- All options from [Climate](#config-climate).
+- All options from [Climate](/components/climate#config-climate).
 
 ## Sensor
 

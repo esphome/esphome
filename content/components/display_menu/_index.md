@@ -19,7 +19,7 @@ the menu and other information.
 
 This document describes the configuration and automations common for the components implementing
 this component. At the moment the character based LCD displays are supported using
-the [lcd_menu](#lcd_menu) component and an instance of this is used in the configuration
+the [lcd_menu](/components/display_menu/lcd_menu#lcd_menu) component and an instance of this is used in the configuration
 examples.
 
 ```yaml
@@ -237,7 +237,7 @@ Configuration variables:
 - **select** (**Required**, [ID](/guides/configuration-types#id)): A `select` component managing
   the edited value.
 
-- **value_lambda** (*Optional*, [lambda](#config-lambda)):
+- **value_lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda returning a string to be displayed as value. The lambda gets an `it` argument
   pointing to the `MenuItem`. If not specified the selected option name of the `select`
   component is used as the value.
@@ -311,7 +311,7 @@ Configuration variables:
   exactly one `f` or `g`  -type conversion used to display the current value.
   Defaults to `%.1f`.
 
-- **value_lambda** (*Optional*, [lambda](#config-lambda)):
+- **value_lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda returning a string to be displayed as value. The lambda gets an `it` argument
   pointing to the `MenuItem`. If not specified the value of the `number` component
   formatted according to the `format` is used as the value.
@@ -368,7 +368,7 @@ Configuration variables:
 - **switch** (**Required**, [ID](/guides/configuration-types#id)): A `switch` component managing
   the edited value.
 
-- **value_lambda** (*Optional*, [lambda](#config-lambda)):
+- **value_lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda returning a string to be displayed as value. The lambda gets an `it` argument
   pointing to the `MenuItem`. If not specified the `on_text` / `off_text` is used.
 
@@ -430,7 +430,7 @@ Configuration variables:
 - **immediate_edit** (*Optional*, boolean): Whether the item can be immediately edited when
   selected. See [Editing Values](#display_menu-edit_mode). Defaults to `false`.
 
-- **value_lambda** (*Optional*, [lambda](#config-lambda)):
+- **value_lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda returning a string to be displayed as value. The lambda gets an `it` argument
   pointing to the `MenuItem`.
 

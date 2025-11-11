@@ -18,12 +18,12 @@ ESPHome node, without the requirement of a network connection.
 
 ## Overview
 
-The component implements the [Display Menu](#display_menu) component providing
+The component implements the [Display Menu](/components/display_menu#display_menu) component providing
 a hierarchical menu primarily intended to be controlled either by a rotary encoder
 with a button or a five-button joystick controller.
 
 The component needs to be connected to an instance of a character based LCD display, which
-like [lcd_pcf8574 Component](#lcd-pcf8574) or [lcd_gpio Component](#lcd-gpio). For the best results the GPIO connection is
+like [lcd_pcf8574 Component](/components/display/lcd_display#lcd-pcf8574) or [lcd_gpio Component](/components/display/lcd_display#lcd-gpio). For the best results the GPIO connection is
 recommended; the I²C one running at the speed according to the datasheet (usually `100`
 kHz) or even ESPHome default (`50` kHz) will create perceptible delays especially when
 changing a numeric value using the rotary encoder. Most `PCF8574` adapters used with
@@ -107,15 +107,15 @@ Configuration variables:
 - **mark_submenu** (*Optional*, 0-255): Code of the character used to mark menu item leading to a
   submenu. Defaults to `0x7e` (a right arrow).
 
-The rest of the configuration is described in the [Display Menu](#display_menu) component.
+The rest of the configuration is described in the [Display Menu](/components/display_menu#display_menu) component.
 The menu inherits the dimensions of the connected LCD display and uses the entire area.
 
 ## See Also
 
 - [I²C Bus](/components/i2c)
-- [lcd_pcf8574 Component](#lcd-pcf8574)
-- [lcd_gpio Component](#lcd-gpio)
-- [Display Menu](#display_menu)
+- [lcd_pcf8574 Component](/components/display/lcd_display#lcd-pcf8574)
+- [lcd_gpio Component](/components/display/lcd_display#lcd-gpio)
+- [Display Menu](/components/display_menu#display_menu)
 - {{< docref "/components/sensor/rotary_encoder" >}}
 - {{< docref "/components/binary_sensor" >}}
 - {{< apiref "lcd_menu/lcd_menu.h" "lcd_menu/lcd_menu.h" >}}

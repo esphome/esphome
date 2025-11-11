@@ -33,16 +33,16 @@ registers.
 
 - **register_count** (*Optional*): The number of registers which are used for this Select. Only
   required for uncommon response encodings or to
-  [optimize modbus communications](#modbus_register_count). Overrides the defaults determined
+  [optimize modbus communications](/components/modbus_controller#modbus_register_count). Overrides the defaults determined
   by `value_type`.
 
 - **skip_updates** (*Optional*, int): By default, all sensors of a modbus_controller are updated together. For data points that don't change very frequently, updates can be skipped. A value of 5 would only update this sensor range in every 6th update cycle. Note: The modbus_controller groups components by address ranges to reduce number of transactions. All components with the same starting address will be updated in one request. `skip_updates` applies for *all* components in the same range.
-- **register_count** (*Optional*, int): The number of consecutive registers this read request should span or skip in a single command. Default is 1. See [Optimizing modbus communications](#modbus_register_count) for more details.
+- **register_count** (*Optional*, int): The number of consecutive registers this read request should span or skip in a single command. Default is 1. See [Optimizing modbus communications](/components/modbus_controller#modbus_register_count) for more details.
 - **force_new_range** (*Optional*, boolean): If possible sensors with sequential addresses are
   grouped together and requested in one range. Setting this to `true` enforces the start of a new
   range at that address.
 
-- **lambda** (*Optional*, [lambda](#config-lambda)): Lambda to be evaluated every update interval
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): Lambda to be evaluated every update interval
   to get the current option of the select.
 
   Parameters passed into lambda
@@ -59,7 +59,7 @@ registers.
   - `return <std::string>;` The new option for this Select.
   - `return {};` Use default mapping (see `optionsmap`  ).
 
-- **write_lambda** (*Optional*, [lambda](#config-lambda)): Lambda to be evaluated on every update
+- **write_lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): Lambda to be evaluated on every update
   of the Sensor, before the new value is written to the modbus registers.
 
 - **use_write_multiple** (*Optional*, boolean): By default the modbus command *Function Code 6 (Preset Single Registers)*
@@ -69,7 +69,7 @@ registers.
   any command sent to the Modbus Select will immediately update the reported state. Defaults
   to `false`.
 
-- All other options from [Select](#config-select).
+- All other options from [Select](/components/select#config-select).
 
 ```yaml
 # example

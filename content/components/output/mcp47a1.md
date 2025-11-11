@@ -38,7 +38,7 @@ on_...:
 - **address** (*Optional*, int): Manually specify the I²C address of
   the DAC. Defaults to `0x2E`.
 
-- All other options from [Output](#config-output).
+- All other options from [Output](/components/output#config-output).
 
 ## See Also
 

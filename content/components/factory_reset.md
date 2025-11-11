@@ -6,7 +6,7 @@ params:
     description: Instructions for setting up conditions that can remotely invalidate all ESPHome preferences stored in flash and reboot ESP.
 ---
 
-The `factory_reset` component allows you to invalidate (reset) all ESPHome [preferences](#preferences-flash_write_interval) stored in flash memory and reboot your node.
+The `factory_reset` component allows you to invalidate (reset) all ESPHome [preferences](/components/esphome#preferences-flash_write_interval) stored in flash memory and reboot your node.
 After reboot all states, parameters and variables will be reinitialized with their default values. This is useful:
 
 - for devices preflashed with ESPHome to reset behavior back to factory state

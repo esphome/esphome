@@ -42,7 +42,7 @@ binary_sensor:
 ### Configuration variables
 
 - **has_target** (*Optional*): If true when target (person) is detected.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Sensor
 

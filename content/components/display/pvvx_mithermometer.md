@@ -48,7 +48,7 @@ display:
 - **disconnect_delay** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time the BLE connection is maintained before being disconnected again. Defaults to `5s`.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to transmit the display data. Defaults to `60s`.
 - **validity_period** (*Optional*, [Time](/guides/configuration-types#time)): The time periode for which the pvvx device should display the information. Defaults to `5min`.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use to define the information to be displayed.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use to define the information to be displayed.
   See [Rendering Lambda](#display-pvvx_mithermometer_lambda) for more information.
 
 - **auto_clear_enabled** (*Optional*, boolean): Whether to automatically clear the display data before each lambda call,

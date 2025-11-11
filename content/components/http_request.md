@@ -109,7 +109,7 @@ on_...:
 - **request_headers** (*Optional*, mapping): Map of HTTP headers. Values are [templatable](/automations/templates).
 - **collect_headers** (*Optional*, list of strings): List of the names of HTTP headers to collect from the response.
 - **capture_response** (*Optional*, boolean): when set to `true`, the response data will be captured and placed into
-  the `body` variable as a `std::string` for use in [lambdas](#config-lambda). Defaults to `false`.
+  the `body` variable as a `std::string` for use in [lambdas](/automations/templates#config-lambda). Defaults to `false`.
 
 - **max_response_buffer_size** (*Optional*, integer): The maximum buffer size to be used to store the response.
   Defaults to `1 kB`.
@@ -171,7 +171,7 @@ on_...:
 ### `on_response` Trigger
 
 This automation will be triggered when the HTTP request is complete.
-The following variables are available for use in [lambdas](#config-lambda):
+The following variables are available for use in [lambdas](/automations/templates#config-lambda):
 
 - `response` as a pointer to `HttpContainer` object which contains `content_length`, `status_code` and `  duration_ms``.
 - `std::string get_response_header(const std::string &header_name)` to read response headers (only headers with names specified in the `collect_headers` are available).
@@ -211,7 +211,7 @@ on_...
 This automation will be triggered when the HTTP request fails to complete. This may be e.g. when the network is not available,
 or the server is not reachable. This will *not* be triggered if the request
 completes, even if the response code is not 200. No information on the type of error is available and no variables
-are available for use in [lambdas](#config-lambda). See example usage above.
+are available for use in [lambdas](/automations/templates#config-lambda). See example usage above.
 
 {{< anchor "http_request-examples" >}}
 

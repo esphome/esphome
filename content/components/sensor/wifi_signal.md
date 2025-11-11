@@ -23,7 +23,7 @@ sensor:
     update_interval: 60s
 ```
 
-To additionally display signal strength in percentage use the [Copy Sensor](#copy-sensor) (it's not possible to add the same sensor twice, because it has a static `uniqueid` reported to Home Assistant):
+To additionally display signal strength in percentage use the [Copy Sensor](/components/copy#copy-sensor) (it's not possible to add the same sensor twice, because it has a static `uniqueid` reported to Home Assistant):
 
 ```yaml
 # Example configuration entry with 2 sensors and filter
@@ -57,7 +57,7 @@ sensor:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "/components/wifi" >}}
 - {{< docref "/components/text_sensor/wifi_info" >}}
 - {{< apiref "wifi_signal/wifi_signal_sensor.h" "wifi_signal/wifi_signal_sensor.h" >}}

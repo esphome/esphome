@@ -78,7 +78,7 @@ can be bent 90 degrees to sit parallel to the PCB, keeping a low profile.
 * **close_duration** (*Optional*, [Time](/guides/configuration-types#time)): The opposite of
   `open_duration`. Defaults to `22s`.
 
-* All other options from [Cover](#config-cover).
+* All other options from [Cover](/components/cover#config-cover).
 
 ## Known Issues
 

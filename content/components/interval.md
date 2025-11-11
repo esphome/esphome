@@ -5,7 +5,7 @@ title: "Interval Component"
 
 This component allows you to run actions at fixed time intervals. For example, if you want to toggle a switch every
 minute, you can use this component. Please note that it's possible to achieve the same thing with the
-[time.on_time](#time-on_time) trigger, but this technique is more light-weight and user-friendly.
+[time.on_time](/components/time#time-on_time) trigger, but this technique is more light-weight and user-friendly.
 
 ```yaml
 # Example configuration entry

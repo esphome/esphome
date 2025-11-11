@@ -47,7 +47,7 @@ There are several different equations for calculating saturated vapor pressure.
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "absolute_humidity/absolute_humidity.h" "absolute_humidity/absolute_humidity.h" >}}
 - [NOAA Discussion on Humidity](https://www.weather.gov/lmk/humidity)
 - [Absolute humidity on Wikipedia](https://en.wikipedia.org/wiki/Humidity#Absolute_humidity)

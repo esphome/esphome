@@ -54,7 +54,7 @@ Configuration variables:
 - **state_change_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is switched. If a lambda is used the boolean `state` parameter holds the new status.
 - **turn_on_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is turned on. Can be used to control for example a switch or output component.
 - **turn_off_action** (*Optional*, [Automation](/automations)): An automation to perform when the load is turned off. `turn_on_action` and `turn_off_action` must be configured together.
-- All options from [Output](#config-output).
+- All options from [Output](/components/output#config-output).
 
 > [!NOTE]
 >

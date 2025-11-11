@@ -72,7 +72,7 @@ Base Configuration:
 
 ### Configuration variables
 
-- All options from [Binary Sensor](#config-binary_sensor).
+- All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## Sensor
 
@@ -178,7 +178,7 @@ on_finger_scan_invalid:
 ### `on_finger_scan_matched` Trigger
 
 With this configuration option you can write complex automations whenever a finger scan is matched to an enrolled fingerprint.
-To use the variables, use a [lambda](#config-lambda) template, the matched slot number and the confidence are available inside that lambda under the variables named `finger_id` and `confidence`.
+To use the variables, use a [lambda](/automations/templates#config-lambda) template, the matched slot number and the confidence are available inside that lambda under the variables named `finger_id` and `confidence`.
 
 ```yaml
 on_finger_scan_matched:
@@ -234,7 +234,7 @@ on_finger_scan_misplaced:
 ### `on_enrollment_scan` Trigger
 
 With this configuration option you can write complex automations whenever a finger is scanned during enrollment.
-To use the variables, use a [lambda](#config-lambda) template, the scan number and the slot number to be enrolled into are available inside that lambda under the variables named `scan_num` and `finger_id`.
+To use the variables, use a [lambda](/automations/templates#config-lambda) template, the scan number and the slot number to be enrolled into are available inside that lambda under the variables named `scan_num` and `finger_id`.
 
 ```yaml
 on_enrollment_scan:
@@ -248,7 +248,7 @@ on_enrollment_scan:
 ### `on_enrollment_done` Trigger
 
 With this configuration option you can write complex automations whenever a finger is successfully enrolled.
-To use the variables, use a [lambda](#config-lambda) template, the slot number enrolled into is available inside that lambda under the variable named `finger_id`.
+To use the variables, use a [lambda](/automations/templates#config-lambda) template, the slot number enrolled into is available inside that lambda under the variable named `finger_id`.
 
 ```yaml
 on_enrollment_done:
@@ -262,7 +262,7 @@ on_enrollment_done:
 ### `on_enrollment_failed` Trigger
 
 With this configuration option you can write complex automations whenever a finger failed to be enrolled.
-To use the variables, use a [lambda](#config-lambda) template, the slot number that failed to be enrolled into is available inside that lambda under the variable named `finger_id`.
+To use the variables, use a [lambda](/automations/templates#config-lambda) template, the slot number that failed to be enrolled into is available inside that lambda under the variable named `finger_id`.
 
 ```yaml
 on_enrollment_failed:

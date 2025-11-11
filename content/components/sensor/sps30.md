@@ -149,7 +149,7 @@ Sensirion recommends cleaning at least once per week.
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "sds011/" >}}
 - {{< docref "pmsx003/" >}}
 - {{< docref "ccs811/" >}}

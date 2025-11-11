@@ -57,7 +57,7 @@ wiegand:
 
 > [!NOTE]
 > Automatic handling of multiple keys (e.g. PIN code entry) is possible with the
-> the [Key Collector](#key_collector) component.
+> the [Key Collector](/components/key_collector#key_collector) component.
 >
 > Keys 10 and 11 are `*` and `#`. They might be labelled as `ENT` or `ESC`,
 > but check the logs to see which key code you get and use the corresponding character.

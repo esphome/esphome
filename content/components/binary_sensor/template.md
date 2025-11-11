@@ -49,11 +49,11 @@ binary_sensor:
 
 ## Configuration variables
 
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
    C++ Lambda to be evaluated repeatedly to get the current state of the binary sensor.
 
 - **condition** (*Optional*, [Condition](/automations/actions#all-conditions)): The condition to check to determine the value of the binary sensor. `lambda` and `condition` may not both be present in the configuration.
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 {{< anchor "binary_sensor-template-publish_action" >}}
 

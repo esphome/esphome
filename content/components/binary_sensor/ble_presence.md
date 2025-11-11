@@ -76,7 +76,7 @@ binary_sensor:
 - **timeout** (*Optional*, [Time](/guides/configuration-types#time)): The delay after last detecting the device before publishing not present state.
    The default is 5 minutes.
 
-- All other options from [Binary Sensor](#config-binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 {{< anchor "esp32_ble_tracker-setting_up_devices" >}}
 

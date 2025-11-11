@@ -98,5 +98,5 @@ Configuration options:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "ufire_ec/ufire_ec.h" "ufire_ec/ufire_ec.h" >}}

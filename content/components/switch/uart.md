@@ -39,7 +39,7 @@ switch:
   - **turn_on** (*Optional*, string or list of bytes): The data to send when turning on.
   - **turn_off** (*Optional*, string or list of bytes): The data to send when turning off.
 - **send_every** (*Optional*, [Time](/guides/configuration-types#time)): Sends recurring data instead of sending once.
-- All other options from [Switch](#config-switch).
+- All other options from [Switch](/components/switch#config-switch).
 
 ## See Also
 

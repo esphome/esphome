@@ -120,5 +120,5 @@ Configuration options:
 
 ## See Also
 
-- [Sensor Filters](#sensor-filters)
+- [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "ufire_ise/ufire_ise.h" "ufire_ise/ufire_ise.h" >}}

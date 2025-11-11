@@ -8,7 +8,7 @@ params:
 ---
 
 The `template` datetime platform allows you to create a datetime with templated values
-using [lambdas](#config-lambda).
+using [lambdas](/automations/templates#config-lambda).
 
 ```yaml
 datetime:
@@ -43,7 +43,7 @@ datetime:
 ## Configuration variables
 
 - **type** (**Required**, enum): The type of the datetime. Can be one of `date` or `time`.
-- **lambda** (*Optional*, [lambda](#config-lambda)):
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated every update interval to get the current value of the datetime.
 
 - **set_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
@@ -102,7 +102,7 @@ datetime:
           second: 56
 ```
 
-- All other options from [Datetime](#config-datetime).
+- All other options from [Datetime](/components/datetime#config-datetime).
 
 ## See Also
 

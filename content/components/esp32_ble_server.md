@@ -34,9 +34,9 @@ esp32_ble_server:
 ## Configuration variables
 
 - **manufacturer** (*Optional*, [Value Configuration](#esp32_ble_server-value)): The name of the manufacturer/firmware creator. Defaults to `ESPHome`.
-- **model** (*Optional*, [Value Configuration](#esp32_ble_server-value)): The model name of the device. Defaults to the project's name defined in the [core configuration](#esphome-creators_project) if present, otherwise to the friendly name of the `board` chosen in the [core configuration](#esphome-configuration_variables).
+- **model** (*Optional*, [Value Configuration](#esp32_ble_server-value)): The model name of the device. Defaults to the project's name defined in the [core configuration](/components/esphome#esphome-creators_project) if present, otherwise to the friendly name of the `board` chosen in the [core configuration](/components/esphome#esphome-configuration_variables).
 - **appearance** (*Optional*, int): Sets the [appearance](https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/core/appearance_values.yaml) of the device (included in advertising data.) Defaults to `0`.
-- **firmware_version** (*Optional*, [Value Configuration](#esp32_ble_server-value)): The firmware version of the device. Defaults to the project's version defined in the [core configuration](#esphome-creators_project) if present, otherwise to the ESPHome version.
+- **firmware_version** (*Optional*, [Value Configuration](#esp32_ble_server-value)): The firmware version of the device. Defaults to the project's version defined in the [core configuration](/components/esphome#esphome-creators_project) if present, otherwise to the ESPHome version.
 - **manufacturer_data** (*Optional*, list of bytes): The manufacturer-specific data to include in the advertising
   packet. Should be a list of bytes, where the first two are the little-endian representation of the 16-bit
   manufacturer ID as assigned by the Bluetooth SIG.

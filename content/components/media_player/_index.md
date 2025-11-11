@@ -29,7 +29,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the media player. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
 > you want the media player to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the

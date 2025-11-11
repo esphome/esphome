@@ -99,7 +99,7 @@ light:
   intensity for your setup. For some bulbs this parameter might be also useful to prevent
   flickering at high brightness values. Defaults to 100.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 ## See Also
 

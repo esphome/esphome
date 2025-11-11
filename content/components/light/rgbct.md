@@ -8,7 +8,7 @@ params:
 ---
 
 The `rgbct` light platform creates an RGBWT (color temperature + white brightness)
-light from 5 [float output components](#output) (one for each channel).
+light from 5 [float output components](/components/output#output) (one for each channel).
 
 ```yaml
 # Example configuration entry
@@ -26,13 +26,13 @@ light:
 
 ## Configuration variables
 
-- **red** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the red channel.
-- **green** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the green channel.
-- **blue** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the blue channel.
-- **color_temperature** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the
+- **red** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the red channel.
+- **green** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the green channel.
+- **blue** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the blue channel.
+- **color_temperature** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the
   color temperature channel.
 
-- **white_brightness** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](#output) to use for the brightness
+- **white_brightness** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output#output) to use for the brightness
   of the white leds.
 
 - **cold_white_color_temperature** (**Required**, float): The coldest color temperature supported by this light. This
@@ -44,9 +44,9 @@ light:
   expressed in Kelvin.
 
 - **color_interlock** (*Optional*, boolean): When enabled, this will prevent white leds being on at the same
-  time as RGB leds. See [Color Interlock](#rgbw_color_interlock) for more information. Defaults to `false`.
+  time as RGB leds. See [Color Interlock](/components/light/rgbw#rgbw_color_interlock) for more information. Defaults to `false`.
 
-- All other options from [Light](#config-light).
+- All other options from [Light](/components/light#config-light).
 
 ## See Also
 

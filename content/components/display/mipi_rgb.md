@@ -73,9 +73,9 @@ display:
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `5s`.
 - **auto_clear_enabled** (*Optional*, boolean): If the display should be cleared before each update. Defaults to `true`
   if a lambda or pages are configured, false otherwise.
-- **lambda** (*Optional*, [lambda](#config-lambda)): The lambda to use for rendering the content on the display.
-  See [Display Rendering Engine](#display-engine) for more information.
-- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
+  See [Display Rendering Engine](/components/display#display-engine) for more information.
+- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](/components/display#display-pages).
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **dimensions** (**Required**): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`)
   or with separate config keys.

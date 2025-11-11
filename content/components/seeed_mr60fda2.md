@@ -44,10 +44,10 @@ binary_sensor:
 ### Configuration variables
 
 - **people_exist** (*Optional*): If true when target (person) is detected.
-  All options from [Binary Sensor](#config-binary_sensor).
+  All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 - **fall_detected** (*Optional*): An indication of whether the radar has detected a fall.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Button
 
@@ -65,10 +65,10 @@ button:
 ### Configuration variables
 
 - **factory_reset** (*Optional*): Restore all radar settings to factory parameters.
-  All options from [Button](#config-button).
+  All options from [Button](/components/button#config-button).
 
 - **get_radar_parameters** (*Optional*): Get all the current setup parameters of the radar.
-  All options from [Button](#config-button).
+  All options from [Button](/components/button#config-button).
 
 ## Select
 
@@ -88,13 +88,13 @@ select:
 ### Configuration variables
 
 - **install_height** (*Optional*): Before using the MR60FDA2, please select the installation height of the radar according to the actual situation in order to obtain accurate identification results. The default is 3m.
-  All options from [Select](#config-select).
+  All options from [Select](/components/select#config-select).
 
 - **height_threshold** (*Optional*): To accurately distinguish between a person falling and sitting still in this area, you need to set the trigger height that triggers fall detection. This height refers to the distance between the person and the ground at the time of the fall. The default is 0.6m.
-  All options from [Select](#config-select).
+  All options from [Select](/components/select#config-select).
 
 - **sensitivity** (*Optional*): Fall sensitivity factor. Defaults to 1 with a range of 1-3, 3 = high and 1 = low.
-  All options from [Select](#config-select).
+  All options from [Select](/components/select#config-select).
 
 ## See Also
 

@@ -37,7 +37,7 @@ speaker:
 
   - **buffer_duration** (*Optional*, [Time](/guides/configuration-types#time)): The duration of the internal ring buffer. Larger values can reduce stuttering but use more memory. Defaults to `100ms`.
   - **timeout** (*Optional*, [Time](/guides/configuration-types#time)): How long to wait after finishing playback before releasing the bus. Set to `never` to never stop the speaker due to a timeout. Defaults to `500ms`.
-  - All other options from [Speaker Component](#config-speaker).
+  - All other options from [Speaker Component](/components/speaker#config-speaker).
 
 - **num_channels** (*Optional*, positive integer): The number of audio channels to send to the output speaker. Either `1` or `2`. Defaults to the output speaker's number of channels.
 - **queue_mode** (*Optional*, boolean): Enables queue mode. If enabled, audio isn't mixed but instead each source speaker's audio is played successively, starting with the first listed source speaker.

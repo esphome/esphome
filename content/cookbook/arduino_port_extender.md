@@ -94,7 +94,7 @@ binary_sensor:
           ...
 ```
 
-The listed `binary_sensors` supports all options from [Binary Sensor](#config-binary_sensor) like
+The listed `binary_sensors` supports all options from [Binary Sensor](/components/binary_sensor#config-binary_sensor) like
 automations and filters.
 
 ## Sensor
