@@ -258,8 +258,17 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
-    // Only allow auth modes with at least WPA
-    conf.threshold.authmode = AUTH_WPA_PSK;
+    // Set threshold based on configured minimum auth mode
+    // Note: ESP8266 doesn't support WPA3
+    switch (this->min_auth_mode_) {
+      case WIFI_MIN_AUTH_MODE_WPA:
+        conf.threshold.authmode = AUTH_WPA_PSK;
+        break;
+      case WIFI_MIN_AUTH_MODE_WPA2:
+      case WIFI_MIN_AUTH_MODE_WPA3:  // Fall back to WPA2 for ESP8266
+        conf.threshold.authmode = AUTH_WPA2_PSK;
+        break;
+    }
   }
   conf.threshold.rssi = -127;
 #endif

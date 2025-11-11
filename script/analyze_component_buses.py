@@ -86,6 +86,7 @@ ISOLATED_COMPONENTS = {
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
+    "tinyusb": "Conflicts with usb_host component - cannot be used together",
 }
 
 

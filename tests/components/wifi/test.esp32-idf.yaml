@@ -2,6 +2,7 @@ psram:
 
 wifi:
   use_psram: true
+  min_auth_mode: WPA
 
 packages:
   - !include common.yaml
