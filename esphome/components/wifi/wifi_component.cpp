@@ -667,7 +667,7 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   // Log connection attempt at INFO level with priority
   std::string bssid_formatted;
-  float priority = 0.0f;
+  int8_t priority = 0;
 
   if (ap.get_bssid().has_value()) {
     bssid_formatted = format_mac_address_pretty(ap.get_bssid().value().data());
@@ -675,7 +675,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   }
 
   ESP_LOGI(TAG,
-           "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %.1f, attempt %u/%u in phase %s)...",
+           "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
            ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_formatted.c_str() : LOG_STR_LITERAL("any"),
            priority, this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
            LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
@@ -812,7 +812,7 @@ void WiFiComponent::print_connect_params_() {
                 wifi_gateway_ip_().str().c_str(), wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid().has_value()) {
-    ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*config->get_bssid()));
+    ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(*config->get_bssid()));
   }
 #endif
 #ifdef USE_WIFI_11KV_SUPPORT
@@ -933,8 +933,7 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
     ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
              res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
              LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-    ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4.1f", res.get_channel(), res.get_rssi(),
-             res.get_priority());
+    ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
   } else {
     ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
              LOG_STR_ARG(get_signal_bars(res.get_rssi())));
@@ -1062,6 +1061,9 @@ void WiFiComponent::check_connecting_finished() {
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
+
+    // Clear priority tracking if all priorities are identical
+    this->clear_priorities_if_all_same_();
 
 #ifdef USE_WIFI_FAST_CONNECT
     this->save_fast_connect_settings_();
@@ -1291,6 +1293,26 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   return false;  // Did not start scan, can proceed with connection
 }
 
+/// Clear BSSID priority tracking if all priorities are identical (can't differentiate, saves memory)
+/// Called when starting a fresh connection attempt or after successful connection
+void WiFiComponent::clear_priorities_if_all_same_() {
+  if (this->sta_priorities_.empty()) {
+    return;
+  }
+
+  int8_t first_priority = this->sta_priorities_[0].priority;
+  for (const auto &pri : this->sta_priorities_) {
+    if (pri.priority != first_priority) {
+      return;  // Not all same, nothing to do
+    }
+  }
+
+  // All priorities are identical - clear the vector to save memory
+  ESP_LOGD(TAG, "Clearing BSSID priorities (all identical)");
+  this->sta_priorities_.clear();
+  this->sta_priorities_.shrink_to_fit();
+}
+
 /// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
 /// This function identifies which BSSID was attempted (from scan results or config),
 /// decreases its priority by 1.0 to discourage future attempts, and logs the change.
@@ -1321,8 +1343,9 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
 
   // Decrease priority to avoid repeatedly trying the same failed BSSID
-  float old_priority = this->get_sta_priority(failed_bssid.value());
-  float new_priority = old_priority - 1.0f;
+  int8_t old_priority = this->get_sta_priority(failed_bssid.value());
+  int8_t new_priority =
+      (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
   this->set_sta_priority(failed_bssid.value(), new_priority);
 
   // Get SSID for logging
@@ -1333,8 +1356,12 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
     ssid = config->get_ssid();
   }
 
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %.1f → %.1f", ssid.c_str(),
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(),
            format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
+
+  // After adjusting priority, check if all priorities are now identical
+  // If so, clear the vector to save memory
+  this->clear_priorities_if_all_same_();
 }
 
 /// Handle target advancement or retry counter increment when staying in the same phase
@@ -1547,9 +1574,9 @@ bool WiFiAP::get_hidden() const { return this->hidden_; }
 WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
                                bool is_hidden)
     : bssid_(bssid),
-      ssid_(std::move(ssid)),
       channel_(channel),
       rssi_(rssi),
+      ssid_(std::move(ssid)),
       with_auth_(with_auth),
       is_hidden_(is_hidden) {}
 bool WiFiScanResult::matches(const WiFiAP &config) const {
