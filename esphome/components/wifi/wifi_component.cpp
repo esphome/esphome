@@ -1327,6 +1327,11 @@ void WiFiComponent::clear_priorities_if_all_same_() {
 /// - Other phases: Uses BSSID from config if explicitly specified by user or fast_connect
 ///
 /// If no BSSID is available (SSID-only connection), priority adjustment is skipped.
+///
+/// IMPORTANT: Priority is only decreased on the LAST attempt for a BSSID in SCAN_CONNECTING phase.
+/// This prevents false positives from transient WiFi stack state issues after scanning.
+/// Single failures don't necessarily mean the AP is bad - two genuine failures provide
+/// higher confidence before degrading priority and skipping the BSSID in future scans.
 void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   // Determine which BSSID we tried to connect to
   optional<bssid_t> failed_bssid;
@@ -1343,18 +1348,28 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
     return;  // No BSSID to penalize
   }
 
-  // Decrease priority to avoid repeatedly trying the same failed BSSID
-  int8_t old_priority = this->get_sta_priority(failed_bssid.value());
-  int8_t new_priority =
-      (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
-  this->set_sta_priority(failed_bssid.value(), new_priority);
-
   // Get SSID for logging
   std::string ssid;
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
     ssid = this->scan_result_[0].get_ssid();
   } else if (const WiFiAP *config = this->get_selected_sta_()) {
     ssid = config->get_ssid();
+  }
+
+  // Only decrease priority on the last attempt for this phase
+  // This prevents false positives from transient WiFi stack issues
+  uint8_t max_retries = get_max_retries_for_phase(this->retry_phase_);
+  bool is_last_attempt = (this->num_retried_ + 1 >= max_retries);
+
+  // Decrease priority only on last attempt to avoid false positives from transient failures
+  int8_t old_priority = this->get_sta_priority(failed_bssid.value());
+  int8_t new_priority = old_priority;
+
+  if (is_last_attempt) {
+    // Decrease priority, but clamp to int8_t::min to prevent overflow
+    new_priority =
+        (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
+    this->set_sta_priority(failed_bssid.value(), new_priority);
   }
 
   ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(),
