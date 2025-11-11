@@ -3,7 +3,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components.psram import KEY_PSRAM_GUARANTEED
+from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -89,6 +89,22 @@ def require_high_performance_networking() -> None:
         CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
 
 
+def has_high_performance_networking() -> bool:
+    """Check if high performance networking mode is enabled.
+
+    Returns True when high performance networking has been requested by a
+    component or explicitly enabled in the network configuration. This indicates
+    that lwip and WiFi will use optimized buffer sizes and settings.
+
+    This function should be called during code generation (to_code phase) by
+    components that need to apply performance-related settings.
+
+    Returns:
+        bool: True if high performance networking is enabled, False otherwise
+    """
+    return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
@@ -142,7 +158,7 @@ async def to_code(config):
 
     if CORE.is_esp32 and CORE.using_esp_idf and should_enable:
         # Check if PSRAM is guaranteed (set by psram component during final validation)
-        psram_guaranteed = CORE.data.get(KEY_PSRAM_GUARANTEED, False)
+        psram_guaranteed = psram_is_guaranteed()
 
         if psram_guaranteed:
             _LOGGER.info(

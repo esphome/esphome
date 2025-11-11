@@ -74,6 +74,23 @@ def supported() -> bool:
     return variant in SPIRAM_MODES
 
 
+def is_guaranteed() -> bool:
+    """Check if PSRAM is guaranteed to be available.
+
+    Returns True when PSRAM is configured with both 'disabled: false' and
+    'ignore_not_found: false', meaning the device will fail to boot if PSRAM
+    is not found. This ensures safe use of high buffer configurations that
+    depend on PSRAM.
+
+    This function should be called during code generation (to_code phase) by
+    components that need to know PSRAM availability for configuration decisions.
+
+    Returns:
+        bool: True if PSRAM is guaranteed, False otherwise
+    """
+    return CORE.data.get(KEY_PSRAM_GUARANTEED, False)
+
+
 def validate_psram_mode(config):
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if config[CONF_SPEED] == "120MHZ":

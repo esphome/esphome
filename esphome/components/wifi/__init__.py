@@ -6,10 +6,10 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 from esphome.components.network import (
-    KEY_HIGH_PERFORMANCE_NETWORKING,
+    has_high_performance_networking,
     ip_address_literal,
 )
-from esphome.components.psram import KEY_PSRAM_GUARANTEED
+from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.config_validation import only_with_esp_idf
@@ -454,13 +454,9 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
     # Apply high performance WiFi settings if high performance networking is enabled
-    if (
-        CORE.is_esp32
-        and CORE.using_esp_idf
-        and CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
-    ):
+    if CORE.is_esp32 and CORE.using_esp_idf and has_high_performance_networking():
         # Check if PSRAM is guaranteed (set by psram component during final validation)
-        psram_guaranteed = CORE.data.get(KEY_PSRAM_GUARANTEED, False)
+        psram_guaranteed = psram_is_guaranteed()
 
         # Always allocate WiFi buffers in PSRAM if available
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
