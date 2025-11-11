@@ -667,7 +667,7 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   // Log connection attempt at INFO level with priority
   std::string bssid_formatted;
-  float priority = 0.0f;
+  int8_t priority = 0;
 
   if (ap.get_bssid().has_value()) {
     bssid_formatted = format_mac_address_pretty(ap.get_bssid().value().data());
@@ -1575,9 +1575,9 @@ bool WiFiAP::get_hidden() const { return this->hidden_; }
 WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
                                bool is_hidden)
     : bssid_(bssid),
-      ssid_(std::move(ssid)),
       channel_(channel),
       rssi_(rssi),
+      ssid_(std::move(ssid)),
       with_auth_(with_auth),
       is_hidden_(is_hidden) {}
 bool WiFiScanResult::matches(const WiFiAP &config) const {
