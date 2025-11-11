@@ -352,8 +352,6 @@ class WiFiComponent : public Component {
 
   int32_t get_wifi_channel();
 
-  WiFiComponentState get_state() const { return this->state_; }
-
  protected:
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
