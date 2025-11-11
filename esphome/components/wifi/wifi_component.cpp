@@ -441,9 +441,6 @@ void WiFiComponent::loop() {
           // a failure, or something tried to connect over and over
           // so we entered cooldown. In both cases we call
           // check_connecting_finished to continue the state machine.
-          // If we just restarted the adapter because we failed to connect,
-          // this->error_from_callback_ will be true and we will move to the
-          // next retry phase.
           this->check_connecting_finished();
         }
         break;
@@ -1455,6 +1452,7 @@ void WiFiComponent::retry_connect() {
       this->start_connecting(params, true);
       return;
     }
+    // No valid target - fall through to set state to allow phase transition
   }
 
   ESP_LOGD(TAG, "Entering cooldown from state %d and phase %s", this->state_,
