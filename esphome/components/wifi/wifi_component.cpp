@@ -465,6 +465,8 @@ void WiFiComponent::loop() {
         if (!this->is_connected()) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
+          // Clear error flag before reconnecting so first attempt is not seen as immediate failure
+          this->error_from_callback_ = false;
           this->retry_connect();
         } else {
           this->status_clear_warning();
@@ -1047,6 +1049,10 @@ void WiFiComponent::check_connecting_finished() {
     // Reset to initial phase on successful connection (don't log transition, just reset state)
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
+    // Ensure next connection attempt does not inherit error state
+    // so when WiFi disconnects later we start fresh we don't see
+    // the first connection as a failure.
+    this->error_from_callback_ = false;
 
     this->print_connect_params_();
 
@@ -1133,6 +1139,11 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Move to next AP
       }
 #endif
+      // Check if we should try explicit hidden networks before scanning
+      // This handles reconnection after connection loss where first network is hidden
+      if (!this->sta_.empty() && this->sta_[0].get_hidden()) {
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;
+      }
       // No more APs to try, fall back to scan
       return WiFiRetryPhase::SCAN_CONNECTING;
 
