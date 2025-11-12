@@ -50,6 +50,7 @@ class EPaperBase : public Display,
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
   void set_transform(uint8_t transform) { this->transform_ = transform; }
+  void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -102,7 +103,7 @@ class EPaperBase : public Display,
   /**
    * Refresh the screen after data transfer
    */
-  virtual void refresh_screen() = 0;
+  virtual void refresh_screen(bool partial) = 0;
 
   /**
    * Power the display on
@@ -142,6 +143,7 @@ class EPaperBase : public Display,
   bool waiting_for_idle_{};
   uint32_t delay_until_{};
   uint8_t transform_{};
+  uint8_t update_count_{};
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   uint32_t waiting_for_idle_last_print_{};
@@ -154,6 +156,7 @@ class EPaperBase : public Display,
   // properties with specific initialisers go last
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
+  uint8_t full_update_every_{1};
 };
 
 }  // namespace esphome::epaper_spi

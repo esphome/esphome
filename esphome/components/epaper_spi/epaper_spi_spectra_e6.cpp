@@ -84,7 +84,7 @@ void EPaperSpectraE6::power_off() {
   this->data(0x00);
 }
 
-void EPaperSpectraE6::refresh_screen() {
+void EPaperSpectraE6::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh");
   this->command(0x12);
   this->data(0x00);

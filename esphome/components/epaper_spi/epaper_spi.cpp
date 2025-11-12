@@ -198,7 +198,8 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::REFRESH_SCREEN);
       break;
     case EPaperState::REFRESH_SCREEN:
-      this->refresh_screen();
+      this->refresh_screen(this->update_count_ != 0);
+      this->update_count_ = (this->update_count_ + 1) % this->full_update_every_;
       this->set_state_(EPaperState::POWER_OFF);
       break;
     case EPaperState::POWER_OFF:

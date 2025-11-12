@@ -16,7 +16,7 @@ class EPaperSpectraE6 : public EPaperBase {
   void clear() override;
 
  protected:
-  void refresh_screen() override;
+  void refresh_screen(bool partial) override;
   void power_on() override;
   void power_off() override;
   void deep_sleep() override;

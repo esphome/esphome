@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_DC_PIN,
     CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
+    CONF_FULL_UPDATE_EVERY,
     CONF_HEIGHT,
     CONF_ID,
     CONF_INIT_SEQUENCE,
@@ -89,6 +90,7 @@ def model_schema(config):
                         cv.Required(CONF_MIRROR_Y): cv.boolean,
                     }
                 ),
+                cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
                 model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
                 cv.GenerateID(): cv.declare_id(class_name),
                 cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
@@ -165,12 +167,13 @@ async def to_code(config):
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    if reset_pin := config.get(CONF_RESET_PIN):
+        reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))
-    if CONF_BUSY_PIN in config:
-        busy = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
+    if busy_pin := config.get(CONF_BUSY_PIN):
+        busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
+    cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
     if transform := config.get(CONF_TRANSFORM):
