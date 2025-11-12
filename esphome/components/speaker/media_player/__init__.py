@@ -6,7 +6,7 @@ from pathlib import Path
 
 from esphome import automation, external_files
 import esphome.codegen as cg
-from esphome.components import audio, esp32, media_player, psram, speaker
+from esphome.components import audio, esp32, media_player, network, psram, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -32,6 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 AUTO_LOAD = ["audio"]
+DEPENDENCIES = ["network"]
 
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
@@ -280,6 +281,18 @@ PIPELINE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _request_high_performance_networking(config):
+    """Request high performance networking for streaming media.
+
+    Speaker media player streams audio data, so it always benefits from
+    optimized WiFi and lwip settings regardless of codec support.
+    Called during config validation to ensure flags are set before to_code().
+    """
+    network.require_high_performance_networking()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     media_player.media_player_schema(SpeakerMediaPlayer).extend(
         {
@@ -304,6 +317,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.only_with_esp_idf,
     _validate_repeated_speaker,
+    _request_high_performance_networking,
 )
 
 
@@ -321,27 +335,9 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config):
     if CORE.data[DOMAIN][config[CONF_ID].id][CONF_CODEC_SUPPORT_ENABLED]:
-        # Compile all supported audio codecs and optimize the wifi settings
-
+        # Compile all supported audio codecs
         cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
         cg.add_define("USE_AUDIO_MP3_SUPPORT", True)
-
-        # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
-
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
-
-        # Allocate wifi buffers in PSRAM
-        esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
     var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
