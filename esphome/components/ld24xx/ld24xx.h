@@ -34,8 +34,9 @@
   }
 
 #define SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(sensor, value) \
-  if ((sensor) != nullptr && (sensor)->sens->get_state() != (value)) { \
-    (sensor)->sens->publish_state(value); \
+  if ((sensor) != nullptr) { \
+    (sensor)->publish_dedup.next(value); \
+    (sensor)->sens->publish_state(static_cast<float>(value)); \
   }
 
 #define highbyte(val) (uint8_t)((val) >> 8)
