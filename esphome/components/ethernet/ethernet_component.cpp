@@ -418,8 +418,6 @@ void EthernetComponent::dump_config() {
 
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
-bool EthernetComponent::can_proceed() { return this->is_connected(); }
-
 network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
