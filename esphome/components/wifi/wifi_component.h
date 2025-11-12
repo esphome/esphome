@@ -52,6 +52,9 @@ extern "C" {
 namespace esphome {
 namespace wifi {
 
+/// Sentinel value for RSSI when WiFi is not connected
+static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
+
 struct SavedWifiSettings {
   char ssid[33];
   char password[65];
