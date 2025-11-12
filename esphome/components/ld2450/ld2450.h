@@ -159,6 +159,14 @@ class LD2450Component : public Component, public uart::UARTDevice {
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
   uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
+  void set_target_info_(uint8_t index, int16_t x, int16_t y, bool is_moving);
+#ifdef USE_SENSOR
+  void publish_target_sensors_(uint8_t index, int16_t x, int16_t y, uint16_t resolution, int16_t speed,
+                               uint16_t distance, float angle);
+#endif
+#ifdef USE_TEXT_SENSOR
+  void publish_direction_(uint8_t index, Direction direction);
+#endif
 
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;

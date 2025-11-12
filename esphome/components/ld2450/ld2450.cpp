@@ -181,6 +181,17 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
+// Helper function to calculate direction based on speed
+static inline Direction calculate_direction(int16_t speed) {
+  if (speed > 0) {
+    return DIRECTION_MOVING_AWAY;
+  }
+  if (speed < 0) {
+    return DIRECTION_APPROACHING;
+  }
+  return DIRECTION_STATIONARY;
+}
+
 void LD2450Component::setup() {
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
@@ -292,6 +303,40 @@ uint8_t LD2450Component::count_targets_in_zone_(const Zone &zone, bool is_moving
   }
   return count;
 }
+
+// Store target info for zone target counting
+void LD2450Component::set_target_info_(uint8_t index, int16_t x, int16_t y, bool is_moving) {
+  this->target_info_[index].x = x;
+  this->target_info_[index].y = y;
+  this->target_info_[index].is_moving = is_moving;
+}
+
+#ifdef USE_TEXT_SENSOR
+// Publish direction text sensor with deduplication
+void LD2450Component::publish_direction_(uint8_t index, Direction direction) {
+  text_sensor::TextSensor *sensor = this->direction_text_sensors_[index];
+  if (sensor == nullptr) {
+    return;
+  }
+  const auto *dir_str = find_str(ld2450::DIRECTION_BY_UINT, direction);
+  if (!sensor->has_state() || sensor->get_state() != dir_str) {
+    sensor->publish_state(dir_str);
+  }
+}
+#endif
+
+#ifdef USE_SENSOR
+// Publish all target sensor values with deduplication
+void LD2450Component::publish_target_sensors_(uint8_t index, int16_t x, int16_t y, uint16_t resolution, int16_t speed,
+                                              uint16_t distance, float angle) {
+  SAFE_PUBLISH_SENSOR(this->move_x_sensors_[index], x);
+  SAFE_PUBLISH_SENSOR(this->move_y_sensors_[index], y);
+  SAFE_PUBLISH_SENSOR(this->move_resolution_sensors_[index], resolution);
+  SAFE_PUBLISH_SENSOR(this->move_speed_sensors_[index], speed);
+  SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], distance);
+  SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
+}
+#endif
 
 // Service reset_radar_zone
 void LD2450Component::reset_radar_zone() {
@@ -444,13 +489,13 @@ void LD2450Component::handle_periodic_data_() {
   int16_t target_count = 0;
   int16_t still_target_count = 0;
   int16_t moving_target_count = 0;
-  int16_t res = 0;
-  int16_t start = 0;
-  int16_t tx = 0;
-  int16_t ty = 0;
-  int16_t td = 0;
-  int16_t ts = 0;
-  int16_t angle = 0;
+  int16_t res = 0;    // Target resolution in mm
+  int16_t start = 0;  // Buffer offset for current data field
+  int16_t tx = 0;     // Target X coordinate in mm
+  int16_t ty = 0;     // Target Y coordinate in mm
+  int16_t td = 0;     // Target distance in mm (calculated from tx and ty)
+  int16_t ts = 0;     // Target speed in mm/s
+  int16_t angle = 0;  // Target angle in degrees
   uint8_t index = 0;
   Direction direction{DIRECTION_UNDEFINED};
   bool is_moving = false;
@@ -464,15 +509,12 @@ void LD2450Component::handle_periodic_data_() {
     is_moving = false;
     // tx is used for further calculations, so always needs to be populated
     tx = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
-    SAFE_PUBLISH_SENSOR(this->move_x_sensors_[index], tx);
     // Y
     start = TARGET_Y + index * 8;
     ty = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
-    SAFE_PUBLISH_SENSOR(this->move_y_sensors_[index], ty);
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
     res = (this->buffer_data_[start + 1] << 8) | this->buffer_data_[start];
-    SAFE_PUBLISH_SENSOR(this->move_resolution_sensors_[index], res);
 #endif
     // SPEED
     start = TARGET_SPEED + index * 8;
@@ -481,48 +523,43 @@ void LD2450Component::handle_periodic_data_() {
       is_moving = true;
       moving_target_count++;
     }
-#ifdef USE_SENSOR
-    SAFE_PUBLISH_SENSOR(this->move_speed_sensors_[index], ts);
-#endif
-    // DISTANCE
+    // DISTANCE (td = target distance in mm, calculated from X and Y coordinates)
     // Optimized: use already decoded tx and ty values, replace pow() with multiplication
     int32_t x_squared = (int32_t) tx * tx;
     int32_t y_squared = (int32_t) ty * ty;
-    td = (uint16_t) sqrtf(x_squared + y_squared);
+    td = (uint16_t) sqrtf(x_squared + y_squared);  // Pythagorean theorem: distance = sqrt(x² + y²)
+
+    // Only publish sensor values when a target is actually detected (distance > 0)
+    // This prevents stale/ghost readings from persisting
     if (td > 0) {
       target_count++;
-    }
 #ifdef USE_SENSOR
-    SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], td);
-    // ANGLE
-    angle = ld2450::calculate_angle(static_cast<float>(ty), static_cast<float>(td));
-    if (tx > 0) {
-      angle = angle * -1;
-    }
-    SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
+      // ANGLE
+      angle = ld2450::calculate_angle(static_cast<float>(ty), static_cast<float>(td));
+      if (tx > 0) {
+        angle = angle * -1;
+      }
+      this->publish_target_sensors_(index, tx, ty, res, ts, td, angle);
 #endif
 #ifdef USE_TEXT_SENSOR
-    // DIRECTION
-    if (td == 0) {
-      direction = DIRECTION_NA;
-    } else if (ts > 0) {
-      direction = DIRECTION_MOVING_AWAY;
-    } else if (ts < 0) {
-      direction = DIRECTION_APPROACHING;
-    } else {
-      direction = DIRECTION_STATIONARY;
-    }
-    text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
-    const auto *dir_str = find_str(ld2450::DIRECTION_BY_UINT, direction);
-    if (tsd != nullptr && (!tsd->has_state() || tsd->get_state() != dir_str)) {
-      tsd->publish_state(dir_str);
-    }
+      // DIRECTION
+      this->publish_direction_(index, calculate_direction(ts));
 #endif
-
-    // Store target info for zone target count
-    this->target_info_[index].x = tx;
-    this->target_info_[index].y = ty;
-    this->target_info_[index].is_moving = is_moving;
+      // Store target info for zone target count
+      this->set_target_info_(index, tx, ty, is_moving);
+    } else {
+      // No target detected - clear all sensor values to 0
+#ifdef USE_SENSOR
+      this->publish_target_sensors_(index, /* x= */ 0, /* y= */ 0, /* resolution= */ 0, /* speed= */ 0,
+                                    /* distance= */ 0, /* angle= */ 0.0f);
+#endif
+#ifdef USE_TEXT_SENSOR
+      // Set direction to NA when no target
+      this->publish_direction_(index, DIRECTION_NA);
+#endif
+      // Clear target info
+      this->set_target_info_(index, /* x= */ 0, /* y= */ 0, /* is_moving= */ false);
+    }
 
   }  // End loop thru targets
 
