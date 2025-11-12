@@ -117,7 +117,7 @@ void netif_set_addr(struct netif *netif, const ip4_addr_t *ip, const ip4_addr_t 
 };
 #endif
 
-bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -730,7 +730,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
 }
 
 #ifdef USE_WIFI_AP
-bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;
