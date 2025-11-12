@@ -62,19 +62,19 @@ class DebugComponent : public PollingComponent {
   sensor::Sensor *cpu_frequency_sensor_{nullptr};
 #endif  // USE_SENSOR
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ZEPHYR)
   /**
    * @brief Logs information about the device's partition table.
    *
-   * This function iterates through the ESP32's partition table and logs details
+   * This function iterates through the partition table and logs details
    * about each partition, including its name, type, subtype, starting address,
    * and size. The information is useful for diagnosing issues related to flash
    * memory or verifying the partition configuration dynamically at runtime.
    *
-   * Only available when compiled for ESP32 platforms.
+   * Only available when compiled for ESP32 and ZEPHYR platforms.
    */
   void log_partition_info_();
-#endif  // USE_ESP32
+#endif
 
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *device_info_{nullptr};

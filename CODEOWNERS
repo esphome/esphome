@@ -396,6 +396,7 @@ esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet
 esphome/components/runtime_stats/* @bdraco
+esphome/components/rx8130/* @beormund
 esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
 esphome/components/script/* @esphome/core
