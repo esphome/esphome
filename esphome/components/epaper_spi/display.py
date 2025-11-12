@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_MODEL,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
-    CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
@@ -58,24 +57,11 @@ DIMENSION_SCHEMA = cv.Schema(
     }
 )
 
-TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
+TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y}
 
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
-    if transforms := model.get_available_transforms():
-        transform_schema = cv.Schema(
-            {cv.Required(x): cv.boolean for x in transforms}
-        ).extend(
-            {
-                cv.Optional(x): cv.invalid(f"'{x}' is not available for this model")
-                for x in TRANSFORM_OPTIONS.difference(transforms)
-            }
-        )
-    else:
-        transform_schema = cv.invalid(
-            "Hardware transform is not available for this model"
-        )
     class_name = epaper_spi_ns.class_(model.class_name, EPaperBase)
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     return (
@@ -95,7 +81,9 @@ def model_schema(config):
         .extend(
             {
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-                cv.Optional(CONF_TRANSFORM): transform_schema,
+                cv.Optional(CONF_TRANSFORM): cv.Schema(
+                    {cv.Required(x): cv.boolean for x in TRANSFORM_OPTIONS}
+                ),
                 model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
                 cv.GenerateID(): cv.declare_id(class_name),
                 cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
@@ -179,9 +167,13 @@ async def to_code(config):
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
     if transform := config.get(CONF_TRANSFORM):
+        pass
+    else:
+        transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
+    # TODO process rotation here
+    if any(v for v in transform.values()):
         transform = [
             getattr(Transform, x.upper()) for x in TRANSFORM_OPTIONS if transform.get(x)
         ]
-        if transform:
-            transform = "|".join({f"{e}" for e in transform})
-            cg.add(var.set_transform(RawExpression(transform)))
+        transform = "|".join({f"{e}" for e in transform})
+        cg.add(var.set_transform(RawExpression(transform)))

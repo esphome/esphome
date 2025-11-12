@@ -28,10 +28,11 @@ static const uint8_t MIRROR_X = 1;
 static const uint8_t MIRROR_Y = 2;
 static const uint8_t SWAP_XY = 4;
 
-static constexpr uint8_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
+static constexpr uint32_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
+static constexpr size_t MAX_TRANSFER_SIZE = 128;
 static constexpr uint8_t DELAY_FLAG = 0xFF;
 
-class EPaperBase : public DisplayBuffer,
+class EPaperBase : public Display,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                          spi::DATA_RATE_2MHZ> {
  public:
@@ -67,6 +68,8 @@ class EPaperBase : public DisplayBuffer,
  protected:
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
+  int get_width() override { return this->transform_ & SWAP_XY ? this->height_ : this->width_; }
+  int get_height() override { return this->transform_ & SWAP_XY ? this->width_ : this->height_; }
   void process_state_();
 
   const char *epaper_state_to_string_();
@@ -128,10 +131,6 @@ class EPaperBase : public DisplayBuffer,
   bool waiting_for_idle_{};
   uint32_t delay_until_{};
   uint8_t transform_{};
-  uint16_t x_high_{};
-  uint16_t y_high_{};
-  uint16_t x_low_{};
-  uint16_t y_low_{};
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   uint32_t waiting_for_idle_last_print_{};

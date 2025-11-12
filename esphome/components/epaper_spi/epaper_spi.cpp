@@ -262,7 +262,6 @@ void EPaperBase::initialise_() {
         this->mark_failed();
         return;
       }
-      ESP_LOGV(TAG, "Command %02X, length %d", cmd, num_args);
       this->cmd_data(cmd, sequence + index, num_args);
       index += num_args;
     }

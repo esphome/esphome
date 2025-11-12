@@ -6,7 +6,6 @@
 
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.6c";
-static constexpr size_t MAX_TRANSFER_SIZE = 128;
 static constexpr unsigned char GRAY_THRESHOLD = 50;
 
 enum E6Color {
