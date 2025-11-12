@@ -65,6 +65,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Ian Blais (@aeonsablaze)](https://github.com/aeonsablaze)
 - [Johan Bloemberg (@aequitas)](https://github.com/aequitas)
 - [Andrew Erickson (@aerickson)](https://github.com/aerickson)
+- [Ben (@af3556)](https://github.com/af3556)
 - [Attila Farago (@afarago)](https://github.com/afarago)
 - [Kjell Braden (@afflux)](https://github.com/afflux)
 - [Alejandro Galfrascoli (@AGalfra)](https://github.com/AGalfra)
@@ -952,6 +953,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Jake Crosby (@jake-nz)](https://github.com/jake-nz)
 - [jakehdk (@jakehdk)](https://github.com/jakehdk)
 - [Jake Shirley (@JakeShirley)](https://github.com/JakeShirley)
+- [Jakob S. (@jakicoll)](https://github.com/jakicoll)
 - [Jonathan Kollasch (@jakllsch)](https://github.com/jakllsch)
 - [Jakob Reiter (@jakommo)](https://github.com/jakommo)
 - [jakub-medrzak (@jakub-medrzak)](https://github.com/jakub-medrzak)
@@ -1279,6 +1281,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Piotr Majkrzak (@majkrzak)](https://github.com/majkrzak)
 - [Major Péter (@majorpeter)](https://github.com/majorpeter)
 - [Dmitry (@mak-42)](https://github.com/mak-42)
+- [Makerfabs (@Makerfabs)](https://github.com/Makerfabs)
 - [Max Slotov (@makstech)](https://github.com/makstech)
 - [Kasper Malfroid (@malfroid)](https://github.com/malfroid)
 - [Malle355 (@Malle355)](https://github.com/Malle355)
@@ -2268,4 +2271,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated November 4, 2025.*
+*This page was last updated November 11, 2025.*
