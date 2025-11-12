@@ -746,8 +746,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%s' reason='Station Roaming'", buf);
       return;
     } else {
-      ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-               format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      char bssid_s[18];
+      format_mac_addr_upper(it.bssid, bssid_s);
+      ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf, bssid_s,
+               get_disconnect_reason_str(it.reason));
       s_sta_connect_error = true;
     }
     s_sta_connected = false;

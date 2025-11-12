@@ -299,8 +299,10 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       } else {
-        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-                 format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+        char bssid_s[18];
+        format_mac_addr_upper(it.bssid, bssid_s);
+        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf, bssid_s,
+                 get_disconnect_reason_str(it.reason));
       }
 
       uint8_t reason = it.reason;
