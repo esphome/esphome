@@ -525,8 +525,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
         ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
         s_sta_connect_not_found = true;
       } else {
-        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-                 format_mac_address_pretty(it.bssid).c_str(), LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
+        char bssid_s[18];
+        format_mac_addr_upper(it.bssid, bssid_s);
+        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf, bssid_s,
+                 LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
         s_sta_connect_error = true;
       }
       s_sta_connected = false;
