@@ -336,6 +336,28 @@ void LD2450Component::publish_target_sensors_(uint8_t index, int16_t x, int16_t 
   SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], distance);
   SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
 }
+
+// Force clear all target sensor values to 0, bypassing throttle and deduplication
+void LD2450Component::force_clear_target_sensors_(uint8_t index) {
+  if (this->move_x_sensors_[index] != nullptr) {
+    this->move_x_sensors_[index]->sens->publish_state(0);
+  }
+  if (this->move_y_sensors_[index] != nullptr) {
+    this->move_y_sensors_[index]->sens->publish_state(0);
+  }
+  if (this->move_resolution_sensors_[index] != nullptr) {
+    this->move_resolution_sensors_[index]->sens->publish_state(0);
+  }
+  if (this->move_speed_sensors_[index] != nullptr) {
+    this->move_speed_sensors_[index]->sens->publish_state(0);
+  }
+  if (this->move_distance_sensors_[index] != nullptr) {
+    this->move_distance_sensors_[index]->sens->publish_state(0);
+  }
+  if (this->move_angle_sensors_[index] != nullptr) {
+    this->move_angle_sensors_[index]->sens->publish_state(0);
+  }
+}
 #endif
 
 // Service reset_radar_zone
@@ -549,10 +571,9 @@ void LD2450Component::handle_periodic_data_() {
       // Store target info for zone target count
       this->set_target_info_(index, tx, ty, is_moving);
     } else {
-      // No target detected - clear all sensor values to 0
+      // No target detected - force clear all sensor values to 0, bypassing throttle/dedup
 #ifdef USE_SENSOR
-      this->publish_target_sensors_(index, /* x= */ 0, /* y= */ 0, /* resolution= */ 0, /* speed= */ 0,
-                                    /* distance= */ 0, /* angle= */ 0.0f);
+      this->force_clear_target_sensors_(index);
 #endif
 #ifdef USE_TEXT_SENSOR
       // Set direction to NA when no target

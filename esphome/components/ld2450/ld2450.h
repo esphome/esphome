@@ -163,6 +163,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_SENSOR
   void publish_target_sensors_(uint8_t index, int16_t x, int16_t y, uint16_t resolution, int16_t speed,
                                uint16_t distance, float angle);
+  void force_clear_target_sensors_(uint8_t index);
 #endif
 #ifdef USE_TEXT_SENSOR
   void publish_direction_(uint8_t index, Direction direction);
