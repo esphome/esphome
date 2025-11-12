@@ -426,7 +426,7 @@ class WiFiComponent : public Component {
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
-  bool wifi_sta_ip_config_(optional<ManualIP> manual_ip);
+  bool wifi_sta_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
@@ -434,7 +434,7 @@ class WiFiComponent : public Component {
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
-  bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
+  bool wifi_ap_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
 #endif  // USE_WIFI_AP
 
