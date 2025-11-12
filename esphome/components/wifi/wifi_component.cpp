@@ -668,25 +668,25 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // Log connection attempt at INFO level with priority
-  std::string bssid_formatted;
+  char bssid_s[18];
   int8_t priority = 0;
 
   if (ap.get_bssid().has_value()) {
-    bssid_formatted = format_mac_address_pretty(ap.get_bssid().value().data());
+    format_mac_addr_upper(ap.get_bssid().value().data(), bssid_s);
     priority = this->get_sta_priority(ap.get_bssid().value());
   }
 
   ESP_LOGI(TAG,
            "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
-           ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_formatted.c_str() : LOG_STR_LITERAL("any"),
-           priority, this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
+           ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_s : LOG_STR_LITERAL("any"), priority,
+           this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
            LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG, "Connection Params:");
   ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
   if (ap.get_bssid().has_value()) {
-    ESP_LOGV(TAG, "  BSSID: %s", format_mac_address_pretty(ap.get_bssid()->data()).c_str());
+    ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
   } else {
     ESP_LOGV(TAG, "  BSSID: Not Set");
   }
