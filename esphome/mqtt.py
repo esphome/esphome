@@ -6,6 +6,7 @@ import logging
 import ssl
 import tempfile
 import time
+from typing import Any
 
 import paho.mqtt.client as mqtt
 
@@ -154,8 +155,12 @@ def show_discover(config, username=None, password=None, client_id=None):
 
 
 def get_esphome_device_ip(
-    config, username=None, password=None, client_id=None, timeout=25
-):
+    config: dict[str, Any],
+    username: str | None = None,
+    password: str | None = None,
+    client_id: str | None = None,
+    timeout=25,
+) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
             "Cannot discover IP via MQTT as the config does not include the mqtt: "
@@ -165,6 +170,10 @@ def get_esphome_device_ip(
         raise EsphomeError(
             "Cannot discover IP via MQTT as the config does not include the device name: "
             "component"
+        )
+    if not config[CONF_MQTT].get(CONF_BROKER):
+        raise EsphomeError(
+            "Cannot discover IP via MQTT as the broker is not configured"
         )
 
     dev_name = config[CONF_ESPHOME][CONF_NAME]
