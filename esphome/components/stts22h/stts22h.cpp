@@ -13,6 +13,7 @@ static const uint8_t TEMPERATURE_REG = 0x06;
 // CTRL_REG flags
 static const uint8_t LOW_ODR_CTRL_ENABLE_FLAG = 0x80;  // Flag to enable low ODR mode in CTRL_REG
 static const uint8_t FREERUN_CTRL_ENABLE_FLAG = 0x04;  // Flag to enable FREERUN mode in CTRL_REG
+static const uint8_t ADD_INC_ENABLE_FLAG = 0x08;       // Flag to enable ADD_INC (IF_ADD_INC) mode in CTRL_REG
 
 static const uint8_t WHOAMI_STTS22H_IDENTIFICATION = 0xA0;  // ID value of STTS22H in WHOAMI_REG
 
@@ -91,7 +92,7 @@ void STTS22HComponent::initialize_sensor_() {
     return;
   }
 
-  // Enable low ODR mode.
+  // Enable low ODR mode and enable ADD_INC
   // Before low ODR mode can be used,
   // FREERUN bit must be cleared (see sensor documentation)
   ctrl_value[0] = ctrl_value[0] & ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
@@ -100,8 +101,8 @@ void STTS22HComponent::initialize_sensor_() {
     return;
   }
 
-  // Enable LOW ODR mode
-  ctrl_value[0] = ctrl_value[0] | LOW_ODR_CTRL_ENABLE_FLAG;  // Set LOW ODR bit
+  // Enable LOW ODR mode and ADD_INC
+  ctrl_value[0] = ctrl_value[0] | LOW_ODR_CTRL_ENABLE_FLAG | ADD_INC_ENABLE_FLAG;  // Set LOW ODR bit and ADD_INC bit
   if (this->write_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
