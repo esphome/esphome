@@ -6,7 +6,6 @@ import logging
 import ssl
 import tempfile
 import time
-from typing import Any
 
 import paho.mqtt.client as mqtt
 
@@ -31,6 +30,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import get_int_env, get_str_env
 from esphome.log import AnsiFore, color
+from esphome.types import ConfigType
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -155,7 +155,7 @@ def show_discover(config, username=None, password=None, client_id=None):
 
 
 def get_esphome_device_ip(
-    config: dict[str, Any],
+    config: ConfigType,
     username: str | None = None,
     password: str | None = None,
     client_id: str | None = None,
