@@ -89,7 +89,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   using PresetEntry = ThermostatPresetEntry;
   using CustomPresetEntry = ThermostatCustomPresetEntry;
 
- public:
   ThermostatClimate();
   void setup() override;
   void dump_config() override;
@@ -551,6 +550,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
   FixedVector<CustomPresetEntry> custom_preset_config_{};
   /// Default custom preset to use on start up (pointer to entry in custom_preset_config_)
+ private:
   const char *default_custom_preset_{nullptr};
 };
 
