@@ -569,6 +569,7 @@ void WiFiComponent::setup_ap_config_() {
                 "  IP Address: %s",
                 this->ap_.get_ssid().c_str(), this->ap_.get_password().c_str(), ip_address.c_str());
 
+#ifdef USE_WIFI_MANUAL_IP
   auto manual_ip = this->ap_.get_manual_ip();
   if (manual_ip.has_value()) {
     ESP_LOGCONFIG(TAG,
@@ -578,6 +579,7 @@ void WiFiComponent::setup_ap_config_() {
                   manual_ip->static_ip.str().c_str(), manual_ip->gateway.str().c_str(),
                   manual_ip->subnet.str().c_str());
   }
+#endif
 
   if (!this->has_sta()) {
     this->state_ = WIFI_COMPONENT_STATE_AP;
@@ -716,11 +718,14 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   } else {
     ESP_LOGV(TAG, "  Channel not set");
   }
+#ifdef USE_WIFI_MANUAL_IP
   if (ap.get_manual_ip().has_value()) {
     ManualIP m = *ap.get_manual_ip();
     ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str().c_str(),
              m.gateway.str().c_str(), m.subnet.str().c_str(), m.dns1.str().c_str(), m.dns2.str().c_str());
-  } else {
+  } else
+#endif
+  {
     ESP_LOGV(TAG, "  Using DHCP IP");
   }
   ESP_LOGV(TAG, "  Hidden: %s", YESNO(ap.get_hidden()));
@@ -1577,7 +1582,9 @@ void WiFiAP::set_password(const std::string &password) { this->password_ = passw
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
+#ifdef USE_WIFI_MANUAL_IP
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
+#endif
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }
@@ -1586,7 +1593,9 @@ const std::string &WiFiAP::get_password() const { return this->password_; }
 const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
 #endif
 const optional<uint8_t> &WiFiAP::get_channel() const { return this->channel_; }
+#ifdef USE_WIFI_MANUAL_IP
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
+#endif
 bool WiFiAP::get_hidden() const { return this->hidden_; }
 
 WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,

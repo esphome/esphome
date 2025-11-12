@@ -152,7 +152,9 @@ class WiFiAP {
 #endif  // USE_WIFI_WPA2_EAP
   void set_channel(optional<uint8_t> channel);
   void set_priority(int8_t priority) { priority_ = priority; }
+#ifdef USE_WIFI_MANUAL_IP
   void set_manual_ip(optional<ManualIP> manual_ip);
+#endif
   void set_hidden(bool hidden);
   const std::string &get_ssid() const;
   const optional<bssid_t> &get_bssid() const;
@@ -162,7 +164,9 @@ class WiFiAP {
 #endif  // USE_WIFI_WPA2_EAP
   const optional<uint8_t> &get_channel() const;
   int8_t get_priority() const { return priority_; }
+#ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
+#endif
   bool get_hidden() const;
 
  protected:
@@ -172,7 +176,9 @@ class WiFiAP {
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
+#ifdef USE_WIFI_MANUAL_IP
   optional<ManualIP> manual_ip_;
+#endif
   optional<uint8_t> channel_;
   int8_t priority_{0};
   bool hidden_{false};
