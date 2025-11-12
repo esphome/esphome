@@ -743,6 +743,14 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 }
 
 const LogString *get_signal_bars(int8_t rssi) {
+  // Check for disconnected sentinel value first
+  if (rssi == WIFI_RSSI_DISCONNECTED) {
+    // MULTIPLICATION SIGN
+    // Unicode: U+00D7, UTF-8: C3 97
+    return LOG_STR("\033[0;31m"  // red
+                   "\xc3\x97\xc3\x97\xc3\x97\xc3\x97"
+                   "\033[0m");
+  }
   // LOWER ONE QUARTER BLOCK
   // Unicode: U+2582, UTF-8: E2 96 82
   // LOWER HALF BLOCK
@@ -1022,7 +1030,10 @@ void WiFiComponent::check_scanning_finished() {
 }
 
 void WiFiComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "WiFi:");
+  ESP_LOGCONFIG(TAG,
+                "WiFi:\n"
+                "  Connected: %s",
+                YESNO(this->is_connected()));
   this->print_connect_params_();
 }
 
