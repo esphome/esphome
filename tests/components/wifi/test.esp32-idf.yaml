@@ -3,6 +3,21 @@ psram:
 wifi:
   use_psram: true
   min_auth_mode: WPA
+  manual_ip:
+    static_ip: 192.168.1.100
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+    dns1: 1.1.1.1
+    dns2: 8.8.8.8
+  ap:
+    ssid: Fallback AP
+    password: fallback_password
+    manual_ip:
+      static_ip: 192.168.4.1
+      gateway: 192.168.4.1
+      subnet: 255.255.255.0
+
+captive_portal:
 
 packages:
   - !include common.yaml
