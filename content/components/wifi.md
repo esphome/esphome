@@ -101,6 +101,20 @@ wifi:
   In case it fails, all networks are then tested one after the other in their declared order, starting with the first
   one in the list.
 
+- **min_auth_mode** (*Optional*, string): Only on `esp32` and `esp8266`. Sets the minimum WiFi authentication mode
+  that the device will accept when connecting to access points. This controls the weakest encryption your device will
+  allow. Possible values are:
+
+  - `WPA` - Allows WPA, WPA2, and WPA3 networks (least secure, uses TKIP encryption with known vulnerabilities)
+  - `WPA2` - Allows WPA2 and WPA3 networks (recommended, uses AES encryption)
+  - `WPA3` - Only allows WPA3 networks (most secure, ESP32 only)
+
+  Defaults to `WPA2` on ESP32 and `WPA` on ESP8266 (will change to `WPA2` in 2026.6.0).
+
+  **Security Warning:** Setting `min_auth_mode: WPA` allows connection to networks using deprecated WPA/TKIP encryption,
+  which has known security vulnerabilities. Only use this setting for legacy routers that cannot be upgraded to WPA2 or WPA3.
+  If your router supports WPA2 or newer, use the default `WPA2` setting for better security.
+
 - **passive_scan** (*Optional*, boolean): If enabled, then the device will perform WiFi scans in a passive fashion.
   Defaults to `false`.
 
@@ -202,6 +216,41 @@ wifi:
   power_save_mode: none
 ```
 
+{{< anchor "wifi-min_auth_mode" >}}
+
+## WiFi Authentication Mode
+
+The `min_auth_mode` option allows you to control the minimum WiFi security standard your device will accept.
+This is useful for ensuring your device only connects to secure networks, or for maintaining compatibility with
+legacy routers that only support older encryption standards.
+
+### Example: Maximum Security (WPA2 or newer)
+
+```yaml
+wifi:
+  ssid: MyHomeNetwork
+  password: VerySafePassword
+  min_auth_mode: WPA2  # Reject WPA-only networks
+```
+
+### Example: Legacy Router Support (WPA allowed)
+
+```yaml
+wifi:
+  ssid: OldRouter
+  password: VerySafePassword
+  min_auth_mode: WPA  # Allow connection to WPA-only routers (less secure)
+```
+
+### Example: Modern Security (WPA3 only, ESP32 only)
+
+```yaml
+wifi:
+  ssid: ModernRouter
+  password: VerySafePassword
+  min_auth_mode: WPA3  # Only connect to WPA3 networks (most secure)
+```
+
 {{< anchor "wifi-networks" >}}
 
 ## Connecting to Multiple Networks
@@ -248,8 +297,9 @@ wifi:
 - **hidden** (*Optional*, boolean): Whether this network is hidden. Defaults to false.
   If you add this option you also have to specify ssid.
 
-- **priority** (*Optional*, float): The priority of this network. After each time, the network with
-  the highest priority is chosen. If the connection fails, the priority is decreased by one.
+- **priority** (*Optional*, int): The priority of this network (range: -128 to 127). The network with
+  the highest priority is chosen. After each connection failure, the priority is decreased by one.
+  If all tracked BSSIDs have identical priorities, they are automatically reset to 0 to start fresh.
   Defaults to `0`.
 
 {{< anchor "eap" >}}

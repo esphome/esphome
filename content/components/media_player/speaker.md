@@ -45,7 +45,7 @@ media_player:
 
 - **media_pipeline** (*Optional*, Pipeline Schema): Configuration settings for the media pipeline. Same options as the `announcement_pipeline`.
 - **buffer_size** (*Optional*, positive integer): The buffer size in bytes for each pipeline. Must be between `4000` and `4000000`. Defaults to `1000000`.
-- **codec_support_enabled** (*Optional*, boolean): Enables the MP3 and FLAC decoders and optimizes the WiFi configuration for streaming high quality audio. Defaults to `true`.
+- **codec_support_enabled** (*Optional*, boolean): Enables the MP3 and FLAC decoders. Defaults to `true`.
 - **task_stack_in_psram** (*Optional*, boolean): Run the audio tasks in external memory. Defaults to `false`.
 - **volume_increment** (*Optional*, percentage): Increment amount that the `media_player.volume_up` and `media_player.volume_down` actions will increase or decrease volume by. Defaults to `5%`.
 - **volume_initial** (*Optional*, percentage): The default volume that mediaplayer uses for first boot where a volume has not been previously saved. Defaults to `50%`.
@@ -171,6 +171,17 @@ Configuration variables:
 
 Decoding audio files is CPU and memory intensive. PSRAM external memory is strongly recommended. To use the component on a memory constrained device, define only the announcement pipeline, decrease the buffer size, set `codec_support_enabled` to false, and set the pipeline transcode setting format to `WAV` with a low sample rate and only 1 channel.
 
+### Network Optimizations
+
+The speaker media player automatically enables high-performance networking to optimize audio streaming. This configures both WiFi and TCP/IP settings for better throughput and lower latency. The optimization level is PSRAM-aware:
+
+- **With PSRAM guaranteed** ({{< docref "psram" >}} configured with `ignore_not_found: false`): Aggressive settings with 512KB TCP windows and 512 WiFi RX buffers
+- **Without PSRAM guaranteed**: Conservative optimized settings with 65KB TCP windows and 64 WiFi buffers
+
+If you experience out-of-memory issues, you can disable these optimizations by setting `enable_high_performance: false` in the {{< docref "network" >}} component configuration.
+
+### Audio Codec Performance
+
 In general, decoding FLAC has the lowest CPU usage, but requires a strong WiFi connection. Decoding MP3 requires less data to be sent over WiFi but is more CPU intensive to decode. Decoding WAV is only recommended at low sample rates if streamed over a network connection.
 
 Increasing the buffer size may reduce stuttering, but do not set it to the entire size of the external memory. Each pipeline allocates the configured amount, and this setting also does not take into account other smaller buffers allocated throughout the audio stack.
@@ -183,11 +194,15 @@ Only set `task_stack_in_psram` to true if you have many components configured an
 
 While you are troubleshooting, simplify your setup as much as possible. Only configure the `announcement_pipeline` and do not use `resampler` or `mixer` speakers.
 
+### Audio Issues
+
 If you can't hear anything, check whether your hardware requires a GPIO pin to be high or low to enable the speaker. Verify you have the correct speaker channel configured: try setting your speaker configuration to stereo if you are unsure which channels are available.
 
 If the audio quality is poor, check your output speaker configuration. Experiment with the bits per sample, channels, and sample rate settings. In general, higher sample rates improve audio quality: try using `44100` Hz or `48000` Hz instead of `16000` Hz.
 
 If there is a noticeable delay before a pause command takes effect, reduce the buffer duration in the output speaker. Be sure to adjust both the hardware speaker component settings and the `mixer` speaker component settings, if used.
+
+If audio stutters, and your device has PSRAM, add ({{< docref "psram" >}} configured with `ignore_not_found: false`) so that the networking stack uses higher performance optimization settings.
 
 ## See also
 

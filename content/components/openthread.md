@@ -9,12 +9,12 @@ params:
 
 [Thread](https://www.threadgroup.org) is a low-power mesh networking standard for IoT devices. The low-power aspect is important for battery-powered smart home devices. However, it’s also low-bandwidth, making it ideal for applications that don’t send a lot of data, like switches or motion sensors.
 
-Thread uses the same RF technology as Zigbee (IEEE 802.15.4) but provides IP connectivity similar to Wi-Fi. Unlike Zigbee, Thread by itself does not allow controlling devices: It is just a communication protocol. To control the Thread devices, a higher-level protocol is required: Matter or Apple HomeKit or {{< docref "/components/api" "ESPHome API" >}}.
+Thread uses the same RF technology as Zigbee (IEEE 802.15.4), but provides IPv6 connectivity similar to Wi-Fi. Unlike Zigbee, Thread by itself does not allow controlling devices: It is just a communication protocol. To control the Thread devices, a higher-level protocol is required: Matter or Apple HomeKit or {{< docref "/components/api" "ESPHome API" >}}.
 
-The purpose of this component is to allow ESPHome nodes to communicate over a Thread network. It permits the state of sensors and binary sensors to be send to Home Assistant via 6LoWPAN packets. This OpenThread component relies on [OpenThread](https://openthread.io) which is an open-source implementation of Thread.
+This component allows ESPHome nodes to communicate with Home Assistant over a Thread network. It permits sending sensor state to Home Assistant and receiving {{< docref "/components/ota/index" "Over-the-Air Updates (OTA)" >}}. This OpenThread component relies on [OpenThread](https://openthread.io) which is an open-source implementation of Thread.
 
 > [!NOTE]
-> You will need a [Thread border router](https://www.home-assistant.io/integrations/thread#about-thread-border-routers) to connect your node to a Thread network.
+> You will need a [Thread border router](https://www.home-assistant.io/integrations/thread#about-thread-border-routers) to connect your node to a Thread network. The border router adapts IPv6 packets on your Home Assistant network to 6LoWPAN packets on your Thread network, allowing communication across both networks.
 
 ## Usage
 
@@ -62,6 +62,12 @@ openthread:
 - **extpanid** (string): 8-byte Extended Personal Area Network ID (XPAN ID)
 - **pskc** (string): PSKc is used to authenticate an external Thread Commissioner to a Thread network
 - **mesh_local_prefix** (ipv6network): Used to build Mesh-Local IPv6 addresses (ML-EIDs), which are unique to each Thread device within the network partition
+- **use_address** (*Optional*, string): Manually override what address to use to connect
+  to the ESP. Defaults to auto-generated value.
+- **poll_period** (*Optional*, [Time](#config-time)): When Poll_Period is set on an MTD device, the parent router will enqueue any messages and wait for the child to submit a poll data request
+
+> [!NOTE]
+> esphome.ota does not work when poll_period > 0, instead use http_request.ota, timeout and watchdog_timeout need to be tested to find the correct values.  Values greater than 100sec may be required.
 
 ## Dataset TLV Configuration
 
@@ -83,3 +89,8 @@ See <https://openthread.io/guides/thread-primer/node-roles-and-types>
 
 - **FTD** - Full Thread Device, sets CONFIG_OPENTHREAD_FTD, observed behavior is that this enables a REED (Router Eligible End Device) and can be promoted to a Router.
 - **MTD** - Minimal Thread Device, sets CONFIG_OPENTHREAD_MTD, cannot be promoted to Router. Switching back from MTD to FTD will not result in a REED unless Non Volatile Storage (NVS) is cleared.
+
+## Sleepy End Device (SED)
+
+The Poll Period makes the device behave as a SED.  Follow on work is needed utilizing Power Management and/or Light Sleep capability in esp-idf.
+If the device is always awake, the API timeout is 60 seconds, so a ping request will force interaction with the parent when the poll period is greater than 60 seconds.

@@ -40,7 +40,7 @@ These boards have completely pre-filled configurations for the display driver, s
 option is `model`.
 
 | Board                        | Driver Chip | Manufacturer | Product link                                                     |
-| ---------------------------- | ----------- | ------------ | ---------------------------------------------------------------- |
+|------------------------------| ----------- | ------------ | ---------------------------------------------------------------- |
 | GUITION-4848S040             | ST7701s     | Guition      | <https://devices.esphome.io/devices/Guition-ESP32-S3-4848S040>   |
 | T-PANEL-S3                   | ST7701s     | Lilygo       | <https://lilygo.cc/products/t-panel-s3>                          |
 | T-RGB-2.1                    | ST7701s     | Lilygo       | <https://lilygo.cc/products/t-rgb>                               |
@@ -48,7 +48,8 @@ option is `model`.
 | SEEED-INDICATOR-D1           | ST7701s     | Seeed Studio | <https://www.seeedstudio.com/SenseCAP-Indicator-D1L-p-5646.html> |
 | ESP32-S3-TOUCH-LCD-4.3       | RPI         | Waveshare    | <https://www.waveshare.com/esp32-s3-touch-lcd-4.3.htm>           |
 | ESP32-S3-TOUCH-LCD-7-800X480 | RPI         | Waveshare    | <https://www.waveshare.com/esp32-s3-touch-lcd-7.htm>             |
-| WAVESHARE-4-480x480          | RPI         | Waveshare    | <https://www.waveshare.com/esp32-s3-touch-lcd-4.htm>             |
+| WAVESHARE-4-480X480          | RPI         | Waveshare    | <https://www.waveshare.com/esp32-s3-touch-lcd-4.htm>             |
+| WAVESHARE-5-1024X600         | RPI         | Waveshare    | <https://www.waveshare.com/esp32-s3-touch-lcd-5.htm>             |
 
 ## Usage
 

@@ -48,9 +48,15 @@ wifi:
 - **active_high** (*Required*, boolean): If enabled, the co-processor is active when reset is
   high. If disabled, the co-processor is active when reset is low.
 
+## Updating co-processor firmware
+
+You can update the firmware on your ESP32 co-processor using the {{< docref "update/esp32_hosted/" >}}
+platform. This allows you to deploy firmware updates to the co-processor without manually reflashing it.
+
 ## See Also
 
 - {{< docref "wifi/" >}}
 - {{< docref "network/" >}}
 - {{< docref "ethernet/" >}}
+- {{< docref "update/esp32_hosted/" >}}
 - [ESP-Hosted-MCU](https://github.com/espressif/esp-hosted-mcu) by [Espressif Systems](https://www.espressif.com/)
