@@ -68,7 +68,7 @@ void EPaperBase::data(uint8_t value) {
 // The command is the first byte, length is the length of data only in the second byte, followed by the data.
 // [COMMAND, LENGTH, DATA...]
 void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
-  ESP_LOGD(TAG, "Command: 0x%02X, Length: %d, Data: %s", command, length,
+  ESP_LOGV(TAG, "Command: 0x%02X, Length: %d, Data: %s", command, length,
            format_hex_pretty(ptr, length, '.', false).c_str());
 
   this->dc_pin_->digital_write(false);
@@ -106,14 +106,14 @@ void EPaperBase::update() {
   }
   this->set_state_(EPaperState::RESET);
   this->enable_loop();
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  this->update_start_time_ = millis();
+#endif
 }
 
 void EPaperBase::wait_for_idle_(bool should_wait) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  if (should_wait) {
-    this->waiting_for_idle_start_ = millis();
-    this->waiting_for_idle_last_print_ = this->waiting_for_idle_start_;
-  }
+  this->waiting_for_idle_start_ = millis();
 #endif
   this->waiting_for_idle_ = should_wait;
 }
@@ -137,7 +137,9 @@ void EPaperBase::loop() {
   if (this->waiting_for_idle_) {
     if (this->is_idle_()) {
       this->waiting_for_idle_ = false;
-      ESP_LOGV(TAG, "Screen now idle after %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
+#endif
     } else {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       if (now - this->waiting_for_idle_last_print_ >= 1000) {
@@ -163,7 +165,7 @@ void EPaperBase::process_state_() {
   ESP_LOGV(TAG, "Process state entered in state %s", epaper_state_to_string_());
   switch (this->state_) {
     default:
-      ESP_LOGD(TAG, "Display is in unhandled state %s", epaper_state_to_string_());
+      ESP_LOGE(TAG, "Display is in unhandled state %s", epaper_state_to_string_());
       this->disable_loop();
       break;
     case EPaperState::IDLE:
@@ -206,6 +208,7 @@ void EPaperBase::process_state_() {
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
       this->set_state_(EPaperState::IDLE);
+      ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
       break;
   }
 }

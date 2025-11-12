@@ -17,13 +17,12 @@ class EPaperSSD1677 : public EPaperBase {
 
  protected:
   void refresh_screen() override;
-  void power_on() override;
-  void power_off() override;
+  void power_on() override{};
+  void power_off() override{};
   void deep_sleep() override;
   bool reset() override;
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
-
   bool transfer_data() override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   uint16_t update_width_{};
   uint16_t update_startx_{};

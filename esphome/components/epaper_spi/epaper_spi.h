@@ -77,8 +77,6 @@ class EPaperBase : public DisplayBuffer,
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
 
-  virtual int get_width_controller() { return this->get_width_internal(); };
-
   /**
    * Methods that must be implemented by concrete classes to control the display
    */
@@ -136,14 +134,16 @@ class EPaperBase : public DisplayBuffer,
   uint16_t y_low_{};
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  uint32_t transfer_start_time_{};
   uint32_t waiting_for_idle_last_print_{};
   uint32_t waiting_for_idle_start_{};
+#endif
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  uint32_t update_start_time_{};
 #endif
 
   // properties with specific initialisers go last
   EPaperState state_{EPaperState::IDLE};
-  uint32_t reset_duration_{50};
+  uint32_t reset_duration_{10};
 };
 
 }  // namespace esphome::epaper_spi

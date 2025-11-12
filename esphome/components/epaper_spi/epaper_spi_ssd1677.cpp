@@ -16,19 +16,16 @@ static uint8_t color_to_bit(Color color) {
   return 0;
 }
 
-void EPaperSSD1677::power_on() {}
-
-void EPaperSSD1677::power_off() {}
-
 void EPaperSSD1677::refresh_screen() {
-  ESP_LOGD(TAG, "Refresh screen");
+  static uint8_t x = 0;
+  ESP_LOGV(TAG, "Refresh screen");
   this->command(0x22);
-  this->data(0xF7);
+  this->data((x++ & 7) == 0 ? 0xF7 : 0xFF);
   this->command(0x20);
 }
 
 void EPaperSSD1677::deep_sleep() {
-  ESP_LOGD(TAG, "Deep sleep");
+  ESP_LOGV(TAG, "Deep sleep");
   this->command(0x10);
 }
 
@@ -66,13 +63,11 @@ void HOT EPaperSSD1677::draw_absolute_pixel_internal(int x, int y, Color color) 
   this->y_low_ = clamp_at_most(this->y_low_, y);
   this->y_high_ = clamp_at_least(this->y_high_, y - 1);
 
-  size_t pixel_position = y * this->get_width_controller() + x;
-  ;
-
-  size_t byte_position = pixel_position / 8;
-  uint8_t bit_position = pixel_position % 8;
-  uint8_t pixel_bit = 0x80 >> bit_position;
-  auto original = this->buffer_[byte_position];
+  const size_t pixel_position = y * this->get_width_internal() + x;
+  const size_t byte_position = pixel_position / 8;
+  const uint8_t bit_position = pixel_position % 8;
+  const uint8_t pixel_bit = 0x80 >> bit_position;
+  const auto original = this->buffer_[byte_position];
   if ((color_to_bit(color) == 0)) {
     this->buffer_[byte_position] = original & ~pixel_bit;
   } else {
@@ -125,10 +120,10 @@ bool HOT EPaperSSD1677::transfer_data() {
     this->update_width_ = x_high - x_low;
     this->update_startx_ = x_low;
     this->current_data_index_ = y_low;
-    ESP_LOGD(TAG, "Updating with x_low_ %d, x_high_ %d, y_low_ %d, y_high_ %d", this->x_low_, this->x_high_,
+    ESP_LOGV(TAG, "Updating with x_low_ %d, x_high_ %d, y_low_ %d, y_high_ %d", this->x_low_, this->x_high_,
              this->y_low_, this->y_high_);
-    ESP_LOGD(TAG, "Updating with x_low_ %d, x_high_ %d, y_low_ %d, y_high_ %d", x_low, x_high, y_low, y_high);
-    ESP_LOGD(TAG, "Writing %zu bytes at %zu offset", this->bytes_remaining_, this->current_data_index_);
+    ESP_LOGV(TAG, "Updating with x_low_ %d, x_high_ %d, y_low_ %d, y_high_ %d", x_low, x_high, y_low, y_high);
+    ESP_LOGV(TAG, "Writing %zu bytes at %zu offset", this->bytes_remaining_, this->current_data_index_);
     this->x_low_ = this->width_;
     this->x_high_ = 0;
     this->y_low_ = this->height_;
@@ -139,7 +134,7 @@ bool HOT EPaperSSD1677::transfer_data() {
   while (this->bytes_remaining_ != 0) {
     this->bytes_remaining_--;
     size_t buf_idx = 0;
-    size_t data_idx = this->current_data_index_++ * this->get_width_controller() / 8 + this->update_startx_;
+    size_t data_idx = this->current_data_index_++ * this->get_width_internal() / 8 + this->update_startx_;
     for (uint16_t i = 0; i != this->update_width_; i++)
       bytes_to_send[buf_idx++] = this->buffer_[data_idx++];
 
