@@ -25,6 +25,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_RESET_PIN,
+    CONF_VOLTAGE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -102,6 +103,10 @@ nrf52_ns = cg.esphome_ns.namespace("nrf52")
 DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
+CONF_REG0 = "reg0"
+CONF_UICR_ERASE = "uicr_erase"
+
+VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
 
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
@@ -114,6 +119,15 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(): cv.declare_id(DeviceFirmwareUpdate),
                     cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+                }
+            ),
+            cv.Optional(CONF_REG0): cv.Schema(
+                {
+                    cv.Required(CONF_VOLTAGE): cv.All(
+                        cv.voltage,
+                        cv.one_of(*VOLTAGE_LEVELS, float=True),
+                    ),
+                    cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
         }
@@ -182,6 +196,12 @@ async def to_code(config: ConfigType) -> None:
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
+
+    if reg0_config := config.get(CONF_REG0):
+        value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
+        cg.add_define("USE_NRF52_REG0_VOUT", value)
+        if reg0_config[CONF_UICR_ERASE]:
+            cg.add_define("USE_NRF52_UICR_ERASE")
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
@@ -290,6 +310,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
             address = ble_device.address
         else:
             return True
+
     if is_mac_address(address):
         asyncio.run(logger_connect(address))
         return True
