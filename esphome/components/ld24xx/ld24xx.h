@@ -34,11 +34,8 @@
   }
 
 #define SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(sensor, value) \
-  if ((sensor) != nullptr) { \
-    if ((sensor)->publish_dedup.next(value)) { \
-      (sensor)->sens->raw_state = static_cast<float>(value); \
-      (sensor)->sens->state_callback_.call(static_cast<float>(value)); \
-    } \
+  if ((sensor) != nullptr && (sensor)->sens->get_raw_state() != static_cast<float>(value)) { \
+    (sensor)->sens->publish_state(static_cast<float>(value)); \
   }
 
 #define highbyte(val) (uint8_t)((val) >> 8)
