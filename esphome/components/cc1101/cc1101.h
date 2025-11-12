@@ -116,17 +116,5 @@ template<typename... Ts> class ResetAction : public Action<Ts...>, public Parent
   void play(Ts... x) override { this->parent_->reset(); }
 };
 
-template<typename... Ts>
-class CC1101RawAction : public remote_base::RCSwitchRawAction<Ts...>, public Parented<CC1101Component> {
- protected:
-  void play(Ts... x) override {
-    this->parent_->begin_tx();
-    remote_base::RCSwitchRawAction<Ts...>::play(x...);
-    this->parent_->end_tx();
-  }
-
- public:
-};
-
 }  // namespace cc1101
 }  // namespace esphome

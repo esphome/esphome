@@ -3,7 +3,7 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import remote_base, spi
 import esphome.config_validation as cv
-from esphome.const import CONF_CODE, CONF_ID, CONF_PROTOCOL
+from esphome.const import CONF_ID
 
 from .const import (
     CONF_AGC,
@@ -84,8 +84,6 @@ async def cc1101_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-CC1101RawAction = ns.class_("CC1101RawAction", remote_base.RCSwitchRawAction)
-
 CC1101_TRANSMIT_SCHEMA = (
     cv.Schema(
         {
@@ -96,18 +94,3 @@ CC1101_TRANSMIT_SCHEMA = (
     .extend(remote_base.RC_SWITCH_RAW_SCHEMA)
     .extend(remote_base.RC_SWITCH_TRANSMITTER)
 )
-
-
-@remote_base.register_action(
-    "rc_switch_raw_cc1101", CC1101RawAction, CC1101_TRANSMIT_SCHEMA
-)
-async def rc_switch_raw_cc1101_action(var, config, args):
-    proto = await cg.templatable(
-        config[CONF_PROTOCOL],
-        args,
-        remote_base.RCSwitchBase,
-        to_exp=remote_base.build_rc_switch_protocol,
-    )
-    cg.add(var.set_protocol(proto))
-    cg.add(var.set_code(await cg.templatable(config[CONF_CODE], args, cg.std_string)))
-    await cg.register_parented(var, config["cc1101_id"])
