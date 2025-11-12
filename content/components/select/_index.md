@@ -65,7 +65,7 @@ MQTT Options:
 ## Select Automation
 
 You can access the most recent state of the select in [lambdas](/automations/templates#config-lambda) using
-`id(select_id).state`.
+`id(select_id).current_option()`.
 For more information on using lambdas with select, see [lambda calls](#select-lambda_calls).
 
 {{< anchor "select-on_value" >}}
@@ -268,19 +268,28 @@ advanced stuff (see the full API Reference for more info).
   to select the first option or `call.select_next(true)` to select the next
   option with the cycle feature enabled.
 
-- `.state`  : Retrieve the currently selected option of the select.
+- `.current_option()`  : Retrieve the currently selected option of the select. Returns `const char*`.
 
 ```cpp
     // For example, create a custom log message when an option is selected:
-    auto state = id(my_select).state.c_str();
+    auto state = id(my_select).current_option();
     ESP_LOGI("main", "Option of my select: %s", state);
 ```
 
 ```yaml
-    # Check if a specific option is selected
+    # Check if a specific option is selected (using strcmp)
     - if:
         condition:
-          - lambda: 'return id(my_select).state == "my_option_value";'
+          - lambda: 'return strcmp(id(my_select).current_option(), "my_option_value") == 0;'
+```
+
+```yaml
+    # Or convert to std::string for comparison
+    - if:
+        condition:
+          - lambda: |-
+              std::string current = id(my_select).current_option();
+              return current == "my_option_value";
 ```
 
 - `.size()`  : Retrieve the number of options in the select.
