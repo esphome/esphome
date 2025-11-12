@@ -145,6 +145,7 @@
 #define USE_TIME_TIMEZONE
 #define USE_WIFI
 #define USE_WIFI_AP
+#define USE_WIFI_MANUAL_IP
 #define USE_WIREGUARD
 #endif
 
@@ -288,6 +289,8 @@
 
 #ifdef USE_NRF52
 #define USE_NRF52_DFU
+#define USE_NRF52_REG0_VOUT 5
+#define USE_NRF52_UICR_ERASE
 #define USE_SOFTDEVICE_ID 7
 #define USE_SOFTDEVICE_VERSION 1
 #endif

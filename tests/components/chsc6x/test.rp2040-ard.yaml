@@ -16,5 +16,6 @@ display:
 
 touchscreen:
   - platform: chsc6x
+    i2c_id: i2c_bus
     display: ili9xxx_display
     interrupt_pin: 22

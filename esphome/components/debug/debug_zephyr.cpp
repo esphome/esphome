@@ -5,6 +5,7 @@
 #include <zephyr/drivers/hwinfo.h>
 #include <hal/nrf_power.h>
 #include <cstdint>
+#include <zephyr/storage/flash_map.h>
 
 #define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
 
@@ -85,6 +86,37 @@ std::string DebugComponent::get_reset_reason_() {
 }
 
 uint32_t DebugComponent::get_free_heap_() { return INT_MAX; }
+
+static void fa_cb(const struct flash_area *fa, void *user_data) {
+#if CONFIG_FLASH_MAP_LABELS
+  const char *fa_label = flash_area_label(fa);
+
+  if (fa_label == nullptr) {
+    fa_label = "-";
+  }
+  ESP_LOGCONFIG(TAG, "%2d   0x%0*" PRIxPTR "   %-26s  %-24.24s  0x%-10x 0x%-12x", (int) fa->fa_id,
+                sizeof(uintptr_t) * 2, (uintptr_t) fa->fa_dev, fa->fa_dev->name, fa_label, (uint32_t) fa->fa_off,
+                fa->fa_size);
+#else
+  ESP_LOGCONFIG(TAG, "%2d   0x%0*" PRIxPTR "   %-26s  0x%-10x 0x%-12x", (int) fa->fa_id, sizeof(uintptr_t) * 2,
+                (uintptr_t) fa->fa_dev, fa->fa_dev->name, (uint32_t) fa->fa_off, fa->fa_size);
+#endif
+}
+
+void DebugComponent::log_partition_info_() {
+#if CONFIG_FLASH_MAP_LABELS
+  ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
+                     "| Label                   | Offset     | Size");
+  ESP_LOGCONFIG(TAG, "--------------------------------------------"
+                     "-----------------------------------------------");
+#else
+  ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
+                     "| Offset     | Size");
+  ESP_LOGCONFIG(TAG, "-----------------------------------------"
+                     "------------------------------");
+#endif
+  flash_area_foreach(fa_cb, nullptr);
+}
 
 void DebugComponent::get_device_info_(std::string &device_info) {
   std::string supply = "Main supply status: ";
