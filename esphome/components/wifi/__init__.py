@@ -5,7 +5,11 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
-from esphome.components.network import ip_address_literal
+from esphome.components.network import (
+    has_high_performance_networking,
+    ip_address_literal,
+)
+from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.config_validation import only_with_esp_idf
@@ -55,6 +59,8 @@ from . import wpa2_eap
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
+
+_LOGGER = logging.getLogger(__name__)
 
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
@@ -496,6 +502,56 @@ async def to_code(config):
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
+
+    # Apply high performance WiFi settings if high performance networking is enabled
+    if CORE.is_esp32 and CORE.using_esp_idf and has_high_performance_networking():
+        # Check if PSRAM is guaranteed (set by psram component during final validation)
+        psram_guaranteed = psram_is_guaranteed()
+
+        # Always allocate WiFi buffers in PSRAM if available
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
+
+        if psram_guaranteed:
+            _LOGGER.info(
+                "Applying high-performance WiFi settings (PSRAM guaranteed): 512 RX buffers, 32 TX buffers"
+            )
+            # PSRAM is guaranteed - use aggressive settings
+            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true in networking component
+            # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
+
+            # Large dynamic RX buffers (requires PSRAM)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 512)
+
+            # Static TX buffers for better performance
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_TX_BUFFER", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BUFFER_TYPE", 0)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM", 32)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM", 8)
+
+            # AMPDU settings optimized for PSRAM
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 16)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
+        else:
+            _LOGGER.info(
+                "Applying optimized WiFi settings: 64 RX buffers, 64 TX buffers"
+            )
+            # PSRAM not guaranteed - use more conservative, but still optimized settings
+            # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
+
+            # Standard buffer counts
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 64)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM", 64)
+
+            # Standard AMPDU settings
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
+
     cg.add_define("USE_WIFI")
 
     # must register before OTA safe mode check
