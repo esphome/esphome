@@ -82,12 +82,17 @@ uint8_t OtaCoapClientComponent::do_ota_() {
   uint32_t update_start_time = millis();
   std::unique_ptr<char[]> md5_receive_str(new char[MD5_SIZE + 1]);
   md5_receive_str[MD5_SIZE] = '\0';
-
+  this->md5_expected_ = this->md5_;
   if (this->md5_expected_.empty() && !this->get_md5_expected_()) {
     ESP_LOGE(TAG, "MD5 Invalid %s", this->md5_expected_.c_str());
     return OTA_MD5_INVALID;
   }
   ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_.c_str());
+  // feed watchdog and give other tasks a chance to run
+  App.feed_wdt();
+  yield();
+  delay(100);  // NOLINT
+
   ESP_LOGI(TAG, "Get: %s", this->url_.c_str());
 
   this->image_download_started_ = true;
@@ -149,6 +154,7 @@ uint8_t OtaCoapClientComponent::do_ota_() {
 }
 
 bool OtaCoapClientComponent::get_md5_expected_() {
+  set_md5_url_ready(false);
   if (this->md5_url_.empty()) {
     return false;
   }

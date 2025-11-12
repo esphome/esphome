@@ -35,7 +35,7 @@ enum CoapMediaType : uint8_t {
 struct CoapClientRequestData {
   CoapMethod method = CoapMethod::EMPTY;
   std::string uri{};
-  size_t max_block_size{1024};
+  size_t max_block_size{0};
   std::function<void(const unsigned char *data, size_t data_len, size_t offset, size_t total, void *context)> callback;
   void *callback_context;
   CoapMediaType media_type = CoapMediaType::TEXT_PLAIN;
@@ -52,7 +52,7 @@ class CoapClientComponent : public Component {
   void get(std::string uri,
            std::function<void(const unsigned char *data, size_t data_len, size_t offset, size_t total, void *context)>
                callback,
-           void *callback_context, size_t max_block_size = 1024);
+           void *callback_context, size_t max_block_size = 0);
   void process_request(CoapClientRequestData *request);
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                           const coap_mid_t mid);
@@ -62,7 +62,38 @@ class CoapClientComponent : public Component {
   static int verify_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
                                 coap_session_t *session, unsigned depth, int validated, void *arg);
 #endif
-
+  void set_max_block_size(size_t block_size) {
+    if (block_size > 16) {
+      this->max_block_size_ = block_size;
+    }
+  }
+  void set_request_timeout(uint32_t timeout) {
+    if (timeout > COAP_RESOURCE_CHECK_TIME * 1000) {
+      this->request_timeout_ = timeout;
+    }
+  }
+  void set_ack_timeout(uint32_t timeout) {
+    if (timeout > 2000) {
+      this->ack_timeout_ = timeout;
+    }
+  }
+  void set_max_retransmit(uint8_t max) {
+    if (max >= 0) {
+      this->max_retransmit_ = max;
+    }
+  }
+#ifdef CONFIG_COAP_OSCORE_SUPPORT
+  void set_oscore_conf(std::string str) { this->oscore_conf_str_ = str; }
+#endif
+#ifdef CONFIG_COAP_MBEDTLS_PSK
+  void set_psk_identity(std::string str) { this->psk_identity_ = str; }
+  void set_psk_key(std::string str) { this->psk_key_ = str; }
+#endif
+#ifdef CONFIG_COAP_MBEDTLS_PKI
+  void set_ca_pem(std::string str) { this->ca_pem_str_ = str; }
+  void set_client_crt(std::string str) { this->client_crt_str_ = str; }
+  void set_client_key(std::string str) { this->client_key_str_ = str; }
+#endif
  protected:
   void main_();
 
@@ -78,14 +109,17 @@ class CoapClientComponent : public Component {
                                                coap_proto_t proto);
 
   bool main_looping_{true};
-  bool toredown_{false};
+  bool torndown_{false};
   QueueHandle_t request_queue_{nullptr};
   TaskHandle_t main_task_handle_{nullptr};
   std::function<void(const unsigned char *data, size_t len, size_t offset, size_t total, void *context)>
       response_callback_{nullptr};
   void *response_callback_context_{nullptr};
-  const uint8_t uri_path_buffer_size_{40};
-  const uint32_t request_timeout_{60000};
+  size_t max_block_size_{512};
+  uint8_t uri_path_buffer_size_{100};
+  uint32_t request_timeout_{COAP_RESOURCE_CHECK_TIME * 1000};
+  uint32_t ack_timeout_{2000};
+  uint8_t max_retransmit_{4};
 #ifdef CONFIG_COAP_OSCORE_SUPPORT
   std::string oscore_conf_str_{};
 #endif

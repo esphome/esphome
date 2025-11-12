@@ -31,7 +31,7 @@ class OtaCoapClientComponent : public ota::OTAComponent, public Parented<CoapCli
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void set_md5_url(const std::string &md5_url);
-  void set_md5(const std::string &md5) { this->md5_expected_ = md5; }
+  void set_md5(const std::string &md5) { this->md5_ = md5; }
   void set_url(const std::string &url);
   std::string md5_computed() { return this->md5_computed_; }
   std::string md5_expected() { return this->md5_expected_; }
@@ -58,6 +58,7 @@ class OtaCoapClientComponent : public ota::OTAComponent, public Parented<CoapCli
 
   bool md5_url_ready_{false};
   std::string md5_computed_{};
+  std::string md5_{};
   std::string md5_expected_{};
   std::string md5_url_{};
   std::string url_{};

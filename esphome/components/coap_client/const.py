@@ -1,0 +1,11 @@
+# local cvs
+CONF_DEFAULT_MAX_BLOCK_SIZE = "default_max_block_size"
+CONF_REQUEST_TIMEOUT = "request_timeout"
+CONF_ACK_TIMEOUT = "ack_timout"
+CONF_MAX_RETRANSMIT = "max_retransmit"
+CONF_OSCORE_CONF = "oscore_conf"
+CONF_PSK_IDENTITY = "psk_identity"
+CONF_PSK_KEY = "psk_key"
+CONF_CA_PEM = "ca_pem"
+CONF_CLIENT_CRT = "client_crt"
+CONF_CLIENT_KEY = "client_key"
