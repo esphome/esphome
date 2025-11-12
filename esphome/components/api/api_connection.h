@@ -650,21 +650,30 @@ class APIConnection final : public APIServerConnection {
   }
 #endif
 
+  // Helper to check if a message type should bypass batching
+  // Returns true if:
+  // 1. It's an UpdateStateResponse (always send immediately to handle cases where
+  //    the main loop is blocked, e.g., during OTA updates)
+  // 2. It's an EventResponse (events are edge-triggered - every occurrence matters)
+  // 3. OR: User has opted into immediate sending (should_try_send_immediately = true
+  //    AND batch_delay = 0)
+  inline bool should_send_immediately_(uint8_t message_type) const {
+    return (
+#ifdef USE_UPDATE
+        message_type == UpdateStateResponse::MESSAGE_TYPE ||
+#endif
+#ifdef USE_EVENT
+        message_type == EventResponse::MESSAGE_TYPE ||
+#endif
+        (this->flags_.should_try_send_immediately && this->get_batch_delay_ms_() == 0));
+  }
+
   // Helper method to send a message either immediately or via batching
+  // Tries immediate send if should_send_immediately_() returns true and buffer has space
+  // Falls back to batching if immediate send fails or isn't applicable
   bool send_message_smart_(EntityBase *entity, MessageCreatorPtr creator, uint8_t message_type,
                            uint8_t estimated_size) {
-    // Try to send immediately if:
-    // 1. It's an UpdateStateResponse (always send immediately to handle cases where
-    //    the main loop is blocked, e.g., during OTA updates)
-    // 2. OR: We should try to send immediately (should_try_send_immediately = true)
-    //        AND Batch delay is 0 (user has opted in to immediate sending)
-    // 3. AND: Buffer has space available
-    if ((
-#ifdef USE_UPDATE
-            message_type == UpdateStateResponse::MESSAGE_TYPE ||
-#endif
-            (this->flags_.should_try_send_immediately && this->get_batch_delay_ms_() == 0)) &&
-        this->helper_->can_write_without_blocking()) {
+    if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
       // Now actually encode and send
       if (creator(entity, this, MAX_BATCH_PACKET_SIZE, true) &&
           this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
@@ -680,6 +689,27 @@ class APIConnection final : public APIServerConnection {
 
     // Fall back to scheduled batching
     return this->schedule_message_(entity, creator, message_type, estimated_size);
+  }
+
+  // Overload for MessageCreator (used by events which need to capture event_type)
+  bool send_message_smart_(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size) {
+    // Try to send immediately if message type should bypass batching and buffer has space
+    if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
+      // Now actually encode and send
+      if (creator(entity, this, MAX_BATCH_PACKET_SIZE, true, message_type) &&
+          this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+        // Log the message in verbose mode
+        this->log_proto_message_(entity, creator, message_type);
+#endif
+        return true;
+      }
+
+      // If immediate send failed, fall through to batching
+    }
+
+    // Fall back to scheduled batching
+    return this->schedule_message_(entity, std::move(creator), message_type, estimated_size);
   }
 
   // Helper function to schedule a deferred message with known message type
