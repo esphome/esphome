@@ -213,17 +213,14 @@ class LvScrActType(WidgetType):
     """
 
     def __init__(self):
-        super().__init__("lv_scr_act()", lv_obj_t, ())
+        super().__init__("lv_scr_act()", lv_obj_t, (), is_mock=True)
 
     async def to_code(self, w, config: dict):
         return []
 
 
-lv_scr_act_spec = LvScrActType()
-
-
 def get_scr_act(lv_comp: MockObj) -> Widget:
-    return Widget.create(None, lv_comp.get_scr_act(), lv_scr_act_spec, {})
+    return Widget.create(None, lv_comp.get_scr_act(), LvScrActType(), {})
 
 
 def get_widget_generator(wid):
