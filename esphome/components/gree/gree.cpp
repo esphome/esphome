@@ -1,7 +1,6 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include <string>
-#include <cstring>
 #include <type_traits>
 
 namespace esphome {
@@ -32,7 +31,7 @@ climate::ClimateTraits GreeClimate::traits() {
 void GreeClimate::control(const climate::ClimateCall &call) {
   const auto &custom_preset_raw = call.get_custom_preset();
   const char *custom_preset = custom_preset_to_cstr(custom_preset_raw);
-  if (custom_preset != nullptr && std::strcmp(custom_preset, PRESET_DISPLAY_LIGHT_OFF) == 0) {
+  if (custom_preset != nullptr && strcmp(custom_preset, PRESET_DISPLAY_LIGHT_OFF) == 0) {
     ESP_LOGD(TAG, "Display light off");
     this->display_light_ = false;
     this->set_custom_preset_(custom_preset);
