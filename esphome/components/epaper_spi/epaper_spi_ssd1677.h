@@ -12,9 +12,6 @@ class EPaperSSD1677 : public EPaperBase {
     this->buffer_length_ = width * height / 8;  // 8 pixels per byte
   }
 
-  void fill(Color color) override;
-  void clear() override;
-
  protected:
   void refresh_screen(bool partial) override;
   void power_on() override{};

@@ -66,6 +66,7 @@ class EPaperBase : public Display,
 
   DisplayType get_display_type() override { return this->display_type_; };
 
+  // Default implementations for monochrome displays
   static uint8_t color_to_bit(Color color) {
     // It's always a shade of gray. Map to BLACK or WHITE.
     // We split the luminance at a suitable point
@@ -73,6 +74,17 @@ class EPaperBase : public Display,
       return 1;
     }
     return 0;
+  }
+  void fill(Color color) override {
+    auto pixel_color = color_to_bit(color) ? 0xFF : 0x00;
+
+    // We store 8 pixels per byte
+    this->buffer_.fill(pixel_color);
+  }
+
+  void clear() override {
+    // clear buffer to white, just like real paper.
+    this->fill(COLOR_ON);
   }
 
  protected:

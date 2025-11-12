@@ -6,6 +6,7 @@ import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.mipi import flatten_sequence, map_sequence
 import esphome.config_validation as cv
+from esphome.config_validation import update_interval
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
@@ -21,15 +22,19 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
     CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
+    CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
 from esphome.cpp_generator import RawExpression
+from esphome.final_validate import full_config
 
+from ..display import CONF_SHOW_TEST_CARD
 from . import models
 
 AUTO_LOAD = ["split_buffer"]
@@ -84,6 +89,9 @@ def model_schema(config):
         .extend(
             {
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
+                cv.Optional(
+                    CONF_UPDATE_INTERVAL, default=cv.UNDEFINED
+                ): update_interval,
                 cv.Optional(CONF_TRANSFORM): cv.Schema(
                     {
                         cv.Required(CONF_MIRROR_X): cv.boolean,
@@ -128,9 +136,30 @@ def customise_schema(config):
 
 CONFIG_SCHEMA = customise_schema
 
-FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
-    "epaper_spi", require_miso=False, require_mosi=True
-)
+
+def _final_validate(config):
+    spi.final_validate_device_schema(
+        "epaper_spi", require_miso=False, require_mosi=True
+    )(config)
+
+    global_config = full_config.get()
+    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
+
+    if CONF_LAMBDA not in config and CONF_PAGES not in config:
+        if LVGL_DOMAIN in global_config:
+            if CONF_UPDATE_INTERVAL not in config:
+                config[CONF_UPDATE_INTERVAL] = update_interval("never")
+        else:
+            # If no drawing methods are configured, and LVGL is not enabled, show a test card
+            config[CONF_SHOW_TEST_CARD] = True
+            config[CONF_UPDATE_INTERVAL] = core.TimePeriod(
+                seconds=60
+            ).total_milliseconds
+    print(config[CONF_UPDATE_INTERVAL])
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

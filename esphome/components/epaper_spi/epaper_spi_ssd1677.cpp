@@ -23,22 +23,9 @@ void EPaperSSD1677::deep_sleep() {
 bool EPaperSSD1677::reset() {
   if (EPaperBase::reset()) {
     this->command(0x12);
-    delay(10);
     return true;
   }
   return false;
-}
-
-void EPaperSSD1677::fill(Color color) {
-  auto pixel_color = color_to_bit(color) ? 0xFF : 0x00;
-
-  // We store 8 pixels per byte
-  this->buffer_.fill(pixel_color);
-}
-
-void EPaperSSD1677::clear() {
-  // clear buffer to white, just like real paper.
-  this->fill(COLOR_ON);
 }
 
 bool HOT EPaperSSD1677::transfer_data() {
