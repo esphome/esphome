@@ -200,7 +200,7 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
-int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
+int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {

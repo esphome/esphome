@@ -381,7 +381,10 @@ void EthernetComponent::dump_config() {
       break;
   }
 
-  ESP_LOGCONFIG(TAG, "Ethernet:");
+  ESP_LOGCONFIG(TAG,
+                "Ethernet:\n"
+                "  Connected: %s",
+                YESNO(this->is_connected()));
   this->dump_connect_params_();
 #ifdef USE_ETHERNET_SPI
   ESP_LOGCONFIG(TAG,
