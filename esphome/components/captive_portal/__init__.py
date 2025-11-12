@@ -1,9 +1,12 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AP,
     CONF_ID,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -14,6 +17,10 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+import esphome.final_validate as fv
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def AUTO_LOAD() -> list[str]:
@@ -48,6 +55,27 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
 )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    full_config = fv.full_config.get()
+    wifi_conf = full_config.get("wifi")
+
+    if wifi_conf is None:
+        # This shouldn't happen due to DEPENDENCIES = ["wifi"], but check anyway
+        raise cv.Invalid("Captive portal requires the wifi component to be configured")
+
+    if CONF_AP not in wifi_conf:
+        _LOGGER.warning(
+            "Captive portal is enabled but no WiFi AP is configured. "
+            "The captive portal will not be accessible. "
+            "Add 'ap:' to your WiFi configuration to enable the captive portal."
+        )
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.CAPTIVE_PORTAL)
