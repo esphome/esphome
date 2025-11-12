@@ -263,14 +263,5 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   CallbackManager<void(int, int)> offline_callback_{};
 };
 
-/** Convert vector<uint8_t> response payload to float.
- * @param data payload with data
- * @param item SensorItem object
- * @return float value of data
- */
-inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  return payload_to_float(data, item.sensor_value_type, item.offset, item.bitmask);
-}
-
 }  // namespace modbus_controller
 }  // namespace esphome

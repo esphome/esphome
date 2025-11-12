@@ -430,6 +430,7 @@ void ModbusClient::send(ModbusClientDevice *device, uint8_t address, uint8_t fun
   data.push_back(start_address >> 0);
   if (function_code != ModbusFunctionCode::WRITE_SINGLE_COIL &&
       function_code != ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
+    // TODO: The naming is misleading here for coils. This is the value, not the number of coils.
     data.push_back(number_of_entities >> 8);
     data.push_back(number_of_entities >> 0);
   }
