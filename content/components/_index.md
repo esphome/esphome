@@ -364,6 +364,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "AM2315C","components/sensor/am2315c","am2315c.jpg","Temperature & Humidity",""
 "AM2320","components/sensor/am2320","am2320.jpg","Temperature & Humidity",""
 "b-parasite","components/sensor/b_parasite","b_parasite.jpg","Moisture & Temperature & Humidity & Light",""
+"BH1900NUX","components/sensor/bh1900nux","bh1900nux-evk-001.png","Temperature",""
 "BME280","components/sensor/bme280","bme280.jpg","Temperature & Humidity & Pressure",""
 "BME68x via BSEC2","components/sensor/bme68x_bsec2","bme680.jpg","Temperature & Humidity & Pressure & Gas",""
 "BME680 via BSEC","components/sensor/bme680_bsec","bme680.jpg","Temperature & Humidity & Pressure & Gas",""
