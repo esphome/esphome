@@ -33,6 +33,11 @@
     (sensor)->publish_state_unknown(); \
   }
 
+#define SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(sensor, value) \
+  if ((sensor) != nullptr && (sensor)->sens->get_state() != (value)) { \
+    (sensor)->sens->publish_state(value); \
+  }
+
 #define highbyte(val) (uint8_t)((val) >> 8)
 #define lowbyte(val) (uint8_t)((val) &0xff)
 

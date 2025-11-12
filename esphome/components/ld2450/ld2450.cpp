@@ -340,18 +340,12 @@ void LD2450Component::publish_target_sensors_(uint8_t index, int16_t x, int16_t 
 // Force clear all target sensor values to 0, bypassing throttle but still using deduplication
 void LD2450Component::force_clear_target_sensors_(uint8_t index) {
   // Use publish_state() to bypass throttle filters, with manual dedup check
-  if (this->move_x_sensors_[index] != nullptr && this->move_x_sensors_[index]->get_state() != 0)
-    this->move_x_sensors_[index]->sens->publish_state(0);
-  if (this->move_y_sensors_[index] != nullptr && this->move_y_sensors_[index]->get_state() != 0)
-    this->move_y_sensors_[index]->sens->publish_state(0);
-  if (this->move_resolution_sensors_[index] != nullptr && this->move_resolution_sensors_[index]->get_state() != 0)
-    this->move_resolution_sensors_[index]->sens->publish_state(0);
-  if (this->move_speed_sensors_[index] != nullptr && this->move_speed_sensors_[index]->get_state() != 0)
-    this->move_speed_sensors_[index]->sens->publish_state(0);
-  if (this->move_distance_sensors_[index] != nullptr && this->move_distance_sensors_[index]->get_state() != 0)
-    this->move_distance_sensors_[index]->sens->publish_state(0);
-  if (this->move_angle_sensors_[index] != nullptr && this->move_angle_sensors_[index]->get_state() != 0)
-    this->move_angle_sensors_[index]->sens->publish_state(0);
+  SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(this->move_x_sensors_[index], 0);
+  SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(this->move_y_sensors_[index], 0);
+  SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(this->move_resolution_sensors_[index], 0);
+  SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(this->move_speed_sensors_[index], 0);
+  SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(this->move_distance_sensors_[index], 0);
+  SAFE_PUBLISH_SENSOR_WITHOUT_FILTERS(this->move_angle_sensors_[index], 0);
 }
 #endif
 
