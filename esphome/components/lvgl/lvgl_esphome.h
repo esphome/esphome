@@ -161,7 +161,7 @@ class LvglComponent : public PollingComponent {
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
-                bool resume_on_input);
+                bool resume_on_input, bool update_when_display_idle);
   static void static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -218,12 +218,13 @@ class LvglComponent : public PollingComponent {
   void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
   void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
+  bool is_paused();
 
  protected:
   // these functions are never called unless the callbacks are non-null since the
   // LVGL callbacks that call them are not set unless the start/end callbacks are non-null
   void draw_start_() const { this->draw_start_callback_->trigger(); }
-  void draw_end_() const { this->draw_end_callback_->trigger(); }
+  void draw_end_();
 
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
@@ -232,6 +233,7 @@ class LvglComponent : public PollingComponent {
   size_t buffer_frac_{1};
   bool full_refresh_{};
   bool resume_on_input_{};
+  bool update_when_display_idle_{};
 
   lv_disp_draw_buf_t draw_buf_{};
   lv_disp_drv_t disp_drv_{};

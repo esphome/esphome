@@ -284,6 +284,7 @@ async def to_code(configs):
             config[df.CONF_FULL_REFRESH],
             config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
+            config[df.CONF_UPDATE_WHEN_DISPLAY_IDLE],
         )
         await cg.register_component(lv_component, config)
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
@@ -381,6 +382,9 @@ LVGL_SCHEMA = cv.All(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+                cv.Optional(
+                    df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False
+                ): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
