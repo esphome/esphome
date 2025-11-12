@@ -14,7 +14,8 @@ CONF_STATUS_PIN = "status_pin"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
-Tuya = tuya_ns.class_("Tuya", cg.Component, uart.UARTDevice)
+Tuya = tuya_ns.class_("Tuya", cg.Component)
+TuyaUART = tuya_ns.class_("TuyaUART", cg.Component, uart.UARTDevice, Tuya)
 
 DPTYPE_ANY = "any"
 DPTYPE_RAW = "raw"
@@ -84,7 +85,7 @@ CONF_TUYA_ID = "tuya_id"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(Tuya),
+            cv.GenerateID(): cv.declare_id(TuyaUART),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Optional(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS): cv.ensure_list(
                 cv.uint8_t
