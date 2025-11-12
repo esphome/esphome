@@ -61,7 +61,8 @@ float STTS22HComponent::read_temperature_() {
 
   // Combine the two bytes into a single 16-bit signed integer
   // The STTS22H temperature data is in two's complement format
-  int16_t temperature_raw = (static_cast<int16_t>(temperature_register_value[1]) << 8) | temperature_register_value[0];
+  int16_t temperature_raw =
+      (static_cast<int16_t>(encode_uint16(temperature_register_value[1], temperature_register_value[0])));
   float temperature_value = temperature_raw * SENSOR_SCALE;  // Apply sensor resolution
 
   return temperature_value;
