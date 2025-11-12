@@ -108,10 +108,9 @@ void EPaperSpectraE6::clear() {
   this->fill(COLOR_ON);
 }
 
-void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
+void HOT EPaperSpectraE6::draw_pixel_at(int x, int y, Color color) {
+  if (!this->rotate_coordinates_(x, y))
     return;
-
   auto pixel_bits = color_to_hex(color);
   uint32_t pixel_position = x + y * this->get_width_internal();
   uint32_t byte_position = pixel_position / 2;

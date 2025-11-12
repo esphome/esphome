@@ -22,7 +22,6 @@ class EPaperSSD1677 : public EPaperBase {
   void deep_sleep() override;
   bool reset() override;
   bool transfer_data() override;
-  void draw_pixel_at(int x, int y, Color color) override;
 };
 
 }  // namespace esphome::epaper_spi

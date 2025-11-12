@@ -65,11 +65,21 @@ class EPaperBase : public Display,
 
   DisplayType get_display_type() override { return this->display_type_; };
 
+  static uint8_t color_to_bit(Color color) {
+    // It's always a shade of gray. Map to BLACK or WHITE.
+    // We split the luminance at a suitable point
+    if ((static_cast<int>(color.r) + color.g + color.b) > 512) {
+      return 1;
+    }
+    return 0;
+  }
+
  protected:
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
   int get_width() override { return this->transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->transform_ & SWAP_XY ? this->width_ : this->height_; }
+  void draw_pixel_at(int x, int y, Color color) override;
   void process_state_();
 
   const char *epaper_state_to_string_();
@@ -79,6 +89,7 @@ class EPaperBase : public Display,
   void initialise_();
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
+  bool rotate_coordinates_(int &x, int &y) const;
 
   /**
    * Methods that must be implemented by concrete classes to control the display

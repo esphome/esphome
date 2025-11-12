@@ -268,6 +268,47 @@ void EPaperBase::initialise_() {
   }
 }
 
+/**
+ * Check and rotate coordinates based on the transform flags.
+ * @param x
+ * @param y
+ * @return false if the coordinates are out of bounds
+ */
+bool EPaperBase::rotate_coordinates_(int &x, int &y) const {
+  if (!this->get_clipping().inside(x, y))
+    return false;
+  if (this->transform_ & SWAP_XY)
+    std::swap(x, y);
+  if (this->transform_ & MIRROR_X)
+    x = this->width_ - x - 1;
+  if (this->transform_ & MIRROR_Y)
+    y = this->height_ - y - 1;
+  if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
+    return false;
+  return true;
+}
+
+/**
+ *  Default implementation for monochrome displays
+ * @param x
+ * @param y
+ * @param color
+ */
+void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
+  if (!rotate_coordinates_(x, y))
+    return;
+  const size_t pixel_position = y * this->width_ + x;
+  const size_t byte_position = pixel_position / 8;
+  const uint8_t bit_position = pixel_position % 8;
+  const uint8_t pixel_bit = 0x80 >> bit_position;
+  const auto original = this->buffer_[byte_position];
+  if ((color_to_bit(color) == 0)) {
+    this->buffer_[byte_position] = original & ~pixel_bit;
+  } else {
+    this->buffer_[byte_position] = original | pixel_bit;
+  }
+}
+
 void EPaperBase::dump_config() {
   LOG_DISPLAY("", "E-Paper SPI", this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->name_);

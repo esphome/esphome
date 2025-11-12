@@ -22,6 +22,8 @@ from esphome.const import (
     CONF_MODEL,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
+    CONF_ROTATION,
+    CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
@@ -57,7 +59,7 @@ DIMENSION_SCHEMA = cv.Schema(
     }
 )
 
-TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y}
+TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
 
 
 def model_schema(config):
@@ -82,7 +84,10 @@ def model_schema(config):
             {
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
                 cv.Optional(CONF_TRANSFORM): cv.Schema(
-                    {cv.Required(x): cv.boolean for x in TRANSFORM_OPTIONS}
+                    {
+                        cv.Required(CONF_MIRROR_X): cv.boolean,
+                        cv.Required(CONF_MIRROR_Y): cv.boolean,
+                    }
                 ),
                 model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
                 cv.GenerateID(): cv.declare_id(class_name),
@@ -147,7 +152,9 @@ async def to_code(config):
         init_sequence_length,
     )
 
-    await display.register_display(var, config)
+    # Rotation is handled by setting the transform
+    display_config = {k: v for k, v in config.items() if k != CONF_ROTATION}
+    await display.register_display(var, display_config)
     await spi.register_spi_device(var, config)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
@@ -167,13 +174,23 @@ async def to_code(config):
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
     if transform := config.get(CONF_TRANSFORM):
-        pass
+        transform[CONF_SWAP_XY] = False
     else:
         transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
     # TODO process rotation here
-    if any(v for v in transform.values()):
-        transform = [
-            getattr(Transform, x.upper()) for x in TRANSFORM_OPTIONS if transform.get(x)
-        ]
+    rotation = config[CONF_ROTATION]
+    if rotation == 180:
+        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
+        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
+    elif rotation == 90:
+        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
+        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
+    else:
+        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
+        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
+    transform = [
+        getattr(Transform, x.upper()) for x in TRANSFORM_OPTIONS if transform.get(x)
+    ]
+    if transform:
         transform = "|".join({f"{e}" for e in transform})
         cg.add(var.set_transform(RawExpression(transform)))
