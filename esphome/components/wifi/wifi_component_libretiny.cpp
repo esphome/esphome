@@ -68,7 +68,7 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
   return true;
 }
 bool WiFiComponent::wifi_apply_power_save_() { return WiFi.setSleep(this->power_save_ != WIFI_POWER_SAVE_NONE); }
-bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -434,7 +434,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
 }
 
 #ifdef USE_WIFI_AP
-bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;

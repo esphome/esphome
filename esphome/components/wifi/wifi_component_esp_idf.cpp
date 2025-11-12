@@ -487,7 +487,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   return true;
 }
 
-bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -884,7 +884,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 }
 
 #ifdef USE_WIFI_AP
-bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   esp_err_t err;
 
   // enable AP
