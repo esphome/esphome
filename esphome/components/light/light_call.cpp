@@ -406,11 +406,7 @@ void LightCall::transform_parameters_() {
   }
 }
 ColorMode LightCall::compute_color_mode_() {
-  // Store traits locally to avoid dangling reference: get_traits() returns by value, so
-  // calling get_traits().get_supported_color_modes() would create a temporary LightTraits
-  // object, return a reference to its member, then destroy the temporary, leaving a dangling reference.
-  auto traits = this->parent_->get_traits();
-  const auto &supported_modes = traits.get_supported_color_modes();
+  auto supported_modes = this->parent_->get_traits().get_supported_color_modes();
   int supported_count = supported_modes.size();
 
   // Some lights don't support any color modes (e.g. monochromatic light), leave it at unknown.
