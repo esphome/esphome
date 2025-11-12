@@ -27,4 +27,9 @@ if [[ -d /build ]]; then
     export ESPHOME_BUILD_PATH=/build
 fi
 
+# If DASHBOARD_LISTENING_NETWORK_INTERFACE is set, bind the dashboard to the IP of that interface
+if [[ -n $DASHBOARD_LISTENING_NETWORK_INTERFACE ]]; then
+    set -- "$@" --address `python -c "import ifaddr; print(next((a for a in ifaddr.get_adapters() if a.name == '$DASHBOARD_LISTENING_NETWORK_INTERFACE')).ips[0].ip)"`
+fi
+
 exec esphome "$@"
