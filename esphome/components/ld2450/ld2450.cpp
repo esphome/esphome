@@ -529,9 +529,10 @@ void LD2450Component::handle_periodic_data_() {
     int32_t y_squared = (int32_t) ty * ty;
     td = (uint16_t) sqrtf(x_squared + y_squared);  // Pythagorean theorem: distance = sqrt(x² + y²)
 
-    // Only publish sensor values when a target is actually detected (distance > 0)
-    // This prevents stale/ghost readings from persisting
-    if (td > 0) {
+    // Only publish sensor values when a target is actually detected (resolution > 0)
+    // The radar sets resolution=0 when no target is present, even if X/Y coordinates
+    // haven't been cleared from the buffer yet. This prevents stale/ghost readings.
+    if (res > 0) {
       target_count++;
 #ifdef USE_SENSOR
       // ANGLE
