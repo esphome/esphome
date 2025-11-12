@@ -1050,7 +1050,7 @@ void WiFiComponent::check_connecting_finished() {
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
     // Ensure next connection attempt does not inherit error state
-    // so when WiFi disconnects later we start fresh we don't see
+    // so when WiFi disconnects later we start fresh and don't see
     // the first connection as a failure.
     this->error_from_callback_ = false;
 
