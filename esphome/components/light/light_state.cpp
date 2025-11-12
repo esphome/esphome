@@ -1,7 +1,8 @@
-#include "esphome/core/log.h"
-
-#include "light_output.h"
 #include "light_state.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
+#include "esphome/core/log.h"
+#include "light_output.h"
 #include "transformers.h"
 
 namespace esphome {
@@ -137,7 +138,12 @@ void LightState::loop() {
 
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
-void LightState::publish_state() { this->remote_values_callback_.call(); }
+void LightState::publish_state() {
+  this->remote_values_callback_.call();
+#if defined(USE_LIGHT) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_light_update(this);
+#endif
+}
 
 LightOutput *LightState::get_output() const { return this->output_; }
 
@@ -177,12 +183,10 @@ void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ =
 void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 void LightState::set_initial_state(const LightStateRTCState &initial_state) { this->initial_state_ = initial_state; }
 bool LightState::supports_effects() { return !this->effects_.empty(); }
-const std::vector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
-void LightState::add_effects(const std::vector<LightEffect *> &effects) {
-  this->effects_.reserve(this->effects_.size() + effects.size());
-  for (auto *effect : effects) {
-    this->effects_.push_back(effect);
-  }
+const FixedVector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
+void LightState::add_effects(const std::initializer_list<LightEffect *> &effects) {
+  // Called once from Python codegen during setup with all effects from YAML config
+  this->effects_ = effects;
 }
 
 void LightState::current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
@@ -190,11 +194,9 @@ void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness, this->gamma_correct_);
 }
 void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
-  auto traits = this->get_traits();
   this->current_values.as_rgb(red, green, blue, this->gamma_correct_, false);
 }
 void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
-  auto traits = this->get_traits();
   this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, false);
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
@@ -208,7 +210,6 @@ void LightState::current_values_as_rgbct(float *red, float *green, float *blue, 
                                 white_brightness, this->gamma_correct_);
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
-  auto traits = this->get_traits();
   this->current_values.as_cwww(cold_white, warm_white, this->gamma_correct_, constant_brightness);
 }
 void LightState::current_values_as_ct(float *color_temperature, float *white_brightness) {

@@ -51,6 +51,7 @@ from esphome.const import (
     DEVICE_CLASS_OZONE,
     DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM4,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_POWER,
@@ -65,6 +66,7 @@ from esphome.const import (
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE_DELTA,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
@@ -116,6 +118,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
+    DEVICE_CLASS_PM4,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRECIPITATION,
@@ -128,6 +131,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE_DELTA,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
@@ -234,11 +238,6 @@ def number_schema(
     return _NUMBER_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-NUMBER_SCHEMA = number_schema(Number)
-NUMBER_SCHEMA.add_extra(cv.deprecated_schema_constant("number"))
-
-
 async def setup_number_core_(
     var, config, *, min_value: float, max_value: float, step: float
 ):
@@ -248,7 +247,10 @@ async def setup_number_core_(
     cg.add(var.traits.set_max_value(max_value))
     cg.add(var.traits.set_step(step))
 
-    cg.add(var.traits.set_mode(config[CONF_MODE]))
+    # Only set if non-default to avoid bloating setup() function
+    # (mode_ is initialized to NUMBER_MODE_AUTO in the header)
+    if config[CONF_MODE] != NumberMode.NUMBER_MODE_AUTO:
+        cg.add(var.traits.set_mode(config[CONF_MODE]))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

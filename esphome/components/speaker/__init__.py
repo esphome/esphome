@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import audio, audio_dac
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_VOLUME
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
@@ -90,7 +90,10 @@ async def speaker_play_action(config, action_id, template_arg, args):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        cg.add(var.set_data_static(data))
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
     return var
 
 

@@ -155,16 +155,12 @@ esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_par
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto *connection = this->connections_[i];
-    if (connection->get_address() == address)
+    uint64_t conn_addr = connection->get_address();
+
+    if (conn_addr == address)
       return connection;
-  }
 
-  if (!reserve)
-    return nullptr;
-
-  for (uint8_t i = 0; i < this->connection_count_; i++) {
-    auto *connection = this->connections_[i];
-    if (connection->get_address() == 0) {
+    if (reserve && conn_addr == 0) {
       connection->send_service_ = INIT_SENDING_SERVICES;
       connection->set_address(address);
       // All connections must start at INIT
@@ -175,7 +171,6 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
       return connection;
     }
   }
-
   return nullptr;
 }
 
@@ -305,7 +300,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
     return;
   }
 
-  auto err = connection->write_characteristic(msg.handle, msg.data, msg.response);
+  auto err = connection->write_characteristic(msg.handle, msg.data, msg.data_len, msg.response);
   if (err != ESP_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
@@ -331,7 +326,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
     return;
   }
 
-  auto err = connection->write_descriptor(msg.handle, msg.data, true);
+  auto err = connection->write_descriptor(msg.handle, msg.data, msg.data_len, true);
   if (err != ESP_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }

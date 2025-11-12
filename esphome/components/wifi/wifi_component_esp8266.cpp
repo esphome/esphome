@@ -258,8 +258,17 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
-    // Only allow auth modes with at least WPA
-    conf.threshold.authmode = AUTH_WPA_PSK;
+    // Set threshold based on configured minimum auth mode
+    // Note: ESP8266 doesn't support WPA3
+    switch (this->min_auth_mode_) {
+      case WIFI_MIN_AUTH_MODE_WPA:
+        conf.threshold.authmode = AUTH_WPA_PSK;
+        break;
+      case WIFI_MIN_AUTH_MODE_WPA2:
+      case WIFI_MIN_AUTH_MODE_WPA3:  // Fall back to WPA2 for ESP8266
+        conf.threshold.authmode = AUTH_WPA2_PSK;
+        break;
+    }
   }
   conf.threshold.rssi = -127;
 #endif
@@ -273,9 +282,15 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
   }
+#else
+  if (!this->wifi_sta_ip_config_({})) {
+    return false;
+  }
+#endif
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
@@ -301,7 +316,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       // if we have certs, this must be EAP-TLS
       ret = wifi_station_set_enterprise_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                  (uint8_t *) eap.client_key, client_key_len + 1,
-                                                 (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                                 (uint8_t *) eap.password.c_str(), eap.password.length());
       if (ret) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed: %d", ret);
       }
@@ -696,12 +711,20 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     this->retry_connect();
     return;
   }
+
+  // Count the number of results first
   auto *head = reinterpret_cast<bss_info *>(arg);
+  size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    WiFiScanResult res({it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-                       std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi,
-                       it->authmode != AUTH_OPEN, it->is_hidden != 0);
-    this->scan_result_.push_back(res);
+    count++;
+  }
+
+  this->scan_result_.init(count);
+  for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
+    this->scan_result_.emplace_back(
+        bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
+        std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN,
+        it->is_hidden != 0);
   }
   this->scan_done_ = true;
 }
@@ -815,10 +838,17 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
   }
 
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
     ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
     return false;
   }
+#else
+  if (!this->wifi_ap_ip_config_({})) {
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
+    return false;
+  }
+#endif
 
   return true;
 }

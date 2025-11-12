@@ -1,3 +1,13 @@
+esphome:
+  on_boot:
+    - lambda: |-
+        int x = 100;
+        x = clamp(x, 50, 90);
+        assert(x == 90);
+        x = clamp_at_least(x, 95);
+        assert(x == 95);
+        x = clamp_at_most(x, 40);
+        assert(x == 40);
 nrf52:
   dfu:
     reset_pin:
@@ -5,3 +15,6 @@ nrf52:
       inverted: true
       mode:
         output: true
+  reg0:
+    voltage: 2.1V
+    uicr_erase: true

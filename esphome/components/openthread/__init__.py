@@ -4,11 +4,14 @@ from esphome.components.esp32 import (
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
     only_on_variant,
+    require_vfs_select,
 )
-from esphome.components.mdns import MDNSComponent
+from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID
+from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
+from esphome.core import CORE, TimePeriodMilliseconds
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .const import (
     CONF_DEVICE_TYPE,
@@ -19,6 +22,7 @@ from .const import (
     CONF_NETWORK_KEY,
     CONF_NETWORK_NAME,
     CONF_PAN_ID,
+    CONF_POLL_PERIOD,
     CONF_PSKC,
     CONF_SRP_ID,
     CONF_TLV,
@@ -86,7 +90,7 @@ def set_sdkconfig_options(config):
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
-    # TODO: Add suport for sleepy end devices
+    # TODO: Add suport for synchronized sleepy end devices (SSED)
     add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
 
 
@@ -106,6 +110,31 @@ _CONNECTION_SCHEMA = cv.Schema(
     }
 )
 
+
+def _validate(config: ConfigType) -> ConfigType:
+    if CONF_USE_ADDRESS not in config:
+        config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
+    device_type = config.get(CONF_DEVICE_TYPE)
+    poll_period = config.get(CONF_POLL_PERIOD)
+    if (
+        device_type == "FTD"
+        and poll_period
+        and poll_period > TimePeriodMilliseconds(milliseconds=0)
+    ):
+        raise cv.Invalid(
+            f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
+        )
+
+    return config
+
+
+def _require_vfs_select(config):
+    """Register VFS select requirement during config validation."""
+    # OpenThread uses esp_vfs_eventfd which requires VFS select support
+    require_vfs_select()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -117,11 +146,15 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.string_strict,
+            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
     cv.only_with_esp_idf,
     only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2]),
+    _validate,
+    _require_vfs_select,
 )
 
 
@@ -141,8 +174,14 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     cg.add_define("USE_OPENTHREAD")
 
+    # OpenThread SRP needs access to mDNS services after setup
+    enable_mdns_storage()
+
     ot = cg.new_Pvariable(config[CONF_ID])
+    cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
     await cg.register_component(ot, config)
+    if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
+        cg.add(ot.set_poll_period(poll_period))
 
     srp = cg.new_Pvariable(config[CONF_SRP_ID])
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])

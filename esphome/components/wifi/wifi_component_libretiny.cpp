@@ -112,9 +112,15 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     WiFi.disconnect();
   }
 
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
   }
+#else
+  if (!this->wifi_sta_ip_config_({})) {
+    return false;
+  }
+#endif
 
   this->wifi_apply_hostname_();
 
@@ -411,7 +417,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  this->scan_result_.reserve(static_cast<unsigned int>(num));
+  this->scan_result_.init(static_cast<unsigned int>(num));
   for (int i = 0; i < num; i++) {
     String ssid = WiFi.SSID(i);
     wifi_auth_mode_t authmode = WiFi.encryptionType(i);
@@ -419,9 +425,9 @@ void WiFiComponent::wifi_scan_done_callback_() {
     uint8_t *bssid = WiFi.BSSID(i);
     int32_t channel = WiFi.channel(i);
 
-    WiFiScanResult scan({bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}, std::string(ssid.c_str()),
-                        channel, rssi, authmode != WIFI_AUTH_OPEN, ssid.length() == 0);
-    this->scan_result_.push_back(scan);
+    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]},
+                                    std::string(ssid.c_str()), channel, rssi, authmode != WIFI_AUTH_OPEN,
+                                    ssid.length() == 0);
   }
   WiFi.scanDelete();
   this->scan_done_ = true;
@@ -445,10 +451,17 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
 
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
     ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
     return false;
   }
+#else
+  if (!this->wifi_ap_ip_config_({})) {
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
+    return false;
+  }
+#endif
 
   yield();
 

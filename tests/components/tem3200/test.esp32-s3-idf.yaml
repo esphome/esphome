@@ -2,4 +2,7 @@ substitutions:
   scl_pin: GPIO40
   sda_pin: GPIO41
 
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-s3-idf.yaml
+
 <<: !include common.yaml
