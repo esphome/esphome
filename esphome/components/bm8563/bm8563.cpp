@@ -6,10 +6,15 @@ namespace bm8563 {
 
 static const char *const TAG = "bm8563";
 
-static const uint8_t CONTROL_STATUS_2_REG = 0x01;
+static constexpr uint8_t CONTROL_STATUS_1_REG = 0x00;
+static constexpr uint8_t CONTROL_STATUS_2_REG = 0x01;
+static constexpr uint8_t TIME_FIRST_REG = 0x02;  // Time uses reg 2, 3, 4
+static constexpr uint8_t DATE_FIRST_REG = 0x05;  // Date uses reg 5, 6, 7, 8
+static constexpr uint8_t TIMER_CONTROL_REG = 0x0E;
+static constexpr uint8_t TIMER_VALUE_REG = 0x0F;
 
 void BM8563::setup() {
-  if (!this->write_byte_16(0, 0)) {
+  if (!this->write_byte_16(CONTROL_STATUS_1_REG, 0)) {
     this->mark_failed();
     return;
   }
@@ -69,7 +74,7 @@ uint8_t BM8563::byte_to_bcd2_(uint8_t value) {
 
 void BM8563::get_time_(ESPTime &time) {
   uint8_t buf[3] = {0};
-  this->read_register(0x02, buf, 3);
+  this->read_register(TIME_FIRST_REG, buf, 3);
 
   time.second = this->bcd2_to_byte_(buf[0] & 0x7f);
   time.minute = this->bcd2_to_byte_(buf[1] & 0x7f);
@@ -78,12 +83,12 @@ void BM8563::get_time_(ESPTime &time) {
 
 void BM8563::set_time_(const ESPTime &time) {
   uint8_t buf[3] = {this->byte_to_bcd2_(time.second), this->byte_to_bcd2_(time.minute), this->byte_to_bcd2_(time.hour)};
-  this->write_register(0x02, buf, 3);
+  this->write_register(TIME_FIRST_REG, buf, 3);
 }
 
 void BM8563::get_date_(ESPTime &time) {
   uint8_t buf[4] = {0};
-  this->read_register(0x05, buf, sizeof(buf));
+  this->read_register(DATE_FIRST_REG, buf, sizeof(buf));
 
   time.day_of_month = this->bcd2_to_byte_(buf[0] & 0x3f);
   time.day_of_week = this->bcd2_to_byte_(buf[1] & 0x07);
@@ -112,7 +117,7 @@ void BM8563::set_date_(const ESPTime &time) {
     buf[2] = buf[2] | 0x00;
   }
 
-  this->write_register(0x05, buf, 4);
+  this->write_register(DATE_FIRST_REG, buf, 4);
 }
 
 uint8_t BM8563::read_reg_(uint8_t reg) {
@@ -125,13 +130,13 @@ void BM8563::set_timer_irq_(uint32_t duration_s) {
   ESP_LOGI(TAG, "Timer Duration: %u s", duration_s);
   if (duration_s > 255) {
     duration_s = (duration_s / 60) & 0xFF;
-    this->write_byte(0x0F, duration_s);
+    this->write_byte(TIMER_VALUE_REG, duration_s);
     const uint8_t clock_1_60_hz = 0x83;
-    this->write_byte(0x0E, clock_1_60_hz);
+    this->write_byte(TIMER_CONTROL_REG, clock_1_60_hz);
   } else {
-    this->write_byte(0x0F, duration_s);
+    this->write_byte(TIMER_VALUE_REG, duration_s);
     const uint8_t clock_1_hz = 0x82;
-    this->write_byte(0x0E, clock_1_hz);
+    this->write_byte(TIMER_CONTROL_REG, clock_1_hz);
   }
 
   uint8_t ctrl_status_2_reg_value = this->read_reg_(CONTROL_STATUS_2_REG);
