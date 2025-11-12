@@ -1,10 +1,15 @@
+/* Component Built from CoAP client Example
+
+   The source example code is in the Public Domain (or CC0 licensed, at your option.)
+
+   Unless required by applicable law or agreed to in writing, this
+   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+   CONDITIONS OF ANY KIND, either express or implied.
+*/
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #ifdef USE_COAP_CLIENT
 #include "esphome/core/log.h"
-#ifdef USE_OPENTHREAD
-#include "esphome/components/openthread/openthread.h"
-#endif
 #include "coap_client_component.h"
 
 namespace esphome::coap_client_component {
@@ -20,14 +25,21 @@ CoapClientComponent::CoapClientComponent() {
 }
 
 void CoapClientComponent::setup() {
-  /* Initialize libcoap library */
+  // Initialize request queue
   this->request_queue_ = xQueueCreate(5, sizeof(CoapClientRequestData));
   if (this->request_queue_ == nullptr) {
     ESP_LOGE(TAG, "Setup of Request Queue failed");
     this->mark_failed();
     return;
   }
+  // Initialize CoAP task
   coap_startup();
+// Set up the CoAP logging
+#if CONFIG_LOG_DYNAMIC_LEVEL_CONTROL
+  ESP_LOGD(TAG, "Set CoAP Log Level to %d", CONFIG_LOG_DEFAULT_LEVEL);
+  coap_set_log_level((coap_log_t) CONFIG_LOG_DEFAULT_LEVEL);
+#endif
+
   xTaskCreate(
       [](void *arg) {
         CoapClientComponent *obj = (CoapClientComponent *) arg;
@@ -41,10 +53,16 @@ void CoapClientComponent::setup() {
 
 bool CoapClientComponent::teardown() {
   this->main_looping_ = false;
+  xTaskAbortDelay(this->main_task_handle_);
   return this->toredown_;
 }
 
-void CoapClientComponent::dump_config() { ESP_LOGCONFIG(TAG, "CoapClientComponent"); }
+void CoapClientComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "CoapClientComponent");
+#ifdef CONFIG_COAP_OSCORE_SUPPORT
+  ESP_LOGCONFIG(TAG, "  OSCORE Support");
+#endif
+}
 
 // static
 coap_response_t CoapClientComponent::response_handler(coap_session_t *session, const coap_pdu_t *sent,
@@ -74,19 +92,32 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
   }
   return COAP_RESPONSE_OK;
 }
+#ifdef CONFIG_COAP_MBEDTLS_PKI
+int CoapClientComponent::verify_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
+                                            coap_session_t *session, unsigned depth, int validated, void *arg) {
+  ESP_LOGD(TAG, "CN '%s' presented by server (%s)", cn, depth ? "CA" : "Certificate");
+  return 1;
+}
+#endif
 
 void CoapClientComponent::get(
     std::string uri,
     std::function<void(const unsigned char *data, size_t data_len, size_t offset, size_t total, void *context)>
         callback,
     void *callback_context, size_t max_block_size) {
-  CoapClientRequestData send_request_data;
-  send_request_data.uri = uri;
-  send_request_data.callback = callback;
-  send_request_data.callback_context = callback_context;
-  send_request_data.max_block_size = max_block_size;
+  CoapClientRequestData request = {
+      .method = CoapMethod::GET,
+      .uri = uri,
+      .max_block_size = max_block_size,
+      .callback = callback,
+      .callback_context = callback_context,
+  };
+  this->process_request(&request);
+}
+
+void CoapClientComponent::process_request(CoapClientRequestData *request) {
   BaseType_t sent_status;
-  sent_status = xQueueSend(this->request_queue_, (void *) &send_request_data, pdMS_TO_TICKS(1000));
+  sent_status = xQueueSend(this->request_queue_, (void *) request, pdMS_TO_TICKS(1000));
   if (sent_status != pdPASS) {
     // ESP_LOGI(TAG, "Sent the request_data to the queue %d", uxQueueMessagesWaiting(this->request_queue_));
     //} else {
@@ -95,10 +126,18 @@ void CoapClientComponent::get(
 }
 
 void CoapClientComponent::main_() {
+  this->main_task_handle_ = xTaskGetCurrentTaskHandle();
   coap_context_t *context = nullptr;
   coap_address_t dst_addr;
   coap_addr_info_t *info_list = nullptr;
   coap_optlist_t *opt_list = nullptr;
+#ifdef CONFIG_COAP_OSCORE_SUPPORT
+  coap_oscore_conf_t *oscore_conf = nullptr;
+  coap_str_const_t osc_conf = {
+      .s = oscore_conf_str_.c_str(),
+      .length = oscore_conf_str_.length(),
+  } oscore_conf = coap_new_oscore_conf(osc_conf, NULL, NULL, 0);
+#endif
   coap_proto_t proto;
   coap_pdu_t *request = nullptr;
   coap_session_t *session = nullptr;
@@ -138,10 +177,12 @@ void CoapClientComponent::main_() {
     ESP_LOGD(TAG, "recieve_status: %d num: %d", receive_status, uxQueueMessagesWaiting(this->request_queue_));
 
     if (receive_status == pdPASS) {
+      CoapMethod method = receive_request_data.method;
       std::string request_uri = receive_request_data.uri;
       size_t max_block_size = receive_request_data.max_block_size;
       this->response_callback_context_ = receive_request_data.callback_context;
       this->response_callback_ = receive_request_data.callback;
+      std::string payload = receive_request_data.payload;
 
       ESP_LOGD(TAG, "Process the receive_request_data from queue");
       context = coap_new_context(NULL);
@@ -178,17 +219,48 @@ void CoapClientComponent::main_() {
         ESP_LOGE(TAG, "Failed to create options for URI %s", request_uri.c_str());
         continue;
       }
+      // Secure
+      if (uri.scheme == COAP_URI_SCHEME_COAPS || uri.scheme == COAP_URI_SCHEME_COAPS_TCP ||
+          uri.scheme == COAP_URI_SCHEME_COAPS_WS) {
+#ifndef CONFIG_MBEDTLS_TLS_CLIENT
+        ESP_LOGE(TAG, "MbedTLS (D)TLS Client Mode not configured");
+        continue;
+#endif
 
-      ESP_LOGD(TAG, "Create CoAP client session");
-      session = coap_new_client_session(context, NULL, &dst_addr, proto);
+#ifdef CONFIG_COAP_MBEDTLS_PSK
+        // PSK first choice (if configured)
+        session = coap_start_psk_session_(context, &dst_addr, &uri, proto);
+#endif
+#ifdef CONFIG_COAP_MBEDTLS_PKI
+        // PKI is second choice (if configure)
+        if (!session) {
+          session = coap_start_pki_session_(context, &dst_addr, &uri, proto);
+        }
+#endif
+        // Anon PKI is third choice
+        if (!session) {
+          session = coap_start_anon_pki_session_(context, &dst_addr, &uri, proto);
+        }
+      } else {
+        // below is non secure (coap://)
+#ifdef CONFIG_COAP_OSCORE_SUPPORT
+        session = coap_new_client_session_oscore(context, NULL, &dst_addr, proto, oscore_conf);
+#else
+        session = coap_new_client_session(context, NULL, &dst_addr, proto);
+#endif
+      }
       if (!session) {
         ESP_LOGE(TAG, "coap_new_client_session() failed");
         continue;
       }
-
+#ifdef CONFIG_COAP_WEBSOCKETS
+      if (proto == COAP_PROTO_WS || proto == COAP_PROTO_WSS) {
+        coap_ws_set_host_request(session, &uri.host);
+      }
+#endif
       ESP_LOGD(TAG, "Create CoAP client request");
-      request =
-          coap_new_pdu(coap_is_mcast(&dst_addr) ? COAP_MESSAGE_NON : COAP_MESSAGE_CON, COAP_REQUEST_CODE_GET, session);
+      request = coap_new_pdu(coap_is_mcast(&dst_addr) ? COAP_MESSAGE_NON : COAP_MESSAGE_CON, (coap_pdu_code_t) method,
+                             session);
       if (!request) {
         ESP_LOGE(TAG, "coap_new_pdu() failed");
         continue;
@@ -197,6 +269,15 @@ void CoapClientComponent::main_() {
       ESP_LOGD(TAG, "Create CoAP client token");
       coap_session_new_token(session, &token_length, token);
       coap_add_token(request, token_length, token);
+
+      if (payload.length() > 0) {
+        u_char buf[4];
+        coap_insert_optlist(
+            &opt_list, coap_new_optlist(COAP_OPTION_CONTENT_FORMAT,
+                                        coap_encode_var_safe(buf, sizeof(buf), COAP_MEDIATYPE_APPLICATION_JSON), buf));
+        coap_add_data_large_request(session, request, payload.length(), (const uint8_t *) payload.c_str(), NULL, NULL);
+      }
+
       coap_add_optlist_pdu(request, &opt_list);
 
       ESP_LOGD(TAG, "Send the request via CoAP");
@@ -217,6 +298,111 @@ void CoapClientComponent::main_() {
       ESP_LOGD(TAG, "CoAP Request Processed");
     }
   }
+}
+
+#ifdef CONFIG_COAP_MBEDTLS_PSK
+coap_session_t *CoapClientComponent::coap_start_psk_session_(coap_context_t *ctx, coap_address_t *dst_addr,
+                                                             coap_uri_t *uri, coap_proto_t proto) {
+  coap_dtls_cpsk_t dtls_psk;
+  char client_sni[256];
+
+  memset(client_sni, 0, sizeof(client_sni));
+  memset(&dtls_psk, 0, sizeof(dtls_psk));
+  dtls_psk.version = COAP_DTLS_CPSK_SETUP_VERSION;
+  dtls_psk.validate_ih_call_back = NULL;
+  dtls_psk.ih_call_back_arg = NULL;
+  if (uri->host.length) {
+    memcpy(client_sni, uri->host.s, std::min(uri->host.length, sizeof(client_sni) - 1));
+  } else {
+    memcpy(client_sni, "localhost", 9);
+  }
+  dtls_psk.client_sni = client_sni;
+  dtls_psk.psk_info.identity.s = (const uint8_t *) this->psk_identity_.c_str();
+  dtls_psk.psk_info.identity.length = this->psk_identity_.length();
+  dtls_psk.psk_info.key.s = (const uint8_t *) this->psk_key_.c_str();
+  dtls_psk.psk_info.key.length = this->psk_key_.length();
+#ifdef CONFIG_COAP_OSCORE_SUPPORT
+  return coap_new_client_session_oscore_psk(ctx, NULL, dst_addr, proto, &dtls_psk, oscore_conf);
+#else
+  return coap_new_client_session_psk2(ctx, NULL, dst_addr, proto, &dtls_psk);
+#endif
+}
+#endif
+
+#ifdef CONFIG_COAP_MBEDTLS_PKI
+coap_session_t *CoapClientComponent::coap_start_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr,
+                                                             coap_uri_t *uri, coap_proto_t proto) {
+  unsigned int client_crt_bytes = client_crt_end - client_crt_start;
+  unsigned int client_key_bytes = client_key_end - client_key_start;
+  coap_dtls_pki_t dtls_pki;
+  char client_sni[256];
+
+  memset(&dtls_pki, 0, sizeof(dtls_pki));
+  dtls_pki.version = COAP_DTLS_PKI_SETUP_VERSION;
+  if (this->ca_pem_str_.length() > 0) {
+    dtls_pki.verify_peer_cert = 1;
+    dtls_pki.check_common_ca = 1;
+    dtls_pki.allow_self_signed = 1;
+    dtls_pki.allow_expired_certs = 1;
+    dtls_pki.cert_chain_validation = 1;
+    dtls_pki.cert_chain_verify_depth = 2;
+    dtls_pki.check_cert_revocation = 1;
+    dtls_pki.allow_no_crl = 1;
+    dtls_pki.allow_expired_crl = 1;
+    dtls_pki.allow_bad_md_hash = 1;
+    dtls_pki.allow_short_rsa_length = 1;
+    dtls_pki.validate_cn_call_back = verify_cn_callback;
+    dtls_pki.cn_call_back_arg = NULL;
+    dtls_pki.validate_sni_call_back = NULL;
+    dtls_pki.sni_call_back_arg = NULL;
+    memset(client_sni, 0, sizeof(client_sni));
+    if (uri->host.length) {
+      memcpy(client_sni, uri->host.s, std::min(uri->host.length, sizeof(client_sni)));
+    } else {
+      memcpy(client_sni, "localhost", 9);
+    }
+    dtls_pki.client_sni = client_sni;
+  }
+  dtls_pki.pki_key.key_type = COAP_PKI_KEY_PEM_BUF;
+  dtls_pki.pki_key.key.pem_buf.public_cert =
+      this->client_crt_str_.c_str() dtls_pki.pki_key.key.pem_buf.public_cert_len =
+          this->client_crt_str_.length() dtls_pki.pki_key.key.pem_buf.private_key =
+              this->client_key_str_.c_str() dtls_pki.pki_key.key.pem_buf.private_key_len =
+                  this->client_key_str_.length() dtls_pki.pki_key.key.pem_buf.ca_cert =
+                      this->ca_pem_str_.c_str() dtls_pki.pki_key.key.pem_buf.ca_cert_len = this->ca_pem_str_.length();
+
+#ifdef CONFIG_COAP_OSCORE_SUPPORT
+  return coap_new_client_session_oscore_pki(ctx, NULL, dst_addr, proto, &dtls_pki, oscore_conf);
+#else
+  return coap_new_client_session_pki(ctx, NULL, dst_addr, proto, &dtls_pki);
+#endif
+}
+#endif
+
+coap_session_t *CoapClientComponent::coap_start_anon_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr,
+                                                                  coap_uri_t *uri, coap_proto_t proto) {
+  coap_dtls_pki_t dtls_pki;
+  char client_sni[256];
+
+  memset(&dtls_pki, 0, sizeof(dtls_pki));
+  dtls_pki.version = COAP_DTLS_PKI_SETUP_VERSION;
+  memset(client_sni, 0, sizeof(client_sni));
+  if (uri->host.length) {
+    memcpy(client_sni, uri->host.s, std::min(uri->host.length, sizeof(client_sni)));
+  } else {
+    memcpy(client_sni, "localhost", 9);
+  }
+  dtls_pki.client_sni = client_sni;
+  dtls_pki.pki_key.key_type = COAP_PKI_KEY_PEM;
+  dtls_pki.pki_key.key.pem.public_cert = NULL;
+  dtls_pki.pki_key.key.pem.private_key = NULL;
+  dtls_pki.pki_key.key.pem.ca_file = NULL;
+
+#ifdef CONFIG_COAP_OSCORE_SUPPORT
+  return coap_new_client_session_oscore_pki(ctx, NULL, dst_addr, proto, &dtls_pki, oscore_conf);
+#else
+  return coap_new_client_session_pki(ctx, NULL, dst_addr, proto, &dtls_pki);
+#endif
 }
 
 }  // namespace esphome::coap_client_component
