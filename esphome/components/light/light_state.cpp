@@ -24,6 +24,9 @@ void LightState::setup() {
     effect->init_internal(this);
   }
 
+  // Start with loop disabled - it will be enabled by start_transition_/start_effect_ if needed
+  this->disable_loop();
+
   // When supported color temperature range is known, initialize color temperature setting within bounds.
   auto traits = this->get_traits();
   float min_mireds = traits.get_min_mireds();
@@ -126,6 +129,9 @@ void LightState::loop() {
       this->is_transformer_active_ = false;
       this->transformer_ = nullptr;
       this->target_state_reached_callback_.call();
+
+      // Disable loop if idle (no transformer and no effect)
+      this->disable_loop_if_idle_();
     }
   }
 
@@ -228,6 +234,8 @@ void LightState::start_effect_(uint32_t effect_index) {
   this->active_effect_index_ = effect_index;
   auto *effect = this->get_active_effect_();
   effect->start_internal();
+  // Enable loop while effect is active
+  this->enable_loop();
 }
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0) {
@@ -242,6 +250,8 @@ void LightState::stop_effect_() {
     effect->stop();
   }
   this->active_effect_index_ = 0;
+  // Disable loop if idle (no effect and no transformer)
+  this->disable_loop_if_idle_();
 }
 
 void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
@@ -251,6 +261,8 @@ void LightState::start_transition_(const LightColorValues &target, uint32_t leng
   if (set_remote_values) {
     this->remote_values = target;
   }
+  // Enable loop while transition is active
+  this->enable_loop();
 }
 
 void LightState::start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
@@ -266,6 +278,8 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
   if (set_remote_values) {
     this->remote_values = target;
   };
+  // Enable loop while flash is active
+  this->enable_loop();
 }
 
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
@@ -277,6 +291,15 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
   }
   this->output_->update_state(this);
   this->next_write_ = true;
+  // Disable loop if idle (no transformer and no effect)
+  this->disable_loop_if_idle_();
+}
+
+void LightState::disable_loop_if_idle_() {
+  // Only disable loop if both transformer and effect are inactive
+  if (this->transformer_ == nullptr && this->get_active_effect_() == nullptr) {
+    this->disable_loop();
+  }
 }
 
 void LightState::save_remote_values_() {
