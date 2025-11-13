@@ -111,7 +111,7 @@ DriverChip(
     color_order="RGB",
     reset_pin=33,
     initsequence=[
-        (0xE0, 0x00),
+        (0xE0, 0x01),
         (0xE1, 0x93),
         (0xE2, 0x65),
         (0xE3, 0xF8),
