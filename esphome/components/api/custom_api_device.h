@@ -9,11 +9,11 @@
 namespace esphome::api {
 
 #ifdef USE_API_SERVICES
-template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceBase<Ts...> {
+template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceDynamic<Ts...> {
  public:
   CustomAPIDeviceService(const std::string &name, const std::array<std::string, sizeof...(Ts)> &arg_names, T *obj,
                          void (T::*callback)(Ts...))
-      : UserServiceBase<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
+      : UserServiceDynamic<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
 
  protected:
   void execute(Ts... x) override { (this->obj_->*this->callback_)(x...); }  // NOLINT
@@ -53,8 +53,14 @@ class CustomAPIDevice {
   template<typename T, typename... Ts>
   void register_service(void (T::*callback)(Ts...), const std::string &name,
                         const std::array<std::string, sizeof...(Ts)> &arg_names) {
+#ifdef USE_API_CUSTOM_SERVICES
     auto *service = new CustomAPIDeviceService<T, Ts...>(name, arg_names, (T *) this, callback);  // NOLINT
     global_api_server->register_user_service(service);
+#else
+    static_assert(
+        sizeof(T) == 0,
+        "register_service() requires 'custom_services: true' in the 'api:' section of your YAML configuration");
+#endif
   }
 #else
   template<typename T, typename... Ts>
@@ -86,8 +92,14 @@ class CustomAPIDevice {
    */
 #ifdef USE_API_SERVICES
   template<typename T> void register_service(void (T::*callback)(), const std::string &name) {
+#ifdef USE_API_CUSTOM_SERVICES
     auto *service = new CustomAPIDeviceService<T>(name, {}, (T *) this, callback);  // NOLINT
     global_api_server->register_user_service(service);
+#else
+    static_assert(
+        sizeof(T) == 0,
+        "register_service() requires 'custom_services: true' in the 'api:' section of your YAML configuration");
+#endif
   }
 #else
   template<typename T> void register_service(void (T::*callback)(), const std::string &name) {

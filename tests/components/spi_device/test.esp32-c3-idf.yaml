@@ -1,4 +1,0 @@
-packages:
-  spi: !include ../../test_build_components/common/spi/esp32-c3-idf.yaml
-
-<<: !include common.yaml

@@ -84,11 +84,6 @@ def update_schema(
     return _UPDATE_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-UPDATE_SCHEMA = update_schema()
-UPDATE_SCHEMA.add_extra(cv.deprecated_schema_constant("update"))
-
-
 async def setup_update_core_(var, config):
     await setup_entity(var, config, "update")
 
