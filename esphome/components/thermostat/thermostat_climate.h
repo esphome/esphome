@@ -3,12 +3,12 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 
 #include <array>
 #include <cinttypes>
-#include <map>
 
 namespace esphome {
 namespace thermostat {
@@ -72,14 +72,29 @@ struct ThermostatClimateTargetTempConfig {
   optional<climate::ClimateMode> mode_{};
 };
 
+/// Entry for standard preset lookup
+struct ThermostatPresetEntry {
+  climate::ClimatePreset preset;
+  ThermostatClimateTargetTempConfig config;
+};
+
+/// Entry for custom preset lookup
+struct ThermostatCustomPresetEntry {
+  const char *name;
+  ThermostatClimateTargetTempConfig config;
+};
+
 class ThermostatClimate : public climate::Climate, public Component {
  public:
+  using PresetEntry = ThermostatPresetEntry;
+  using CustomPresetEntry = ThermostatCustomPresetEntry;
+
   ThermostatClimate();
   void setup() override;
   void dump_config() override;
   void loop() override;
 
-  void set_default_preset(const std::string &custom_preset);
+  void set_default_preset(const char *custom_preset);
   void set_default_preset(climate::ClimatePreset preset);
   void set_on_boot_restore_from(OnBootRestoreFrom on_boot_restore_from);
   void set_set_point_minimum_differential(float differential);
@@ -131,8 +146,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_supports_humidification(bool supports_humidification);
   void set_supports_two_points(bool supports_two_points);
 
-  void set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config);
-  void set_custom_preset_config(const std::string &name, const ThermostatClimateTargetTempConfig &config);
+  void set_preset_config(std::initializer_list<PresetEntry> presets);
+  void set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets);
 
   Trigger<> *get_cool_action_trigger() const;
   Trigger<> *get_supplemental_cool_action_trigger() const;
@@ -516,9 +531,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_swing_mode_trigger_{nullptr};
   Trigger<> *prev_humidity_control_trigger_{nullptr};
 
-  /// Default custom preset to use on start up
-  std::string default_custom_preset_{};
-
   /// Climate action timers
   std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{
       ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)),
@@ -534,9 +546,12 @@ class ThermostatClimate : public climate::Climate, public Component {
   };
 
   /// The set of standard preset configurations this thermostat supports (Eg. AWAY, ECO, etc)
-  std::map<climate::ClimatePreset, ThermostatClimateTargetTempConfig> preset_config_{};
+  FixedVector<PresetEntry> preset_config_{};
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
-  std::map<std::string, ThermostatClimateTargetTempConfig> custom_preset_config_{};
+  FixedVector<CustomPresetEntry> custom_preset_config_{};
+  /// Default custom preset to use on start up (pointer to entry in custom_preset_config_)
+ private:
+  const char *default_custom_preset_{nullptr};
 };
 
 }  // namespace thermostat
