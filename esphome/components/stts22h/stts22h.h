@@ -19,5 +19,4 @@ class STTS22HComponent : public sensor::Sensor, public PollingComponent, public 
   float read_temperature_();
 };
 
-}  // namespace stts22h
-}  // namespace esphome
+}  // namespace esphome::stts22h
