@@ -61,7 +61,7 @@ void Logger::pre_setup() {
       this->uart_dev_ = uart_dev;
 #ifdef USE_LOGGER_WAIT_FOR_CDC
       uint32_t dtr = 0;
-      uint32_t count = 1000;  // wait 10 sec for USB CDC to have early logs
+      uint32_t count = (10 * 100);  // wait 10 sec for USB CDC to have early logs
       while (dtr == 0 && count-- != 0) {
         uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
         delay(10);
