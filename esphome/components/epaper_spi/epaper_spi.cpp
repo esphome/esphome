@@ -104,7 +104,7 @@ void EPaperBase::update() {
     ESP_LOGE(TAG, "Display already in state %s", epaper_state_to_string_());
     return;
   }
-  this->set_state_(EPaperState::RESET);
+  this->set_state_(EPaperState::UPDATE);
   this->enable_loop();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   this->update_start_time_ = millis();
@@ -166,7 +166,7 @@ void EPaperBase::process_state_() {
   switch (this->state_) {
     default:
       ESP_LOGE(TAG, "Display is in unhandled state %s", epaper_state_to_string_());
-      this->disable_loop();
+      this->set_state_(EPaperState::IDLE);
       break;
     case EPaperState::IDLE:
       this->disable_loop();
@@ -174,14 +174,18 @@ void EPaperBase::process_state_() {
     case EPaperState::RESET:
     case EPaperState::RESET_END:
       if (this->reset()) {
-        this->set_state_(EPaperState::UPDATE);
+        this->set_state_(EPaperState::INITIALISE);
       } else {
         this->set_state_(EPaperState::RESET_END, this->reset_duration_);
       }
       break;
     case EPaperState::UPDATE:
       this->do_update_();  // Calls ESPHome (current page) lambda
-      this->set_state_(EPaperState::INITIALISE);
+      if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
+        this->set_state_(EPaperState::IDLE);
+        return;
+      }
+      this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
       this->initialise_();
@@ -191,6 +195,10 @@ void EPaperBase::process_state_() {
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
+      this->x_low_ = this->width_;
+      this->x_high_ = 0;
+      this->y_low_ = this->height_;
+      this->y_high_ = 0;
       this->set_state_(EPaperState::POWER_ON);
       break;
     case EPaperState::POWER_ON:
@@ -225,6 +233,9 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   }
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", this->epaper_state_to_string_(), delay,
            TRUEFALSE(this->waiting_for_idle_));
+  if (state == EPaperState::IDLE) {
+    this->disable_loop();
+  }
 }
 
 void EPaperBase::start_command_() {
@@ -290,7 +301,7 @@ bool EPaperBase::rotate_coordinates_(int &x, int &y) const {
 }
 
 /**
- *  Default implementation for monochrome displays
+ *  Default implementation for monochrome displays where 8 pixels are packed to a byte.
  * @param x
  * @param y
  * @param color
@@ -308,6 +319,10 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
   } else {
     this->buffer_[byte_position] = original | pixel_bit;
   }
+  this->x_low_ = clamp_at_most(this->x_low_, x);
+  this->x_high_ = clamp_at_least(this->x_high_, x + 1);
+  this->y_low_ = clamp_at_most(this->y_low_, y);
+  this->y_high_ = clamp_at_least(this->y_high_, y + 1);
 }
 
 void EPaperBase::dump_config() {
@@ -317,6 +332,13 @@ void EPaperBase::dump_config() {
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG,
+                "  Full update every: %d\n"
+                "  Swap X/Y: %s\n"
+                "  Mirror X: %s\n"
+                "  Mirror Y: %s",
+                this->full_update_every_, YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
+                YESNO(this->transform_ & MIRROR_Y));
 }
 
 }  // namespace esphome::epaper_spi

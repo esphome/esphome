@@ -80,6 +80,10 @@ class EPaperBase : public Display,
 
     // We store 8 pixels per byte
     this->buffer_.fill(pixel_color);
+    this->x_high_ = this->width_;
+    this->y_high_ = this->height_;
+    this->x_low_ = 0;
+    this->y_low_ = 0;
   }
 
   void clear() override {
@@ -156,6 +160,9 @@ class EPaperBase : public Display,
   uint32_t delay_until_{};
   uint8_t transform_{};
   uint8_t update_count_{};
+  // these values represent the bounds of the updated buffer. Note that x_high and y_high
+  // point to the pixel past the last one updated, i.e. may range up to width/height.
+  uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   uint32_t waiting_for_idle_last_print_{};

@@ -14,11 +14,13 @@ class EPaperSSD1677 : public EPaperBase {
 
  protected:
   void refresh_screen(bool partial) override;
-  void power_on() override{};
+  void power_on() override {}
   void power_off() override{};
   void deep_sleep() override;
   bool reset() override;
   bool transfer_data() override;
+  void fill(Color color) override;
+  bool send_red_{true};
 };
 
 }  // namespace esphome::epaper_spi

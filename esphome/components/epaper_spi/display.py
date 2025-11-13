@@ -4,6 +4,7 @@ import pkgutil
 from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
+from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
 from esphome.components.mipi import flatten_sequence, map_sequence
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
@@ -34,7 +35,6 @@ from esphome.const import (
 from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 
-from ..display import CONF_SHOW_TEST_CARD
 from . import models
 
 AUTO_LOAD = ["split_buffer"]
@@ -88,6 +88,7 @@ def model_schema(config):
         )
         .extend(
             {
+                cv.Optional(CONF_ROTATION, default=0): validate_rotation,
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
                 cv.Optional(
                     CONF_UPDATE_INTERVAL, default=cv.UNDEFINED
@@ -155,7 +156,6 @@ def _final_validate(config):
             config[CONF_UPDATE_INTERVAL] = core.TimePeriod(
                 seconds=60
             ).total_milliseconds
-    print(config[CONF_UPDATE_INTERVAL])
     return config
 
 
@@ -209,7 +209,6 @@ async def to_code(config):
         transform[CONF_SWAP_XY] = False
     else:
         transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
-    # TODO process rotation here
     rotation = config[CONF_ROTATION]
     if rotation == 180:
         transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
@@ -217,7 +216,7 @@ async def to_code(config):
     elif rotation == 90:
         transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
         transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-    else:
+    elif rotation == 270:
         transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
         transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
     transform = [

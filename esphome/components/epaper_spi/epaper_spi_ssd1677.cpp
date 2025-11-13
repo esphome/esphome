@@ -32,38 +32,60 @@ bool HOT EPaperSSD1677::transfer_data() {
   auto start_time = millis();
   if (this->current_data_index_ == 0) {
     uint8_t data[4]{};
-    data[2] = this->width_ - 1;
-    data[3] = (this->width_ - 1) / 256;
+    // round to byte boundaries
+    this->x_low_ &= ~7;
+    this->y_low_ &= ~7;
+    this->x_high_ += 7;
+    this->x_high_ &= ~7;
+    this->y_high_ += 7;
+    this->y_high_ &= ~7;
+    data[0] = this->x_low_;
+    data[1] = this->x_low_ / 256;
+    data[2] = this->x_high_ - 1;
+    data[3] = (this->x_high_ - 1) / 256;
     cmd_data(0x4E, data, 2);
     cmd_data(0x44, data, sizeof(data));
-    data[2] = this->height_ - 1;
-    data[3] = (this->height_ - 1) / 256;
+    data[0] = this->y_low_;
+    data[1] = this->y_low_ / 256;
+    data[2] = this->y_high_ - 1;
+    data[3] = (this->y_high_ - 1) / 256;
     cmd_data(0x4F, data, 2);
     this->cmd_data(0x45, data, sizeof(data));
-    this->command(0x24);
+    // for monochrome, we still need to clear the red data buffer at least once to prevent it
+    // causing dirty pixels after partial refresh.
+    this->command(this->send_red_ ? 0x26 : 0x24);
+    this->current_data_index_ = this->y_low_;  // actually current line
   }
-  uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
-  size_t buf_idx = 0;
-  ESP_LOGV(TAG, "Writing bytes at offset %zu at %ums", this->current_data_index_, (unsigned) millis());
+  size_t row_length = (this->x_high_ - this->x_low_) / 8;
+  uint8_t bytes_to_send[row_length];
+  if (this->send_red_)
+    memset(bytes_to_send, 0, row_length);
+  ESP_LOGV(TAG, "Writing bytes at line %zu at %ums", this->current_data_index_, (unsigned) millis());
   this->start_data_();
-  while (this->current_data_index_ != this->buffer_length_) {
-    bytes_to_send[buf_idx++] = this->buffer_[this->current_data_index_++];
-    if (buf_idx == sizeof(bytes_to_send)) {
-      this->write_array(bytes_to_send, buf_idx);
-      buf_idx = 0;
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
-        // Let the main loop run and come back next loop
-        this->end_data_();
-        return false;
+  while (this->current_data_index_ != this->y_high_) {
+    if (!this->send_red_) {
+      size_t data_idx = (this->current_data_index_ * this->width_ + this->x_low_) / 8;
+      for (size_t i = 0; i != row_length; i++) {
+        bytes_to_send[i] = this->buffer_[data_idx++];
       }
     }
+    ++this->current_data_index_;
+    this->write_array(bytes_to_send, row_length);
+    if (millis() - start_time > MAX_TRANSFER_TIME) {
+      // Let the main loop run and come back next loop
+      this->end_data_();
+      return false;
+    }
   }
-  if (buf_idx != 0) {
-    this->write_array(bytes_to_send, buf_idx);
-    ESP_LOGV(TAG, "Wrote %d bytes at %ums", buf_idx, (unsigned) millis());
-  }
+
   this->end_data_();
   this->current_data_index_ = 0;
+  if (this->send_red_) {
+    this->send_red_ = false;
+    return false;
+  }
   return true;
 }
+
+void EPaperSSD1677::fill(Color color) { EPaperBase::fill(color); }
 }  // namespace esphome::epaper_spi
