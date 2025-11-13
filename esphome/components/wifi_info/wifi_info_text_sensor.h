@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
@@ -8,6 +9,8 @@
 
 namespace esphome {
 namespace wifi_info {
+
+static constexpr size_t MAX_STATE_LENGTH = 255;
 
 class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
@@ -70,11 +73,14 @@ class ScanResultsWiFiInfo : public PollingComponent, public text_sensor::TextSen
       scan_results += "dB\n";
     }
 
+    // There's a limit of 255 characters per state.
+    // Longer states just don't get sent so we truncate it.
+    if (scan_results.length() > MAX_STATE_LENGTH) {
+      scan_results.resize(MAX_STATE_LENGTH);
+    }
     if (this->last_scan_results_ != scan_results) {
       this->last_scan_results_ = scan_results;
-      // There's a limit of 255 characters per state.
-      // Longer states just don't get sent so we truncate it.
-      this->publish_state(scan_results.substr(0, 255));
+      this->publish_state(scan_results);
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -106,8 +112,8 @@ class BSSIDWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
     wifi::bssid_t bssid = wifi::global_wifi_component->wifi_bssid();
     if (memcmp(bssid.data(), last_bssid_.data(), 6) != 0) {
       std::copy(bssid.begin(), bssid.end(), last_bssid_.begin());
-      char buf[30];
-      sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+      char buf[18];
+      format_mac_addr_upper(bssid.data(), buf);
       this->publish_state(buf);
     }
   }

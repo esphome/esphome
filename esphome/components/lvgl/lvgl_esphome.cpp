@@ -82,6 +82,18 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   area->y2 = (area->y2 + draw_rounding) / draw_rounding * draw_rounding - 1;
 }
 
+void LvglComponent::monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px) {
+  ESP_LOGVV(TAG, "Draw end: %" PRIu32 " pixels in %" PRIu32 " ms", px, time);
+  auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
+  comp->draw_end_();
+}
+
+void LvglComponent::render_start_cb(lv_disp_drv_t *disp_drv) {
+  ESP_LOGVV(TAG, "Draw start");
+  auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
+  comp->draw_start_();
+}
+
 lv_event_code_t lv_api_event;     // NOLINT
 lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
@@ -101,7 +113,10 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
     lv_disp_trig_activity(this->disp_);  // resets the inactivity time
     lv_obj_invalidate(lv_scr_act());
   }
-  this->pause_callbacks_.call(paused);
+  if (paused && this->pause_callback_ != nullptr)
+    this->pause_callback_->trigger();
+  if (!paused && this->resume_callback_ != nullptr)
+    this->resume_callback_->trigger();
 }
 
 void LvglComponent::esphome_lvgl_init() {
@@ -156,6 +171,7 @@ bool LvPageType::is_showing() const { return this->parent_->get_current_page() =
 void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
   auto width = lv_area_get_width(area);
   auto height = lv_area_get_height(area);
+  auto height_rounded = (height + this->draw_rounding - 1) / this->draw_rounding * this->draw_rounding;
   auto x1 = area->x1;
   auto y1 = area->y1;
   lv_color_t *dst = this->rotate_buf_;
@@ -163,13 +179,13 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
     case display::DISPLAY_ROTATION_90_DEGREES:
       for (lv_coord_t x = height; x-- != 0;) {
         for (lv_coord_t y = 0; y != width; y++) {
-          dst[y * height + x] = *ptr++;
+          dst[y * height_rounded + x] = *ptr++;
         }
       }
       y1 = x1;
       x1 = this->disp_drv_.ver_res - area->y1 - height;
-      width = height;
-      height = lv_area_get_width(area);
+      height = width;
+      width = height_rounded;
       break;
 
     case display::DISPLAY_ROTATION_180_DEGREES:
@@ -185,13 +201,13 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
     case display::DISPLAY_ROTATION_270_DEGREES:
       for (lv_coord_t x = 0; x != height; x++) {
         for (lv_coord_t y = width; y-- != 0;) {
-          dst[y * height + x] = *ptr++;
+          dst[y * height_rounded + x] = *ptr++;
         }
       }
       x1 = y1;
       y1 = this->disp_drv_.hor_res - area->x1 - width;
-      width = height;
-      height = lv_area_get_width(area);
+      height = width;
+      width = height_rounded;
       break;
 
     default:
@@ -222,13 +238,6 @@ IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeo
     } else if (this->is_idle_ && idle_time < this->timeout_.value()) {
       this->is_idle_ = false;
     }
-  });
-}
-
-PauseTrigger::PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused) : paused_(std::move(paused)) {
-  parent->add_on_pause_callback([this](bool pausing) {
-    if (this->paused_.value() == pausing)
-      this->trigger();
   });
 }
 
@@ -435,8 +444,10 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
 
 void LvglComponent::setup() {
   auto *display = this->displays_[0];
-  auto width = display->get_width();
-  auto height = display->get_height();
+  auto rounding = this->draw_rounding;
+  // cater for displays with dimensions that don't divide by the required rounding
+  auto width = (display->get_width() + rounding - 1) / rounding * rounding;
+  auto height = (display->get_height() + rounding - 1) / rounding * rounding;
   auto frac = this->buffer_frac_;
   if (frac == 0)
     frac = 1;
@@ -461,9 +472,8 @@ void LvglComponent::setup() {
   }
   this->buffer_frac_ = frac;
   lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buffer_pixels);
-  this->disp_drv_.hor_res = width;
-  this->disp_drv_.ver_res = height;
-  // this->setup_driver_(display->get_width(), display->get_height());
+  this->disp_drv_.hor_res = display->get_width();
+  this->disp_drv_.ver_res = display->get_height();
   lv_disp_drv_update(this->disp_, &this->disp_drv_);
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
@@ -473,6 +483,12 @@ void LvglComponent::setup() {
       this->mark_failed();
       return;
     }
+  }
+  if (this->draw_start_callback_ != nullptr) {
+    this->disp_drv_.render_start_cb = render_start_cb;
+  }
+  if (this->draw_end_callback_ != nullptr) {
+    this->disp_drv_.monitor_cb = monitor_cb;
   }
 #if LV_USE_LOG
   lv_log_register_print_cb([](const char *buf) {
@@ -502,8 +518,9 @@ void LvglComponent::loop() {
   if (this->paused_) {
     if (this->show_snow_)
       this->write_random_();
+  } else {
+    lv_timer_handler_run_in_period(5);
   }
-  lv_timer_handler_run_in_period(5);
 }
 
 #ifdef USE_LVGL_ANIMIMG

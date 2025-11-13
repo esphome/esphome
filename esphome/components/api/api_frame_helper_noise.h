@@ -28,13 +28,13 @@ class APINoiseFrameHelper final : public APIFrameHelper {
 
  protected:
   APIError state_action_();
-  APIError try_read_frame_(std::vector<uint8_t> *frame);
+  APIError try_read_frame_();
   APIError write_frame_(const uint8_t *data, uint16_t len);
   APIError init_handshake_();
   APIError check_handshake_finished_();
-  void send_explicit_handshake_reject_(const std::string &reason);
+  void send_explicit_handshake_reject_(const LogString *reason);
   APIError handle_handshake_frame_error_(APIError aerr);
-  APIError handle_noise_error_(int err, const char *func_name, APIError api_err);
+  APIError handle_noise_error_(int err, const LogString *func_name, APIError api_err);
 
   // Pointers first (4 bytes each)
   NoiseHandshakeState *handshake_{nullptr};

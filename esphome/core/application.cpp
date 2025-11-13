@@ -34,37 +34,20 @@ namespace esphome {
 
 static const char *const TAG = "app";
 
-// Helper function for insertion sort of components by setup priority
+// Helper function for insertion sort of components by priority
 // Using insertion sort instead of std::stable_sort saves ~1.3KB of flash
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
 // IMPORTANT: This sort is stable (preserves relative order of equal elements),
 // which is necessary to maintain user-defined component order for same priority
-template<typename Iterator> static void insertion_sort_by_setup_priority(Iterator first, Iterator last) {
+template<typename Iterator, float (Component::*GetPriority)() const>
+static void insertion_sort_by_priority(Iterator first, Iterator last) {
   for (auto it = first + 1; it != last; ++it) {
     auto key = *it;
-    float key_priority = key->get_actual_setup_priority();
+    float key_priority = (key->*GetPriority)();
     auto j = it - 1;
 
     // Using '<' (not '<=') ensures stability - equal priority components keep their order
-    while (j >= first && (*j)->get_actual_setup_priority() < key_priority) {
-      *(j + 1) = *j;
-      j--;
-    }
-    *(j + 1) = key;
-  }
-}
-
-// Helper function for insertion sort of components by loop priority
-// IMPORTANT: This sort is stable (preserves relative order of equal elements),
-// which is required when components are re-sorted during setup() if they block
-template<typename Iterator> static void insertion_sort_by_loop_priority(Iterator first, Iterator last) {
-  for (auto it = first + 1; it != last; ++it) {
-    auto key = *it;
-    float key_priority = key->get_loop_priority();
-    auto j = it - 1;
-
-    // Using '<' (not '<=') ensures stability - equal priority components keep their order
-    while (j >= first && (*j)->get_loop_priority() < key_priority) {
+    while (j >= first && ((*j)->*GetPriority)() < key_priority) {
       *(j + 1) = *j;
       j--;
     }
@@ -80,7 +63,7 @@ void Application::register_component_(Component *comp) {
 
   for (auto *c : this->components_) {
     if (comp == c) {
-      ESP_LOGW(TAG, "Component %s already registered! (%p)", c->get_component_source(), c);
+      ESP_LOGW(TAG, "Component %s already registered! (%p)", LOG_STR_ARG(c->get_component_log_str()), c);
       return;
     }
   }
@@ -91,7 +74,8 @@ void Application::setup() {
   ESP_LOGV(TAG, "Sorting components by setup priority");
 
   // Sort by setup priority using our helper function
-  insertion_sort_by_setup_priority(this->components_.begin(), this->components_.end());
+  insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_actual_setup_priority>(
+      this->components_.begin(), this->components_.end());
 
   // Initialize looping_components_ early so enable_pending_loops_() works during setup
   this->calculate_looping_components_();
@@ -108,7 +92,8 @@ void Application::setup() {
       continue;
 
     // Sort components 0 through i by loop priority
-    insertion_sort_by_loop_priority(this->components_.begin(), this->components_.begin() + i + 1);
+    insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_loop_priority>(
+        this->components_.begin(), this->components_.begin() + i + 1);
 
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
@@ -136,6 +121,11 @@ void Application::setup() {
 
   // Clear setup priority overrides to free memory
   clear_setup_priority_overrides();
+
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Set up wake socket for waking main loop from tasks
+  this->setup_wake_loop_threadsafe_();
+#endif
 
   this->schedule_dump_config();
 }
@@ -340,8 +330,8 @@ void Application::teardown_components(uint32_t timeout_ms) {
     // Note: At this point, connections are either disconnected or in a bad state,
     // so this warning will only appear via serial rather than being transmitted to clients
     for (size_t i = 0; i < pending_count; ++i) {
-      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms", pending_components[i]->get_component_source(),
-               timeout_ms);
+      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms",
+               LOG_STR_ARG(pending_components[i]->get_component_log_str()), timeout_ms);
     }
   }
 }
@@ -355,26 +345,25 @@ void Application::calculate_looping_components_() {
     }
   }
 
-  // Pre-reserve vector to avoid reallocations
-  this->looping_components_.reserve(total_looping);
+  // Initialize FixedVector with exact size - no reallocation possible
+  this->looping_components_.init(total_looping);
 
   // Add all components with loop override that aren't already LOOP_DONE
   // Some components (like logger) may call disable_loop() during initialization
   // before setup runs, so we need to respect their LOOP_DONE state
-  for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        (obj->get_component_state() & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
-      this->looping_components_.push_back(obj);
-    }
-  }
+  this->add_looping_components_by_state_(false);
 
   this->looping_components_active_end_ = this->looping_components_.size();
 
   // Then add any components that are already LOOP_DONE to the inactive section
   // This handles components that called disable_loop() during initialization
+  this->add_looping_components_by_state_(true);
+}
+
+void Application::add_looping_components_by_state_(bool match_loop_done) {
   for (auto *obj : this->components_) {
     if (obj->has_overridden_loop() &&
-        (obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
+        ((obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) == match_loop_done) {
       this->looping_components_.push_back(obj);
     }
   }
@@ -473,7 +462,7 @@ void Application::enable_pending_loops_() {
 
     // Clear the pending flag and enable the loop
     component->pending_enable_loop_ = false;
-    ESP_LOGVV(TAG, "%s loop enabled from ISR", component->get_component_source());
+    ESP_LOGVV(TAG, "%s loop enabled from ISR", LOG_STR_ARG(component->get_component_log_str()));
     component->component_state_ &= ~COMPONENT_STATE_MASK;
     component->component_state_ |= COMPONENT_STATE_LOOP;
 
@@ -488,6 +477,11 @@ void Application::enable_pending_loops_() {
 }
 
 void Application::before_loop_tasks_(uint32_t loop_start_time) {
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Drain wake notifications first to clear socket for next wake
+  this->drain_wake_notifications_();
+#endif
+
   // Process scheduled tasks
   this->scheduler.call(loop_start_time);
 
@@ -592,10 +586,11 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // Update fd_set if socket list has changed
     if (this->socket_fds_changed_) {
       FD_ZERO(&this->base_read_fds_);
+      // fd bounds are already validated in register_socket_fd() or guaranteed by platform design:
+      // - ESP32: LwIP guarantees fd < FD_SETSIZE by design (LWIP_SOCKET_OFFSET = FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS)
+      // - Other platforms: register_socket_fd() validates fd < FD_SETSIZE
       for (int fd : this->socket_fds_) {
-        if (fd >= 0 && fd < FD_SETSIZE) {
-          FD_SET(fd, &this->base_read_fds_);
-        }
+        FD_SET(fd, &this->base_read_fds_);
       }
       this->socket_fds_changed_ = false;
     }
@@ -639,5 +634,74 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 }
 
 Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+void Application::setup_wake_loop_threadsafe_() {
+  // Create UDP socket for wake notifications
+  this->wake_socket_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (this->wake_socket_fd_ < 0) {
+    ESP_LOGW(TAG, "Wake socket create failed: %d", errno);
+    return;
+  }
+
+  // Bind to loopback with auto-assigned port
+  struct sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = lwip_htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;  // Auto-assign port
+
+  if (lwip_bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+    ESP_LOGW(TAG, "Wake socket bind failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Get the assigned address and connect to it
+  // Connecting a UDP socket allows using send() instead of sendto() for better performance
+  struct sockaddr_in wake_addr;
+  socklen_t len = sizeof(wake_addr);
+  if (lwip_getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
+    ESP_LOGW(TAG, "Wake socket address failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Connect to self (loopback) - allows using send() instead of sendto()
+  // After connect(), no need to store wake_addr - the socket remembers it
+  if (lwip_connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
+    ESP_LOGW(TAG, "Wake socket connect failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Set non-blocking mode
+  int flags = lwip_fcntl(this->wake_socket_fd_, F_GETFL, 0);
+  lwip_fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
+
+  // Register with application's select() loop
+  if (!this->register_socket_fd(this->wake_socket_fd_)) {
+    ESP_LOGW(TAG, "Wake socket register failed");
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+}
+
+void Application::wake_loop_threadsafe() {
+  // Called from FreeRTOS task context when events need immediate processing
+  // Wakes up lwip_select() in main loop by writing to connected loopback socket
+  if (this->wake_socket_fd_ >= 0) {
+    const char dummy = 1;
+    // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
+    // No error checking needed: we control both ends of this loopback socket.
+    // This is safe to call from FreeRTOS tasks - send() is thread-safe in lwip
+    // Socket is already connected to loopback address, so send() is faster than sendto()
+    lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
+  }
+}
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
 }  // namespace esphome

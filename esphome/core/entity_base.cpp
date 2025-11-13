@@ -45,10 +45,15 @@ void EntityBase::set_icon(const char *icon) {
 #endif
 }
 
+// Check if the object_id is dynamic (changes with MAC suffix)
+bool EntityBase::is_object_id_dynamic_() const {
+  return !this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled();
+}
+
 // Entity Object ID
 std::string EntityBase::get_object_id() const {
   // Check if `App.get_friendly_name()` is constant or dynamic.
-  if (!this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled()) {
+  if (this->is_object_id_dynamic_()) {
     // `App.get_friendly_name()` is dynamic.
     return str_sanitize(str_snake_case(App.get_friendly_name()));
   }
@@ -58,7 +63,7 @@ std::string EntityBase::get_object_id() const {
 StringRef EntityBase::get_object_id_ref_for_api_() const {
   static constexpr auto EMPTY_STRING = StringRef::from_lit("");
   // Return empty for dynamic case (MAC suffix)
-  if (!this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled()) {
+  if (this->is_object_id_dynamic_()) {
     return EMPTY_STRING;
   }
   // For static case, return the string or empty if null
@@ -70,7 +75,10 @@ void EntityBase::set_object_id(const char *object_id) {
 }
 
 // Calculate Object ID Hash from Entity Name
-void EntityBase::calc_object_id_() { this->object_id_hash_ = fnv1_hash(this->get_object_id()); }
+void EntityBase::calc_object_id_() {
+  this->object_id_hash_ =
+      fnv1_hash(this->is_object_id_dynamic_() ? this->get_object_id().c_str() : this->object_id_c_str_);
+}
 
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 

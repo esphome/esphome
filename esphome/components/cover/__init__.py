@@ -32,7 +32,7 @@ from esphome.const import (
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -151,11 +151,6 @@ def cover_schema(
     return _COVER_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-COVER_SCHEMA = cover_schema(Cover)
-COVER_SCHEMA.add_extra(cv.deprecated_schema_constant("cover"))
-
-
 async def setup_cover_core_(var, config):
     await setup_entity(var, config, "cover")
 
@@ -263,6 +258,6 @@ async def cover_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(cover_ns.using)

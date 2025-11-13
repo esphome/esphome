@@ -25,7 +25,7 @@ CONF_SCAN_TIME = "scan_time"
 CONF_DEBOUNCE_TIME = "debounce_time"
 CONF_SX1509_ID = "sx1509_id"
 
-AUTO_LOAD = ["key_provider"]
+AUTO_LOAD = ["key_provider", "gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

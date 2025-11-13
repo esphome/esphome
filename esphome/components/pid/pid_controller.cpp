@@ -104,7 +104,7 @@ float PIDController::weighted_average_(std::deque<float> &list, float new_value,
   list.push_front(new_value);
 
   // keep only 'samples' readings, by popping off the back of the list
-  while (list.size() > samples)
+  while (samples > 0 && list.size() > static_cast<size_t>(samples))
     list.pop_back();
 
   // calculate and return the average of all values in the list

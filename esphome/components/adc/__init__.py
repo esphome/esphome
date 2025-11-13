@@ -11,15 +11,8 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
-from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ANALOG,
-    CONF_INPUT,
-    CONF_NUMBER,
-    PLATFORM_ESP8266,
-    PlatformFramework,
-)
+from esphome.const import CONF_ANALOG, CONF_INPUT, CONF_NUMBER, PLATFORM_ESP8266
 from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
@@ -273,21 +266,3 @@ def validate_adc_pin(value):
         )(value)
 
     raise NotImplementedError
-
-
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
-    {
-        "adc_sensor_esp32.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-        "adc_sensor_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "adc_sensor_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
-        "adc_sensor_libretiny.cpp": {
-            PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
-            PlatformFramework.LN882X_ARDUINO,
-        },
-        "adc_sensor_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
-    }
-)
