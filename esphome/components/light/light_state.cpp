@@ -24,8 +24,8 @@ void LightState::setup() {
     effect->init_internal(this);
   }
 
-  // Start with loop disabled - it will be enabled by start_transition_/start_effect_ if needed
-  this->disable_loop();
+  // Start with loop disabled if idle - respects any effects/transitions set up during initialization
+  this->disable_loop_if_idle_();
 
   // When supported color temperature range is known, initialize color temperature setting within bounds.
   auto traits = this->get_traits();
