@@ -44,8 +44,7 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     return false;
   }
 
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found (device type %d).", device.address_str().c_str(),
-            this->device_type_);
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
 
   // publish signal strength
   float signal_strength = float(device.get_rssi());
@@ -57,8 +56,7 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   for (auto &service_data : device.get_manufacturer_datas()) {
     // reconstruct whole record from 2 byte uuid and data
     esp_bt_uuid_t uuid = service_data.uuid.get_uuid();
-    std::vector<uint8_t> data = {static_cast<uint8_t>(uuid.uuid.uuid16 & 0xff),
-                                 static_cast<uint8_t>(uuid.uuid.uuid16 >> 8)};
+    std::vector<uint8_t> data = {static_cast<uint8_t>(uuid.uuid.uuid16), static_cast<uint8_t>(uuid.uuid.uuid16 >> 8)};
     data.insert(data.end(), service_data.data.begin(), service_data.data.end());
 
     // dispatch data to parser
