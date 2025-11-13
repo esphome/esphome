@@ -3,14 +3,14 @@ import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TIME_ID, CONF_TRIGGER_ID
-
-DEPENDENCIES = ["uart"]
+from esphome.core import AutoLoad
 
 CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
-
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_STATUS_PIN = "status_pin"
+
+TYPE_UART = "uart"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
@@ -82,44 +82,53 @@ def assign_declare_id(value):
 
 
 CONF_TUYA_ID = "tuya_id"
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(TuyaUART),
-            cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-            cv.Optional(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS): cv.ensure_list(
-                cv.uint8_t
-            ),
-            cv.Optional(CONF_STATUS_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_ON_DATAPOINT_UPDATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        DATAPOINT_TRIGGERS[DPTYPE_ANY]
-                    ),
-                    cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_ANY): cv.one_of(
-                        *DATAPOINT_TRIGGERS, lower=True
-                    ),
-                },
-                extra_validators=assign_declare_id,
-            ),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
+
+# Common schema for all tuya base class implementations
+BASE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS): cv.ensure_list(cv.uint8_t),
+        cv.Optional(CONF_ON_DATAPOINT_UPDATE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    DATAPOINT_TRIGGERS[DPTYPE_ANY]
+                ),
+                cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
+                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_ANY): cv.one_of(
+                    *DATAPOINT_TRIGGERS, lower=True
+                ),
+            },
+            extra_validators=assign_declare_id,
+        ),
+    }
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
-    if CONF_TIME_ID in config:
-        time_ = await cg.get_variable(config[CONF_TIME_ID])
-        cg.add(var.set_time_id(time_))
-    if CONF_STATUS_PIN in config:
-        status_pin_ = await cg.gpio_pin_expression(config[CONF_STATUS_PIN])
-        cg.add(var.set_status_pin(status_pin_))
+def _validate_config(value):
+    """Allow AutoLoad to pass through, otherwise validate as UART config"""
+    if isinstance(value, AutoLoad):
+        return value
+
+    # Apply full UART schema validation
+    schema = (
+        BASE_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(TuyaUART),
+                cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+                cv.Optional(CONF_STATUS_PIN): pins.gpio_output_pin_schema,
+            }
+        )
+        .extend(cv.COMPONENT_SCHEMA)
+        .extend(uart.UART_DEVICE_SCHEMA)
+    )
+
+    return schema(value)
+
+
+CONFIG_SCHEMA = _validate_config
+
+
+async def register_tuya(var, config):
+    """Register common tuya base class configuration"""
     if CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS in config:
         for dp in config[CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS]:
             cg.add(var.add_ignore_mcu_update_on_datapoints(dp))
@@ -130,3 +139,34 @@ async def to_code(config):
         await automation.build_automation(
             trigger, [(DATAPOINT_TYPES[conf[CONF_DATAPOINT_TYPE]], "x")], conf
         )
+
+
+async def to_code(config):
+    # If auto-loaded (for base classes only), don't instantiate
+    if isinstance(config, AutoLoad):
+        return
+
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
+    await uart.register_uart_device(var, config)
+    if CONF_STATUS_PIN in config:
+        status_pin_ = await cg.gpio_pin_expression(config[CONF_STATUS_PIN])
+        cg.add(var.set_status_pin(status_pin_))
+    if CONF_TIME_ID in config:
+        time_ = await cg.get_variable(config[CONF_TIME_ID])
+        cg.add(var.set_time_id(time_))
+
+    await register_tuya(var, config)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    from esphome.core import CORE
+
+    tuya_configs = CORE.config.get("tuya")
+
+    # If tuya is auto-loaded (not explicitly configured), exclude UART implementation
+    if isinstance(tuya_configs, AutoLoad):
+        return ["tuya_uart.cpp", "tuya_uart.h"]
+
+    return []
