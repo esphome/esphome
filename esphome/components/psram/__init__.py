@@ -35,6 +35,9 @@ DOMAIN = "psram"
 
 DEPENDENCIES = [PLATFORM_ESP32]
 
+# PSRAM availability tracking for cross-component coordination
+KEY_PSRAM_GUARANTEED = "psram_guaranteed"
+
 _LOGGER = logging.getLogger(__name__)
 
 psram_ns = cg.esphome_ns.namespace(DOMAIN)
@@ -69,6 +72,23 @@ def supported() -> bool:
         return False
     variant = get_esp32_variant()
     return variant in SPIRAM_MODES
+
+
+def is_guaranteed() -> bool:
+    """Check if PSRAM is guaranteed to be available.
+
+    Returns True when PSRAM is configured with both 'disabled: false' and
+    'ignore_not_found: false', meaning the device will fail to boot if PSRAM
+    is not found. This ensures safe use of high buffer configurations that
+    depend on PSRAM.
+
+    This function should be called during code generation (to_code phase) by
+    components that need to know PSRAM availability for configuration decisions.
+
+    Returns:
+        bool: True if PSRAM is guaranteed, False otherwise
+    """
+    return CORE.data.get(KEY_PSRAM_GUARANTEED, False)
 
 
 def validate_psram_mode(config):
@@ -131,7 +151,22 @@ def get_config_schema(config):
 
 CONFIG_SCHEMA = get_config_schema
 
-FINAL_VALIDATE_SCHEMA = validate_psram_mode
+
+def _store_psram_guaranteed(config):
+    """Store PSRAM guaranteed status in CORE.data for other components.
+
+    PSRAM is "guaranteed" when it will fail if not found, ensuring safe use
+    of high buffer configurations in network/wifi components.
+
+    Called during final validation to ensure the flag is available
+    before any to_code() functions run.
+    """
+    psram_guaranteed = not config[CONF_DISABLED] and not config[CONF_IGNORE_NOT_FOUND]
+    CORE.data[KEY_PSRAM_GUARANTEED] = psram_guaranteed
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(validate_psram_mode, _store_psram_guaranteed)
 
 
 async def to_code(config):
