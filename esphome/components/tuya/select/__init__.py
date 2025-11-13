@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_INT_DATAPOINT,
     CONF_OPTIMISTIC,
     CONF_OPTIONS,
+    CONF_STRING_DATAPOINT,
 )
 
 from .. import CONF_TUYA_ID, Tuya, tuya_ns
@@ -38,24 +39,42 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
             cv.Optional(CONF_ENUM_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_INT_DATAPOINT): cv.uint8_t,
-            cv.Required(CONF_OPTIONS): ensure_option_map,
+            cv.Optional(CONF_STRING_DATAPOINT): cv.uint8_t,
+            cv.Required(CONF_OPTIONS): cv.Any(
+                ensure_option_map, cv.ensure_list(cv.string_strict)
+            ),
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.has_exactly_one_key(CONF_ENUM_DATAPOINT, CONF_INT_DATAPOINT),
+    cv.has_exactly_one_key(
+        CONF_ENUM_DATAPOINT, CONF_INT_DATAPOINT, CONF_STRING_DATAPOINT
+    ),
 )
 
 
 async def to_code(config):
     options_map = config[CONF_OPTIONS]
-    var = await select.new_select(config, options=list(options_map.values()))
-    await cg.register_component(var, config)
-    cg.add(var.set_select_mappings(list(options_map.keys())))
-    parent = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(parent))
-    if (enum_datapoint := config.get(CONF_ENUM_DATAPOINT, None)) is not None:
-        cg.add(var.set_select_id(enum_datapoint, False))
-    if (int_datapoint := config.get(CONF_INT_DATAPOINT, None)) is not None:
-        cg.add(var.set_select_id(int_datapoint, True))
+
+    # For string_datapoint, options is a list of strings
+    if CONF_STRING_DATAPOINT in config:
+        var = await select.new_select(config, options=options_map)
+        await cg.register_component(var, config)
+        cg.add(var.set_select_mappings([]))  # No mappings for string type
+        parent = await cg.get_variable(config[CONF_TUYA_ID])
+        cg.add(var.set_tuya_parent(parent))
+        cg.add(var.set_select_id(config[CONF_STRING_DATAPOINT], False))
+        cg.add(var.set_is_string(True))
+    else:
+        # For enum/int_datapoint, options is a mapping
+        var = await select.new_select(config, options=list(options_map.values()))
+        await cg.register_component(var, config)
+        cg.add(var.set_select_mappings(list(options_map.keys())))
+        parent = await cg.get_variable(config[CONF_TUYA_ID])
+        cg.add(var.set_tuya_parent(parent))
+        if (enum_datapoint := config.get(CONF_ENUM_DATAPOINT, None)) is not None:
+            cg.add(var.set_select_id(enum_datapoint, False))
+        if (int_datapoint := config.get(CONF_INT_DATAPOINT, None)) is not None:
+            cg.add(var.set_select_id(int_datapoint, True))
+
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
