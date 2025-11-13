@@ -22,6 +22,11 @@ nrf52:
 
 - **board** (*Required*, string): The board type. Valid options are `adafruit_feather_nrf52840`, `adafruit_itsybitsy_nrf52840`, `xiao_ble`. Other boards should work with those configuration as well.
 - **bootloader** (*Optional*, string): Bootloader type. Valid options are `mcuboot`, `adafruit`, `adafruit_nrf52_sd132`, `adafruit_nrf52_sd140_v6`, `adafruit_nrf52_sd140_v7`. Default value depends on board type.
+- **dcdc** (*Optional*, boolean): Enable DC/DC converter for REG1 stage. Defaults to `true`.
+External LC filters must be connected to the DC/DC regulator pins if it is being used.
+The advantage of using a DC/DC regulator is that the overall power consumption is normally reduced
+as the efficiency of such a regulator is higher than that of a LDO.
+⚠️ Warning: Enabling DC/DC may cause the board to fail to boot if external LC filter is misconfigured or is poor quality.
 
 ## Getting Started
 
