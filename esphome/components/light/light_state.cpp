@@ -139,6 +139,8 @@ void LightState::loop() {
   if (this->next_write_) {
     this->next_write_ = false;
     this->output_->write_state(this);
+    // Disable loop if idle (no transformer and no effect)
+    this->disable_loop_if_idle_();
   }
 }
 
@@ -291,13 +293,12 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
   }
   this->output_->update_state(this);
   this->next_write_ = true;
-  // Disable loop if idle (no transformer and no effect)
-  this->disable_loop_if_idle_();
+  this->enable_loop();
 }
 
 void LightState::disable_loop_if_idle_() {
-  // Only disable loop if both transformer and effect are inactive
-  if (this->transformer_ == nullptr && this->get_active_effect_() == nullptr) {
+  // Only disable loop if both transformer and effect are inactive, and no pending writes
+  if (this->transformer_ == nullptr && this->get_active_effect_() == nullptr && !this->next_write_) {
     this->disable_loop();
   }
 }
