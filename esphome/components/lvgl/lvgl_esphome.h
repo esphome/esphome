@@ -221,10 +221,10 @@ class LvglComponent : public PollingComponent {
   bool is_paused();
 
  protected:
-  // these functions are never called unless the callbacks are non-null since the
-  // LVGL callbacks that call them are not set unless the start/end callbacks are non-null
-  void draw_start_() const { this->draw_start_callback_->trigger(); }
   void draw_end_();
+  // Not checking for non-null callback since the
+  // LVGL callback that calls it is not set in that case
+  void draw_start_() const { this->draw_start_callback_->trigger(); }
 
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
