@@ -109,5 +109,4 @@ void STTS22HComponent::initialize_sensor_() {
   }
 }
 
-}  // namespace stts22h
-}  // namespace esphome
+}  // namespace esphome::stts22h
