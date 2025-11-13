@@ -476,8 +476,9 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   auto *light = static_cast<light::LightState *>(entity);
   ListEntitiesLightResponse msg;
   auto traits = light->get_traits();
+  auto supported_modes = traits.get_supported_color_modes();
   // Pass pointer to ColorModeMask so the iterator can encode actual ColorMode enum values
-  msg.supported_color_modes = &traits.get_supported_color_modes();
+  msg.supported_color_modes = &supported_modes;
   if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
       traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE)) {
     msg.min_mireds = traits.get_min_mireds();
@@ -1294,11 +1295,11 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 #endif
 
 #ifdef USE_EVENT
-void APIConnection::send_event(event::Event *event, const std::string &event_type) {
-  this->schedule_message_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
-                          EventResponse::ESTIMATED_SIZE);
+void APIConnection::send_event(event::Event *event, const char *event_type) {
+  this->send_message_smart_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
+                            EventResponse::ESTIMATED_SIZE);
 }
-uint16_t APIConnection::try_send_event_response(event::Event *event, const std::string &event_type, APIConnection *conn,
+uint16_t APIConnection::try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                                 uint32_t remaining_size, bool is_single) {
   EventResponse resp;
   resp.set_event_type(StringRef(event_type));
@@ -1650,9 +1651,7 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
   // O(n) but optimized for RAM and not performance.
   for (auto &item : items) {
     if (item.entity == entity && item.message_type == message_type) {
-      // Clean up old creator before replacing
-      item.creator.cleanup(message_type);
-      // Move assign the new creator
+      // Replace with new creator
       item.creator = std::move(creator);
       return;
     }
@@ -1822,7 +1821,7 @@ void APIConnection::process_batch_() {
 
   // Handle remaining items more efficiently
   if (items_processed < this->deferred_batch_.size()) {
-    // Remove processed items from the beginning with proper cleanup
+    // Remove processed items from the beginning
     this->deferred_batch_.remove_front(items_processed);
     // Reschedule for remaining items
     this->schedule_batch_();
@@ -1835,10 +1834,10 @@ void APIConnection::process_batch_() {
 uint16_t APIConnection::MessageCreator::operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                    bool is_single, uint8_t message_type) const {
 #ifdef USE_EVENT
-  // Special case: EventResponse uses string pointer
+  // Special case: EventResponse uses const char * pointer
   if (message_type == EventResponse::MESSAGE_TYPE) {
     auto *e = static_cast<event::Event *>(entity);
-    return APIConnection::try_send_event_response(e, *data_.string_ptr, conn, remaining_size, is_single);
+    return APIConnection::try_send_event_response(e, data_.const_char_ptr, conn, remaining_size, is_single);
   }
 #endif
 
