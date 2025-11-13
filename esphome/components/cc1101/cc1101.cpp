@@ -141,10 +141,8 @@ void CC1101Component::setup() {
   this->cs_->digital_write(true);
   delayMicroseconds(41);
   this->cs_->digital_write(false);
-  // We cannot use a long delay here
-  // 5ms is acceptable, but the CHIP_RDYn poll in the loop
-  // will handle the real waiting.
-  delayMicroseconds(5000);
+  // Changed delayMicroseconds to delay to allow yielding
+  delay(5);
 
   this->spi_setup();
 
@@ -414,24 +412,6 @@ void CC1101Component::send_(Command cmd) {
 
 template<typename T> static T get_enum_last(T value) { return T::LAST; }
 
-// #define CHECK_ENUM(value) \
-//   if ((value) >= get_enum_last(value)) { \
-//     ESP_LOGE(TAG, "%s(%d) invalid", __func__, (int) (value)); \
-//     return; \
-//   }
-
-// #define CHECK_FLOAT_RANGE(value, min_value, max_value) \
-//   if ((value) < (min_value) || (value) > (max_value)) { \
-//     ESP_LOGE(TAG, "%s(%.2f) invalid (%.2f - %.2f)", __func__, value, min_value, max_value); \
-//     return; \
-//   }
-
-// #define CHECK_INT_RANGE(value, min_value, max_value) \
-//   if ((value) < (min_value) || (value) > (max_value)) { \
-//     ESP_LOGE(TAG, "%s(%d) invalid (%d - %d)", __func__, (int) (value), (int) (min_value), (int) (max_value)); \
-//     return; \
-//   }
-
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   if (value < 0) {
     ESP_LOGE(TAG, "split_float(%f, %d): positive values only", value, mbits);
@@ -457,7 +437,6 @@ static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
 }
 
 void CC1101Component::set_output_power(float value) {
-  // CHECK_FLOAT_RANGE(value, OUTPUT_POWER_MIN, OUTPUT_POWER_MAX);
   if (!is_float_in_range(value, OUTPUT_POWER_MIN, OUTPUT_POWER_MAX)) {
     ESP_LOGE(TAG, "Invalid Output Power: %f", value);
     return;
@@ -500,7 +479,6 @@ void CC1101Component::set_output_power(float value) {
   this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
 }
 void CC1101Component::set_rx_attenuation(RxAttenuation value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid RX Attenuation: %d", (int) value);
     return;
@@ -520,7 +498,6 @@ void CC1101Component::set_dc_blocking_filter(bool value) {
   this->write_(Register::MDMCFG2);
 }
 void CC1101Component::set_tuner_frequency(float value) {
-  // CHECK_FLOAT_RANGE(value, FREQUENCY_MIN, FREQUENCY_MAX);
   if (!is_float_in_range(value, FREQUENCY_MIN, FREQUENCY_MAX)) {
     ESP_LOGE(TAG, "Invalid frequency: %f", value);
     return;
@@ -540,7 +517,6 @@ void CC1101Component::set_tuner_frequency(float value) {
   this->component_state_ = ComponentState::SET_FREQ_START;
 }
 void CC1101Component::set_tuner_if_frequency(float value) {
-  // CHECK_FLOAT_RANGE(value, IF_FREQUENCY_MIN, IF_FREQUENCY_MAX);
   if (!is_float_in_range(value, IF_FREQUENCY_MIN, IF_FREQUENCY_MAX)) {
     ESP_LOGE(TAG, "Invalid IF Frequency: %f", value);
     return;
@@ -552,7 +528,6 @@ void CC1101Component::set_tuner_if_frequency(float value) {
   this->write_(Register::FSCTRL1);
 }
 void CC1101Component::set_tuner_filter_bandwidth(float value) {
-  // CHECK_FLOAT_RANGE(value, BANDWIDTH_MIN, BANDWIDTH_MAX);
   if (!is_float_in_range(value, BANDWIDTH_MIN, BANDWIDTH_MAX)) {
     ESP_LOGE(TAG, "Invalid Filter Bandwidth: %f", value);
     return;
@@ -568,7 +543,6 @@ void CC1101Component::set_tuner_filter_bandwidth(float value) {
   this->write_(Register::MDMCFG4);
 }
 void CC1101Component::set_tuner_channel(uint8_t value) {
-  // CHECK_INT_RANGE(value, CHANNEL_MIN, CHANNEL_MAX);
   if (!is_int_in_range(value, CHANNEL_MIN, CHANNEL_MAX)) {
     ESP_LOGE(TAG, "Invalid Channel: %d", (int) value);
     return;
@@ -580,7 +554,6 @@ void CC1101Component::set_tuner_channel(uint8_t value) {
   this->write_(Register::CHANNR);
 }
 void CC1101Component::set_tuner_channel_spacing(float value) {
-  // CHECK_FLOAT_RANGE(value, CHANNEL_SPACING_MIN, CHANNEL_SPACING_MAX);
   if (!is_float_in_range(value, CHANNEL_SPACING_MIN, CHANNEL_SPACING_MAX)) {
     ESP_LOGE(TAG, "Invalid Channel Spacing: %f", value);
     return;
@@ -597,7 +570,6 @@ void CC1101Component::set_tuner_channel_spacing(float value) {
   this->write_(Register::MDMCFG0);
 }
 void CC1101Component::set_tuner_fsk_deviation(float value) {
-  // CHECK_FLOAT_RANGE(value, FSK_DEVIATION_MIN, FSK_DEVIATION_MAX);
   if (!is_float_in_range(value, FSK_DEVIATION_MIN, FSK_DEVIATION_MAX)) {
     ESP_LOGE(TAG, "Invalid FSK Deviation: %f", value);
     return;
@@ -613,7 +585,6 @@ void CC1101Component::set_tuner_fsk_deviation(float value) {
   this->write_(Register::DEVIATN);
 }
 void CC1101Component::set_tuner_msk_deviation(uint8_t value) {
-  // CHECK_INT_RANGE(value, MSK_DEVIATION_MIN, MSK_DEVIATION_MAX);
   if (!is_int_in_range(value, MSK_DEVIATION_MIN, MSK_DEVIATION_MAX)) {
     ESP_LOGE(TAG, "Invalid MSK Deviation: %d", (int) value);
     return;
@@ -626,7 +597,6 @@ void CC1101Component::set_tuner_msk_deviation(uint8_t value) {
   this->write_(Register::DEVIATN);
 }
 void CC1101Component::set_tuner_symbol_rate(float value) {
-  // CHECK_FLOAT_RANGE(value, SYMBOL_RATE_MIN, SYMBOL_RATE_MAX);
   if (!is_float_in_range(value, SYMBOL_RATE_MIN, SYMBOL_RATE_MAX)) {
     ESP_LOGE(TAG, "Invalid Symbol Rate: %f", value);
     return;
@@ -643,7 +613,6 @@ void CC1101Component::set_tuner_symbol_rate(float value) {
   this->write_(Register::MDMCFG3);
 }
 void CC1101Component::set_tuner_sync_mode(SyncMode value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid Sync Mode: %d", (int) value);
     return;
@@ -662,7 +631,6 @@ void CC1101Component::set_tuner_carrier_sense_above_threshold(bool value) {
   this->write_(Register::MDMCFG2);
 }
 void CC1101Component::set_tuner_modulation_type(Modulation value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid Modulation Type: %d", (int) value);
     return;
@@ -711,7 +679,6 @@ void CC1101Component::set_tuner_pktlen(uint8_t value) {
   this->write_(Register::PKTLEN);
 }
 void CC1101Component::set_agc_magn_target(MagnTarget value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid MAGN Target: %d", (int) value);
     return;
@@ -723,7 +690,6 @@ void CC1101Component::set_agc_magn_target(MagnTarget value) {
   this->write_(Register::AGCCTRL2);
 }
 void CC1101Component::set_agc_max_lna_gain(MaxLnaGain value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid LNA Gain: %d", (int) value);
     return;
@@ -735,7 +701,6 @@ void CC1101Component::set_agc_max_lna_gain(MaxLnaGain value) {
   this->write_(Register::AGCCTRL2);
 }
 void CC1101Component::set_agc_max_dvga_gain(MaxDvgaGain value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid DVGA Gain: %d", (int) value);
     return;
@@ -747,7 +712,6 @@ void CC1101Component::set_agc_max_dvga_gain(MaxDvgaGain value) {
   this->write_(Register::AGCCTRL2);
 }
 void CC1101Component::set_agc_carrier_sense_abs_thr(int8_t value) {
-  // CHECK_INT_RANGE(value, CARRIER_SENSE_ABS_THR_MIN, CARRIER_SENSE_ABS_THR_MAX);
   if (!is_int_in_range(value, CARRIER_SENSE_ABS_THR_MIN, CARRIER_SENSE_ABS_THR_MAX)) {
     ESP_LOGE(TAG, "Invalid CS ABS Threshold: %d", (int) value);
     return;
@@ -759,7 +723,6 @@ void CC1101Component::set_agc_carrier_sense_abs_thr(int8_t value) {
   this->write_(Register::AGCCTRL1);
 }
 void CC1101Component::set_agc_carrier_sense_rel_thr(CarrierSenseRelThr value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid CS Rel Threshold: %d", (int) value);
     return;
@@ -778,7 +741,6 @@ void CC1101Component::set_agc_lna_priority(bool value) {
   this->write_(Register::AGCCTRL1);
 }
 void CC1101Component::set_agc_filter_length_fsk_msk(FilterLengthFskMsk value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid Filter Length: %d", (int) value);
     return;
@@ -790,7 +752,6 @@ void CC1101Component::set_agc_filter_length_fsk_msk(FilterLengthFskMsk value) {
   this->write_(Register::AGCCTRL0);
 }
 void CC1101Component::set_agc_filter_length_ask_ook(FilterLengthAskOok value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid Filter Length: %d", (int) value);
     return;
@@ -802,7 +763,6 @@ void CC1101Component::set_agc_filter_length_ask_ook(FilterLengthAskOok value) {
   this->write_(Register::AGCCTRL0);
 }
 void CC1101Component::set_agc_freeze(Freeze value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid AGC Freeze Setting: %d", (int) value);
     return;
@@ -814,7 +774,6 @@ void CC1101Component::set_agc_freeze(Freeze value) {
   this->write_(Register::AGCCTRL0);
 }
 void CC1101Component::set_agc_wait_time(WaitTime value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid AGC Wait Time: %d", (int) value);
     return;
@@ -826,7 +785,6 @@ void CC1101Component::set_agc_wait_time(WaitTime value) {
   this->write_(Register::AGCCTRL0);
 }
 void CC1101Component::set_agc_hyst_level(HystLevel value) {
-  // CHECK_ENUM(value);
   if (!is_enum_valid(value)) {
     ESP_LOGE(TAG, "Invalid AGC Hyst Level: %d", (int) value);
     return;

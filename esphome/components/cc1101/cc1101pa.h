@@ -1,6 +1,7 @@
 #pragma once
 
-#include <cinttypes>
+#include <cstdint>
+#include <cstddef>
 #include <cmath>
 #include <cstdio>
 
@@ -22,13 +23,15 @@ struct PowerTable {
     for (size_t i = 0; i < count; i++) {
       dbmi -= items[i].dbm_diff;
       if (dbmi_target >= dbmi) {
+        // Check for specific invalid PA settings (magic numbers derived from TI DN013/SmartRC logic)
         if (items[i].value >= 0x61 && items[i].value <= 0x6F)
-          continue;  // see note in the commend above
-        dbm_target = (float) dbmi / 10;
+          continue;
+
+        dbm_target = (float) dbmi / 10.0f;
         return items[i].value;
       }
     }
-    dbm_target = -30;
+    dbm_target = -30.0f;
     return 0x03;
   }
 };

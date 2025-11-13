@@ -1,15 +1,50 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/spi/spi.h"
-#include <string>
-#include <deque>
-#include "cc1101defs.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/remote_base/rc_switch_protocol.h"
+#include "cc1101defs.h"
+#include <string>
 
 namespace esphome {
 namespace cc1101 {
+
+// A simple fixed-size ring buffer to avoid heap allocation (std::deque) in the loop
+template<typename T, size_t MAX_SIZE> class FixedQueue {
+ public:
+  void push_back(T val) {
+    if (size_ >= MAX_SIZE)
+      return;  // Drop if full
+    buffer_[tail_] = val;
+    tail_ = (tail_ + 1) % MAX_SIZE;
+    size_++;
+  }
+
+  T front() const { return buffer_[head_]; }
+
+  void pop_front() {
+    if (size_ == 0)
+      return;
+    head_ = (head_ + 1) % MAX_SIZE;
+    size_--;
+  }
+
+  bool empty() const { return size_ == 0; }
+
+  void clear() {
+    head_ = 0;
+    tail_ = 0;
+    size_ = 0;
+  }
+
+ private:
+  T buffer_[MAX_SIZE];
+  size_t head_{0};
+  size_t tail_{0};
+  size_t size_{0};
+};
 
 class CC1101Component : public Component,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -17,7 +52,8 @@ class CC1101Component : public Component,
  public:
   CC1101Component();
 
-  void set_config_gdo0_pin(InternalGPIOPin *pin) { gdo0_ = pin; }
+  // Updated to use generic GPIOPin for better hardware compatibility
+  void set_config_gdo0_pin(GPIOPin *pin) { gdo0_ = pin; }
 
   void setup() override;
   void dump_config() override;
@@ -72,7 +108,10 @@ class CC1101Component : public Component,
   };
 
   void process_cmd_queue_();
-  std::deque<Command> cmd_queue_{};
+
+  // Replaced std::deque with fixed size buffer (size 16 is sufficient for command chains)
+  FixedQueue<Command, 16> cmd_queue_;
+
   bool is_waiting_{false};
   uint32_t wait_start_time_{0};
   ComponentState component_state_{ComponentState::SETUP_START};
@@ -81,7 +120,7 @@ class CC1101Component : public Component,
   bool freq_request_pending_{false};
   bool first_update_done_{false};
 
-  InternalGPIOPin *gdo0_;
+  GPIOPin *gdo0_{nullptr};  // Updated to Generic GPIO pointer
   std::string chip_id_;
   bool reset_;
   float output_power_requested_{0.0f};

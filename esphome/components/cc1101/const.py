@@ -4,7 +4,9 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_FREQUENCY, CONF_WAIT_TIME
 
 ns = cg.esphome_ns.namespace("cc1101")
-CC1101Component = ns.class_("CC1101Component", cg.PollingComponent, spi.SPIDevice)
+
+# CHANGED: PollingComponent -> Component to match C++ inheritance
+CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
 
 CODEOWNERS = ["@lygris"]
 DEPENDENCIES = ["spi", "button", "remote_receiver"]
@@ -117,10 +119,10 @@ CARRIER_SENSE_REL_THR = {
 
 FilterLengthFskMsk = ns.enum("FilterLengthFskMsk", True)
 FILTER_LENGTH_FSK_MSK = {
-    "8": FilterLengthFskMsk.FILTER_LENGTH_8,
-    "16": FilterLengthFskMsk.FILTER_LENGTH_16,
-    "32": FilterLengthFskMsk.FILTER_LENGTH_32,
-    "64": FilterLengthFskMsk.FILTER_LENGTH_64,
+    "8": FilterLengthFskMsk.FILTER_LENGTH_8DB,
+    "16": FilterLengthFskMsk.FILTER_LENGTH_16DB,
+    "32": FilterLengthFskMsk.FILTER_LENGTH_32DB,
+    "64": FilterLengthFskMsk.FILTER_LENGTH_64DB,
 }
 
 FilterLengthAskOok = ns.enum("FilterLengthAskOok", True)
@@ -133,10 +135,10 @@ FILTER_LENGTH_ASK_OOK = {
 
 Freeze = ns.enum("Freeze", True)
 FREEZE = {
-    "Default": Freeze.AGC_FREEZE_DEFAULT,
-    "On Sync": Freeze.AGC_FREEZE_ON_SYNC,
-    "Analog Only": Freeze.AGC_FREEZE_ANALOG_ONLY,
-    "Analog And Digital": Freeze.AGC_FREEZE_ANALOG_AND_DIGITAL,
+    "Default": Freeze.FREEZE_DEFAULT,
+    "On Sync": Freeze.FREEZE_ON_SYNC,
+    "Analog Only": Freeze.FREEZE_ANALOG_ONLY,
+    "Analog And Digital": Freeze.FREEZE_ANALOG_AND_DIGITAL,
 }
 
 WaitTime = ns.enum("WaitTime", True)

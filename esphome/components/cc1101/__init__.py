@@ -24,7 +24,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CC1101Component),
-            cv.Optional(CONF_GDO0_PIN): cv.All(pins.internal_gpio_output_pin_schema),
+            # CHANGED: Use generic gpio_pin_schema.
+            # The C++ GPIOPin abstraction handles internal vs external pins.
+            cv.Optional(CONF_GDO0_PIN): pins.gpio_pin_schema,
         }
     )
     .extend(

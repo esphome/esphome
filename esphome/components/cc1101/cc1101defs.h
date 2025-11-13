@@ -166,7 +166,6 @@ enum class FrequencyPreset : uint8_t {
   FREQUENCY_MANUAL,  // For when the number slider is used
   LAST,
 };
-// MDMCFG2
 
 enum class SyncMode : uint8_t {
   SYNC_MODE_NONE,
@@ -187,8 +186,6 @@ enum class Modulation : uint8_t {
   MODULATION_MSK,
   LAST,
 };
-
-// AGCCTRL2
 
 enum class MagnTarget : uint8_t {
   MAGN_TARGET_24DB,
@@ -222,10 +219,6 @@ enum class MaxDvgaGain : uint8_t {
   LAST,
 };
 
-// AGCCTRL1
-
-// CARRIER_SENSE_ABS_THR => number -7..+7, -8 is disabled
-
 enum class CarrierSenseRelThr : uint8_t {
   CARRIER_SENSE_REL_THR_DEFAULT,
   CARRIER_SENSE_REL_THR_PLUS_6DB,
@@ -233,10 +226,6 @@ enum class CarrierSenseRelThr : uint8_t {
   CARRIER_SENSE_REL_THR_PLUS_14DB,
   LAST,
 };
-
-// AGC_LNA_PRIORITY => switch
-
-// AGCCTRL0
 
 enum class FilterLengthFskMsk : uint8_t {
   FILTER_LENGTH_8DB,
@@ -278,9 +267,8 @@ enum class HystLevel : uint8_t {
   LAST,
 };
 
-//
-
-struct CC1101State {
+// Added __attribute__((packed)) to ensure memory alignment with the regs_ array
+struct __attribute__((packed)) CC1101State {
   // 0x00
   union {
     uint8_t IOCFG2;
