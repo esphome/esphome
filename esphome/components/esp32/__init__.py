@@ -334,12 +334,14 @@ def _is_framework_url(source: str) -> str:
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "recommended": cv.Version(3, 3, 2),
-    "latest": cv.Version(3, 3, 2),
-    "dev": cv.Version(3, 3, 2),
+    "latest": cv.Version(3, 3, 4),
+    "dev": cv.Version(3, 3, 4),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(3, 3, 2): cv.Version(55, 3, 31, "1"),
-    cv.Version(3, 3, 1): cv.Version(55, 3, 31, "1"),
+    cv.Version(3, 3, 4): cv.Version(55, 3, 31, "2"),
+    cv.Version(3, 3, 3): cv.Version(55, 3, 31, "2"),
+    cv.Version(3, 3, 2): cv.Version(55, 3, 31, "2"),
+    cv.Version(3, 3, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(3, 3, 0): cv.Version(55, 3, 30, "2"),
     cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(3, 2, 0): cv.Version(54, 3, 20),
@@ -357,8 +359,8 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 1),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(5, 5, 1): cv.Version(55, 3, 31, "1"),
-    cv.Version(5, 5, 0): cv.Version(55, 3, 31, "1"),
+    cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
+    cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 4, 3): cv.Version(55, 3, 32),
     cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
@@ -373,14 +375,15 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 31, "1"),
-    "latest": cv.Version(55, 3, 31, "1"),
-    "dev": cv.Version(55, 3, 31, "1"),
+    "recommended": cv.Version(55, 3, 31, "2"),
+    "latest": cv.Version(55, 3, 31, "2"),
+    "dev": cv.Version(55, 3, 31, "2"),
 }
 
 
-def _check_versions(value):
-    value = value.copy()
+def _check_versions(config):
+    config = config.copy()
+    value = config[CONF_FRAMEWORK]
 
     if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
         if CONF_SOURCE in value or CONF_PLATFORM_VERSION in value:
@@ -445,7 +448,7 @@ def _check_versions(value):
             "If there are connectivity or build issues please remove the manual version."
         )
 
-    return value
+    return config
 
 
 def _parse_platform_version(value):
@@ -558,6 +561,7 @@ CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
 CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
 CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
+CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_select() or require_vfs_dir()
@@ -595,86 +599,72 @@ def _validate_idf_component(config: ConfigType) -> ConfigType:
 
 FRAMEWORK_ESP_IDF = "esp-idf"
 FRAMEWORK_ARDUINO = "arduino"
-FRAMEWORK_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_TYPE, default=FRAMEWORK_ARDUINO): cv.one_of(
-                FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO
-            ),
-            cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_RELEASE): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
-            cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
-                cv.string_strict: cv.string_strict
-            },
-            cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
-                *LOG_LEVELS_IDF, upper=True
-            ),
-            cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
-                {
-                    cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
-                        *ASSERTION_LEVELS, upper=True
-                    ),
-                    cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
-                        *COMPILER_OPTIMIZATIONS, upper=True
-                    ),
-                    cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
-                    cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
-                    cv.Optional(
-                        CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
-                    ): cv.boolean,
-                    cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
-                    # DHCP server is needed for WiFi AP mode. When WiFi component is used,
-                    # it will handle disabling DHCP server when AP is not configured.
-                    # Default to false (disabled) when WiFi is not used.
-                    cv.OnlyWithout(
-                        CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_DISABLE_VFS_SUPPORT_SELECT, default=True
-                    ): cv.boolean,
-                    cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
-                    cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
-                }
-            ),
-            cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
-                cv.All(
-                    cv.Schema(
-                        {
-                            cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_SOURCE): cv.git_ref,
-                            cv.Optional(CONF_REF): cv.string,
-                            cv.Optional(CONF_PATH): cv.string,
-                            cv.Optional(CONF_REFRESH): cv.All(
-                                cv.string, cv.source_refresh
-                            ),
-                        }
-                    ),
-                    _validate_idf_component,
-                )
-            ),
-        }
-    ),
-    _check_versions,
+FRAMEWORK_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
+        cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
+        cv.Optional(CONF_RELEASE): cv.string_strict,
+        cv.Optional(CONF_SOURCE): cv.string_strict,
+        cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+        cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
+            cv.string_strict: cv.string_strict
+        },
+        cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
+            *LOG_LEVELS_IDF, upper=True
+        ),
+        cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+            {
+                cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
+                    *ASSERTION_LEVELS, upper=True
+                ),
+                cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
+                    *COMPILER_OPTIMIZATIONS, upper=True
+                ),
+                cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
+                cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
+                cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
+                cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
+                # DHCP server is needed for WiFi AP mode. When WiFi component is used,
+                # it will handle disabling DHCP server when AP is not configured.
+                # Default to false (disabled) when WiFi is not used.
+                cv.OnlyWithout(
+                    CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
+                ): cv.boolean,
+                cv.Optional(CONF_ENABLE_LWIP_MDNS_QUERIES, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, default=True
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
+                ): cv.boolean,
+                cv.Optional(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_SELECT, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
+                cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
+                cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
+                    min=8192, max=32768
+                ),
+            }
+        ),
+        cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
+            cv.All(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_NAME): cv.string_strict,
+                        cv.Optional(CONF_SOURCE): cv.git_ref,
+                        cv.Optional(CONF_REF): cv.string,
+                        cv.Optional(CONF_PATH): cv.string,
+                        cv.Optional(CONF_REFRESH): cv.All(cv.string, cv.source_refresh),
+                    }
+                ),
+                _validate_idf_component,
+            )
+        ),
+    }
 )
 
 
@@ -737,11 +727,11 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
 
 
 def _set_default_framework(config):
+    config = config.copy()
     if CONF_FRAMEWORK not in config:
-        config = config.copy()
-
-        variant = config[CONF_VARIANT]
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
+    if CONF_TYPE not in config[CONF_FRAMEWORK]:
+        variant = config[CONF_VARIANT]
         if variant in ARDUINO_ALLOWED_VARIANTS:
             config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
             _show_framework_migration_message(
@@ -781,6 +771,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _detect_variant,
     _set_default_framework,
+    _check_versions,
     set_core_data,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
@@ -926,6 +917,10 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+        add_idf_sdkconfig_option(
+            "CONFIG_ARDUINO_LOOP_STACK_SIZE",
+            conf[CONF_ADVANCED][CONF_LOOP_TASK_STACK_SIZE],
+        )
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
@@ -1070,6 +1065,10 @@ async def to_code(config):
             "Using experimental features in ESP-IDF may result in unexpected failures."
         )
         add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
+
+    cg.add_define(
+        "ESPHOME_LOOP_TASK_STACK_SIZE", advanced.get(CONF_LOOP_TASK_STACK_SIZE)
+    )
 
     cg.add_define(
         "USE_ESP_IDF_VERSION_CODE",

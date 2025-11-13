@@ -49,9 +49,9 @@ void DebugComponent::dump_config() {
   }
 #endif  // USE_TEXT_SENSOR
 
-#ifdef USE_ESP32
-  this->log_partition_info_();  // Log partition information for ESP32
-#endif                          // USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ZEPHYR)
+  this->log_partition_info_();  // Log partition information
+#endif
 }
 
 void DebugComponent::loop() {

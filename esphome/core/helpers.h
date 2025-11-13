@@ -8,9 +8,11 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <concepts>
 
 #include "esphome/core/optional.h"
 
@@ -247,6 +249,8 @@ template<typename T> class FixedVector {
   }
 
   // Allocate capacity - can be called multiple times to reinit
+  // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
+  // Direct assignment via operator[] does NOT update the size counter.
   void init(size_t n) {
     cleanup_();
     reset_();
@@ -1027,6 +1031,10 @@ std::string get_mac_address();
 /// Get the device MAC address as a string, in colon-separated uppercase hex notation.
 std::string get_mac_address_pretty();
 
+/// Get the device MAC address into the given buffer, in lowercase hex notation.
+/// Assumes buffer length is 13 (12 digits for hexadecimal representation followed by null terminator).
+void get_mac_address_into_buffer(std::span<char, 13> buf);
+
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
@@ -1162,7 +1170,26 @@ template<class T> class RAMAllocator {
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
-/// @}
+/**
+ * Functions to constrain the range of arithmetic values.
+ */
+
+template<typename T, typename U>
+concept comparable_with = requires(T a, U b) {
+  { a > b } -> std::convertible_to<bool>;
+  { a < b } -> std::convertible_to<bool>;
+};
+
+template<std::totally_ordered T, comparable_with<T> U> T clamp_at_least(T value, U min) {
+  if (value < min)
+    return min;
+  return value;
+}
+template<std::totally_ordered T, comparable_with<T> U> T clamp_at_most(T value, U max) {
+  if (value > max)
+    return max;
+  return value;
+}
 
 /// @name Internal functions
 ///@{
