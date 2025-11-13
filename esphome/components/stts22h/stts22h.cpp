@@ -34,10 +34,6 @@ void STTS22HComponent::update() {
   }
 
   float temperature = this->read_temperature_();
-  if (std::isnan(temperature)) {
-    ESP_LOGW(TAG, "Temperature is NaN. Skipping publish.");
-    return;
-  }
 
   this->publish_state(temperature);
 }
