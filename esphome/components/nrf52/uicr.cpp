@@ -69,9 +69,20 @@ static StatusFlags fix_bootloader() {
 }
 #endif
 
+#define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
+
 static StatusFlags set_uicr() {
   StatusFlags status = StatusFlags::OK;
-  status |= set_regout0();
+#ifndef USE_BOOTLOADER_MCUBOOT
+  if (BOOTLOADER_VERSION_REGISTER <= 0x902) {
+#ifdef CONFIG_PRINTK
+    printk("cannot control regout0 for %#x\n", BOOTLOADER_VERSION_REGISTER);
+#endif
+  } else
+#endif
+  {
+    status |= set_regout0();
+  }
 #ifndef USE_BOOTLOADER_MCUBOOT
   status |= fix_bootloader();
 #endif
