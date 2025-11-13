@@ -21,6 +21,7 @@ class TuyaSelect : public select::Select, public Component {
     this->is_int_ = is_int;
   }
   void set_select_mappings(std::vector<uint8_t> mappings) { this->mappings_ = std::move(mappings); }
+  void set_is_string(bool is_string) { this->is_string_ = is_string; }
 
  protected:
   void control(size_t index) override;
@@ -30,6 +31,7 @@ class TuyaSelect : public select::Select, public Component {
   uint8_t select_id_;
   std::vector<uint8_t> mappings_;
   bool is_int_ = false;
+  bool is_string_ = false;
 };
 
 }  // namespace tuya
