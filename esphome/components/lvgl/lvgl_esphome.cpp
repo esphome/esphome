@@ -401,9 +401,10 @@ bool LvglComponent::is_paused() {
   if (this->paused_)
     return true;
   if (this->update_when_display_idle_) {
-    for (auto *disp : this->displays_)
+    for (auto *disp : this->displays_) {
       if (!disp->is_idle())
         return true;
+    }
   }
   return false;
 }
