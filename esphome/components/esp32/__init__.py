@@ -546,7 +546,7 @@ def final_validate(config):
     ):
         errs.append(
             cv.Invalid(
-                f"OTA with 32MB flash requires {CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES} to be set in the {CONF_ADVANCED} section of the esp32 configuration",
+                f"OTA with 32MB flash requires '{CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES}' to be set in the '{CONF_ADVANCED}' section of the esp32 configuration",
                 path=[CONF_FLASH_SIZE],
             )
         )
