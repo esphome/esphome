@@ -23,15 +23,15 @@ CODEOWNERS = ["@sittner"]
 
 DEPENDENCIES = ["esp32_ble_tracker"]
 
-thermopro_tp357_ns = cg.esphome_ns.namespace("thermopro_tp357")
-ThermoProTP357 = thermopro_tp357_ns.class_(
-    "ThermoProTP357", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+thermopro_ble_ns = cg.esphome_ns.namespace("thermopro_ble")
+ThermoProBLE = thermopro_ble_ns.class_(
+    "ThermoProBLE", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
 )
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(ThermoProTP357),
+            cv.GenerateID(): cv.declare_id(ThermoProBLE),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,

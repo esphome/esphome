@@ -1,21 +1,21 @@
-#include "thermopro_tp357.h"
+#include "thermopro_ble.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 
 namespace esphome {
-namespace thermopro_tp357 {
+namespace thermopro_ble {
 
-static const char *const TAG = "thermopro_tp357";
+static const char *const TAG = "thermopro_ble";
 
-void ThermoProTP357::dump_config() {
-  ESP_LOGCONFIG(TAG, "ThermoPro TP357");
+void ThermoProBLE::dump_config() {
+  ESP_LOGCONFIG(TAG, "ThermoPro BLE");
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool ThermoProTP357::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -39,7 +39,7 @@ bool ThermoProTP357::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
       continue;
     }
 
-    ESP_LOGD(TAG, "Got ThermoPro TP357 (%s):", device.address_str().c_str());
+    ESP_LOGD(TAG, "Got ThermoPro BLE (%s):", device.address_str().c_str());
 
     // temperature, 2 bytes, 16-bit signed integer, 0.1 °C
     float temperature = float(uint16_t(uuid.uuid.uuid128[1]) | (uint16_t(data[0]) << 8)) * 0.1f;
@@ -70,7 +70,7 @@ bool ThermoProTP357::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return success;
 }
 
-}  // namespace thermopro_tp357
+}  // namespace thermopro_ble
 }  // namespace esphome
 
 #endif

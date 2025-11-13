@@ -9,9 +9,9 @@
 #ifdef USE_ESP32
 
 namespace esphome {
-namespace thermopro_tp357 {
+namespace thermopro_ble {
 
-class ThermoProTP357 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
@@ -30,7 +30,7 @@ class ThermoProTP357 : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   sensor::Sensor *signal_strength_{nullptr};
 };
 
-}  // namespace thermopro_tp357
+}  // namespace thermopro_ble
 }  // namespace esphome
 
 #endif
