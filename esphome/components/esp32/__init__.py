@@ -139,7 +139,6 @@ FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values(
 
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
-    print(config)
     variant = config[CONF_VARIANT]
     # if not specified in config, set to 160MHz if supported, the fastest otherwise
     if cpu_frequency is None:
