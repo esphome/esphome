@@ -58,7 +58,6 @@ class EthernetComponent : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  bool can_proceed() override;
   void on_powerdown() override { powerdown(); }
   bool is_connected();
 

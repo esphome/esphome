@@ -700,6 +700,10 @@ lvgl:
             width: 100%
             height: 10%
             align: top_mid
+            on_value:
+              - lvgl.spinbox.update:
+                  id: spinbox_id
+                  value: !lambda return x;
         - button:
             styles: spin_button
             id: spin_up
