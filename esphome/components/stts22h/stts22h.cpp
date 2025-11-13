@@ -102,7 +102,7 @@ void STTS22HComponent::initialize_sensor_() {
   }
 
   // Enable LOW ODR mode and ADD_INC
-  ctrl_value[0] = ctrl_value[0] | LOW_ODR_CTRL_ENABLE_FLAG | ADD_INC_ENABLE_FLAG;  // Set LOW ODR bit and ADD_INC bit
+  ctrl_value[0] |= LOW_ODR_CTRL_ENABLE_FLAG | ADD_INC_ENABLE_FLAG;  // Set LOW ODR bit and ADD_INC bit
   if (this->write_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
