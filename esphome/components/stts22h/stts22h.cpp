@@ -52,22 +52,21 @@ void STTS22HComponent::dump_config() {
 }
 
 float STTS22HComponent::read_temperature_() {
-  uint8_t temperature_register_value[2];
-  if (this->read_register(TEMPERATURE_REG, temperature_register_value, 2) != i2c::NO_ERROR) {
+  uint8_t temp_reg_value[2];
+  if (this->read_register(TEMPERATURE_REG, temp_reg_value, 2) != i2c::NO_ERROR) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return NAN;
   }
 
   // Combine the two bytes into a single 16-bit signed integer
   // The STTS22H temperature data is in two's complement format
-  int16_t temperature_raw =
-      (static_cast<int16_t>(encode_uint16(temperature_register_value[1], temperature_register_value[0])));
-  float temperature_value = temperature_raw * SENSOR_SCALE;  // Apply sensor resolution
+  int16_t temp_raw_value = (static_cast<int16_t>(encode_uint16(temp_reg_value[1], temp_reg_value[0])));
+  float temperature_value = temp_raw_value * SENSOR_SCALE;  // Apply sensor resolution
 
   return temperature_value;
 }
 
-/// @brief Reads the harcoded ID which identifies device on the bus as STTS22H sensor.
+/// @brief Reads the hardcoded ID which identifies device on the bus as STTS22H sensor.
 /// @return
 bool STTS22HComponent::is_stts22h_sensor_() {
   uint8_t whoami_value[1];
