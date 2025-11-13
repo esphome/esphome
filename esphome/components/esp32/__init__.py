@@ -139,6 +139,7 @@ FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values(
 
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
+    print(config)
     variant = config[CONF_VARIANT]
     # if not specified in config, set to 160MHz if supported, the fastest otherwise
     if cpu_frequency is None:
@@ -381,8 +382,9 @@ PLATFORM_VERSION_LOOKUP = {
 }
 
 
-def _check_versions(value):
-    value = value.copy()
+def _check_versions(config):
+    config = config.copy()
+    value = config[CONF_FRAMEWORK]
 
     if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
         if CONF_SOURCE in value or CONF_PLATFORM_VERSION in value:
@@ -447,7 +449,7 @@ def _check_versions(value):
             "If there are connectivity or build issues please remove the manual version."
         )
 
-    return value
+    return config
 
 
 def _parse_platform_version(value):
@@ -601,9 +603,7 @@ FRAMEWORK_ARDUINO = "arduino"
 FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_TYPE, default=FRAMEWORK_ARDUINO): cv.one_of(
-                FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO
-            ),
+            cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_RELEASE): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
@@ -680,7 +680,6 @@ FRAMEWORK_SCHEMA = cv.All(
             ),
         }
     ),
-    _check_versions,
 )
 
 
@@ -743,11 +742,11 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
 
 
 def _set_default_framework(config):
+    config = config.copy()
     if CONF_FRAMEWORK not in config:
-        config = config.copy()
-
-        variant = config[CONF_VARIANT]
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
+    if CONF_TYPE not in config[CONF_FRAMEWORK]:
+        variant = config[CONF_VARIANT]
         if variant in ARDUINO_ALLOWED_VARIANTS:
             config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
             _show_framework_migration_message(
@@ -787,6 +786,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _detect_variant,
     _set_default_framework,
+    _check_versions,
     set_core_data,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
