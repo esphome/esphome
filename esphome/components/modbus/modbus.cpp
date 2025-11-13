@@ -311,6 +311,7 @@ void ModbusServer::process_modbus_client_frame_(uint8_t address, uint8_t functio
         device->on_modbus_write_registers(function_code, data);
       } else {
         ESP_LOGW(TAG, "Unsupported function code %d", function_code);
+        device->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
       }
     }
   }
