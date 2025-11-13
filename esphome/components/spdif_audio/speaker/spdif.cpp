@@ -46,15 +46,12 @@ static const uint32_t SYNC_FLIP = ((BMC_B ^ BMC_M) >> (SYNC_OFFSET * 8));
 
 // initialize S/PDIF buffer
 void SPDIF::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPDIF...");
-
-  int i;
   uint32_t bmc_mw = BMC_W;
 
-  for (i = 0; i < SPDIF_BLOCK_SIZE_U32; i += 2) {
+  for (uint32_t i = 0; i < SPDIF_BLOCK_SIZE_U32; i += 2) {
     spdif_block_buf_[i] = bmc_mw ^= BMC_MW_DIF;
   }
-  ESP_LOGD(TAG, "SPDIF buffer initialized to %zu bytes", sizeof(spdif_block_buf_));
+  ESP_LOGV(TAG, "SPDIF buffer initialized to %zu bytes", sizeof(spdif_block_buf_));
 
   spdif_block_ptr_ = spdif_block_buf_;
 }

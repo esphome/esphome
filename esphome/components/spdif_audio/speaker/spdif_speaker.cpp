@@ -119,7 +119,7 @@ static esp_err_t err_bit_to_esp_err(uint32_t bit) {
 /// @param len Length of array
 /// @param c Q15 constant factor
 static void q15_multiplication(const int16_t *input, int16_t *output, size_t len, int16_t c) {
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     int32_t acc = (int32_t) input[i] * (int32_t) c;
     output[i] = (int16_t) (acc >> 15);
   }
@@ -139,8 +139,6 @@ static const std::vector<int16_t> Q15_VOLUME_SCALING_FACTORS = {
     19508, 20665, 21891, 23189, 24565, 26022, 27566, 29201, 30933, 32767};
 
 void SPDIFSpeaker::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPDIF Audio Speaker...");
-
   this->event_group_ = xEventGroupCreate();
 
   if (this->event_group_ == nullptr) {
