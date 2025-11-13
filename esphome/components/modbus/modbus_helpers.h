@@ -9,17 +9,19 @@ namespace modbus {
 namespace helpers {
 
 inline bool is_function_code_read(uint8_t function_code) {
-  return static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::READ_COILS ||
-         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
-         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
-         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::READ_INPUT_REGISTERS;
+  uint8_t masked_function_code = static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK;
+  return masked_function_code == ModbusFunctionCode::READ_COILS ||
+         masked_function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
+         masked_function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
+         masked_function_code == ModbusFunctionCode::READ_INPUT_REGISTERS;
 }
 
 inline bool is_function_code_write(uint8_t function_code) {
-  return static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::WRITE_SINGLE_COIL ||
-         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
-         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
-         static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
+  uint8_t masked_function_code = static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK;
+  return masked_function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
+         masked_function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+         masked_function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
+         masked_function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
 }
 
 inline bool is_function_code_exception(uint8_t function_code) {
@@ -27,11 +29,12 @@ inline bool is_function_code_exception(uint8_t function_code) {
 }
 
 inline bool is_function_code_custom(uint8_t function_code) {
-  return static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK == ModbusFunctionCode::CUSTOM ||
-         (static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT &&
-          static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END) ||
-         (static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT &&
-          static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
+  uint8_t masked_function_code = static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK;
+  return masked_function_code == ModbusFunctionCode::CUSTOM ||
+         (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT &&
+          masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END) ||
+         (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT &&
+          masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
 }
 
 // Returns the expected length of a server response frame based on the function code
