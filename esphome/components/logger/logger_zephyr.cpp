@@ -7,7 +7,9 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/usb/usb_device.h>
+#ifdef USE_LOGGER_EARLY_MESSAGE
 #include <zephyr/drivers/hwinfo.h>
+#endif
 
 namespace esphome::logger {
 
