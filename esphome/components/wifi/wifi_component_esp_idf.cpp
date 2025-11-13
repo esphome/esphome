@@ -487,7 +487,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   return true;
 }
 
-bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -746,8 +746,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%s' reason='Station Roaming'", buf);
       return;
     } else {
-      ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-               format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      char bssid_s[18];
+      format_mac_addr_upper(it.bssid, bssid_s);
+      ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf, bssid_s,
+               get_disconnect_reason_str(it.reason));
       s_sta_connect_error = true;
     }
     s_sta_connected = false;
@@ -884,7 +886,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 }
 
 #ifdef USE_WIFI_AP
-bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   esp_err_t err;
 
   // enable AP
@@ -1029,7 +1031,8 @@ bssid_t WiFiComponent::wifi_bssid() {
   wifi_ap_record_t info;
   esp_err_t err = esp_wifi_sta_get_ap_info(&info);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
+    // Very verbose only: this is expected during dump_config() before connection is established (PR #9823)
+    ESP_LOGVV(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
     return bssid;
   }
   std::copy(info.bssid, info.bssid + 6, bssid.begin());
@@ -1039,7 +1042,8 @@ std::string WiFiComponent::wifi_ssid() {
   wifi_ap_record_t info{};
   esp_err_t err = esp_wifi_sta_get_ap_info(&info);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
+    // Very verbose only: this is expected during dump_config() before connection is established (PR #9823)
+    ESP_LOGVV(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
     return "";
   }
   auto *ssid_s = reinterpret_cast<const char *>(info.ssid);
@@ -1050,8 +1054,9 @@ int8_t WiFiComponent::wifi_rssi() {
   wifi_ap_record_t info;
   esp_err_t err = esp_wifi_sta_get_ap_info(&info);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
-    return 0;
+    // Very verbose only: this is expected during dump_config() before connection is established (PR #9823)
+    ESP_LOGVV(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
+    return WIFI_RSSI_DISCONNECTED;
   }
   return info.rssi;
 }
