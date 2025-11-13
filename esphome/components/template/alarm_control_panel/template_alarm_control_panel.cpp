@@ -20,10 +20,13 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
   // Save the flags and type. Assign a store index for the per sensor data type.
   SensorDataStore sd;
   sd.last_chime_state = false;
-  this->sensor_map_[sensor].flags = flags;
-  this->sensor_map_[sensor].type = type;
+  AlarmSensor alarm_sensor;
+  alarm_sensor.sensor = sensor;
+  alarm_sensor.info.flags = flags;
+  alarm_sensor.info.type = type;
+  alarm_sensor.info.store_index = this->next_store_index_++;
+  this->sensors_.push_back(alarm_sensor);
   this->sensor_data_.push_back(sd);
-  this->sensor_map_[sensor].store_index = this->next_store_index_++;
 };
 
 static const LogString *sensor_type_to_string(AlarmSensorType type) {
@@ -45,7 +48,7 @@ void TemplateAlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TemplateAlarmControlPanel:\n"
                 "  Current State: %s\n"
-                "  Number of Codes: %u\n"
+                "  Number of Codes: %zu\n"
                 "  Requires Code To Arm: %s\n"
                 "  Arming Away Time: %" PRIu32 "s\n"
                 "  Arming Home Time: %" PRIu32 "s\n"
@@ -58,7 +61,8 @@ void TemplateAlarmControlPanel::dump_config() {
                 (this->arming_home_time_ / 1000), (this->arming_night_time_ / 1000), (this->pending_time_ / 1000),
                 (this->trigger_time_ / 1000), this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
-  for (auto const &[sensor, info] : this->sensor_map_) {
+  for (const auto &alarm_sensor : this->sensors_) {
+    const uint16_t flags = alarm_sensor.info.flags;
     ESP_LOGCONFIG(TAG,
                   "  Binary Sensor:\n"
                   "    Name: %s\n"
@@ -67,11 +71,10 @@ void TemplateAlarmControlPanel::dump_config() {
                   "    Armed night bypass: %s\n"
                   "    Auto bypass: %s\n"
                   "    Chime mode: %s",
-                  sensor->get_name().c_str(), LOG_STR_ARG(sensor_type_to_string(info.type)),
-                  TRUEFALSE(info.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME),
-                  TRUEFALSE(info.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT),
-                  TRUEFALSE(info.flags & BINARY_SENSOR_MODE_BYPASS_AUTO),
-                  TRUEFALSE(info.flags & BINARY_SENSOR_MODE_CHIME));
+                  alarm_sensor.sensor->get_name().c_str(), LOG_STR_ARG(sensor_type_to_string(alarm_sensor.info.type)),
+                  TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME),
+                  TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT),
+                  TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_AUTO), TRUEFALSE(flags & BINARY_SENSOR_MODE_CHIME));
   }
 #endif
 }
@@ -121,7 +124,9 @@ void TemplateAlarmControlPanel::loop() {
 
 #ifdef USE_BINARY_SENSOR
   // Test all of the sensors regardless of the alarm panel state
-  for (auto const &[sensor, info] : this->sensor_map_) {
+  for (const auto &alarm_sensor : this->sensors_) {
+    const auto &info = alarm_sensor.info;
+    auto *sensor = alarm_sensor.sensor;
     // Check for chime zones
     if (info.flags & BINARY_SENSOR_MODE_CHIME) {
       // Look for the transition from closed to open
@@ -242,11 +247,11 @@ void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_p
 
 void TemplateAlarmControlPanel::bypass_before_arming() {
 #ifdef USE_BINARY_SENSOR
-  for (auto const &[sensor, info] : this->sensor_map_) {
+  for (const auto &alarm_sensor : this->sensors_) {
     // Check for faulted bypass_auto sensors and remove them from monitoring
-    if ((info.flags & BINARY_SENSOR_MODE_BYPASS_AUTO) && (sensor->state)) {
-      ESP_LOGW(TAG, "'%s' is faulted and will be automatically bypassed", sensor->get_name().c_str());
-      this->bypassed_sensor_indicies_.push_back(info.store_index);
+    if ((alarm_sensor.info.flags & BINARY_SENSOR_MODE_BYPASS_AUTO) && (alarm_sensor.sensor->state)) {
+      ESP_LOGW(TAG, "'%s' is faulted and will be automatically bypassed", alarm_sensor.sensor->get_name().c_str());
+      this->bypassed_sensor_indicies_.push_back(alarm_sensor.info.store_index);
     }
   }
 #endif
