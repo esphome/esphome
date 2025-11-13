@@ -386,9 +386,9 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
-    if config[CONF_WAIT_FOR_CDC]:
+    if config.get(CONF_WAIT_FOR_CDC):
         cg.add_define("USE_LOGGER_WAIT_FOR_CDC")
-    if config[CONF_EARLY_MESSAGE]:
+    if config.get(CONF_EARLY_MESSAGE):
         cg.add_define("USE_LOGGER_EARLY_MESSAGE")
 
     if CORE.using_zephyr:
