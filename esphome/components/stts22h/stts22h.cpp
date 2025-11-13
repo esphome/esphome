@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "stts22h.h"
 
-namespace esphome {
-namespace stts22h {
+namespace esphome::stts22h {
 
 static const char *const TAG = "stts22h";
 
