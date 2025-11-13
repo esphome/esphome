@@ -412,7 +412,12 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   void setup() override {
     // Start with loop disabled - only enable when there's work to do
-    this->disable_loop();
+    // IMPORTANT: Only disable if num_running_ is 0, otherwise play_complex() was already
+    // called before our setup() (e.g., from on_boot trigger at same priority level)
+    // and we must not undo its enable_loop() call
+    if (this->num_running_ == 0) {
+      this->disable_loop();
+    }
   }
 
   void play_complex(const Ts &...x) override {
