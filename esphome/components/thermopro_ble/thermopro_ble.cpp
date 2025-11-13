@@ -11,15 +11,21 @@ struct DeviceParserMapping {
   DeviceParser parser;
 };
 
-static optional<ParseResult> parse_tp357s(const std::vector<uint8_t> &data);
+static float tp96_battery(uint16_t voltage);
+
+static optional<ParseResult> parse_tp972(const std::vector<uint8_t> &data);
+static optional<ParseResult> parse_tp96(const std::vector<uint8_t> &data);
+static optional<ParseResult> parse_tp3(const std::vector<uint8_t> &data);
 
 static const char *const TAG = "thermopro_ble";
 
-static const struct DeviceParserMapping DEVICE_PARSER_MAP[] = {{"TP357S ", parse_tp357s}, {"", nullptr}};
+static const struct DeviceParserMapping DEVICE_PARSER_MAP[] = {
+    {"TP972", parse_tp972}, {"TP970", parse_tp96}, {"TP96", parse_tp96}, {"TP3", parse_tp3}, {"", nullptr}};
 
 void ThermoProBLE::dump_config() {
   ESP_LOGCONFIG(TAG, "ThermoPro BLE");
   LOG_SENSOR("  ", "Temperature", this->temperature_);
+  LOG_SENSOR("  ", "External temperature", this->external_temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
@@ -67,6 +73,8 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     // publish sensor values
     if (result->temperature.has_value() && this->temperature_ != nullptr)
       this->temperature_->publish_state(*result->temperature);
+    if (result->external_temperature.has_value() && this->external_temperature_ != nullptr)
+      this->external_temperature_->publish_state(*result->external_temperature);
     if (result->humidity.has_value() && this->humidity_ != nullptr)
       this->humidity_->publish_state(*result->humidity);
     if (result->battery_level.has_value() && this->battery_level_ != nullptr)
@@ -100,16 +108,82 @@ void ThermoProBLE::update_device_type(const std::string &device_name) {
   ESP_LOGVV(TAG, "update_device_type(): unknown device type %s.", device_name.c_str());
 }
 
-static optional<ParseResult> parse_tp357s(const std::vector<uint8_t> &data) {
+static inline uint16_t read_uint16(const std::vector<uint8_t> &data, int offset) {
+  return static_cast<uint16_t>(data[offset + 0]) | (static_cast<uint16_t>(data[offset + 1]) << 8);
+}
+
+static inline int16_t read_int16(const std::vector<uint8_t> &data, int offset) {
+  return static_cast<int16_t>(read_uint16(data, offset));
+}
+
+static inline uint32_t read_uint32(const std::vector<uint8_t> &data, int offset) {
+  return static_cast<uint32_t>(data[offset + 0]) | (static_cast<uint32_t>(data[offset + 1]) << 8) |
+         (static_cast<uint32_t>(data[offset + 2]) << 16) | (static_cast<uint32_t>(data[offset + 3]) << 24);
+}
+
+// this code is stolen from https://github.com/Bluetooth-Devices/thermopro-ble/blob/main/src/thermopro_ble/parser.py
+//
+// TP96x battery values appear to be a voltage reading, probably in millivolts.
+// This means that calculating battery life from it is a non-linear function.
+// Examining the curve, it looked fairly close to a curve from the tanh function.
+// So, I created a script to use Tensorflow to optimize an equation in the format
+// A*tanh(B*x+C)+D
+// Where A,B,C,D are the variables to optimize for. This yielded the below function
+static float tp96_battery(uint16_t voltage) {
+  float level = 52.317286f * tanh(static_cast<float>(voltage) / 273.624277936f - 8.76485439394f) + 51.06925f;
+  return std::max(0.0f, std::min(level, 100.0f));
+}
+
+static optional<ParseResult> parse_tp972(const std::vector<uint8_t> &data) {
+  if (data.size() != 23) {
+    ESP_LOGVV(TAG, "parse_tp972(): payload has wrong size of %d (!= 23)!", data.size());
+    return {};
+  }
+
+  ParseResult result;
+
+  // ambient temperature, 2 bytes, 16-bit unsigned integer, -54 °C offset
+  result.external_temperature = static_cast<float>(read_uint16(data, 1)) - 54.0f;
+
+  // battery level, 2 bytes, 16-bit unsigned integer, voltage (convert to percentage)
+  result.battery_level = tp96_battery(read_uint16(data, 3));
+
+  // internal temperature, 4 bytes, float, -54 °C offset
+  result.temperature = static_cast<float>(read_uint32(data, 9)) - 54.0f;
+
+  return result;
+}
+
+static optional<ParseResult> parse_tp96(const std::vector<uint8_t> &data) {
   if (data.size() != 7) {
-    ESP_LOGVV(TAG, "parse_tp357(): payload has wrong size (%d)!", data.size());
+    ESP_LOGVV(TAG, "parse_tp96(): payload has wrong size of %d (!= 7)!", data.size());
+    return {};
+  }
+
+  ParseResult result;
+
+  // internal temperature, 2 bytes, 16-bit unsigned integer, -30 °C offset
+  result.temperature = static_cast<float>(read_uint16(data, 1)) - 30.0f;
+
+  // battery level, 2 bytes, 16-bit unsigned integer, voltage (convert to percentage)
+  result.battery_level = tp96_battery(read_uint16(data, 3));
+
+  // ambient temperature, 2 bytes, 16-bit unsigned integer, -30 °C offset
+  result.external_temperature = static_cast<float>(read_uint16(data, 5)) - 30.0f;
+
+  return result;
+}
+
+static optional<ParseResult> parse_tp3(const std::vector<uint8_t> &data) {
+  if (data.size() < 6) {
+    ESP_LOGVV(TAG, "parse_tp3(): payload has wrong size of %d (< 6)!", data.size());
     return {};
   }
 
   ParseResult result;
 
   // temperature, 2 bytes, 16-bit signed integer, 0.1 °C
-  result.temperature = static_cast<float>(uint16_t(data[1]) | (uint16_t(data[2]) << 8)) * 0.1f;
+  result.temperature = static_cast<float>(read_int16(data, 1)) * 0.1f;
 
   // humidity, 1 byte, 8-bit unsigned integer, 1.0 %
   result.humidity = static_cast<float>(data[3]);

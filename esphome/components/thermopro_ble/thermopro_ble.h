@@ -13,6 +13,7 @@ namespace thermopro_ble {
 
 struct ParseResult {
   optional<float> temperature;
+  optional<float> external_temperature;
   optional<float> humidity;
   optional<float> battery_level;
 };
@@ -27,6 +28,7 @@ class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceList
   void dump_config() override;
   void set_signal_strength(sensor::Sensor *signal_strength) { signal_strength_ = signal_strength; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
+  void set_external_temperature(sensor::Sensor *external_temperature) { external_temperature_ = external_temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
 
@@ -36,6 +38,7 @@ class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceList
   DeviceParser device_parser_{nullptr};
   sensor::Sensor *signal_strength_{nullptr};
   sensor::Sensor *temperature_{nullptr};
+  sensor::Sensor *external_temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 
