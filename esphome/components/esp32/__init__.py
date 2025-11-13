@@ -599,86 +599,72 @@ def _validate_idf_component(config: ConfigType) -> ConfigType:
 
 FRAMEWORK_ESP_IDF = "esp-idf"
 FRAMEWORK_ARDUINO = "arduino"
-FRAMEWORK_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
-            cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_RELEASE): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
-            cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
-                cv.string_strict: cv.string_strict
-            },
-            cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
-                *LOG_LEVELS_IDF, upper=True
-            ),
-            cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
-                {
-                    cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
-                        *ASSERTION_LEVELS, upper=True
-                    ),
-                    cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
-                        *COMPILER_OPTIMIZATIONS, upper=True
-                    ),
-                    cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
-                    cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
-                    cv.Optional(
-                        CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
-                    ): cv.boolean,
-                    cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
-                    # DHCP server is needed for WiFi AP mode. When WiFi component is used,
-                    # it will handle disabling DHCP server when AP is not configured.
-                    # Default to false (disabled) when WiFi is not used.
-                    cv.OnlyWithout(
-                        CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_DISABLE_VFS_SUPPORT_SELECT, default=True
-                    ): cv.boolean,
-                    cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
-                    cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
-                    cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
-                        min=8192, max=32768
-                    ),
-                }
-            ),
-            cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
-                cv.All(
-                    cv.Schema(
-                        {
-                            cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_SOURCE): cv.git_ref,
-                            cv.Optional(CONF_REF): cv.string,
-                            cv.Optional(CONF_PATH): cv.string,
-                            cv.Optional(CONF_REFRESH): cv.All(
-                                cv.string, cv.source_refresh
-                            ),
-                        }
-                    ),
-                    _validate_idf_component,
-                )
-            ),
-        }
-    ),
+FRAMEWORK_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
+        cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
+        cv.Optional(CONF_RELEASE): cv.string_strict,
+        cv.Optional(CONF_SOURCE): cv.string_strict,
+        cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+        cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
+            cv.string_strict: cv.string_strict
+        },
+        cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
+            *LOG_LEVELS_IDF, upper=True
+        ),
+        cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+            {
+                cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
+                    *ASSERTION_LEVELS, upper=True
+                ),
+                cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
+                    *COMPILER_OPTIMIZATIONS, upper=True
+                ),
+                cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
+                cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
+                cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
+                cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
+                # DHCP server is needed for WiFi AP mode. When WiFi component is used,
+                # it will handle disabling DHCP server when AP is not configured.
+                # Default to false (disabled) when WiFi is not used.
+                cv.OnlyWithout(
+                    CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
+                ): cv.boolean,
+                cv.Optional(CONF_ENABLE_LWIP_MDNS_QUERIES, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, default=True
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
+                ): cv.boolean,
+                cv.Optional(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_SELECT, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
+                cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
+                cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
+                    min=8192, max=32768
+                ),
+            }
+        ),
+        cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
+            cv.All(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_NAME): cv.string_strict,
+                        cv.Optional(CONF_SOURCE): cv.git_ref,
+                        cv.Optional(CONF_REF): cv.string,
+                        cv.Optional(CONF_PATH): cv.string,
+                        cv.Optional(CONF_REFRESH): cv.All(cv.string, cv.source_refresh),
+                    }
+                ),
+                _validate_idf_component,
+            )
+        ),
+    }
 )
 
 
