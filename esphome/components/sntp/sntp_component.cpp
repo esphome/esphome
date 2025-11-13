@@ -61,6 +61,7 @@ void SNTPComponent::dump_config() {
   for (auto &server : this->servers_) {
     ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server);
   }
+  RealTimeClock::dump_config();
 }
 void SNTPComponent::update() {
 #if !defined(USE_ESP32)
