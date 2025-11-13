@@ -282,10 +282,10 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True
             ): cv.All(cv.only_on_esp8266, cv.boolean),
-            cv.Optional(CONF_WAIT_FOR_CDC, default=False): cv.All(
+            cv.SplitDefault(CONF_WAIT_FOR_CDC, nrf52=False): cv.All(
                 cv.only_on_nrf52, cv.boolean
             ),
-            cv.Optional(CONF_EARLY_MESSAGE, default=False): cv.All(
+            cv.SplitDefault(CONF_EARLY_MESSAGE, nrf52=False): cv.All(
                 cv.only_on_nrf52, cv.boolean
             ),
         }

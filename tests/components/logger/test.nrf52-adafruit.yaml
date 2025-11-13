@@ -5,3 +5,5 @@ esphome:
 
 logger:
   level: DEBUG
+  wait_for_cdc: true
+  early_message: true
