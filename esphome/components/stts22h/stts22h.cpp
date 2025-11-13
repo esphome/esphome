@@ -95,7 +95,7 @@ void STTS22HComponent::initialize_sensor_() {
   // Enable low ODR mode and enable ADD_INC
   // Before low ODR mode can be used,
   // FREERUN bit must be cleared (see sensor documentation)
-  ctrl_value[0] = ctrl_value[0] & ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
+  ctrl_value[0] &= ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
   if (this->write_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
