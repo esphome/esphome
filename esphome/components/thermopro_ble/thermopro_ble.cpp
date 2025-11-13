@@ -38,7 +38,7 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   }
 
   // check for valid device type
-  update_device_type(device.get_name());
+  update_device_type_(device.get_name());
   if (this->device_parser_ == nullptr) {
     ESP_LOGVV(TAG, "parse_device(): invalid device type.");
     return false;
@@ -84,7 +84,7 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-void ThermoProBLE::update_device_type(const std::string &device_name) {
+void ThermoProBLE::update_device_type_(const std::string &device_name) {
   // check for changes device name (should only happen on initial call)
   if (this->device_name_ == device_name) {
     return;
@@ -103,7 +103,7 @@ void ThermoProBLE::update_device_type(const std::string &device_name) {
 
   // device type unknown
   this->device_parser_ = nullptr;
-  ESP_LOGVV(TAG, "update_device_type(): unknown device type %s.", device_name.c_str());
+  ESP_LOGVV(TAG, "update_device_type_(): unknown device type %s.", device_name.c_str());
 }
 
 static inline uint16_t read_uint16(const std::vector<uint8_t> &data, int offset) {
