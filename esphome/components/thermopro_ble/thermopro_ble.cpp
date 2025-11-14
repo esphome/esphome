@@ -47,7 +47,6 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
   // publish signal strength
   float signal_strength = float(device.get_rssi());
-  ESP_LOGD(TAG, "  Signal Strength: %.0f dBm", signal_strength);
   if (this->signal_strength_ != nullptr)
     this->signal_strength_->publish_state(signal_strength);
 
