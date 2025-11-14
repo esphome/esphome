@@ -150,8 +150,7 @@ class APIServer : public Component, public Controller {
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
 
-  bool is_connected() const;
-  bool is_connected(bool homeassistant_only) const;
+  bool is_connected(bool homeassistant_only = false) const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
