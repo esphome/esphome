@@ -21,15 +21,17 @@ using DeviceParser = optional<ParseResult> (*)(const std::vector<uint8_t> &);
 
 class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
-  void set_address(uint64_t address) { address_ = address; };
+  void set_address(uint64_t address) { this->address_ = address; };
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
-  void set_signal_strength(sensor::Sensor *signal_strength) { signal_strength_ = signal_strength; }
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_external_temperature(sensor::Sensor *external_temperature) { external_temperature_ = external_temperature; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
-  void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
+  void set_signal_strength(sensor::Sensor *signal_strength) { this->signal_strength_ = signal_strength; }
+  void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
+  void set_external_temperature(sensor::Sensor *external_temperature) {
+    this->external_temperature_ = external_temperature;
+  }
+  void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
+  void set_battery_level(sensor::Sensor *battery_level) { this->battery_level_ = battery_level; }
 
  protected:
   uint64_t address_;
