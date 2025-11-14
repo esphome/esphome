@@ -56,20 +56,17 @@ bool HOT EPaperSSD1677::transfer_data() {
     this->current_data_index_ = this->y_low_;  // actually current line
   }
   size_t row_length = (this->x_high_ - this->x_low_) / 8;
-  uint8_t bytes_to_send[row_length];
-  if (this->send_red_)
-    memset(bytes_to_send, 0, row_length);
+  FixedVector<uint8_t> bytes_to_send{};
+  bytes_to_send.init(row_length);
   ESP_LOGV(TAG, "Writing bytes at line %zu at %ums", this->current_data_index_, (unsigned) millis());
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
-    if (!this->send_red_) {
-      size_t data_idx = (this->current_data_index_++ * this->width_ + this->x_low_) / 8;
-      // using a loop to copy since the source buffer may be sparse.
-      for (size_t i = 0; i != sizeof(bytes_to_send); i++) {
-        bytes_to_send[i] = this->buffer_[data_idx++];
-      }
+    size_t data_idx = (this->current_data_index_ * this->width_ + this->x_low_) / 8;
+    for (size_t i = 0; i != row_length; i++) {
+      bytes_to_send[i] = this->send_red_ ? 0 : this->buffer_[data_idx++];
     }
-    this->write_array(bytes_to_send, row_length);  // NOLINT
+    ++this->current_data_index_;
+    this->write_array(&bytes_to_send.front(), row_length);  // NOLINT
     if (millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop
       this->end_data_();
