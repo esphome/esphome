@@ -270,6 +270,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
               this->success_trigger_with_response_->trigger(container, empty, captured_args_inner...);
             },
             captured_args);
+        container->end();
       }
 
     } else
@@ -278,6 +279,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
       std::apply([this, &container](
                      Ts... captured_args_inner) { this->success_trigger_->trigger(container, captured_args_inner...); },
                  captured_args);
+      container->end();
     }
   }
 
@@ -320,6 +322,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
         int bytes_read = container->read(buf + bytes_read, std::min<size_t>(max_length - bytes_read, 512));
         if (bytes_read < 0) {
           allocator.deallocate(buf, max_length);
+          container->end();
           // reader error (e.g. timeout or stream pointer gone)
           return true;
         }

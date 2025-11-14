@@ -25,8 +25,15 @@ def handle_http(http_request_future):
 
             http_request_future.set_result(True)
 
-            http_response = b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nContent-Type: text/plain\r\n\r\n"
-            writer.write(http_response)
+            http_response = [
+                b"HTTP/1.1 200 OK",
+                b"Content-Length: 4",
+                b"Content-Type: text/plain",
+                b"Connection: close",
+                b"",
+                b"",
+            ]
+            writer.write(b"\r\n".join(http_response))
             await writer.drain()
 
             await asyncio.sleep(1.0)
@@ -34,7 +41,11 @@ def handle_http(http_request_future):
             writer.write(b"done")
             await writer.drain()
         except Exception as exc:
-            http_request_future.set_exception(exc)
+            if not http_request_future.done():
+                http_request_future.set_exception(exc)
+            raise
+        finally:
+            writer.close()
 
     return handler
 
@@ -45,7 +56,7 @@ async def test_http_request_async(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """esphome shouldn't block the main loop when a http response is slow"""
+    """Esphome shouldn't block the main loop when a http response is slow"""
     loop = asyncio.get_running_loop()
 
     # Track http request
@@ -65,7 +76,7 @@ async def test_http_request_async(
     # Run with log monitoring
     async with (
         server,
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=check_output),
         api_client_connected() as client,
     ):
         # Verify device info

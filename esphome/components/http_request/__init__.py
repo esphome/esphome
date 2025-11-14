@@ -19,7 +19,6 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, Lambda
-from esphome.helpers import IS_MACOS
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
@@ -51,6 +50,7 @@ CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
 CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
+CONF_VERBOSE = "verbose"
 
 CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
 CONF_HEADERS = "headers"
@@ -131,6 +131,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.file_,
                 cv.only_on(PLATFORM_HOST),
             ),
+            cv.Optional(CONF_VERBOSE): cv.All(
+                cv.boolean,
+                cv.only_on(PLATFORM_HOST),
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -182,20 +186,11 @@ async def to_code(config):
     if CORE.is_rp2040 and CORE.using_arduino:
         cg.add_library("HTTPClient", None)
     if CORE.is_host:
-        if IS_MACOS:
-            cg.add_build_flag("-I/opt/homebrew/opt/openssl/include")
-            cg.add_build_flag("-L/opt/homebrew/opt/openssl/lib")
-            cg.add_build_flag("-lssl")
-            cg.add_build_flag("-lcrypto")
-            cg.add_build_flag("-Wl,-framework,CoreFoundation")
-            cg.add_build_flag("-Wl,-framework,Security")
-            cg.add_define("CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN")
-            cg.add_define("CPPHTTPLIB_OPENSSL_SUPPORT")
-        elif path := config.get(CONF_CA_CERTIFICATE_PATH):
-            cg.add_define("CPPHTTPLIB_OPENSSL_SUPPORT")
+        cg.add_build_flag("-lcurl")
+        if path := config.get(CONF_CA_CERTIFICATE_PATH):
             cg.add(var.set_ca_path(str(path)))
-            cg.add_build_flag("-lssl")
-            cg.add_build_flag("-lcrypto")
+        if verbose := config.get(CONF_VERBOSE):
+            cg.add(var.set_verbose(verbose))
 
     await cg.register_component(var, config)
 
