@@ -1,6 +1,10 @@
 esphome:
   on_boot:
     then:
+      - wait_until:
+          condition:
+            api.connected:
+              homeassistant_only: true
       - homeassistant.event:
           event: esphome.button_pressed
           data:
