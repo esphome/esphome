@@ -26,7 +26,7 @@ template<typename T, typename... Ts> class CustomAPIDeviceService : public UserS
 class CustomAPIDevice {
  public:
   /// Return if a client (such as Home Assistant) is connected to the native API.
-  bool is_connected() const { return global_api_server->is_connected(); }
+  bool is_connected(bool homeassistant_only = false) const { return global_api_server->is_connected(homeassistant_only); }
 
   /** Register a custom native API service that will show up in Home Assistant.
    *
