@@ -58,10 +58,7 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     data.insert(data.end(), service_data.data.begin(), service_data.data.end());
 
     // dispatch data to parser
-    optional<ParseResult> result;
-    if (this->device_parser_ != nullptr) {
-      result = this->device_parser_(data);
-    }
+    optional<ParseResult> result = this->device_parser_(data);
     if (!result.has_value()) {
       continue;
     }
