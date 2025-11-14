@@ -33,9 +33,7 @@ void STTS22HComponent::update() {
     return;
   }
 
-  float temperature = this->read_temperature_();
-
-  this->publish_state(temperature);
+  this->publish_state(this->read_temperature_());
 }
 
 void STTS22HComponent::dump_config() {
@@ -56,22 +54,18 @@ float STTS22HComponent::read_temperature_() {
 
   // Combine the two bytes into a single 16-bit signed integer
   // The STTS22H temperature data is in two's complement format
-  int16_t temp_raw_value = (static_cast<int16_t>(encode_uint16(temp_reg_value[1], temp_reg_value[0])));
-  float temperature_value = temp_raw_value * SENSOR_SCALE;  // Apply sensor resolution
-
-  return temperature_value;
+  int16_t temp_raw_value = static_cast<int16_t>(encode_uint16(temp_reg_value[1], temp_reg_value[0]));
+  return temp_raw_value * SENSOR_SCALE;  // Apply sensor resolution
 }
 
-/// @brief Reads the hardcoded ID which identifies device on the bus as STTS22H sensor.
-/// @return
 bool STTS22HComponent::is_stts22h_sensor_() {
-  uint8_t whoami_value[1];
-  if (this->read_register(WHOAMI_REG, whoami_value, 1) != i2c::NO_ERROR) {
+  uint8_t whoami_value;
+  if (this->read_register(WHOAMI_REG, &whoami_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return false;
   }
 
-  if (whoami_value[0] != WHOAMI_STTS22H_IDENTIFICATION) {
+  if (whoami_value != WHOAMI_STTS22H_IDENTIFICATION) {
     this->mark_failed("Unexpected WHOAMI identifier. Sensor is not a STTS22H");
     return false;
   }
@@ -81,8 +75,8 @@ bool STTS22HComponent::is_stts22h_sensor_() {
 
 void STTS22HComponent::initialize_sensor_() {
   // Read current CTRL_REG configuration
-  uint8_t ctrl_value[1];
-  if (this->read_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
+  uint8_t ctrl_value;
+  if (this->read_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
@@ -90,15 +84,15 @@ void STTS22HComponent::initialize_sensor_() {
   // Enable low ODR mode and enable ADD_INC
   // Before low ODR mode can be used,
   // FREERUN bit must be cleared (see sensor documentation)
-  ctrl_value[0] &= ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
-  if (this->write_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
+  ctrl_value &= ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
+  if (this->write_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
   // Enable LOW ODR mode and ADD_INC
-  ctrl_value[0] |= LOW_ODR_CTRL_ENABLE_FLAG | ADD_INC_ENABLE_FLAG;  // Set LOW ODR bit and ADD_INC bit
-  if (this->write_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
+  ctrl_value |= LOW_ODR_CTRL_ENABLE_FLAG | ADD_INC_ENABLE_FLAG;  // Set LOW ODR bit and ADD_INC bit
+  if (this->write_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
