@@ -264,7 +264,7 @@ template<typename... Ts> class SendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, destination)
   TEMPLATABLE_VALUE(std::vector<uint8_t>, data)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto source_address = source_.has_value() ? source_.value(x...) : parent_->address();
     auto destination_address = destination_.value(x...);
     auto data = data_.value(x...);
