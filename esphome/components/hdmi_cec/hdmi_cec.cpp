@@ -568,12 +568,12 @@ void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
   }
   if (transmit_state_ == TransmitState::BUSY) {
     // this received message was sent by myself, handle this confirmation to check acknowledgement
-    NON_ATOMIC_INCR(n_bytes_received_);  // TODO: replace with plain atomic ++
+    ATOMIC_INCR(n_bytes_received_);  // TODO: replace with plain atomic ++
     // 'ack value == 0' means that the addressed device on the bus confirms receipt by pulling 'ack' low.
     // (But for broadcast messages, 'ack == 0' indicates that some receiver denies the message.)
     if (!ack) {
       // 0 bit value means 'acknowledge' for an addressed message
-      NON_ATOMIC_INCR(n_acks_received_);  // TODO: replace with plain atomic ++
+      ATOMIC_INCR(n_acks_received_);  // TODO: replace with plain atomic ++
     }
     if (eom) {
       transmit_state_ = TransmitState::EOM_CONFIRMED;
@@ -658,7 +658,7 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
     case ReceiverState::RECEIVING_BYTE: {
       // write bit to the current byte
       recv_byte_buffer_ = (recv_byte_buffer_ << 1) | (value & 0x1);
-      NON_ATOMIC_INCR(recv_bit_counter_);  // TODO: replace with plain atomic ++
+      ATOMIC_INCR(recv_bit_counter_);  // TODO: replace with plain atomic ++
       if (recv_bit_counter_ >= 8) {
         // if we reached eight bits, push the current byte to the frame buffer
         if (recv_frame_buffer_) {

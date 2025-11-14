@@ -155,17 +155,16 @@ class CECTransmit {
   Mutex send_mutex_;
 };
 
-// Unfortunately, my current (2025-09) build system gives a fatal error on atomic increment operations!
-// for the ESP8266 and ESP32C3, both with Arduino and esp-idf build environments:
-// ld: undefined reference to `__atomic_fetch_add_1'
-// ESPHome 2025.10.0-dev, framework-espidf @ 3.50402.0 (5.4.2), PlatformIO Core, version 6.1.18
-// for now, circumvent that issue by using a non-atomic increment :-(
-// TODO: replace with basic '++' operator on the atomic variable.
-#define NON_ATOMIC_INCR(atom) \
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#define ATOMIC_INCR(atom) (atom++)
+#else
+// This fallback is probably only for the older esp8266, which does not provide this atomic opration
+#define ATOMIC_INCR(atom) \
   { \
     volatile uint8_t c = atom; \
     (atom) = c + 1; \
   }
+#endif
 
 class CECReceive {
   enum class ReceiverState : uint8_t { IDLE, RECEIVING_BYTE, WAITING_FOR_EOM, WAITING_FOR_ACK, WAITING_FOR_EOM_ACK };
