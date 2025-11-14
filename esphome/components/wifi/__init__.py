@@ -352,7 +352,7 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_USE_PSRAM): cv.All(
-                only_with_esp_idf, cv.requires_component("psram"), cv.boolean
+                cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
             ),
         }
     ),
