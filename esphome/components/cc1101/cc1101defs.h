@@ -33,95 +33,87 @@ static constexpr uint8_t BUS_WRITE = 0x00;
 static constexpr uint8_t BYTES_IN_RXFIFO = 0x7F;  // byte number in RXfifo
 
 enum class Register : uint8_t {
-  IOCFG2,    // GDO2 output pin configuration
-  IOCFG1,    // GDO1 output pin configuration
-  IOCFG0,    // GDO0 output pin configuration
-  FIFOTHR,   // RX FIFO and TX FIFO thresholds
-  SYNC1,     // Sync word, high INT8U
-  SYNC0,     // Sync word, low INT8U
-  PKTLEN,    // Packet length
-  PKTCTRL1,  // Packet automation control
-  PKTCTRL0,  // Packet automation control
-  ADDR,      // Device address
-  CHANNR,    // Channel number
-  FSCTRL1,   // Frequency synthesizer control
-  FSCTRL0,   // Frequency synthesizer control
-  FREQ2,     // Frequency control word, high INT8U
-  FREQ1,     // Frequency control word, middle INT8U
-  FREQ0,     // Frequency control word, low INT8U
-  MDMCFG4,   // Modem configuration
-  MDMCFG3,   // Modem configuration
-  MDMCFG2,   // Modem configuration
-  MDMCFG1,   // Modem configuration
-  MDMCFG0,   // Modem configuration
-  DEVIATN,   // Modem deviation setting
-  MCSM2,     // Main Radio Control State Machine configuration
-  MCSM1,     // Main Radio Control State Machine configuration
-  MCSM0,     // Main Radio Control State Machine configuration
-  FOCCFG,    // Frequency Offset Compensation configuration
-  BSCFG,     // Bit Synchronization configuration
-  AGCCTRL2,  // AGC control
-  AGCCTRL1,  // AGC control
-  AGCCTRL0,  // AGC control
-  WOREVT1,   // High INT8U Event 0 timeout
-  WOREVT0,   // Low INT8U Event 0 timeout
-  WORCTRL,   // Wake On Radio control
-  FREND1,    // Front end RX configuration
-  FREND0,    // Front end TX configuration
-  FSCAL3,    // Frequency synthesizer calibration
-  FSCAL2,    // Frequency synthesizer calibration
-  FSCAL1,    // Frequency synthesizer calibration
-  FSCAL0,    // Frequency synthesizer calibration
-  RCCTRL1,   // RC oscillator configuration
-  RCCTRL0,   // RC oscillator configuration
-  FSTEST,    // Frequency synthesizer calibration control
-  PTEST,     // Production test
-  AGCTEST,   // AGC test
-  TEST2,     // Various test settings
-  TEST1,     // Various test settings
-  TEST0,     // Various test settings
-  UNUSED,
-  PARTNUM,
-  VERSION,
-  FREQEST,
-  LQI,
-  RSSI,
-  MARCSTATE,
-  WORTIME1,
-  WORTIME0,
-  PKTSTATUS,
-  VCO_VC_DAC,
-  TXBYTES,
-  RXBYTES,
-  RCCTRL1_STATUS,
-  RCCTRL0_STATUS,
-  PATABLE,
-  FIFO,
+  IOCFG2 = 0x00,    // GDO2 output pin configuration
+  IOCFG1 = 0x01,    // GDO1 output pin configuration
+  IOCFG0 = 0x02,    // GDO0 output pin configuration
+  FIFOTHR = 0x03,   // RX FIFO and TX FIFO thresholds
+  SYNC1 = 0x04,     // Sync word, high INT8U
+  SYNC0 = 0x05,     // Sync word, low INT8U
+  PKTLEN = 0x06,    // Packet length
+  PKTCTRL1 = 0x07,  // Packet automation control
+  PKTCTRL0 = 0x08,  // Packet automation control
+  ADDR = 0x09,      // Device address
+  CHANNR = 0x0A,    // Channel number
+  FSCTRL1 = 0x0B,   // Frequency synthesizer control
+  FSCTRL0 = 0x0C,   // Frequency synthesizer control
+  FREQ2 = 0x0D,     // Frequency control word, high INT8U
+  FREQ1 = 0x0E,     // Frequency control word, middle INT8U
+  FREQ0 = 0x0F,     // Frequency control word, low INT8U
+  MDMCFG4 = 0x10,   // Modem configuration
+  MDMCFG3 = 0x11,   // Modem configuration
+  MDMCFG2 = 0x12,   // Modem configuration
+  MDMCFG1 = 0x13,   // Modem configuration
+  MDMCFG0 = 0x14,   // Modem configuration
+  DEVIATN = 0x15,   // Modem deviation setting
+  MCSM2 = 0x16,     // Main Radio Control State Machine configuration
+  MCSM1 = 0x17,     // Main Radio Control State Machine configuration
+  MCSM0 = 0x18,     // Main Radio Control State Machine configuration
+  FOCCFG = 0x19,    // Frequency Offset Compensation configuration
+  BSCFG = 0x1A,     // Bit Synchronization configuration
+  AGCCTRL2 = 0x1B,  // AGC control
+  AGCCTRL1 = 0x1C,  // AGC control
+  AGCCTRL0 = 0x1D,  // AGC control
+  WOREVT1 = 0x1E,   // High INT8U Event 0 timeout
+  WOREVT0 = 0x1F,   // Low INT8U Event 0 timeout
+  WORCTRL = 0x20,   // Wake On Radio control
+  FREND1 = 0x21,    // Front end RX configuration
+  FREND0 = 0x22,    // Front end TX configuration
+  FSCAL3 = 0x23,    // Frequency synthesizer calibration
+  FSCAL2 = 0x24,    // Frequency synthesizer calibration
+  FSCAL1 = 0x25,    // Frequency synthesizer calibration
+  FSCAL0 = 0x26,    // Frequency synthesizer calibration
+  RCCTRL1 = 0x27,   // RC oscillator configuration
+  RCCTRL0 = 0x28,   // RC oscillator configuration
+  FSTEST = 0x29,    // Frequency synthesizer calibration control
+  PTEST = 0x2A,     // Production test
+  AGCTEST = 0x2B,   // AGC test
+  TEST2 = 0x2C,     // Various test settings
+  TEST1 = 0x2D,     // Various test settings
+  TEST0 = 0x2E,     // Various test settings
+  UNUSED = 0x2F,
+  PARTNUM = 0x30,
+  VERSION = 0x31,
+  FREQEST = 0x32,
+  LQI = 0x33,
+  RSSI = 0x34,
+  MARCSTATE = 0x35,
+  WORTIME1 = 0x36,
+  WORTIME0 = 0x37,
+  PKTSTATUS = 0x38,
+  VCO_VC_DAC = 0x39,
+  TXBYTES = 0x3A,
+  RXBYTES = 0x3B,
+  RCCTRL1_STATUS = 0x3C,
+  RCCTRL0_STATUS = 0x3D,
+  PATABLE = 0x3E,
+  FIFO = 0x3F,
 };
 
 enum class Command : uint8_t {
-  RES = 0x30,  // Reset chip.
-  FSTXON,      // Enable and calibrate frequency synthesizer (if MCSM0.FS_AUTOCAL=1).
-               // If in RX/TX: Go to a wait state where only the synthesizer is
-               // running (for quick RX / TX turnaround).
-  XOFF,        // Turn off crystal oscillator.
-  CAL,         // Calibrate frequency synthesizer and turn it off
-               // (enables quick start).
-  RX,          // Enable RX. Perform calibration first if coming from IDLE and
-               // MCSM0.FS_AUTOCAL=1.
-  TX,          // In IDLE state: Enable TX. Perform calibration first if
-               // MCSM0.FS_AUTOCAL=1. If in RX state and CCA is enabled:
-               // Only go to TX if channel is clear.
-  IDLE,        // Exit RX / TX, turn off frequency synthesizer and exit
-               // Wake-On-Radio mode if applicable.
-  AFC,         // Perform AFC adjustment of the frequency synthesizer
-  WOR,         // Start automatic RX polling sequence (Wake-on-Radio)
-  PWD,         // Enter power down mode when CSn goes high.
-  FRX,         // Flush the RX FIFO buffer.
-  FTX,         // Flush the TX FIFO buffer.
-  WORRST,      // Reset real time clock.
-  NOP,         // No operation. May be used to pad strobe commands to two
-               // INT8Us for simpler software.
+  RES = 0x30,     // Reset chip.
+  FSTXON = 0x31,  // Enable and calibrate frequency synthesizer
+  XOFF = 0x32,    // Turn off crystal oscillator.
+  CAL = 0x33,     // Calibrate frequency synthesizer and turn it off
+  RX = 0x34,      // Enable RX.
+  TX = 0x35,      // Enable TX.
+  IDLE = 0x36,    // Exit RX / TX
+  // 0x37 is RESERVED / UNDEFINED in CC1101 Datasheet
+  WOR = 0x38,     // Start automatic RX polling sequence (Wake-on-Radio)
+  PWD = 0x39,     // Enter power down mode when CSn goes high.
+  FRX = 0x3A,     // Flush the RX FIFO buffer.
+  FTX = 0x3B,     // Flush the TX FIFO buffer.
+  WORRST = 0x3C,  // Reset real time clock.
+  NOP = 0x3D,     // No operation.
 };
 
 enum class State : uint8_t {

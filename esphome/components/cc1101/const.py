@@ -1,11 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import spi
-import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_FREQUENCY, CONF_WAIT_TIME
 
 ns = cg.esphome_ns.namespace("cc1101")
-
-# CHANGED: PollingComponent -> Component to match C++ inheritance
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
 
 CODEOWNERS = ["@lygris"]
@@ -19,10 +15,11 @@ CONF_OUTPUT_POWER = "output_power"
 CONF_RX_ATTENUATION = "rx_attenuation"
 CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
 
-# tuner
-CONF_TUNER = "tuner"
+# tuner keys
+CONF_FREQUENCY = "frequency"
 CONF_IF_FREQUENCY = "if_frequency"
 CONF_FILTER_BANDWIDTH = "filter_bandwidth"
+CONF_CHANNEL = "channel"
 CONF_CHANNEL_SPACING = "channel_spacing"
 CONF_FSK_DEVIATION = "fsk_deviation"
 CONF_MSK_DEVIATION = "msk_deviation"
@@ -36,8 +33,7 @@ CONF_SYNC1 = "sync1"
 CONF_SYNC0 = "sync0"
 CONF_PKTLEN = "pktlen"
 
-# agc
-CONF_AGC = "agc"
+# agc keys
 CONF_MAGN_TARGET = "magn_target"
 CONF_MAX_LNA_GAIN = "max_lna_gain"
 CONF_MAX_DVGA_GAIN = "max_dvga_gain"
@@ -47,8 +43,10 @@ CONF_LNA_PRIORITY = "lna_priority"
 CONF_FILTER_LENGTH_FSK_MSK = "filter_length_fsk_msk"
 CONF_FILTER_LENGTH_ASK_OOK = "filter_length_ask_ook"
 CONF_FREEZE = "freeze"
+CONF_WAIT_TIME = "wait_time"
 CONF_HYST_LEVEL = "hyst_level"
 
+# Enums
 SyncMode = ns.enum("SyncMode", True)
 SYNC_MODE = {
     "None": SyncMode.SYNC_MODE_NONE,
@@ -156,57 +154,3 @@ HYST_LEVEL = {
     "Medium": HystLevel.HYST_LEVEL_MEDIUM,
     "High": HystLevel.HYST_LEVEL_HIGH,
 }
-
-TYPES = {
-    None: {
-        CONF_OUTPUT_POWER: [cv.float_range(min=-30.0, max=11.0)],
-        CONF_RX_ATTENUATION: [cv.enum(RX_ATTENUATION, upper=False)],
-        CONF_DC_BLOCKING_FILTER: [cv.boolean],
-    },
-    CONF_TUNER: {
-        CONF_FREQUENCY: [cv.float_range(min=300000.0, max=928000.0)],
-        CONF_IF_FREQUENCY: [cv.float_range(min=25, max=788)],
-        CONF_FILTER_BANDWIDTH: [cv.float_range(min=58.0, max=812.0)],
-        CONF_CHANNEL: [cv.uint8_t],
-        CONF_CHANNEL_SPACING: [cv.float_range(min=25, max=405)],
-        CONF_FSK_DEVIATION: [cv.float_range(min=1.5, max=381)],
-        CONF_MSK_DEVIATION: [cv.int_range(min=1, max=8)],
-        CONF_SYMBOL_RATE: [cv.float_range(min=600, max=500000)],
-        CONF_SYNC_MODE: [cv.enum(SYNC_MODE, upper=False)],
-        CONF_CARRIER_SENSE_ABOVE_THRESHOLD: [cv.boolean],
-        CONF_MODULATION_TYPE: [cv.enum(MODULATION, upper=False)],
-        CONF_MANCHESTER: [cv.boolean],
-        CONF_NUM_PREAMBLE: [cv.int_range(min=0, max=7)],
-        CONF_SYNC1: [cv.hex_uint8_t],
-        CONF_SYNC0: [cv.hex_uint8_t],
-        CONF_PKTLEN: [cv.uint8_t],
-    },
-    CONF_AGC: {
-        CONF_MAGN_TARGET: [cv.enum(MAGN_TARGET, upper=False)],
-        CONF_MAX_LNA_GAIN: [cv.enum(MAX_LNA_GAIN, upper=False)],
-        CONF_MAX_DVGA_GAIN: [cv.enum(MAX_DVGA_GAIN, upper=False)],
-        CONF_CARRIER_SENSE_ABS_THR: [cv.int_range(min=-8, max=7)],
-        CONF_CARRIER_SENSE_REL_THR: [cv.enum(CARRIER_SENSE_REL_THR, upper=False)],
-        CONF_LNA_PRIORITY: [cv.boolean],
-        CONF_FILTER_LENGTH_FSK_MSK: [cv.enum(FILTER_LENGTH_FSK_MSK, upper=False)],
-        CONF_FILTER_LENGTH_ASK_OOK: [cv.enum(FILTER_LENGTH_ASK_OOK, upper=False)],
-        CONF_FREEZE: [cv.enum(FREEZE, upper=False)],
-        CONF_WAIT_TIME: [cv.enum(WAIT_TIME, upper=False)],
-        CONF_HYST_LEVEL: [cv.enum(HYST_LEVEL, upper=False)],
-    },
-}
-
-
-async def for_each_conf(config, types, callback):
-    for section in types:
-        if section is not None and section not in config:
-            continue
-        c = config[section] if section is not None else config
-        for type, args in types[section].items():
-            if type not in c:
-                continue
-            setter = ""
-            if section is not None:
-                setter += section + "_"
-            setter += type
-            await callback(c[type], args, setter)
