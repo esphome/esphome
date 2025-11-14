@@ -535,9 +535,10 @@ bool APIServer::is_connected(bool homeassistant_only = false) const {
         return true;
       }
     }
-    return false;
+  } else {
+    return !this->clients_.empty();
   }
-  return !this->clients_.empty();
+  return false;
 }
 
 void APIServer::on_shutdown() {
