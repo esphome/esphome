@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace thermopro_ble {
+namespace esphome::thermopro_ble {
 
 struct ParseResult {
   optional<float> temperature;
@@ -45,7 +44,6 @@ class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceList
   void update_device_type_(const std::string &device_name);
 };
 
-}  // namespace thermopro_ble
-}  // namespace esphome
+}  // namespace esphome::thermopro_ble
 
 #endif

@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace thermopro_ble {
+namespace esphome::thermopro_ble {
 
 struct DeviceParserMapping {
   const std::string prefix;
@@ -192,7 +191,6 @@ static optional<ParseResult> parse_tp3(const std::vector<uint8_t> &data) {
   return result;
 }
 
-}  // namespace thermopro_ble
-}  // namespace esphome
+}  // namespace esphome::thermopro_ble
 
 #endif
