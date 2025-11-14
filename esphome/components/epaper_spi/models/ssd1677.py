@@ -1,8 +1,12 @@
+from esphome.const import CONF_DATA_RATE
+
 from . import EpaperModel
 
 
 class SSD1677(EpaperModel):
     def __init__(self, name, class_name="EPaperSSD1677", **kwargs):
+        if CONF_DATA_RATE not in kwargs:
+            kwargs[CONF_DATA_RATE] = "20MHz"
         super().__init__(name, class_name, **kwargs)
 
     # fmt: off
