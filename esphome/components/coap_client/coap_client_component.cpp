@@ -19,6 +19,54 @@ static const char *TAG = "coap";
 // CoapClientComponent
 CoapClientComponent *global_coap_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+const char *coap_method_to_string(CoapMethod method) {
+  switch (method) {
+    case EMPTY:
+      return "EMPTY";
+    case GET:
+      return "GET";
+    case POST:
+      return "POST";
+    case PUT:
+      return "PUT";
+    case DELETE:
+      return "DELETE";
+    case FETCH:
+      return "FETCH";
+    case PATCH:
+      return "PATCH";
+    case IPATCH:
+      return "IPATCH";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *coap_media_type_to_string(CoapMediaType media_type) {
+  switch (media_type) {
+    case TEXT_PLAIN:
+      return "TEXT_PLAIN";
+    case APPLICATION_JSON:
+      return "APPLICATION_JSON";
+    case APPLICATION_LINK_FORMAT:
+      return "APPLICATION_LINK_FORMAT";
+    case APPLICATION_XML:
+      return "APPLICATION_XML";
+    case APPLICATION_OCTET_STREAM:
+      return "APPLICATION_OCTET_STREAM";
+    case APPLICATION_RDF_XML:
+      return "APPLICATION_RDF_XML";
+    case APPLICATION_EXI:
+      return "APPLICATION_EXI";
+    case APPLICATION_CBOR:
+      return "APPLICATION_CBOR";
+    case APPLICATION_CWT:
+      return "APPLICATION_CWT";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 CoapClientComponent::CoapClientComponent() {
   global_coap_client = this;
   // Pre-allocate shared write buffer
@@ -36,7 +84,7 @@ void CoapClientComponent::setup() {
   coap_startup();
 // Set up the CoAP logging
 #if CONFIG_LOG_DYNAMIC_LEVEL_CONTROL
-  ESP_LOGD(TAG, "Set CoAP Log Level to %d", CONFIG_LOG_DEFAULT_LEVEL);
+  ESP_LOGI(TAG, "Set CoAP Log Level to %d", CONFIG_LOG_DEFAULT_LEVEL);
   coap_set_log_level((coap_log_t) CONFIG_LOG_DEFAULT_LEVEL);
 #endif
 
@@ -90,9 +138,11 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
   size_t total;
   void *context = this->response_callback_context_;
   coap_pdu_code_t rcvd_code = coap_pdu_get_code(received);
+  uint16_t rcode = (((rcvd_code >> 5) & 0x07) * 100) + (rcvd_code & 0x1F);
+
   if (COAP_RESPONSE_CLASS(rcvd_code) == 2) {
     if (coap_get_data_large(received, &data_len, &data, &offset, &total)) {
-      this->response_callback_(data, data_len, offset, total, context);
+      this->response_callback_(rcode, data, data_len, offset, total, context);
     }
   } else {
     ESP_LOGE(TAG, "CoAP Response Code: %d.%02d", (rcvd_code >> 5), rcvd_code & 0x1F);
@@ -100,7 +150,7 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
     data_len = 0;
     offset = 0;
     total = 0;
-    this->response_callback_(data, data_len, offset, total, context);
+    this->response_callback_(rcode, data, data_len, offset, total, context);
   }
   return COAP_RESPONSE_OK;
 }
@@ -112,11 +162,11 @@ int CoapClientComponent::verify_cn_callback(const char *cn, const uint8_t *asn1_
 }
 #endif
 
-void CoapClientComponent::get(
-    std::string uri,
-    std::function<void(const unsigned char *data, size_t data_len, size_t offset, size_t total, void *context)>
-        callback,
-    void *callback_context, size_t max_block_size) {
+void CoapClientComponent::get(std::string uri,
+                              std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
+                                                 size_t offset, size_t total, void *context)>
+                                  callback,
+                              void *callback_context, size_t max_block_size) {
   CoapClientRequestData tx_request = {
       .method = CoapMethod::GET,
       .uri = uri,
@@ -127,12 +177,32 @@ void CoapClientComponent::get(
   this->process_request(&tx_request);
 }
 
+void CoapClientComponent::post(std::string uri,
+                               std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
+                                                  size_t offset, size_t total, void *context)>
+                                   callback,
+                               void *callback_context, std::string payload, CoapMediaType media_type,
+                               size_t max_block_size) {
+  CoapClientRequestData tx_request = {.method = CoapMethod::POST,
+                                      .uri = uri,
+                                      .max_block_size = max_block_size,
+                                      .callback = callback,
+                                      .callback_context = callback_context,
+                                      .media_type = media_type,
+                                      .payload = payload};
+  this->process_request(&tx_request);
+}
+
 void CoapClientComponent::process_request(CoapClientRequestData *tx_request) {
+  ESP_LOGD(TAG, "%s %s with max_block_size: %d", coap_method_to_string(tx_request->method), tx_request->uri.c_str(),
+           tx_request->max_block_size);
+  if (tx_request->payload.length() > 0) {
+    ESP_LOGD(TAG, "payload media_type %s, payload starts with %.*s", coap_media_type_to_string(tx_request->media_type),
+             std::min(10, (int) tx_request->payload.length()), tx_request->payload.c_str());
+  }
   BaseType_t sent_status;
   sent_status = xQueueSend(this->request_queue_, (void *) tx_request, pdMS_TO_TICKS(1000));
   if (sent_status != pdPASS) {
-    // ESP_LOGI(TAG, "Sent the request_data to the queue %d", uxQueueMessagesWaiting(this->request_queue_));
-    //} else {
     ESP_LOGE(TAG, "Failed to send the request_data to the queue %d", sent_status);
   }
 }
@@ -162,7 +232,7 @@ void CoapClientComponent::main_() {
   unsigned char uri_path[this->uri_path_buffer_size_];
 
   auto cleanup = [](void *self, coap_context_t *&context, coap_optlist_t *&opt_list, coap_session_t *&session) {
-    // ESP_LOGD(TAG, "Coap cleanup");
+    // ESP_LOGV(TAG, "Coap cleanup");
     if (context) {
       coap_free_context(context);
     }
@@ -176,17 +246,17 @@ void CoapClientComponent::main_() {
     esphome::coap_client_component::CoapClientComponent *obj =
         (esphome::coap_client_component::CoapClientComponent *) self;
     if (obj->response_callback_) {
-      obj->response_callback_(nullptr, 0, 0, 0, obj->response_callback_context_);
+      obj->response_callback_(0, nullptr, 0, 0, 0, obj->response_callback_context_);
       obj->response_callback_ = nullptr;
       obj->response_callback_context_ = nullptr;
     }
   };
 
-  // ESP_LOGD(TAG, "Begin coap main loop");
+  // ESP_LOGV(TAG, "Begin coap main loop");
   for (; this->main_looping_; cleanup(this, context, opt_list, session)) {
-    ESP_LOGD(TAG, "Top of main loop");
+    ESP_LOGV(TAG, "Top of main loop");
     receive_status = xQueueReceive(this->request_queue_, &tx_request, portMAX_DELAY);
-    ESP_LOGD(TAG, "recieve_status: %d num: %d", receive_status, uxQueueMessagesWaiting(this->request_queue_));
+    ESP_LOGV(TAG, "recieve_status: %d num: %d", receive_status, uxQueueMessagesWaiting(this->request_queue_));
 
     if (receive_status == pdPASS) {
       size_t max_block_size = tx_request.max_block_size > 0 ? tx_request.max_block_size : this->max_block_size_;
@@ -196,7 +266,7 @@ void CoapClientComponent::main_() {
       CoapMediaType media_type = tx_request.media_type;
       std::string payload = tx_request.payload;
 
-      ESP_LOGD(TAG, "Process the tx_request from queue");
+      ESP_LOGV(TAG, "Process the tx_request from queue");
       context = coap_new_context(NULL);
       if (!context) {
         ESP_LOGE(TAG, "coap_new_context() failed");
@@ -210,12 +280,12 @@ void CoapClientComponent::main_() {
         ESP_LOGE(TAG, "Error coap_split_uri %s", tx_uri.c_str());
         continue;
       }
-      ESP_LOGD(TAG, "  Scheme: %d", uri.scheme);
-      ESP_LOGD(TAG, "  Host: %.*s (length %zu)", (int) uri.host.length, uri.host.s, uri.host.length);
-      ESP_LOGD(TAG, "  Port: %u", uri.port);  // Use %u for uint16_t
-      ESP_LOGD(TAG, "  Path: %.*s (length %zu)\n", (int) uri.path.length, uri.path.s, uri.path.length);
+      ESP_LOGV(TAG, "  Scheme: %d", uri.scheme);
+      ESP_LOGV(TAG, "  Host: %.*s (length %zu)", (int) uri.host.length, uri.host.s, uri.host.length);
+      ESP_LOGV(TAG, "  Port: %u", uri.port);  // Use %u for uint16_t
+      ESP_LOGV(TAG, "  Path: %.*s (length %zu)\n", (int) uri.path.length, uri.path.s, uri.path.length);
 
-      ESP_LOGD(TAG, "Create CoAP client request options");
+      ESP_LOGV(TAG, "Create CoAP client request options");
 
       info_list = coap_resolve_address_info(&uri.host, uri.port, uri.port, uri.port, uri.port, 0, 1 << uri.scheme,
                                             COAP_RESOLVE_TYPE_REMOTE);
@@ -274,7 +344,7 @@ void CoapClientComponent::main_() {
         coap_ws_set_host_request(session, &uri.host);
       }
 #endif
-      ESP_LOGD(TAG, "Create CoAP client request");
+      ESP_LOGV(TAG, "Create CoAP client request");
       request = coap_new_pdu(coap_is_mcast(&dst_addr) ? COAP_MESSAGE_NON : COAP_MESSAGE_CON,
                              (coap_pdu_code_t) tx_request.method, session);
       if (!request) {
@@ -282,7 +352,7 @@ void CoapClientComponent::main_() {
         continue;
       }
 
-      ESP_LOGD(TAG, "Create CoAP client token");
+      ESP_LOGV(TAG, "Create CoAP client token");
       coap_session_new_token(session, &token_length, token);
       coap_add_token(request, token_length, token);
 
@@ -295,7 +365,7 @@ void CoapClientComponent::main_() {
 
       coap_add_optlist_pdu(request, &opt_list);
 
-      ESP_LOGD(TAG, "Send the request via CoAP");
+      ESP_LOGV(TAG, "Send the request via CoAP");
       coap_send(session, request);
 
       // coap_io_process returns -1 on error.
@@ -304,7 +374,7 @@ void CoapClientComponent::main_() {
       while (1) {
         int pending = coap_io_pending(context);
         if (pending < 1) {
-          ESP_LOGD(TAG, "No I/O Pending");
+          ESP_LOGV(TAG, "No I/O Pending");
           break;
         }
         // Wait for up to request_timeout_ milliseconds for I/O to happen.
@@ -315,7 +385,7 @@ void CoapClientComponent::main_() {
           break;
         }
       }
-      ESP_LOGD(TAG, "CoAP Request Processed");
+      ESP_LOGV(TAG, "CoAP Request Processed");
     }
   }
 }

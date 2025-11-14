@@ -1,0 +1,216 @@
+#pragma once
+#include "coap_client_component.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/log.h"
+
+namespace esphome::coap_client_component {
+
+static const char *const TAGA = "coap_client_component_auto";
+
+class CoapResponseStatistics {
+ public:
+  size_t content_length;
+  uint16_t status_code;
+  uint32_t duration_ms;
+  uint32_t start_ms;
+
+  void clean() {
+    this->content_length = 0;
+    this->status_code = 0;
+    this->duration_ms = 0;
+    this->start_ms = 0;
+  }
+};
+
+template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
+ public:
+  CoapClientSendAction(CoapClientComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, url)
+  TEMPLATABLE_VALUE(std::string, method)
+  TEMPLATABLE_VALUE(std::string, media_type)
+  TEMPLATABLE_VALUE(std::string, payload)
+  TEMPLATABLE_VALUE(size_t, max_block_size)
+  TEMPLATABLE_VALUE(size_t, max_response_buffer_size)
+  TEMPLATABLE_VALUE(bool, capture_response)
+
+  void play(Ts... x) override {
+    std::string payload;
+    if (this->payload_.has_value()) {
+      payload = this->payload_.value(x...);
+    }
+    if (!this->json_.empty()) {
+      this->media_type_ = "APPLICATION_JSON";
+      auto f = std::bind(&CoapClientSendAction<Ts...>::encode_json_, this, x..., std::placeholders::_1);
+      payload = json::build_json(f);
+    }
+    if (this->json_func_ != nullptr) {
+      this->media_type_ = "APPLICATION_JSON";
+      auto f = std::bind(&CoapClientSendAction<Ts...>::encode_json_func_, this, x..., std::placeholders::_1);
+      payload = json::build_json(f);
+    }
+
+    CoapClientRequestData tx_request = {
+        .method = this->get_method_(this->method_.value(x...)),
+        .uri = this->url_.value(x...),
+        .max_block_size = this->max_block_size_.value(x...),
+        .callback = CoapClientSendAction::callback,
+        .callback_context = this,
+        .media_type = this->get_media_type_(this->media_type_.value(x...)),
+        .payload = payload,
+    };
+    auto resp_stats = get_response_stats();
+    resp_stats->clean();
+    this->max_resp_buffer_size = this->max_response_buffer_size_.value(x...);
+    this->capture_resp = this->capture_response_.value(x...);
+    this->response_payload_ = "";
+    this->response_has_error = false;
+    this->response_finished = false;
+    resp_stats->start_ms = esphome::millis();
+    this->parent_->process_request(&tx_request);
+    while (!response_finished) {
+      App.feed_wdt();
+      yield();
+    }
+
+    auto captured_args = std::make_tuple(x...);
+
+    if (this->response_has_error) {
+      std::apply([this, &resp_stats](
+                     Ts... captured_args_inner) { this->error_trigger_->trigger(resp_stats, captured_args_inner...); },
+                 captured_args);
+    } else {
+      // response_payload will be "" if capture_response = false;
+      std::string response_payload = this->response_payload_;
+      if (capture_resp) {
+        ESP_LOGD("Payload: %s", response_payload.c_str());
+      }
+      std::apply(
+          [this, &resp_stats, &response_payload](Ts... captured_args_inner) {
+            this->success_trigger_->trigger(resp_stats, response_payload, captured_args_inner...);
+          },
+          captured_args);
+    }
+  }  // play
+
+  static void callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset, size_t total,
+                       void *context) {
+    CoapClientSendAction<Ts...> *obj = (CoapClientSendAction<Ts...> *) context;
+    auto resp_stats = obj->get_response_stats();
+
+    if (!obj->response_finished) {
+      if (len == 0 && offset == 0 && total == 0) {
+        // Error
+        obj->response_has_error = true;
+        resp_stats->content_length = 0;
+        resp_stats->status_code = response_code;
+        resp_stats->duration_ms = esphome::millis() - resp_stats->start_ms;
+        obj->response_finished = true;
+        return;
+      }
+      if (len > 0) {
+        ESP_LOGV(TAGA, "response payload segment, len: %d, offset: %d, is total: %s:\n%.*s", len, offset,
+                 offset + len == total ? "yes" : "no", len, (const char *) data);
+        if (obj->capture_resp) {
+          size_t store_len = std::min(len, obj->max_resp_buffer_size - offset);
+          if (store_len > 0) {
+            obj->append_response_payload(data, len, offset);
+          }
+        }
+      }
+      if (total > 0 && len + offset == total) {
+        resp_stats->content_length = total;
+        resp_stats->status_code = response_code;
+        resp_stats->duration_ms = esphome::millis() - obj->response_stats->start_ms;
+        obj->response_finished = true;
+      }
+    }
+  }
+
+  void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
+
+  void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
+
+  Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, Ts...> *get_success_trigger() const {
+    return this->success_trigger_;
+  }
+  Trigger<std::shared_ptr<CoapResponseStatistics>, Ts...> *get_error_trigger() const { return this->error_trigger_; }
+
+  const std::shared_ptr<CoapResponseStatistics> response_stats = std::make_shared<CoapResponseStatistics>();
+  const std::shared_ptr<CoapResponseStatistics> get_response_stats() { return response_stats; }
+
+  bool response_finished{false};
+  bool response_has_error{false};
+
+  size_t max_resp_buffer_size{1000};
+  bool capture_resp{false};
+
+  // Qblocks don't work with this would need to use a char* buffer and populate with offset
+  void append_response_payload(const unsigned char *data, size_t len, size_t offset) {
+    this->response_payload_.append(reinterpret_cast<const char *>(data), len);
+  }
+
+ protected:
+  std::string response_payload_;
+  CoapMethod get_method_(std::string method) {
+    if (method == "GET") {
+      return CoapMethod::GET;
+    } else if (method == "POST") {
+      return CoapMethod::POST;
+    } else if (method == "PUT") {
+      return CoapMethod::PUT;
+    } else if (method == "DELETE") {
+      return CoapMethod::DELETE;
+    } else if (method == "FETCH") {
+      return CoapMethod::FETCH;
+    } else if (method == "PATCH") {
+      return CoapMethod::PATCH;
+    } else if (method == "IPATCH") {
+      return CoapMethod::IPATCH;
+    }
+    return CoapMethod::EMPTY;
+  }
+
+  CoapMediaType get_media_type_(std::string media_type) {
+    if (media_type == "TEXT_PLAIN") {
+      return CoapMediaType::TEXT_PLAIN;
+    } else if (media_type == "APPLICATION_JSON") {
+      return CoapMediaType::APPLICATION_JSON;
+    } else if (media_type == "APPLICATION_LINK_FORMAT") {
+      return CoapMediaType::APPLICATION_LINK_FORMAT;
+    } else if (media_type == "APPLICATION_XML") {
+      return CoapMediaType::APPLICATION_XML;
+    } else if (media_type == "APPLICATION_OCTET_STREAM") {
+      return CoapMediaType::APPLICATION_OCTET_STREAM;
+    } else if (media_type == "APPLICATION_RDF_XML") {
+      return CoapMediaType::APPLICATION_RDF_XML;
+    } else if (media_type == "APPLICATION_EXI") {
+      return CoapMediaType::APPLICATION_EXI;
+    } else if (media_type == "APPLICATION_CBOR") {
+      return CoapMediaType::APPLICATION_CBOR;
+    } else if (media_type == "APPLICATION_CWT") {
+      return CoapMediaType::APPLICATION_CWT;
+    }
+    return CoapMediaType::TEXT_PLAIN;
+  }
+
+  void encode_json_(Ts... x, JsonObject root) {
+    for (const auto &item : this->json_) {
+      auto val = item.second;
+      root[item.first] = val.value(x...);
+    }
+  }
+
+  void encode_json_func_(Ts... x, JsonObject root) { this->json_func_(x..., root); }
+
+  CoapClientComponent *parent_;
+  std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
+  std::function<void(Ts..., JsonObject)> json_func_{nullptr};
+
+  Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, Ts...> *success_trigger_ =
+      new Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, Ts...>();
+
+  Trigger<std::shared_ptr<CoapResponseStatistics>, Ts...> *error_trigger_ =
+      new Trigger<std::shared_ptr<CoapResponseStatistics>, Ts...>();
+};
+
+}  // namespace esphome::coap_client_component

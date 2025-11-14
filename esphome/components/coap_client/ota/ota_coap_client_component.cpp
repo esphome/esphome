@@ -198,8 +198,8 @@ bool OtaCoapClientComponent::validate_url_(const std::string &url) {
   return true;
 }
 
-void OtaCoapClientComponent::md5_callback(const unsigned char *data, size_t len, size_t offset, size_t total,
-                                          void *context) {
+void OtaCoapClientComponent::md5_callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset,
+                                          size_t total, void *context) {
   ESP_LOGD(TAG, "md5_callback %d, %d, %d", len, offset, total);
   esphome::coap_client_component::OtaCoapClientComponent *obj =
       (esphome::coap_client_component::OtaCoapClientComponent *) context;
@@ -212,8 +212,8 @@ void OtaCoapClientComponent::md5_callback(const unsigned char *data, size_t len,
   }
 }
 
-void OtaCoapClientComponent::image_callback(const unsigned char *data, size_t len, size_t offset, size_t total,
-                                            void *context) {
+void OtaCoapClientComponent::image_callback(uint16_t response_code, const unsigned char *data, size_t len,
+                                            size_t offset, size_t total, void *context) {
   esphome::coap_client_component::OtaCoapClientComponent *obj =
       (esphome::coap_client_component::OtaCoapClientComponent *) context;
   if (offset % 102400 == 0) {

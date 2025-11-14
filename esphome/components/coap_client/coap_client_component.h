@@ -20,9 +20,11 @@ enum CoapMethod : uint8_t {
   PATCH = COAP_REQUEST_CODE_PATCH,
   IPATCH = COAP_REQUEST_CODE_IPATCH,
 };
+const char *coap_method_to_string(CoapMethod method);
 
 enum CoapMediaType : uint8_t {
   TEXT_PLAIN = COAP_MEDIATYPE_TEXT_PLAIN,
+  APPLICATION_JSON = COAP_MEDIATYPE_APPLICATION_JSON,
   APPLICATION_LINK_FORMAT = COAP_MEDIATYPE_APPLICATION_LINK_FORMAT,
   APPLICATION_XML = COAP_MEDIATYPE_APPLICATION_XML,
   APPLICATION_OCTET_STREAM = COAP_MEDIATYPE_APPLICATION_OCTET_STREAM,
@@ -31,12 +33,15 @@ enum CoapMediaType : uint8_t {
   APPLICATION_CBOR = COAP_MEDIATYPE_APPLICATION_CBOR,
   APPLICATION_CWT = COAP_MEDIATYPE_APPLICATION_CWT,
 };
+const char *coap_media_type_to_string(CoapMediaType media_type);
 
 struct CoapClientRequestData {
   CoapMethod method = CoapMethod::EMPTY;
   std::string uri{};
   size_t max_block_size{0};
-  std::function<void(const unsigned char *data, size_t data_len, size_t offset, size_t total, void *context)> callback;
+  std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset, size_t total,
+                     void *context)>
+      callback;
   void *callback_context;
   CoapMediaType media_type = CoapMediaType::TEXT_PLAIN;
   std::string payload{};
@@ -49,15 +54,27 @@ class CoapClientComponent : public Component {
   bool teardown() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
   void get(std::string uri,
-           std::function<void(const unsigned char *data, size_t data_len, size_t offset, size_t total, void *context)>
+           std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
+                              size_t total, void *context)>
                callback,
            void *callback_context, size_t max_block_size = 0);
+
+  void post(std::string uri,
+            std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
+                               size_t total, void *context)>
+                callback,
+            void *callback_context, std::string payload, CoapMediaType media_type = CoapMediaType::TEXT_PLAIN,
+            size_t max_block_size = 0);
+
   void process_request(CoapClientRequestData *request);
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                           const coap_mid_t mid);
+
   coap_response_t process_response(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                    const coap_mid_t mid);
+
 #ifdef CONFIG_COAP_MBEDTLS_PKI
   static int verify_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
                                 coap_session_t *session, unsigned depth, int validated, void *arg);
@@ -112,7 +129,8 @@ class CoapClientComponent : public Component {
   bool torndown_{false};
   QueueHandle_t request_queue_{nullptr};
   TaskHandle_t main_task_handle_{nullptr};
-  std::function<void(const unsigned char *data, size_t len, size_t offset, size_t total, void *context)>
+  std::function<void(uint16_t response_code, const unsigned char *data, size_t len, size_t offset, size_t total,
+                     void *context)>
       response_callback_{nullptr};
   void *response_callback_context_{nullptr};
   size_t max_block_size_{512};

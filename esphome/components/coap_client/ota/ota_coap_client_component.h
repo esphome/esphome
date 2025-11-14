@@ -39,8 +39,10 @@ class OtaCoapClientComponent : public ota::OTAComponent, public Parented<CoapCli
   void flash();
   void abort();
 
-  static void md5_callback(const unsigned char *data, size_t len, size_t offset, size_t total, void *context);
-  static void image_callback(const unsigned char *data, size_t len, size_t offset, size_t total, void *context);
+  static void md5_callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset, size_t total,
+                           void *context);
+  static void image_callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset, size_t total,
+                             void *context);
 
   void append_md5_expected(const unsigned char *data, size_t len) {
     this->md5_expected_.append(reinterpret_cast<const char *>(data), len);
