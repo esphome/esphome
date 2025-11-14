@@ -6,7 +6,7 @@
 namespace esphome::thermopro_ble {
 
 struct DeviceParserMapping {
-  const std::string prefix;
+  const char *prefix;
   DeviceParser parser;
 };
 
@@ -19,7 +19,7 @@ static optional<ParseResult> parse_tp3(const std::vector<uint8_t> &data);
 static const char *const TAG = "thermopro_ble";
 
 static const struct DeviceParserMapping DEVICE_PARSER_MAP[] = {
-    {"TP972", parse_tp972}, {"TP970", parse_tp96}, {"TP96", parse_tp96}, {"TP3", parse_tp3}, {"", nullptr}};
+    {"TP972", parse_tp972}, {"TP970", parse_tp96}, {"TP96", parse_tp96}, {"TP3", parse_tp3}};
 
 void ThermoProBLE::dump_config() {
   ESP_LOGCONFIG(TAG, "ThermoPro BLE");
@@ -89,9 +89,9 @@ void ThermoProBLE::update_device_type_(const std::string &device_name) {
   this->device_name_ = device_name;
 
   // try to find device parser
-  for (const DeviceParserMapping *mapping = DEVICE_PARSER_MAP; mapping->parser != nullptr; mapping++) {
-    if (device_name.starts_with(mapping->prefix)) {
-      this->device_parser_ = mapping->parser;
+  for (const auto &mapping : DEVICE_PARSER_MAP) {
+    if (device_name.starts_with(mapping.prefix)) {
+      this->device_parser_ = mapping.parser;
       return;
     }
   }
