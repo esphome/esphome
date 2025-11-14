@@ -8,7 +8,6 @@ namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.ssd1677";
 
 void EPaperSSD1677::refresh_screen(bool partial) {
-  static uint8_t x = 0;
   ESP_LOGV(TAG, "Refresh screen");
   this->command(0x22);
   this->data(partial ? 0xFF : 0xF7);
