@@ -5,6 +5,10 @@
 
 namespace esphome::thermopro_ble {
 
+// this size must be large enouth to hold the largest data frame
+// of all supported devices
+#define MAX_DATA_SIZE 24U
+
 struct DeviceParserMapping {
   const char *prefix;
   DeviceParser parser;
@@ -12,9 +16,9 @@ struct DeviceParserMapping {
 
 static float tp96_battery(uint16_t voltage);
 
-static optional<ParseResult> parse_tp972(const std::vector<uint8_t> &data);
-static optional<ParseResult> parse_tp96(const std::vector<uint8_t> &data);
-static optional<ParseResult> parse_tp3(const std::vector<uint8_t> &data);
+static optional<ParseResult> parse_tp972(const uint8_t *data, std::size_t data_size);
+static optional<ParseResult> parse_tp96(const uint8_t *data, std::size_t data_size);
+static optional<ParseResult> parse_tp3(const uint8_t *data, std::size_t data_size);
 
 static const char *const TAG = "thermopro_ble";
 
@@ -53,12 +57,13 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool success = false;
   for (auto &service_data : device.get_manufacturer_datas()) {
     // reconstruct whole record from 2 byte uuid and data
+    std::size_t data_size = std::min(service_data.data.size() + 2, MAX_DATA_SIZE);
     esp_bt_uuid_t uuid = service_data.uuid.get_uuid();
-    std::vector<uint8_t> data = {static_cast<uint8_t>(uuid.uuid.uuid16), static_cast<uint8_t>(uuid.uuid.uuid16 >> 8)};
-    data.insert(data.end(), service_data.data.begin(), service_data.data.end());
+    uint8_t data[MAX_DATA_SIZE] = {static_cast<uint8_t>(uuid.uuid.uuid16), static_cast<uint8_t>(uuid.uuid.uuid16 >> 8)};
+    std::copy_n(service_data.data.begin(), data_size - 2, std::begin(data) + 2);
 
     // dispatch data to parser
-    optional<ParseResult> result = this->device_parser_(data);
+    optional<ParseResult> result = this->device_parser_(data, data_size);
     if (!result.has_value()) {
       continue;
     }
@@ -101,15 +106,15 @@ void ThermoProBLE::update_device_type_(const std::string &device_name) {
   ESP_LOGVV(TAG, "update_device_type_(): unknown device type %s.", device_name.c_str());
 }
 
-static inline uint16_t read_uint16(const std::vector<uint8_t> &data, int offset) {
+static inline uint16_t read_uint16(const uint8_t *data, std::size_t offset) {
   return static_cast<uint16_t>(data[offset + 0]) | (static_cast<uint16_t>(data[offset + 1]) << 8);
 }
 
-static inline int16_t read_int16(const std::vector<uint8_t> &data, int offset) {
+static inline int16_t read_int16(const uint8_t *data, std::size_t offset) {
   return static_cast<int16_t>(read_uint16(data, offset));
 }
 
-static inline uint32_t read_uint32(const std::vector<uint8_t> &data, int offset) {
+static inline uint32_t read_uint32(const uint8_t *data, std::size_t offset) {
   return static_cast<uint32_t>(data[offset + 0]) | (static_cast<uint32_t>(data[offset + 1]) << 8) |
          (static_cast<uint32_t>(data[offset + 2]) << 16) | (static_cast<uint32_t>(data[offset + 3]) << 24);
 }
@@ -127,9 +132,9 @@ static float tp96_battery(uint16_t voltage) {
   return std::max(0.0f, std::min(level, 100.0f));
 }
 
-static optional<ParseResult> parse_tp972(const std::vector<uint8_t> &data) {
-  if (data.size() != 23) {
-    ESP_LOGVV(TAG, "parse_tp972(): payload has wrong size of %d (!= 23)!", data.size());
+static optional<ParseResult> parse_tp972(const uint8_t *data, std::size_t data_size) {
+  if (data_size != 23) {
+    ESP_LOGVV(TAG, "parse_tp972(): payload has wrong size of %d (!= 23)!", data_size);
     return {};
   }
 
@@ -147,9 +152,9 @@ static optional<ParseResult> parse_tp972(const std::vector<uint8_t> &data) {
   return result;
 }
 
-static optional<ParseResult> parse_tp96(const std::vector<uint8_t> &data) {
-  if (data.size() != 7) {
-    ESP_LOGVV(TAG, "parse_tp96(): payload has wrong size of %d (!= 7)!", data.size());
+static optional<ParseResult> parse_tp96(const uint8_t *data, std::size_t data_size) {
+  if (data_size != 7) {
+    ESP_LOGVV(TAG, "parse_tp96(): payload has wrong size of %d (!= 7)!", data_size);
     return {};
   }
 
@@ -167,9 +172,9 @@ static optional<ParseResult> parse_tp96(const std::vector<uint8_t> &data) {
   return result;
 }
 
-static optional<ParseResult> parse_tp3(const std::vector<uint8_t> &data) {
-  if (data.size() < 6) {
-    ESP_LOGVV(TAG, "parse_tp3(): payload has wrong size of %d (< 6)!", data.size());
+static optional<ParseResult> parse_tp3(const uint8_t *data, std::size_t data_size) {
+  if (data_size < 6) {
+    ESP_LOGVV(TAG, "parse_tp3(): payload has wrong size of %d (< 6)!", data_size);
     return {};
   }
 

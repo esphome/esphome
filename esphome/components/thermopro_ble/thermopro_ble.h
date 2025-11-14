@@ -17,7 +17,7 @@ struct ParseResult {
   optional<float> battery_level;
 };
 
-using DeviceParser = optional<ParseResult> (*)(const std::vector<uint8_t> &);
+using DeviceParser = optional<ParseResult> (*)(const uint8_t *data, std::size_t data_size);
 
 class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
