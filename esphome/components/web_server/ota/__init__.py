@@ -45,7 +45,11 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
     merged = web_server_ota_configs[0]
     for ota_conf in web_server_ota_configs[1:]:
         # Validate that IDs are consistent if manually specified
-        if merged[CONF_ID].is_manual and ota_conf[CONF_ID].is_manual:
+        if (
+            merged[CONF_ID].is_manual
+            and ota_conf[CONF_ID].is_manual
+            and merged[CONF_ID] != ota_conf[CONF_ID]
+        ):
             raise cv.Invalid(
                 f"Found multiple web_server OTA configurations but {CONF_ID} is inconsistent"
             )
