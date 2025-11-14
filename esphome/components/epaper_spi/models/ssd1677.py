@@ -18,8 +18,6 @@ class SSD1677(EpaperModel):
             (0x01, (width - 1) % 256, (width - 1) // 256, 0x02),    # Set column gate limit
             (0x3C, 0x01),    # Set border waveform
             (0x11, 3),      # Set transform
-            (0x4E, 0x00, 0x00),   # Initial RAM X address
-            (0x4F, 0x00, 0x00),   # Initial RAM Y address
         )
 
 
