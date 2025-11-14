@@ -63,12 +63,12 @@ bool HOT EPaperSSD1677::transfer_data() {
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
     if (!this->send_red_) {
-      size_t data_idx = (this->current_data_index_ * this->width_ + this->x_low_) / 8;
-      for (size_t i = 0; i != row_length; i++) {
+      size_t data_idx = (this->current_data_index_++ * this->width_ + this->x_low_) / 8;
+      // using a loop to copy since the source buffer may be sparse.
+      for (size_t i = 0; i != sizeof(bytes_to_send); i++) {
         bytes_to_send[i] = this->buffer_[data_idx++];
       }
     }
-    ++this->current_data_index_;
     this->write_array(bytes_to_send, row_length);  // NOLINT
     if (millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop

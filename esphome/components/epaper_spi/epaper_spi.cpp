@@ -68,7 +68,7 @@ void EPaperBase::data(uint8_t value) {
 // The command is the first byte, length is the length of data only in the second byte, followed by the data.
 // [COMMAND, LENGTH, DATA...]
 void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
-  ESP_LOGV(TAG, "Command: 0x%02X, Length: %d, Data: %s", command, length,
+  ESP_LOGV(TAG, "Command: 0x%02X, Length: %zu, Data: %s", command, length,
            format_hex_pretty(ptr, length, '.', false).c_str());
 
   this->dc_pin_->digital_write(false);
