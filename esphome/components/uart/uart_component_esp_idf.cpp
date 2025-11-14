@@ -251,7 +251,7 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   xSemaphoreGive(this->lock_);
   if (write_len != (int32_t) len) {
     ESP_LOGW(TAG, "uart_write_bytes failed: %d != %zu", write_len, len);
-    mark_failed();
+    this->mark_failed();
   }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
