@@ -7,7 +7,7 @@ namespace esphome::thermopro_ble {
 
 // this size must be large enouth to hold the largest data frame
 // of all supported devices
-#define MAX_DATA_SIZE 24U
+#define MAX_DATA_SIZE 24
 
 struct DeviceParserMapping {
   const char *prefix;
@@ -56,11 +56,17 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
   bool success = false;
   for (auto &service_data : device.get_manufacturer_datas()) {
+    // check maximum data size
+    std::size_t data_size = service_data.data.size() + 2;
+    if (data_size > MAX_DATA_SIZE) {
+      ESP_LOGVV(TAG, "parse_device(): maximum data size exceeded!");
+      continue;
+    }
+
     // reconstruct whole record from 2 byte uuid and data
-    std::size_t data_size = std::min(service_data.data.size() + 2, MAX_DATA_SIZE);
     esp_bt_uuid_t uuid = service_data.uuid.get_uuid();
     uint8_t data[MAX_DATA_SIZE] = {static_cast<uint8_t>(uuid.uuid.uuid16), static_cast<uint8_t>(uuid.uuid.uuid16 >> 8)};
-    std::copy_n(service_data.data.begin(), data_size - 2, std::begin(data) + 2);
+    std::copy(service_data.data.begin(), service_data.data.end(), std::begin(data) + 2);
 
     // dispatch data to parser
     optional<ParseResult> result = this->device_parser_(data, data_size);
