@@ -158,12 +158,8 @@ class CECTransmit {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #define ATOMIC_INCR(atom) ((atom)++)
 #else
-// This fallback is probably only for the older esp8266, which does not provide this atomic opration
-#define ATOMIC_INCR(atom) \
-  { \
-    volatile uint8_t c = atom; \
-    (atom) = c + 1; \
-  }
+// This fallback is probably only for the older esp8266, which does not provide the atomic ++ operation
+#define ATOMIC_INCR(atom) ((atom) = (uint8_t) (atom) + 1)
 #endif
 
 class CECReceive {
