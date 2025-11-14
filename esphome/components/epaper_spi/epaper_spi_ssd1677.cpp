@@ -69,7 +69,7 @@ bool HOT EPaperSSD1677::transfer_data() {
       }
     }
     ++this->current_data_index_;
-    this->write_array(bytes_to_send, row_length);
+    this->write_array(bytes_to_send, row_length);  // NOLINT
     if (millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop
       this->end_data_();
