@@ -465,6 +465,8 @@ void WiFiComponent::loop() {
         if (!this->is_connected()) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
+          // Clear error flag before reconnecting so first attempt is not seen as immediate failure
+          this->error_from_callback_ = false;
           this->retry_connect();
         } else {
           this->status_clear_warning();
@@ -668,25 +670,25 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // Log connection attempt at INFO level with priority
-  std::string bssid_formatted;
+  char bssid_s[18];
   int8_t priority = 0;
 
   if (ap.get_bssid().has_value()) {
-    bssid_formatted = format_mac_address_pretty(ap.get_bssid().value().data());
+    format_mac_addr_upper(ap.get_bssid().value().data(), bssid_s);
     priority = this->get_sta_priority(ap.get_bssid().value());
   }
 
   ESP_LOGI(TAG,
            "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
-           ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_formatted.c_str() : LOG_STR_LITERAL("any"),
-           priority, this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
+           ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_s : LOG_STR_LITERAL("any"), priority,
+           this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
            LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG, "Connection Params:");
   ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
   if (ap.get_bssid().has_value()) {
-    ESP_LOGV(TAG, "  BSSID: %s", format_mac_address_pretty(ap.get_bssid()->data()).c_str());
+    ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
   } else {
     ESP_LOGV(TAG, "  BSSID: Not Set");
   }
@@ -743,6 +745,14 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 }
 
 const LogString *get_signal_bars(int8_t rssi) {
+  // Check for disconnected sentinel value first
+  if (rssi == WIFI_RSSI_DISCONNECTED) {
+    // MULTIPLICATION SIGN
+    // Unicode: U+00D7, UTF-8: C3 97
+    return LOG_STR("\033[0;31m"  // red
+                   "\xc3\x97\xc3\x97\xc3\x97\xc3\x97"
+                   "\033[0m");
+  }
   // LOWER ONE QUARTER BLOCK
   // Unicode: U+2582, UTF-8: E2 96 82
   // LOWER HALF BLOCK
@@ -787,6 +797,8 @@ const LogString *get_signal_bars(int8_t rssi) {
 
 void WiFiComponent::print_connect_params_() {
   bssid_t bssid = wifi_bssid();
+  char bssid_s[18];
+  format_mac_addr_upper(bssid.data(), bssid_s);
 
   ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   if (this->is_disabled()) {
@@ -809,9 +821,9 @@ void WiFiComponent::print_connect_params_() {
                                                                            "  Gateway: %s\n"
                                                                            "  DNS1: %s\n"
                                                                            "  DNS2: %s",
-                wifi_ssid().c_str(), format_mac_address_pretty(bssid.data()).c_str(), App.get_name().c_str(), rssi,
-                LOG_STR_ARG(get_signal_bars(rssi)), get_wifi_channel(), wifi_subnet_mask_().str().c_str(),
-                wifi_gateway_ip_().str().c_str(), wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
+                wifi_ssid().c_str(), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
+                get_wifi_channel(), wifi_subnet_mask_().str().c_str(), wifi_gateway_ip_().str().c_str(),
+                wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid().has_value()) {
     ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(*config->get_bssid()));
@@ -1022,7 +1034,10 @@ void WiFiComponent::check_scanning_finished() {
 }
 
 void WiFiComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "WiFi:");
+  ESP_LOGCONFIG(TAG,
+                "WiFi:\n"
+                "  Connected: %s",
+                YESNO(this->is_connected()));
   this->print_connect_params_();
 }
 
@@ -1047,6 +1062,10 @@ void WiFiComponent::check_connecting_finished() {
     // Reset to initial phase on successful connection (don't log transition, just reset state)
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
+    // Ensure next connection attempt does not inherit error state
+    // so when WiFi disconnects later we start fresh and don't see
+    // the first connection as a failure.
+    this->error_from_callback_ = false;
 
     this->print_connect_params_();
 
@@ -1133,6 +1152,11 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
         return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Move to next AP
       }
 #endif
+      // Check if we should try explicit hidden networks before scanning
+      // This handles reconnection after connection loss where first network is hidden
+      if (!this->sta_.empty() && this->sta_[0].get_hidden()) {
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;
+      }
       // No more APs to try, fall back to scan
       return WiFiRetryPhase::SCAN_CONNECTING;
 
@@ -1390,8 +1414,10 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
         (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
     this->set_sta_priority(failed_bssid.value(), new_priority);
   }
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(),
-           format_mac_address_pretty(failed_bssid.value().data()).c_str(), old_priority, new_priority);
+  char bssid_s[18];
+  format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(), bssid_s,
+           old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start
