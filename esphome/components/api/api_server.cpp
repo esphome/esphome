@@ -541,10 +541,6 @@ bool APIServer::is_connected(bool homeassistant_only) const {
   return false;
 }
 
-bool APIServer::is_connected() const {
-  return this->is_connected(false);
-}
-
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;
 
