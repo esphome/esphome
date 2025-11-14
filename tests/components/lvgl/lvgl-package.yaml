@@ -537,6 +537,9 @@ lvgl:
         - tileview:
             id: tileview_id
             scrollbar_mode: active
+            scroll_dir: all
+            scroll_elastic: true
+            scroll_momentum: true
             on_value:
               then:
                 - if:
@@ -546,6 +549,8 @@ lvgl:
                       - logger.log: "tile 1 is now showing"
             tiles:
               - id: tile_1
+                scroll_snap_y: center
+                scroll_snap_x: start
                 layout: vertical
                 row: 0
                 column: 0
