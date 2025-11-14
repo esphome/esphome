@@ -4,7 +4,19 @@ mcp3204:
 
 sensor:
   - platform: mcp3204
-    id: mcp3204_sensor
+    id: mcp3204_sensor_default_single
     mcp3204_id: mcp3204_hub
     number: 0
+    update_interval: 5s
+  - platform: mcp3204
+    id: mcp3204_sensor_diff
+    mcp3204_id: mcp3204_hub
+    number: 1
+    diff_mode: true
+    update_interval: 5s
+  - platform: mcp3204
+    id: mcp3204_sensor_single
+    mcp3204_id: mcp3204_hub
+    number: 2
+    diff_mode: false
     update_interval: 5s
