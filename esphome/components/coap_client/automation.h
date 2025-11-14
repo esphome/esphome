@@ -82,7 +82,7 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
       // response_payload will be "" if capture_response = false;
       std::string response_payload = this->response_payload_;
       if (capture_resp) {
-        ESP_LOGD("Payload: %s", response_payload.c_str());
+        ESP_LOGV("Payload: %s\n", response_payload.c_str());
       }
       std::apply(
           [this, &resp_stats, &response_payload](Ts... captured_args_inner) {
