@@ -156,7 +156,7 @@ class CECTransmit {
 };
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-#define ATOMIC_INCR(atom) (atom++)
+#define ATOMIC_INCR(atom) ((atom)++)
 #else
 // This fallback is probably only for the older esp8266, which does not provide this atomic opration
 #define ATOMIC_INCR(atom) \
