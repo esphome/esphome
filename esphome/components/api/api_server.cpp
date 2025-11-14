@@ -528,7 +528,7 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected(bool homeassistant_only = false) const {
+bool APIServer::is_connected(bool homeassistant_only) const {
   if (homeassistant_only) {
     for (const auto &client : this->clients_) {
       if (!client->flags_.remove && client->client_info_.name.find("Home Assistant") != std::string::npos) {
@@ -539,6 +539,10 @@ bool APIServer::is_connected(bool homeassistant_only = false) const {
     return !this->clients_.empty();
   }
   return false;
+}
+
+bool APIServer::is_connected() const {
+  return this->is_connected(false);
 }
 
 void APIServer::on_shutdown() {
