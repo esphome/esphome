@@ -3,6 +3,7 @@ from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
+    CONF_EXTERNAL_TEMPERATURE,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_MAC_ADDRESS,
@@ -34,6 +35,12 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(ThermoProBLE),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_EXTERNAL_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
