@@ -1,17 +1,7 @@
 """Tests for lambda deduplication in cpp_generator."""
 
-import pytest
-
 from esphome import cpp_generator as cg
 from esphome.core import CORE
-
-
-@pytest.fixture(autouse=True)
-def reset_core():
-    """Reset CORE.data before each test."""
-    CORE.reset()
-    yield
-    CORE.reset()
 
 
 def test_deduplicate_identical_lambdas():
