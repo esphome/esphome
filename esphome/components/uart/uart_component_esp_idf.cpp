@@ -128,7 +128,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
       return;
     }
     const auto mask = gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN;
-    if (pin->get_flags() & mask != gpio::Flags::FLAG_NONE) {
+    if (pin->get_flags() & mask) {
       pin->setup();
     }
   };
