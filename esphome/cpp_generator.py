@@ -19,6 +19,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
@@ -623,10 +624,11 @@ def add_global(expression: SafeExpType | Statement, prepend: bool = False):
     CORE.add_global(expression, prepend)
 
 
-def flush_lambda_dedup_declarations():
+@coroutine_with_priority(CoroPriority.FINAL)
+async def flush_lambda_dedup_declarations() -> None:
     """Flush all deferred lambda deduplication declarations to global scope.
 
-    This must be called after all component code generation is complete
+    This is a coroutine that runs with FINAL priority (after all components)
     to ensure all referenced variables are declared before the shared
     lambda functions that use them.
     """
@@ -740,6 +742,9 @@ def _try_deduplicate_lambda(lambda_expr: LambdaExpression) -> str | None:
     # Initialize deduplication storage in CORE.data if not exists
     if _KEY_LAMBDA_DEDUP not in CORE.data:
         CORE.data[_KEY_LAMBDA_DEDUP] = {}
+        # Register the flush job to run after all components (FINAL priority)
+        # This ensures all variables are declared before shared lambda functions
+        CORE.add_job(flush_lambda_dedup_declarations)
 
     lambda_cache = CORE.data[_KEY_LAMBDA_DEDUP]
 

@@ -497,11 +497,6 @@ def generate_cpp_contents(config: ConfigType) -> None:
 
     CORE.flush_tasks()
 
-    # Flush deferred lambda deduplication declarations after all variables are declared
-    from esphome import cpp_generator as cg
-
-    cg.flush_lambda_dedup_declarations()
-
 
 def write_cpp_file() -> int:
     code_s = indent(CORE.cpp_main_section)
