@@ -12,8 +12,16 @@ class Inkplate2Model(EpaperModel):
 
     def get_init_sequence(self, config: dict):
         width, height = self.get_dimensions(config)
-        # State machine will wait for busy after this sequence before data transfer
+        # DEVIATION: Command 0x04 (power on) must be first in the init sequence for Inkplate 2.
+        # Unlike the spectra_e6 e-paper displays where display power-on happens after data transfer, Inkplate 2
+        # requires the display to be powered on before configuration. This matches Soldered's
+        # reference implementation where setPanelDeepSleep(false) sends 0x04 first.
+        # See: https://github.com/SolderedElectronics/Inkplate-Arduino-library/blob/master/src/boards/Inkplate2.cpp#L197-L212
+        # The state machine will wait for busy after this sequence before proceeding to data transfer.
         return (
+            (
+                0x04,  # Power on / wake from deep sleep - MUST BE FIRST!
+            ),
             (
                 0x00,  # Enter panel setting
                 0x0F,  # LUT from OTP 128x296

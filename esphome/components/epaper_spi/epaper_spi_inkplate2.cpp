@@ -10,8 +10,11 @@ static constexpr const char *const TAG = "epaper_spi.inkplate2";
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
 
 void EPaperInkplate2::power_on() {
-  ESP_LOGD(TAG, "Power on");
-  this->command(0x04);
+  // DEVIATION: Unlike some e-paper displays, Inkplate 2 seems to require the power-on command (0x04)
+  // BEFORE data transfer can occur. This matches Soldered's reference implementation.
+  // See: https://github.com/SolderedElectronics/Inkplate-Arduino-library/blob/master/src/boards/Inkplate2.cpp#L197
+  // This empty function maintains compatibility with the epaper_spi state machine.
+  ESP_LOGD(TAG, "Power on (already powered during init)");
 }
 
 void EPaperInkplate2::power_off() {
@@ -23,7 +26,14 @@ void EPaperInkplate2::power_off() {
 
 void EPaperInkplate2::refresh_screen() {
   ESP_LOGV(TAG, "Refresh screen");
-  this->command(0x12);
+  // DEVIATION: Sending 0x11 at the end of transfer_data() triggers the busy pin, which won't clear until
+  // after refresh completes. The state machine waits for idle between states, causing a 16+ second
+  // delay. Sending 0x11 and 0x12 consecutively avoids this wait, matching Soldered's implementation.
+  // See: https://github.com/SolderedElectronics/Inkplate-Arduino-library/blob/master/src/boards/Inkplate2.cpp#L150-L153
+  this->command(0x11);  // Stop data transfer
+  this->data(0x00);
+  this->command(0x12);     // Display refresh
+  delayMicroseconds(500);  // Required by hardware - wait at least 200μs
 }
 
 void EPaperInkplate2::deep_sleep() {
@@ -168,10 +178,6 @@ bool HOT EPaperInkplate2::transfer_data() {
     this->write_array(bytes_to_send, buf_idx);
     this->end_data_();
   }
-
-  // Stop data transfer
-  this->command(0x11);
-  this->data(0x00);
 
   this->current_data_index_ = 0;
   ESP_LOGV(TAG, "Sent all data in %" PRIu32 " ms", millis() - this->transfer_start_time_);

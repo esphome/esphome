@@ -1,57 +1,10 @@
-esphome:
-  name: inkplate2-test
-  friendly_name: Inkplate2Test
-
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-
-logger:
-  level: DEBUG
-
 packages:
-  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
-
-interval:
-  - interval: 30s
-    then:
-      - display.page.show_next: epaper_display
-      - component.update: epaper_display
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
 
 display:
   - platform: epaper_spi
-    id: epaper_display
-    spi_id: spi_bus
     model: inkplate2
-    cs_pin: GPIO15
-    dc_pin: GPIO33
-    reset_pin: GPIO21
-    busy_pin: GPIO32
     rotation: 90
-    update_interval: never
-    pages:
-      - id: page_circles
-        lambda: |-
-          // Clear to white background
-          it.fill(COLOR_OFF);
-
-          // Black circle on left
-          it.filled_circle(70, 52, 30, COLOR_ON);
-
-          // Red circle on right
-          it.filled_circle(142, 52, 30, Color(255, 0, 0));
-      - id: page_clear
-        lambda: |-
-          // Clear to white background
-          it.fill(COLOR_OFF);
-      - id: page_triangles
-        lambda: |-
-          // Clear to white background
-          it.fill(COLOR_OFF);
-
-          // Red triangle on left (opposite of black circle)
-          it.filled_triangle(40, 22, 70, 82, 100, 22, Color(255, 0, 0));
-
-          // Black triangle on right (opposite of red circle)
-          it.filled_triangle(112, 22, 142, 82, 172, 22, COLOR_ON);
+    update_interval: 10s
+    lambda: |-
+      it.circle(64, 64, 50, Color::BLACK);
