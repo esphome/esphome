@@ -528,8 +528,8 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected(bool homeassistant_only) const {
-  if (!homeassistant_only) {
+bool APIServer::is_connected(bool state_subscription_only) const {
+  if (!state_subscription_only) {
     return !this->clients_.empty();
   }
 
