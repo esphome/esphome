@@ -107,8 +107,10 @@ class ClimateCall {
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
   const optional<ClimatePreset> &get_preset() const;
-  optional<std::string> get_custom_fan_mode() const;
-  optional<std::string> get_custom_preset() const;
+  const char *get_custom_fan_mode() const { return this->custom_fan_mode_; }
+  const char *get_custom_preset() const { return this->custom_preset_; }
+  bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
+  bool has_custom_preset() const { return this->custom_preset_ != nullptr; }
 
  protected:
   void validate_();
@@ -122,6 +124,8 @@ class ClimateCall {
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
   optional<ClimatePreset> preset_;
+
+ private:
   const char *custom_fan_mode_{nullptr};
   const char *custom_preset_{nullptr};
 };

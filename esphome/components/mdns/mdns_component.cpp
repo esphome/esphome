@@ -37,8 +37,6 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
 void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
-  this->hostname_ = App.get_name();
-
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
@@ -179,7 +177,7 @@ void MDNSComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "mDNS:\n"
                 "  Hostname: %s",
-                this->hostname_.c_str());
+                App.get_name().c_str());
 #ifdef USE_MDNS_STORE_SERVICES
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {

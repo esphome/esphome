@@ -17,7 +17,7 @@ namespace esphome {
 template<typename... Ts> class AndCondition : public Condition<Ts...> {
  public:
   explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
         return false;
@@ -33,7 +33,7 @@ template<typename... Ts> class AndCondition : public Condition<Ts...> {
 template<typename... Ts> class OrCondition : public Condition<Ts...> {
  public:
   explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
         return true;
@@ -49,7 +49,7 @@ template<typename... Ts> class OrCondition : public Condition<Ts...> {
 template<typename... Ts> class NotCondition : public Condition<Ts...> {
  public:
   explicit NotCondition(Condition<Ts...> *condition) : condition_(condition) {}
-  bool check(Ts... x) override { return !this->condition_->check(x...); }
+  bool check(const Ts &...x) override { return !this->condition_->check(x...); }
 
  protected:
   Condition<Ts...> *condition_;
@@ -58,7 +58,7 @@ template<typename... Ts> class NotCondition : public Condition<Ts...> {
 template<typename... Ts> class XorCondition : public Condition<Ts...> {
  public:
   explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
       result += condition->check(x...);
@@ -74,7 +74,7 @@ template<typename... Ts> class XorCondition : public Condition<Ts...> {
 template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
  public:
   explicit LambdaCondition(std::function<bool(Ts...)> &&f) : f_(std::move(f)) {}
-  bool check(Ts... x) override { return this->f_(x...); }
+  bool check(const Ts &...x) override { return this->f_(x...); }
 
  protected:
   std::function<bool(Ts...)> f_;
@@ -86,7 +86,7 @@ template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
 template<typename... Ts> class StatelessLambdaCondition : public Condition<Ts...> {
  public:
   explicit StatelessLambdaCondition(bool (*f)(Ts...)) : f_(f) {}
-  bool check(Ts... x) override { return this->f_(x...); }
+  bool check(const Ts &...x) override { return this->f_(x...); }
 
  protected:
   bool (*f_)(Ts...);
@@ -98,22 +98,28 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
 
   TEMPLATABLE_VALUE(uint32_t, time);
 
-  void loop() override { this->check_internal(); }
-  float get_setup_priority() const override { return setup_priority::DATA; }
-  bool check_internal() {
-    bool cond = this->condition_->check();
-    if (!cond)
-      this->last_inactive_ = App.get_loop_component_start_time();
-    return cond;
+  void loop() override {
+    // Safe to use cached time - only called from Application::loop()
+    this->check_internal_(App.get_loop_component_start_time());
   }
 
-  bool check(Ts... x) override {
-    if (!this->check_internal())
+  float get_setup_priority() const override { return setup_priority::DATA; }
+
+  bool check(const Ts &...x) override {
+    auto now = millis();
+    if (!this->check_internal_(now))
       return false;
-    return millis() - this->last_inactive_ >= this->time_.value(x...);
+    return now - this->last_inactive_ >= this->time_.value(x...);
   }
 
  protected:
+  bool check_internal_(uint32_t now) {
+    bool cond = this->condition_->check();
+    if (!cond)
+      this->last_inactive_ = now;
+    return cond;
+  }
+
   Condition<> *condition_;
   uint32_t last_inactive_{0};
 };
@@ -171,8 +177,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
 
   TEMPLATABLE_VALUE(uint32_t, delay)
 
-  void play_complex(Ts... x) override {
-    auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
 
     // If num_running_ > 1, we have multiple instances running in parallel
@@ -181,13 +186,26 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
     // Users should set max_runs on parallel scripts to limit concurrent executions.
     // Issue #10264: This is a workaround for parallel script delays interfering with each other.
-    App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
-                                    /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
-                                    /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+
+    // Optimization: For no-argument delays (most common case), use direct lambda
+    // instead of std::bind to avoid bind overhead (~16 bytes heap + faster execution)
+    if constexpr (sizeof...(Ts) == 0) {
+      App.scheduler.set_timer_common_(
+          this, Scheduler::SchedulerItem::TIMEOUT,
+          /* is_static_string= */ true, "delay", this->delay_.value(), [this]() { this->play_next_(); },
+          /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+    } else {
+      // For delays with arguments, use std::bind to preserve argument values
+      // Arguments must be copied because original references may be invalid after delay
+      auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
+      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
+                                      /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
+                                      /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+    }
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
   void stop() override { this->cancel_timeout("delay"); }
@@ -197,7 +215,7 @@ template<typename... Ts> class LambdaAction : public Action<Ts...> {
  public:
   explicit LambdaAction(std::function<void(Ts...)> &&f) : f_(std::move(f)) {}
 
-  void play(Ts... x) override { this->f_(x...); }
+  void play(const Ts &...x) override { this->f_(x...); }
 
  protected:
   std::function<void(Ts...)> f_;
@@ -210,7 +228,7 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
  public:
   explicit StatelessLambdaAction(void (*f)(Ts...)) : f_(f) {}
 
-  void play(Ts... x) override { this->f_(x...); }
+  void play(const Ts &...x) override { this->f_(x...); }
 
  protected:
   void (*f_)(Ts...);
@@ -223,7 +241,7 @@ template<typename... Ts> class ContinuationAction : public Action<Ts...> {
  public:
   explicit ContinuationAction(Action<Ts...> *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->play_next_(x...); }
+  void play(const Ts &...x) override { this->parent_->play_next_(x...); }
 
  protected:
   Action<Ts...> *parent_;
@@ -238,7 +256,7 @@ template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
  public:
   explicit WhileLoopContinuation(WhileAction<Ts...> *parent) : parent_(parent) {}
 
-  void play(Ts... x) override;
+  void play(const Ts &...x) override;
 
  protected:
   WhileAction<Ts...> *parent_;
@@ -258,7 +276,7 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
     this->else_.add_action(new ContinuationAction<Ts...>(this));
   }
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     bool res = this->condition_->check(x...);
     if (res) {
@@ -276,7 +294,7 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
     }
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
   void stop() override {
@@ -301,7 +319,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   friend class WhileLoopContinuation<Ts...>;
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     // Initial condition check
     if (!this->condition_->check(x...)) {
@@ -316,7 +334,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     }
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
   void stop() override { this->then_.stop(); }
@@ -327,7 +345,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 };
 
 // Implementation of WhileLoopContinuation::play
-template<typename... Ts> void WhileLoopContinuation<Ts...>::play(Ts... x) {
+template<typename... Ts> void WhileLoopContinuation<Ts...>::play(const Ts &...x) {
   if (this->parent_->num_running_ > 0 && this->parent_->condition_->check(x...)) {
     // play again
     this->parent_->then_.play(x...);
@@ -346,7 +364,7 @@ template<typename... Ts> class RepeatLoopContinuation : public Action<uint32_t, 
  public:
   explicit RepeatLoopContinuation(RepeatAction<Ts...> *parent) : parent_(parent) {}
 
-  void play(uint32_t iteration, Ts... x) override;
+  void play(const uint32_t &iteration, const Ts &...x) override;
 
  protected:
   RepeatAction<Ts...> *parent_;
@@ -363,7 +381,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 
   friend class RepeatLoopContinuation<Ts...>;
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     if (this->count_.value(x...) > 0) {
       this->then_.play(0, x...);
@@ -372,7 +390,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     }
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
   void stop() override { this->then_.stop(); }
@@ -382,12 +400,12 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 };
 
 // Implementation of RepeatLoopContinuation::play
-template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(uint32_t iteration, Ts... x) {
-  iteration++;
-  if (iteration >= this->parent_->count_.value(x...)) {
+template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(const uint32_t &iteration, const Ts &...x) {
+  uint32_t next_iteration = iteration + 1;
+  if (next_iteration >= this->parent_->count_.value(x...)) {
     this->parent_->play_next_(x...);
   } else {
-    this->parent_->then_.play(iteration, x...);
+    this->parent_->then_.play(next_iteration, x...);
   }
 }
 
@@ -406,10 +424,15 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   void setup() override {
     // Start with loop disabled - only enable when there's work to do
-    this->disable_loop();
+    // IMPORTANT: Only disable if num_running_ is 0, otherwise play_complex() was already
+    // called before our setup() (e.g., from on_boot trigger at same priority level)
+    // and we must not undo its enable_loop() call
+    if (this->num_running_ == 0) {
+      this->disable_loop();
+    }
   }
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     // Check if we can continue immediately.
     if (this->condition_->check(x...)) {
@@ -424,34 +447,17 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     auto timeout = this->timeout_value_.optional_value(x...);
     this->var_queue_.emplace_front(now, timeout, std::make_tuple(x...));
 
-    // Enable loop now that we have work to do
-    this->enable_loop();
-    this->loop();
+    // Do immediate check with fresh timestamp
+    if (this->process_queue_(now)) {
+      // Only enable loop if we still have pending items
+      this->enable_loop();
+    }
   }
 
   void loop() override {
-    if (this->num_running_ == 0)
-      return;
-
-    auto now = App.get_loop_component_start_time();
-
-    this->var_queue_.remove_if([&](auto &queued) {
-      auto start = std::get<uint32_t>(queued);
-      auto timeout = std::get<optional<uint32_t>>(queued);
-      auto &var = std::get<std::tuple<Ts...>>(queued);
-
-      auto expired = timeout && (now - start) >= *timeout;
-
-      if (!expired && !this->condition_->check_tuple(var)) {
-        return false;
-      }
-
-      this->play_next_tuple_(var);
-      return true;
-    });
-
-    // If queue is now empty, disable loop until next play_complex
-    if (this->var_queue_.empty()) {
+    // Safe to use cached time - only called from Application::loop()
+    if (this->num_running_ > 0 && !this->process_queue_(App.get_loop_component_start_time())) {
+      // If queue is now empty, disable loop until next play_complex
       this->disable_loop();
     }
   }
@@ -463,10 +469,35 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
  protected:
+  // Helper: Process queue, triggering completed items and removing them
+  // Returns true if queue still has pending items
+  bool process_queue_(uint32_t now) {
+    // Process each queued wait_until and remove completed ones
+    this->var_queue_.remove_if([&](auto &queued) {
+      auto start = std::get<uint32_t>(queued);
+      auto timeout = std::get<optional<uint32_t>>(queued);
+      auto &var = std::get<std::tuple<Ts...>>(queued);
+
+      // Check if timeout has expired
+      auto expired = timeout && (now - start) >= *timeout;
+
+      // Keep waiting if not expired and condition not met
+      if (!expired && !this->condition_->check_tuple(var)) {
+        return false;
+      }
+
+      // Condition met or timed out - trigger next action
+      this->play_next_tuple_(var);
+      return true;
+    });
+
+    return !this->var_queue_.empty();
+  }
+
   Condition<Ts...> *condition_;
   std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
 };
@@ -475,7 +506,7 @@ template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
  public:
   UpdateComponentAction(PollingComponent *component) : component_(component) {}
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (!this->component_->is_ready())
       return;
     this->component_->update();
@@ -489,7 +520,7 @@ template<typename... Ts> class SuspendComponentAction : public Action<Ts...> {
  public:
   SuspendComponentAction(PollingComponent *component) : component_(component) {}
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (!this->component_->is_ready())
       return;
     this->component_->stop_poller();
@@ -504,7 +535,7 @@ template<typename... Ts> class ResumeComponentAction : public Action<Ts...> {
   ResumeComponentAction(PollingComponent *component) : component_(component) {}
   TEMPLATABLE_VALUE(uint32_t, update_interval)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (!this->component_->is_ready()) {
       return;
     }

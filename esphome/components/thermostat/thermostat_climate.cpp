@@ -53,7 +53,7 @@ void ThermostatClimate::setup() {
   if (use_default_preset) {
     if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
       this->change_preset_(this->default_preset_);
-    } else if (!this->default_custom_preset_.empty()) {
+    } else if (this->default_custom_preset_ != nullptr) {
       this->change_custom_preset_(this->default_custom_preset_);
     }
   }
@@ -218,13 +218,13 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
       this->preset = call.get_preset().value();
     }
   }
-  if (call.get_custom_preset().has_value()) {
+  if (call.has_custom_preset()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_custom_preset_(call.get_custom_preset().value());
+      this->change_custom_preset_(call.get_custom_preset());
     } else {
       // Use the base class method which handles pointer lookup internally
-      this->set_custom_preset_(call.get_custom_preset().value().c_str());
+      this->set_custom_preset_(call.get_custom_preset());
     }
   }
 
@@ -319,16 +319,16 @@ climate::ClimateTraits ThermostatClimate::traits() {
   if (this->supports_swing_mode_vertical_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
 
-  for (auto &it : this->preset_config_) {
-    traits.add_supported_preset(it.first);
+  for (const auto &entry : this->preset_config_) {
+    traits.add_supported_preset(entry.preset);
   }
 
-  // Extract custom preset names from the custom_preset_config_ map
+  // Extract custom preset names from the custom_preset_config_ vector
   if (!this->custom_preset_config_.empty()) {
     std::vector<const char *> custom_preset_names;
     custom_preset_names.reserve(this->custom_preset_config_.size());
-    for (const auto &it : this->custom_preset_config_) {
-      custom_preset_names.push_back(it.first.c_str());
+    for (const auto &entry : this->custom_preset_config_) {
+      custom_preset_names.push_back(entry.name);
     }
     traits.set_supported_custom_presets(custom_preset_names);
   }
@@ -1154,12 +1154,18 @@ void ThermostatClimate::dump_preset_config_(const char *preset_name, const Therm
 }
 
 void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
-  auto config = this->preset_config_.find(preset);
+  // Linear search through preset configurations
+  const ThermostatClimateTargetTempConfig *config = nullptr;
+  for (const auto &entry : this->preset_config_) {
+    if (entry.preset == preset) {
+      config = &entry.config;
+      break;
+    }
+  }
 
-  if (config != this->preset_config_.end()) {
+  if (config != nullptr) {
     ESP_LOGV(TAG, "Preset %s requested", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
-    if (this->change_preset_internal_(config->second) || (!this->preset.has_value()) ||
-        this->preset.value() != preset) {
+    if (this->change_preset_internal_(*config) || (!this->preset.has_value()) || this->preset.value() != preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       this->set_preset_(preset);
@@ -1177,31 +1183,38 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) {
-  auto config = this->custom_preset_config_.find(custom_preset);
+void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
+  // Linear search through custom preset configurations
+  const ThermostatClimateTargetTempConfig *config = nullptr;
+  for (const auto &entry : this->custom_preset_config_) {
+    if (strcmp(entry.name, custom_preset) == 0) {
+      config = &entry.config;
+      break;
+    }
+  }
 
-  if (config != this->custom_preset_config_.end()) {
-    ESP_LOGV(TAG, "Custom preset %s requested", custom_preset.c_str());
-    if (this->change_preset_internal_(config->second) || !this->has_custom_preset() ||
-        strcmp(this->get_custom_preset(), custom_preset.c_str()) != 0) {
+  if (config != nullptr) {
+    ESP_LOGV(TAG, "Custom preset %s requested", custom_preset);
+    if (this->change_preset_internal_(*config) || !this->has_custom_preset() ||
+        strcmp(this->get_custom_preset(), custom_preset) != 0) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally
-      this->set_custom_preset_(custom_preset.c_str());
+      this->set_custom_preset_(custom_preset);
       if (trig != nullptr) {
         trig->trigger();
       }
 
       this->refresh();
-      ESP_LOGI(TAG, "Custom preset %s applied", custom_preset.c_str());
+      ESP_LOGI(TAG, "Custom preset %s applied", custom_preset);
     } else {
-      ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset.c_str());
+      ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset);
+      // Note: set_custom_preset_() above handles preset.reset() and custom_preset_ assignment internally.
+      // The old code had these lines here unconditionally, which was a bug (double assignment, state modification
+      // even when no changes were needed). Now properly handled by the protected setter with mutual exclusion.
     }
-    // Note: set_custom_preset_() above handles preset.reset() and custom_preset_ assignment internally.
-    // The old code had these lines here unconditionally, which was a bug (double assignment, state modification
-    // even when no changes were needed). Now properly handled by the protected setter with mutual exclusion.
   } else {
-    ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset.c_str());
+    ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset);
   }
 }
 
@@ -1247,14 +1260,12 @@ bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
   return something_changed;
 }
 
-void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
-                                          const ThermostatClimateTargetTempConfig &config) {
-  this->preset_config_[preset] = config;
+void ThermostatClimate::set_preset_config(std::initializer_list<PresetEntry> presets) {
+  this->preset_config_ = presets;
 }
 
-void ThermostatClimate::set_custom_preset_config(const std::string &name,
-                                                 const ThermostatClimateTargetTempConfig &config) {
-  this->custom_preset_config_[name] = config;
+void ThermostatClimate::set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets) {
+  this->custom_preset_config_ = presets;
 }
 
 ThermostatClimate::ThermostatClimate()
@@ -1293,8 +1304,16 @@ ThermostatClimate::ThermostatClimate()
       humidity_control_humidify_action_trigger_(new Trigger<>()),
       humidity_control_off_action_trigger_(new Trigger<>()) {}
 
-void ThermostatClimate::set_default_preset(const std::string &custom_preset) {
-  this->default_custom_preset_ = custom_preset;
+void ThermostatClimate::set_default_preset(const char *custom_preset) {
+  // Find the preset in custom_preset_config_ and store pointer from there
+  for (const auto &entry : this->custom_preset_config_) {
+    if (strcmp(entry.name, custom_preset) == 0) {
+      this->default_custom_preset_ = entry.name;
+      return;
+    }
+  }
+  // If not found, it will be caught during validation
+  this->default_custom_preset_ = nullptr;
 }
 
 void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
@@ -1605,19 +1624,22 @@ void ThermostatClimate::dump_config() {
 
   if (!this->preset_config_.empty()) {
     ESP_LOGCONFIG(TAG, "  Supported PRESETS:");
-    for (auto &it : this->preset_config_) {
-      const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it.first));
-      ESP_LOGCONFIG(TAG, "    %s:%s", preset_name, it.first == this->default_preset_ ? " (default)" : "");
-      this->dump_preset_config_(preset_name, it.second);
+    for (const auto &entry : this->preset_config_) {
+      const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(entry.preset));
+      ESP_LOGCONFIG(TAG, "    %s:%s", preset_name, entry.preset == this->default_preset_ ? " (default)" : "");
+      this->dump_preset_config_(preset_name, entry.config);
     }
   }
 
   if (!this->custom_preset_config_.empty()) {
     ESP_LOGCONFIG(TAG, "  Supported CUSTOM PRESETS:");
-    for (auto &it : this->custom_preset_config_) {
-      const auto *preset_name = it.first.c_str();
-      ESP_LOGCONFIG(TAG, "    %s:%s", preset_name, it.first == this->default_custom_preset_ ? " (default)" : "");
-      this->dump_preset_config_(preset_name, it.second);
+    for (const auto &entry : this->custom_preset_config_) {
+      const auto *preset_name = entry.name;
+      ESP_LOGCONFIG(TAG, "    %s:%s", preset_name,
+                    (this->default_custom_preset_ != nullptr && strcmp(entry.name, this->default_custom_preset_) == 0)
+                        ? " (default)"
+                        : "");
+      this->dump_preset_config_(preset_name, entry.config);
     }
   }
 }

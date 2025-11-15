@@ -156,6 +156,8 @@ class Fan : public EntityBase {
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_;
+
+ private:
   const char *preset_mode_{nullptr};
 };
 

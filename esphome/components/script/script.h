@@ -46,14 +46,14 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
 
   // execute this script using a tuple that contains the arguments
   void execute_tuple(const std::tuple<Ts...> &tuple) {
-    this->execute_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+    this->execute_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
   }
 
   // Internal function to give scripts readable names.
   void set_name(const LogString *name) { name_ = name; }
 
  protected:
-  template<int... S> void execute_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> void execute_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->execute(std::get<S>(tuple)...);
   }
 
@@ -157,7 +157,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       const size_t queue_capacity = static_cast<size_t>(this->max_runs_ - 1);
       auto tuple_ptr = std::move(this->var_queue_[this->queue_front_]);
       this->queue_front_ = (this->queue_front_ + 1) % queue_capacity;
-      this->trigger_tuple_(*tuple_ptr, typename gens<sizeof...(Ts)>::type());
+      this->trigger_tuple_(*tuple_ptr, std::make_index_sequence<sizeof...(Ts)>{});
     }
   }
 
@@ -174,7 +174,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
     }
   }
 
-  template<int... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->trigger(std::get<S>(tuple)...);
   }
 
@@ -215,7 +215,7 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
 
   template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
 
-  void play(Ts... x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
+  void play(const Ts &...x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
 
  protected:
   // NOTE:
@@ -249,7 +249,7 @@ template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> 
  public:
   ScriptStopAction(C *script) : script_(script) {}
 
-  void play(Ts... x) override { this->script_->stop(); }
+  void play(const Ts &...x) override { this->script_->stop(); }
 
  protected:
   C *script_;
@@ -259,7 +259,7 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  public:
   explicit IsRunningCondition(C *parent) : parent_(parent) {}
 
-  bool check(Ts... x) override { return this->parent_->is_running(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running(); }
 
  protected:
   C *parent_;
@@ -281,7 +281,7 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     this->disable_loop();
   }
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     // Check if we can continue immediately.
     if (!this->script_->is_running()) {
@@ -305,14 +305,14 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
 
     while (!this->param_queue_.empty()) {
       auto &params = this->param_queue_.front();
-      this->play_next_tuple_(params, typename gens<sizeof...(Ts)>::type());
+      this->play_next_tuple_(params, std::make_index_sequence<sizeof...(Ts)>{});
       this->param_queue_.pop_front();
     }
     // Queue is now empty - disable loop until next play_complex
     this->disable_loop();
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
   void stop() override {
@@ -321,7 +321,7 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
   }
 
  protected:
-  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play_next_(std::get<S>(tuple)...);
   }
 

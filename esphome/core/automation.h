@@ -11,10 +11,27 @@
 
 namespace esphome {
 
+// C++20 std::index_sequence is now used for tuple unpacking
+// Legacy seq<>/gens<> pattern deprecated but kept for backwards compatibility
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
-template<int...> struct seq {};                                       // NOLINT
-template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT
-template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
+// Remove before 2026.6.0
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+template<int...> struct ESPDEPRECATED("Use std::index_sequence instead. Removed in 2026.6.0", "2025.12.0") seq {};
+// NOLINTNEXTLINE(readability-identifier-naming)
+template<int N, int... S>
+struct ESPDEPRECATED("Use std::make_index_sequence instead. Removed in 2026.6.0", "2025.12.0") gens
+    : gens<N - 1, N - 1, S...> {};
+// NOLINTNEXTLINE(readability-identifier-naming)
+template<int... S> struct gens<0, S...> { using type = seq<S...>; };
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
@@ -148,15 +165,15 @@ template<typename T, typename... X> class TemplatableValue {
 template<typename... Ts> class Condition {
  public:
   /// Check whether this condition passes. This condition check must be instant, and not cause any delays.
-  virtual bool check(Ts... x) = 0;
+  virtual bool check(const Ts &...x) = 0;
 
   /// Call check with a tuple of values as parameter.
   bool check_tuple(const std::tuple<Ts...> &tuple) {
-    return this->check_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+    return this->check_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
   }
 
  protected:
-  template<int... S> bool check_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> bool check_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     return this->check(std::get<S>(tuple)...);
   }
 };
@@ -166,7 +183,7 @@ template<typename... Ts> class Automation;
 template<typename... Ts> class Trigger {
  public:
   /// Inform the parent automation that the event has triggered.
-  void trigger(Ts... x) {
+  void trigger(const Ts &...x) {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
@@ -194,7 +211,7 @@ template<typename... Ts> class ActionList;
 
 template<typename... Ts> class Action {
  public:
-  virtual void play_complex(Ts... x) {
+  virtual void play_complex(const Ts &...x) {
     this->num_running_++;
     this->play(x...);
     this->play_next_(x...);
@@ -222,8 +239,8 @@ template<typename... Ts> class Action {
   friend ActionList<Ts...>;
   template<typename... Us> friend class ContinuationAction;
 
-  virtual void play(Ts... x) = 0;
-  void play_next_(Ts... x) {
+  virtual void play(const Ts &...x) = 0;
+  void play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
       if (this->next_ != nullptr) {
@@ -231,11 +248,11 @@ template<typename... Ts> class Action {
       }
     }
   }
-  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play_next_(std::get<S>(tuple)...);
   }
   void play_next_tuple_(const std::tuple<Ts...> &tuple) {
-    this->play_next_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+    this->play_next_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
   }
 
   virtual void stop() {}
@@ -273,11 +290,13 @@ template<typename... Ts> class ActionList {
       this->add_action(action);
     }
   }
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->play_complex(x...);
   }
-  void play_tuple(const std::tuple<Ts...> &tuple) { this->play_tuple_(tuple, typename gens<sizeof...(Ts)>::type()); }
+  void play_tuple(const std::tuple<Ts...> &tuple) {
+    this->play_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
+  }
   void stop() {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->stop_complex();
@@ -298,7 +317,7 @@ template<typename... Ts> class ActionList {
   }
 
  protected:
-  template<int... S> void play_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> void play_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play(std::get<S>(tuple)...);
   }
 
@@ -315,7 +334,7 @@ template<typename... Ts> class Automation {
 
   void stop() { this->actions_.stop(); }
 
-  void trigger(Ts... x) { this->actions_.play(x...); }
+  void trigger(const Ts &...x) { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
 

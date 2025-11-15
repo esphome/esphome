@@ -63,14 +63,14 @@ class DemoClimate : public climate::Climate, public Component {
     if (call.get_swing_mode().has_value()) {
       this->swing_mode = *call.get_swing_mode();
     }
-    if (call.get_custom_fan_mode().has_value()) {
-      this->set_custom_fan_mode_(call.get_custom_fan_mode()->c_str());
+    if (call.has_custom_fan_mode()) {
+      this->set_custom_fan_mode_(call.get_custom_fan_mode());
     }
     if (call.get_preset().has_value()) {
       this->set_preset_(*call.get_preset());
     }
-    if (call.get_custom_preset().has_value()) {
-      this->set_custom_preset_(call.get_custom_preset()->c_str());
+    if (call.has_custom_preset()) {
+      this->set_custom_preset_(call.get_custom_preset());
     }
     this->publish_state();
   }

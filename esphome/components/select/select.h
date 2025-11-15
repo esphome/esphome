@@ -35,7 +35,7 @@ class Select : public EntityBase {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   /// @deprecated Use current_option() instead. This member will be removed in ESPHome 2026.5.0.
-  __attribute__((deprecated("Use current_option() instead of .state. Will be removed in 2026.5.0")))
+  ESPDEPRECATED("Use current_option() instead of .state. Will be removed in 2026.5.0", "2025.11.0")
   std::string state{};
 
   Select() = default;
@@ -94,18 +94,13 @@ class Select : public EntityBase {
 
   /** Set the value of the select, this is a virtual method that each select integration can implement.
    *
-   * This method is called by control(size_t) when not overridden, or directly by external code.
-   * Integrations can either:
-   * 1. Override this method to handle string-based control (traditional approach)
-   * 2. Override control(size_t) instead to work with indices directly (recommended)
+   * IMPORTANT: At least ONE of the two control() methods must be overridden by derived classes.
+   * Overriding control(size_t) is PREFERRED as it avoids string conversions.
    *
+   * This method is called by control(size_t) when not overridden, or directly by external code.
    * Default implementation converts to index and calls control(size_t).
    *
-   * Delegation chain:
-   * - SelectCall::perform() → control(size_t) → [if not overridden] → control(string)
-   * - External code → control(string) → publish_state(string) → publish_state(size_t)
-   *
-   * @param value The value as validated by the SelectCall.
+   * @param value The value as validated by the caller.
    */
   virtual void control(const std::string &value) {
     auto index = this->index_of(value);

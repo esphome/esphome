@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.11.0-dev"
+__version__ = "2025.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -838,7 +838,6 @@ CONF_RMT_CHANNEL = "rmt_channel"
 CONF_RMT_SYMBOLS = "rmt_symbols"
 CONF_ROTATION = "rotation"
 CONF_ROW = "row"
-CONF_ROWS = "rows"
 CONF_RS_PIN = "rs_pin"
 CONF_RTD_NOMINAL_RESISTANCE = "rtd_nominal_resistance"
 CONF_RTD_WIRES = "rtd_wires"

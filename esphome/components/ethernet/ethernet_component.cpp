@@ -381,7 +381,10 @@ void EthernetComponent::dump_config() {
       break;
   }
 
-  ESP_LOGCONFIG(TAG, "Ethernet:");
+  ESP_LOGCONFIG(TAG,
+                "Ethernet:\n"
+                "  Connected: %s",
+                YESNO(this->is_connected()));
   this->dump_connect_params_();
 #ifdef USE_ETHERNET_SPI
   ESP_LOGCONFIG(TAG,
@@ -417,8 +420,6 @@ void EthernetComponent::dump_config() {
 }
 
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
-
-bool EthernetComponent::can_proceed() { return this->is_connected(); }
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
@@ -552,11 +553,14 @@ void EthernetComponent::start_connect_() {
   }
 
   esp_netif_ip_info_t info;
+#ifdef USE_ETHERNET_MANUAL_IP
   if (this->manual_ip_.has_value()) {
     info.ip = this->manual_ip_->static_ip;
     info.gw = this->manual_ip_->gateway;
     info.netmask = this->manual_ip_->subnet;
-  } else {
+  } else
+#endif
+  {
     info.ip.addr = 0;
     info.gw.addr = 0;
     info.netmask.addr = 0;
@@ -577,6 +581,7 @@ void EthernetComponent::start_connect_() {
   err = esp_netif_set_ip_info(this->eth_netif_, &info);
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
+#ifdef USE_ETHERNET_MANUAL_IP
   if (this->manual_ip_.has_value()) {
     LwIPLock lock;
     if (this->manual_ip_->dns1.is_set()) {
@@ -589,7 +594,9 @@ void EthernetComponent::start_connect_() {
       d = this->manual_ip_->dns2;
       dns_setserver(1, &d);
     }
-  } else {
+  } else
+#endif
+  {
     err = esp_netif_dhcpc_start(this->eth_netif_);
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
@@ -687,13 +694,15 @@ void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode) { this->cl
 void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
 #endif
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
+#ifdef USE_ETHERNET_MANUAL_IP
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
+#endif
 
 // set_use_address() is guaranteed to be called during component setup by Python code generation,
 // so use_address_ will always be valid when get_use_address() is called - no fallback needed.
-const std::string &EthernetComponent::get_use_address() const { return this->use_address_; }
+const char *EthernetComponent::get_use_address() const { return this->use_address_; }
 
-void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+void EthernetComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   esp_err_t err;

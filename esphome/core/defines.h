@@ -28,11 +28,13 @@
 #define USE_BUTTON
 #define USE_CAMERA
 #define USE_CLIMATE
+#define USE_CONTROLLER_REGISTRY
 #define USE_COVER
 #define USE_DATETIME
 #define USE_DATETIME_DATE
 #define USE_DATETIME_DATETIME
 #define USE_DATETIME_TIME
+#define USE_DEBUG
 #define USE_DEEP_SLEEP
 #define USE_DEVICES
 #define USE_DISPLAY
@@ -142,6 +144,7 @@
 #define USE_TIME_TIMEZONE
 #define USE_WIFI
 #define USE_WIFI_AP
+#define USE_WIFI_MANUAL_IP
 #define USE_WIREGUARD
 #endif
 
@@ -155,6 +158,7 @@
 // IDF-specific feature flags
 #ifdef USE_ESP_IDF
 #define USE_MQTT_IDF_ENQUEUE
+#define ESPHOME_LOOP_TASK_STACK_SIZE 8192
 #endif
 
 // ESP32-specific feature flags
@@ -195,6 +199,7 @@
 #define USE_PSRAM
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_SOCKET_SELECT_SUPPORT
+#define USE_WAKE_LOOP_THREADSAFE
 #define USE_SPEAKER
 #define USE_SPI
 #define USE_VOICE_ASSISTANT
@@ -211,6 +216,7 @@
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 2)
 #define USE_ETHERNET
 #define USE_ETHERNET_KSZ8081
+#define USE_ETHERNET_MANUAL_IP
 #endif
 
 #ifdef USE_ESP_IDF
@@ -283,6 +289,8 @@
 
 #ifdef USE_NRF52
 #define USE_NRF52_DFU
+#define USE_NRF52_REG0_VOUT 5
+#define USE_NRF52_UICR_ERASE
 #define USE_SOFTDEVICE_ID 7
 #define USE_SOFTDEVICE_VERSION 1
 #endif
@@ -294,6 +302,7 @@
 #define USE_DASHBOARD_IMPORT
 
 // Default counts for static analysis
+#define CONTROLLER_REGISTRY_MAX 2
 #define ESPHOME_COMPONENT_COUNT 50
 #define ESPHOME_DEVICE_COUNT 10
 #define ESPHOME_AREA_COUNT 10

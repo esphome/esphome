@@ -134,7 +134,7 @@ template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...
 
   TEMPLATABLE_VALUE(T, value);
 
-  void play(Ts... x) override { this->parent_->value() = this->value_.value(x...); }
+  void play(const Ts &...x) override { this->parent_->value() = this->value_.value(x...); }
 
  protected:
   C *parent_;

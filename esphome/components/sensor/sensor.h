@@ -124,8 +124,7 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   void internal_send_state_to_frontend(float state);
 
  protected:
-  std::unique_ptr<CallbackManager<void(float)>> raw_callback_;  ///< Storage for raw state callbacks (lazy allocated).
-  CallbackManager<void(float)> callback_;                       ///< Storage for filtered state callbacks.
+  PartitionedCallbackManager<void(float)> callbacks_;
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
@@ -140,6 +139,8 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
     uint8_t force_update : 1;
     uint8_t reserved : 5;  // Reserved for future use
   } sensor_flags_{};
+
+  uint8_t raw_count_{0};  ///< Number of raw callbacks (partition point in callbacks_ vector)
 };
 
 }  // namespace sensor

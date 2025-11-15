@@ -1,4 +1,6 @@
 #include "fan.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -121,10 +123,13 @@ void FanRestoreState::apply(Fan &fan) {
   fan.speed = this->speed;
   fan.direction = this->direction;
 
-  // Use stored preset index to get preset name from traits
-  const auto &preset_modes = fan.get_traits().supported_preset_modes();
-  if (this->preset_mode < preset_modes.size()) {
-    fan.set_preset_mode_(preset_modes[this->preset_mode]);
+  auto traits = fan.get_traits();
+  if (traits.supports_preset_modes()) {
+    // Use stored preset index to get preset name from traits
+    const auto &preset_modes = traits.supported_preset_modes();
+    if (this->preset_mode < preset_modes.size()) {
+      fan.set_preset_mode_(preset_modes[this->preset_mode]);
+    }
   }
 
   fan.publish_state();
@@ -174,10 +179,13 @@ void Fan::publish_state() {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
   }
   const char *preset = this->get_preset_mode();
-  if (traits.supports_preset_modes() && preset != nullptr) {
+  if (preset != nullptr) {
     ESP_LOGD(TAG, "  Preset Mode: %s", preset);
   }
   this->state_callback_.call();
+#if defined(USE_FAN) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_fan_update(this);
+#endif
   this->save_state_();
 }
 
