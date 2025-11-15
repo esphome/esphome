@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_CLOSE_ACTION,
     CONF_CLOSE_DURATION,
-    CONF_ID,
     CONF_OPEN_ACTION,
     CONF_OPEN_DURATION,
     CONF_STOP_ACTION,
@@ -29,50 +28,53 @@ CONF_ACTUATOR_ACTIVATION_CLOSE_TIME = "actuator_activation_close_time"
 CONF_INERTIA_OPEN_TIME = "inertia_open_time"
 CONF_INERTIA_CLOSE_TIME = "inertia_close_time"
 
-CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TimeBasedTiltCover),
-        cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_OPEN_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
-        cv.Required(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_ASSUMED_STATE, default=True): cv.boolean,
-        cv.Optional(
-            CONF_TILT_OPEN_DURATION, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_TILT_CLOSE_DURATION, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_INTERLOCK_WAIT_TIME, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_RECALIBRATION_OPEN_TIME, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_RECALIBRATION_CLOSE_TIME, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_INERTIA_OPEN_TIME, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_INERTIA_CLOSE_TIME, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_ACTUATOR_ACTIVATION_OPEN_TIME, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_ACTUATOR_ACTIVATION_CLOSE_TIME, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cover.cover_schema(TimeBasedTiltCover)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(TimeBasedTiltCover),
+            cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_OPEN_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
+            cv.Required(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_ASSUMED_STATE, default=True): cv.boolean,
+            cv.Optional(
+                CONF_TILT_OPEN_DURATION, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TILT_CLOSE_DURATION, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_INTERLOCK_WAIT_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_RECALIBRATION_OPEN_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_RECALIBRATION_CLOSE_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_INERTIA_OPEN_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_INERTIA_CLOSE_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_ACTUATOR_ACTIVATION_OPEN_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_ACTUATOR_ACTIVATION_CLOSE_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await cover.new_cover(config)
     await cg.register_component(var, config)
-    await cover.register_cover(var, config)
 
     await automation.build_automation(
         var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
