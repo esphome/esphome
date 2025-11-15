@@ -201,10 +201,20 @@ def test_static_variable_detection() -> None:
     assert cg._has_static_variables("static bool flag = false; return flag;")
     assert cg._has_static_variables("  static  float  value  =  1.0;  ")
 
-    # Should NOT detect static_cast, static_assert, etc.
+    # Should NOT detect static_cast, static_assert, etc. (with underscores)
     assert not cg._has_static_variables("return static_cast<int>(value);")
     assert not cg._has_static_variables("static_assert(sizeof(int) == 4);")
     assert not cg._has_static_variables("auto ptr = static_pointer_cast<Foo>(bar);")
+
+    # Edge case: 'cast', 'assert', 'pointer_cast' are NOT C++ keywords
+    # Someone could use them as type names, but we should NOT flag them
+    # because they're not actually static variables with state
+    # NOTE: These are valid C++ but extremely unlikely in ESPHome lambdas
+    assert not cg._has_static_variables("static cast obj;")  # 'cast' as type name
+    assert not cg._has_static_variables("static assert value;")  # 'assert' as type name
+    assert not cg._has_static_variables(
+        "static pointer_cast ptr;"
+    )  # 'pointer_cast' as type
 
     # Should NOT detect in comments
     assert not cg._has_static_variables("// static int x = 0;\nreturn 42;")
