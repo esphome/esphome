@@ -56,11 +56,12 @@ void RP2040UartComponent::setup() {
     if (!pin) {
       return;
     }
-
-    if (pin->get_flags() & mask != gpio::Flags::FLAG_NONE) {
+    if (pin->get_flags() & gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP |
+        gpio::Flags::FLAG_PULLDOWN != gpio::Flags::FLAG_NONE) {
       pin->setup();
     }
   };
+
   setupPinIfNeeded(this->rx_pin_);
   if (this->rx_pin_ != this->tx_pin_) {
     setupPinIfNeeded(this->tx_pin_);
