@@ -121,13 +121,18 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg) {
-  // Use tx_buffer_at_ if msg points to tx_buffer_, otherwise fall back to strlen
-  size_t len = (msg == this->tx_buffer_) ? this->tx_buffer_at_ : strlen(msg);
+void HOT Logger::write_msg_(const char *msg, size_t len) {
+  // Length is now always passed explicitly - no strlen() fallback needed
 
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC) || defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
   // USB CDC/JTAG - single write including newline (already in buffer)
   // Use fwrite to stdout which goes through VFS to USB console
+  //
+  // Note: These defines indicate the user's YAML configuration choice (hardware_uart: USB_CDC/USB_SERIAL_JTAG).
+  // They are ONLY defined when the user explicitly selects USB as the logger output in their config.
+  // This is compile-time selection, not runtime detection - if USB is configured, it's always used.
+  // There is no fallback to regular UART if "USB isn't connected" - that's the user's responsibility
+  // to configure correctly for their hardware. This approach eliminates runtime overhead.
   fwrite(msg, 1, len, stdout);
 #else
   // Regular UART - single write including newline (already in buffer)

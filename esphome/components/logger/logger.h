@@ -215,11 +215,14 @@ class Logger : public Component {
   inline void HOT add_newline_to_buffer_if_needed_() {
     if constexpr (!WRITE_MSG_ADDS_NEWLINE) {
       // Add newline - don't need to maintain null termination
-      // write_msg_ uses tx_buffer_at_ as length, not strlen()
+      // write_msg_ now always receives explicit length, so we can safely overwrite the null terminator
+      // This is safe because:
+      // 1. Callbacks already received the message (before we add newline)
+      // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
       if (this->tx_buffer_at_ < this->tx_buffer_size_) {
         this->tx_buffer_[this->tx_buffer_at_++] = '\n';
       } else if (this->tx_buffer_size_ > 0) {
-        // Buffer was full - replace last char with newline
+        // Buffer was full - replace last char with newline to ensure it's visible
         this->tx_buffer_[this->tx_buffer_size_ - 1] = '\n';
         this->tx_buffer_at_ = this->tx_buffer_size_;
       }
@@ -240,7 +243,7 @@ class Logger : public Component {
     // Console gets message WITH newline (if platform needs it)
     if (this->baud_rate_ > 0) {
       this->add_newline_to_buffer_if_needed_();
-      this->write_msg_(this->tx_buffer_);
+      this->write_msg_(this->tx_buffer_, this->tx_buffer_at_);
     }
   }
 
