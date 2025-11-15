@@ -7,7 +7,7 @@ namespace esphome::thermopro_ble {
 
 // this size must be large enouth to hold the largest data frame
 // of all supported devices
-#define MAX_DATA_SIZE 24
+static const std::size_t MAX_DATA_SIZE = 24;
 
 struct DeviceParserMapping {
   const char *prefix;
