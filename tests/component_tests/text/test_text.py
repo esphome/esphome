@@ -1,5 +1,7 @@
 """Tests for the binary sensor component."""
 
+from esphome.core import CORE
+
 
 def test_text_is_setup(generate_main):
     """
@@ -61,7 +63,6 @@ def test_text_config_lamda_is_set(generate_main):
     Test if lambda is set for lambda mode (optimized with stateless lambda and deduplication)
     """
     # Given
-    from esphome.core import CORE
 
     # When
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
