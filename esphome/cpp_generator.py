@@ -202,7 +202,7 @@ class LambdaExpression(Expression):
         self.capture = capture
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
-    def _format_body(self) -> str:
+    def format_body(self) -> str:
         """Format the lambda body with source directive and content."""
         body = ""
         if self.source is not None:
@@ -216,7 +216,7 @@ class LambdaExpression(Expression):
         cpp = f"[{self.capture}]({self.parameters})"
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
-        cpp += f" {{\n{self._format_body()}\n}}"
+        cpp += f" {{\n{self.format_body()}\n}}"
         return indent_all_but_first_and_last(cpp)
 
     @property
@@ -759,7 +759,7 @@ def _try_deduplicate_lambda(lambda_expr: LambdaExpression) -> str | None:
 
     # Build the function declaration using lambda's body formatting
     func_declaration = (
-        f"{return_str} {func_name}({param_str}) {{\n{lambda_expr._format_body()}\n}}"
+        f"{return_str} {func_name}({param_str}) {{\n{lambda_expr.format_body()}\n}}"
     )
 
     # Store the declaration to be added later (after all variable declarations)
