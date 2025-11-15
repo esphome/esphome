@@ -62,9 +62,9 @@ void RP2040UartComponent::setup() {
     }
   };
 
-  setup_component_if_needed(this->rx_pin_);
+  setup_pin_if_needed(this->rx_pin_);
   if (this->rx_pin_ != this->tx_pin_) {
-    setup_component_if_needed(this->tx_pin_);
+    setup_pin_if_needed(this->tx_pin_);
   }
 
   uint16_t config = get_config();
