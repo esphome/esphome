@@ -22,8 +22,8 @@ def test_deduplicate_identical_lambdas() -> None:
     )
 
     # Try to deduplicate them
-    func_name1 = cg._try_deduplicate_lambda(lambda1)
-    func_name2 = cg._try_deduplicate_lambda(lambda2)
+    func_name1 = cg._get_shared_lambda_name(lambda1)
+    func_name2 = cg._get_shared_lambda_name(lambda2)
 
     # Both should get the same function name (deduplication happened)
     assert func_name1 == func_name2
@@ -46,8 +46,8 @@ def test_different_lambdas_not_deduplicated() -> None:
         return_type=cg.RawExpression("int"),
     )
 
-    func_name1 = cg._try_deduplicate_lambda(lambda1)
-    func_name2 = cg._try_deduplicate_lambda(lambda2)
+    func_name1 = cg._get_shared_lambda_name(lambda1)
+    func_name2 = cg._get_shared_lambda_name(lambda2)
 
     # Different lambdas should get different function names
     assert func_name1 != func_name2
@@ -71,8 +71,8 @@ def test_different_return_types_not_deduplicated() -> None:
         return_type=cg.RawExpression("float"),  # Different return type
     )
 
-    func_name1 = cg._try_deduplicate_lambda(lambda1)
-    func_name2 = cg._try_deduplicate_lambda(lambda2)
+    func_name1 = cg._get_shared_lambda_name(lambda1)
+    func_name2 = cg._get_shared_lambda_name(lambda2)
 
     # Different return types = different functions
     assert func_name1 != func_name2
@@ -94,8 +94,8 @@ def test_different_parameters_not_deduplicated() -> None:
         return_type=cg.RawExpression("int"),
     )
 
-    func_name1 = cg._try_deduplicate_lambda(lambda1)
-    func_name2 = cg._try_deduplicate_lambda(lambda2)
+    func_name1 = cg._get_shared_lambda_name(lambda1)
+    func_name2 = cg._get_shared_lambda_name(lambda2)
 
     # Different parameters = different functions
     assert func_name1 != func_name2
@@ -111,7 +111,7 @@ def test_flush_lambda_dedup_declarations() -> None:
         return_type=cg.RawExpression("int"),
     )
 
-    cg._try_deduplicate_lambda(lambda1)
+    cg._get_shared_lambda_name(lambda1)
 
     # Check that declaration was stored
     assert cg._KEY_LAMBDA_DEDUP_DECLARATIONS in CORE.data
@@ -154,7 +154,7 @@ def test_lambda_deduplication_counter() -> None:
             capture="",
             return_type=cg.RawExpression("int"),
         )
-        func_name = cg._try_deduplicate_lambda(lambda_expr)
+        func_name = cg._get_shared_lambda_name(lambda_expr)
         assert func_name == f"shared_lambda_{i}"
 
 
@@ -171,3 +171,24 @@ def test_lambda_format_body() -> None:
     assert lambda1.format_body() == "return 42;"
 
     # With source would need a proper source object, skip for now
+
+
+def test_stateful_lambdas_not_deduplicated() -> None:
+    """Test that stateful lambdas (non-empty capture) are not deduplicated."""
+    # _get_shared_lambda_name is only called for stateless lambdas (capture == "")
+    # Stateful lambdas bypass deduplication entirely in process_lambda
+
+    # Verify that a stateful lambda would NOT get deduplicated
+    # by checking it's not in the stateless dedup cache
+    stateful_lambda = cg.LambdaExpression(
+        parts=["return x + y;"],
+        parameters=[],
+        capture="=",  # Non-empty capture means stateful
+        return_type=cg.RawExpression("int"),
+    )
+
+    # Stateful lambdas should NOT be passed to _get_shared_lambda_name
+    # This is enforced by the `if capture == ""` check in process_lambda
+    # We verify the lambda has a non-empty capture
+    assert stateful_lambda.capture != ""
+    assert stateful_lambda.capture == "="

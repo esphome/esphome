@@ -1,4 +1,4 @@
-"""Tests for the binary sensor component."""
+"""Tests for the text component."""
 
 from esphome.core import CORE
 
@@ -58,7 +58,7 @@ def test_text_config_value_mode_set(generate_main):
     assert "it_3->traits.set_mode(text::TEXT_MODE_PASSWORD);" in main_cpp
 
 
-def test_text_config_lamda_is_set(generate_main):
+def test_text_config_lambda_is_set(generate_main) -> None:
     """
     Test if lambda is set for lambda mode (optimized with stateless lambda and deduplication)
     """
