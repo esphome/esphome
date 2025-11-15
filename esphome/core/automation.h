@@ -19,10 +19,13 @@ namespace esphome {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 template<int...> struct ESPDEPRECATED("Use std::index_sequence instead. Removed in 2026.6.0", "2025.12.0") seq {};
+// NOLINTNEXTLINE(readability-identifier-naming)
 template<int N, int... S>
 struct ESPDEPRECATED("Use std::make_index_sequence instead. Removed in 2026.6.0", "2025.12.0") gens
     : gens<N - 1, N - 1, S...> {};
+// NOLINTNEXTLINE(readability-identifier-naming)
 template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 
 #if defined(__GNUC__) || defined(__clang__)
