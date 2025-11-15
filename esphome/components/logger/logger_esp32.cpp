@@ -122,24 +122,16 @@ void Logger::pre_setup() {
 }
 
 void HOT Logger::write_msg_(const char *msg) {
-  if (
-#if defined(USE_LOGGER_USB_CDC) && !defined(USE_LOGGER_USB_SERIAL_JTAG)
-      this->uart_ == UART_SELECTION_USB_CDC
-#elif defined(USE_LOGGER_USB_SERIAL_JTAG) && !defined(USE_LOGGER_USB_CDC)
-      this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
-#elif defined(USE_LOGGER_USB_CDC) && defined(USE_LOGGER_USB_SERIAL_JTAG)
-      this->uart_ == UART_SELECTION_USB_CDC || this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
+  // Use tx_buffer_at_ if msg points to tx_buffer_, otherwise fall back to strlen
+  size_t len = (msg == this->tx_buffer_) ? this->tx_buffer_at_ : strlen(msg);
+
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC) || defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
+  // USB CDC/JTAG - single write including newline (already in buffer)
+  esp_usb_console_write_buf(msg, len);
 #else
-      /* DISABLES CODE */ (false)  // NOLINT
+  // Regular UART - single write including newline (already in buffer)
+  uart_write_bytes(this->uart_num_, msg, len);
 #endif
-  ) {
-    puts(msg);
-  } else {
-    // Use tx_buffer_at_ if msg points to tx_buffer_, otherwise fall back to strlen
-    size_t len = (msg == this->tx_buffer_) ? this->tx_buffer_at_ : strlen(msg);
-    uart_write_bytes(this->uart_num_, msg, len);
-    uart_write_bytes(this->uart_num_, "\n", 1);
-  }
 }
 
 const LogString *Logger::get_uart_selection_() {

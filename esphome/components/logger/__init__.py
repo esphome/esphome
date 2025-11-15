@@ -365,8 +365,10 @@ async def to_code(config):
     if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
     try:
         uart_selection(USB_SERIAL_JTAG)
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
