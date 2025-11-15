@@ -1,5 +1,6 @@
 #ifdef USE_ARDUINO
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "air_conditioner.h"
 #include "ac_adapter.h"
@@ -63,28 +64,30 @@ void AirConditioner::control(const ClimateCall &call) {
     ctrl.mode = Converters::to_midea_mode(call.get_mode().value());
   if (call.get_preset().has_value()) {
     ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
-  } else if (call.get_custom_preset().has_value()) {
-    ctrl.preset = Converters::to_midea_preset(call.get_custom_preset().value());
+  } else if (call.has_custom_preset()) {
+    ctrl.preset = Converters::to_midea_preset(call.get_custom_preset());
   }
   if (call.get_fan_mode().has_value()) {
     ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
-  } else if (call.get_custom_fan_mode().has_value()) {
-    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode().value());
+  } else if (call.has_custom_fan_mode()) {
+    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode());
   }
   this->base_.control(ctrl);
 }
 
 ClimateTraits AirConditioner::traits() {
   auto traits = ClimateTraits();
-  traits.set_supports_current_temperature(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   traits.set_visual_min_temperature(17);
   traits.set_visual_max_temperature(30);
   traits.set_visual_temperature_step(0.5);
   traits.set_supported_modes(this->supported_modes_);
   traits.set_supported_swing_modes(this->supported_swing_modes_);
   traits.set_supported_presets(this->supported_presets_);
-  traits.set_supported_custom_presets(this->supported_custom_presets_);
-  traits.set_supported_custom_fan_modes(this->supported_custom_fan_modes_);
+  if (!this->supported_custom_presets_.empty())
+    traits.set_supported_custom_presets(this->supported_custom_presets_);
+  if (!this->supported_custom_fan_modes_.empty())
+    traits.set_supported_custom_fan_modes(this->supported_custom_fan_modes_);
   /* + MINIMAL SET OF CAPABILITIES */
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_AUTO);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
@@ -102,10 +105,12 @@ ClimateTraits AirConditioner::traits() {
 }
 
 void AirConditioner::dump_config() {
-  ESP_LOGCONFIG(Constants::TAG, "MideaDongle:");
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Period: %dms", this->base_.getPeriod());
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Response timeout: %dms", this->base_.getTimeout());
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Request attempts: %d", this->base_.getNumAttempts());
+  ESP_LOGCONFIG(Constants::TAG,
+                "MideaDongle:\n"
+                "  [x] Period: %dms\n"
+                "  [x] Response timeout: %dms\n"
+                "  [x] Request attempts: %d",
+                this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
   ESP_LOGCONFIG(Constants::TAG, "  [x] Using RemoteTransmitter");
 #endif
@@ -121,7 +126,7 @@ void AirConditioner::dump_config() {
 
 /* ACTIONS */
 
-void AirConditioner::do_follow_me(float temperature, bool beeper) {
+void AirConditioner::do_follow_me(float temperature, bool use_fahrenheit, bool beeper) {
 #ifdef USE_REMOTE_TRANSMITTER
   // Check if temperature is finite (not NaN or infinite)
   if (!std::isfinite(temperature)) {
@@ -131,13 +136,14 @@ void AirConditioner::do_follow_me(float temperature, bool beeper) {
 
   // Round and convert temperature to long, then clamp and convert it to uint8_t
   uint8_t temp_uint8 =
-      static_cast<uint8_t>(std::max(0L, std::min(static_cast<long>(UINT8_MAX), std::lroundf(temperature))));
+      static_cast<uint8_t>(esphome::clamp<long>(std::lroundf(temperature), 0L, static_cast<long>(UINT8_MAX)));
 
-  ESP_LOGD(Constants::TAG, "Follow me action called with temperature: %f °C, rounded to: %u °C", temperature,
-           temp_uint8);
+  char temp_symbol = use_fahrenheit ? 'F' : 'C';
+  ESP_LOGD(Constants::TAG, "Follow me action called with temperature: %.5f °%c, rounded to: %u °%c", temperature,
+           temp_symbol, temp_uint8, temp_symbol);
 
   // Create and transmit the data
-  IrFollowMeData data(temp_uint8, beeper);
+  IrFollowMeData data(temp_uint8, use_fahrenheit, beeper);
   this->transmitter_.transmit(data);
 #else
   ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");

@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import number
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_ICON,

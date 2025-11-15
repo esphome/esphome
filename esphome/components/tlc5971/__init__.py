@@ -1,16 +1,10 @@
 # this component is for the "TLC5971 12-Channel, 12-Bit PWM LED Driver" [https://www.ti.com/lit/ds/symlink/tlc5971.pdf],
 # which is used e.g. on [https://www.adafruit.com/product/1455]. The code is based on the TLC5947 component by @rnauber.
 
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
-from esphome.const import (
-    CONF_CLOCK_PIN,
-    CONF_DATA_PIN,
-    CONF_ID,
-    CONF_NUM_CHIPS,
-)
-
+from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID, CONF_NUM_CHIPS
 
 CODEOWNERS = ["@IJIJI"]
 

@@ -38,7 +38,7 @@ class PN532 : public PollingComponent {
   float get_setup_priority() const override;
 
   void loop() override;
-  void on_shutdown() override { powerdown(); }
+  void on_powerdown() override { powerdown(); }
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
@@ -143,7 +143,7 @@ class PN532OnFinishedWriteTrigger : public Trigger<> {
 
 template<typename... Ts> class PN532IsWritingCondition : public Condition<Ts...>, public Parented<PN532> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_writing(); }
+  bool check(const Ts &...x) override { return this->parent_->is_writing(); }
 };
 
 }  // namespace pn532

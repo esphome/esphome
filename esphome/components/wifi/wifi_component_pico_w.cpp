@@ -55,8 +55,13 @@ bool WiFiComponent::wifi_apply_power_save_() {
 bool WiFiComponent::wifi_apply_output_power_(float output_power) { return true; }
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip()))
     return false;
+#else
+  if (!this->wifi_sta_ip_config_({}))
+    return false;
+#endif
 
   auto ret = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().c_str());
   if (ret != WL_CONNECTED)
@@ -67,7 +72,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
 bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
 
-bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   if (!manual_ip.has_value()) {
     return true;
   }
@@ -134,14 +139,14 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   scan_options.scan_type = passive ? 1 : 0;
   int err = cyw43_wifi_scan(&cyw43_state, &scan_options, nullptr, &s_wifi_scan_result);
   if (err) {
-    ESP_LOGV(TAG, "cyw43_wifi_scan failed!");
+    ESP_LOGV(TAG, "cyw43_wifi_scan failed");
   }
   return err == 0;
   return true;
 }
 
 #ifdef USE_WIFI_AP
-bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   esphome::network::IPAddress ip_address, gateway, subnet, dns;
   if (manual_ip.has_value()) {
     ip_address = manual_ip->static_ip;
@@ -161,10 +166,17 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
-    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed!");
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
     return false;
   }
+#else
+  if (!this->wifi_ap_ip_config_({})) {
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
+    return false;
+  }
+#endif
 
   WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.get_channel().value_or(1));
 
@@ -188,8 +200,8 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
-int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
-int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
+int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
+int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   network::IPAddresses addresses;
@@ -209,7 +221,7 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 void WiFiComponent::wifi_loop_() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
-    ESP_LOGV(TAG, "Scan done!");
+    ESP_LOGV(TAG, "Scan done");
   }
 }
 

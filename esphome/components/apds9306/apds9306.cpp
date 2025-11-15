@@ -54,8 +54,6 @@ enum {  // APDS9306 registers
   }
 
 void APDS9306::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up APDS9306...");
-
   uint8_t id;
   if (!this->read_byte(APDS9306_PART_ID, &id)) {  // Part ID register
     this->error_code_ = COMMUNICATION_FAILED;
@@ -86,8 +84,6 @@ void APDS9306::setup() {
 
   // Set to active mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
-
-  ESP_LOGCONFIG(TAG, "APDS9306 setup complete");
 }
 
 void APDS9306::dump_config() {
@@ -97,7 +93,7 @@ void APDS9306::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, "Communication with APDS9306 failed!");
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case WRONG_ID:
         ESP_LOGE(TAG, "APDS9306 has invalid id!");
@@ -108,9 +104,12 @@ void APDS9306::dump_config() {
     }
   }
 
-  ESP_LOGCONFIG(TAG, "  Gain: %u", AMBIENT_LIGHT_GAIN_VALUES[this->gain_]);
-  ESP_LOGCONFIG(TAG, "  Measurement rate: %u", MEASUREMENT_RATE_VALUES[this->measurement_rate_]);
-  ESP_LOGCONFIG(TAG, "  Measurement Resolution/Bit width: %d", MEASUREMENT_BIT_WIDTH_VALUES[this->bit_width_]);
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %u\n"
+                "  Measurement rate: %u\n"
+                "  Measurement Resolution/Bit width: %d",
+                AMBIENT_LIGHT_GAIN_VALUES[this->gain_], MEASUREMENT_RATE_VALUES[this->measurement_rate_],
+                MEASUREMENT_BIT_WIDTH_VALUES[this->bit_width_]);
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -122,7 +121,8 @@ void APDS9306::update() {
 
   this->status_clear_warning();
 
-  if (!(status &= 0b00001000)) {  // No new data
+  status &= 0b00001000;
+  if (!status) {  // No new data
     return;
   }
 

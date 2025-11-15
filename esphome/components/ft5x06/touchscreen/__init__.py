@@ -1,9 +1,9 @@
 from esphome import pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
-
 from esphome.components import i2c, touchscreen
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN
+
 from .. import ft5x06_ns
 
 FT5x06ButtonListener = ft5x06_ns.class_("FT5x06ButtonListener")

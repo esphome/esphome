@@ -4,9 +4,8 @@ binary_sensor:
     lambda: |-
       if (millis() > 10000) {
         return true;
-      } else {
-        return false;
       }
+      return false;
 
 sensor:
   - platform: duty_time

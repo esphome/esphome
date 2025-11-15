@@ -1,14 +1,15 @@
 #include "ble_uuid.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_UUID
 
 #include <cstring>
 #include <cstdio>
 #include <cinttypes>
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
@@ -34,39 +35,25 @@ ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
 ESPBTUUID ESPBTUUID::from_raw_reversed(const uint8_t *data) {
   ESPBTUUID ret;
   ret.uuid_.len = ESP_UUID_LEN_128;
-  for (int i = 0; i < ESP_UUID_LEN_128; i++)
+  for (uint8_t i = 0; i < ESP_UUID_LEN_128; i++)
     ret.uuid_.uuid.uuid128[ESP_UUID_LEN_128 - 1 - i] = data[i];
   return ret;
 }
 ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
   ESPBTUUID ret;
   if (data.length() == 4) {
-    ret.uuid_.len = ESP_UUID_LEN_16;
-    ret.uuid_.uuid.uuid16 = 0;
-    for (int i = 0; i < data.length();) {
-      uint8_t msb = data.c_str()[i];
-      uint8_t lsb = data.c_str()[i + 1];
-
-      if (msb > '9')
-        msb -= 7;
-      if (lsb > '9')
-        lsb -= 7;
-      ret.uuid_.uuid.uuid16 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (2 - i) * 4;
-      i += 2;
+    // 16-bit UUID as 4-character hex string
+    auto parsed = parse_hex<uint16_t>(data);
+    if (parsed.has_value()) {
+      ret.uuid_.len = ESP_UUID_LEN_16;
+      ret.uuid_.uuid.uuid16 = parsed.value();
     }
   } else if (data.length() == 8) {
-    ret.uuid_.len = ESP_UUID_LEN_32;
-    ret.uuid_.uuid.uuid32 = 0;
-    for (int i = 0; i < data.length();) {
-      uint8_t msb = data.c_str()[i];
-      uint8_t lsb = data.c_str()[i + 1];
-
-      if (msb > '9')
-        msb -= 7;
-      if (lsb > '9')
-        lsb -= 7;
-      ret.uuid_.uuid.uuid32 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (6 - i) * 4;
-      i += 2;
+    // 32-bit UUID as 8-character hex string
+    auto parsed = parse_hex<uint32_t>(data);
+    if (parsed.has_value()) {
+      ret.uuid_.len = ESP_UUID_LEN_32;
+      ret.uuid_.uuid.uuid32 = parsed.value();
     }
   } else if (data.length() == 16) {  // how we can have 16 byte length string reprezenting 128 bit uuid??? needs to be
                                      // investigated (lack of time)
@@ -77,7 +64,7 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
     // UUID format.
     ret.uuid_.len = ESP_UUID_LEN_128;
     int n = 0;
-    for (int i = 0; i < data.length();) {
+    for (uint i = 0; i < data.length(); i += 2) {
       if (data.c_str()[i] == '-')
         i++;
       uint8_t msb = data.c_str()[i];
@@ -88,7 +75,6 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
       if (lsb > '9')
         lsb -= 7;
       ret.uuid_.uuid.uuid128[15 - n++] = ((msb & 0x0F) << 4) | (lsb & 0x0F);
-      i += 2;
     }
   } else {
     ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes - %s", data.c_str());
@@ -145,52 +131,60 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
   if (this->uuid_.len == uuid.uuid_.len) {
     switch (this->uuid_.len) {
       case ESP_UUID_LEN_16:
-        if (uuid.uuid_.uuid.uuid16 == this->uuid_.uuid.uuid16) {
-          return true;
-        }
-        break;
+        return this->uuid_.uuid.uuid16 == uuid.uuid_.uuid.uuid16;
       case ESP_UUID_LEN_32:
-        if (uuid.uuid_.uuid.uuid32 == this->uuid_.uuid.uuid32) {
-          return true;
-        }
-        break;
+        return this->uuid_.uuid.uuid32 == uuid.uuid_.uuid.uuid32;
       case ESP_UUID_LEN_128:
-        for (int i = 0; i < ESP_UUID_LEN_128; i++) {
-          if (uuid.uuid_.uuid.uuid128[i] != this->uuid_.uuid.uuid128[i]) {
-            return false;
-          }
-        }
-        return true;
-        break;
+        return memcmp(this->uuid_.uuid.uuid128, uuid.uuid_.uuid.uuid128, ESP_UUID_LEN_128) == 0;
+      default:
+        return false;
     }
-  } else {
-    return this->as_128bit() == uuid.as_128bit();
   }
-  return false;
+  return this->as_128bit() == uuid.as_128bit();
 }
 esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
 std::string ESPBTUUID::to_string() const {
+  char buf[40];  // Enough for 128-bit UUID with dashes
+  char *pos = buf;
+
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:
-      return str_snprintf("0x%02X%02X", 6, this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
+      *pos++ = '0';
+      *pos++ = 'x';
+      *pos++ = format_hex_pretty_char(this->uuid_.uuid.uuid16 >> 12);
+      *pos++ = format_hex_pretty_char((this->uuid_.uuid.uuid16 >> 8) & 0x0F);
+      *pos++ = format_hex_pretty_char((this->uuid_.uuid.uuid16 >> 4) & 0x0F);
+      *pos++ = format_hex_pretty_char(this->uuid_.uuid.uuid16 & 0x0F);
+      *pos = '\0';
+      return std::string(buf);
+
     case ESP_UUID_LEN_32:
-      return str_snprintf("0x%02" PRIX32 "%02" PRIX32 "%02" PRIX32 "%02" PRIX32, 10, (this->uuid_.uuid.uuid32 >> 24),
-                          (this->uuid_.uuid.uuid32 >> 16 & 0xff), (this->uuid_.uuid.uuid32 >> 8 & 0xff),
-                          this->uuid_.uuid.uuid32 & 0xff);
+      *pos++ = '0';
+      *pos++ = 'x';
+      for (int shift = 28; shift >= 0; shift -= 4) {
+        *pos++ = format_hex_pretty_char((this->uuid_.uuid.uuid32 >> shift) & 0x0F);
+      }
+      *pos = '\0';
+      return std::string(buf);
+
     default:
     case ESP_UUID_LEN_128:
-      std::string buf;
+      // Format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
       for (int8_t i = 15; i >= 0; i--) {
-        buf += str_snprintf("%02X", 2, this->uuid_.uuid.uuid128[i]);
-        if (i == 6 || i == 8 || i == 10 || i == 12)
-          buf += "-";
+        uint8_t byte = this->uuid_.uuid.uuid128[i];
+        *pos++ = format_hex_pretty_char(byte >> 4);
+        *pos++ = format_hex_pretty_char(byte & 0x0F);
+        if (i == 12 || i == 10 || i == 8 || i == 6) {
+          *pos++ = '-';
+        }
       }
-      return buf;
+      *pos = '\0';
+      return std::string(buf);
   }
   return "";
 }
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
-#endif
+#endif  // USE_ESP32_BLE_UUID
+#endif  // USE_ESP32

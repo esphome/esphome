@@ -4,6 +4,7 @@
 #include <ESP8266mDNS.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
@@ -12,26 +13,34 @@ namespace esphome {
 namespace mdns {
 
 void MDNSComponent::setup() {
-  this->compile_records_();
+#ifdef USE_MDNS_STORE_SERVICES
+  this->compile_records_(this->services_);
+  const auto &services = this->services_;
+#else
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
+  this->compile_records_(services);
+#endif
 
-  MDNS.begin(this->hostname_.c_str());
+  MDNS.begin(App.get_name().c_str());
 
-  for (const auto &service : this->services_) {
+  for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
     // part of the wire protocol to have an underscore, and for example ESP-IDF
     // expects the underscore to be there, the ESP8266 implementation always adds
     // the underscore itself.
-    auto *proto = service.proto.c_str();
-    while (*proto == '_') {
+    auto *proto = MDNS_STR_ARG(service.proto);
+    while (progmem_read_byte((const uint8_t *) proto) == '_') {
       proto++;
     }
-    auto *service_type = service.service_type.c_str();
-    while (*service_type == '_') {
+    auto *service_type = MDNS_STR_ARG(service.service_type);
+    while (progmem_read_byte((const uint8_t *) service_type) == '_') {
       service_type++;
     }
-    MDNS.addService(service_type, proto, service.port);
+    uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    MDNS.addService(FPSTR(service_type), FPSTR(proto), port);
     for (const auto &record : service.txt_records) {
-      MDNS.addServiceTxt(service_type, proto, record.key.c_str(), record.value.c_str());
+      MDNS.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
+                         FPSTR(MDNS_STR_ARG(record.value)));
     }
   }
 }

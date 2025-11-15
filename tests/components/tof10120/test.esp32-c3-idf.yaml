@@ -1,9 +1,0 @@
-i2c:
-  - id: i2c_tof10120
-    scl: 5
-    sda: 4
-
-sensor:
-  - platform: tof10120
-    name: Distance sensor
-    update_interval: 5s

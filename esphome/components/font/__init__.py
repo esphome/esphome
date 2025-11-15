@@ -1,17 +1,25 @@
-from collections.abc import Iterable
+from collections.abc import MutableMapping
 import functools
 import hashlib
+from itertools import accumulate
 import logging
-import os
 from pathlib import Path
 import re
 
-import freetype
-import glyphsets
-from packaging import version
+import esphome_glyphsets as glyphsets
+
+# pylint: disable=no-name-in-module
+from freetype import (
+    FT_LOAD_NO_BITMAP,
+    FT_LOAD_RENDER,
+    FT_LOAD_TARGET_MONO,
+    Face,
+    FT_Exception,
+    ft_pixel_mode_mono,
+)
 import requests
 
-from esphome import core, external_files
+from esphome import external_files
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -28,7 +36,8 @@ from esphome.const import (
     CONF_WEIGHT,
 )
 from esphome.core import CORE, HexInt
-from esphome.helpers import copy_file_if_changed, cpp_string_escape
+from esphome.helpers import cpp_string_escape
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,10 +60,49 @@ CONF_IGNORE_MISSING_GLYPHS = "ignore_missing_glyphs"
 
 
 # Cache loaded freetype fonts
-class FontCache(dict):
-    def __missing__(self, key):
-        res = self[key] = freetype.Face(key)
-        return res
+class FontCache(MutableMapping):
+    @staticmethod
+    def get_name(value):
+        if CONF_FAMILY in value:
+            return (
+                f"{value[CONF_FAMILY]}:{int(value[CONF_ITALIC])}:{value[CONF_WEIGHT]}"
+            )
+        if CONF_URL in value:
+            return value[CONF_URL]
+        return value[CONF_PATH]
+
+    @staticmethod
+    def _keytransform(value):
+        if CONF_FAMILY in value:
+            return f"gfont:{value[CONF_FAMILY]}:{int(value[CONF_ITALIC])}:{value[CONF_WEIGHT]}"
+        if CONF_URL in value:
+            return f"url:{value[CONF_URL]}"
+        return f"file:{value[CONF_PATH]}"
+
+    def __init__(self):
+        self.store = {}
+
+    def __delitem__(self, key):
+        del self.store[self._keytransform(key)]
+
+    def __iter__(self):
+        return iter(self.store)
+
+    def __len__(self):
+        return len(self.store)
+
+    def __getitem__(self, item):
+        return self.store[self._keytransform(item)]
+
+    def __setitem__(self, key, value):
+        transformed = self._keytransform(key)
+        try:
+            self.store[transformed] = Face(str(value))
+        except FT_Exception as exc:
+            file = transformed.split(":", 1)
+            raise cv.Invalid(
+                f"{file[0].capitalize()} {file[1]} is not a valid font file"
+            ) from exc
 
 
 FONT_CACHE = FontCache()
@@ -88,7 +136,7 @@ def flatten(lists) -> list:
     return list(chain.from_iterable(lists))
 
 
-def check_missing_glyphs(file, codepoints: Iterable, warning: bool = False):
+def check_missing_glyphs(file, codepoints, warning: bool = False):
     """
     Check that the given font file actually contains the requested glyphs
     :param file: A Truetype font file
@@ -108,14 +156,21 @@ def check_missing_glyphs(file, codepoints: Iterable, warning: bool = False):
         )
         if count > 10:
             missing_str += f"\n    and {count - 10} more."
-        message = f"Font {Path(file).name} is missing {count} glyph{'s' if count != 1 else ''}:\n    {missing_str}"
+        message = f"Font {FontCache.get_name(file)} is missing {count} glyph{'s' if count != 1 else ''}:\n    {missing_str}"
         if warning:
             _LOGGER.warning(message)
         else:
             raise cv.Invalid(message)
 
 
-def validate_glyphs(config):
+def pt_to_px(pt):
+    """
+    Convert a point size to pixels, rounding up to the nearest pixel
+    """
+    return (pt + 63) // 64
+
+
+def validate_font_config(config):
     """
     Check for duplicate codepoints, then check that all requested codepoints actually
     have glyphs defined in the appropriate font file.
@@ -141,61 +196,51 @@ def validate_glyphs(config):
     )
     # Make setpoints and glyphspoints disjoint
     setpoints.difference_update(glyphspoints)
-    if fileconf[CONF_TYPE] == TYPE_LOCAL_BITMAP:
-        # Pillow only allows 256 glyphs per bitmap font. Not sure if that is a Pillow limitation
-        # or a file format limitation
-        if any(x >= 256 for x in setpoints.copy().union(glyphspoints)):
-            raise cv.Invalid("Codepoints in bitmap fonts must be in the range 0-255")
-    else:
-        # for TT fonts, check that glyphs are actually present
-        # Check extras against their own font, exclude from parent font codepoints
-        for extra in config[CONF_EXTRAS]:
-            points = {ord(x) for x in flatten(extra[CONF_GLYPHS])}
-            glyphspoints.difference_update(points)
-            setpoints.difference_update(points)
-            check_missing_glyphs(extra[CONF_FILE][CONF_PATH], points)
+    # check that glyphs are actually present
+    # Check extras against their own font, exclude from parent font codepoints
+    for extra in config[CONF_EXTRAS]:
+        points = {ord(x) for x in flatten(extra[CONF_GLYPHS])}
+        glyphspoints.difference_update(points)
+        setpoints.difference_update(points)
+        check_missing_glyphs(extra[CONF_FILE], points)
 
-        # A named glyph that can't be provided is an error
-        check_missing_glyphs(fileconf[CONF_PATH], glyphspoints)
-        # A missing glyph from a set is a warning.
-        if not config[CONF_IGNORE_MISSING_GLYPHS]:
-            check_missing_glyphs(fileconf[CONF_PATH], setpoints, warning=True)
+    # A named glyph that can't be provided is an error
+
+    check_missing_glyphs(fileconf, glyphspoints)
+    # A missing glyph from a set is a warning.
+    if not config[CONF_IGNORE_MISSING_GLYPHS]:
+        check_missing_glyphs(fileconf, setpoints, warning=True)
 
     # Populate the default after the above checks so that use of the default doesn't trigger errors
+    font = FONT_CACHE[fileconf]
     if not config[CONF_GLYPHS] and not config[CONF_GLYPHSETS]:
-        if fileconf[CONF_TYPE] == TYPE_LOCAL_BITMAP:
-            config[CONF_GLYPHS] = [DEFAULT_GLYPHS]
-        else:
-            # set a default glyphset, intersected with what the font actually offers
-            font = FONT_CACHE[fileconf[CONF_PATH]]
-            config[CONF_GLYPHS] = [
-                chr(x)
-                for x in glyphsets.unicodes_per_glyphset(DEFAULT_GLYPHSET)
-                if font.get_char_index(x) != 0
-            ]
+        # set a default glyphset, intersected with what the font actually offers
+        config[CONF_GLYPHS] = [
+            chr(x)
+            for x in glyphsets.unicodes_per_glyphset(DEFAULT_GLYPHSET)
+            if font.get_char_index(x) != 0
+        ]
+
+    if not font.is_scalable:
+        sizes = [pt_to_px(x.size) for x in font.available_sizes]
+        if not sizes:
+            raise cv.Invalid(
+                f"Font {FontCache.get_name(fileconf)} has no available sizes"
+            )
+        if CONF_SIZE not in config:
+            config[CONF_SIZE] = sizes[0]
+        elif config[CONF_SIZE] not in sizes:
+            sizes = ", ".join(str(x) for x in sizes)
+            raise cv.Invalid(
+                f"Font {FontCache.get_name(fileconf)} only has size{'s' if len(sizes) != 1 else ''} {sizes} available"
+            )
+    elif CONF_SIZE not in config:
+        config[CONF_SIZE] = 20
 
     return config
 
 
-def validate_pillow_installed(value):
-    try:
-        import PIL
-    except ImportError as err:
-        raise cv.Invalid(
-            "Please install the pillow python package to use this feature. "
-            '(pip install "pillow==10.4.0")'
-        ) from err
-
-    if version.parse(PIL.__version__) != version.parse("10.4.0"):
-        raise cv.Invalid(
-            "Please update your pillow installation to 10.4.0. "
-            '(pip install "pillow==10.4.0")'
-        )
-
-    return value
-
-
-FONT_EXTENSIONS = (".ttf", ".woff", ".otf")
+FONT_EXTENSIONS = (".ttf", ".woff", ".otf", "bdf", ".pcf")
 
 
 def validate_truetype_file(value):
@@ -204,24 +249,30 @@ def validate_truetype_file(value):
             f"Please unzip the font archive '{value}' first and then use the .ttf files inside."
         )
     if not any(map(value.lower().endswith, FONT_EXTENSIONS)):
-        raise cv.Invalid(f"Only {FONT_EXTENSIONS} files are supported.")
+        raise cv.Invalid(f"Only {', '.join(FONT_EXTENSIONS)} files are supported.")
     return CORE.relative_config_path(cv.file_(value))
 
 
+def add_local_file(value: ConfigType) -> ConfigType:
+    if value in FONT_CACHE:
+        return value
+    path = Path(value[CONF_PATH])
+    if not path.is_file():
+        raise cv.Invalid(f"File '{path}' not found.")
+    FONT_CACHE[value] = path
+    return value
+
+
 TYPE_LOCAL = "local"
-TYPE_LOCAL_BITMAP = "local_bitmap"
 TYPE_GFONTS = "gfonts"
 TYPE_WEB = "web"
-LOCAL_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PATH): validate_truetype_file,
-    }
-)
-
-LOCAL_BITMAP_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PATH): cv.file_,
-    }
+LOCAL_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PATH): validate_truetype_file,
+        }
+    ),
+    add_local_file,
 )
 
 FULLPATH_SCHEMA = cv.maybe_simple_value(
@@ -252,56 +303,59 @@ def _compute_local_font_path(value: dict) -> Path:
     h.update(url.encode())
     key = h.hexdigest()[:8]
     base_dir = external_files.compute_local_file_dir(DOMAIN)
-    _LOGGER.debug("_compute_local_font_path: base_dir=%s", base_dir / key)
+    _LOGGER.debug("_compute_local_font_path: %s", base_dir / key)
     return base_dir / key
 
 
-def get_font_path(value, font_type) -> Path:
-    if font_type == TYPE_GFONTS:
-        name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-        return external_files.compute_local_file_dir(DOMAIN) / f"{name}.ttf"
-    if font_type == TYPE_WEB:
-        return _compute_local_font_path(value) / "font.ttf"
-    assert False
-
-
 def download_gfont(value):
+    if value in FONT_CACHE:
+        return value
     name = (
         f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
     )
     url = f"https://fonts.googleapis.com/css2?family={name}"
-    path = get_font_path(value, TYPE_GFONTS)
-    _LOGGER.debug("download_gfont: path=%s", path)
+    path = (
+        external_files.compute_local_file_dir(DOMAIN)
+        / f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1.ttf"
+    )
+    if not external_files.is_file_recent(path, value[CONF_REFRESH]):
+        _LOGGER.debug("download_gfont: path=%s", path)
+        try:
+            req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
+            req.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise cv.Invalid(
+                f"Could not download font at {url}, please check the fonts exists "
+                f"at google fonts ({e})"
+            )
+        match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
+        if match is None:
+            raise cv.Invalid(
+                f"Could not extract ttf file from gfonts response for {name}, "
+                f"please report this."
+            )
 
-    try:
-        req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(
-            f"Could not download font at {url}, please check the fonts exists "
-            f"at google fonts ({e})"
-        )
-    match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
-    if match is None:
-        raise cv.Invalid(
-            f"Could not extract ttf file from gfonts response for {name}, "
-            f"please report this."
-        )
+        ttf_url = match.group(1)
+        _LOGGER.debug("download_gfont: ttf_url=%s", ttf_url)
 
-    ttf_url = match.group(1)
-    _LOGGER.debug("download_gfont: ttf_url=%s", ttf_url)
-
-    external_files.download_content(ttf_url, path)
-    return FULLPATH_SCHEMA(path)
+        external_files.download_content(ttf_url, path)
+        # In case the remote file is not modified, the download_content function will return the existing file,
+        # so update the modification time to now.
+        path.touch()
+    FONT_CACHE[value] = path
+    return value
 
 
 def download_web_font(value):
+    if value in FONT_CACHE:
+        return value
     url = value[CONF_URL]
-    path = get_font_path(value, TYPE_WEB)
+    path = _compute_local_font_path(value) / "font.ttf"
 
     external_files.download_content(url, path)
     _LOGGER.debug("download_web_font: path=%s", path)
-    return FULLPATH_SCHEMA(path)
+    FONT_CACHE[value] = path
+    return value
 
 
 EXTERNAL_FONT_SCHEMA = cv.Schema(
@@ -357,15 +411,6 @@ def validate_file_shorthand(value):
             }
         )
 
-    if value.endswith(".pcf") or value.endswith(".bdf"):
-        value = convert_bitmap_to_pillow_font(
-            CORE.relative_config_path(cv.file_(value))
-        )
-        return {
-            CONF_TYPE: TYPE_LOCAL_BITMAP,
-            CONF_PATH: value,
-        }
-
     return font_file_schema(
         {
             CONF_TYPE: TYPE_LOCAL,
@@ -378,7 +423,6 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
     {
         TYPE_LOCAL: LOCAL_SCHEMA,
         TYPE_GFONTS: GFONTS_SCHEMA,
-        TYPE_LOCAL_BITMAP: LOCAL_BITMAP_SCHEMA,
         TYPE_WEB: WEB_FONT_SCHEMA,
     }
 )
@@ -393,7 +437,9 @@ def font_file_schema(value):
 # Default if no glyphs or glyphsets are provided
 DEFAULT_GLYPHSET = "GF_Latin_Kernel"
 # default for bitmap fonts
-DEFAULT_GLYPHS = ' !"%()+=,-.:/?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz<C2><B0>'
+DEFAULT_GLYPHS = (
+    ' !"%()+=,-.:/?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
+)
 
 CONF_RAW_GLYPH_ID = "raw_glyph_id"
 
@@ -406,7 +452,7 @@ FONT_SCHEMA = cv.Schema(
             cv.one_of(*glyphsets.defined_glyphsets())
         ),
         cv.Optional(CONF_IGNORE_MISSING_GLYPHS, default=False): cv.boolean,
-        cv.Optional(CONF_SIZE, default=20): cv.int_range(min=1),
+        cv.Optional(CONF_SIZE): cv.int_range(min=1),
         cv.Optional(CONF_BPP, default=1): cv.one_of(1, 2, 4, 8),
         cv.Optional(CONF_EXTRAS, default=[]): cv.ensure_list(
             cv.Schema(
@@ -421,118 +467,80 @@ FONT_SCHEMA = cv.Schema(
     },
 )
 
-CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA, validate_glyphs)
-
-
-# PIL doesn't provide a consistent interface for both TrueType and bitmap
-# fonts. So, we use our own wrappers to give us the consistency that we need.
-
-
-class TrueTypeFontWrapper:
-    def __init__(self, font):
-        self.font = font
-
-    def getoffset(self, glyph):
-        _, (offset_x, offset_y) = self.font.font.getsize(glyph)
-        return offset_x, offset_y
-
-    def getmask(self, glyph, **kwargs):
-        return self.font.getmask(str(glyph), **kwargs)
-
-    def getmetrics(self, glyphs):
-        return self.font.getmetrics()
-
-
-class BitmapFontWrapper:
-    def __init__(self, font):
-        self.font = font
-        self.max_height = 0
-
-    def getoffset(self, glyph):
-        return 0, 0
-
-    def getmask(self, glyph, **kwargs):
-        return self.font.getmask(str(glyph), **kwargs)
-
-    def getmetrics(self, glyphs):
-        max_height = 0
-        for glyph in glyphs:
-            mask = self.getmask(glyph, mode="1")
-            _, height = mask.size
-            max_height = max(max_height, height)
-        return max_height, 0
+CONFIG_SCHEMA = cv.All(FONT_SCHEMA, validate_font_config)
 
 
 class EFont:
-    def __init__(self, file, size, codepoints):
+    def __init__(self, file, codepoints):
         self.codepoints = codepoints
-        path = file[CONF_PATH]
-        self.name = Path(path).name
-        ftype = file[CONF_TYPE]
-        if ftype == TYPE_LOCAL_BITMAP:
-            self.font = load_bitmap_font(path)
-        else:
-            self.font = load_ttf_font(path, size)
-        self.ascent, self.descent = self.font.getmetrics(codepoints)
-
-
-def convert_bitmap_to_pillow_font(filepath):
-    from PIL import BdfFontFile, PcfFontFile
-
-    local_bitmap_font_file = external_files.compute_local_file_dir(
-        DOMAIN,
-    ) / os.path.basename(filepath)
-
-    copy_file_if_changed(filepath, local_bitmap_font_file)
-
-    local_pil_font_file = local_bitmap_font_file.with_suffix(".pil")
-    with open(local_bitmap_font_file, "rb") as fp:
-        try:
-            try:
-                p = PcfFontFile.PcfFontFile(fp)
-            except SyntaxError:
-                fp.seek(0)
-                p = BdfFontFile.BdfFontFile(fp)
-
-            # Convert to pillow-formatted fonts, which have a .pil and .pbm extension.
-            p.save(local_pil_font_file)
-        except (SyntaxError, OSError) as err:
-            raise core.EsphomeError(
-                f"Failed to parse as bitmap font: '{filepath}': {err}"
-            )
-
-    return str(local_pil_font_file)
-
-
-def load_bitmap_font(filepath):
-    from PIL import ImageFont
-
-    try:
-        font = ImageFont.load(str(filepath))
-    except Exception as e:
-        raise core.EsphomeError(f"Failed to load bitmap font file: {filepath}: {e}")
-
-    return BitmapFontWrapper(font)
-
-
-def load_ttf_font(path, size):
-    from PIL import ImageFont
-
-    try:
-        font = ImageFont.truetype(str(path), size)
-    except Exception as e:
-        raise core.EsphomeError(f"Could not load TrueType file {path}: {e}")
-
-    return TrueTypeFontWrapper(font)
+        self.font: Face = FONT_CACHE[file]
 
 
 class GlyphInfo:
-    def __init__(self, data_len, offset_x, offset_y, width, height):
-        self.data_len = data_len
+    def __init__(self, glyph, data, advance, offset_x, offset_y, width, height):
+        self.glyph = glyph
+        self.bitmap_data = data
+        self.advance = advance
         self.offset_x = offset_x
         self.offset_y = offset_y
         self.width = width
         self.height = height
+
+
+def glyph_to_glyphinfo(glyph, font, size, bpp):
+    scale = 256 // (1 << bpp)
+    if not font.is_scalable:
+        sizes = [pt_to_px(x.size) for x in font.available_sizes]
+        if size in sizes:
+            font.select_size(sizes.index(size))
+    else:
+        font.set_pixel_sizes(size, 0)
+    flags = FT_LOAD_RENDER
+    if bpp != 1:
+        flags |= FT_LOAD_NO_BITMAP
+    else:
+        flags |= FT_LOAD_TARGET_MONO
+    font.load_char(glyph, flags)
+    width = font.glyph.bitmap.width
+    height = font.glyph.bitmap.rows
+    buffer = font.glyph.bitmap.buffer
+    pitch = font.glyph.bitmap.pitch
+    glyph_data = [0] * ((height * width * bpp + 7) // 8)
+    src_mode = font.glyph.bitmap.pixel_mode
+    pos = 0
+    for y in range(height):
+        for x in range(width):
+            if src_mode == ft_pixel_mode_mono:
+                pixel = (
+                    (1 << bpp) - 1
+                    if buffer[y * pitch + x // 8] & (1 << (7 - x % 8))
+                    else 0
+                )
+            else:
+                pixel = buffer[y * pitch + x] // scale
+            for bit_num in range(bpp):
+                if pixel & (1 << (bpp - bit_num - 1)):
+                    glyph_data[pos // 8] |= 0x80 >> (pos % 8)
+                pos += 1
+    ascender = pt_to_px(font.size.ascender)
+    if ascender == 0:
+        if not font.is_scalable:
+            ascender = size
+        else:
+            _LOGGER.error(
+                "Unable to determine ascender of font %s %s",
+                font.family_name,
+                font.style_name,
+            )
+    return GlyphInfo(
+        glyph,
+        glyph_data,
+        pt_to_px(font.glyph.metrics.horiAdvance),
+        font.glyph.bitmap_left,
+        ascender - font.glyph.bitmap_top,
+        width,
+        height,
+    )
 
 
 async def to_code(config):
@@ -552,81 +560,73 @@ async def to_code(config):
     }
     # get the codepoints from the glyphs key, flatten to a list of chrs and combine with the points from glyphsets
     point_set.update(flatten(config[CONF_GLYPHS]))
-    size = config[CONF_SIZE]
     # Create the codepoint to font file map
-    base_font = EFont(config[CONF_FILE], size, point_set)
-    point_font_map: dict[str, EFont] = {c: base_font for c in point_set}
+    base_font = FONT_CACHE[config[CONF_FILE]]
+    point_font_map: dict[str, Face] = {c: base_font for c in point_set}
     # process extras, updating the map and extending the codepoint list
     for extra in config[CONF_EXTRAS]:
         extra_points = flatten(extra[CONF_GLYPHS])
         point_set.update(extra_points)
-        extra_font = EFont(extra[CONF_FILE], size, extra_points)
+        extra_font = FONT_CACHE[extra[CONF_FILE]]
         point_font_map.update({c: extra_font for c in extra_points})
 
     codepoints = list(point_set)
     codepoints.sort(key=functools.cmp_to_key(glyph_comparator))
-    glyph_args = {}
-    data = []
     bpp = config[CONF_BPP]
-    if bpp == 1:
-        mode = "1"
-        scale = 1
-    else:
-        mode = "L"
-        scale = 256 // (1 << bpp)
+    size = config[CONF_SIZE]
     # create the data array for all glyphs
-    for codepoint in codepoints:
-        font = point_font_map[codepoint]
-        mask = font.font.getmask(codepoint, mode=mode)
-        offset_x, offset_y = font.font.getoffset(codepoint)
-        width, height = mask.size
-        glyph_data = [0] * ((height * width * bpp + 7) // 8)
-        pos = 0
-        for y in range(height):
-            for x in range(width):
-                pixel = mask.getpixel((x, y)) // scale
-                for bit_num in range(bpp):
-                    if pixel & (1 << (bpp - bit_num - 1)):
-                        glyph_data[pos // 8] |= 0x80 >> (pos % 8)
-                    pos += 1
-        glyph_args[codepoint] = GlyphInfo(len(data), offset_x, offset_y, width, height)
-        data += glyph_data
-
-    rhs = [HexInt(x) for x in data]
+    glyph_args = [
+        glyph_to_glyphinfo(x, point_font_map[x], size, bpp) for x in codepoints
+    ]
+    rhs = [HexInt(x) for x in flatten([x.bitmap_data for x in glyph_args])]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
 
     # Create the glyph table that points to data in the above array.
-    glyph_initializer = []
-    for codepoint in codepoints:
-        glyph_initializer.append(
-            cg.StructInitializer(
-                GlyphData,
-                (
-                    "a_char",
-                    cg.RawExpression(
-                        f"(const uint8_t *){cpp_string_escape(codepoint)}"
-                    ),
-                ),
-                (
-                    "data",
-                    cg.RawExpression(
-                        f"{str(prog_arr)} + {str(glyph_args[codepoint].data_len)}"
-                    ),
-                ),
-                ("offset_x", glyph_args[codepoint].offset_x),
-                ("offset_y", glyph_args[codepoint].offset_y),
-                ("width", glyph_args[codepoint].width),
-                ("height", glyph_args[codepoint].height),
-            )
+    glyph_initializer = [
+        cg.StructInitializer(
+            GlyphData,
+            (
+                "a_char",
+                cg.RawExpression(f"(const uint8_t *){cpp_string_escape(x.glyph)}"),
+            ),
+            (
+                "data",
+                cg.RawExpression(f"{str(prog_arr)} + {str(y - len(x.bitmap_data))}"),
+            ),
+            ("advance", x.advance),
+            ("offset_x", x.offset_x),
+            ("offset_y", x.offset_y),
+            ("width", x.width),
+            ("height", x.height),
         )
+        for (x, y) in zip(
+            glyph_args, list(accumulate([len(x.bitmap_data) for x in glyph_args]))
+        )
+    ]
 
     glyphs = cg.static_const_array(config[CONF_RAW_GLYPH_ID], glyph_initializer)
 
+    font_height = pt_to_px(base_font.size.height)
+    ascender = pt_to_px(base_font.size.ascender)
+    descender = abs(pt_to_px(base_font.size.descender))
+    g = glyph_to_glyphinfo("x", base_font, size, bpp)
+    xheight = g.height if len(g.bitmap_data) > 1 else 0
+    g = glyph_to_glyphinfo("X", base_font, size, bpp)
+    capheight = g.height if len(g.bitmap_data) > 1 else 0
+    if font_height == 0:
+        if not base_font.is_scalable:
+            font_height = size
+            ascender = font_height
+        else:
+            _LOGGER.error("Unable to determine height of font %s", config[CONF_FILE])
     cg.new_Pvariable(
         config[CONF_ID],
         glyphs,
         len(glyph_initializer),
-        base_font.ascent,
-        base_font.ascent + base_font.descent,
+        ascender,
+        font_height,
+        descender,
+        xheight,
+        capheight,
         bpp,
     )

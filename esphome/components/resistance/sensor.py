@@ -1,23 +1,16 @@
 import esphome.codegen as cg
+from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, resistance_sampler
 from esphome.const import (
     CONF_REFERENCE_VOLTAGE,
     CONF_SENSOR,
+    ICON_FLASH,
     STATE_CLASS_MEASUREMENT,
     UNIT_OHM,
-    ICON_FLASH,
 )
-
-AUTO_LOAD = ["resistance_sampler"]
 
 resistance_ns = cg.esphome_ns.namespace("resistance")
-ResistanceSensor = resistance_ns.class_(
-    "ResistanceSensor",
-    cg.Component,
-    sensor.Sensor,
-    resistance_sampler.ResistanceSampler,
-)
+ResistanceSensor = resistance_ns.class_("ResistanceSensor", cg.Component, sensor.Sensor)
 
 CONF_CONFIGURATION = "configuration"
 CONF_RESISTOR = "resistor"

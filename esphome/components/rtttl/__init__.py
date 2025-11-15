@@ -1,19 +1,19 @@
 import logging
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
+
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components.output import FloatOutput
 from esphome.components.speaker import Speaker
-
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_GAIN,
     CONF_ID,
     CONF_OUTPUT,
     CONF_PLATFORM,
-    CONF_TRIGGER_ID,
     CONF_SPEAKER,
-    CONF_GAIN,
+    CONF_TRIGGER_ID,
 )
+import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,14 +57,14 @@ def validate_parent_output_config(value):
     platform = value.get(CONF_PLATFORM)
     PWM_GOOD = ["esp8266_pwm", "ledc"]
     PWM_BAD = [
-        "ac_dimmer ",
+        "ac_dimmer",
         "esp32_dac",
-        "slow_pwm",
         "mcp4725",
-        "pca9685",
-        "tlc59208f",
         "my9231",
+        "pca9685",
+        "slow_pwm",
         "sm16716",
+        "tlc59208f",
     ]
 
     if platform in PWM_BAD:

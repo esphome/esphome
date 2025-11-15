@@ -1,8 +1,7 @@
+from esphome import automation, pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome import automation
-from esphome import pins
 from esphome.components import uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
     CONF_COUNT,
@@ -13,11 +12,11 @@ from esphome.const import (
     CONF_ON_ENROLLMENT_DONE,
     CONF_ON_ENROLLMENT_FAILED,
     CONF_ON_ENROLLMENT_SCAN,
-    CONF_ON_FINGER_SCAN_START,
-    CONF_ON_FINGER_SCAN_MATCHED,
-    CONF_ON_FINGER_SCAN_UNMATCHED,
-    CONF_ON_FINGER_SCAN_MISPLACED,
     CONF_ON_FINGER_SCAN_INVALID,
+    CONF_ON_FINGER_SCAN_MATCHED,
+    CONF_ON_FINGER_SCAN_MISPLACED,
+    CONF_ON_FINGER_SCAN_START,
+    CONF_ON_FINGER_SCAN_UNMATCHED,
     CONF_PASSWORD,
     CONF_SENSING_PIN,
     CONF_SPEED,

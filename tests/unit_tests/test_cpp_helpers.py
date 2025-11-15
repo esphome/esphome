@@ -1,8 +1,8 @@
-import pytest
 from unittest.mock import Mock
 
-from esphome import cpp_helpers as ch
-from esphome import const
+import pytest
+
+from esphome import const, cpp_helpers as ch
 
 
 @pytest.mark.asyncio

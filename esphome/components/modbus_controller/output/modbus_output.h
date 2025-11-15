@@ -25,21 +25,21 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
   void dump_config() override;
 
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
-  void set_write_multiply(float factor) { multiply_by_ = factor; }
+  void set_write_multiply(float factor) { this->multiply_by_ = factor; }
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using write_transform_func_t = std::function<optional<float>(ModbusFloatOutput *, float, std::vector<uint16_t> &)>;
-  void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, std::vector<uint16_t> &);
+  void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   void write_state(float value) override;
   optional<write_transform_func_t> write_transform_func_{nullopt};
 
-  ModbusController *parent_;
+  ModbusController *parent_{nullptr};
   float multiply_by_{1.0};
-  bool use_write_multiple_;
+  bool use_write_multiple_{false};
 };
 
 class ModbusBinaryOutput : public output::BinaryOutput, public Component, public SensorItem {
@@ -60,16 +60,16 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using write_transform_func_t = std::function<optional<bool>(ModbusBinaryOutput *, bool, std::vector<uint8_t> &)>;
-  void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, std::vector<uint8_t> &);
+  void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   void write_state(bool state) override;
   optional<write_transform_func_t> write_transform_func_{nullopt};
 
-  ModbusController *parent_;
-  bool use_write_multiple_;
+  ModbusController *parent_{nullptr};
+  bool use_write_multiple_{false};
 };
 
 }  // namespace modbus_controller

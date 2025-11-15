@@ -56,16 +56,55 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 inline void lv_img_set_src(lv_obj_t *obj, esphome::image::Image *image) {
   lv_img_set_src(obj, image->get_lv_img_dsc());
 }
+inline void lv_disp_set_bg_image(lv_disp_t *disp, esphome::image::Image *image) {
+  lv_disp_set_bg_image(disp, image->get_lv_img_dsc());
+}
+
+inline void lv_obj_set_style_bg_img_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
+  lv_obj_set_style_bg_img_src(obj, image->get_lv_img_dsc(), selector);
+}
+#ifdef USE_LVGL_CANVAS
+inline void lv_canvas_draw_img(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, image::Image *image,
+                               lv_draw_img_dsc_t *dsc) {
+  lv_canvas_draw_img(canvas, x, y, image->get_lv_img_dsc(), dsc);
+}
+#endif
+
+#ifdef USE_LVGL_METER
+inline lv_meter_indicator_t *lv_meter_add_needle_img(lv_obj_t *obj, lv_meter_scale_t *scale, esphome::image::Image *src,
+                                                     lv_coord_t pivot_x, lv_coord_t pivot_y) {
+  return lv_meter_add_needle_img(obj, scale, src->get_lv_img_dsc(), pivot_x, pivot_y);
+}
+#endif  // USE_LVGL_METER
 #endif  // USE_LVGL_IMAGE
+#ifdef USE_LVGL_ANIMIMG
+inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images) {
+  auto *dsc = static_cast<std::vector<lv_img_dsc_t *> *>(lv_obj_get_user_data(img));
+  if (dsc == nullptr) {
+    // object will be lazily allocated but never freed.
+    dsc = new std::vector<lv_img_dsc_t *>(images.size());  // NOLINT
+    lv_obj_set_user_data(img, dsc);
+  }
+  dsc->clear();
+  for (auto &image : images) {
+    dsc->push_back(image->get_lv_img_dsc());
+  }
+  lv_animimg_set_src(img, (const void **) dsc->data(), dsc->size());
+}
+
+#endif  // USE_LVGL_ANIMIMG
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
+  virtual ~LvCompound() = default;
   virtual void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
   lv_obj_t *obj{};
 };
 
-class LvPageType {
+class LvglComponent;
+
+class LvPageType : public Parented<LvglComponent> {
  public:
   LvPageType(bool skip) : skip(skip) {}
 
@@ -73,6 +112,9 @@ class LvPageType {
     this->index = index;
     this->obj = lv_obj_create(nullptr);
   }
+
+  bool is_showing() const;
+
   lv_obj_t *obj{};
   size_t index{};
   bool skip;
@@ -87,7 +129,7 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  public:
   explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
 
-  void play(Ts... x) override { this->lamb_(x...); }
+  void play(const Ts &...x) override { this->lamb_(x...); }
 
  protected:
   std::function<void(Ts...)> lamb_;
@@ -129,9 +171,10 @@ class LvglComponent : public PollingComponent {
   void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
     this->idle_callbacks_.add(std::move(callback));
   }
-  void add_on_pause_callback(std::function<void(bool)> &&callback) { this->pause_callbacks_.add(std::move(callback)); }
+
+  static void monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px);
+  static void render_start_cb(lv_disp_drv_t *disp_drv);
   void dump_config() override;
-  bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   lv_disp_t *get_disp() { return this->disp_; }
   lv_obj_t *get_scr_act() { return lv_disp_get_scr_act(this->disp_); }
   // Pause or resume the display.
@@ -159,6 +202,7 @@ class LvglComponent : public PollingComponent {
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
   void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
+  size_t get_current_page() const;
   void set_focus_mark(lv_group_t *group) { this->focus_marks_[group] = lv_group_get_focused(group); }
   void restore_focus_mark(lv_group_t *group) {
     auto *mark = this->focus_marks_[group];
@@ -170,12 +214,20 @@ class LvglComponent : public PollingComponent {
   size_t draw_rounding{2};
 
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
+  void set_pause_trigger(Trigger<> *trigger) { this->pause_callback_ = trigger; }
+  void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
+  void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
+  void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
 
  protected:
+  // these functions are never called unless the callbacks are non-null since the
+  // LVGL callbacks that call them are not set unless the start/end callbacks are non-null
+  void draw_start_() const { this->draw_start_callback_->trigger(); }
+  void draw_end_() const { this->draw_end_callback_->trigger(); }
+
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
-
   std::vector<display::Display *> displays_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
@@ -192,7 +244,10 @@ class LvglComponent : public PollingComponent {
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   CallbackManager<void(uint32_t)> idle_callbacks_{};
-  CallbackManager<void(bool)> pause_callbacks_{};
+  Trigger<> *pause_callback_{};
+  Trigger<> *resume_callback_{};
+  Trigger<> *draw_start_callback_{};
+  Trigger<> *draw_end_callback_{};
   lv_color_t *rotate_buf_{};
 };
 
@@ -205,31 +260,22 @@ class IdleTrigger : public Trigger<> {
   bool is_idle_{};
 };
 
-class PauseTrigger : public Trigger<> {
- public:
-  explicit PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused);
-
- protected:
-  TemplatableValue<bool> paused_;
-};
-
 template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
  public:
   explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
-  void play(Ts... x) override { this->action_(this->parent_); }
+  void play(const Ts &...x) override { this->action_(this->parent_); }
 
  protected:
   std::function<void(LvglComponent *)> action_{};
 };
 
-template<typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<LvglComponent> {
+template<typename Tc, typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<Tc> {
  public:
-  LvglCondition(std::function<bool(LvglComponent *)> &&condition_lambda)
-      : condition_lambda_(std::move(condition_lambda)) {}
-  bool check(Ts... x) override { return this->condition_lambda_(this->parent_); }
+  LvglCondition(std::function<bool(Tc *)> &&condition_lambda) : condition_lambda_(std::move(condition_lambda)) {}
+  bool check(const Ts &...x) override { return this->condition_lambda_(this->parent_); }
 
  protected:
-  std::function<bool(LvglComponent *)> condition_lambda_{};
+  std::function<bool(Tc *)> condition_lambda_{};
 };
 
 #ifdef USE_LVGL_TOUCHSCREEN
@@ -296,6 +342,19 @@ class LVEncoderListener : public Parented<LvglComponent> {
 };
 #endif  //  USE_LVGL_KEY_LISTENER
 
+#ifdef USE_LVGL_LINE
+class LvLineType : public LvCompound {
+ public:
+  std::vector<lv_point_t> get_points() { return this->points_; }
+  void set_points(std::vector<lv_point_t> points) {
+    this->points_ = std::move(points);
+    lv_line_set_points(this->obj, this->points_.data(), this->points_.size());
+  }
+
+ protected:
+  std::vector<lv_point_t> points_{};
+};
+#endif
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 class LvSelectable : public LvCompound {
  public:
@@ -303,7 +362,7 @@ class LvSelectable : public LvCompound {
   virtual void set_selected_index(size_t index, lv_anim_enable_t anim) = 0;
   void set_selected_text(const std::string &text, lv_anim_enable_t anim);
   std::string get_selected_text();
-  std::vector<std::string> get_options() { return this->options_; }
+  const std::vector<std::string> &get_options() { return this->options_; }
   void set_options(std::vector<std::string> options);
 
  protected:

@@ -7,35 +7,26 @@ namespace qwiic_pir {
 static const char *const TAG = "qwiic_pir";
 
 void QwiicPIRComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Qwiic PIR...");
-
   // Verify I2C communcation by reading and verifying the chip ID
   uint8_t chip_id;
-
   if (!this->read_byte(QWIIC_PIR_CHIP_ID, &chip_id)) {
-    ESP_LOGE(TAG, "Failed to read the chip's ID");
-
+    ESP_LOGE(TAG, "Failed to read chip ID");
     this->error_code_ = ERROR_COMMUNICATION_FAILED;
     this->mark_failed();
-
     return;
   }
 
   if (chip_id != QWIIC_PIR_DEVICE_ID) {
-    ESP_LOGE(TAG, "Unknown chip ID, is this a Qwiic PIR?");
-
+    ESP_LOGE(TAG, "Unknown chip ID");
     this->error_code_ = ERROR_WRONG_CHIP_ID;
     this->mark_failed();
-
     return;
   }
 
   if (!this->write_byte_16(QWIIC_PIR_DEBOUNCE_TIME, this->debounce_time_)) {
-    ESP_LOGE(TAG, "Failed to configure debounce time.");
-
+    ESP_LOGE(TAG, "Failed to configure debounce time");
     this->error_code_ = ERROR_COMMUNICATION_FAILED;
     this->mark_failed();
-
     return;
   }
 
@@ -43,11 +34,9 @@ void QwiicPIRComponent::setup() {
     // Publish the starting raw state of the PIR sensor
     // If NATIVE mode, the binary_sensor state would be unknown until a motion event
     if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
-      ESP_LOGE(TAG, "Failed to read initial sensor state.");
-
+      ESP_LOGE(TAG, "Failed to read initial state");
       this->error_code_ = ERROR_COMMUNICATION_FAILED;
       this->mark_failed();
-
       return;
     }
 
@@ -58,8 +47,7 @@ void QwiicPIRComponent::setup() {
 void QwiicPIRComponent::loop() {
   // Read Event Register
   if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
-    ESP_LOGW(TAG, "Failed to communicate with sensor");
-
+    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
@@ -98,39 +86,47 @@ void QwiicPIRComponent::loop() {
 }
 
 void QwiicPIRComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Qwiic PIR:");
+  static const char *const RAW = "RAW";
+  static const char *const NATIVE = "NATIVE";
+  static const char *const HYBRID = "HYBRID";
 
-  if (this->debounce_mode_ == RAW_DEBOUNCE_MODE) {
-    ESP_LOGCONFIG(TAG, "  Debounce Mode: RAW");
-  } else if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
-    ESP_LOGCONFIG(TAG, "  Debounce Mode: NATIVE");
-    ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
+  const char *debounce_mode_str = RAW;
+  if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
+    debounce_mode_str = NATIVE;
   } else if (this->debounce_mode_ == HYBRID_DEBOUNCE_MODE) {
-    ESP_LOGCONFIG(TAG, "  Debounce Mode: HYBRID");
+    debounce_mode_str = HYBRID;
+  }
+
+  ESP_LOGCONFIG(TAG,
+                "Qwiic PIR:\n"
+                "  Debounce Mode: %s",
+                debounce_mode_str);
+  if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
+    ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
   }
 
   switch (this->error_code_) {
     case NONE:
       break;
     case ERROR_COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "  Communication with Qwiic PIR failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case ERROR_WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "  Qwiic PIR has wrong chip ID - please verify you are using a Qwiic PIR");
+      ESP_LOGE(TAG, "Unknown chip ID");
       break;
     default:
-      ESP_LOGE(TAG, "  Qwiic PIR error code %d", (int) this->error_code_);
+      ESP_LOGE(TAG, "Error %d", (int) this->error_code_);
       break;
   }
 
   LOG_I2C_DEVICE(this);
-  LOG_BINARY_SENSOR("  ", "Qwiic PIR Binary Sensor", this);
+  LOG_BINARY_SENSOR("  ", "Binary Sensor", this);
 }
 
 void QwiicPIRComponent::clear_events_() {
   // Clear event status register
   if (!this->write_byte(QWIIC_PIR_EVENT_STATUS, 0x00))
-    ESP_LOGW(TAG, "Failed to clear events on sensor");
+    ESP_LOGW(TAG, "Failed to clear events");
 }
 
 }  // namespace qwiic_pir

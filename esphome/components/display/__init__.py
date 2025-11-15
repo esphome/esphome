@@ -12,8 +12,10 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_TO,
     CONF_TRIGGER_ID,
+    CONF_UPDATE_INTERVAL,
+    SCHEDULER_DONT_RUN,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CoroPriority, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -39,6 +41,7 @@ DisplayOnPageChangeTrigger = display_ns.class_(
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
 CONF_SHOW_TEST_CARD = "show_test_card"
+CONF_UNSPECIFIED = "unspecified"
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -50,21 +53,38 @@ DISPLAY_ROTATIONS = {
 
 def validate_rotation(value):
     value = cv.string(value)
-    if value.endswith("°"):
-        value = value[:-1]
+    value = value.removesuffix("°")
     return cv.enum(DISPLAY_ROTATIONS, int=True)(value)
+
+
+def validate_auto_clear(value):
+    if value == CONF_UNSPECIFIED:
+        return value
+    return cv.boolean(value)
 
 
 BASIC_DISPLAY_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_LAMBDA): cv.lambda_,
+        cv.Exclusive(CONF_LAMBDA, CONF_LAMBDA): cv.lambda_,
     }
 ).extend(cv.polling_component_schema("1s"))
+
+
+def _validate_test_card(config):
+    if (
+        config.get(CONF_SHOW_TEST_CARD, False)
+        and config.get(CONF_UPDATE_INTERVAL, False) == SCHEDULER_DONT_RUN
+    ):
+        raise cv.Invalid(
+            f"`{CONF_SHOW_TEST_CARD}: True` cannot be used with `{CONF_UPDATE_INTERVAL}: never` because this combination will not show a test_card."
+        )
+    return config
+
 
 FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     {
         cv.Optional(CONF_ROTATION): validate_rotation,
-        cv.Optional(CONF_PAGES): cv.All(
+        cv.Exclusive(CONF_PAGES, CONF_LAMBDA): cv.All(
             cv.ensure_list(
                 {
                     cv.GenerateID(): cv.declare_id(DisplayPage),
@@ -82,18 +102,25 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
                 cv.Optional(CONF_TO): cv.use_id(DisplayPage),
             }
         ),
-        cv.Optional(CONF_AUTO_CLEAR_ENABLED, default=True): cv.boolean,
+        cv.Optional(
+            CONF_AUTO_CLEAR_ENABLED, default=CONF_UNSPECIFIED
+        ): validate_auto_clear,
         cv.Optional(CONF_SHOW_TEST_CARD): cv.boolean,
     }
 )
+FULL_DISPLAY_SCHEMA.add_extra(_validate_test_card)
 
 
 async def setup_display_core_(var, config):
     if CONF_ROTATION in config:
         cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
 
-    if CONF_AUTO_CLEAR_ENABLED in config:
-        cg.add(var.set_auto_clear(config[CONF_AUTO_CLEAR_ENABLED]))
+    if (auto_clear := config.get(CONF_AUTO_CLEAR_ENABLED)) is not None:
+        # Default to true if pages or lambda is specified. Ideally this would be done during validation, but
+        # the possible schemas are too complex to do this easily.
+        if auto_clear == CONF_UNSPECIFIED:
+            auto_clear = CONF_LAMBDA in config or CONF_PAGES in config
+        cg.add(var.set_auto_clear(auto_clear))
 
     if CONF_PAGES in config:
         pages = []
@@ -149,7 +176,7 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
     DisplayPageShowNextAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.templatable(cv.use_id(Display)),
+            cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
 )
@@ -163,7 +190,7 @@ async def display_page_show_next_to_code(config, action_id, template_arg, args):
     DisplayPageShowPrevAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.templatable(cv.use_id(Display)),
+            cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
 )
@@ -188,11 +215,10 @@ async def display_is_displaying_page_to_code(config, condition_id, template_arg,
     page = await cg.get_variable(config[CONF_PAGE_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
     cg.add(var.set_page(page))
-
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(display_ns.using)
     cg.add_define("USE_DISPLAY")

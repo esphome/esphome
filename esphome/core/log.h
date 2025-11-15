@@ -1,7 +1,11 @@
 #pragma once
 
+#include "log_const_en.h"
+
 #include <cassert>
 #include <cstdarg>
+// for PRIu32 and friends
+#include <cinttypes>
 #include <string>
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
@@ -74,7 +78,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define esph_log_vv(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERY_VERBOSE
 #else
@@ -83,7 +87,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 #define esph_log_v(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERBOSE
 #else
@@ -92,9 +96,9 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 #define esph_log_d(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 #define esph_log_config(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_DEBUG
 #define ESPHOME_LOG_HAS_CONFIG
@@ -105,7 +109,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
 #define esph_log_i(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_INFO
 #else
@@ -114,7 +118,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
 #define esph_log_w(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_WARN
 #else
@@ -123,7 +127,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
 #define esph_log_e(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_ERROR
 #else
@@ -161,6 +165,8 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define YESNO(b) ((b) ? "YES" : "NO")
 #define ONOFF(b) ((b) ? "ON" : "OFF")
 #define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
+// for use with optional values
+#define ONOFFMAYBE(b) (((b).has_value()) ? ONOFF((b).value()) : "UNKNOWN")
 
 // Helper class that identifies strings that may be stored in flash storage (similar to Arduino's __FlashStringHelper)
 struct LogString;

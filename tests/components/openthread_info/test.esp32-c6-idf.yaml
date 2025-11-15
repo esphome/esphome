@@ -1,0 +1,30 @@
+network:
+  enable_ipv6: true
+
+openthread:
+  channel: 13
+  network_key: 0xdfd34f0f05cad978ec4e32b0413038ff
+  pan_id: 0x8f28
+
+text_sensor:
+  - platform: openthread_info
+    ip_address:
+      name: "Off-mesh routable IP Address"
+    channel:
+      name: "Channel"
+    role:
+      name: "Device Role"
+    rloc16:
+      name: "RLOC16"
+    ext_addr:
+      name: "Extended Address"
+    eui64:
+      name: "EUI64"
+    network_name:
+      name: "Network Name"
+    network_key:
+      name: "Network Key"
+    pan_id:
+      name: "PAN ID"
+    ext_pan_id:
+      name: "Extended PAN ID"

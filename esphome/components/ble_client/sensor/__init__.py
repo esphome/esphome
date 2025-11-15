@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
     CONF_LAMBDA,
+    CONF_NOTIFY,
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
@@ -19,7 +20,6 @@ DEPENDENCIES = ["ble_client"]
 
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
-CONF_NOTIFY = "notify"
 CONF_ON_NOTIFY = "on_notify"
 TYPE_CHARACTERISTIC = "characteristic"
 TYPE_RSSI = "rssi"

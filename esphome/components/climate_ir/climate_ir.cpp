@@ -8,7 +8,10 @@ static const char *const TAG = "climate_ir";
 
 climate::ClimateTraits ClimateIR::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(this->sensor_ != nullptr);
+  if (this->sensor_ != nullptr) {
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
+
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
   if (this->supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
@@ -19,7 +22,6 @@ climate::ClimateTraits ClimateIR::traits() {
   if (this->supports_fan_only_)
     traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
 
-  traits.set_supports_two_point_target_temperature(false);
   traits.set_visual_min_temperature(this->minimum_temperature_);
   traits.set_visual_max_temperature(this->maximum_temperature_);
   traits.set_visual_temperature_step(this->temperature_step_);
@@ -37,8 +39,9 @@ void ClimateIR::setup() {
       this->publish_state();
     });
     this->current_temperature = this->sensor_->state;
-  } else
+  } else {
     this->current_temperature = NAN;
+  }
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -74,10 +77,13 @@ void ClimateIR::control(const climate::ClimateCall &call) {
 }
 void ClimateIR::dump_config() {
   LOG_CLIMATE("", "IR Climate", this);
-  ESP_LOGCONFIG(TAG, "  Min. Temperature: %.1f°C", this->minimum_temperature_);
-  ESP_LOGCONFIG(TAG, "  Max. Temperature: %.1f°C", this->maximum_temperature_);
-  ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
-  ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
+  ESP_LOGCONFIG(TAG,
+                "  Min. Temperature: %.1f°C\n"
+                "  Max. Temperature: %.1f°C\n"
+                "  Supports HEAT: %s\n"
+                "  Supports COOL: %s",
+                this->minimum_temperature_, this->maximum_temperature_, YESNO(this->supports_heat_),
+                YESNO(this->supports_cool_));
 }
 
 }  // namespace climate_ir

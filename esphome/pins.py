@@ -1,5 +1,8 @@
+from collections.abc import Callable
 from functools import reduce
+from logging import Logger
 import operator
+from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -15,6 +18,7 @@ from esphome.const import (
     CONF_PULLUP,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObjClass
 
 
 class PinRegistry(dict):
@@ -114,11 +118,11 @@ class PinRegistry(dict):
                         parent_config = fconf.get_config_for_path(parent_path)
                         final_val_fun(pin_config, parent_config)
                     allow_others = pin_config.get(CONF_ALLOW_OTHER_USES, False)
-                    if count != 1 and not allow_others:
+                    if count != 1 and not allow_others and not CORE.testing_mode:
                         raise cv.Invalid(
                             f"Pin {pin_config[CONF_NUMBER]} is used in multiple places"
                         )
-                    if count == 1 and allow_others:
+                    if count == 1 and allow_others and not CORE.testing_mode:
                         raise cv.Invalid(
                             f"Pin {pin_config[CONF_NUMBER]} incorrectly sets {CONF_ALLOW_OTHER_USES}: true"
                         )
@@ -216,7 +220,9 @@ def gpio_flags_expr(mode):
 
 
 gpio_pin_schema = _schema_creator
-internal_gpio_pin_number = _internal_number_creator
+internal_gpio_pin_number = _internal_number_creator(
+    {CONF_OUTPUT: True, CONF_INPUT: True}
+)
 gpio_output_pin_schema = _schema_creator(
     {
         CONF_OUTPUT: True,
@@ -262,7 +268,7 @@ internal_gpio_input_pullup_pin_number = _internal_number_creator(
 )
 
 
-def check_strapping_pin(conf, strapping_pin_list, logger):
+def check_strapping_pin(conf, strapping_pin_list: set[int], logger: Logger):
     num = conf[CONF_NUMBER]
     if num in strapping_pin_list and not conf.get(CONF_IGNORE_STRAPPING_WARNING):
         logger.warning(
@@ -291,11 +297,11 @@ def gpio_validate_modes(value):
 
 
 def gpio_base_schema(
-    pin_type,
-    number_validator,
+    pin_type: MockObjClass,
+    number_validator: Callable[[Any], Any],
     modes=GPIO_STANDARD_MODES,
-    mode_validator=gpio_validate_modes,
-    invertable=True,
+    mode_validator: Callable[[Any], Any] = gpio_validate_modes,
+    invertible: bool = True,
 ):
     """
     Generate a base gpio pin schema
@@ -303,7 +309,7 @@ def gpio_base_schema(
     :param number_validator: A validator for the pin number
     :param modes: The available modes, default is all standard modes
     :param mode_validator: A validator function for the pin mode
-    :param invertable: If the pin supports hardware inversion
+    :param invertible: If the pin supports hardware inversion
     :return: A schema for the pin
     """
     mode_default = len(modes) == 1
@@ -328,7 +334,7 @@ def gpio_base_schema(
         }
     )
 
-    if invertable:
+    if invertible:
         return schema.extend({cv.Optional(CONF_INVERTED, default=False): cv.boolean})
 
     return schema

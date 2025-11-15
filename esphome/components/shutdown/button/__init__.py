@@ -1,11 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import button
-from esphome.const import (
-    CONF_ID,
-    ENTITY_CATEGORY_CONFIG,
-    ICON_POWER,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG, ICON_POWER
 
 shutdown_ns = cg.esphome_ns.namespace("shutdown")
 ShutdownButton = shutdown_ns.class_("ShutdownButton", button.Button, cg.Component)

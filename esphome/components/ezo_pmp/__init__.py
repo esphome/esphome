@@ -1,15 +1,15 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_COMMAND,
-    CONF_ID,
     CONF_DURATION,
+    CONF_ID,
     CONF_VOLUME,
 )
-from esphome import automation
-from esphome.automation import maybe_simple_id
 
 CODEOWNERS = ["@carlos-sarmiento"]
 DEPENDENCIES = ["i2c"]

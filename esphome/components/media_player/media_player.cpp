@@ -1,5 +1,6 @@
 #include "media_player.h"
-
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -9,6 +10,10 @@ static const char *const TAG = "media_player";
 
 const char *media_player_state_to_string(MediaPlayerState state) {
   switch (state) {
+    case MEDIA_PLAYER_STATE_ON:
+      return "ON";
+    case MEDIA_PLAYER_STATE_OFF:
+      return "OFF";
     case MEDIA_PLAYER_STATE_IDLE:
       return "IDLE";
     case MEDIA_PLAYER_STATE_PLAYING:
@@ -18,6 +23,7 @@ const char *media_player_state_to_string(MediaPlayerState state) {
     case MEDIA_PLAYER_STATE_ANNOUNCING:
       return "ANNOUNCING";
     case MEDIA_PLAYER_STATE_NONE:
+      return "NONE";
     default:
       return "UNKNOWN";
   }
@@ -41,6 +47,18 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "VOLUME_UP";
     case MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
       return "VOLUME_DOWN";
+    case MEDIA_PLAYER_COMMAND_ENQUEUE:
+      return "ENQUEUE";
+    case MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      return "REPEAT_ONE";
+    case MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      return "REPEAT_OFF";
+    case MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+      return "CLEAR_PLAYLIST";
+    case MEDIA_PLAYER_COMMAND_TURN_ON:
+      return "TURN_ON";
+    case MEDIA_PLAYER_COMMAND_TURN_OFF:
+      return "TURN_OFF";
     default:
       return "UNKNOWN";
   }
@@ -48,7 +66,8 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
 
 void MediaPlayerCall::validate_() {
   if (this->media_url_.has_value()) {
-    if (this->command_.has_value()) {
+    if (this->command_.has_value() && this->command_.value() != MEDIA_PLAYER_COMMAND_ENQUEUE) {
+      // Don't remove an enqueue command
       ESP_LOGW(TAG, "MediaPlayerCall: Setting both command and media_url is not needed.");
       this->command_.reset();
     }
@@ -101,6 +120,10 @@ MediaPlayerCall &MediaPlayerCall::set_command(const std::string &command) {
     this->set_command(MEDIA_PLAYER_COMMAND_UNMUTE);
   } else if (str_equals_case_insensitive(command, "TOGGLE")) {
     this->set_command(MEDIA_PLAYER_COMMAND_TOGGLE);
+  } else if (str_equals_case_insensitive(command, "TURN_ON")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_TURN_ON);
+  } else if (str_equals_case_insensitive(command, "TURN_OFF")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_TURN_OFF);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command.c_str());
   }
@@ -126,7 +149,12 @@ void MediaPlayer::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-void MediaPlayer::publish_state() { this->state_callback_.call(); }
+void MediaPlayer::publish_state() {
+  this->state_callback_.call();
+#if defined(USE_MEDIA_PLAYER) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_media_player_update(this);
+#endif
+}
 
 }  // namespace media_player
 }  // namespace esphome

@@ -1,6 +1,8 @@
-from typing import Union
+import re
+from typing import TYPE_CHECKING, Any
 
 import esphome.codegen as cg
+from esphome.components import image
 from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
 from esphome.components.font import Font
 from esphome.components.image import Image_
@@ -15,9 +17,10 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
-from esphome.cpp_types import ESPTime, uint32
+from esphome.cpp_types import ESPTime, int32, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import Expression, SafeExpType
 
 from . import types as ty
 from .defines import (
@@ -30,8 +33,14 @@ from .defines import (
     call_lambda,
     literal,
 )
-from .helpers import esphome_fonts_used, lv_fonts_used, requires_component
-from .types import lv_font_t, lv_gradient_t, lv_img_t
+from .helpers import (
+    CONF_IF_NAN,
+    add_lv_use,
+    esphome_fonts_used,
+    lv_fonts_used,
+    requires_component,
+)
+from .types import lv_font_t, lv_gradient_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -244,6 +253,8 @@ def pixels_or_percent_validator(value):
         return ["pixels", "..%"]
     if isinstance(value, str) and value.lower().endswith("px"):
         value = cv.int_(value[:-2])
+    if isinstance(value, str) and re.match(r"^lv_pct\((\d+)\)$", value):
+        return value
     value = cv.Any(cv.int_, cv.percentage)(value)
     if isinstance(value, int):
         return value
@@ -253,9 +264,33 @@ def pixels_or_percent_validator(value):
 pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal)
 
 
-def zoom(value):
-    value = cv.float_range(0.1, 10.0)(value)
+def pixels_validator(value):
+    if isinstance(value, str) and value.lower().endswith("px"):
+        value = value[:-2]
+    return cv.positive_int(value)
+
+
+pixels = LValidator(pixels_validator, uint32, retmapper=literal)
+
+
+def padding_validator(value):
+    if isinstance(value, str) and value.lower().endswith("px"):
+        value = value[:-2]
+    return cv.int_(value)
+
+
+padding = LValidator(padding_validator, int32, retmapper=literal)
+
+
+def zoom_validator(value):
+    return cv.float_range(0.1, 10.0)(value)
+
+
+def zoom_retmapper(value):
     return int(value * 256)
+
+
+zoom = LValidator(zoom_validator, uint32, retmapper=zoom_retmapper)
 
 
 def angle(value):
@@ -264,10 +299,14 @@ def angle(value):
     :param value: The input in the range 0..360
     :return: An angle in 1/10 degree units.
     """
-    return int(cv.float_range(0.0, 360.0)(cv.angle(value)) * 10)
+    return cv.float_range(0.0, 360.0)(cv.angle(value))
 
 
-lv_angle = LValidator(angle, uint32)
+# Validator for angles in LVGL expressed in 1/10 degree units.
+lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10))
+
+# Validator for angles in LVGL expressed in whole degrees
+lv_angle_degrees = LValidator(angle, uint32, retmapper=int)
 
 
 @schema_extractor("one_of")
@@ -284,14 +323,6 @@ def size_validator(value):
 
 size = LValidator(size_validator, uint32, retmapper=literal)
 
-
-def pixels_validator(value):
-    if isinstance(value, str) and value.lower().endswith("px"):
-        return cv.int_(value[:-2])
-    return cv.int_(value)
-
-
-pixels = LValidator(pixels_validator, uint32, retmapper=literal)
 
 radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
 
@@ -326,19 +357,24 @@ def image_validator(value):
     value = requires_component("image")(value)
     value = cv.use_id(Image_)(value)
     lv_images_used.add(value)
+    add_lv_use("img", "label")
     return value
 
 
 lv_image = LValidator(
     image_validator,
-    lv_img_t,
-    retmapper=lambda x: MockObj(x, "->").get_lv_img_dsc(),
+    image.Image_.operator("ptr"),
+    requires="image",
+)
+lv_image_list = LValidator(
+    cv.ensure_list(image_validator),
+    cg.std_vector.template(image.Image_.operator("ptr")),
     requires="image",
 )
 lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)
 
 
-def lv_pct(value: Union[int, float]):
+def lv_pct(value: int | float):
     if isinstance(value, float):
         value = int(value * 100)
     return literal(f"lv_pct({value})")
@@ -364,13 +400,31 @@ class TextValidator(LValidator):
             return value
         return super().__call__(value)
 
-    async def process(self, value, args=()):
+    async def process(
+        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+    ) -> Expression:
+        # Local import to avoid circular import at module level
+
+        from .lvcode import CodeContext, LambdaContext
+
+        if TYPE_CHECKING:
+            # CodeContext does not have get_automation_parameters
+            # so we need to assert the type here
+            assert isinstance(CodeContext.code_context, LambdaContext)
+        args = args or CodeContext.code_context.get_automation_parameters()
+
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
-                args = [str(x) for x in value[CONF_ARGS]]
-                arg_expr = cg.RawExpression(",".join(args))
+                str_args = [str(x) for x in value[CONF_ARGS]]
+                arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(format_str)
-                return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
+                sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
+                if nanval := value.get(CONF_IF_NAN):
+                    nanval = cpp_string_escape(nanval)
+                    return literal(
+                        f"(std::isfinite({arg_expr}) ? {sprintf_str} : {nanval})"
+                    )
+                return literal(sprintf_str)
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):

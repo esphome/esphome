@@ -1,17 +1,18 @@
+import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
-    CONF_NUMBER_DATAPOINT,
+    CONF_INITIAL_VALUE,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_MULTIPLY,
-    CONF_STEP,
-    CONF_INITIAL_VALUE,
+    CONF_NUMBER_DATAPOINT,
     CONF_RESTORE_VALUE,
+    CONF_STEP,
 )
-from .. import tuya_ns, CONF_TUYA_ID, Tuya, TuyaDatapointType
+
+from .. import CONF_TUYA_ID, Tuya, TuyaDatapointType, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@frankiboy1"]
@@ -33,12 +34,14 @@ def validate_min_max(config):
     min_value = config[CONF_MIN_VALUE]
     if max_value <= min_value:
         raise cv.Invalid("max_value must be greater than min_value")
-    if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
-        if (initial_value := hidden_config.get(CONF_INITIAL_VALUE, None)) is not None:
-            if (initial_value > max_value) or (initial_value < min_value):
-                raise cv.Invalid(
-                    f"{CONF_INITIAL_VALUE} must be a value between {CONF_MAX_VALUE} and {CONF_MIN_VALUE}"
-                )
+    if (
+        (hidden_config := config.get(CONF_DATAPOINT_HIDDEN))
+        and (initial_value := hidden_config.get(CONF_INITIAL_VALUE, None)) is not None
+        and ((initial_value > max_value) or (initial_value < min_value))
+    ):
+        raise cv.Invalid(
+            f"{CONF_INITIAL_VALUE} must be a value between {CONF_MAX_VALUE} and {CONF_MIN_VALUE}"
+        )
     return config
 
 

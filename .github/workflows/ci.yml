@@ -13,14 +13,15 @@ on:
       - ".github/workflows/ci.yml"
       - "!.yamllint"
       - "!.github/dependabot.yml"
+      - "!docker/**"
   merge_group:
 
 permissions:
   contents: read
 
 env:
-  DEFAULT_PYTHON: "3.9"
-  PYUPGRADE_TARGET: "--py39-plus"
+  DEFAULT_PYTHON: "3.11"
+  PYUPGRADE_TARGET: "--py311-plus"
 
 concurrency:
   # yamllint disable-line rule:line-length
@@ -30,23 +31,23 @@ concurrency:
 jobs:
   common:
     name: Create common environment
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Generate cache-key
         id: cache-key
-        run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
+        run: echo key="${{ hashFiles('requirements.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v4.1.2
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -57,59 +58,19 @@ jobs:
           python -m venv venv
           . venv/bin/activate
           python --version
-          pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+          pip install -r requirements.txt -r requirements_test.txt pre-commit
           pip install -e .
-
-  black:
-    name: Check black
-    runs-on: ubuntu-latest
-    needs:
-      - common
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run black
-        run: |
-          . venv/bin/activate
-          black --verbose esphome tests
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
-
-  flake8:
-    name: Check flake8
-    runs-on: ubuntu-latest
-    needs:
-      - common
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run flake8
-        run: |
-          . venv/bin/activate
-          flake8 esphome
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
 
   pylint:
     name: Check pylint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.python-linters == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -123,35 +84,14 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
-  pyupgrade:
-    name: Check pyupgrade
-    runs-on: ubuntu-latest
-    needs:
-      - common
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run pyupgrade
-        run: |
-          . venv/bin/activate
-          pyupgrade ${{ env.PYUPGRADE_TARGET }} `find esphome -name "*.py" -type f`
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
-
   ci-custom:
     name: Run script/ci-custom
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -164,6 +104,8 @@ jobs:
           . venv/bin/activate
           script/ci-custom.py
           script/build_codeowners.py --check
+          script/build_language_schema.py --check
+          script/generate-esp32-boards.py --check
 
   pytest:
     name: Run pytest
@@ -171,10 +113,8 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - "3.9"
-          - "3.10"
           - "3.11"
-          - "3.12"
+          - "3.13"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -183,25 +123,18 @@ jobs:
           # Minimize CI resource usage
           # by only running the Python version
           # version used for docker images on Windows and macOS
-          - python-version: "3.12"
+          - python-version: "3.13"
             os: windows-latest
-          - python-version: "3.10"
-            os: windows-latest
-          - python-version: "3.9"
-            os: windows-latest
-          - python-version: "3.12"
-            os: macOS-latest
-          - python-version: "3.10"
-            os: macOS-latest
-          - python-version: "3.9"
+          - python-version: "3.13"
             os: macOS-latest
     runs-on: ${{ matrix.os }}
     needs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
+        id: restore-python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ matrix.python-version }}
@@ -211,56 +144,162 @@ jobs:
       - name: Run pytest
         if: matrix.os == 'windows-latest'
         run: |
-          ./venv/Scripts/activate
-          pytest -vv --cov-report=xml --tb=native tests
+          . ./venv/Scripts/activate.ps1
+          pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
       - name: Run pytest
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --cov-report=xml --tb=native tests
+          pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Save Python virtual environment cache
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: venv
+          key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
 
-  clang-format:
-    name: Check clang-format
-    runs-on: ubuntu-latest
+  determine-jobs:
+    name: Determine which jobs to run
+    runs-on: ubuntu-24.04
     needs:
       - common
+    outputs:
+      integration-tests: ${{ steps.determine.outputs.integration-tests }}
+      clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
+      clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
+      python-linters: ${{ steps.determine.outputs.python-linters }}
+      changed-components: ${{ steps.determine.outputs.changed-components }}
+      changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
+      directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
+      component-test-count: ${{ steps.determine.outputs.component-test-count }}
+      changed-cpp-file-count: ${{ steps.determine.outputs.changed-cpp-file-count }}
+      memory_impact: ${{ steps.determine.outputs.memory-impact }}
+      cpp-unit-tests-run-all: ${{ steps.determine.outputs.cpp-unit-tests-run-all }}
+      cpp-unit-tests-components: ${{ steps.determine.outputs.cpp-unit-tests-components }}
+      component-test-batches: ${{ steps.determine.outputs.component-test-batches }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Fetch enough history to find the merge base
+          fetch-depth: 2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Install clang-format
+      - name: Restore components graph cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .temp/components_graph.json
+          key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
+      - name: Determine which tests to run
+        id: determine
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           . venv/bin/activate
-          pip install clang-format -c requirements_dev.txt
-      - name: Run clang-format
-        run: |
-          . venv/bin/activate
-          script/clang-format -i
-          git diff-index --quiet HEAD --
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
+          output=$(python script/determine-jobs.py)
+          echo "Test determination output:"
+          echo "$output" | jq
 
-  clang-tidy:
-    name: ${{ matrix.name }}
+          # Extract individual fields
+          echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
+          echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
+          echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
+          echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
+          echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
+          echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
+          echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
+          echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
+          echo "changed-cpp-file-count=$(echo "$output" | jq -r '.changed_cpp_file_count')" >> $GITHUB_OUTPUT
+          echo "memory-impact=$(echo "$output" | jq -c '.memory_impact')" >> $GITHUB_OUTPUT
+          echo "cpp-unit-tests-run-all=$(echo "$output" | jq -r '.cpp_unit_tests_run_all')" >> $GITHUB_OUTPUT
+          echo "cpp-unit-tests-components=$(echo "$output" | jq -c '.cpp_unit_tests_components')" >> $GITHUB_OUTPUT
+          echo "component-test-batches=$(echo "$output" | jq -c '.component_test_batches')" >> $GITHUB_OUTPUT
+      - name: Save components graph cache
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .temp/components_graph.json
+          key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
+
+  integration-tests:
+    name: Run integration tests
     runs-on: ubuntu-latest
     needs:
       - common
-      - black
-      - ci-custom
-      - clang-format
-      - flake8
-      - pylint
-      - pytest
-      - pyupgrade
+      - determine-jobs
+    if: needs.determine-jobs.outputs.integration-tests == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Set up Python 3.13
+        id: python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.13"
+      - name: Restore Python virtual environment
+        id: cache-venv
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: venv
+          key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
+      - name: Create Python virtual environment
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv venv
+          . venv/bin/activate
+          python --version
+          pip install -r requirements.txt -r requirements_test.txt
+          pip install -e .
+      - name: Register matcher
+        run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
+      - name: Run integration tests
+        run: |
+          . venv/bin/activate
+          pytest -vv --no-cov --tb=native -n auto tests/integration/
+
+  cpp-unit-tests:
+    name: Run C++ unit tests
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && (needs.determine-jobs.outputs.cpp-unit-tests-run-all == 'true' || needs.determine-jobs.outputs.cpp-unit-tests-components != '[]')
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Run cpp_unit_test.py
+        run: |
+          . venv/bin/activate
+          if [ "${{ needs.determine-jobs.outputs.cpp-unit-tests-run-all }}" = "true" ]; then
+            script/cpp_unit_test.py --all
+          else
+            ARGS=$(echo '${{ needs.determine-jobs.outputs.cpp-unit-tests-components }}' | jq -r '.[] | @sh' | xargs)
+            script/cpp_unit_test.py $ARGS
+          fi
+
+  clang-tidy-single:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-tidy == 'true'
+    env:
+      GH_TOKEN: ${{ github.token }}
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -271,29 +310,22 @@ jobs:
             options: --environment esp8266-arduino-tidy --grep USE_ESP8266
             pio_cache_key: tidyesp8266
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 1/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
-            pio_cache_key: tidyesp32
-          - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 2/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
-            pio_cache_key: tidyesp32
-          - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 3/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
-            pio_cache_key: tidyesp32
-          - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 4/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
-            pio_cache_key: tidyesp32
-          - id: clang-tidy
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
+          - id: clang-tidy
+            name: Run script/clang-tidy for ZEPHYR
+            options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
+            pio_cache_key: tidy-zephyr
+            ignore_errors: false
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Need history for HEAD~1 to work for checking changed files
+          fetch-depth: 2
+
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -302,22 +334,17 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@v4.1.2
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@v4.1.2
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}
-
-      - name: Install clang-tidy
-        run: |
-          sudo apt-get update
-          sudo apt-get install clang-tidy-14
+          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Register problem matchers
         run: |
@@ -331,173 +358,605 @@ jobs:
           mkdir -p .temp
           pio run --list-targets -e esp32-idf-tidy
 
+      - name: Check if full clang-tidy scan needed
+        id: check_full_scan
+        run: |
+          . venv/bin/activate
+          if python script/clang_tidy_hash.py --check; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=hash_changed" >> $GITHUB_OUTPUT
+          else
+            echo "full_scan=false" >> $GITHUB_OUTPUT
+            echo "reason=normal" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run clang-tidy
         run: |
           . venv/bin/activate
-          script/clang-tidy --all-headers --fix ${{ matrix.options }}
+          if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
+            echo "Running FULL clang-tidy scan (hash changed)"
+            script/clang-tidy --all-headers --fix ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+          else
+            echo "Running clang-tidy on changed files only"
+            script/clang-tidy --all-headers --fix --changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+          fi
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Suggested changes
+        run: script/ci-suggest-changes ${{ matrix.ignore_errors && '|| true' || '' }}
+        # yamllint disable-line rule:line-length
+        if: always()
+
+  clang-tidy-nosplit:
+    name: Run script/clang-tidy for ESP32 Arduino
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-tidy-mode == 'nosplit'
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Need history for HEAD~1 to work for checking changed files
+          fetch-depth: 2
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache platformio
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Cache platformio
+        if: github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Register problem matchers
+        run: |
+          echo "::add-matcher::.github/workflows/matchers/gcc.json"
+          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Check if full clang-tidy scan needed
+        id: check_full_scan
+        run: |
+          . venv/bin/activate
+          if python script/clang_tidy_hash.py --check; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=hash_changed" >> $GITHUB_OUTPUT
+          else
+            echo "full_scan=false" >> $GITHUB_OUTPUT
+            echo "reason=normal" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run clang-tidy
+        run: |
+          . venv/bin/activate
+          if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
+            echo "Running FULL clang-tidy scan (hash changed)"
+            script/clang-tidy --all-headers --fix --environment esp32-arduino-tidy
+          else
+            echo "Running clang-tidy on changed files only"
+            script/clang-tidy --all-headers --fix --changed --environment esp32-arduino-tidy
+          fi
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
       - name: Suggested changes
         run: script/ci-suggest-changes
-        # yamllint disable-line rule:line-length
         if: always()
 
-  list-components:
-    runs-on: ubuntu-latest
+  clang-tidy-split:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
     needs:
       - common
-    if: github.event_name == 'pull_request'
-    outputs:
-      components: ${{ steps.list-components.outputs.components }}
-      count: ${{ steps.list-components.outputs.count }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
-        with:
-          # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
-          fetch-depth: 500
-      - name: Get target branch
-        id: target-branch
-        run: |
-          echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
-      - name: Fetch ${{ steps.target-branch.outputs.branch }} branch
-        run: |
-          git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/${{ steps.target-branch.outputs.branch }}:refs/remotes/origin/${{ steps.target-branch.outputs.branch }}
-          git merge-base refs/remotes/origin/${{ steps.target-branch.outputs.branch }} HEAD
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Find changed components
-        id: list-components
-        run: |
-          . venv/bin/activate
-          components=$(script/list-components.py --changed --branch ${{ steps.target-branch.outputs.branch }})
-          output_components=$(echo "$components" | jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')
-          count=$(echo "$output_components" | jq length)
-
-          echo "components=$output_components" >> $GITHUB_OUTPUT
-          echo "count=$count" >> $GITHUB_OUTPUT
-
-          echo "$count Components:"
-          echo "$output_components" | jq
-
-  test-build-components:
-    name: Component test ${{ matrix.file }}
-    runs-on: ubuntu-latest
-    needs:
-      - common
-      - list-components
-    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) > 0 && fromJSON(needs.list-components.outputs.count) < 100
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-tidy-mode == 'split'
+    env:
+      GH_TOKEN: ${{ github.token }}
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: ${{ fromJson(needs.list-components.outputs.components) }}
-    steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libsdl2-dev
+        include:
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 1/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 2/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 3/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 4/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
 
+    steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Need history for HEAD~1 to work for checking changed files
+          fetch-depth: 2
+
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: test_build_components -e config -c ${{ matrix.file }}
-        run: |
-          . venv/bin/activate
-          ./script/test_build_components -e config -c ${{ matrix.file }}
-      - name: test_build_components -e compile -c ${{ matrix.file }}
-        run: |
-          . venv/bin/activate
-          ./script/test_build_components -e compile -c ${{ matrix.file }}
 
-  test-build-components-splitter:
-    name: Split components for testing into 20 groups maximum
-    runs-on: ubuntu-latest
-    needs:
-      - common
-      - list-components
-    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
-    outputs:
-      matrix: ${{ steps.split.outputs.components }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
-      - name: Split components into 20 groups
-        id: split
+      - name: Cache platformio
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Cache platformio
+        if: github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Register problem matchers
         run: |
-          components=$(echo '${{ needs.list-components.outputs.components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
-          echo "components=$components" >> $GITHUB_OUTPUT
+          echo "::add-matcher::.github/workflows/matchers/gcc.json"
+          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Check if full clang-tidy scan needed
+        id: check_full_scan
+        run: |
+          . venv/bin/activate
+          if python script/clang_tidy_hash.py --check; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=hash_changed" >> $GITHUB_OUTPUT
+          else
+            echo "full_scan=false" >> $GITHUB_OUTPUT
+            echo "reason=normal" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run clang-tidy
+        run: |
+          . venv/bin/activate
+          if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
+            echo "Running FULL clang-tidy scan (hash changed)"
+            script/clang-tidy --all-headers --fix ${{ matrix.options }}
+          else
+            echo "Running clang-tidy on changed files only"
+            script/clang-tidy --all-headers --fix --changed ${{ matrix.options }}
+          fi
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
 
   test-build-components-split:
-    name: Test split components
-    runs-on: ubuntu-latest
+    name: Test components batch (${{ matrix.components }})
+    runs-on: ubuntu-24.04
     needs:
       - common
-      - list-components
-      - test-build-components-splitter
-    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
       matrix:
-        components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
+        components: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
+      - name: Show disk space
+        run: |
+          echo "Available disk space:"
+          df -h
+
       - name: List components
         run: echo ${{ matrix.components }}
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libsdl2-dev
+      - name: Cache apt packages
+        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
+        with:
+          packages: libsdl2-dev
+          version: 1.0
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Validate config
+      - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
-          for component in ${{ matrix.components }}; do
-            ./script/test_build_components -e config -c $component
-          done
-      - name: Compile config
-        run: |
-          . venv/bin/activate
-          mkdir build_cache
-          export PLATFORMIO_BUILD_CACHE_DIR=$PWD/build_cache
-          for component in ${{ matrix.components }}; do
-            ./script/test_build_components -e compile -c $component
-          done
 
-  ci-status:
-    name: CI Status
+          # Check if /mnt has more free space than / before bind mounting
+          # Extract available space in KB for comparison
+          root_avail=$(df -k / | awk 'NR==2 {print $4}')
+          mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
+
+          echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
+
+          # Only use /mnt if it has more space than /
+          if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
+            echo "Using /mnt for build files (more space available)"
+            # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
+            sudo mkdir -p /mnt/platformio
+            sudo chown $USER:$USER /mnt/platformio
+            mkdir -p ~/.platformio
+            sudo mount --bind /mnt/platformio ~/.platformio
+
+            # Bind mount test build directory to /mnt
+            sudo mkdir -p /mnt/test_build_components_build
+            sudo chown $USER:$USER /mnt/test_build_components_build
+            mkdir -p tests/test_build_components/build
+            sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
+          else
+            echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
+          fi
+
+          # Convert space-separated components to comma-separated for Python script
+          components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
+
+          # Only isolate directly changed components when targeting dev branch
+          # For beta/release branches, group everything for faster CI
+          #
+          # WHY ISOLATE DIRECTLY CHANGED COMPONENTS?
+          # - Isolated tests run WITHOUT --testing-mode, enabling full validation
+          # - This catches pin conflicts and other issues in directly changed code
+          # - Grouped tests use --testing-mode to allow config merging (disables some checks)
+          # - Dependencies are safe to group since they weren't modified in this PR
+          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
+            directly_changed_csv=""
+            echo "Testing components: $components_csv"
+            echo "Target branch: ${{ github.base_ref }} - grouping all components"
+          else
+            directly_changed_csv=$(echo '${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}' | jq -r 'join(",")')
+            echo "Testing components: $components_csv"
+            echo "Target branch: ${{ github.base_ref }} - isolating directly changed components: $directly_changed_csv"
+          fi
+          echo ""
+
+          # Show disk space before validation (after bind mounts setup)
+          echo "Disk space before config validation:"
+          df -h
+          echo ""
+
+          # Run config validation with grouping and isolation
+          python3 script/test_build_components.py -e config -c "$components_csv" -f --isolate "$directly_changed_csv"
+
+          echo ""
+          echo "Config validation passed! Starting compilation..."
+          echo ""
+
+          # Show disk space before compilation
+          echo "Disk space before compilation:"
+          df -h
+          echo ""
+
+          # Run compilation with grouping and isolation
+          python3 script/test_build_components.py -e compile -c "$components_csv" -f --isolate "$directly_changed_csv"
+
+  pre-commit-ci-lite:
+    name: pre-commit.ci lite
     runs-on: ubuntu-latest
     needs:
       - common
-      - black
+    if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release')
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - uses: esphome/action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
+        env:
+          SKIP: pylint,clang-tidy-hash
+      - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
+        if: always()
+
+  memory-impact-target-branch:
+    name: Build target branch for memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true'
+    outputs:
+      ram_usage: ${{ steps.extract.outputs.ram_usage }}
+      flash_usage: ${{ steps.extract.outputs.flash_usage }}
+      cache_hit: ${{ steps.cache-memory-analysis.outputs.cache-hit }}
+      skip: ${{ steps.check-script.outputs.skip }}
+    steps:
+      - name: Check out target branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ github.base_ref }}
+
+      # Check if memory impact extraction script exists on target branch
+      # If not, skip the analysis (this handles older branches that don't have the feature)
+      - name: Check for memory impact script
+        id: check-script
+        run: |
+          if [ -f "script/ci_memory_impact_extract.py" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::warning::ci_memory_impact_extract.py not found on target branch, skipping memory impact analysis"
+          fi
+
+      # All remaining steps only run if script exists
+      - name: Generate cache key
+        id: cache-key
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          # Get the commit SHA of the target branch
+          target_sha=$(git rev-parse HEAD)
+
+          # Hash the build infrastructure files (all files that affect build/analysis)
+          infra_hash=$(cat \
+            script/test_build_components.py \
+            script/ci_memory_impact_extract.py \
+            script/analyze_component_buses.py \
+            script/merge_component_configs.py \
+            script/ci_helpers.py \
+            .github/workflows/ci.yml \
+            | sha256sum | cut -d' ' -f1)
+
+          # Get platform and components from job inputs
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
+          components_hash=$(echo "$components" | sha256sum | cut -d' ' -f1)
+
+          # Combine into cache key
+          cache_key="memory-analysis-target-${target_sha}-${infra_hash}-${platform}-${components_hash}"
+          echo "cache-key=${cache_key}" >> $GITHUB_OUTPUT
+          echo "Cache key: ${cache_key}"
+
+      - name: Restore cached memory analysis
+        id: cache-memory-analysis
+        if: steps.check-script.outputs.skip != 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: memory-analysis-target.json
+          key: ${{ steps.cache-key.outputs.cache-key }}
+
+      - name: Cache status
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          if [ "${{ steps.cache-memory-analysis.outputs.cache-hit }}" == "true" ]; then
+            echo "✓ Cache hit! Using cached memory analysis results."
+            echo "  Skipping build step to save time."
+          else
+            echo "✗ Cache miss. Will build and analyze memory usage."
+          fi
+
+      - name: Restore Python
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache platformio
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Build, compile, and analyze memory
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        id: build
+        run: |
+          . venv/bin/activate
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+
+          echo "Building with test_build_components.py for $platform with components:"
+          echo "$components" | jq -r '.[]' | sed 's/^/  - /'
+
+          # Use test_build_components.py which handles grouping automatically
+          # Pass components as comma-separated list
+          component_list=$(echo "$components" | jq -r 'join(",")')
+
+          echo "Compiling with test_build_components.py..."
+
+          # Run build and extract memory with auto-detection of build directory for detailed analysis
+          # Use tee to show output in CI while also piping to extraction script
+          python script/test_build_components.py \
+            -e compile \
+            -c "$component_list" \
+            -t "$platform" 2>&1 | \
+            tee /dev/stderr | \
+            python script/ci_memory_impact_extract.py \
+              --output-env \
+              --output-json memory-analysis-target.json
+
+          # Add metadata to JSON before caching
+          python script/ci_add_metadata_to_json.py \
+            --json-file memory-analysis-target.json \
+            --components "$components" \
+            --platform "$platform"
+
+      - name: Save memory analysis to cache
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: memory-analysis-target.json
+          key: ${{ steps.cache-key.outputs.cache-key }}
+
+      - name: Extract memory usage for outputs
+        id: extract
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          if [ -f memory-analysis-target.json ]; then
+            ram=$(jq -r '.ram_bytes' memory-analysis-target.json)
+            flash=$(jq -r '.flash_bytes' memory-analysis-target.json)
+            echo "ram_usage=${ram}" >> $GITHUB_OUTPUT
+            echo "flash_usage=${flash}" >> $GITHUB_OUTPUT
+            echo "RAM: ${ram} bytes, Flash: ${flash} bytes"
+          else
+            echo "Error: memory-analysis-target.json not found"
+            exit 1
+          fi
+
+      - name: Upload memory analysis JSON
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: memory-analysis-target
+          path: memory-analysis-target.json
+          if-no-files-found: warn
+          retention-days: 1
+
+  memory-impact-pr-branch:
+    name: Build PR branch for memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true'
+    outputs:
+      ram_usage: ${{ steps.extract.outputs.ram_usage }}
+      flash_usage: ${{ steps.extract.outputs.flash_usage }}
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache platformio
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+      - name: Build, compile, and analyze memory
+        id: extract
+        run: |
+          . venv/bin/activate
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+
+          echo "Building with test_build_components.py for $platform with components:"
+          echo "$components" | jq -r '.[]' | sed 's/^/  - /'
+
+          # Use test_build_components.py which handles grouping automatically
+          # Pass components as comma-separated list
+          component_list=$(echo "$components" | jq -r 'join(",")')
+
+          echo "Compiling with test_build_components.py..."
+
+          # Run build and extract memory with auto-detection of build directory for detailed analysis
+          # Use tee to show output in CI while also piping to extraction script
+          python script/test_build_components.py \
+            -e compile \
+            -c "$component_list" \
+            -t "$platform" 2>&1 | \
+            tee /dev/stderr | \
+            python script/ci_memory_impact_extract.py \
+              --output-env \
+              --output-json memory-analysis-pr.json
+
+          # Add metadata to JSON (components and platform are in shell variables above)
+          python script/ci_add_metadata_to_json.py \
+            --json-file memory-analysis-pr.json \
+            --components "$components" \
+            --platform "$platform"
+
+      - name: Upload memory analysis JSON
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: memory-analysis-pr
+          path: memory-analysis-pr.json
+          if-no-files-found: warn
+          retention-days: 1
+
+  memory-impact-comment:
+    name: Comment memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+      - memory-impact-target-branch
+      - memory-impact-pr-branch
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true' && needs.memory-impact-target-branch.outputs.skip != 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Download target analysis JSON
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: memory-analysis-target
+          path: ./memory-analysis
+        continue-on-error: true
+      - name: Download PR analysis JSON
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: memory-analysis-pr
+          path: ./memory-analysis
+        continue-on-error: true
+      - name: Post or update PR comment
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          . venv/bin/activate
+
+          # Pass JSON file paths directly to Python script
+          # All data is extracted from JSON files for security
+          python script/ci_memory_impact_comment.py \
+            --pr-number "$PR_NUMBER" \
+            --target-json ./memory-analysis/memory-analysis-target.json \
+            --pr-json ./memory-analysis/memory-analysis-pr.json
+
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-24.04
+    needs:
+      - common
       - ci-custom
-      - clang-format
-      - flake8
       - pylint
       - pytest
-      - pyupgrade
-      - clang-tidy
-      - list-components
-      - test-build-components
-      - test-build-components-splitter
+      - integration-tests
+      - clang-tidy-single
+      - clang-tidy-nosplit
+      - clang-tidy-split
+      - determine-jobs
       - test-build-components-split
+      - pre-commit-ci-lite
+      - memory-impact-target-branch
+      - memory-impact-pr-branch
+      - memory-impact-comment
     if: always()
     steps:
       - name: Success

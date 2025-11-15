@@ -1,0 +1,4 @@
+climate:
+  - platform: climate_ir_lg
+    name: LG Climate
+    transmitter_id: xmitr

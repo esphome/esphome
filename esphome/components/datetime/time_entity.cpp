@@ -1,5 +1,6 @@
 #include "time_entity.h"
-
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #ifdef USE_DATETIME_TIME
 
 #include "esphome/core/log.h"
@@ -11,24 +12,27 @@ static const char *const TAG = "datetime.time_entity";
 
 void TimeEntity::publish_state() {
   if (this->hour_ > 23) {
-    this->has_state_ = false;
+    this->set_has_state(false);
     ESP_LOGE(TAG, "Hour must be between 0 and 23");
     return;
   }
   if (this->minute_ > 59) {
-    this->has_state_ = false;
+    this->set_has_state(false);
     ESP_LOGE(TAG, "Minute must be between 0 and 59");
     return;
   }
   if (this->second_ > 59) {
-    this->has_state_ = false;
+    this->set_has_state(false);
     ESP_LOGE(TAG, "Second must be between 0 and 59");
     return;
   }
-  this->has_state_ = true;
+  this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending time %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_,
            this->second_);
   this->state_callback_.call();
+#if defined(USE_DATETIME_TIME) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_time_update(this);
+#endif
 }
 
 TimeCall TimeEntity::make_call() { return TimeCall(this); }

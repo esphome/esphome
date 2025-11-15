@@ -1,19 +1,18 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    ENTITY_CATEGORY_NONE,
+    CONF_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ENTITY_CATEGORY_NONE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
-    CONF_ID,
     UNIT_VOLT,
 )
 
 from . import EzoPMP
-
 
 DEPENDENCIES = ["ezo_pmp"]
 

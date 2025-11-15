@@ -3,8 +3,9 @@ import re
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components import logger
+from esphome.components import logger, socket
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
@@ -36,10 +37,12 @@ from esphome.const import (
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_PORT,
+    CONF_PUBLISH_NAN_AS_NONE,
     CONF_QOS,
     CONF_REBOOT_TIMEOUT,
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
+    CONF_SKIP_CERT_CN_CHECK,
     CONF_SSL_FINGERPRINTS,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
@@ -52,8 +55,10 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -61,12 +66,15 @@ DEPENDENCIES = ["network"]
 def AUTO_LOAD():
     if CORE.is_esp8266 or CORE.is_libretiny:
         return ["async_tcp", "json"]
+    # ESP32 needs socket for wake_loop_threadsafe()
+    if CORE.is_esp32:
+        return ["json", "socket"]
     return ["json"]
 
 
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
-CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
+CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 
 
 def validate_message_just_topic(value):
@@ -206,6 +214,13 @@ def validate_fingerprint(value):
     return value
 
 
+def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for MQTT component."""
+    # MQTT needs 1 socket for the broker connection
+    socket.consume_sockets(1, "mqtt")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -296,27 +311,29 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                 }
             ),
+            cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
+            cv.Optional(CONF_WAIT_FOR_CONNECTION, default=False): cv.boolean,
         }
     ),
     validate_config,
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+    _consume_mqtt_sockets,
 )
 
 
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
-    exp = cg.StructInitializer(
+    return cg.StructInitializer(
         MQTTMessage,
         ("topic", config[CONF_TOPIC]),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
-    return exp
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -324,6 +341,11 @@ async def to_code(config):
     if CORE.is_esp8266 or CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+
+    # MQTT on ESP32 uses wake_loop_threadsafe() to wake the main loop from the MQTT event handler
+    # This enables low-latency MQTT event processing instead of waiting for select() timeout
+    if CORE.is_esp32:
+        socket.require_wake_loop_threadsafe()
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -371,7 +393,7 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
+    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX], CORE.name))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
@@ -404,7 +426,7 @@ async def to_code(config):
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
             arr = [
-                cg.RawExpression(f"0x{fingerprint[i:i + 2]}") for i in range(0, 40, 2)
+                cg.RawExpression(f"0x{fingerprint[i : i + 2]}") for i in range(0, 40, 2)
             ]
             cg.add(var.add_ssl_fingerprint(arr))
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
@@ -448,6 +470,10 @@ async def to_code(config):
     for conf in config.get(CONF_ON_DISCONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
+
+    cg.add(var.set_wait_for_connection(config[CONF_WAIT_FOR_CONNECTION]))
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
@@ -588,3 +614,13 @@ async def mqtt_enable_to_code(config, action_id, template_arg, args):
 async def mqtt_disable_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "mqtt_backend_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+    }
+)

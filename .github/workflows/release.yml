@@ -18,8 +18,9 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       branch_build: ${{ steps.tag.outputs.branch_build }}
+      deploy_env: ${{ steps.tag.outputs.deploy_env }}
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -27,6 +28,11 @@ jobs:
           if [[ "${{ github.event_name }}" = "release" ]]; then
             TAG="${{ github.event.release.tag_name}}"
             BRANCH_BUILD="false"
+            if [[ "${{ github.event.release.prerelease }}" = "true" ]]; then
+              ENVIRONMENT="beta"
+            else
+              ENVIRONMENT="production"
+            fi
           else
             TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
             today="$(date --utc '+%Y%m%d')"
@@ -35,12 +41,15 @@ jobs:
             if [[ "$BRANCH" != "dev" ]]; then
               TAG="${TAG}-${BRANCH}"
               BRANCH_BUILD="true"
+              ENVIRONMENT=""
             else
               BRANCH_BUILD="false"
+              ENVIRONMENT="dev"
             fi
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "branch_build=${BRANCH_BUILD}" >> $GITHUB_OUTPUT
+          echo "deploy_env=${ENVIRONMENT}" >> $GITHUB_OUTPUT
         # yamllint enable rule:line-length
 
   deploy-pypi:
@@ -51,57 +60,54 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Set up Python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: "3.x"
-      - name: Set up python environment
-        env:
-          ESPHOME_NO_VENV: 1
-        run: script/setup
       - name: Build
         run: |-
           pip3 install build
           python3 -m build
       - name: Publish
-        uses: pypa/gh-action-pypi-publish@v1.12.2
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
+        with:
+          skip-existing: true
 
   deploy-docker:
-    name: Build ESPHome ${{ matrix.platform }}
+    name: Build ESPHome ${{ matrix.platform.arch }}
     if: github.repository == 'esphome/esphome'
     permissions:
       contents: read
       packages: write
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform.os }}
     needs: [init]
     strategy:
       fail-fast: false
       matrix:
         platform:
-          - linux/amd64
-          - linux/arm/v7
-          - linux/arm64
+          - arch: amd64
+            os: "ubuntu-24.04"
+          - arch: arm64
+            os: "ubuntu-24.04-arm"
+
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Set up Python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
-          python-version: "3.9"
+          python-version: "3.11"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.7.1
-      - name: Set up QEMU
-        if: matrix.platform != 'linux/amd64'
-        uses: docker/setup-qemu-action@v3.2.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Log in to docker hub
-        uses: docker/login-action@v3.3.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@v3.3.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -110,45 +116,36 @@ jobs:
       - name: Build docker
         uses: ./.github/actions/build-image
         with:
-          platform: ${{ matrix.platform }}
-          target: docker
-          baseimg: docker
+          target: final
+          build_type: docker
           suffix: ""
           version: ${{ needs.init.outputs.tag }}
 
       - name: Build ha-addon
         uses: ./.github/actions/build-image
         with:
-          platform: ${{ matrix.platform }}
-          target: hassio
-          baseimg: hassio
+          target: final
+          build_type: ha-addon
           suffix: "hassio"
           version: ${{ needs.init.outputs.tag }}
 
-      - name: Build lint
-        uses: ./.github/actions/build-image
-        with:
-          platform: ${{ matrix.platform }}
-          target: lint
-          baseimg: docker
-          suffix: lint
-          version: ${{ needs.init.outputs.tag }}
-
-      - name: Sanitize platform name
-        id: sanitize
-        run: |
-          echo "${{ matrix.platform }}" | sed 's|/|-|g' > /tmp/platform
-          echo name=$(cat /tmp/platform) >> $GITHUB_OUTPUT
+      # - name: Build lint
+      #   uses: ./.github/actions/build-image
+      #   with:
+      #     target: lint
+      #     build_type: lint
+      #     suffix: lint
+      #     version: ${{ needs.init.outputs.tag }}
 
       - name: Upload digests
-        uses: actions/upload-artifact@v4.4.3
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: digests-${{ steps.sanitize.outputs.name }}
+          name: digests-${{ matrix.platform.arch }}
           path: /tmp/digests
           retention-days: 1
 
   deploy-manifest:
-    name: Publish ESPHome ${{ matrix.image.title }} to ${{ matrix.registry }}
+    name: Publish ESPHome ${{ matrix.image.build_type }} to ${{ matrix.registry }}
     runs-on: ubuntu-latest
     needs:
       - init
@@ -161,40 +158,37 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - title: "ha-addon"
-            target: "hassio"
-            suffix: "hassio"
-          - title: "docker"
-            target: "docker"
+          - build_type: "docker"
             suffix: ""
-          - title: "lint"
-            target: "lint"
-            suffix: "lint"
+          - build_type: "ha-addon"
+            suffix: "hassio"
+            # - build_type: "lint"
+            #   suffix: "lint"
         registry:
           - ghcr
           - dockerhub
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Download digests
-        uses: actions/download-artifact@v4.1.8
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           pattern: digests-*
           path: /tmp/digests
           merge-multiple: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.7.1
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Log in to docker hub
         if: matrix.registry == 'dockerhub'
-        uses: docker/login-action@v3.3.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
         if: matrix.registry == 'ghcr'
-        uses: docker/login-action@v3.3.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -213,7 +207,7 @@ jobs:
           done
 
       - name: Create manifest list and push
-        working-directory: /tmp/digests/${{ matrix.image.target }}/${{ matrix.registry }}
+        working-directory: /tmp/digests/${{ matrix.image.build_type }}/${{ matrix.registry }}
         run: |
           docker buildx imagetools create $(jq -Rcnr 'inputs | . / "," | map("-t " + .) | join(" ")' <<< "${{ steps.tags.outputs.tags}}") \
             $(printf '${{ steps.tags.outputs.image }}@sha256:%s ' *)
@@ -226,7 +220,7 @@ jobs:
       - deploy-manifest
     steps:
       - name: Trigger Workflow
-        uses: actions/github-script@v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
           script: |
@@ -242,5 +236,26 @@ jobs:
               inputs: {
                 version: "${{ needs.init.outputs.tag }}",
                 content: description
+              }
+            })
+
+  deploy-esphome-schema:
+    if: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
+    runs-on: ubuntu-latest
+    needs: [init]
+    environment: ${{ needs.init.outputs.deploy_env }}
+    steps:
+      - name: Trigger Workflow
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.DEPLOY_ESPHOME_SCHEMA_REPO_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: "esphome",
+              repo: "esphome-schema",
+              workflow_id: "generate-schemas.yml",
+              ref: "main",
+              inputs: {
+                version: "${{ needs.init.outputs.tag }}",
               }
             })

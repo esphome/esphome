@@ -6,20 +6,28 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_GROUP,
     CONF_ID,
+    CONF_ON_BOOT,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
     CONF_TIME,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
+    CONF_X,
+    CONF_Y,
 )
 from esphome.core import TimePeriod
-from esphome.schema_extractors import SCHEMA_EXTRACT
+from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
 from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
-from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import lv_color, lv_font, lv_gradient, lv_image
+from .helpers import CONF_IF_NAN, requires_component, validate_printf
+from .layout import (
+    FLEX_OBJ_SCHEMA,
+    GRID_CELL_SCHEMA,
+    append_layout_schema,
+    grid_alignments,
+)
+from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
     LVEncoderListener,
@@ -34,31 +42,44 @@ from .types import (
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
 
-# A schema for text properties
-TEXT_SCHEMA = cv.Schema(
+TIME_TEXT_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_TEXT): cv.Any(
-            cv.All(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_FORMAT): cv.string,
-                        cv.Optional(CONF_ARGS, default=list): cv.ensure_list(
-                            cv.lambda_
-                        ),
-                    },
-                ),
-                validate_printf,
-            ),
-            cv.Schema(
-                {
-                    cv.Required(CONF_TIME_FORMAT): cv.string,
-                    cv.GenerateID(CONF_TIME): cv.templatable(cv.use_id(RealTimeClock)),
-                }
-            ),
-            cv.templatable(cv.string),
-        )
+        cv.Required(CONF_TIME_FORMAT): cv.string,
+        cv.GenerateID(CONF_TIME): cv.templatable(cv.use_id(RealTimeClock)),
     }
 )
+
+PRINTF_TEXT_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_FORMAT): cv.string,
+            cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
+            cv.Optional(CONF_IF_NAN): cv.string,
+        },
+    ),
+    validate_printf,
+)
+
+
+def _validate_text(value):
+    """
+    Do some sanity checking of the format to get better error messages
+    than using cv.Any
+    """
+    if value is None:
+        raise cv.Invalid("No text specified")
+    if isinstance(value, dict):
+        if CONF_TIME_FORMAT in value:
+            return TIME_TEXT_SCHEMA(value)
+        return PRINTF_TEXT_SCHEMA(value)
+
+    return cv.templatable(cv.string)(value)
+
+
+# A schema for text properties
+TEXT_SCHEMA = {
+    cv.Optional(CONF_TEXT): _validate_text,
+}
 
 LIST_ACTION_SCHEMA = cv.ensure_list(
     cv.maybe_simple_value(
@@ -79,11 +100,38 @@ ENCODER_SCHEMA = cv.Schema(
             cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
-        cv.Optional(df.CONF_INITIAL_FOCUS): cv.use_id(lv_obj_t),
+        cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(
+            LIST_ACTION_SCHEMA, cv.Length(min=1, max=1)
+        ),
         cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
         cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
 )
+
+POINT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_X): cv.templatable(cv.int_),
+        cv.Required(CONF_Y): cv.templatable(cv.int_),
+    }
+)
+
+
+def point_schema(value):
+    """
+    A shorthand for a point in the form of x,y
+    :param value: The value to check
+    :return: The value as a tuple of x,y
+    """
+    if isinstance(value, dict):
+        return POINT_SCHEMA(value)
+    try:
+        x, y = map(int, value.split(","))
+        return {CONF_X: x, CONF_Y: y}
+    except ValueError:
+        pass
+    # not raising this in the catch block because pylint doesn't like it
+    raise cv.Invalid("Invalid point format, should be <x_int>, <y_int>")
+
 
 # All LVGL styles and their validators
 STYLE_PROPS = {
@@ -91,7 +139,7 @@ STYLE_PROPS = {
     "arc_opa": lvalid.opacity,
     "arc_color": lvalid.lv_color,
     "arc_rounded": lvalid.lv_bool,
-    "arc_width": lvalid.lv_positive_int,
+    "arc_width": lvalid.pixels,
     "anim_time": lvalid.lv_milliseconds,
     "bg_color": lvalid.lv_color,
     "bg_grad": lv_gradient,
@@ -103,6 +151,7 @@ STYLE_PROPS = {
     "bg_image_recolor": lvalid.lv_color,
     "bg_image_recolor_opa": lvalid.opacity,
     "bg_image_src": lvalid.lv_image,
+    "bg_image_tiled": lvalid.lv_bool,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
     "border_color": lvalid.lv_color,
@@ -117,22 +166,22 @@ STYLE_PROPS = {
     "height": lvalid.size,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
-    "line_width": cv.positive_int,
-    "line_dash_width": cv.positive_int,
-    "line_dash_gap": cv.positive_int,
+    "line_width": lvalid.lv_positive_int,
+    "line_dash_width": lvalid.lv_positive_int,
+    "line_dash_gap": lvalid.lv_positive_int,
     "line_rounded": lvalid.lv_bool,
     "line_color": lvalid.lv_color,
     "opa": lvalid.opacity,
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
-    "outline_pad": lvalid.pixels,
+    "outline_pad": lvalid.padding,
     "outline_width": lvalid.pixels,
-    "pad_all": lvalid.pixels,
-    "pad_bottom": lvalid.pixels,
-    "pad_left": lvalid.pixels,
-    "pad_right": lvalid.pixels,
-    "pad_top": lvalid.pixels,
+    "pad_all": lvalid.padding,
+    "pad_bottom": lvalid.padding,
+    "pad_left": lvalid.padding,
+    "pad_right": lvalid.padding,
+    "pad_top": lvalid.padding,
     "shadow_color": lvalid.lv_color,
     "shadow_ofs_x": lvalid.lv_int,
     "shadow_ofs_y": lvalid.lv_int,
@@ -147,8 +196,8 @@ STYLE_PROPS = {
         "LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH"
     ).several_of,
     "text_font": lv_font,
-    "text_letter_space": cv.positive_int,
-    "text_line_space": cv.positive_int,
+    "text_letter_space": lvalid.lv_positive_int,
+    "text_line_space": lvalid.lv_positive_int,
     "text_opa": lvalid.opacity,
     "transform_angle": lvalid.lv_angle,
     "transform_height": lvalid.pixels_or_percent,
@@ -172,6 +221,7 @@ STYLE_REMAP = {
     "bg_image_recolor": "bg_img_recolor",
     "bg_image_recolor_opa": "bg_img_recolor_opa",
     "bg_image_src": "bg_img_src",
+    "bg_image_tiled": "bg_img_tiled",
     "image_recolor": "img_recolor",
     "image_recolor_opa": "img_recolor_opa",
 }
@@ -183,6 +233,16 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+    }
+)
+
+# Also allow widget specific properties for use in style definitions
+FULL_STYLE_SCHEMA = STYLE_SCHEMA.extend(
+    {
+        cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+        cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+        cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+        cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
     }
 )
 
@@ -199,53 +259,65 @@ FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FL
 FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
 
 
-def part_schema(widget_type: WidgetType):
+def part_schema(parts):
     """
     Generate a schema for the various parts (e.g. main:, indicator:) of a widget type
-    :param widget_type:  The type of widget to generate for
-    :return:
+    :param parts:  The parts to include
+    :return: The schema
     """
-    parts = widget_type.parts
-    return cv.Schema({cv.Optional(part): STATE_SCHEMA for part in parts}).extend(
-        STATE_SCHEMA
+    return STATE_SCHEMA.extend(FLAG_SCHEMA).extend(
+        {cv.Optional(part): STATE_SCHEMA for part in parts}
     )
 
 
 def automation_schema(typ: LvType):
+    events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
-        events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
-    else:
-        events = df.LV_EVENT_TRIGGERS
-    args = typ.get_arg_type() if isinstance(typ, LvType) else []
+        events = events + (CONF_ON_VALUE,)
+    args = typ.get_arg_type()
     args.append(lv_event_t_ptr)
     return {
-        cv.Optional(event): validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template(*args)),
-            }
-        )
-        for event in events
+        **{
+            cv.Optional(event): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Trigger.template(*args)
+                    ),
+                }
+            )
+            for event in events
+        },
+        cv.Optional(CONF_ON_BOOT): validate_automation(
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
+        ),
     }
 
 
+def base_update_schema(widget_type, parts):
+    """
+    Create a schema for updating a widgets style properties, states and flags
+    :param widget_type: The type of the ID
+    :param parts:  The allowable parts to specify
+    :return:
+    """
+    return part_schema(parts).extend(
+        {
+            cv.Required(CONF_ID): cv.ensure_list(
+                cv.maybe_simple_value(
+                    {
+                        cv.Required(CONF_ID): cv.use_id(widget_type),
+                    },
+                    key=CONF_ID,
+                )
+            ),
+            cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+        }
+    )
+
+
 def create_modify_schema(widget_type):
-    return (
-        part_schema(widget_type)
-        .extend(
-            {
-                cv.Required(CONF_ID): cv.ensure_list(
-                    cv.maybe_simple_value(
-                        {
-                            cv.Required(CONF_ID): cv.use_id(widget_type),
-                        },
-                        key=CONF_ID,
-                    )
-                ),
-                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-            }
-        )
-        .extend(FLAG_SCHEMA)
-        .extend(widget_type.modify_schema)
+    return base_update_schema(widget_type.w_type, widget_type.parts).extend(
+        widget_type.modify_schema
     )
 
 
@@ -256,95 +328,37 @@ def obj_schema(widget_type: WidgetType):
     :return:
     """
     return (
-        part_schema(widget_type)
-        .extend(FLAG_SCHEMA)
-        .extend(LAYOUT_SCHEMA)
+        part_schema(widget_type.parts)
         .extend(ALIGN_TO_SCHEMA)
         .extend(automation_schema(widget_type.w_type))
         .extend(
-            cv.Schema(
-                {
-                    cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                    cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
-                }
-            )
+            {
+                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+                cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
+            }
         )
     )
 
-
-LAYOUT_SCHEMAS = {}
 
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lv_obj_t),
             cv.Required(df.CONF_ALIGN): df.ALIGN_ALIGNMENTS.one_of,
-            cv.Optional(df.CONF_X, default=0): lvalid.pixels_or_percent,
-            cv.Optional(df.CONF_Y, default=0): lvalid.pixels_or_percent,
+            cv.Optional(CONF_X, default=0): lvalid.pixels_or_percent,
+            cv.Optional(CONF_Y, default=0): lvalid.pixels_or_percent,
         }
     )
 }
 
 
-def grid_free_space(value):
-    value = cv.Upper(value)
-    if value.startswith("FR(") and value.endswith(")"):
-        value = value.removesuffix(")").removeprefix("FR(")
-        return f"LV_GRID_FR({cv.positive_int(value)})"
-    raise cv.Invalid("must be a size in pixels, CONTENT or FR(nn)")
-
-
-grid_spec = cv.Any(
-    lvalid.size, df.LvConstant("LV_GRID_", "CONTENT").one_of, grid_free_space
-)
-
-cell_alignments = df.LV_CELL_ALIGNMENTS.one_of
-grid_alignments = df.LV_GRID_ALIGNMENTS.one_of
-flex_alignments = df.LV_FLEX_ALIGNMENTS.one_of
-
-LAYOUT_SCHEMA = {
-    cv.Optional(df.CONF_LAYOUT): cv.typed_schema(
-        {
-            df.TYPE_GRID: {
-                cv.Required(df.CONF_GRID_ROWS): [grid_spec],
-                cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
-                cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
-                cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
-                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
-            },
-            df.TYPE_FLEX: {
-                cv.Optional(
-                    df.CONF_FLEX_FLOW, default="row_wrap"
-                ): df.FLEX_FLOWS.one_of,
-                cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
-                cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
-                cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
-                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
-            },
-        },
-        lower=True,
-    )
-}
-
-GRID_CELL_SCHEMA = {
-    cv.Required(df.CONF_GRID_CELL_ROW_POS): cv.positive_int,
-    cv.Required(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
-    cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
-}
-
-FLEX_OBJ_SCHEMA = {
-    cv.Optional(df.CONF_FLEX_GROW): cv.int_,
-}
-
 DISP_BG_SCHEMA = cv.Schema(
     {
-        cv.Optional(df.CONF_DISP_BG_IMAGE): lv_image,
+        cv.Optional(df.CONF_DISP_BG_IMAGE): cv.Any(
+            cv.one_of("none", lower=True), lv_image
+        ),
         cv.Optional(df.CONF_DISP_BG_COLOR): lv_color,
+        cv.Optional(df.CONF_DISP_BG_OPA): opacity,
     }
 )
 
@@ -364,46 +378,16 @@ ALL_STYLES = {
     **STYLE_PROPS,
     **GRID_CELL_SCHEMA,
     **FLEX_OBJ_SCHEMA,
-    cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-    cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+    cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+    cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
 }
-
-
-def container_validator(schema, widget_type: WidgetType):
-    """
-    Create a validator for a container given the widget type
-    :param schema: Base schema to extend
-    :param widget_type:
-    :return:
-    """
-
-    def validator(value):
-        result = schema
-        if w_sch := widget_type.schema:
-            result = result.extend(w_sch)
-        ltype = df.TYPE_NONE
-        if value and (layout := value.get(df.CONF_LAYOUT)):
-            if not isinstance(layout, dict):
-                raise cv.Invalid("Layout value must be a dict")
-            ltype = layout.get(CONF_TYPE)
-            if not ltype:
-                raise (cv.Invalid("Layout schema requires type:"))
-            add_lv_use(ltype)
-        if value == SCHEMA_EXTRACT:
-            return result
-        result = result.extend(
-            LAYOUT_SCHEMAS.get(ltype.lower(), LAYOUT_SCHEMAS[df.TYPE_NONE])
-        )
-        return result(value)
-
-    return validator
 
 
 def container_schema(widget_type: WidgetType, extras=None):
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
     the extras passed in, plus any defined for the specific widget being specified.
-    :param widget_type:     The widget type, e.g. "img"
+    :param widget_type:     The widget type, e.g. "image"
     :param extras:  Additional options to be made available, e.g. layout properties for children
     :return: The schema for this type of widget.
     """
@@ -413,31 +397,53 @@ def container_schema(widget_type: WidgetType, extras=None):
     if extras:
         schema = schema.extend(extras)
     # Delayed evaluation for recursion
-    return container_validator(schema, widget_type)
 
+    schema = schema.extend(widget_type.schema)
 
-def widget_schema(widget_type: WidgetType, extras=None):
-    """
-    Create a schema for a given widget type
-    :param widget_type: The name of the widget
-    :param extras:
-    :return:
-    """
-    validator = container_schema(widget_type, extras=extras)
-    if required := widget_type.required_component:
-        validator = cv.All(validator, requires_component(required))
-    return cv.Exclusive(widget_type.name, df.CONF_WIDGETS), validator
+    def validator(value):
+        return append_layout_schema(schema, value)(value)
 
-
-# All widget schemas must be defined before this is called.
+    return validator
 
 
 def any_widget_schema(extras=None):
     """
-    Generate schemas for all possible LVGL widgets. This is what implements the ability to have a list of any kind of
+    Dynamically generate schemas for all possible LVGL widgets. This is what implements the ability to have a list of any kind of
     widget under the widgets: key.
 
+    This uses lazy evaluation - the schema is built when called during validation,
+    not at import time. This allows external components to register widgets
+    before schema validation begins.
+
     :param extras: Additional schema to be applied to each generated one
-    :return:
+    :return: A validator for the Widgets key
     """
-    return cv.Any(dict(widget_schema(wt, extras) for wt in WIDGET_TYPES.values()))
+
+    def validator(value):
+        if isinstance(value, dict):
+            # Convert to list
+            value = [{k: v} for k, v in value.items()]
+        if not isinstance(value, list):
+            raise cv.Invalid("Expected a list of widgets")
+        result = []
+        for index, entry in enumerate(value):
+            if not isinstance(entry, dict) or len(entry) != 1:
+                raise cv.Invalid(
+                    "Each widget must be a dictionary with a single key", path=[index]
+                )
+            [(key, value)] = entry.items()
+            # Validate the widget against its schema
+            widget_type = WIDGET_TYPES.get(key)
+            if not widget_type:
+                raise cv.Invalid(f"Unknown widget type: {key}", path=[index])
+            container_validator = container_schema(widget_type, extras=extras)
+            if required := widget_type.required_component:
+                container_validator = cv.All(
+                    container_validator, requires_component(required)
+                )
+            # Apply custom validation
+            value = widget_type.validate(value or {})
+            result.append({key: container_validator(value)})
+        return result
+
+    return validator

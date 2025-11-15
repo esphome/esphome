@@ -44,11 +44,17 @@ void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire
 void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
 
 void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  if (!this->sensor_->get_device_class().empty())
-    root[MQTT_DEVICE_CLASS] = this->sensor_->get_device_class();
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  const auto device_class = this->sensor_->get_device_class_ref();
+  if (!device_class.empty()) {
+    root[MQTT_DEVICE_CLASS] = device_class;
+  }
 
-  if (!this->sensor_->get_unit_of_measurement().empty())
-    root[MQTT_UNIT_OF_MEASUREMENT] = this->sensor_->get_unit_of_measurement();
+  const auto unit_of_measurement = this->sensor_->get_unit_of_measurement_ref();
+  if (!unit_of_measurement.empty()) {
+    root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
+  }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
   if (this->get_expire_after() > 0)
     root[MQTT_EXPIRE_AFTER] = this->get_expire_after() / 1000;
@@ -56,8 +62,13 @@ void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   if (this->sensor_->get_force_update())
     root[MQTT_FORCE_UPDATE] = true;
 
-  if (this->sensor_->get_state_class() != STATE_CLASS_NONE)
-    root[MQTT_STATE_CLASS] = state_class_to_string(this->sensor_->get_state_class());
+  if (this->sensor_->get_state_class() != STATE_CLASS_NONE) {
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+    root[MQTT_STATE_CLASS] = (const __FlashStringHelper *) state_class_to_string(this->sensor_->get_state_class());
+#else
+    root[MQTT_STATE_CLASS] = LOG_STR_ARG(state_class_to_string(this->sensor_->get_state_class()));
+#endif
+  }
 
   config.command_topic = false;
 }
@@ -69,10 +80,11 @@ bool MQTTSensorComponent::send_initial_state() {
   }
 }
 bool MQTTSensorComponent::publish_state(float value) {
+  if (mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
+    return this->publish(this->get_state_topic_(), "None");
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
   return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
 }
-std::string MQTTSensorComponent::unique_id() { return this->sensor_->unique_id(); }
 
 }  // namespace mqtt
 }  // namespace esphome

@@ -1,5 +1,6 @@
 #include "seeed_mr24hpc1.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <utility>
@@ -61,7 +62,6 @@ void MR24HPC1Component::dump_config() {
 
 // Initialisation functions
 void MR24HPC1Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MR24HPC1...");
   this->check_uart_settings(115200);
 
   if (this->custom_mode_number_ != nullptr) {
@@ -90,7 +90,6 @@ void MR24HPC1Component::setup() {
   memset(this->sg_frame_buf_, 0, FRAME_BUF_MAX_SIZE);
 
   this->set_interval(8000, [this]() { this->update_(); });
-  ESP_LOGCONFIG(TAG, "Set up MR24HPC1 complete");
 }
 
 // Timed polling of radar data
@@ -436,12 +435,12 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
   } else if ((this->existence_boundary_select_ != nullptr) &&
              ((data[FRAME_COMMAND_WORD_INDEX] == 0x0a) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8a))) {
     if (this->existence_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
-      this->existence_boundary_select_->publish_state(S_BOUNDARY_STR[data[FRAME_DATA_INDEX] - 1]);
+      this->existence_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
     }
   } else if ((this->motion_boundary_select_ != nullptr) &&
              ((data[FRAME_COMMAND_WORD_INDEX] == 0x0b) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8b))) {
     if (this->motion_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
-      this->motion_boundary_select_->publish_state(S_BOUNDARY_STR[data[FRAME_DATA_INDEX] - 1]);
+      this->motion_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
     }
   } else if ((this->motion_trigger_number_ != nullptr) &&
              ((data[FRAME_COMMAND_WORD_INDEX] == 0x0c) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8c))) {
@@ -516,7 +515,7 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x07) {
     if ((this->scene_mode_select_ != nullptr) && (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX]))) {
-      this->scene_mode_select_->publish_state(S_SCENE_STR[data[FRAME_DATA_INDEX]]);
+      this->scene_mode_select_->publish_state(data[FRAME_DATA_INDEX]);
     } else {
       ESP_LOGD(TAG, "Select has index offset %d Error", data[FRAME_DATA_INDEX]);
     }
@@ -533,13 +532,13 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
       this->custom_mode_number_->publish_state(0);
     }
     if (this->custom_mode_end_text_sensor_ != nullptr) {
-      this->custom_mode_end_text_sensor_->publish_state("Setup in progress...");
+      this->custom_mode_end_text_sensor_->publish_state("Setup in progress");
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x81) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x87) {
     if ((this->scene_mode_select_ != nullptr) && (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX]))) {
-      this->scene_mode_select_->publish_state(S_SCENE_STR[data[FRAME_DATA_INDEX]]);
+      this->scene_mode_select_->publish_state(data[FRAME_DATA_INDEX]);
     } else {
       ESP_LOGD(TAG, "Select has index offset %d Error", data[FRAME_DATA_INDEX]);
     }
@@ -582,7 +581,7 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
              ((data[FRAME_COMMAND_WORD_INDEX] == 0x0A) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8A))) {
     // none:0x00  1s:0x01 30s:0x02 1min:0x03 2min:0x04 5min:0x05 10min:0x06 30min:0x07 1hour:0x08
     if (data[FRAME_DATA_INDEX] < 9) {
-      this->unman_time_select_->publish_state(S_UNMANNED_TIME_STR[data[FRAME_DATA_INDEX]]);
+      this->unman_time_select_->publish_state(data[FRAME_DATA_INDEX]);
     }
   } else if ((this->keep_away_text_sensor_ != nullptr) &&
              ((data[FRAME_COMMAND_WORD_INDEX] == 0x0B) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8B))) {

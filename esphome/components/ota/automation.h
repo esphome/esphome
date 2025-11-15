@@ -12,7 +12,7 @@ class OTAStateChangeTrigger : public Trigger<OTAState> {
   explicit OTAStateChangeTrigger(OTAComponent *parent) {
     parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
       if (!parent->is_failed()) {
-        return trigger(state);
+        trigger(state);
       }
     });
   }

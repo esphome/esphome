@@ -1,27 +1,33 @@
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
-from esphome.cpp_generator import get_variable
+from esphome.core import Lambda
+from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
     CONF_DISP_BG_COLOR,
     CONF_DISP_BG_IMAGE,
+    CONF_DISP_BG_OPA,
     CONF_EDITING,
     CONF_FREEZE,
     CONF_LVGL_ID,
     CONF_SHOW_SNOW,
+    PARTS,
     literal,
+    static_cast,
 )
-from .lv_validation import lv_bool, lv_color, lv_image
+from .lv_validation import lv_bool, lv_color, lv_image, lv_milliseconds, opacity
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
+    LvglComponent,
     ReturnStatement,
     add_line_marks,
     lv,
@@ -29,9 +35,14 @@ from .lvcode import (
     lv_expr,
     lv_obj,
     lvgl_comp,
-    static_cast,
 )
-from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
+from .schemas import (
+    ALL_STYLES,
+    DISP_BG_SCHEMA,
+    LIST_ACTION_SCHEMA,
+    LVGL_SCHEMA,
+    base_update_schema,
+)
 from .types import (
     LV_STATE,
     LvglAction,
@@ -39,6 +50,7 @@ from .types import (
     ObjUpdateAction,
     lv_disp_t,
     lv_group_t,
+    lv_obj_base_t,
     lv_obj_t,
     lv_pseudo_button_t,
 )
@@ -52,6 +64,7 @@ from .widgets import (
 
 # Record widgets that are used in a focused action here
 focused_widgets = set()
+refreshed_widgets = set()
 
 
 async def action_to_code(
@@ -60,13 +73,19 @@ async def action_to_code(
     action_id,
     template_arg,
     args,
+    config=None,
 ):
+    # Ensure all required ids have been processed, so our LambdaContext doesn't get context-switched.
+    if config:
+        for lamb in config.values():
+            if isinstance(lamb, Lambda):
+                for id_ in lamb.requires_ids:
+                    await get_variable(id_)
     await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             await action(widget)
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    return var
+    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
 async def update_to_code(config, action_id, template_arg, args):
@@ -80,7 +99,9 @@ async def update_to_code(config, action_id, template_arg, args):
             lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(widgets, do_update, action_id, template_arg, args)
+    return await action_to_code(
+        widgets, do_update, action_id, template_arg, args, config
+    )
 
 
 @automation.register_condition(
@@ -92,7 +113,11 @@ async def lvgl_is_paused(config, condition_id, template_arg, args):
     lvgl = config[CONF_LVGL_ID]
     async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
         lv_add(ReturnStatement(lvgl_comp.is_paused()))
-    var = cg.new_Pvariable(condition_id, template_arg, await context.get_lambda())
+    var = cg.new_Pvariable(
+        condition_id,
+        TemplateArguments(LvglComponent, *template_arg),
+        await context.get_lambda(),
+    )
     await cg.register_parented(var, lvgl)
     return var
 
@@ -103,29 +128,46 @@ async def lvgl_is_paused(config, condition_id, template_arg, args):
     LVGL_SCHEMA.extend(
         {
             cv.Required(CONF_TIMEOUT): cv.templatable(
-                cv.positive_time_period_milliseconds
+                lv_milliseconds,
             )
         }
     ),
 )
 async def lvgl_is_idle(config, condition_id, template_arg, args):
     lvgl = config[CONF_LVGL_ID]
-    timeout = await cg.templatable(config[CONF_TIMEOUT], [], cg.uint32)
+    timeout = await lv_milliseconds.process(config[CONF_TIMEOUT])
     async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
-        lv_add(ReturnStatement(lvgl_comp.is_idle(timeout)))
-    var = cg.new_Pvariable(condition_id, template_arg, await context.get_lambda())
+        lv_add(
+            ReturnStatement(
+                lv_expr.disp_get_inactive_time(lvgl_comp.get_disp()) > timeout
+            )
+        )
+    var = cg.new_Pvariable(
+        condition_id,
+        TemplateArguments(LvglComponent, *template_arg),
+        await context.get_lambda(),
+    )
     await cg.register_parented(var, lvgl)
     return var
 
 
 async def disp_update(disp, config: dict):
-    if CONF_DISP_BG_COLOR not in config and CONF_DISP_BG_IMAGE not in config:
+    if (
+        CONF_DISP_BG_COLOR not in config
+        and CONF_DISP_BG_IMAGE not in config
+        and CONF_DISP_BG_OPA not in config
+    ):
         return
     with LocalVariable("lv_disp_tmp", lv_disp_t, disp) as disp_temp:
         if (bg_color := config.get(CONF_DISP_BG_COLOR)) is not None:
             lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
         if bg_image := config.get(CONF_DISP_BG_IMAGE):
-            lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
+            if bg_image == "none":
+                lv.disp_set_bg_image(disp_temp, static_cast("void *", "nullptr"))
+            else:
+                lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
+        if (bg_opa := config.get(CONF_DISP_BG_OPA)) is not None:
+            lv.disp_set_bg_opa(disp_temp, await opacity.process(bg_opa))
 
 
 @automation.register_action(
@@ -315,5 +357,60 @@ async def widget_focus(config, action_id, template_arg, args):
 
         if config[CONF_FREEZE]:
             lv.group_focus_freeze(group, True)
-        var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-        return var
+        return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+
+
+@automation.register_action(
+    "lvgl.widget.update", ObjUpdateAction, base_update_schema(lv_obj_base_t, PARTS)
+)
+async def obj_update_to_code(config, action_id, template_arg, args):
+    async def do_update(widget: Widget):
+        await set_obj_properties(widget, config)
+
+    widgets = await get_widgets(config[CONF_ID])
+    return await action_to_code(
+        widgets, do_update, action_id, template_arg, args, config
+    )
+
+
+def validate_refresh_config(config):
+    for w in config:
+        refreshed_widgets.add(w[CONF_ID])
+    return config
+
+
+@automation.register_action(
+    "lvgl.widget.refresh",
+    ObjUpdateAction,
+    cv.All(
+        cv.ensure_list(
+            cv.maybe_simple_value(
+                {
+                    cv.Required(CONF_ID): cv.use_id(lv_obj_t),
+                },
+                key=CONF_ID,
+            )
+        ),
+        validate_refresh_config,
+    ),
+)
+async def obj_refresh_to_code(config, action_id, template_arg, args):
+    widget = await get_widgets(config)
+
+    async def do_refresh(widget: Widget):
+        # only update style properties that might have changed, i.e. are templated
+        config = {k: v for k, v in widget.config.items() if isinstance(v, Lambda)}
+        await set_obj_properties(widget, config)
+        # must pass all widget-specific options here, even if not templated, but only do so if at least one is
+        # templated. First filter out common style properties.
+        config = {k: v for k, v in widget.config.items() if k not in ALL_STYLES}
+        # Check if v is a Lambda or a dict, implying it is dynamic
+        if any(isinstance(v, (Lambda, dict)) for v in config.values()):
+            await widget.type.to_code(widget, config)
+            if (
+                widget.type.w_type.value_property is not None
+                and widget.type.w_type.value_property in config
+            ):
+                lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
+
+    return await action_to_code(widget, do_refresh, action_id, template_arg, args)

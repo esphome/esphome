@@ -1,12 +1,12 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import nfc
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_ON_FINISHED_WRITE,
-    CONF_ON_TAG_REMOVED,
     CONF_ON_TAG,
+    CONF_ON_TAG_REMOVED,
     CONF_TRIGGER_ID,
 )
 

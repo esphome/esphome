@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import cover
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_CLOSE_ACTION,
@@ -11,14 +11,15 @@ from esphome.const import (
     CONF_OPEN_ACTION,
     CONF_OPTIMISTIC,
     CONF_POSITION,
+    CONF_POSITION_ACTION,
     CONF_RESTORE_MODE,
     CONF_STATE,
     CONF_STOP_ACTION,
     CONF_TILT,
     CONF_TILT_ACTION,
     CONF_TILT_LAMBDA,
-    CONF_POSITION_ACTION,
 )
+
 from .. import template_ns
 
 TemplateCover = template_ns.class_("TemplateCover", cover.Cover, cg.Component)
@@ -33,31 +34,37 @@ RESTORE_MODES = {
 CONF_HAS_POSITION = "has_position"
 CONF_TOGGLE_ACTION = "toggle_action"
 
-CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TemplateCover),
-        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
-        cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
-        cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
-        cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_TILT_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_TILT_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_RESTORE_MODE, default="RESTORE"): cv.enum(
-            RESTORE_MODES, upper=True
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cover.cover_schema(TemplateCover)
+    .extend(
+        {
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
+            cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
+            cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_TILT_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_TILT_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_RESTORE_MODE, default="RESTORE"): cv.enum(
+                RESTORE_MODES, upper=True
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await cover.new_cover(config)
     await cg.register_component(var, config)
-    await cover.register_cover(var, config)
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(
             config[CONF_LAMBDA], [], return_type=cg.optional.template(float)

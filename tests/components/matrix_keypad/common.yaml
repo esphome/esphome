@@ -1,0 +1,8 @@
+binary_sensor:
+  - platform: matrix_keypad
+    id: key4
+    row: 1
+    col: 1
+  - platform: matrix_keypad
+    id: key1
+    key: 1

@@ -19,7 +19,6 @@ class XiaomiMUE4094RT : public Component,
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_time(uint16_t timeout) { timeout_ = timeout; }
 
  protected:

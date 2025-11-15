@@ -1,0 +1,17 @@
+sensor:
+  - platform: bme680
+    i2c_id: i2c_bus
+    temperature:
+      name: BME680 Temperature
+      oversampling: 16x
+    pressure:
+      name: BME680 Pressure
+    humidity:
+      name: BME680 Humidity
+    gas_resistance:
+      name: BME680 Gas Sensor
+    address: 0x77
+    heater:
+      temperature: 320
+      duration: 150ms
+    update_interval: 15s

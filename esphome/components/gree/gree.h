@@ -58,7 +58,7 @@ const uint8_t GREE_VDIR_MIDDLE = 0x04;
 const uint8_t GREE_VDIR_MDOWN = 0x05;
 const uint8_t GREE_VDIR_DOWN = 0x06;
 
-// Only available on YAC
+// Only available on YAC/YAG
 // Horizontal air directions. Note that these cannot be set on all heat pumps
 const uint8_t GREE_HDIR_AUTO = 0x00;
 const uint8_t GREE_HDIR_MANUAL = 0x00;
@@ -78,7 +78,7 @@ const uint8_t GREE_PRESET_SLEEP = 0x01;
 const uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
 // Model codes
-enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF };
+enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
 
 class GreeClimate : public climate_ir::ClimateIR {
  public:

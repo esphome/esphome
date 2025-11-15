@@ -1,15 +1,26 @@
 #pragma once
 
+#include <memory>
+#include <tuple>
+#include <forward_list>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#include <queue>
 namespace esphome {
 namespace script {
 
 class ScriptLogger {
  protected:
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
+    esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
+  }
+  void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
+    esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
+  }
+  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
+#else
   void esp_logw_(int line, const char *format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }
@@ -17,6 +28,7 @@ class ScriptLogger {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
   void esp_log_(int level, int line, const char *format, const char *param);
+#endif
 };
 
 /// The abstract base class for all script types.
@@ -38,14 +50,14 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   }
 
   // Internal function to give scripts readable names.
-  void set_name(const std::string &name) { name_ = name; }
+  void set_name(const LogString *name) { name_ = name; }
 
  protected:
   template<int... S> void execute_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
     this->execute(std::get<S>(tuple)...);
   }
 
-  std::string name_;
+  const LogString *name_{nullptr};
 };
 
 /** A script type for which only a single instance at a time is allowed.
@@ -57,7 +69,8 @@ template<typename... Ts> class SingleScript : public Script<Ts...> {
  public:
   void execute(Ts... x) override {
     if (this->is_action_running()) {
-      this->esp_logw_(__LINE__, "Script '%s' is already running! (mode: single)", this->name_.c_str());
+      this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' is already running! (mode: single)"),
+                      LOG_STR_ARG(this->name_));
       return;
     }
 
@@ -74,7 +87,7 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
  public:
   void execute(Ts... x) override {
     if (this->is_action_running()) {
-      this->esp_logd_(__LINE__, "Script '%s' restarting (mode: restart)", this->name_.c_str());
+      this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' restarting (mode: restart)"), LOG_STR_ARG(this->name_));
       this->stop_action();
     }
 
@@ -85,21 +98,41 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
 /** A script type that queues new instances that are created.
  *
  * Only one instance of the script can be active at a time.
+ *
+ * Ring buffer implementation:
+ * - num_queued_ tracks the number of queued (waiting) instances, NOT including the currently running one
+ * - queue_front_ points to the next item to execute (read position)
+ * - Buffer size is max_runs_ - 1 (max total instances minus the running one)
+ * - Write position is calculated as: (queue_front_ + num_queued_) % (max_runs_ - 1)
+ * - When an item finishes, queue_front_ advances: (queue_front_ + 1) % (max_runs_ - 1)
+ * - First execute() runs immediately without queuing (num_queued_ stays 0)
+ * - Subsequent executes while running are queued starting at position 0
+ * - Maximum total instances = max_runs_ (includes 1 running + (max_runs_ - 1) queued)
  */
 template<typename... Ts> class QueueingScript : public Script<Ts...>, public Component {
  public:
   void execute(Ts... x) override {
-    if (this->is_action_running() || this->num_runs_ > 0) {
-      // num_runs_ is the number of *queued* instances, so total number of instances is
-      // num_runs_ + 1
-      if (this->max_runs_ != 0 && this->num_runs_ + 1 >= this->max_runs_) {
-        this->esp_logw_(__LINE__, "Script '%s' maximum number of queued runs exceeded!", this->name_.c_str());
+    if (this->is_action_running() || this->num_queued_ > 0) {
+      // num_queued_ is the number of *queued* instances (waiting, not including currently running)
+      // max_runs_ is the maximum *total* instances (running + queued)
+      // So we reject when num_queued_ + 1 >= max_runs_ (queued + running >= max)
+      if (this->num_queued_ + 1 >= this->max_runs_) {
+        this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' max instances (running + queued) reached!"),
+                        LOG_STR_ARG(this->name_));
         return;
       }
 
-      this->esp_logd_(__LINE__, "Script '%s' queueing new instance (mode: queued)", this->name_.c_str());
-      this->num_runs_++;
-      this->var_queue_.push(std::make_tuple(x...));
+      // Initialize queue on first queued item (after capacity check)
+      this->lazy_init_queue_();
+
+      this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' queueing new instance (mode: queued)"),
+                      LOG_STR_ARG(this->name_));
+      // Ring buffer: write to (queue_front_ + num_queued_) % queue_capacity
+      const size_t queue_capacity = static_cast<size_t>(this->max_runs_ - 1);
+      size_t write_pos = (this->queue_front_ + this->num_queued_) % queue_capacity;
+      // Use std::make_unique to replace the unique_ptr
+      this->var_queue_[write_pos] = std::make_unique<std::tuple<Ts...>>(x...);
+      this->num_queued_++;
       return;
     }
 
@@ -109,29 +142,46 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   void stop() override {
-    this->num_runs_ = 0;
+    // Clear all queued items to free memory immediately
+    // Resetting the array automatically destroys all unique_ptrs and their contents
+    this->var_queue_.reset();
+    this->num_queued_ = 0;
+    this->queue_front_ = 0;
     Script<Ts...>::stop();
   }
 
   void loop() override {
-    if (this->num_runs_ != 0 && !this->is_action_running()) {
-      this->num_runs_--;
-      auto &vars = this->var_queue_.front();
-      this->var_queue_.pop();
-      this->trigger_tuple_(vars, typename gens<sizeof...(Ts)>::type());
+    if (this->num_queued_ != 0 && !this->is_action_running()) {
+      // Dequeue: decrement count, move tuple out (frees slot), advance read position
+      this->num_queued_--;
+      const size_t queue_capacity = static_cast<size_t>(this->max_runs_ - 1);
+      auto tuple_ptr = std::move(this->var_queue_[this->queue_front_]);
+      this->queue_front_ = (this->queue_front_ + 1) % queue_capacity;
+      this->trigger_tuple_(*tuple_ptr, typename gens<sizeof...(Ts)>::type());
     }
   }
 
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 
  protected:
+  // Lazy init queue on first use - avoids setup() ordering issues and saves memory
+  // if script is never executed during this boot cycle
+  inline void lazy_init_queue_() {
+    if (!this->var_queue_) {
+      // Allocate array of max_runs_ - 1 slots for queued items (running item is separate)
+      // unique_ptr array is zero-initialized, so all slots start as nullptr
+      this->var_queue_ = std::make_unique<std::unique_ptr<std::tuple<Ts...>>[]>(this->max_runs_ - 1);
+    }
+  }
+
   template<int... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
     this->trigger(std::get<S>(tuple)...);
   }
 
-  int num_runs_ = 0;
-  int max_runs_ = 0;
-  std::queue<std::tuple<Ts...>> var_queue_;
+  int num_queued_ = 0;      // Number of queued instances (not including currently running)
+  int max_runs_ = 0;        // Maximum total instances (running + queued)
+  size_t queue_front_ = 0;  // Ring buffer read position (next item to execute)
+  std::unique_ptr<std::unique_ptr<std::tuple<Ts...>>[]> var_queue_;  // Ring buffer of queued parameters
 };
 
 /** A script type that executes new instances in parallel.
@@ -143,7 +193,8 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
  public:
   void execute(Ts... x) override {
     if (this->max_runs_ != 0 && this->automation_parent_->num_running() >= this->max_runs_) {
-      this->esp_logw_(__LINE__, "Script '%s' maximum number of parallel runs exceeded!", this->name_.c_str());
+      this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum number of parallel runs exceeded!"),
+                      LOG_STR_ARG(this->name_));
       return;
     }
     this->trigger(x...);
@@ -164,7 +215,7 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
 
   template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
 
-  void play(Ts... x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
+  void play(const Ts &...x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
 
  protected:
   // NOTE:
@@ -198,7 +249,7 @@ template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> 
  public:
   ScriptStopAction(C *script) : script_(script) {}
 
-  void play(Ts... x) override { this->script_->stop(); }
+  void play(const Ts &...x) override { this->script_->stop(); }
 
  protected:
   C *script_;
@@ -208,24 +259,40 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  public:
   explicit IsRunningCondition(C *parent) : parent_(parent) {}
 
-  bool check(Ts... x) override { return this->parent_->is_running(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running(); }
 
  protected:
   C *parent_;
 };
 
+/** Wait for a script to finish before continuing.
+ *
+ * Uses queue-based storage to safely handle concurrent executions.
+ * While concurrent execution from the same trigger is uncommon, it's possible
+ * (e.g., rapid button presses, high-frequency sensor updates), so we use
+ * queue-based storage for correctness.
+ */
 template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
  public:
   ScriptWaitAction(C *script) : script_(script) {}
 
-  void play_complex(Ts... x) override {
+  void setup() override {
+    // Start with loop disabled - only enable when there's work to do
+    this->disable_loop();
+  }
+
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     // Check if we can continue immediately.
     if (!this->script_->is_running()) {
       this->play_next_(x...);
       return;
     }
-    this->var_ = std::make_tuple(x...);
+
+    // Store parameters for later execution
+    this->param_queue_.emplace_front(x...);
+    // Enable loop now that we have work to do
+    this->enable_loop();
     this->loop();
   }
 
@@ -236,17 +303,30 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     if (this->script_->is_running())
       return;
 
-    this->play_next_tuple_(this->var_);
+    while (!this->param_queue_.empty()) {
+      auto &params = this->param_queue_.front();
+      this->play_next_tuple_(params, typename gens<sizeof...(Ts)>::type());
+      this->param_queue_.pop_front();
+    }
+    // Queue is now empty - disable loop until next play_complex
+    this->disable_loop();
   }
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
+  void play(const Ts &...x) override { /* ignore - see play_complex */
+  }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void stop() override {
+    this->param_queue_.clear();
+    this->disable_loop();
   }
 
  protected:
+  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+    this->play_next_(std::get<S>(tuple)...);
+  }
+
   C *script_;
-  std::tuple<Ts...> var_{};
+  std::forward_list<std::tuple<Ts...>> param_queue_;
 };
 
 }  // namespace script

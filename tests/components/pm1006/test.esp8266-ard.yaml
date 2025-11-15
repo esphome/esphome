@@ -1,10 +1,8 @@
-uart:
-  - id: uart_pm1006
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO0
+  rx_pin: GPIO2
 
-sensor:
-  - platform: pm1006
-    pm_2_5:
-      name: Particulate Matter 2.5µm Concentration
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+
+<<: !include common.yaml

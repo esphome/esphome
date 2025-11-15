@@ -36,6 +36,8 @@ CODEOWNERS = ["@MrMDavidson"]
 
 AUTO_LOAD = ["display_menu_base"]
 
+MULTI_CONF = True
+
 CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
     cv.Schema(
         {

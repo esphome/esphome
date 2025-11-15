@@ -159,6 +159,15 @@ void DFPlayer::loop() {
         }
         break;
       case 9:  // End byte
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+        char byte_sequence[100];
+        byte_sequence[0] = '\0';
+        for (size_t i = 0; i < this->read_pos_ + 1; ++i) {
+          snprintf(byte_sequence + strlen(byte_sequence), sizeof(byte_sequence) - strlen(byte_sequence), "%02X ",
+                   this->read_buffer_[i]);
+        }
+        ESP_LOGVV(TAG, "Received byte sequence: %s", byte_sequence);
+#endif
         if (byte != 0xEF) {
           ESP_LOGW(TAG, "Expected end byte 0xEF, got %#02x", byte);
           this->read_pos_ = 0;
@@ -238,13 +247,17 @@ void DFPlayer::loop() {
             this->ack_set_is_playing_ = false;
             this->ack_reset_is_playing_ = false;
             break;
+          case 0x3C:
+            ESP_LOGV(TAG, "Playback finished (USB drive)");
+            this->is_playing_ = false;
+            this->on_finished_playback_callback_.call();
           case 0x3D:
-            ESP_LOGV(TAG, "Playback finished");
+            ESP_LOGV(TAG, "Playback finished (SD card)");
             this->is_playing_ = false;
             this->on_finished_playback_callback_.call();
             break;
           default:
-            ESP_LOGV(TAG, "Received unknown cmd %#02x arg %#04x", cmd, argument);
+            ESP_LOGE(TAG, "Received unknown cmd %#02x arg %#04x", cmd, argument);
         }
         this->sent_cmd_ = 0;
         this->read_pos_ = 0;
