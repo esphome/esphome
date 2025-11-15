@@ -52,11 +52,18 @@ uint16_t RP2040UartComponent::get_config() {
 }
 
 void RP2040UartComponent::setup() {
-  if (this->rx_pin_) {
-    this->rx_pin_->setup();
-  }
-  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-    this->tx_pin_->setup();
+  auto setupPinIfNeeded = [](InternalGPIOPin *pin) {
+    if (!pin) {
+      return;
+    }
+
+    if (pin->get_flags() & mask != gpio::Flags::FLAG_NONE) {
+      pin->setup();
+    }
+  };
+  setupPinIfNeeded(this->rx_pin_);
+  if (this->rx_pin_ != this->tx_pin_) {
+    setupPinIfNeeded(this->tx_pin_);
   }
 
   uint16_t config = get_config();

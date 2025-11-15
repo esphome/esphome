@@ -56,11 +56,18 @@ uint32_t ESP8266UartComponent::get_config() {
 }
 
 void ESP8266UartComponent::setup() {
-  if (this->rx_pin_) {
-    this->rx_pin_->setup();
-  }
-  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-    this->tx_pin_->setup();
+  auto setupPinIfNeeded = [](InternalGPIOPin *pin) {
+    if (!pin) {
+      return;
+    }
+
+    if (pin->get_flags() & mask != gpio::Flags::FLAG_NONE) {
+      pin->setup();
+    }
+  };
+  setupPinIfNeeded(this->rx_pin_);
+  if (this->rx_pin_ != this->tx_pin_) {
+    setupPinIfNeeded(this->tx_pin_);
   }
 
   // Use Arduino HardwareSerial UARTs if all used pins match the ones

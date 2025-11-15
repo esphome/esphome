@@ -123,11 +123,18 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
-  if (this->rx_pin_) {
-    this->rx_pin_->setup();
-  }
-  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-    this->tx_pin_->setup();
+  auto setupPinIfNeeded = [](InternalGPIOPin *pin) {
+    if (!pin) {
+      return;
+    }
+
+    if (pin->get_flags() & mask != gpio::Flags::FLAG_NONE) {
+      pin->setup();
+    }
+  };
+  setupPinIfNeeded(this->rx_pin_);
+  if (this->rx_pin_ != this->tx_pin_) {
+    setupPinIfNeeded(this->tx_pin_);
   }
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
