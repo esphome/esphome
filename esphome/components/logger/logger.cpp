@@ -138,11 +138,13 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   size_t msg_length =
       this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
 
-  // Write to console and send callback starting at the msg_start
+  // Callbacks get message first (before console write)
+  this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start, msg_length);
+
+  // Write to console starting at the msg_start
   if (this->baud_rate_ > 0) {
     this->write_msg_(this->tx_buffer_ + msg_start, msg_length);
   }
-  this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start, msg_length);
 
   global_recursion_guard_ = false;
 }
