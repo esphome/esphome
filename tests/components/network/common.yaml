@@ -6,7 +6,6 @@ wifi:
   password: password1
 
 network:
-  id: network_id
   enable_ipv6: ${network_enable_ipv6}
 
 esphome:
@@ -16,7 +15,7 @@ esphome:
         - if:
             condition:
               lambda: |-
-                return id(network_id)->is_available();
+                return network::is_available();
             then:
               - logger.log: "Network is available on boot"
             else:
