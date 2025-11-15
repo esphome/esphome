@@ -716,18 +716,17 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     return await CORE.get_variable_with_full_id(id_)
 
 
-def _try_deduplicate_lambda(lambda_expr: LambdaExpression) -> str | None:
-    """Try to deduplicate a lambda expression.
+def _get_shared_lambda_name(lambda_expr: LambdaExpression) -> str:
+    """Get the shared function name for a lambda expression.
 
-    If an identical lambda was already generated, returns the name of the
-    shared function. Otherwise, creates a new shared function and stores it.
+    If an identical lambda was already generated, returns the existing shared
+    function name. Otherwise, creates a new shared function and returns its name.
 
     Args:
-        lambda_expr: The lambda expression to potentially deduplicate
+        lambda_expr: The lambda expression to deduplicate
 
     Returns:
-        The name of the shared function if this lambda should be deduplicated,
-        None if this is the first occurrence (caller should use original lambda)
+        The name of the shared function for this lambda (either existing or newly created)
     """
     # Create a unique key from the lambda content, parameters, and return type
     content = lambda_expr.content
@@ -837,10 +836,9 @@ async def process_lambda(
         lambda_expr = LambdaExpression(
             parts, parameters, capture, return_type, location
         )
-        func_name = _try_deduplicate_lambda(lambda_expr)
-        if func_name is not None:
-            # Return a shared function reference instead of inline lambda
-            return SharedFunctionLambdaExpression(func_name, parameters, return_type)
+        func_name = _get_shared_lambda_name(lambda_expr)
+        # Return a shared function reference instead of inline lambda
+        return SharedFunctionLambdaExpression(func_name, parameters, return_type)
 
     return LambdaExpression(parts, parameters, capture, return_type, location)
 
