@@ -1,20 +1,10 @@
 """Tests for lambda deduplication in cpp_generator."""
 
-import pytest
-
 from esphome import cpp_generator as cg
 from esphome.core import CORE
 
 
-@pytest.fixture(autouse=True)
-def reset_core():
-    """Reset CORE.data before each test."""
-    CORE.reset()
-    yield
-    CORE.reset()
-
-
-def test_deduplicate_identical_lambdas():
+def test_deduplicate_identical_lambdas() -> None:
     """Test that identical stateless lambdas are deduplicated."""
     # Create two identical lambda expressions
     lambda1 = cg.LambdaExpression(
@@ -40,7 +30,7 @@ def test_deduplicate_identical_lambdas():
     assert func_name1 == "shared_lambda_0"
 
 
-def test_different_lambdas_not_deduplicated():
+def test_different_lambdas_not_deduplicated() -> None:
     """Test that different lambdas get different function names."""
     lambda1 = cg.LambdaExpression(
         parts=["return 42;"],
@@ -65,7 +55,7 @@ def test_different_lambdas_not_deduplicated():
     assert func_name2 == "shared_lambda_1"
 
 
-def test_different_return_types_not_deduplicated():
+def test_different_return_types_not_deduplicated() -> None:
     """Test that lambdas with different return types are not deduplicated."""
     lambda1 = cg.LambdaExpression(
         parts=["return 42;"],
@@ -88,7 +78,7 @@ def test_different_return_types_not_deduplicated():
     assert func_name1 != func_name2
 
 
-def test_different_parameters_not_deduplicated():
+def test_different_parameters_not_deduplicated() -> None:
     """Test that lambdas with different parameters are not deduplicated."""
     lambda1 = cg.LambdaExpression(
         parts=["return x;"],
@@ -111,7 +101,7 @@ def test_different_parameters_not_deduplicated():
     assert func_name1 != func_name2
 
 
-def test_flush_lambda_dedup_declarations():
+def test_flush_lambda_dedup_declarations() -> None:
     """Test that deferred declarations are properly stored for later flushing."""
     # Create a lambda which will create a deferred declaration
     lambda1 = cg.LambdaExpression(
@@ -136,7 +126,7 @@ def test_flush_lambda_dedup_declarations():
     # during real code generation, so we don't test that here
 
 
-def test_shared_function_lambda_expression():
+def test_shared_function_lambda_expression() -> None:
     """Test SharedFunctionLambdaExpression behaves correctly."""
     shared_lambda = cg.SharedFunctionLambdaExpression(
         func_name="shared_lambda_0",
@@ -154,7 +144,7 @@ def test_shared_function_lambda_expression():
     assert shared_lambda.content == ""
 
 
-def test_lambda_deduplication_counter():
+def test_lambda_deduplication_counter() -> None:
     """Test that lambda counter increments correctly."""
     # Create 3 different lambdas
     for i in range(3):
@@ -168,7 +158,7 @@ def test_lambda_deduplication_counter():
         assert func_name == f"shared_lambda_{i}"
 
 
-def test_lambda_format_body():
+def test_lambda_format_body() -> None:
     """Test that format_body correctly formats lambda body with source."""
     # Without source
     lambda1 = cg.LambdaExpression(
