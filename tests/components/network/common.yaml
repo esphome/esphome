@@ -7,3 +7,16 @@ wifi:
 
 network:
   enable_ipv6: ${network_enable_ipv6}
+
+esphome:
+  on_boot:
+    - priority: 200
+      then:
+        - if:
+            condition:
+              lambda: |-
+                return id(network)->is_available();
+            then:
+              - logger.log: "Network is available on boot"
+            else:
+              - logger.log: "Network is NOT available on boot"
