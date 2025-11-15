@@ -6,6 +6,9 @@
 #ifdef USE_DISPLAY
 #include "esphome/components/display/display.h"
 #endif
+#ifdef USE_LVGL_FONT
+#include <lvgl.h>
+#endif
 
 namespace esphome {
 namespace font {
@@ -77,6 +80,9 @@ class Font
   inline int get_xheight() { return this->xheight_; }
   inline int get_capheight() { return this->capheight_; }
   inline int get_bpp() { return this->bpp_; }
+#ifdef USE_LVGL_FONT
+  const lv_font_t *get_lv_font() const { return &this->lv_font_; }
+#endif
 
   const std::vector<Glyph, RAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
 
@@ -89,6 +95,14 @@ class Font
   int xheight_;
   int capheight_;
   uint8_t bpp_;  // bits per pixel
+#ifdef USE_LVGL_FONT
+  lv_font_t lv_font_{};
+  static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter);
+  static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next);
+  const GlyphData *get_glyph_data_(uint32_t unicode_letter);
+  uint32_t last_letter_{};
+  const font::GlyphData *last_data_{};
+#endif
 };
 
 }  // namespace font

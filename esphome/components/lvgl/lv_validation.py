@@ -491,6 +491,7 @@ class LvFont(LValidator):
         def validator(value):
             if value == SCHEMA_EXTRACT:
                 return LV_FONTS
+            add_lv_use("font")
             if is_lv_font(value):
                 return lv_builtin_font(value)
             fontval = cv.use_id(Font)(value)
@@ -502,7 +503,9 @@ class LvFont(LValidator):
     async def process(self, value, args=()):
         if is_lv_font(value):
             return literal(f"&lv_font_{value}")
-        return literal(f"{value}_engine->get_lv_font()")
+        if isinstance(value, str):
+            return literal(f"{value}")
+        return await super().process(value, args)
 
 
 lv_font = LvFont()

@@ -9,6 +9,62 @@ namespace font {
 
 static const char *const TAG = "font";
 
+#ifdef USE_LVGL_FONT
+const uint8_t *Font::get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter) {
+  auto *fe = (Font *) font->dsc;
+  const auto *gd = fe->get_glyph_data_(unicode_letter);
+  if (gd == nullptr) {
+    return nullptr;
+  }
+  return gd->data;
+}
+
+bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next) {
+  auto *fe = (Font *) font->dsc;
+  const auto *gd = fe->get_glyph_data_(unicode_letter);
+  if (gd == nullptr) {
+    ESP_LOGD(TAG, "get_glyph_dsc_cb did not get data");
+    return false;
+  }
+  dsc->adv_w = gd->advance;
+  dsc->ofs_x = gd->offset_x;
+  dsc->ofs_y = fe->height_ - gd->height - gd->offset_y - fe->lv_font_.base_line;
+  dsc->box_w = gd->width;
+  dsc->box_h = gd->height;
+  dsc->is_placeholder = 0;
+  dsc->bpp = fe->get_bpp();
+  return true;
+}
+const GlyphData *Font::get_glyph_data_(uint32_t unicode_letter) {
+  if (unicode_letter == this->last_letter_)
+    return this->last_data_;
+  uint8_t unicode[5]{};
+  if (unicode_letter > 0xFFFF) {
+    unicode[0] = 0xF0 + ((unicode_letter >> 18) & 0x7);
+    unicode[1] = 0x80 + ((unicode_letter >> 12) & 0x3F);
+    unicode[2] = 0x80 + ((unicode_letter >> 6) & 0x3F);
+    unicode[3] = 0x80 + (unicode_letter & 0x3F);
+  } else if (unicode_letter > 0x7FF) {
+    unicode[0] = 0xE0 + ((unicode_letter >> 12) & 0xF);
+    unicode[1] = 0x80 + ((unicode_letter >> 6) & 0x3F);
+    unicode[2] = 0x80 + (unicode_letter & 0x3F);
+  } else if (unicode_letter > 0x7F) {
+    unicode[0] = 0xC0 + ((unicode_letter >> 6) & 0x1F);
+    unicode[1] = 0x80 + (unicode_letter & 0x3F);
+  } else {
+    unicode[0] = unicode_letter;
+  }
+  int match_length;
+  int glyph_n = this->match_next_glyph(unicode, &match_length);
+  if (glyph_n < 0) {
+    return nullptr;
+  }
+  this->last_data_ = this->glyphs_[glyph_n].get_glyph_data();
+  this->last_letter_ = unicode_letter;
+  return this->last_data_;
+}
+#endif
+
 const uint8_t *Glyph::get_char() const { return this->glyph_data_->a_char; }
 // Compare the char at the string position with this char.
 // Return true if this char is less than or equal the other.
@@ -25,9 +81,8 @@ bool Glyph::compare_to(const uint8_t *str) const {
     if (this->glyph_data_->a_char[i] < str[i])
       return true;
   }
-  // this should not happen
-  return false;
 }
+
 int Glyph::match_length(const uint8_t *str) const {
   for (uint32_t i = 0;; i++) {
     if (this->glyph_data_->a_char[i] == '\0')
@@ -57,6 +112,16 @@ Font::Font(const GlyphData *data, int data_nr, int baseline, int height, int des
   glyphs_.reserve(data_nr);
   for (int i = 0; i < data_nr; ++i)
     glyphs_.emplace_back(&data[i]);
+#ifdef USE_LVGL_FONT
+  this->lv_font_.dsc = this;
+  this->lv_font_.line_height = this->get_height();
+  this->lv_font_.base_line = this->lv_font_.line_height - this->get_baseline();
+  this->lv_font_.get_glyph_dsc = get_glyph_dsc_cb;
+  this->lv_font_.get_glyph_bitmap = get_glyph_bitmap;
+  this->lv_font_.subpx = LV_FONT_SUBPX_NONE;
+  this->lv_font_.underline_position = -1;
+  this->lv_font_.underline_thickness = 1;
+#endif
 }
 int Font::match_next_glyph(const uint8_t *str, int *match_length) {
   int lo = 0;
