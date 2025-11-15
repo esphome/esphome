@@ -529,14 +529,14 @@ void APIServer::request_time() {
 #endif
 
 bool APIServer::is_connected(bool homeassistant_only) const {
-  if (homeassistant_only) {
-    for (const auto &client : this->clients_) {
-      if (!client->flags_.remove && client->client_info_.name.find("Home Assistant") != std::string::npos) {
-        return true;
-      }
-    }
-  } else {
+  if (!homeassistant_only) {
     return !this->clients_.empty();
+  }
+
+  for (const auto &client : this->clients_) {
+    if (client->flags_.state_subscription) {
+      return true;
+    }
   }
   return false;
 }
