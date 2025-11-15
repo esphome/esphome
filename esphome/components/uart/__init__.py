@@ -1,3 +1,4 @@
+from logging import getLogger
 import math
 import re
 
@@ -34,6 +35,8 @@ from esphome.const import (
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
+
+_LOGGER = getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 uart_ns = cg.esphome_ns.namespace("uart")
@@ -126,6 +129,21 @@ def validate_host_config(config):
             raise cv.Invalid(
                 f"Host platform doesn't support baud rate {config[CONF_BAUD_RATE]}",
                 path=[CONF_BAUD_RATE],
+            )
+    return config
+
+
+def validate_rx_buffer_size(config):
+    if CORE.is_esp32:
+        # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
+        # rx_buffer_size must be greater than the hardware FIFO length
+        min_buffer_size = 128
+        if config[CONF_RX_BUFFER_SIZE] <= min_buffer_size:
+            _LOGGER.warning(
+                "UART rx_buffer_size (%d bytes) is too small and must be greater than the hardware "
+                "FIFO size (%d bytes). The buffer size will be automatically adjusted at runtime.",
+                config[CONF_RX_BUFFER_SIZE],
+                min_buffer_size,
             )
     return config
 
@@ -247,6 +265,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
     validate_host_config,
+    validate_rx_buffer_size,
 )
 
 
