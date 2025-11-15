@@ -8,7 +8,6 @@
 namespace esphome::hc8 {
 
 static const char *const TAG = "hc8";
-static const char *const HC8_DEFER_UPDATE = "hc8_defer_update";
 static const std::array<uint8_t, 5> HC8_COMMAND_GET_PPM{0x64, 0x69, 0x03, 0x5E, 0x4E};
 static const std::array<uint8_t, 3> HC8_COMMAND_CALIBRATE_PREAMBLE{0x11, 0x03, 0x03};
 
@@ -41,7 +40,7 @@ void HC8Component::update() {
 
   // the sensor is a bit slow in responding, so trying to
   // read immediately after sending a query will timeout
-  this->set_timeout(HC8_DEFER_UPDATE, 50, [this]() {
+  this->set_timeout(50, [this]() {
     std::array<uint8_t, 14> response;
     if (!this->read_array(response.data(), response.size())) {
       ESP_LOGW(TAG, "Reading data from HC8 failed!");
@@ -88,6 +87,7 @@ void HC8Component::calibrate(uint16_t baseline) {
 }
 
 float HC8Component::get_setup_priority() const { return setup_priority::DATA; }
+
 void HC8Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HC8:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);

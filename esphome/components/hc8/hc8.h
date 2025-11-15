@@ -24,18 +24,14 @@ class HC8Component : public PollingComponent, public uart::UARTDevice {
 
  protected:
   sensor::Sensor *co2_sensor_{nullptr};
-  uint32_t warmup_seconds_;
+  uint32_t warmup_seconds_{0};
 };
 
-template<typename... Ts> class HC8CalibrateAction : public Action<Ts...> {
+template<typename... Ts> class HC8CalibrateAction : public Action<Ts...>, public Parented<HC8Component> {
  public:
-  HC8CalibrateAction(HC8Component *hc8) : hc8_(hc8) {}
   TEMPLATABLE_VALUE(uint16_t, baseline)
 
-  void play(const Ts &...x) override { this->hc8_->calibrate(this->baseline_.value(x...)); }
-
- protected:
-  HC8Component *hc8_;
+  void play(const Ts &...x) override { this->parent_->calibrate(this->baseline_.value(x...)); }
 };
 
 }  // namespace esphome::hc8

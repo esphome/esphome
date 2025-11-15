@@ -72,8 +72,8 @@ CALIBRATION_ACTION_SCHEMA = cv.Schema(
     "hc8.calibrate", HC8CalibrateAction, CALIBRATION_ACTION_SCHEMA
 )
 async def hc8_calibration_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_BASELINE], args, cg.uint16)
     cg.add(var.set_baseline(template_))
     return var
