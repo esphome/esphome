@@ -4,8 +4,7 @@
 #include <zephyr/sys/poweroff.h>
 #include <zephyr/kernel.h>
 
-namespace esphome {
-namespace deep_sleep {
+namespace esphome::deep_sleep {
 
 static const char *const TAG = "deep_sleep";
 
@@ -69,6 +68,5 @@ void DeepSleepComponent::deep_sleep_() {
   }
 }
 
-}  // namespace deep_sleep
-}  // namespace esphome
+}  // namespace esphome::deep_sleep
 #endif  // USE_ZEPHYR
