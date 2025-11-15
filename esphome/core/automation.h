@@ -15,23 +15,22 @@ namespace esphome {
 // Legacy seq<>/gens<> pattern deprecated but kept for backwards compatibility
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
 // Remove before 2026.6.0
+// NOLINTBEGIN(readability-identifier-naming)
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
-// NOLINTNEXTLINE(readability-identifier-naming)
 template<int...> struct ESPDEPRECATED("Use std::index_sequence instead. Removed in 2026.6.0", "2025.12.0") seq {};
-// NOLINTNEXTLINE(readability-identifier-naming)
 template<int N, int... S>
 struct ESPDEPRECATED("Use std::make_index_sequence instead. Removed in 2026.6.0", "2025.12.0") gens
     : gens<N - 1, N - 1, S...> {};
-// NOLINTNEXTLINE(readability-identifier-naming)
 template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
+// NOLINTEND(readability-identifier-naming)
 
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
