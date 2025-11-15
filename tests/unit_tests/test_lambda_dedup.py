@@ -192,3 +192,78 @@ def test_stateful_lambdas_not_deduplicated() -> None:
     # We verify the lambda has a non-empty capture
     assert stateful_lambda.capture != ""
     assert stateful_lambda.capture == "="
+
+
+def test_static_variable_detection() -> None:
+    """Test detection of static variables in lambda code."""
+    # Should detect static variables
+    assert cg._has_static_variables("static int counter = 0;")
+    assert cg._has_static_variables("static bool flag = false; return flag;")
+    assert cg._has_static_variables("  static  float  value  =  1.0;  ")
+
+    # Should NOT detect static_cast, static_assert, etc.
+    assert not cg._has_static_variables("return static_cast<int>(value);")
+    assert not cg._has_static_variables("static_assert(sizeof(int) == 4);")
+    assert not cg._has_static_variables("auto ptr = static_pointer_cast<Foo>(bar);")
+
+    # Should NOT detect in comments
+    assert not cg._has_static_variables("// static int x = 0;\nreturn 42;")
+    assert not cg._has_static_variables("/* static int y = 0; */ return 42;")
+
+    # Should detect even with comments elsewhere
+    assert cg._has_static_variables("// comment\nstatic int x = 0;\nreturn x;")
+
+    # Should NOT detect non-static code
+    assert not cg._has_static_variables("int counter = 0; return counter++;")
+    assert not cg._has_static_variables("return 42;")
+
+
+def test_lambdas_with_static_not_deduplicated() -> None:
+    """Test that lambdas with static variables are not deduplicated."""
+    # Two identical lambdas with static variables
+    lambda1 = cg.LambdaExpression(
+        parts=["static int counter = 0; return counter++;"],
+        parameters=[],
+        capture="",
+        return_type=cg.RawExpression("int"),
+    )
+
+    lambda2 = cg.LambdaExpression(
+        parts=["static int counter = 0; return counter++;"],
+        parameters=[],
+        capture="",
+        return_type=cg.RawExpression("int"),
+    )
+
+    # Should return None (not deduplicated)
+    func_name1 = cg._get_shared_lambda_name(lambda1)
+    func_name2 = cg._get_shared_lambda_name(lambda2)
+
+    assert func_name1 is None
+    assert func_name2 is None
+
+
+def test_lambdas_without_static_still_deduplicated() -> None:
+    """Test that lambdas without static variables are still deduplicated."""
+    # Two identical lambdas WITHOUT static variables
+    lambda1 = cg.LambdaExpression(
+        parts=["int counter = 0; return counter++;"],  # No static
+        parameters=[],
+        capture="",
+        return_type=cg.RawExpression("int"),
+    )
+
+    lambda2 = cg.LambdaExpression(
+        parts=["int counter = 0; return counter++;"],  # No static
+        parameters=[],
+        capture="",
+        return_type=cg.RawExpression("int"),
+    )
+
+    # Should be deduplicated (same function name)
+    func_name1 = cg._get_shared_lambda_name(lambda1)
+    func_name2 = cg._get_shared_lambda_name(lambda2)
+
+    assert func_name1 is not None
+    assert func_name2 is not None
+    assert func_name1 == func_name2
