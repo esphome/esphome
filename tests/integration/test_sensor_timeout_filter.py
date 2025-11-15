@@ -94,39 +94,24 @@ async def test_sensor_timeout_filter(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Find all test buttons
-        test1_button = next(
-            (e for e in entities if "test_timeout_last_button" in e.object_id.lower()),
-            None,
-        )
-        test2_button = next(
-            (e for e in entities if "test_timeout_reset_button" in e.object_id.lower()),
-            None,
-        )
-        test3_button = next(
-            (
-                e
-                for e in entities
-                if "test_timeout_static_button" in e.object_id.lower()
-            ),
-            None,
-        )
-        test4_button = next(
-            (
-                e
-                for e in entities
-                if "test_timeout_lambda_button" in e.object_id.lower()
-            ),
-            None,
-        )
+        # Helper to find buttons by object_id substring
+        def find_button(object_id_substring: str) -> int:
+            """Find a button by object_id substring and return its key."""
+            button = next(
+                (e for e in entities if object_id_substring in e.object_id.lower()),
+                None,
+            )
+            assert button is not None, f"Button '{object_id_substring}' not found"
+            return button.key
 
-        assert test1_button is not None, "Test Timeout Last Button not found"
-        assert test2_button is not None, "Test Timeout Reset Button not found"
-        assert test3_button is not None, "Test Timeout Static Button not found"
-        assert test4_button is not None, "Test Timeout Lambda Button not found"
+        # Find all test buttons
+        test1_button_key = find_button("test_timeout_last_button")
+        test2_button_key = find_button("test_timeout_reset_button")
+        test3_button_key = find_button("test_timeout_static_button")
+        test4_button_key = find_button("test_timeout_lambda_button")
 
         # === Test 1: TimeoutFilter - last mode ===
-        client.button_command(test1_button.key)
+        client.button_command(test1_button_key)
         try:
             await asyncio.wait_for(test1_complete, timeout=2.0)
         except TimeoutError:
@@ -143,7 +128,7 @@ async def test_sensor_timeout_filter(
         )
 
         # === Test 2: TimeoutFilter - reset behavior ===
-        client.button_command(test2_button.key)
+        client.button_command(test2_button_key)
         try:
             await asyncio.wait_for(test2_complete, timeout=2.0)
         except TimeoutError:
@@ -166,7 +151,7 @@ async def test_sensor_timeout_filter(
         )
 
         # === Test 3: TimeoutFilterConfigured - static value ===
-        client.button_command(test3_button.key)
+        client.button_command(test3_button_key)
         try:
             await asyncio.wait_for(test3_complete, timeout=2.0)
         except TimeoutError:
@@ -183,7 +168,7 @@ async def test_sensor_timeout_filter(
         )
 
         # === Test 4: TimeoutFilterConfigured - lambda ===
-        client.button_command(test4_button.key)
+        client.button_command(test4_button_key)
         try:
             await asyncio.wait_for(test4_complete, timeout=2.0)
         except TimeoutError:
