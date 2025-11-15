@@ -498,6 +498,8 @@ def final_validate(config):
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
     errs = []
+    conf_fw = config[CONF_FRAMEWORK]
+    advanced = conf_fw[CONF_ADVANCED]
     full_config = fv.full_config.get()
     if pio_options := full_config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS):
         pio_flash_size_key = "board_upload.flash_size"
@@ -514,22 +516,14 @@ def final_validate(config):
                     f"Please specify {CONF_FLASH_SIZE} within esp32 configuration only"
                 )
             )
-    if (
-        config[CONF_VARIANT] != VARIANT_ESP32
-        and CONF_ADVANCED in (conf_fw := config[CONF_FRAMEWORK])
-        and CONF_IGNORE_EFUSE_MAC_CRC in conf_fw[CONF_ADVANCED]
-    ):
+    if config[CONF_VARIANT] != VARIANT_ESP32 and advanced[CONF_IGNORE_EFUSE_MAC_CRC]:
         errs.append(
             cv.Invalid(
                 f"'{CONF_IGNORE_EFUSE_MAC_CRC}' is not supported on {config[CONF_VARIANT]}",
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_IGNORE_EFUSE_MAC_CRC],
             )
         )
-    if (
-        config.get(CONF_FRAMEWORK, {})
-        .get(CONF_ADVANCED, {})
-        .get(CONF_EXECUTE_FROM_PSRAM)
-    ):
+    if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] != VARIANT_ESP32S3:
             errs.append(
                 cv.Invalid(
@@ -545,6 +539,17 @@ def final_validate(config):
                 )
             )
 
+    if (
+        config[CONF_FLASH_SIZE] == "32MB"
+        and "ota" in full_config
+        and not advanced[CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES]
+    ):
+        errs.append(
+            cv.Invalid(
+                f"OTA with 32MB flash requires '{CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES}' to be set in the '{CONF_ADVANCED}' section of the esp32 configuration",
+                path=[CONF_FLASH_SIZE],
+            )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -620,10 +625,12 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
                     *COMPILER_OPTIMIZATIONS, upper=True
                 ),
-                cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES, default=False
+                ): cv.boolean,
                 cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
-                cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
+                cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -644,7 +651,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_SELECT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
-                cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
+                cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
                 ),
@@ -790,9 +797,7 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     from esphome.components.socket import KEY_SOCKET_CONSUMERS
 
     # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
-    user_max_sockets = conf.get(CONF_SDKCONFIG_OPTIONS, {}).get(
-        "CONFIG_LWIP_MAX_SOCKETS"
-    )
+    user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
 
     socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
     total_sockets = sum(socket_consumers.values())
@@ -962,23 +967,18 @@ async def to_code(config):
     # WiFi component handles its own optimization when AP mode is not used
     # When using Arduino with Ethernet, DHCP server functions must be available
     # for the Network library to compile, even if not actively used
-    if (
-        CONF_ENABLE_LWIP_DHCP_SERVER in advanced
-        and not advanced[CONF_ENABLE_LWIP_DHCP_SERVER]
-        and not (
-            conf[CONF_TYPE] == FRAMEWORK_ARDUINO
-            and "ethernet" in CORE.loaded_integrations
-        )
+    if advanced.get(CONF_ENABLE_LWIP_DHCP_SERVER) is False and not (
+        conf[CONF_TYPE] == FRAMEWORK_ARDUINO and "ethernet" in CORE.loaded_integrations
     ):
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
-    if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, True):
+    if not advanced[CONF_ENABLE_LWIP_MDNS_QUERIES]:
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
-    if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
+    if not advanced[CONF_ENABLE_LWIP_BRIDGE_INTERFACE]:
         add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
 
     _configure_lwip_max_sockets(conf)
 
-    if advanced.get(CONF_EXECUTE_FROM_PSRAM, False):
+    if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
 
@@ -989,23 +989,22 @@ async def to_code(config):
     # - select() on 4 sockets: ~190μs (Arduino/core locking) vs ~235μs (ESP-IDF default)
     # - Up to 200% slower under load when all operations queue through tcpip_thread
     # Enabling this makes ESP-IDF socket performance match Arduino framework.
-    if advanced.get(CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, True):
+    if advanced[CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING]:
         add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_CORE_LOCKING", True)
-    if advanced.get(CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, True):
+    if advanced[CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY]:
         add_idf_sdkconfig_option("CONFIG_LWIP_CHECK_THREAD_SAFETY", True)
 
     # Disable placing libc locks in IRAM to save RAM
     # This is safe for ESPHome since no IRAM ISRs (interrupts that run while cache is disabled)
     # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
-    if advanced.get(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, True):
+    if advanced[CONF_DISABLE_LIBC_LOCKS_IN_IRAM]:
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
     # Disable VFS support for termios (terminal I/O functions)
     # ESPHome doesn't use termios functions on ESP32 (only used in host UART driver).
     # Saves approximately 1.8KB of flash when disabled (default).
     add_idf_sdkconfig_option(
-        "CONFIG_VFS_SUPPORT_TERMIOS",
-        not advanced.get(CONF_DISABLE_VFS_SUPPORT_TERMIOS, True),
+        "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
     )
 
     # Disable VFS support for select() with file descriptors
@@ -1019,8 +1018,7 @@ async def to_code(config):
     else:
         # No component needs it - allow user to control (default: disabled)
         add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_SELECT",
-            not advanced.get(CONF_DISABLE_VFS_SUPPORT_SELECT, True),
+            "CONFIG_VFS_SUPPORT_SELECT", not advanced[CONF_DISABLE_VFS_SUPPORT_SELECT]
         )
 
     # Disable VFS support for directory functions (opendir, readdir, mkdir, etc.)
@@ -1033,8 +1031,7 @@ async def to_code(config):
     else:
         # No component needs it - allow user to control (default: disabled)
         add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_DIR",
-            not advanced.get(CONF_DISABLE_VFS_SUPPORT_DIR, True),
+            "CONFIG_VFS_SUPPORT_DIR", not advanced[CONF_DISABLE_VFS_SUPPORT_DIR]
         )
 
     cg.add_platformio_option("board_build.partitions", "partitions.csv")
@@ -1048,7 +1045,7 @@ async def to_code(config):
             add_idf_sdkconfig_option(flag, assertion_level == key)
 
     add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
-    compiler_optimization = advanced.get(CONF_COMPILER_OPTIMIZATION)
+    compiler_optimization = advanced[CONF_COMPILER_OPTIMIZATION]
     for key, flag in COMPILER_OPTIMIZATIONS.items():
         add_idf_sdkconfig_option(flag, compiler_optimization == key)
 
@@ -1057,18 +1054,20 @@ async def to_code(config):
         conf[CONF_ADVANCED][CONF_ENABLE_LWIP_ASSERT],
     )
 
-    if advanced.get(CONF_IGNORE_EFUSE_MAC_CRC):
+    if advanced[CONF_IGNORE_EFUSE_MAC_CRC]:
         add_idf_sdkconfig_option("CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR", True)
         add_idf_sdkconfig_option("CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE", False)
-    if advanced.get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES):
+    if advanced[CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES]:
         _LOGGER.warning(
             "Using experimental features in ESP-IDF may result in unexpected failures."
         )
         add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
+        if config[CONF_FLASH_SIZE] == "32MB":
+            add_idf_sdkconfig_option(
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
+            )
 
-    cg.add_define(
-        "ESPHOME_LOOP_TASK_STACK_SIZE", advanced.get(CONF_LOOP_TASK_STACK_SIZE)
-    )
+    cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
     cg.add_define(
         "USE_ESP_IDF_VERSION_CODE",

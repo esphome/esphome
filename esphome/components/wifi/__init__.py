@@ -12,7 +12,6 @@ from esphome.components.network import (
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
-from esphome.config_validation import only_with_esp_idf
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
@@ -352,7 +351,7 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_USE_PSRAM): cv.All(
-                only_with_esp_idf, cv.requires_component("psram"), cv.boolean
+                cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
             ),
         }
     ),
