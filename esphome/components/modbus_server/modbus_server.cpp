@@ -131,7 +131,8 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
   if (!for_each_register([](ServerRegister *server_register, uint16_t offset) -> bool {
         return server_register->write_lambda != nullptr;
       })) {
-    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+    ESP_LOGW(TAG, "Invalid register address. Sending exception response.");
+    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
     return;
   }
 
@@ -140,6 +141,7 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
         int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
         return server_register->write_lambda(number);
       })) {
+    ESP_LOGW(TAG, "Could not write all registers. Sending exception response.");
     this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
     return;
   }
