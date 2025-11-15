@@ -52,7 +52,7 @@ uint16_t RP2040UartComponent::get_config() {
 }
 
 void RP2040UartComponent::setup() {
-  auto setup_component_if_needed = [](InternalGPIOPin *pin) {
+  auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
     if (!pin) {
       return;
     }
