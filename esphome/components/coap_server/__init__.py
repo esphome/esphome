@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import CORE
 
 from .const import (
     CONF_CA_PEM,
@@ -51,8 +52,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     cg.add_define("USE_COAP_SERVER")
-    add_idf_component(name="espressif/coap", ref="4.3.5~3")
-    add_idf_sdkconfig_option("CONFIG_COAP_SERVER_SUPPORT", True)
+    if CORE.using_esp_idf:
+        add_idf_component(name="espressif/coap", ref="4.3.5~3")
+        add_idf_sdkconfig_option("CONFIG_COAP_SERVER_SUPPORT", True)
+    if CORE.is_host:
+        cg.add_library("coap", None, "https://github.com/obgm/libcoap.git#v4.3.5")
+        cg.add_define("CONFIG_COAP_SERVER_SUPPORT", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if (listen_port := config.get(CONF_LISTEN_PORT)) is not None:
@@ -72,15 +77,24 @@ async def to_code(config):
     if (keep_alive := config.get(CONF_KEEP_ALIVE)) is not None:
         cg.add(var.set_keep_alive(keep_alive))
     if (oscore_conf := config.get(CONF_OSCORE_CONF)) is not None:
-        add_idf_sdkconfig_option("CONFIG_COAP_OSCORE_SUPPORT", True)
+        if CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_COAP_OSCORE_SUPPORT", True)
+        if CORE.is_host:
+            cg.add_define("CONFIG_COAP_OSCORE_SUPPORT", True)
         cg.add(var.set_oscore_conf(oscore_conf))
     if (psk_identity := config.get(CONF_PSK_IDENTITY)) is not None:
-        add_idf_sdkconfig_option("CONFIG_COAP_MBEDTLS_PSK", True)
+        if CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_COAP_MBEDTLS_PSK", True)
+        if CORE.is_host:
+            cg.add_define("CONFIG_COAP_MBEDTLS_PSK", True)
         cg.add(var.set_psk_identity(psk_identity))
     if (psk_key := config.get(CONF_PSK_KEY)) is not None:
         cg.add(var.set_psk_key(psk_key))
     if (ca_pem := config.get(CONF_CA_PEM)) is not None:
-        add_idf_sdkconfig_option("CONFIG_COAP_MBEDTLS_PKI", True)
+        if CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_COAP_MBEDTLS_PKI", True)
+        if CORE.is_host:
+            cg.add_define("CONFIG_COAP_MBEDTLS_PKI", True)
         cg.add(var.set_psk_key(ca_pem))
     if (server_crt := config.get(CONF_SERVER_CRT)) is not None:
         cg.add(var.set_server_crt(server_crt))

@@ -4,8 +4,10 @@
 #include <netdb.h>
 #include <string>
 #include "coap3/coap.h"
+#ifdef USE_ESP_IDF
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#endif
 #include "esphome/core/component.h"
 
 namespace esphome::coap {
