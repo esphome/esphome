@@ -7,7 +7,7 @@
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 
-namespace esphome::coap_client_component {
+namespace esphome::coap {
 
 static const char *const TAG = "coap_client_component.ota";
 
@@ -201,8 +201,7 @@ bool OtaCoapClientComponent::validate_url_(const std::string &url) {
 void OtaCoapClientComponent::md5_callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset,
                                           size_t total, void *context) {
   ESP_LOGD(TAG, "md5_callback %d, %d, %d", len, offset, total);
-  esphome::coap_client_component::OtaCoapClientComponent *obj =
-      (esphome::coap_client_component::OtaCoapClientComponent *) context;
+  OtaCoapClientComponent *obj = (OtaCoapClientComponent *) context;
   if (!obj->is_md5_url_ready()) {
     // assume you get the 32 bytes back on first callback, just some len checking.
     if (len >= 32) {
@@ -214,8 +213,7 @@ void OtaCoapClientComponent::md5_callback(uint16_t response_code, const unsigned
 
 void OtaCoapClientComponent::image_callback(uint16_t response_code, const unsigned char *data, size_t len,
                                             size_t offset, size_t total, void *context) {
-  esphome::coap_client_component::OtaCoapClientComponent *obj =
-      (esphome::coap_client_component::OtaCoapClientComponent *) context;
+  OtaCoapClientComponent *obj = (OtaCoapClientComponent *) context;
   if (offset % 102400 == 0) {
     ESP_LOGD(TAG, "image_callback %d, %d", len, offset);
   }
@@ -232,4 +230,4 @@ void OtaCoapClientComponent::image_callback(uint16_t response_code, const unsign
   }
 }
 
-}  // namespace esphome::coap_client_component
+}  // namespace esphome::coap

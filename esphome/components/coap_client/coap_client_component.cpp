@@ -12,7 +12,7 @@
 #include "esphome/core/log.h"
 #include "coap_client_component.h"
 
-namespace esphome::coap_client_component {
+namespace esphome::coap {
 
 static const char *TAG = "coap";
 
@@ -216,8 +216,8 @@ void CoapClientComponent::main_() {
 #ifdef CONFIG_COAP_OSCORE_SUPPORT
   coap_oscore_conf_t *oscore_conf = nullptr;
   coap_str_const_t osc_conf = {
-      .s = oscore_conf_str_.c_str(),
-      .length = oscore_conf_str_.length(),
+      .s = this->oscore_conf_str_.c_str(),
+      .length = this->oscore_conf_str_.length(),
   } oscore_conf = coap_new_oscore_conf(osc_conf, NULL, NULL, 0);
 #endif
   coap_proto_t proto;
@@ -243,8 +243,7 @@ void CoapClientComponent::main_() {
     if (session) {
       coap_session_release(session);
     }
-    esphome::coap_client_component::CoapClientComponent *obj =
-        (esphome::coap_client_component::CoapClientComponent *) self;
+    CoapClientComponent *obj = (CoapClientComponent *) self;
     if (obj->response_callback_) {
       obj->response_callback_(0, nullptr, 0, 0, 0, obj->response_callback_context_);
       obj->response_callback_ = nullptr;
@@ -454,12 +453,12 @@ coap_session_t *CoapClientComponent::coap_start_pki_session_(coap_context_t *ctx
     dtls_pki.client_sni = client_sni;
   }
   dtls_pki.pki_key.key_type = COAP_PKI_KEY_PEM_BUF;
-  dtls_pki.pki_key.key.pem_buf.public_cert =
-      this->client_crt_str_.c_str() dtls_pki.pki_key.key.pem_buf.public_cert_len =
-          this->client_crt_str_.length() dtls_pki.pki_key.key.pem_buf.private_key =
-              this->client_key_str_.c_str() dtls_pki.pki_key.key.pem_buf.private_key_len =
-                  this->client_key_str_.length() dtls_pki.pki_key.key.pem_buf.ca_cert =
-                      this->ca_pem_str_.c_str() dtls_pki.pki_key.key.pem_buf.ca_cert_len = this->ca_pem_str_.length();
+  dtls_pki.pki_key.key.pem_buf.public_cert = this->client_crt_str_.c_str();
+  dtls_pki.pki_key.key.pem_buf.public_cert_len = this->client_crt_str_.length();
+  dtls_pki.pki_key.key.pem_buf.private_key = this->client_key_str_.c_str();
+  dtls_pki.pki_key.key.pem_buf.private_key_len = this->client_key_str_.length();
+  dtls_pki.pki_key.key.pem_buf.ca_cert = this->ca_pem_str_.c_str();
+  dtls_pki.pki_key.key.pem_buf.ca_cert_len = this->ca_pem_str_.length();
 
 #ifdef CONFIG_COAP_OSCORE_SUPPORT
   return coap_new_client_session_oscore_pki(ctx, NULL, dst_addr, proto, &dtls_pki, oscore_conf);
@@ -495,5 +494,5 @@ coap_session_t *CoapClientComponent::coap_start_anon_pki_session_(coap_context_t
 #endif
 }
 
-}  // namespace esphome::coap_client_component
+}  // namespace esphome::coap
 #endif

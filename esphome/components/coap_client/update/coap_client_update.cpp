@@ -6,7 +6,7 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 
-namespace esphome::coap_client {
+namespace esphome::coap {
 
 // The update function runs in a task only on ESP32s.
 #ifdef USE_ESP32
@@ -169,7 +169,7 @@ void CoapClientUpdate::perform(bool force) {
 void CoapClientUpdate::update_callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset,
                                        size_t total, void *context) {
   ESP_LOGD(TAG, "update_callback %d, %d, %d", len, offset, total);
-  esphome::coap_client_component::CoapClientUpdate *obj = (esphome::coap_client_component::CoapClientUpdate *) context;
+  CoapClientUpdate *obj = (CoapClientUpdate *) context;
   if (!obj->is_update_response_ready()) {
     if (len == 0 && offset == 0 && total == 0) {
       // Error
@@ -184,4 +184,4 @@ void CoapClientUpdate::update_callback(uint16_t response_code, const unsigned ch
   }
 }
 
-}  // namespace esphome::coap_client
+}  // namespace esphome::coap

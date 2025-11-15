@@ -3,7 +3,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome::coap_client_component {
+namespace esphome::coap {
 
 template<typename... Ts> class OtaCoapClientComponentFlashAction : public Action<Ts...> {
  public:
@@ -29,4 +29,4 @@ template<typename... Ts> class OtaCoapClientComponentFlashAction : public Action
   OtaCoapClientComponent *parent_;
 };
 
-}  // namespace esphome::coap_client_component
+}  // namespace esphome::coap

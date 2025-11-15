@@ -3,7 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
 
-namespace esphome::coap_client_component {
+namespace esphome::coap {
 
 static const char *const TAGA = "coap_client_component_auto";
 
@@ -213,4 +213,4 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
       new Trigger<std::shared_ptr<CoapResponseStatistics>, Ts...>();
 };
 
-}  // namespace esphome::coap_client_component
+}  // namespace esphome::coap

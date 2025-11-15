@@ -12,7 +12,7 @@
 
 #include "../coap_client_component.h"
 
-namespace esphome::coap_client_component {
+namespace esphome::coap {
 
 static const uint8_t MD5_SIZE = 32;
 
@@ -71,4 +71,4 @@ class OtaCoapClientComponent : public ota::OTAComponent, public Parented<CoapCli
   md5::MD5Digest md5_receive_;
 };
 
-}  // namespace esphome::coap_client_component
+}  // namespace esphome::coap
