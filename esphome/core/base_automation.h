@@ -192,12 +192,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     if constexpr (sizeof...(Ts) == 0) {
       App.scheduler.set_timer_common_(
           this, Scheduler::SchedulerItem::TIMEOUT,
-          /* is_static_string= */ true, "delay", this->delay_.value(),
-          [this]() {
-            if (this->num_running_ > 0) {
-              this->play_next_();
-            }
-          },
+          /* is_static_string= */ true, "delay", this->delay_.value(), [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     } else {
       // For delays with arguments, use std::bind to preserve argument values
