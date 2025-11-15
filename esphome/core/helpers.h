@@ -111,6 +111,21 @@ template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); 
 /// @name Container utilities
 ///@{
 
+/// Lightweight wrapper over a const initializer list
+
+template<typename T> class ConstVector {
+ public:
+  ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+
+  operator const T *() const { return data_; }
+  size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
+
+ protected:
+  const T *data_;
+  size_t size_;
+};
+
 /// Minimal static vector - saves memory by avoiding std::vector overhead
 template<typename T, size_t N> class StaticVector {
  public:
