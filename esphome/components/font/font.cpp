@@ -23,7 +23,6 @@ bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uin
   auto *fe = (Font *) font->dsc;
   const auto *gd = fe->get_glyph_data_(unicode_letter);
   if (gd == nullptr) {
-    ESP_LOGD(TAG, "get_glyph_dsc_cb did not get data");
     return false;
   }
   dsc->adv_w = gd->advance;
