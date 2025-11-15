@@ -26,7 +26,7 @@ class Glyph {
         width(width),
         height(height) {}
 
-  const uint8_t *get_char() const;
+  const uint8_t *get_char() const { return reinterpret_cast<const uint8_t *>(this->a_char); }
 
   bool compare_to(const uint8_t *str) const;
 

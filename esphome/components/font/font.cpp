@@ -9,7 +9,6 @@ namespace font {
 
 static const char *const TAG = "font";
 
-const uint8_t *Glyph::get_char() const { return (const uint8_t *) this->a_char; }
 // Compare the char at the string position with this char.
 // Return true if this char is less than or equal the other.
 bool Glyph::compare_to(const uint8_t *str) const {

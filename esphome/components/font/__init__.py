@@ -36,7 +36,6 @@ from esphome.const import (
     CONF_WEIGHT,
 )
 from esphome.core import CORE, HexInt
-from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -583,8 +582,8 @@ async def to_code(config):
     # Create the glyph table that points to data in the above array.
     glyph_initializer = [
         [
-            cg.RawExpression(f"{cpp_string_escape(x.glyph)}"),
-            cg.RawExpression(f"{str(prog_arr)} + {str(y - len(x.bitmap_data))}"),
+            x.glyph,
+            prog_arr + (y - len(x.bitmap_data)),
             x.advance,
             x.offset_x,
             x.offset_y,
