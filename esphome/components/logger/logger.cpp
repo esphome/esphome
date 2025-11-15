@@ -210,6 +210,7 @@ void Logger::process_messages_() {
       // Note: Messages may appear slightly out of order due to async processing, but
       // this is preferred over corrupted/interleaved console output
       if (this->baud_rate_ > 0) {
+        this->add_newline_to_buffer_if_needed_();
         this->write_msg_(this->tx_buffer_);
       }
     }
