@@ -127,7 +127,8 @@ void HOT Logger::write_msg_(const char *msg) {
 
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC) || defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
   // USB CDC/JTAG - single write including newline (already in buffer)
-  esp_usb_console_write_buf(msg, len);
+  // Use fwrite to stdout which goes through VFS to USB console
+  fwrite(msg, 1, len, stdout);
 #else
   // Regular UART - single write including newline (already in buffer)
   uart_write_bytes(this->uart_num_, msg, len);
