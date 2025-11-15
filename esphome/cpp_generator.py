@@ -29,6 +29,11 @@ from esphome.yaml_util import ESPHomeDataBase
 _KEY_LAMBDA_DEDUP = "lambda_dedup"
 _KEY_LAMBDA_DEDUP_DECLARATIONS = "lambda_dedup_declarations"
 
+# Regex patterns for static variable detection (compiled once)
+_RE_CPP_SINGLE_LINE_COMMENT = re.compile(r"//.*?$", re.MULTILINE)
+_RE_CPP_MULTI_LINE_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+_RE_STATIC_VARIABLE = re.compile(r"\bstatic\s+(?!cast|assert|pointer_cast)\w+\s+\w+")
+
 
 class RawExpression(Expression):
     __slots__ = ("text",)
@@ -716,20 +721,51 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     return await CORE.get_variable_with_full_id(id_)
 
 
-def _get_shared_lambda_name(lambda_expr: LambdaExpression) -> str:
+def _has_static_variables(code: str) -> bool:
+    """Check if code contains static variable definitions.
+
+    Static variables in lambdas should not be deduplicated because each lambda
+    instance should have its own static variable state.
+
+    Args:
+        code: The lambda body code to check
+
+    Returns:
+        True if code contains static variable definitions
+    """
+    # Remove C++ comments to avoid false positives
+    # Remove single-line comments (// ...)
+    code_no_comments = _RE_CPP_SINGLE_LINE_COMMENT.sub("", code)
+    # Remove multi-line comments (/* ... */)
+    code_no_comments = _RE_CPP_MULTI_LINE_COMMENT.sub("", code_no_comments)
+
+    # Match: static <type> <identifier>
+    # But not: static_cast, static_assert, static_pointer_cast
+    return bool(_RE_STATIC_VARIABLE.search(code_no_comments))
+
+
+def _get_shared_lambda_name(lambda_expr: LambdaExpression) -> str | None:
     """Get the shared function name for a lambda expression.
 
     If an identical lambda was already generated, returns the existing shared
     function name. Otherwise, creates a new shared function and returns its name.
 
+    Lambdas with static variables are not deduplicated to preserve their
+    independent state.
+
     Args:
         lambda_expr: The lambda expression to deduplicate
 
     Returns:
-        The name of the shared function for this lambda (either existing or newly created)
+        The name of the shared function for this lambda (either existing or newly created),
+        or None if the lambda should not be deduplicated (e.g., contains static variables)
     """
     # Create a unique key from the lambda content, parameters, and return type
     content = lambda_expr.content
+
+    # Don't deduplicate lambdas with static variables - each instance needs its own state
+    if _has_static_variables(content):
+        return None
     param_str = str(lambda_expr.parameters)
     return_str = (
         str(lambda_expr.return_type) if lambda_expr.return_type is not None else "void"
@@ -832,13 +868,15 @@ async def process_lambda(
 
     # Lambda deduplication: Only deduplicate stateless lambdas (empty capture).
     # Stateful lambdas cannot be shared as they capture different contexts.
+    # Lambdas with static variables are also not deduplicated to preserve independent state.
     if capture == "":
         lambda_expr = LambdaExpression(
             parts, parameters, capture, return_type, location
         )
         func_name = _get_shared_lambda_name(lambda_expr)
-        # Return a shared function reference instead of inline lambda
-        return SharedFunctionLambdaExpression(func_name, parameters, return_type)
+        if func_name is not None:
+            # Return a shared function reference instead of inline lambda
+            return SharedFunctionLambdaExpression(func_name, parameters, return_type)
 
     return LambdaExpression(parts, parameters, capture, return_type, location)
 
