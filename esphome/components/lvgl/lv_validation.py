@@ -491,9 +491,9 @@ class LvFont(LValidator):
         def validator(value):
             if value == SCHEMA_EXTRACT:
                 return LV_FONTS
-            add_lv_use("font")
             if is_lv_font(value):
                 return lv_builtin_font(value)
+            add_lv_use("font")
             fontval = cv.use_id(Font)(value)
             esphome_fonts_used.add(fontval)
             return requires_component("font")(fontval)
