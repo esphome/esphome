@@ -764,9 +764,7 @@ def _try_deduplicate_lambda(lambda_expr: LambdaExpression) -> str | None:
 
     # Store the declaration to be added later (after all variable declarations)
     # We can't add it immediately because it might reference variables not yet declared
-    if _KEY_LAMBDA_DEDUP_DECLARATIONS not in CORE.data:
-        CORE.data[_KEY_LAMBDA_DEDUP_DECLARATIONS] = []
-    CORE.data[_KEY_LAMBDA_DEDUP_DECLARATIONS].append(func_declaration)
+    CORE.data.setdefault(_KEY_LAMBDA_DEDUP_DECLARATIONS, []).append(func_declaration)
 
     # Store in cache
     lambda_cache[lambda_key] = func_name
