@@ -72,9 +72,10 @@ static constexpr uint16_t MAX_HEADER_SIZE = 128;
 static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
 // Platform-specific: does write_msg_ add its own newline?
-// ESP32: add newline to buffer (write it in one call)
-// Zephyr: let printk/uart_poll_out add newline (unchanged behavior)
-// Other platforms: println()/puts() adds newline, so skip
+// false: Caller must add newline to buffer before calling write_msg_ (ESP32)
+//        Allows single write call with newline included for efficiency
+// true:  write_msg_ adds newline itself via puts()/println() (other platforms)
+//        Newline should NOT be added to buffer
 #if defined(USE_ESP32)
 static constexpr bool WRITE_MSG_ADDS_NEWLINE = false;
 #else
