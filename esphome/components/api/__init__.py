@@ -538,7 +538,7 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     return var
 
 
-HOMEASSISTANT_CONNECTED_CONDITION_SCHEMA = cv.Schema(
+API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(APIServer),
         cv.Optional(CONF_STATE_SUBSCRIPTION_ONLY, default=False): cv.templatable(
@@ -549,7 +549,7 @@ HOMEASSISTANT_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 
 
 @automation.register_condition(
-    "api.connected", APIConnectedCondition, HOMEASSISTANT_CONNECTED_CONDITION_SCHEMA
+    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
 )
 async def api_connected_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
