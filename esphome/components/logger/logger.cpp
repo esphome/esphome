@@ -65,7 +65,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
     uint16_t buffer_at = 0;                         // Initialize buffer position
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
                                                 MAX_CONSOLE_LOG_MSG_SIZE);
-    this->write_msg_(console_buffer);
+    this->write_msg_(console_buffer, buffer_at);
   }
 
   // Reset the recursion guard for this task
@@ -135,12 +135,13 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   this->format_log_to_buffer_with_terminator_(level, tag, line, this->tx_buffer_, args, this->tx_buffer_,
                                               &this->tx_buffer_at_, this->tx_buffer_size_);
 
-  // Write to console and send callback starting at the msg_start
-  if (this->baud_rate_ > 0) {
-    this->write_msg_(this->tx_buffer_ + msg_start);
-  }
   size_t msg_length =
       this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
+
+  // Write to console and send callback starting at the msg_start
+  if (this->baud_rate_ > 0) {
+    this->write_msg_(this->tx_buffer_ + msg_start, msg_length);
+  }
   this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start, msg_length);
 
   global_recursion_guard_ = false;
@@ -211,7 +212,7 @@ void Logger::process_messages_() {
       // this is preferred over corrupted/interleaved console output
       if (this->baud_rate_ > 0) {
         this->add_newline_to_buffer_if_needed_();
-        this->write_msg_(this->tx_buffer_);
+        this->write_msg_(this->tx_buffer_, this->tx_buffer_at_);
       }
     }
   } else {
