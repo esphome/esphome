@@ -76,8 +76,8 @@ class CoapClientComponent : public Component {
                                    const coap_mid_t mid);
 
 #ifdef CONFIG_COAP_MBEDTLS_PKI
-  static int verify_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
-                                coap_session_t *session, unsigned depth, int validated, void *arg);
+  static int validate_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
+                                  coap_session_t *session, unsigned depth, int validated, void *arg);
 #endif
   void set_max_block_size(size_t block_size) {
     if (block_size > 16) {
@@ -115,15 +115,13 @@ class CoapClientComponent : public Component {
   void main_();
 
 #ifdef CONFIG_COAP_MBEDTLS_PSK
+  void provision_psk_(coap_dtls_cpsk_t *dtls_psk, coap_uri_t *uri);
   coap_session_t *coap_start_psk_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri,
                                           coap_proto_t proto);
 #endif
-#ifdef CONFIG_COAP_MBEDTLS_PKI
+  void provision_pki_(coap_dtls_pki_t *dtls_pki, coap_uri_t *uri);
   coap_session_t *coap_start_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri,
                                           coap_proto_t proto);
-#endif
-  coap_session_t *coap_start_anon_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri,
-                                               coap_proto_t proto);
 
   bool main_looping_{true};
   bool torndown_{false};

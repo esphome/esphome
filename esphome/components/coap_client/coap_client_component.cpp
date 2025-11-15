@@ -155,8 +155,8 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
   return COAP_RESPONSE_OK;
 }
 #ifdef CONFIG_COAP_MBEDTLS_PKI
-int CoapClientComponent::verify_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
-                                            coap_session_t *session, unsigned depth, int validated, void *arg) {
+int CoapClientComponent::validate_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
+                                              coap_session_t *session, unsigned depth, int validated, void *arg) {
   ESP_LOGD(TAG, "CN '%s' presented by server (%s)", cn, depth ? "CA" : "Certificate");
   return 1;
 }
@@ -312,15 +312,9 @@ void CoapClientComponent::main_() {
         // PSK first choice (if configured)
         session = coap_start_psk_session_(context, &dst_addr, &uri, proto);
 #endif
-#ifdef CONFIG_COAP_MBEDTLS_PKI
-        // PKI is second choice (if configure)
+        // PKI is second choice, defaults to anonymous if not defined CONFIG_COAP_MBEDTLS_PKI
         if (!session) {
           session = coap_start_pki_session_(context, &dst_addr, &uri, proto);
-        }
-#endif
-        // Anon PKI is third choice
-        if (!session) {
-          session = coap_start_anon_pki_session_(context, &dst_addr, &uri, proto);
         }
       } else {
         // below is non secure (coap://)
@@ -390,26 +384,29 @@ void CoapClientComponent::main_() {
 }
 
 #ifdef CONFIG_COAP_MBEDTLS_PSK
-coap_session_t *CoapClientComponent::coap_start_psk_session_(coap_context_t *ctx, coap_address_t *dst_addr,
-                                                             coap_uri_t *uri, coap_proto_t proto) {
-  coap_dtls_cpsk_t dtls_psk;
+void CoapClientComponent::provision_psk_(coap_dtls_cpsk_t *dtls_psk, coap_uri_t *uri) {
   char client_sni[256];
-
   memset(client_sni, 0, sizeof(client_sni));
-  memset(&dtls_psk, 0, sizeof(dtls_psk));
-  dtls_psk.version = COAP_DTLS_CPSK_SETUP_VERSION;
-  dtls_psk.validate_ih_call_back = NULL;
-  dtls_psk.ih_call_back_arg = NULL;
+  memset(dtls_psk, 0, sizeof(coap_dtls_cpsk_t));
+  dtls_psk->version = COAP_DTLS_CPSK_SETUP_VERSION;
+  dtls_psk->validate_ih_call_back = NULL;
+  dtls_psk->ih_call_back_arg = NULL;
   if (uri->host.length) {
     memcpy(client_sni, uri->host.s, std::min(uri->host.length, sizeof(client_sni) - 1));
   } else {
     memcpy(client_sni, "localhost", 9);
   }
-  dtls_psk.client_sni = client_sni;
-  dtls_psk.psk_info.identity.s = (const uint8_t *) this->psk_identity_.c_str();
-  dtls_psk.psk_info.identity.length = this->psk_identity_.length();
-  dtls_psk.psk_info.key.s = (const uint8_t *) this->psk_key_.c_str();
-  dtls_psk.psk_info.key.length = this->psk_key_.length();
+  dtls_psk->client_sni = client_sni;
+  dtls_psk->psk_info.identity.s = (const uint8_t *) this->psk_identity_.c_str();
+  dtls_psk->psk_info.identity.length = this->psk_identity_.length();
+  dtls_psk->psk_info.key.s = (const uint8_t *) this->psk_key_.c_str();
+  dtls_psk->psk_info.key.length = this->psk_key_.length();
+}
+
+coap_session_t *CoapClientComponent::coap_start_psk_session_(coap_context_t *ctx, coap_address_t *dst_addr,
+                                                             coap_uri_t *uri, coap_proto_t proto) {
+  coap_dtls_cpsk_t dtls_psk;
+  this->provision_psk_(&dtls_psk, uri);
 #ifdef CONFIG_COAP_OSCORE_SUPPORT
   return coap_new_client_session_oscore_psk(ctx, NULL, dst_addr, proto, &dtls_psk, oscore_conf);
 #else
@@ -418,75 +415,54 @@ coap_session_t *CoapClientComponent::coap_start_psk_session_(coap_context_t *ctx
 }
 #endif
 
-#ifdef CONFIG_COAP_MBEDTLS_PKI
-coap_session_t *CoapClientComponent::coap_start_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr,
-                                                             coap_uri_t *uri, coap_proto_t proto) {
-  unsigned int client_crt_bytes = client_crt_end - client_crt_start;
-  unsigned int client_key_bytes = client_key_end - client_key_start;
-  coap_dtls_pki_t dtls_pki;
+void CoapClientComponent::provision_pki_(coap_dtls_pki_t *dtls_pki, coap_uri_t *uri) {
   char client_sni[256];
-
-  memset(&dtls_pki, 0, sizeof(dtls_pki));
-  dtls_pki.version = COAP_DTLS_PKI_SETUP_VERSION;
-  if (this->ca_pem_str_.length() > 0) {
-    dtls_pki.verify_peer_cert = 1;
-    dtls_pki.check_common_ca = 1;
-    dtls_pki.allow_self_signed = 1;
-    dtls_pki.allow_expired_certs = 1;
-    dtls_pki.cert_chain_validation = 1;
-    dtls_pki.cert_chain_verify_depth = 2;
-    dtls_pki.check_cert_revocation = 1;
-    dtls_pki.allow_no_crl = 1;
-    dtls_pki.allow_expired_crl = 1;
-    dtls_pki.allow_bad_md_hash = 1;
-    dtls_pki.allow_short_rsa_length = 1;
-    dtls_pki.validate_cn_call_back = verify_cn_callback;
-    dtls_pki.cn_call_back_arg = NULL;
-    dtls_pki.validate_sni_call_back = NULL;
-    dtls_pki.sni_call_back_arg = NULL;
-    memset(client_sni, 0, sizeof(client_sni));
-    if (uri->host.length) {
-      memcpy(client_sni, uri->host.s, std::min(uri->host.length, sizeof(client_sni)));
-    } else {
-      memcpy(client_sni, "localhost", 9);
-    }
-    dtls_pki.client_sni = client_sni;
-  }
-  dtls_pki.pki_key.key_type = COAP_PKI_KEY_PEM_BUF;
-  dtls_pki.pki_key.key.pem_buf.public_cert = this->client_crt_str_.c_str();
-  dtls_pki.pki_key.key.pem_buf.public_cert_len = this->client_crt_str_.length();
-  dtls_pki.pki_key.key.pem_buf.private_key = this->client_key_str_.c_str();
-  dtls_pki.pki_key.key.pem_buf.private_key_len = this->client_key_str_.length();
-  dtls_pki.pki_key.key.pem_buf.ca_cert = this->ca_pem_str_.c_str();
-  dtls_pki.pki_key.key.pem_buf.ca_cert_len = this->ca_pem_str_.length();
-
-#ifdef CONFIG_COAP_OSCORE_SUPPORT
-  return coap_new_client_session_oscore_pki(ctx, NULL, dst_addr, proto, &dtls_pki, oscore_conf);
-#else
-  return coap_new_client_session_pki(ctx, NULL, dst_addr, proto, &dtls_pki);
-#endif
-}
-#endif
-
-coap_session_t *CoapClientComponent::coap_start_anon_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr,
-                                                                  coap_uri_t *uri, coap_proto_t proto) {
-  coap_dtls_pki_t dtls_pki;
-  char client_sni[256];
-
-  memset(&dtls_pki, 0, sizeof(dtls_pki));
-  dtls_pki.version = COAP_DTLS_PKI_SETUP_VERSION;
   memset(client_sni, 0, sizeof(client_sni));
+  memset(dtls_pki, 0, sizeof(coap_dtls_pki_t));
+  dtls_pki->version = COAP_DTLS_PKI_SETUP_VERSION;
+#ifdef CONFIG_COAP_MBEDTLS_PKI
+  dtls_pki->verify_peer_cert = 1;
+  dtls_pki->check_common_ca = 1;
+  dtls_pki->allow_self_signed = 1;
+  dtls_pki->allow_expired_certs = 1;
+  dtls_pki->cert_chain_validation = 1;
+  dtls_pki->cert_chain_verify_depth = 2;
+  dtls_pki->check_cert_revocation = 1;
+  dtls_pki->allow_no_crl = 1;
+  dtls_pki->allow_expired_crl = 1;
+  dtls_pki->allow_bad_md_hash = 1;
+  dtls_pki->allow_short_rsa_length = 1;
+  dtls_pki->validate_cn_call_back = this->validate_cn_callback;
+  dtls_pki->cn_call_back_arg = NULL;
+  dtls_pki->validate_sni_call_back = NULL;
+  dtls_pki->sni_call_back_arg = NULL;
+#endif
   if (uri->host.length) {
     memcpy(client_sni, uri->host.s, std::min(uri->host.length, sizeof(client_sni)));
   } else {
     memcpy(client_sni, "localhost", 9);
   }
-  dtls_pki.client_sni = client_sni;
-  dtls_pki.pki_key.key_type = COAP_PKI_KEY_PEM;
-  dtls_pki.pki_key.key.pem.public_cert = NULL;
-  dtls_pki.pki_key.key.pem.private_key = NULL;
-  dtls_pki.pki_key.key.pem.ca_file = NULL;
+  dtls_pki->client_sni = client_sni;
+  dtls_pki->pki_key.key_type = COAP_PKI_KEY_PEM_BUF;
 
+#ifdef CONFIG_COAP_MBEDTLS_PKI
+  dtls_pki->pki_key.key.pem_buf.public_cert = this->client_crt_str_.c_str();
+  dtls_pki->pki_key.key.pem_buf.public_cert_len = this->client_crt_str_.length();
+  dtls_pki->pki_key.key.pem_buf.private_key = this->client_key_str_.c_str();
+  dtls_pki->pki_key.key.pem_buf.private_key_len = this->client_key_str_.length();
+  dtls_pki->pki_key.key.pem_buf.ca_cert = this->ca_pem_str_.c_str();
+  dtls_pki->pki_key.key.pem_buf.ca_cert_len = this->ca_pem_str_.length();
+#else
+  dtls_pki->pki_key.key.pem.public_cert = NULL;
+  dtls_pki->pki_key.key.pem.private_key = NULL;
+  dtls_pki->pki_key.key.pem.ca_file = NULL;
+#endif
+}
+
+coap_session_t *CoapClientComponent::coap_start_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr,
+                                                             coap_uri_t *uri, coap_proto_t proto) {
+  coap_dtls_pki_t dtls_pki;
+  this->provision_pki_(&dtls_pki, uri);
 #ifdef CONFIG_COAP_OSCORE_SUPPORT
   return coap_new_client_session_oscore_pki(ctx, NULL, dst_addr, proto, &dtls_pki, oscore_conf);
 #else
