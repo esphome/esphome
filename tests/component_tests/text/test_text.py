@@ -25,7 +25,7 @@ def test_text_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert 'it_1->set_name("test 1 text");' in main_cpp
+    assert 'it_1->set_name_and_object_id("test 1 text", "test_1_text");' in main_cpp
 
 
 def test_text_config_value_internal_set(generate_main):

@@ -26,7 +26,7 @@ def test_button_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
     # Then
-    assert 'wol_1->set_name("wol_test_1");' in main_cpp
+    assert 'wol_1->set_name_and_object_id("wol_test_1", "wol_test_1");' in main_cpp
     assert "wol_2->set_macaddr(18, 52, 86, 120, 144, 171);" in main_cpp
 
 

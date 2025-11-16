@@ -27,8 +27,13 @@ from esphome.helpers import sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting object IDs from expressions
+# Pre-compiled regex patterns for extracting object IDs from expressions
+# Matches both old format: .set_object_id("obj_id")
+# and new format: .set_name_and_object_id("name", "obj_id")
 OBJECT_ID_PATTERN = re.compile(r'\.set_object_id\(["\'](.*?)["\']\)')
+COMBINED_PATTERN = re.compile(
+    r'\.set_name_and_object_id\(["\'].*?["\']\s*,\s*["\'](.*?)["\']\)'
+)
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -273,8 +278,10 @@ def setup_test_environment() -> Generator[list[str], None, None]:
 def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
     """Extract the object ID that was set from the generated expressions."""
     for expr in expressions:
-        # Look for set_object_id calls with regex to handle various formats
-        # Matches: var.set_object_id("temperature_2") or var.set_object_id('temperature_2')
+        # First try new combined format: .set_name_and_object_id("name", "obj_id")
+        if match := COMBINED_PATTERN.search(expr):
+            return match.group(1)
+        # Fall back to old format: .set_object_id("obj_id")
         if match := OBJECT_ID_PATTERN.search(expr):
             return match.group(1)
     return None
