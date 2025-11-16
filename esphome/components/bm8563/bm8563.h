@@ -3,8 +3,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace bm8563 {
+namespace esphome::bm8563 {
 
 class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
  public:
@@ -53,5 +52,4 @@ template<typename... Ts> class TimerAction : public Action<Ts...>, public Parent
   }
 };
 
-}  // namespace bm8563
-}  // namespace esphome
+}  // namespace esphome::bm8563

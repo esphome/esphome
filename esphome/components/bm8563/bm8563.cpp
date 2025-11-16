@@ -1,8 +1,7 @@
 #include "bm8563.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bm8563 {
+namespace esphome::bm8563 {
 
 static const char *const TAG = "bm8563";
 
@@ -156,5 +155,4 @@ void BM8563::disable_irq_() {
   this->write_byte(CONTROL_STATUS_2_REG, data & 0xfc);
 }
 
-}  // namespace bm8563
-}  // namespace esphome
+}  // namespace esphome::bm8563
