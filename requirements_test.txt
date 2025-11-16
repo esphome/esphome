@@ -2,3 +2,5 @@
 pillow
 colorama
 pre-commit
+# for generate_release_notes.py
+jinja2
