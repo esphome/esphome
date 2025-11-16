@@ -1,4 +1,3 @@
-from collections.abc import MutableMapping
 from typing import Any
 
 from esphome import automation
@@ -7,7 +6,7 @@ from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
 from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_INTERNAL
 from esphome.core import CORE
 
 from .const_zephyr import (
@@ -56,13 +55,6 @@ def zigbee_set_core_data(config):
     return config
 
 
-def consume_ep_slots(config: MutableMapping) -> MutableMapping:
-    data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
-    slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
-    slots.extend([""])
-    return config
-
-
 ZigbeeBaseSchema = cv.Schema(
     {
         cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
@@ -89,10 +81,10 @@ ZigbeeBaseSchema = cv.Schema(
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 
-ZIGBEE_BINARY_SENSOR_SCHEMA = cv.Schema(
+BINARY_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.All(
-            cv.declare_id(ZigbeeBinarySensor), consume_ep_slots
+        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
+            ZigbeeBinarySensor
         ),
         cv.OnlyWith(CONF_BINARY_ATTRS, ["nrf52", "zigbee"]): cv.declare_id(BinaryAttrs),
         cv.OnlyWith(CONF_BINARY_INPUT_ATTRIB_LIST, ["nrf52", "zigbee"]): cv.declare_id(
@@ -156,19 +148,28 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config):
     cg.add_define("USE_ZIGBEE")
-    if CORE.is_nrf52:
+    if CORE.using_zephyr:
         from .zigbee_zephyr import zephyr_to_code
 
         await zephyr_to_code(config)
 
 
-async def setup_zigbee_binary_sensor(entity, config):
-    if not config.get(CONF_ZIGBEE_ID):
+async def setup_binary_sensor(entity, config):
+    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
         return
-    if CORE.is_nrf52:
-        from .zigbee_zephyr import zephyr_setup_zigbee_binary_sensor
+    if CORE.using_zephyr:
+        from .zigbee_zephyr import zephyr_setup_binary_sensor
 
-        await zephyr_setup_zigbee_binary_sensor(entity, config)
+        await zephyr_setup_binary_sensor(entity, config)
+
+
+def validate_binary_sensor(config):
+    if config.get(CONF_INTERNAL):
+        return config
+    data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
+    slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
+    slots.extend([""])
+    return config
 
 
 FactoryResetAction = zigbee_ns.class_("FactoryResetAction", automation.Action)

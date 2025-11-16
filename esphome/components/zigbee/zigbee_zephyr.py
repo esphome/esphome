@@ -252,7 +252,7 @@ async def _ctx_to_code(config):
     cg.add(cg.RawExpression("ZB_AF_REGISTER_DEVICE_CTX(&zb_device_ctx)"))
 
 
-async def zephyr_setup_zigbee_binary_sensor(entity, config):
+async def zephyr_setup_binary_sensor(entity, config):
     CORE.add_job(_add_binary_sensor, entity, config)
 
 

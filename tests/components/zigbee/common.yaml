@@ -4,6 +4,21 @@ binary_sensor:
     name: "Garage Door Open 1"
   - platform: template
     name: "Garage Door Open 2"
+  - platform: template
+    name: "Garage Door Open 3"
+  - platform: template
+    name: "Garage Door Open 4"
+  - platform: template
+    name: "Garage Door Open 5"
+  - platform: template
+    name: "Garage Door Open 6"
+  - platform: template
+    name: "Garage Door Open 7"
+    internal: True
+  - platform: template
+    name: "Garage Door Open 8"
+  - platform: template
+    name: "Garage Door Open 9"
 
 zigbee:
   wipe_on_boot: true
