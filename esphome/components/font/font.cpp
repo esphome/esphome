@@ -90,13 +90,6 @@ int Glyph::match_length(const uint8_t *str) const {
   }
 }
 
-void Glyph::scan_area(int *x1, int *y1, int *width, int *height) const {
-  *x1 = this->offset_x;
-  *y1 = this->offset_y;
-  *width = this->width;
-  *height = this->height;
-}
-
 Font::Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
            uint8_t bpp)
     : glyphs_(ConstVector(data, data_nr)),
@@ -159,7 +152,6 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
 void Font::print(int x_start, int y_start, display::Display *display, Color color, const char *text, Color background) {
   int i = 0;
   int x_at = x_start;
-  int scan_x1, scan_y1, scan_width, scan_height;
   while (text[i] != '\0') {
     int match_length;
     int glyph_n = this->match_next_glyph((const uint8_t *) text + i, &match_length);
@@ -177,11 +169,10 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
     }
 
     const Glyph &glyph = this->get_glyphs()[glyph_n];
-    glyph.scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
     const uint8_t *data = glyph.data;
-    const int max_x = x_at + scan_x1 + scan_width;
-    const int max_y = y_start + scan_y1 + scan_height;
+    const int max_x = x_at + glyph.offset_x + glyph.width;
+    const int max_y = y_start + glyph.offset_y + glyph.height;
 
     uint8_t bitmask = 0;
     uint8_t pixel_data = 0;
@@ -194,10 +185,10 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
     auto b_g = (float) background.g;
     auto b_b = (float) background.b;
     auto b_w = (float) background.w;
-    for (int glyph_y = y_start + scan_y1; glyph_y != max_y; glyph_y++) {
-      for (int glyph_x = x_at + scan_x1; glyph_x != max_x; glyph_x++) {
+    for (int glyph_y = y_start + glyph.offset_y; glyph_y != max_y; glyph_y++) {
+      for (int glyph_x = x_at + glyph.offset_x; glyph_x != max_x; glyph_x++) {
         uint8_t pixel = 0;
-        for (int bit_num = 0; bit_num != this->bpp_; bit_num++) {
+        for (uint8_t bit_num = 0; bit_num != this->bpp_; bit_num++) {
           if (bitmask == 0) {
             pixel_data = progmem_read_byte(data++);
             bitmask = 0x80;

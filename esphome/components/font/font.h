@@ -101,9 +101,9 @@ class Font
   lv_font_t lv_font_{};
   static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter);
   static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next);
-  const GlyphData *get_glyph_data_(uint32_t unicode_letter);
+  const Glyph *get_glyph_data_(uint32_t unicode_letter);
   uint32_t last_letter_{};
-  const font::GlyphData *last_data_{};
+  const Glyph *last_data_{};
 #endif
 };
 
