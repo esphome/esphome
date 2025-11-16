@@ -18,4 +18,5 @@ class SetCoreConfigCallable(Protocol):
         *,
         core_data: ConfigType | None = None,
         platform_data: ConfigType | None = None,
+        full_config: dict[str, ConfigType] | None = None,
     ) -> None: ...

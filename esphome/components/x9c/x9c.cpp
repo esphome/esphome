@@ -34,8 +34,6 @@ void X9cOutput::trim_value(int change_amount) {
 }
 
 void X9cOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->inc_pin_->get_pin();
   this->inc_pin_->setup();
   this->inc_pin_->digital_write(false);

@@ -82,7 +82,8 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 
   bool correct_dc_offset_;
   bool locked_driver_{false};
-  int32_t dc_offset_{0};
+  int32_t dc_offset_prev_input_{0};
+  int32_t dc_offset_prev_output_{0};
 };
 
 }  // namespace i2s_audio

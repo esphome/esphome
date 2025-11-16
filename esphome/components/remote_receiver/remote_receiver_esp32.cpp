@@ -38,7 +38,6 @@ static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_r
 }
 
 void RemoteReceiverComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   rmt_rx_channel_config_t channel;
   memset(&channel, 0, sizeof(channel));
   channel.clk_src = RMT_CLK_SRC_DEFAULT;
@@ -71,6 +70,21 @@ void RemoteReceiverComponent::setup() {
     this->error_string_ = "in rmt_enable";
     this->mark_failed();
     return;
+  }
+
+  if (this->carrier_frequency_ > 0 && 0 < this->carrier_duty_percent_ && this->carrier_duty_percent_ < 100) {
+    rmt_carrier_config_t carrier;
+    memset(&carrier, 0, sizeof(carrier));
+    carrier.frequency_hz = this->carrier_frequency_;
+    carrier.duty_cycle = (float) this->carrier_duty_percent_ / 100.0f;
+    carrier.flags.polarity_active_low = this->pin_->is_inverted();
+    error = rmt_apply_carrier(this->channel_, &carrier);
+    if (error != ESP_OK) {
+      this->error_code_ = error;
+      this->error_string_ = "in rmt_apply_carrier";
+      this->mark_failed();
+      return;
+    }
   }
 
   rmt_rx_event_callbacks_t callbacks;
@@ -112,11 +126,13 @@ void RemoteReceiverComponent::dump_config() {
                 "  Filter symbols: %" PRIu32 "\n"
                 "  Receive symbols: %" PRIu32 "\n"
                 "  Tolerance: %" PRIu32 "%s\n"
+                "  Carrier frequency: %" PRIu32 " hz\n"
+                "  Carrier duty: %u%%\n"
                 "  Filter out pulses shorter than: %" PRIu32 " us\n"
                 "  Signal is done after %" PRIu32 " us of no changes",
                 this->clock_resolution_, this->rmt_symbols_, this->filter_symbols_, this->receive_symbols_,
                 this->tolerance_, (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%",
-                this->filter_us_, this->idle_us_);
+                this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_),
              this->error_string_.c_str());

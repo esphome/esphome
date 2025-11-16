@@ -50,15 +50,11 @@ class LightTransitionTransformer : public LightTransformer {
     if (this->changing_color_mode_)
       p = p < 0.5f ? p * 2 : (p - 0.5) * 2;
 
-    float v = LightTransitionTransformer::smoothed_progress(p);
+    float v = LightTransformer::smoothed_progress(p);
     return LightColorValues::lerp(start, end, v);
   }
 
  protected:
-  // This looks crazy, but it reduces to 6x^5 - 15x^4 + 10x^3 which is just a smooth sigmoid-like
-  // transition from 0 to 1 on x = [0, 1]
-  static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
-
   LightColorValues end_values_{};
   LightColorValues intermediate_values_{};
   bool changing_color_mode_{false};

@@ -3,8 +3,7 @@
 #include <cstdint>
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 #ifdef USE_API_NOISE
 using psk_t = std::array<uint8_t, 32>;
@@ -28,5 +27,4 @@ class APINoiseContext {
 };
 #endif  // USE_API_NOISE
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

@@ -3,7 +3,7 @@ import re
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components import logger
+from esphome.components import logger, socket
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -57,7 +57,8 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -65,6 +66,9 @@ DEPENDENCIES = ["network"]
 def AUTO_LOAD():
     if CORE.is_esp8266 or CORE.is_libretiny:
         return ["async_tcp", "json"]
+    # ESP32 needs socket for wake_loop_threadsafe()
+    if CORE.is_esp32:
+        return ["json", "socket"]
     return ["json"]
 
 
@@ -210,6 +214,13 @@ def validate_fingerprint(value):
     return value
 
 
+def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for MQTT component."""
+    # MQTT needs 1 socket for the broker connection
+    socket.consume_sockets(1, "mqtt")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -306,23 +317,23 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_config,
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+    _consume_mqtt_sockets,
 )
 
 
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
-    exp = cg.StructInitializer(
+    return cg.StructInitializer(
         MQTTMessage,
         ("topic", config[CONF_TOPIC]),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
-    return exp
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -330,6 +341,11 @@ async def to_code(config):
     if CORE.is_esp8266 or CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+
+    # MQTT on ESP32 uses wake_loop_threadsafe() to wake the main loop from the MQTT event handler
+    # This enables low-latency MQTT event processing instead of waiting for select() timeout
+    if CORE.is_esp32:
+        socket.require_wake_loop_threadsafe()
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)

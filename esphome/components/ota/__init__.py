@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -86,7 +87,7 @@ BASE_OTA_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(54.0)
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
     cg.add_define("USE_OTA")
 

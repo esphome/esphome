@@ -10,7 +10,6 @@ namespace pcf85063 {
 static const char *const TAG = "pcf85063";
 
 void PCF85063Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->read_rtc_()) {
     this->mark_failed();
   }
@@ -24,7 +23,7 @@ void PCF85063Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
+  RealTimeClock::dump_config();
 }
 
 float PCF85063Component::get_setup_priority() const { return setup_priority::DATA; }

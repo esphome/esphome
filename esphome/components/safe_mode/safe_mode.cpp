@@ -15,11 +15,11 @@ namespace safe_mode {
 static const char *const TAG = "safe_mode";
 
 void SafeModeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Safe Mode:");
   ESP_LOGCONFIG(TAG,
-                "  Boot considered successful after %" PRIu32 " seconds\n"
-                "  Invoke after %u boot attempts\n"
-                "  Remain for %" PRIu32 " seconds",
+                "Safe Mode:\n"
+                "  Successful after: %" PRIu32 "s\n"
+                "  Invoke after: %u attempts\n"
+                "  Duration: %" PRIu32 "s",
                 this->safe_mode_boot_is_good_after_ / 1000,  // because milliseconds
                 this->safe_mode_num_attempts_,
                 this->safe_mode_enable_time_ / 1000);  // because milliseconds
@@ -27,7 +27,7 @@ void SafeModeComponent::dump_config() {
   if (this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {
     auto remaining_restarts = this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_;
     if (remaining_restarts) {
-      ESP_LOGW(TAG, "Last reset occurred too quickly; will be invoked in %" PRIu32 " restarts", remaining_restarts);
+      ESP_LOGW(TAG, "Last reset too quick; invoke in %" PRIu32 " restarts", remaining_restarts);
     } else {
       ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
     }
@@ -72,43 +72,45 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   this->safe_mode_boot_is_good_after_ = boot_is_good_after;
   this->safe_mode_num_attempts_ = num_attempts;
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
-  this->safe_mode_rtc_value_ = this->read_rtc_();
 
-  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
+  uint32_t rtc_val = this->read_rtc_();
+  this->safe_mode_rtc_value_ = rtc_val;
 
-  if (is_manual_safe_mode) {
-    ESP_LOGI(TAG, "Safe mode invoked manually");
+  bool is_manual = rtc_val == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
+
+  if (is_manual) {
+    ESP_LOGI(TAG, "Manual mode");
   } else {
-    ESP_LOGCONFIG(TAG, "There have been %" PRIu32 " suspected unsuccessful boot attempts", this->safe_mode_rtc_value_);
+    ESP_LOGCONFIG(TAG, "Unsuccessful boot attempts: %" PRIu32, rtc_val);
   }
 
-  if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
-    this->clean_rtc();
-
-    if (!is_manual_safe_mode) {
-      ESP_LOGE(TAG, "Boot loop detected. Proceeding");
-    }
-
-    this->status_set_error();
-    this->set_timeout(enable_time, []() {
-      ESP_LOGW(TAG, "Safe mode enable time has elapsed -- restarting");
-      App.reboot();
-    });
-
-    // Delay here to allow power to stabilize before Wi-Fi/Ethernet is initialised
-    delay(300);  // NOLINT
-    App.setup();
-
-    ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
-
-    this->safe_mode_callback_.call();
-
-    return true;
-  } else {
+  if (rtc_val < num_attempts && !is_manual) {
     // increment counter
-    this->write_rtc_(this->safe_mode_rtc_value_ + 1);
+    this->write_rtc_(rtc_val + 1);
     return false;
   }
+
+  this->clean_rtc();
+
+  if (!is_manual) {
+    ESP_LOGE(TAG, "Boot loop detected");
+  }
+
+  this->status_set_error();
+  this->set_timeout(enable_time, []() {
+    ESP_LOGW(TAG, "Timeout, restarting");
+    App.reboot();
+  });
+
+  // Delay here to allow power to stabilize before Wi-Fi/Ethernet is initialised
+  delay(300);  // NOLINT
+  App.setup();
+
+  ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
+
+  this->safe_mode_callback_.call();
+
+  return true;
 }
 
 void SafeModeComponent::write_rtc_(uint32_t val) {

@@ -101,18 +101,18 @@ class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c
 template<typename... Ts>
 class NAU7802CalbrateExternalOffsetAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
  public:
-  void play(Ts... x) override { this->parent_->calibrate_external_offset(); }
+  void play(const Ts &...x) override { this->parent_->calibrate_external_offset(); }
 };
 
 template<typename... Ts>
 class NAU7802CalbrateInternalOffsetAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
  public:
-  void play(Ts... x) override { this->parent_->calibrate_internal_offset(); }
+  void play(const Ts &...x) override { this->parent_->calibrate_internal_offset(); }
 };
 
 template<typename... Ts> class NAU7802CalbrateGainAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
  public:
-  void play(Ts... x) override { this->parent_->calibrate_gain(); }
+  void play(const Ts &...x) override { this->parent_->calibrate_gain(); }
 };
 
 }  // namespace nau7802

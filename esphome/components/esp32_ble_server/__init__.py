@@ -26,7 +26,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
-AUTO_LOAD = ["esp32_ble", "bytebuffer", "event_emitter"]
+AUTO_LOAD = ["esp32_ble", "bytebuffer"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "esp32_ble_server"
@@ -140,20 +140,22 @@ VALUE_TYPES = {
 
 
 def validate_char_on_write(char_config):
-    if CONF_ON_WRITE in char_config:
-        if not char_config[CONF_WRITE] and not char_config[CONF_WRITE_NO_RESPONSE]:
-            raise cv.Invalid(
-                f"{CONF_ON_WRITE} requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property to be set"
-            )
+    if (
+        CONF_ON_WRITE in char_config
+        and not char_config[CONF_WRITE]
+        and not char_config[CONF_WRITE_NO_RESPONSE]
+    ):
+        raise cv.Invalid(
+            f"{CONF_ON_WRITE} requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property to be set"
+        )
     return char_config
 
 
 def validate_descriptor(desc_config):
-    if CONF_ON_WRITE in desc_config:
-        if not desc_config[CONF_WRITE]:
-            raise cv.Invalid(
-                f"{CONF_ON_WRITE} requires the {CONF_WRITE} property to be set"
-            )
+    if CONF_ON_WRITE in desc_config and not desc_config[CONF_WRITE]:
+        raise cv.Invalid(
+            f"{CONF_ON_WRITE} requires the {CONF_WRITE} property to be set"
+        )
     if CONF_MAX_LENGTH not in desc_config:
         value = desc_config[CONF_VALUE][CONF_DATA]
         if cg.is_template(value):
@@ -459,7 +461,9 @@ async def parse_value(value_config, args):
     if isinstance(value, str):
         value = list(value.encode(value_config[CONF_STRING_ENCODING]))
     if isinstance(value, list):
-        return cg.std_vector.template(cg.uint8)(value)
+        # Generate initializer list {1, 2, 3} instead of std::vector<uint8_t>({1, 2, 3})
+        # This calls the set_value(std::initializer_list<uint8_t>) overload
+        return cg.ArrayInitializer(*value)
     val = cg.RawExpression(f"{value_config[CONF_TYPE]}({cg.safe_exp(value)})")
     return ByteBuffer_ns.wrap(val, value_config[CONF_ENDIANNESS])
 
@@ -486,6 +490,7 @@ async def to_code_descriptor(descriptor_conf, char_var):
     cg.add(desc_var.set_value(value))
     if CONF_ON_WRITE in descriptor_conf:
         on_write_conf = descriptor_conf[CONF_ON_WRITE]
+        cg.add_define("USE_ESP32_BLE_SERVER_DESCRIPTOR_ON_WRITE")
         await automation.build_automation(
             BLETriggers_ns.create_descriptor_on_write_trigger(desc_var),
             [(cg.std_vector.template(cg.uint8), "x"), (cg.uint16, "id")],
@@ -503,23 +508,32 @@ async def to_code_characteristic(service_var, char_conf):
     )
     if CONF_ON_WRITE in char_conf:
         on_write_conf = char_conf[CONF_ON_WRITE]
+        cg.add_define("USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE")
         await automation.build_automation(
             BLETriggers_ns.create_characteristic_on_write_trigger(char_var),
             [(cg.std_vector.template(cg.uint8), "x"), (cg.uint16, "id")],
             on_write_conf,
         )
     if CONF_VALUE in char_conf:
-        action_conf = {
-            CONF_ID: char_conf[CONF_ID],
-            CONF_VALUE: char_conf[CONF_VALUE],
-        }
-        value_action = await ble_server_characteristic_set_value(
-            action_conf,
-            char_conf[CONF_CHAR_VALUE_ACTION_ID_],
-            cg.TemplateArguments(),
-            {},
-        )
-        cg.add(value_action.play())
+        # Check if the value is templated (Lambda)
+        value_data = char_conf[CONF_VALUE][CONF_DATA]
+        if isinstance(value_data, cv.Lambda):
+            # Templated value - need the full action infrastructure
+            action_conf = {
+                CONF_ID: char_conf[CONF_ID],
+                CONF_VALUE: char_conf[CONF_VALUE],
+            }
+            value_action = await ble_server_characteristic_set_value(
+                action_conf,
+                char_conf[CONF_CHAR_VALUE_ACTION_ID_],
+                cg.TemplateArguments(),
+                {},
+            )
+            cg.add(value_action.play())
+        else:
+            # Static value - just set it directly without action infrastructure
+            value = await parse_value(char_conf[CONF_VALUE], {})
+            cg.add(char_var.set_value(value))
     for descriptor_conf in char_conf[CONF_DESCRIPTORS]:
         await to_code_descriptor(descriptor_conf, char_var)
 
@@ -527,14 +541,15 @@ async def to_code_characteristic(service_var, char_conf):
 async def to_code(config):
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+    cg.add_define("USE_ESP32_BLE_UUID")
 
     var = cg.new_Pvariable(config[CONF_ID])
 
     await cg.register_component(var, config)
 
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
-    cg.add(parent.register_gatts_event_handler(var))
-    cg.add(parent.register_ble_status_event_handler(var))
+    esp32_ble.register_gatts_event_handler(parent, var)
+    esp32_ble.register_ble_status_event_handler(parent, var)
     cg.add(var.set_parent(parent))
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
     if CONF_MANUFACTURER_DATA in config:
@@ -557,20 +572,22 @@ async def to_code(config):
         else:
             cg.add(var.enqueue_start_service(service_var))
     if CONF_ON_CONNECT in config:
+        cg.add_define("USE_ESP32_BLE_SERVER_ON_CONNECT")
         await automation.build_automation(
             BLETriggers_ns.create_server_on_connect_trigger(var),
             [(cg.uint16, "id")],
             config[CONF_ON_CONNECT],
         )
     if CONF_ON_DISCONNECT in config:
+        cg.add_define("USE_ESP32_BLE_SERVER_ON_DISCONNECT")
         await automation.build_automation(
             BLETriggers_ns.create_server_on_disconnect_trigger(var),
             [(cg.uint16, "id")],
             config[CONF_ON_DISCONNECT],
         )
     cg.add_define("USE_ESP32_BLE_SERVER")
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    cg.add_define("USE_ESP32_BLE_ADVERTISING")
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
 
 @automation.register_action(
@@ -591,6 +608,7 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
     var = cg.new_Pvariable(action_id, template_arg, paren)
     value = await parse_value(config[CONF_VALUE], args)
     cg.add(var.set_buffer(value))
+    cg.add_define("USE_ESP32_BLE_SERVER_SET_VALUE_ACTION")
     return var
 
 
@@ -609,6 +627,7 @@ async def ble_server_descriptor_set_value(config, action_id, template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, paren)
     value = await parse_value(config[CONF_VALUE], args)
     cg.add(var.set_buffer(value))
+    cg.add_define("USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION")
     return var
 
 
@@ -626,5 +645,5 @@ async def ble_server_descriptor_set_value(config, action_id, template_arg, args)
 )
 async def ble_server_characteristic_notify(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    cg.add_define("USE_ESP32_BLE_SERVER_NOTIFY_ACTION")
+    return cg.new_Pvariable(action_id, template_arg, paren)

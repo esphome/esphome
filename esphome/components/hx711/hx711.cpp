@@ -8,7 +8,6 @@ namespace hx711 {
 static const char *const TAG = "hx711";
 
 void HX711Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   this->sck_pin_->setup();
   this->dout_pin_->setup();
   this->sck_pin_->digital_write(false);

@@ -4,19 +4,14 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/filter.h"
 
-#include <vector>
+#include <initializer_list>
 
-namespace esphome {
+namespace esphome::binary_sensor {
 
-namespace binary_sensor {
+class BinarySensor;
+void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj);
 
-#define LOG_BINARY_SENSOR(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
-    } \
-  }
+#define LOG_BINARY_SENSOR(prefix, type, obj) log_binary_sensor(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_BINARY_SENSOR(name) \
  protected: \
@@ -51,7 +46,7 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
   void publish_initial_state(bool new_state);
 
   void add_filter(Filter *filter);
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -73,5 +68,4 @@ class BinarySensorInitiallyOff : public BinarySensor {
   bool has_state() const override { return true; }
 };
 
-}  // namespace binary_sensor
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

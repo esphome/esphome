@@ -63,11 +63,13 @@ def _validate(config):
                 raise cv.Invalid(
                     f"{axis}: {CONF_RESOLUTION} cannot be {res} with {CONF_TEMPERATURE_COMPENSATION} enabled"
                 )
-    if config[CONF_HALLCONF] == 0xC:
-        if (config[CONF_OVERSAMPLING], config[CONF_FILTER]) in [(0, 0), (1, 0), (0, 1)]:
-            raise cv.Invalid(
-                f"{CONF_OVERSAMPLING}=={config[CONF_OVERSAMPLING]} and {CONF_FILTER}=={config[CONF_FILTER]} not allowed with {CONF_HALLCONF}=={config[CONF_HALLCONF]:#02x}"
-            )
+    if config[CONF_HALLCONF] == 0xC and (
+        config[CONF_OVERSAMPLING],
+        config[CONF_FILTER],
+    ) in [(0, 0), (1, 0), (0, 1)]:
+        raise cv.Invalid(
+            f"{CONF_OVERSAMPLING}=={config[CONF_OVERSAMPLING]} and {CONF_FILTER}=={config[CONF_FILTER]} not allowed with {CONF_HALLCONF}=={config[CONF_HALLCONF]:#02x}"
+        )
     return config
 
 

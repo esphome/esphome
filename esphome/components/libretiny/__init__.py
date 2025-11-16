@@ -1,6 +1,5 @@
 import json
 import logging
-from os.path import dirname, isfile, join
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -20,10 +19,11 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
-    CoreModel,
+    ThreadModel,
     __version__,
 )
 from esphome.core import CORE
+from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa
 from .const import (
@@ -129,7 +129,7 @@ def only_on_family(*, supported=None, unsupported=None):
     return validator_
 
 
-def get_download_types(storage_json=None):
+def get_download_types(storage_json: StorageJSON = None):
     types = [
         {
             "title": "UF2 package (recommended)",
@@ -139,11 +139,11 @@ def get_download_types(storage_json=None):
         },
     ]
 
-    build_dir = dirname(storage_json.firmware_bin_path)
-    outputs = join(build_dir, "firmware.json")
-    if not isfile(outputs):
+    build_dir = storage_json.firmware_bin_path.parent
+    outputs = build_dir / "firmware.json"
+    if not outputs.is_file():
         return types
-    with open(outputs, encoding="utf-8") as f:
+    with outputs.open(encoding="utf-8") as f:
         outputs = json.load(f)
     for output in outputs:
         if not output["public"]:
@@ -261,7 +261,7 @@ async def component_to_code(config):
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
-    cg.add_define(CoreModel.MULTI_NO_ATOMICS)
+    cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")

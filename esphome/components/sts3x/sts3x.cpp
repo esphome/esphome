@@ -18,7 +18,6 @@ static const uint16_t STS3X_COMMAND_HEATER_DISABLE = 0x3066;
 static const uint16_t STS3X_COMMAND_FETCH_DATA = 0xE000;
 
 void STS3XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_command(STS3X_COMMAND_READ_SERIAL_NUMBER)) {
     this->mark_failed();
     return;

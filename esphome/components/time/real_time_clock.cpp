@@ -23,6 +23,13 @@ namespace time {
 static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
+
+void RealTimeClock::dump_config() {
+#ifdef USE_TIME_TIMEZONE
+  ESP_LOGCONFIG(TAG, "Timezone: '%s'", this->timezone_.c_str());
+#endif
+}
+
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
   // Update UTC epoch time.

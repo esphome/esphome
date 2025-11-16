@@ -67,7 +67,6 @@ static uint8_t crc4(uint16_t *buffer, size_t length);
 static uint8_t hsensor_crc_check(uint16_t value);
 
 void MS8607Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->error_code_ = ErrorCode::NONE;
   this->setup_status_ = SetupStatus::NEEDS_RESET;
 

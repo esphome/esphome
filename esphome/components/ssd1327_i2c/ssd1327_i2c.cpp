@@ -7,7 +7,6 @@ namespace ssd1327_i2c {
 static const char *const TAG = "ssd1327_i2c";
 
 void I2CSSD1327::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);

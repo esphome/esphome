@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP_IDF
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -72,8 +73,6 @@ void MicroWakeWord::dump_config() {
 }
 
 void MicroWakeWord::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->frontend_config_.window.size_ms = FEATURE_DURATION_MS;
   this->frontend_config_.window.step_size_ms = this->features_step_size_;
   this->frontend_config_.filterbank.num_channels = PREPROCESSOR_FEATURE_SIZE;
@@ -130,7 +129,6 @@ void MicroWakeWord::setup() {
         }
       });
 #endif
-  ESP_LOGCONFIG(TAG, "Micro Wake Word initialized");
 }
 
 void MicroWakeWord::inference_task(void *params) {
@@ -429,6 +427,12 @@ void MicroWakeWord::process_probabilities_() {
         if (vad_state.detected) {
 #endif
           xQueueSend(this->detection_queue_, &wake_word_state, portMAX_DELAY);
+
+          // Wake main loop immediately to process wake word detection
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+          App.wake_loop_threadsafe();
+#endif
+
           model->reset_probabilities();
 #ifdef USE_MICRO_WAKE_WORD_VAD
         } else {

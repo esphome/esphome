@@ -119,7 +119,6 @@ const float GRAVITY_EARTH = 9.80665f;
 void BMI160Component::internal_setup_(int stage) {
   switch (stage) {
     case 0:
-      ESP_LOGCONFIG(TAG, "Running setup");
       uint8_t chipid;
       if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b11010001)) {
         this->mark_failed();
@@ -204,7 +203,7 @@ void BMI160Component::dump_config() {
 i2c::ErrorCode BMI160Component::read_le_int16_(uint8_t reg, int16_t *value, uint8_t len) {
   uint8_t raw_data[len * 2];
   // read using read_register because we have little-endian data, and read_bytes_16 will swap it
-  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2, true);
+  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2);
   if (err != i2c::ERROR_OK) {
     return err;
   }

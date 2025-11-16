@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VALUE,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 globals_ns = cg.esphome_ns.namespace("globals")
@@ -35,7 +35,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 # Run with low priority so that namespaces are registered first
-@coroutine_with_priority(-100.0)
+@coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config):
     type_ = cg.RawExpression(config[CONF_TYPE])
     restore = config[CONF_RESTORE_VALUE]

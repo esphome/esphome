@@ -1,0 +1,41 @@
+esphome:
+  name: climate-custom-modes-test
+host:
+api:
+logger:
+
+sensor:
+  - platform: template
+    id: thermostat_sensor
+    lambda: "return 22.0;"
+
+climate:
+  - platform: thermostat
+    id: test_thermostat
+    name: Test Thermostat Custom Modes
+    sensor: thermostat_sensor
+    default_preset: "Eco Plus"
+    preset:
+      - name: Away
+        default_target_temperature_low: 16°C
+        default_target_temperature_high: 20°C
+      - name: Eco Plus
+        default_target_temperature_low: 18°C
+        default_target_temperature_high: 22°C
+      - name: Super Saver
+        default_target_temperature_low: 20°C
+        default_target_temperature_high: 24°C
+      - name: Vacation Mode
+        default_target_temperature_low: 15°C
+        default_target_temperature_high: 18°C
+    idle_action:
+      - logger.log: idle_action
+    cool_action:
+      - logger.log: cool_action
+    heat_action:
+      - logger.log: heat_action
+    min_cooling_off_time: 10s
+    min_cooling_run_time: 10s
+    min_heating_off_time: 10s
+    min_heating_run_time: 10s
+    min_idle_time: 10s

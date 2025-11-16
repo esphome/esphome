@@ -288,11 +288,15 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           if (item == 3) {  // stat
             uint8_t current_call_state = parse_number<uint8_t>(message.substr(start, end - start)).value_or(6);
             if (current_call_state != this->call_state_) {
-              ESP_LOGD(TAG, "Call state is now: %d", current_call_state);
-              if (current_call_state == 0)
-                this->call_connected_callback_.call();
+              if (current_call_state == 4) {
+                ESP_LOGV(TAG, "Premature call state '4'. Ignoring, waiting for RING");
+              } else {
+                this->call_state_ = current_call_state;
+                ESP_LOGD(TAG, "Call state is now: %d", current_call_state);
+                if (current_call_state == 0)
+                  this->call_connected_callback_.call();
+              }
             }
-            this->call_state_ = current_call_state;
             break;
           }
           // item 4 = ""
