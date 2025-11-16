@@ -12,17 +12,21 @@ from esphome.const import (
     CONF_TEXT,
     CONF_TIME,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
     CONF_X,
     CONF_Y,
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
-from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR, TYPE_GRID
-from .helpers import add_lv_use, requires_component, validate_printf
+from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .helpers import CONF_IF_NAN, requires_component, validate_printf
+from .layout import (
+    FLEX_OBJ_SCHEMA,
+    GRID_CELL_SCHEMA,
+    append_layout_schema,
+    grid_alignments,
+)
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
@@ -50,6 +54,7 @@ PRINTF_TEXT_SCHEMA = cv.All(
         {
             cv.Required(CONF_FORMAT): cv.string,
             cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
+            cv.Optional(CONF_IF_NAN): cv.string,
         },
     ),
     validate_printf,
@@ -72,11 +77,9 @@ def _validate_text(value):
 
 
 # A schema for text properties
-TEXT_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_TEXT): _validate_text,
-    }
-)
+TEXT_SCHEMA = {
+    cv.Optional(CONF_TEXT): _validate_text,
+}
 
 LIST_ACTION_SCHEMA = cv.ensure_list(
     cv.maybe_simple_value(
@@ -136,7 +139,7 @@ STYLE_PROPS = {
     "arc_opa": lvalid.opacity,
     "arc_color": lvalid.lv_color,
     "arc_rounded": lvalid.lv_bool,
-    "arc_width": lvalid.lv_positive_int,
+    "arc_width": lvalid.pixels,
     "anim_time": lvalid.lv_milliseconds,
     "bg_color": lvalid.lv_color,
     "bg_grad": lv_gradient,
@@ -223,10 +226,6 @@ STYLE_REMAP = {
     "image_recolor_opa": "img_recolor_opa",
 }
 
-cell_alignments = df.LV_CELL_ALIGNMENTS.one_of
-grid_alignments = df.LV_GRID_ALIGNMENTS.one_of
-flex_alignments = df.LV_FLEX_ALIGNMENTS.one_of
-
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
     {
@@ -266,10 +265,8 @@ def part_schema(parts):
     :param parts:  The parts to include
     :return: The schema
     """
-    return (
-        cv.Schema({cv.Optional(part): STATE_SCHEMA for part in parts})
-        .extend(STATE_SCHEMA)
-        .extend(FLAG_SCHEMA)
+    return STATE_SCHEMA.extend(FLAG_SCHEMA).extend(
+        {cv.Optional(part): STATE_SCHEMA for part in parts}
     )
 
 
@@ -277,10 +274,10 @@ def automation_schema(typ: LvType):
     events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
         events = events + (CONF_ON_VALUE,)
-    args = typ.get_arg_type() if isinstance(typ, LvType) else []
+    args = typ.get_arg_type()
     args.append(lv_event_t_ptr)
-    return cv.Schema(
-        {
+    return {
+        **{
             cv.Optional(event): validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -289,14 +286,11 @@ def automation_schema(typ: LvType):
                 }
             )
             for event in events
-        }
-    ).extend(
-        {
-            cv.Optional(CONF_ON_BOOT): validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
-            )
-        }
-    )
+        },
+        cv.Optional(CONF_ON_BOOT): validate_automation(
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
+        ),
+    }
 
 
 def base_update_schema(widget_type, parts):
@@ -335,74 +329,16 @@ def obj_schema(widget_type: WidgetType):
     """
     return (
         part_schema(widget_type.parts)
-        .extend(LAYOUT_SCHEMA)
         .extend(ALIGN_TO_SCHEMA)
         .extend(automation_schema(widget_type.w_type))
         .extend(
-            cv.Schema(
-                {
-                    cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                    cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
-                }
-            )
+            {
+                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+                cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
+            }
         )
     )
 
-
-def _validate_grid_layout(config):
-    layout = config[df.CONF_LAYOUT]
-    rows = len(layout[df.CONF_GRID_ROWS])
-    columns = len(layout[df.CONF_GRID_COLUMNS])
-    used_cells = [[None] * columns for _ in range(rows)]
-    for index, widget in enumerate(config[df.CONF_WIDGETS]):
-        _, w = next(iter(widget.items()))
-        if (df.CONF_GRID_CELL_COLUMN_POS in w) != (df.CONF_GRID_CELL_ROW_POS in w):
-            # pylint: disable=raise-missing-from
-            raise cv.Invalid(
-                "Both row and column positions must be specified, or both omitted",
-                [df.CONF_WIDGETS, index],
-            )
-        if df.CONF_GRID_CELL_ROW_POS in w:
-            row = w[df.CONF_GRID_CELL_ROW_POS]
-            column = w[df.CONF_GRID_CELL_COLUMN_POS]
-        else:
-            try:
-                row, column = next(
-                    (r_idx, c_idx)
-                    for r_idx, row in enumerate(used_cells)
-                    for c_idx, value in enumerate(row)
-                    if value is None
-                )
-            except StopIteration:
-                # pylint: disable=raise-missing-from
-                raise cv.Invalid(
-                    "No free cells available in grid layout", [df.CONF_WIDGETS, index]
-                )
-            w[df.CONF_GRID_CELL_ROW_POS] = row
-            w[df.CONF_GRID_CELL_COLUMN_POS] = column
-
-        for i in range(w[df.CONF_GRID_CELL_ROW_SPAN]):
-            for j in range(w[df.CONF_GRID_CELL_COLUMN_SPAN]):
-                if row + i >= rows or column + j >= columns:
-                    # pylint: disable=raise-missing-from
-                    raise cv.Invalid(
-                        f"Cell at {row}/{column} span {w[df.CONF_GRID_CELL_ROW_SPAN]}x{w[df.CONF_GRID_CELL_COLUMN_SPAN]} "
-                        f"exceeds grid size {rows}x{columns}",
-                        [df.CONF_WIDGETS, index],
-                    )
-                if used_cells[row + i][column + j] is not None:
-                    # pylint: disable=raise-missing-from
-                    raise cv.Invalid(
-                        f"Cell span {row + i}/{column + j} already occupied by widget at index {used_cells[row + i][column + j]}",
-                        [df.CONF_WIDGETS, index],
-                    )
-                used_cells[row + i][column + j] = index
-
-    return config
-
-
-LAYOUT_SCHEMAS = {}
-LAYOUT_VALIDATORS = {TYPE_GRID: _validate_grid_layout}
 
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
@@ -415,57 +351,6 @@ ALIGN_TO_SCHEMA = {
     )
 }
 
-
-def grid_free_space(value):
-    value = cv.Upper(value)
-    if value.startswith("FR(") and value.endswith(")"):
-        value = value.removesuffix(")").removeprefix("FR(")
-        return f"LV_GRID_FR({cv.positive_int(value)})"
-    raise cv.Invalid("must be a size in pixels, CONTENT or FR(nn)")
-
-
-grid_spec = cv.Any(
-    lvalid.size, df.LvConstant("LV_GRID_", "CONTENT").one_of, grid_free_space
-)
-
-LAYOUT_SCHEMA = {
-    cv.Optional(df.CONF_LAYOUT): cv.typed_schema(
-        {
-            df.TYPE_GRID: {
-                cv.Required(df.CONF_GRID_ROWS): [grid_spec],
-                cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
-                cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
-                cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
-                cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
-                cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
-            },
-            df.TYPE_FLEX: {
-                cv.Optional(
-                    df.CONF_FLEX_FLOW, default="row_wrap"
-                ): df.FLEX_FLOWS.one_of,
-                cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
-                cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
-                cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
-                cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
-                cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
-            },
-        },
-        lower=True,
-    )
-}
-
-GRID_CELL_SCHEMA = {
-    cv.Optional(df.CONF_GRID_CELL_ROW_POS): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
-    cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
-}
-
-FLEX_OBJ_SCHEMA = {
-    cv.Optional(df.CONF_FLEX_GROW): cv.int_,
-}
 
 DISP_BG_SCHEMA = cv.Schema(
     {
@@ -498,48 +383,11 @@ ALL_STYLES = {
 }
 
 
-def container_validator(schema, widget_type: WidgetType):
-    """
-    Create a validator for a container given the widget type
-    :param schema: Base schema to extend
-    :param widget_type:
-    :return:
-    """
-
-    def validator(value):
-        if w_sch := widget_type.schema:
-            if isinstance(w_sch, dict):
-                w_sch = cv.Schema(w_sch)
-            # order is important here to preserve extras
-            result = w_sch.extend(schema)
-        else:
-            result = schema
-        ltype = df.TYPE_NONE
-        if value and (layout := value.get(df.CONF_LAYOUT)):
-            if not isinstance(layout, dict):
-                raise cv.Invalid("Layout value must be a dict")
-            ltype = layout.get(CONF_TYPE)
-            if not ltype:
-                raise (cv.Invalid("Layout schema requires type:"))
-            add_lv_use(ltype)
-        if value == SCHEMA_EXTRACT:
-            return result
-        result = result.extend(
-            LAYOUT_SCHEMAS.get(ltype.lower(), LAYOUT_SCHEMAS[df.TYPE_NONE])
-        )
-        value = result(value)
-        if layout_validator := LAYOUT_VALIDATORS.get(ltype):
-            value = layout_validator(value)
-        return value
-
-    return validator
-
-
 def container_schema(widget_type: WidgetType, extras=None):
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
     the extras passed in, plus any defined for the specific widget being specified.
-    :param widget_type:     The widget type, e.g. "img"
+    :param widget_type:     The widget type, e.g. "image"
     :param extras:  Additional options to be made available, e.g. layout properties for children
     :return: The schema for this type of widget.
     """
@@ -549,31 +397,53 @@ def container_schema(widget_type: WidgetType, extras=None):
     if extras:
         schema = schema.extend(extras)
     # Delayed evaluation for recursion
-    return container_validator(schema, widget_type)
 
+    schema = schema.extend(widget_type.schema)
 
-def widget_schema(widget_type: WidgetType, extras=None):
-    """
-    Create a schema for a given widget type
-    :param widget_type: The name of the widget
-    :param extras:
-    :return:
-    """
-    validator = container_schema(widget_type, extras=extras)
-    if required := widget_type.required_component:
-        validator = cv.All(validator, requires_component(required))
-    return cv.Exclusive(widget_type.name, df.CONF_WIDGETS), validator
+    def validator(value):
+        return append_layout_schema(schema, value)(value)
 
-
-# All widget schemas must be defined before this is called.
+    return validator
 
 
 def any_widget_schema(extras=None):
     """
-    Generate schemas for all possible LVGL widgets. This is what implements the ability to have a list of any kind of
+    Dynamically generate schemas for all possible LVGL widgets. This is what implements the ability to have a list of any kind of
     widget under the widgets: key.
 
+    This uses lazy evaluation - the schema is built when called during validation,
+    not at import time. This allows external components to register widgets
+    before schema validation begins.
+
     :param extras: Additional schema to be applied to each generated one
-    :return:
+    :return: A validator for the Widgets key
     """
-    return cv.Any(dict(widget_schema(wt, extras) for wt in WIDGET_TYPES.values()))
+
+    def validator(value):
+        if isinstance(value, dict):
+            # Convert to list
+            value = [{k: v} for k, v in value.items()]
+        if not isinstance(value, list):
+            raise cv.Invalid("Expected a list of widgets")
+        result = []
+        for index, entry in enumerate(value):
+            if not isinstance(entry, dict) or len(entry) != 1:
+                raise cv.Invalid(
+                    "Each widget must be a dictionary with a single key", path=[index]
+                )
+            [(key, value)] = entry.items()
+            # Validate the widget against its schema
+            widget_type = WIDGET_TYPES.get(key)
+            if not widget_type:
+                raise cv.Invalid(f"Unknown widget type: {key}", path=[index])
+            container_validator = container_schema(widget_type, extras=extras)
+            if required := widget_type.required_component:
+                container_validator = cv.All(
+                    container_validator, requires_component(required)
+                )
+            # Apply custom validation
+            value = widget_type.validate(value or {})
+            result.append({key: container_validator(value)})
+        return result
+
+    return validator

@@ -62,7 +62,6 @@ void GDK101Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Firmware Version", this->fw_version_sensor_);
   LOG_SENSOR("  ", "Average Radaition Dose per 1 minute", this->rad_1m_sensor_);
   LOG_SENSOR("  ", "Average Radaition Dose per 10 minutes", this->rad_10m_sensor_);
   LOG_SENSOR("  ", "Status", this->status_sensor_);
@@ -72,6 +71,10 @@ void GDK101Component::dump_config() {
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Vibration Status", this->vibration_binary_sensor_);
 #endif  // USE_BINARY_SENSOR
+
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Firmware Version", this->fw_version_text_sensor_);
+#endif  // USE_TEXT_SENSOR
 }
 
 float GDK101Component::get_setup_priority() const { return setup_priority::DATA; }
@@ -153,18 +156,18 @@ bool GDK101Component::read_status_(uint8_t *data) {
 }
 
 bool GDK101Component::read_fw_version_(uint8_t *data) {
-#ifdef USE_SENSOR
-  if (this->fw_version_sensor_ != nullptr) {
+#ifdef USE_TEXT_SENSOR
+  if (this->fw_version_text_sensor_ != nullptr) {
     if (!this->read_bytes(GDK101_REG_READ_FIRMWARE, data, 2)) {
       ESP_LOGE(TAG, "Updating GDK101 failed!");
       return false;
     }
 
-    const float fw_version = data[0] + (data[1] / 10.0f);
+    const std::string fw_version_str = str_sprintf("%d.%d", data[0], data[1]);
 
-    this->fw_version_sensor_->publish_state(fw_version);
+    this->fw_version_text_sensor_->publish_state(fw_version_str);
   }
-#endif  // USE_SENSOR
+#endif  // USE_TEXT_SENSOR
   return true;
 }
 

@@ -129,7 +129,7 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  public:
   explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
 
-  void play(Ts... x) override { this->lamb_(x...); }
+  void play(const Ts &...x) override { this->lamb_(x...); }
 
  protected:
   std::function<void(Ts...)> lamb_;
@@ -140,7 +140,7 @@ class FontEngine {
   FontEngine(font::Font *esp_font);
   const lv_font_t *get_lv_font();
 
-  const font::GlyphData *get_glyph_data(uint32_t unicode_letter);
+  const font::Glyph *get_glyph_data(uint32_t unicode_letter);
   uint16_t baseline{};
   uint16_t height{};
   uint8_t bpp{};
@@ -148,7 +148,7 @@ class FontEngine {
  protected:
   font::Font *font_{};
   uint32_t last_letter_{};
-  const font::GlyphData *last_data_{};
+  const font::Glyph *last_data_{};
   lv_font_t lv_font_{};
 };
 #endif  // USE_LVGL_FONT
@@ -263,7 +263,7 @@ class IdleTrigger : public Trigger<> {
 template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
  public:
   explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
-  void play(Ts... x) override { this->action_(this->parent_); }
+  void play(const Ts &...x) override { this->action_(this->parent_); }
 
  protected:
   std::function<void(LvglComponent *)> action_{};
@@ -272,7 +272,7 @@ template<typename... Ts> class LvglAction : public Action<Ts...>, public Parente
 template<typename Tc, typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<Tc> {
  public:
   LvglCondition(std::function<bool(Tc *)> &&condition_lambda) : condition_lambda_(std::move(condition_lambda)) {}
-  bool check(Ts... x) override { return this->condition_lambda_(this->parent_); }
+  bool check(const Ts &...x) override { return this->condition_lambda_(this->parent_); }
 
  protected:
   std::function<bool(Tc *)> condition_lambda_{};

@@ -14,6 +14,7 @@ climate:
     id: test_thermostat
     name: Test Thermostat Custom Modes
     sensor: thermostat_sensor
+    default_preset: "Eco Plus"
     preset:
       - name: Away
         default_target_temperature_low: 16°C

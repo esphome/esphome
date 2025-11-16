@@ -6,7 +6,7 @@ from pathlib import Path
 
 from esphome import automation, external_files
 import esphome.codegen as cg
-from esphome.components import audio, esp32, media_player, psram, speaker
+from esphome.components import audio, esp32, media_player, network, psram, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -26,21 +26,13 @@ from esphome.const import (
 from esphome.core import CORE, HexInt
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
-from esphome.types import ConfigType
+from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
-    load = ["audio"]
-    if (
-        not config
-        or config.get(CONF_TASK_STACK_IN_PSRAM)
-        or config.get(CONF_CODEC_SUPPORT_ENABLED)
-    ):
-        return load + ["psram"]
-    return load
-
+AUTO_LOAD = ["audio"]
+DEPENDENCIES = ["network"]
 
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
@@ -226,12 +218,19 @@ def _validate_repeated_speaker(config):
     return config
 
 
-def _validate_supported_local_file(config):
+def _final_validate(config):
+    # Default to using codec if psram is enabled
+    if (use_codec := config.get(CONF_CODEC_SUPPORT_ENABLED)) is None:
+        use_codec = psram.DOMAIN in full_config.get()
+    conf_id = config[CONF_ID].id
+    core_data = CORE.data.setdefault(DOMAIN, {conf_id: {}})
+    core_data[conf_id][CONF_CODEC_SUPPORT_ENABLED] = use_codec
+
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             raise cv.Invalid("Unsupported local media file")
-        if not config[CONF_CODEC_SUPPORT_ENABLED] and str(media_file_type) != str(
+        if not use_codec and str(media_file_type) != str(
             audio.AUDIO_FILE_TYPE_ENUM["WAV"]
         ):
             # Only wav files are supported
@@ -282,6 +281,18 @@ PIPELINE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _request_high_performance_networking(config):
+    """Request high performance networking for streaming media.
+
+    Speaker media player streams audio data, so it always benefits from
+    optimized WiFi and lwip settings regardless of codec support.
+    Called during config validation to ensure flags are set before to_code().
+    """
+    network.require_high_performance_networking()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     media_player.media_player_schema(SpeakerMediaPlayer).extend(
         {
@@ -290,11 +301,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            cv.Optional(
-                CONF_CODEC_SUPPORT_ENABLED, default=psram.supported()
-            ): cv.boolean,
+            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.boolean,
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
+                cv.boolean, cv.requires_component(psram.DOMAIN)
+            ),
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
             cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
@@ -306,6 +317,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.only_with_esp_idf,
     _validate_repeated_speaker,
+    _request_high_performance_networking,
 )
 
 
@@ -317,33 +329,15 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         },
         extra=cv.ALLOW_EXTRA,
     ),
-    _validate_supported_local_file,
+    _final_validate,
 )
 
 
 async def to_code(config):
-    if config[CONF_CODEC_SUPPORT_ENABLED]:
-        # Compile all supported audio codecs and optimize the wifi settings
-
+    if CORE.data[DOMAIN][config[CONF_ID].id][CONF_CODEC_SUPPORT_ENABLED]:
+        # Compile all supported audio codecs
         cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
         cg.add_define("USE_AUDIO_MP3_SUPPORT", True)
-
-        # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
-
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
-
-        # Allocate wifi buffers in PSRAM
-        esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
     var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
@@ -352,8 +346,8 @@ async def to_code(config):
 
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
 
-    cg.add(var.set_task_stack_in_psram(config[CONF_TASK_STACK_IN_PSRAM]))
-    if config[CONF_TASK_STACK_IN_PSRAM]:
+    if config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(True))
         esp32.add_idf_sdkconfig_option(
             "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
         )

@@ -42,7 +42,7 @@ template<typename... Ts> class SenseAirBackgroundCalibrationAction : public Acti
  public:
   SenseAirBackgroundCalibrationAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
-  void play(Ts... x) override { this->senseair_->background_calibration(); }
+  void play(const Ts &...x) override { this->senseair_->background_calibration(); }
 
  protected:
   SenseAirComponent *senseair_;
@@ -52,7 +52,7 @@ template<typename... Ts> class SenseAirBackgroundCalibrationResultAction : publi
  public:
   SenseAirBackgroundCalibrationResultAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
-  void play(Ts... x) override { this->senseair_->background_calibration_result(); }
+  void play(const Ts &...x) override { this->senseair_->background_calibration_result(); }
 
  protected:
   SenseAirComponent *senseair_;
@@ -62,7 +62,7 @@ template<typename... Ts> class SenseAirABCEnableAction : public Action<Ts...> {
  public:
   SenseAirABCEnableAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
-  void play(Ts... x) override { this->senseair_->abc_enable(); }
+  void play(const Ts &...x) override { this->senseair_->abc_enable(); }
 
  protected:
   SenseAirComponent *senseair_;
@@ -72,7 +72,7 @@ template<typename... Ts> class SenseAirABCDisableAction : public Action<Ts...> {
  public:
   SenseAirABCDisableAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
-  void play(Ts... x) override { this->senseair_->abc_disable(); }
+  void play(const Ts &...x) override { this->senseair_->abc_disable(); }
 
  protected:
   SenseAirComponent *senseair_;
@@ -82,7 +82,7 @@ template<typename... Ts> class SenseAirABCGetPeriodAction : public Action<Ts...>
  public:
   SenseAirABCGetPeriodAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
-  void play(Ts... x) override { this->senseair_->abc_get_period(); }
+  void play(const Ts &...x) override { this->senseair_->abc_get_period(); }
 
  protected:
   SenseAirComponent *senseair_;

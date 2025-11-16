@@ -27,10 +27,6 @@ extern "C" {
 #include <esp32-hal-bt.h>
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-#include <lwip/sockets.h>
-#endif
-
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
@@ -638,11 +634,13 @@ void ESP32BLE::dump_config() {
         io_capability_s = "invalid";
         break;
     }
+    char mac_s[18];
+    format_mac_addr_upper(mac_address, mac_s);
     ESP_LOGCONFIG(TAG,
                   "BLE:\n"
                   "  MAC address: %s\n"
                   "  IO Capability: %s",
-                  format_mac_address_pretty(mac_address).c_str(), io_capability_s);
+                  mac_s, io_capability_s);
   } else {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
