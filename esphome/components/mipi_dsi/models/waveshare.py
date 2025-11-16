@@ -107,6 +107,7 @@ DriverChip(
     vsync_front_porch=12,
     pclk_frequency="52MHz",
     lane_bit_rate="1Gbps",
+    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     reset_pin=33,
     initsequence=[
