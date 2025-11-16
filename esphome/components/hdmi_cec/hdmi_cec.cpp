@@ -64,23 +64,6 @@ std::string Frame::to_string() const {
 void HDMICEC::setup() {
   xmit_.setup(pin_);
   recv_.setup(pin_, address_);
-
-  // The UART can send with a CEC-standard bit pattern by using a 5x oversampling:
-  // Each CEC-bit is created with 5 successive UART-bits.
-  // The UART mode is 1 (always 0) start-bit, 8 data-bits, 1 (always 1) stop-bit: total 10 bit periods for 1 byte
-  // Those 10 UART bits are used to create 2 CEC bits, each of which start low and end high.
-  // So the UART baud rate is ((10 / 2) / (CEC bit period)) bits/sec,
-  // which is 5 / 2400us = 2083 bits/sec or baudrate.
-  // In this mode, every 2 CEC bits need to be translated into 8 UART data bits with the appropriate pattern:
-  // A CEC-1 is translated into 1 low (480us) and 4 high uart bits (1920us)
-  // A CEC-0 is translated into 3 low (1440us) and 2 high uart bits (960us)
-  // These generated low and high periods fall well within the CEC standard presribed ranges
-  // The uart output is connected to the GPIO CEC pin with a diode: catode to uart pin.
-  // This makes sure the uart can only pull-down the CEC line.
-  // (It seems that specifying 'open-drain' mode for the uart pin has no effect)
-  // A small-signal diode type is not critical, a schottky type is preferred:
-  // such as schottky small-signal low-leakage types: 1N5711, BAT85, BAT46, BAT42, BAS70
-  // Otherwise small-signal plain (non-schottky) types:
 }
 
 void HDMICEC::set_pin(InternalGPIOPin *pin) { pin_ = pin; }
@@ -259,6 +242,10 @@ inline void IRAM_ATTR CECTransmit::set_pin_output_low() {
 }
 
 void CECTransmit::setup(InternalGPIOPin *pin) {
+  // This CEC software component optionally uses a UART to transmit (write) on the cec bus.
+  // When used, the uart output pin is connected to the GPIO CEC pin through a diode: cathode to uart pin.
+  // This makes sure the uart can only pull-down the CEC line, not pull-up.
+  // (It seems that specifying 'open-drain' mode for the uart pin has no effect!)
   pin_ = pin;
   set_pin_input_high();
   pin_->setup();
@@ -568,12 +555,12 @@ void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
   }
   if (transmit_state_ == TransmitState::BUSY) {
     // this received message was sent by myself, handle this confirmation to check acknowledgement
-    ATOMIC_INCR(n_bytes_received_);  // TODO: replace with plain atomic ++
+    ATOMIC_INCR(n_bytes_received_);
     // 'ack value == 0' means that the addressed device on the bus confirms receipt by pulling 'ack' low.
     // (But for broadcast messages, 'ack == 0' indicates that some receiver denies the message.)
     if (!ack) {
       // 0 bit value means 'acknowledge' for an addressed message
-      ATOMIC_INCR(n_acks_received_);  // TODO: replace with plain atomic ++
+      ATOMIC_INCR(n_acks_received_);
     }
     if (eom) {
       transmit_state_ = TransmitState::EOM_CONFIRMED;
@@ -658,7 +645,7 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
     case ReceiverState::RECEIVING_BYTE: {
       // write bit to the current byte
       recv_byte_buffer_ = (recv_byte_buffer_ << 1) | (value & 0x1);
-      ATOMIC_INCR(recv_bit_counter_);  // TODO: replace with plain atomic ++
+      ATOMIC_INCR(recv_bit_counter_);
       if (recv_bit_counter_ >= 8) {
         // if we reached eight bits, push the current byte to the frame buffer
         if (recv_frame_buffer_) {

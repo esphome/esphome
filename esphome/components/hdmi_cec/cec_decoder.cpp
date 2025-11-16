@@ -229,8 +229,10 @@ template<> bool Decoder::do_operand_<Decoder::POWER_STATUS>() {
 }
 
 template<> bool Decoder::do_operand_<Decoder::SHORT_AUDIO_DESCRIPTOR>() {
-  // the frame can have a sequence of these operands, count is not fixed;
-  // each such operand takes 3 bytes in the frame
+  // The frame can have a sequence of these operands, count is not fixed;
+  // each such operand takes 3 bytes in the frame.
+  // For a specification of this "Short Audio descriptor" format, see the Wikipedia page on
+  // "Extended Display Identification Data (EDID)", section "Audio Data Blocks".
   std::array<char, 100> line;
   uint32_t pos = 0;
   bool ok = true;
@@ -258,7 +260,7 @@ template<> bool Decoder::do_operand_<Decoder::SHORT_AUDIO_DESCRIPTOR>() {
     }
     ok = append_operand_(&line[0], 3);
   }
-  // TODO: Further descriptor 'extensions' not yet decoded
+  // Note: Further descriptor 'extensions' not yet decoded
   return ok;
 }
 
