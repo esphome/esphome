@@ -30,22 +30,23 @@ void ZephyrI2CBus::setup() {
   }
 }
 
+static const char *get_speed(uint32_t dev_config) {
+  switch (I2C_SPEED_GET(dev_config)) {
+    case I2C_SPEED_STANDARD:
+      return "100 kHz";
+    case I2C_SPEED_FAST:
+      return "400 kHz";
+    case I2C_SPEED_FAST_PLUS:
+      return "1 MHz";
+    case I2C_SPEED_HIGH:
+      return "3.4 MHz";
+    case I2C_SPEED_ULTRA:
+      return "5 MHz";
+  }
+  return "unknown";
+};
+
 void ZephyrI2CBus::dump_config() {
-  auto get_speed = [](uint32_t dev_config) {
-    switch (I2C_SPEED_GET(dev_config)) {
-      case I2C_SPEED_STANDARD:
-        return "100 kHz";
-      case I2C_SPEED_FAST:
-        return "400 kHz";
-      case I2C_SPEED_FAST_PLUS:
-        return "1 MHz";
-      case I2C_SPEED_HIGH:
-        return "3.4 MHz";
-      case I2C_SPEED_ULTRA:
-        return "5 MHz";
-    }
-    return "unknown";
-  };
   ESP_LOGCONFIG(TAG,
                 "I2C Bus:\n"
                 "  SDA Pin: GPIO%u\n"
