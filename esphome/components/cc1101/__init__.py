@@ -3,21 +3,19 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import remote_base, spi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_CHANNEL, CONF_FREQUENCY, CONF_ID, CONF_WAIT_TIME
 
 from .const import (
     CARRIER_SENSE_REL_THR,
     CONF_CARRIER_SENSE_ABOVE_THRESHOLD,
     CONF_CARRIER_SENSE_ABS_THR,
     CONF_CARRIER_SENSE_REL_THR,
-    CONF_CHANNEL,
     CONF_CHANNEL_SPACING,
     CONF_DC_BLOCKING_FILTER,
     CONF_FILTER_BANDWIDTH,
     CONF_FILTER_LENGTH_ASK_OOK,
     CONF_FILTER_LENGTH_FSK_MSK,
     CONF_FREEZE,
-    CONF_FREQUENCY,
     CONF_FSK_DEVIATION,
     CONF_GDO0_PIN,
     CONF_HYST_LEVEL,
@@ -37,7 +35,6 @@ from .const import (
     CONF_SYNC0,
     CONF_SYNC1,
     CONF_SYNC_MODE,
-    CONF_WAIT_TIME,
     FILTER_LENGTH_ASK_OOK,
     FILTER_LENGTH_FSK_MSK,
     FREEZE,

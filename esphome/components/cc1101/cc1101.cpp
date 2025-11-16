@@ -31,7 +31,72 @@ CC1101Component::CC1101Component() {
   this->state_.SYNC1 = 0xD3;
   this->state_.SYNC0 = 0x91;
   this->state_.PKTLEN = 0xFF;
-  this->state_.PKT_FORMAT = 3;  // Async Serial Mode
+  this->state_.APPEND_STATUS = 1;
+  this->state_.LENGTH_CONFIG = 1;
+  this->state_.CRC_EN = 1;
+  this->state_.WHITE_DATA = 1;
+  this->state_.FREQ_IF = 0x0F;
+  this->state_.FREQ2 = 0x1E;
+  this->state_.FREQ1 = 0xC4;
+  this->state_.FREQ0 = 0xEC;
+  this->state_.DRATE_E = 0x0C;
+  this->state_.CHANBW_E = 0x02;
+  this->state_.DRATE_M = 0x22;
+  this->state_.SYNC_MODE = 2;
+  this->state_.CHANSPC_E = 2;
+  this->state_.NUM_PREAMBLE = 2;
+  this->state_.CHANSPC_M = 0xF8;
+  this->state_.DEVIATION_M = 7;
+  this->state_.DEVIATION_E = 4;
+  this->state_.RX_TIME = 7;
+  this->state_.CCA_MODE = 3;
+  this->state_.PO_TIMEOUT = 1;
+  this->state_.FOC_LIMIT = 2;
+  this->state_.FOC_POST_K = 1;
+  this->state_.FOC_PRE_K = 2;
+  this->state_.FOC_BS_CS_GATE = 1;
+  this->state_.BS_POST_KP = 1;
+  this->state_.BS_POST_KI = 1;
+  this->state_.BS_PRE_KP = 2;
+  this->state_.BS_PRE_KI = 1;
+  this->state_.MAGN_TARGET = 3;
+  this->state_.AGC_LNA_PRIORITY = 1;
+  this->state_.FILTER_LENGTH = 1;
+  this->state_.WAIT_TIME = 1;
+  this->state_.HYST_LEVEL = 2;
+  this->state_.WOREVT1 = 0x87;
+  this->state_.WOREVT0 = 0x6B;
+  this->state_.RC_CAL = 1;
+  this->state_.EVENT1 = 7;
+  this->state_.RC_PD = 1;
+  this->state_.MIX_CURRENT = 2;
+  this->state_.LODIV_BUF_CURRENT_RX = 1;
+  this->state_.LNA2MIX_CURRENT = 1;
+  this->state_.LNA_CURRENT = 1;
+  this->state_.LODIV_BUF_CURRENT_TX = 1;
+  this->state_.FSCAL3_LO = 9;
+  this->state_.CHP_CURR_CAL_EN = 2;
+  this->state_.FSCAL3_HI = 2;
+  this->state_.FSCAL2 = 0x0A;
+  this->state_.FSCAL1 = 0x20;
+  this->state_.FSCAL0 = 0x0D;
+  this->state_.RCCTRL1 = 0x41;
+  this->state_.FSTEST = 0x59;
+  this->state_.PTEST = 0x7F;
+  this->state_.AGCTEST = 0x3F;
+  this->state_.TEST2 = 0x88;
+  this->state_.TEST1 = 0x31;
+  this->state_.TEST0_LO = 1;
+  this->state_.VCO_SEL_CAL_EN = 1;
+  this->state_.TEST0_HI = 2;
+
+  // IOCFGx
+  this->state_.GDO2_CFG = 0x0D;  // Async serial output (TODO: enum)
+  this->state_.GDO0_CFG = 0x0D;
+
+  // PKTCTRL0
+  this->state_.PKT_FORMAT = 3;
+  this->state_.LENGTH_CONFIG = 2;
   this->state_.FS_AUTOCAL = 1;
 
   // Default Settings
@@ -235,14 +300,15 @@ void CC1101Component::set_output_power(float value) {
   int freq =
       (int) (this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) * XTAL_FREQUENCY / (1 << 16);
   uint8_t a = 0xC0;
-  if (freq >= 300000 && freq <= 348000)
+  if (freq >= 300000 && freq <= 348000) {
     a = PowerTable::find(PA_TABLE_315, sizeof(PA_TABLE_315) / sizeof(PA_TABLE_315[0]), value);
-  else if (freq >= 378000 && freq <= 464000)
+  } else if (freq >= 378000 && freq <= 464000) {
     a = PowerTable::find(PA_TABLE_433, sizeof(PA_TABLE_433) / sizeof(PA_TABLE_433[0]), value);
-  else if (freq >= 779000 && freq < 900000)
+  } else if (freq >= 779000 && freq < 900000) {
     a = PowerTable::find(PA_TABLE_868, sizeof(PA_TABLE_868) / sizeof(PA_TABLE_868[0]), value);
-  else if (freq >= 900000 && freq <= 928000)
+  } else if (freq >= 900000 && freq <= 928000) {
     a = PowerTable::find(PA_TABLE_915, sizeof(PA_TABLE_915) / sizeof(PA_TABLE_915[0]), value);
+  }
 
   if ((Modulation) this->state_.MOD_FORMAT == Modulation::MODULATION_ASK_OOK) {
     this->pa_table_[0] = 0;

@@ -16,10 +16,8 @@ CONF_RX_ATTENUATION = "rx_attenuation"
 CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
 
 # tuner keys
-CONF_FREQUENCY = "frequency"
 CONF_IF_FREQUENCY = "if_frequency"
 CONF_FILTER_BANDWIDTH = "filter_bandwidth"
-CONF_CHANNEL = "channel"
 CONF_CHANNEL_SPACING = "channel_spacing"
 CONF_FSK_DEVIATION = "fsk_deviation"
 CONF_MSK_DEVIATION = "msk_deviation"
@@ -43,7 +41,6 @@ CONF_LNA_PRIORITY = "lna_priority"
 CONF_FILTER_LENGTH_FSK_MSK = "filter_length_fsk_msk"
 CONF_FILTER_LENGTH_ASK_OOK = "filter_length_ask_ook"
 CONF_FREEZE = "freeze"
-CONF_WAIT_TIME = "wait_time"
 CONF_HYST_LEVEL = "hyst_level"
 
 # Enums
