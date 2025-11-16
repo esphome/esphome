@@ -227,6 +227,13 @@ def test_static_variable_detection() -> None:
     assert not cg._has_static_variables("int counter = 0; return counter++;")
     assert not cg._has_static_variables("return 42;")
 
+    # Should handle newlines between static and type/variable
+    assert cg._has_static_variables("static int\nfoo = 0;")
+    assert cg._has_static_variables("static\nint\nbar = 0;")
+    assert cg._has_static_variables(
+        "static  int  \n  foo  =  0;"
+    )  # Mixed spaces/newlines
+
 
 def test_lambdas_with_static_not_deduplicated() -> None:
     """Test that lambdas with static variables are not deduplicated."""
