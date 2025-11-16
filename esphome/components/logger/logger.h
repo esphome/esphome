@@ -212,20 +212,29 @@ class Logger : public Component {
   }
 
   // Helper to add newline to buffer for platforms that need it
-  inline void HOT add_newline_to_buffer_if_needed_() {
+  // Modifies buffer_at to include the newline
+  inline void HOT add_newline_to_buffer_if_needed_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
     if constexpr (!WRITE_MSG_ADDS_NEWLINE) {
       // Add newline - don't need to maintain null termination
       // write_msg_ now always receives explicit length, so we can safely overwrite the null terminator
       // This is safe because:
       // 1. Callbacks already received the message (before we add newline)
       // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
-      if (this->tx_buffer_at_ < this->tx_buffer_size_) {
-        this->tx_buffer_[this->tx_buffer_at_++] = '\n';
-      } else if (this->tx_buffer_size_ > 0) {
+      if (*buffer_at < buffer_size) {
+        buffer[(*buffer_at)++] = '\n';
+      } else if (buffer_size > 0) {
         // Buffer was full - replace last char with newline to ensure it's visible
-        this->tx_buffer_[this->tx_buffer_size_ - 1] = '\n';
-        this->tx_buffer_at_ = this->tx_buffer_size_;
+        buffer[buffer_size - 1] = '\n';
+        *buffer_at = buffer_size;
       }
+    }
+  }
+
+  // Helper to write tx_buffer_ to console if logging is enabled
+  inline void HOT write_tx_buffer_to_console_() {
+    if (this->baud_rate_ > 0) {
+      this->add_newline_to_buffer_if_needed_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+      this->write_msg_(this->tx_buffer_, this->tx_buffer_at_);
     }
   }
 
@@ -241,10 +250,7 @@ class Logger : public Component {
     this->log_callback_.call(level, tag, this->tx_buffer_, this->tx_buffer_at_);
 
     // Console gets message WITH newline (if platform needs it)
-    if (this->baud_rate_ > 0) {
-      this->add_newline_to_buffer_if_needed_();
-      this->write_msg_(this->tx_buffer_, this->tx_buffer_at_);
-    }
+    this->write_tx_buffer_to_console_();
   }
 
   // Write the body of the log message to the buffer
