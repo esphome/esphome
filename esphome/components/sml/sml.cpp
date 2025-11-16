@@ -109,7 +109,7 @@ void Sml::register_sml_listener(SmlListener *listener) { sml_listeners_.emplace_
 
 bool check_sml_data(const bytes &buffer) {
   if (buffer.size() < 2) {
-    ESP_LOGW(TAG, "Checksum error in received SML data.");
+    ESP_LOGW(TAG, "Buffer size error in received SML data.");
     return false;
   }
 
