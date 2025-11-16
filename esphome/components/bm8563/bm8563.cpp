@@ -11,6 +11,8 @@ static constexpr uint8_t TIME_FIRST_REG = 0x02;  // Time uses reg 2, 3, 4
 static constexpr uint8_t DATE_FIRST_REG = 0x05;  // Date uses reg 5, 6, 7, 8
 static constexpr uint8_t TIMER_CONTROL_REG = 0x0E;
 static constexpr uint8_t TIMER_VALUE_REG = 0x0F;
+static constexpr uint8_t CLOCK_1_HZ = 0x82;
+static constexpr uint8_t CLOCK_1_60_HZ = 0x83;
 
 void BM8563::setup() {
   if (!this->write_byte_16(CONTROL_STATUS_1_REG, 0)) {
@@ -116,8 +118,6 @@ void BM8563::set_date_(const ESPTime &time) {
 
   if (time.year < 2000) {
     buf[2] = buf[2] | 0x80;
-  } else {
-    buf[2] = buf[2] | 0x00;
   }
 
   this->write_register(DATE_FIRST_REG, buf, 4);
@@ -134,12 +134,10 @@ void BM8563::set_timer_irq_(uint32_t duration_s) {
   if (duration_s > 255) {
     duration_s = (duration_s / 60) & 0xFF;
     this->write_byte(TIMER_VALUE_REG, duration_s);
-    const uint8_t clock_1_60_hz = 0x83;
-    this->write_byte(TIMER_CONTROL_REG, clock_1_60_hz);
+    this->write_byte(TIMER_CONTROL_REG, CLOCK_1_60_HZ);
   } else {
     this->write_byte(TIMER_VALUE_REG, duration_s);
-    const uint8_t clock_1_hz = 0x82;
-    this->write_byte(TIMER_CONTROL_REG, clock_1_hz);
+    this->write_byte(TIMER_CONTROL_REG, CLOCK_1_HZ);
   }
 
   uint8_t ctrl_status_2_reg_value = this->read_reg_(CONTROL_STATUS_2_REG);
