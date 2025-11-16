@@ -12,21 +12,19 @@ namespace font {
 
 class Font;
 
-struct GlyphData {
-  const uint8_t *a_char;
-  const uint8_t *data;
-  int advance;
-  int offset_x;
-  int offset_y;
-  int width;
-  int height;
-};
-
 class Glyph {
  public:
-  Glyph(const GlyphData *data) : glyph_data_(data) {}
+  constexpr Glyph(const char *a_char, const uint8_t *data, int advance, int offset_x, int offset_y, int width,
+                  int height)
+      : a_char(a_char),
+        data(data),
+        advance(advance),
+        offset_x(offset_x),
+        offset_y(offset_y),
+        width(width),
+        height(height) {}
 
-  const uint8_t *get_char() const;
+  const uint8_t *get_char() const { return reinterpret_cast<const uint8_t *>(this->a_char); }
 
   bool compare_to(const uint8_t *str) const;
 
@@ -34,12 +32,16 @@ class Glyph {
 
   void scan_area(int *x1, int *y1, int *width, int *height) const;
 
-  const GlyphData *get_glyph_data() const { return this->glyph_data_; }
+  const char *a_char;
+  const uint8_t *data;
+  int advance;
+  int offset_x;
+  int offset_y;
+  int width;
+  int height;
 
  protected:
   friend Font;
-
-  const GlyphData *glyph_data_;
 };
 
 class Font
@@ -50,8 +52,8 @@ class Font
  public:
   /** Construct the font with the given glyphs.
    *
-   * @param data A vector of glyphs, must be sorted lexicographically.
-   * @param data_nr The number of glyphs in data.
+   * @param data A list of glyphs, must be sorted lexicographically.
+   * @param data_nr The number of glyphs
    * @param baseline The y-offset from the top of the text to the baseline.
    * @param height The y-offset from the top of the text to the bottom.
    * @param descender The y-offset from the baseline to the lowest stroke in the font (e.g. from letters like g or p).
@@ -59,10 +61,10 @@ class Font
    * @param capheight The height of capital letters, usually measured at the "X" glyph.
    * @param bpp The bits per pixel used for this font. Used to read data out of the glyph bitmaps.
    */
-  Font(const GlyphData *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
+  Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
        uint8_t bpp = 1);
 
-  int match_next_glyph(const uint8_t *str, int *match_length);
+  int match_next_glyph(const uint8_t *str, int *match_length) const;
 
 #ifdef USE_DISPLAY
   void print(int x_start, int y_start, display::Display *display, Color color, const char *text,
@@ -78,10 +80,10 @@ class Font
   inline int get_capheight() { return this->capheight_; }
   inline int get_bpp() { return this->bpp_; }
 
-  const std::vector<Glyph, RAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
+  const ConstVector<Glyph> &get_glyphs() const { return glyphs_; }
 
  protected:
-  std::vector<Glyph, RAMAllocator<Glyph>> glyphs_;
+  ConstVector<Glyph> glyphs_;
   int baseline_;
   int height_;
   int descender_;

@@ -1,8 +1,12 @@
 import sys
 
 from esphome import automation, codegen as cg
+from esphome.automation import register_action
+from esphome.config_validation import Schema
 from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_TEXT, CONF_VALUE
+from esphome.core import EsphomeError
 from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_types import esphome_ns
 
 from .defines import lvgl_ns
 from .lvcode import lv_expr
@@ -42,8 +46,11 @@ lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 lv_key_t = cg.global_ns.enum("lv_key_t")
 FontEngine = lvgl_ns.class_("FontEngine")
+PlainTrigger = esphome_ns.class_("Trigger<>", automation.Trigger.template())
+DrawEndTrigger = esphome_ns.class_(
+    "Trigger<uint32_t, uint32_t>", automation.Trigger.template(cg.uint32, cg.uint32)
+)
 IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
-PauseTrigger = lvgl_ns.class_("PauseTrigger", automation.Trigger.template())
 ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
 LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
 LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
@@ -119,27 +126,46 @@ class WidgetType:
         schema=None,
         modify_schema=None,
         lv_name=None,
+        is_mock: bool = False,
     ):
         """
         :param name: The widget name, e.g. "bar"
         :param w_type: The C type of the widget
         :param parts: What parts this widget supports
         :param schema: The config schema for defining a widget
-        :param modify_schema: A schema to update the widget
+        :param modify_schema: A schema to update the widget, defaults to the same as the schema
+        :param lv_name: The name of the LVGL widget in the LVGL library, if different from the name
+        :param is_mock: Whether this widget is a mock widget, i.e. not a real LVGL widget
         """
         self.name = name
         self.lv_name = lv_name or name
         self.w_type = w_type
         self.parts = parts
-        if schema is None:
-            self.schema = {}
-        else:
-            self.schema = schema
+        if not isinstance(schema, Schema):
+            schema = Schema(schema or {})
+        self.schema = schema
         if modify_schema is None:
-            self.modify_schema = self.schema
-        else:
-            self.modify_schema = modify_schema
+            modify_schema = schema
+        if not isinstance(modify_schema, Schema):
+            modify_schema = Schema(modify_schema)
+        self.modify_schema = modify_schema
         self.mock_obj = MockObj(f"lv_{self.lv_name}", "_")
+
+        # Local import to avoid circular import
+        from .automation import update_to_code
+        from .schemas import WIDGET_TYPES, create_modify_schema
+
+        if not is_mock:
+            if self.name in WIDGET_TYPES:
+                raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
+            WIDGET_TYPES[self.name] = self
+
+            # Register the update action automatically
+            register_action(
+                f"lvgl.{self.name}.update",
+                ObjUpdateAction,
+                create_modify_schema(self),
+            )(update_to_code)
 
     @property
     def animated(self):
@@ -159,7 +185,6 @@ class WidgetType:
         :param config: Its configuration
         :return: Generated code as a list of text lines
         """
-        return []
 
     async def obj_creator(self, parent: MockObjClass, config: dict):
         """
@@ -169,6 +194,13 @@ class WidgetType:
         :return: Generated code as a single text line
         """
         return lv_expr.call(f"{self.lv_name}_create", parent)
+
+    def on_create(self, var: MockObj, config: dict):
+        """
+        Called from to_code when the widget is created, to set up any initial properties
+        :param var: The variable representing the widget
+        :param config: Its configuration
+        """
 
     def get_uses(self):
         """
@@ -188,6 +220,14 @@ class WidgetType:
 
     def get_scale(self, config: dict):
         return 1.0
+
+    def validate(self, value):
+        """
+        Provides an opportunity for custom validation for a given widget type
+        :param value:
+        :return:
+        """
+        return value
 
 
 class NumberType(WidgetType):

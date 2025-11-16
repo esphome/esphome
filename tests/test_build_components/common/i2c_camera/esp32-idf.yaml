@@ -1,4 +1,6 @@
 # I2C bus for camera sensor
+psram:
+
 i2c:
   - id: i2c_camera_bus
     sda: 25
