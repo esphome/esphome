@@ -489,10 +489,18 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
-  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", rsp->fd_.load());
-  // Mark as dead by setting fd to 0 - will be cleaned up in the main loop
-  rsp->fd_.store(0);
-  // Note: We don't delete or remove from set here to avoid race conditions
+  int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
+
+  if (fd > 0) {
+    ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
+    // Immediately shut down the socket to prevent lwIP from delivering more data
+    // This prevents "recv_tcp: recv for wrong pcb!" assertions when the TCP stack
+    // tries to deliver queued data after the session is marked as dead
+    // See: https://github.com/esphome/esphome/issues/11936
+    shutdown(fd, SHUT_RDWR);
+    // Note: We don't close() the socket - httpd owns it and will close it
+  }
+  // Session will be cleaned up in the main loop to avoid race conditions
 }
 
 // helper for allowing only unique entries in the queue
