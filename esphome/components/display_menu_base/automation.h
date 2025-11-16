@@ -10,7 +10,7 @@ template<typename... Ts> class UpAction : public Action<Ts...> {
  public:
   explicit UpAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->up(); }
+  void play(const Ts &...x) override { this->menu_->up(); }
 
  protected:
   DisplayMenuComponent *menu_;
@@ -20,7 +20,7 @@ template<typename... Ts> class DownAction : public Action<Ts...> {
  public:
   explicit DownAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->down(); }
+  void play(const Ts &...x) override { this->menu_->down(); }
 
  protected:
   DisplayMenuComponent *menu_;
@@ -30,7 +30,7 @@ template<typename... Ts> class LeftAction : public Action<Ts...> {
  public:
   explicit LeftAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->left(); }
+  void play(const Ts &...x) override { this->menu_->left(); }
 
  protected:
   DisplayMenuComponent *menu_;
@@ -40,7 +40,7 @@ template<typename... Ts> class RightAction : public Action<Ts...> {
  public:
   explicit RightAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->right(); }
+  void play(const Ts &...x) override { this->menu_->right(); }
 
  protected:
   DisplayMenuComponent *menu_;
@@ -50,7 +50,7 @@ template<typename... Ts> class EnterAction : public Action<Ts...> {
  public:
   explicit EnterAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->enter(); }
+  void play(const Ts &...x) override { this->menu_->enter(); }
 
  protected:
   DisplayMenuComponent *menu_;
@@ -60,7 +60,7 @@ template<typename... Ts> class ShowAction : public Action<Ts...> {
  public:
   explicit ShowAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->show(); }
+  void play(const Ts &...x) override { this->menu_->show(); }
 
  protected:
   DisplayMenuComponent *menu_;
@@ -70,7 +70,7 @@ template<typename... Ts> class HideAction : public Action<Ts...> {
  public:
   explicit HideAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->hide(); }
+  void play(const Ts &...x) override { this->menu_->hide(); }
 
  protected:
   DisplayMenuComponent *menu_;
@@ -80,7 +80,7 @@ template<typename... Ts> class ShowMainAction : public Action<Ts...> {
  public:
   explicit ShowMainAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->show_main(); }
+  void play(const Ts &...x) override { this->menu_->show_main(); }
 
  protected:
   DisplayMenuComponent *menu_;
@@ -88,7 +88,7 @@ template<typename... Ts> class ShowMainAction : public Action<Ts...> {
 template<typename... Ts> class IsActiveCondition : public Condition<Ts...> {
  public:
   explicit IsActiveCondition(DisplayMenuComponent *menu) : menu_(menu) {}
-  bool check(Ts... x) override { return this->menu_->is_active(); }
+  bool check(const Ts &...x) override { return this->menu_->is_active(); }
 
  protected:
   DisplayMenuComponent *menu_;

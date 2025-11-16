@@ -10,7 +10,11 @@ esphome:
   on_shutdown:
     logger.log: on_shutdown
   on_loop:
-    logger.log: on_loop
+    if:
+      condition:
+        component.is_idle: binary_sensor_id
+      then:
+        logger.log: on_loop - sensor idle
   compile_process_limit: 1
   min_version: "2025.1"
   name_add_mac_suffix: true
@@ -34,5 +38,6 @@ esphome:
 
 binary_sensor:
   - platform: template
+    id: binary_sensor_id
     name: Other device sensor
     device_id: other_device

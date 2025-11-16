@@ -62,6 +62,10 @@ def create_intelligent_batches(
 ) -> tuple[list[list[str]], dict[tuple[str, str], list[str]]]:
     """Create batches optimized for component grouping.
 
+    IMPORTANT: This function is called from both split_components_for_ci.py (standalone script)
+    and determine-jobs.py (integrated into job determination). Be careful when refactoring
+    to ensure changes work in both contexts.
+
     Args:
         components: List of component names to batch
         tests_dir: Path to tests/components directory
@@ -118,8 +122,13 @@ def create_intelligent_batches(
             continue
 
         # Get signature from any platform (they should all have the same buses)
-        # Components not in component_buses were filtered out by has_test_files check
-        comp_platforms = component_buses[component]
+        # Components not in component_buses may only have variant-specific tests
+        comp_platforms = component_buses.get(component)
+        if not comp_platforms:
+            # Component has tests but no analyzable base config - treat as no buses
+            signature_groups[(ALL_PLATFORMS, NO_BUSES_SIGNATURE)].append(component)
+            continue
+
         for platform, buses in comp_platforms.items():
             if buses:
                 signature = create_grouping_signature({platform: buses}, platform)

@@ -3,6 +3,7 @@ import binascii
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import modbus
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -20,7 +21,6 @@ from .const import (
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
-    CONF_ENABLED,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
