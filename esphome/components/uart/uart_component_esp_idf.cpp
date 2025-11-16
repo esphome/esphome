@@ -91,6 +91,16 @@ void IDFUARTComponent::setup() {
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
   this->lock_ = xSemaphoreCreateMutex();
 
+#if (SOC_UART_LP_NUM >= 1)
+  size_t fifo_len = ((this->uart_num_ < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN);
+#else
+  size_t fifo_len = SOC_UART_FIFO_LEN;
+#endif
+  if (this->rx_buffer_size_ <= fifo_len) {
+    ESP_LOGW(TAG, "rx_buffer_size is too small, must be greater than %zu", fifo_len);
+    this->rx_buffer_size_ = fifo_len * 2;
+  }
+
   xSemaphoreTake(this->lock_, portMAX_DELAY);
 
   this->load_settings(false);
@@ -237,8 +247,12 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   xSemaphoreTake(this->lock_, portMAX_DELAY);
-  uart_write_bytes(this->uart_num_, data, len);
+  int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
   xSemaphoreGive(this->lock_);
+  if (write_len != (int32_t) len) {
+    ESP_LOGW(TAG, "uart_write_bytes failed: %d != %zu", write_len, len);
+    this->mark_failed();
+  }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
@@ -267,6 +281,7 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
 
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   size_t length_to_read = len;
+  int32_t read_len = 0;
   if (!this->check_read_timeout_(len))
     return false;
   xSemaphoreTake(this->lock_, portMAX_DELAY);
@@ -277,25 +292,31 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
     this->has_peek_ = false;
   }
   if (length_to_read > 0)
-    uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
+    read_len = uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
   xSemaphoreGive(this->lock_);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
 #endif
-  return true;
+  return read_len == (int32_t) length_to_read;
 }
 
 int IDFUARTComponent::available() {
-  size_t available;
+  size_t available = 0;
+  esp_err_t err;
 
   xSemaphoreTake(this->lock_, portMAX_DELAY);
-  uart_get_buffered_data_len(this->uart_num_, &available);
-  if (this->has_peek_)
-    available++;
+  err = uart_get_buffered_data_len(this->uart_num_, &available);
   xSemaphoreGive(this->lock_);
 
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_get_buffered_data_len failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+  }
+  if (this->has_peek_) {
+    available++;
+  }
   return available;
 }
 

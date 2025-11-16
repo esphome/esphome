@@ -72,7 +72,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
 bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
 
-bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   if (!manual_ip.has_value()) {
     return true;
   }
@@ -146,7 +146,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 }
 
 #ifdef USE_WIFI_AP
-bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   esphome::network::IPAddress ip_address, gateway, subnet, dns;
   if (manual_ip.has_value()) {
     ip_address = manual_ip->static_ip;
@@ -200,7 +200,7 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
-int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
+int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
