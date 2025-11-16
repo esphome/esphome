@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_NUM_ATTEMPTS,
     CONF_OTA,
     CONF_REBOOT_TIMEOUT,
+    Framework,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -57,6 +58,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     _validate_transport,
+    cv.only_with_framework(Framework.ZEPHYR),
 )
 
 
