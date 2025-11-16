@@ -10,6 +10,7 @@ from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID, CONF_OTA, Framework
 from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@tomaszduda23"]
 
@@ -85,7 +86,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-@coroutine_with_priority(50.0)
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
     CORE.data[CONF_OTA] = {}
 
