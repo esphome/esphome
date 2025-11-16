@@ -231,10 +231,13 @@ class Logger : public Component {
   }
 
   // Helper to write tx_buffer_ to console if logging is enabled
-  inline void HOT write_tx_buffer_to_console_() {
+  // offset: starting position in tx_buffer_ (default 0)
+  // length: pointer to length of message at offset (updated with newline if added)
+  inline void HOT write_tx_buffer_to_console_(uint32_t offset = 0, uint16_t *length = nullptr) {
     if (this->baud_rate_ > 0) {
-      this->add_newline_to_buffer_if_needed_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-      this->write_msg_(this->tx_buffer_, this->tx_buffer_at_);
+      uint16_t *len_ptr = length ? length : &this->tx_buffer_at_;
+      this->add_newline_to_buffer_if_needed_(this->tx_buffer_ + offset, len_ptr, this->tx_buffer_size_ - offset);
+      this->write_msg_(this->tx_buffer_ + offset, *len_ptr);
     }
   }
 
