@@ -35,7 +35,7 @@ bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uin
 }
 
 const Glyph *Font::get_glyph_data_(uint32_t unicode_letter) {
-  if (unicode_letter == this->last_letter_)
+  if (unicode_letter == this->last_letter_ && this->last_letter_ != 0)
     return this->last_data_;
   auto *glyph = this->find_glyph(unicode_letter);
   if (glyph == nullptr) {
