@@ -1,11 +1,11 @@
 #pragma once
+#include "esphome/core/defines.h"
 #ifdef USE_ZEPHYR
 #include "esphome/components/ota/ota_backend.h"
 
 struct img_mgmt_upload_check;
 
-namespace esphome {
-namespace zephyr_mcumgr {
+namespace esphome::zephyr_mcumgr {
 
 class OTAComponent : public ota::OTAComponent {
  public:
@@ -24,6 +24,5 @@ class OTAComponent : public ota::OTAComponent {
   bool is_confirmed_ = false;
 };
 
-}  // namespace zephyr_mcumgr
-}  // namespace esphome
+}  // namespace esphome::zephyr_mcumgr
 #endif

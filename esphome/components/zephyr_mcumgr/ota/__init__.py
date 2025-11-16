@@ -91,7 +91,7 @@ async def to_code(config):
     cg.add_define("USE_OTA")
 
     await cg.register_component(var, config)
-    # mcumgr begin
+
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)
     zephyr_add_prj_conf("MCUMGR", True)

@@ -1,6 +1,5 @@
 #ifdef USE_ZEPHYR
 #include "ota_zephyr_mcumgr.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <zephyr/mgmt/mcumgr/mgmt/callbacks.h>
@@ -18,8 +17,7 @@ struct img_mgmt_upload_req {
   size_t off;     /* SIZE_MAX if unspecified */
 };
 
-namespace esphome {
-namespace zephyr_mcumgr {
+namespace esphome::zephyr_mcumgr {
 
 static const char *const TAG = "zephyr_mcumgr";
 static OTAComponent *global_ota_component = nullptr;
@@ -129,6 +127,5 @@ void OTAComponent::update_pending() {
 #endif
 }
 
-}  // namespace zephyr_mcumgr
-}  // namespace esphome
+}  // namespace esphome::zephyr_mcumgr
 #endif
