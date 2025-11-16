@@ -140,7 +140,7 @@ class FontEngine {
   FontEngine(font::Font *esp_font);
   const lv_font_t *get_lv_font();
 
-  const font::GlyphData *get_glyph_data(uint32_t unicode_letter);
+  const font::Glyph *get_glyph_data(uint32_t unicode_letter);
   uint16_t baseline{};
   uint16_t height{};
   uint8_t bpp{};
@@ -148,7 +148,7 @@ class FontEngine {
  protected:
   font::Font *font_{};
   uint32_t last_letter_{};
-  const font::GlyphData *last_data_{};
+  const font::Glyph *last_data_{};
   lv_font_t lv_font_{};
 };
 #endif  // USE_LVGL_FONT
