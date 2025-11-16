@@ -129,32 +129,38 @@ uint8_t BM8563::read_reg_(uint8_t reg) {
   return data;
 }
 
+void BM8563::write_byte_(uint8_t reg, uint8_t value) {
+  if (!this->write_byte(reg, value)) {
+    ESP_LOGE(TAG, "Failed to write byte 0x%02X with value 0x%02X", reg, value);
+  }
+}
+
 void BM8563::set_timer_irq_(uint32_t duration_s) {
   ESP_LOGI(TAG, "Timer Duration: %u s", duration_s);
   if (duration_s > 255) {
     duration_s = (duration_s / 60) & 0xFF;
-    this->write_byte(TIMER_VALUE_REG, duration_s);
-    this->write_byte(TIMER_CONTROL_REG, CLOCK_1_60_HZ);
+    this->write_byte_(TIMER_VALUE_REG, duration_s);
+    this->write_byte_(TIMER_CONTROL_REG, CLOCK_1_60_HZ);
   } else {
-    this->write_byte(TIMER_VALUE_REG, duration_s);
-    this->write_byte(TIMER_CONTROL_REG, CLOCK_1_HZ);
+    this->write_byte_(TIMER_VALUE_REG, duration_s);
+    this->write_byte_(TIMER_CONTROL_REG, CLOCK_1_HZ);
   }
 
   uint8_t ctrl_status_2_reg_value = this->read_reg_(CONTROL_STATUS_2_REG);
   ctrl_status_2_reg_value |= (1 << 0);
   ctrl_status_2_reg_value &= ~(1 << 7);
-  this->write_byte(CONTROL_STATUS_2_REG, ctrl_status_2_reg_value);
+  this->write_byte_(CONTROL_STATUS_2_REG, ctrl_status_2_reg_value);
 }
 
 void BM8563::clear_irq_() {
   uint8_t data = this->read_reg_(CONTROL_STATUS_2_REG);
-  this->write_byte(CONTROL_STATUS_2_REG, data & 0xf3);
+  this->write_byte_(CONTROL_STATUS_2_REG, data & 0xf3);
 }
 
 void BM8563::disable_irq_() {
   this->clear_irq_();
   uint8_t data = this->read_reg_(CONTROL_STATUS_2_REG);
-  this->write_byte(CONTROL_STATUS_2_REG, data & 0xfc);
+  this->write_byte_(CONTROL_STATUS_2_REG, data & 0xfc);
 }
 
 }  // namespace esphome::bm8563

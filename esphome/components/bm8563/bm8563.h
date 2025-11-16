@@ -27,6 +27,7 @@ class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
   void disable_irq_();
 
   uint8_t read_reg_(uint8_t reg);
+  void write_byte_(uint8_t reg, uint8_t value);
 
   uint8_t bcd2_to_byte_(uint8_t value);
   uint8_t byte_to_bcd2_(uint8_t value);
