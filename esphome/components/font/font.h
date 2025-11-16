@@ -53,6 +53,7 @@ class Font
   /** Construct the font with the given glyphs.
    *
    * @param data A list of glyphs, must be sorted lexicographically.
+   * @param data_nr The number of glyphs
    * @param baseline The y-offset from the top of the text to the baseline.
    * @param height The y-offset from the top of the text to the bottom.
    * @param descender The y-offset from the baseline to the lowest stroke in the font (e.g. from letters like g or p).
