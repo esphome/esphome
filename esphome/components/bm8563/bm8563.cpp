@@ -125,12 +125,6 @@ void BM8563::set_date_(const ESPTime &time) {
   this->write_register_(DATE_FIRST_REG, buf, 4);
 }
 
-uint8_t BM8563::read_reg_(uint8_t reg) {
-  uint8_t data;
-  this->read_register(reg, &data, 1);
-  return data;
-}
-
 void BM8563::write_byte_(uint8_t reg, uint8_t value) {
   if (!this->write_byte(reg, value)) {
     ESP_LOGE(TAG, "Failed to write byte 0x%02X with value 0x%02X", reg, value);
@@ -141,6 +135,15 @@ void BM8563::write_register_(uint8_t reg, const uint8_t *data, size_t len) {
   if (auto error = this->write_register(reg, data, len); error != i2c::ErrorCode::NO_ERROR) {
     ESP_LOGE(TAG, "Failed to write register 0x%02X with %zu bytes", reg, len);
   }
+}
+
+optional<uint8_t> BM8563::read_register_(uint8_t reg) {
+  uint8_t data;
+  if (auto error = this->read_register(reg, &data, 1); error != i2c::ErrorCode::NO_ERROR) {
+    ESP_LOGE(TAG, "Failed to read register 0x%02X", reg);
+    return {};
+  }
+  return data;
 }
 
 void BM8563::set_timer_irq_(uint32_t duration_s) {
@@ -160,20 +163,35 @@ void BM8563::set_timer_irq_(uint32_t duration_s) {
     this->write_byte_(TIMER_CONTROL_REG, CLOCK_1_HZ);
   }
 
-  uint8_t ctrl_status_2_reg_value = this->read_reg_(CONTROL_STATUS_2_REG);
+  auto maybe_ctrl_status_2 = this->read_register_(CONTROL_STATUS_2_REG);
+  if (!maybe_ctrl_status_2.has_value()) {
+    ESP_LOGE(TAG, "Failed to read CONTROL_STATUS_2_REG");
+    return;
+  }
+  uint8_t ctrl_status_2_reg_value = maybe_ctrl_status_2.value();
   ctrl_status_2_reg_value |= (1 << 0);
   ctrl_status_2_reg_value &= ~(1 << 7);
   this->write_byte_(CONTROL_STATUS_2_REG, ctrl_status_2_reg_value);
 }
 
 void BM8563::clear_irq_() {
-  uint8_t data = this->read_reg_(CONTROL_STATUS_2_REG);
+  auto maybe_data = this->read_register_(CONTROL_STATUS_2_REG);
+  if (!maybe_data.has_value()) {
+    ESP_LOGE(TAG, "Failed to read CONTROL_STATUS_2_REG");
+    return;
+  }
+  uint8_t data = maybe_data.value();
   this->write_byte_(CONTROL_STATUS_2_REG, data & 0xf3);
 }
 
 void BM8563::disable_irq_() {
   this->clear_irq_();
-  uint8_t data = this->read_reg_(CONTROL_STATUS_2_REG);
+  auto maybe_data = this->read_register_(CONTROL_STATUS_2_REG);
+  if (!maybe_data.has_value()) {
+    ESP_LOGE(TAG, "Failed to read CONTROL_STATUS_2_REG");
+    return;
+  }
+  uint8_t data = maybe_data.value();
   this->write_byte_(CONTROL_STATUS_2_REG, data & 0xfc);
 }
 
