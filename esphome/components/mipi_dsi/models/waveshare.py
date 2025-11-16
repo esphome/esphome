@@ -97,8 +97,8 @@ DriverChip(
 
 DriverChip(
     "WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-7B",
-    height=1024,
-    width=600,
+    width=1024,
+    height=600,
     hsync_back_porch=160,
     hsync_pulse_width=1,
     hsync_front_porch=160,
@@ -107,7 +107,9 @@ DriverChip(
     vsync_front_porch=12,
     pclk_frequency="52MHz",
     lane_bit_rate="1Gbps",
-    swap_xy=cv.UNDEFINED,
+    swap_xy=True,
+    mirror_x=True,
+    mirror_y=True,
     color_order="RGB",
     reset_pin=33,
     initsequence=[
@@ -128,7 +130,6 @@ DriverChip(
         (0xC0, 0x01, 0x09),
         (0xC1, 0x41),
         (0xC5, 0x00, 0x0A, 0x80),
-        (0x36, 0x00),
         (0x3A, 0x77),
         (0xE8, 0x84, 0x11, 0x79),
         (0xEC, 0x7B),
@@ -136,3 +137,4 @@ DriverChip(
         (0x29, ),
     ],
 )
+
