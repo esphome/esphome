@@ -4,6 +4,7 @@ from esphome.components.zephyr import (
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_data,
 )
 from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 import esphome.config_validation as cv
@@ -15,7 +16,6 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
 )
 from esphome.core import CORE, coroutine_with_priority
-import esphome.final_validate as fv
 
 AUTO_LOAD = ["zephyr_mcumgr"]
 
@@ -62,30 +62,22 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_mcumgr(config):
-    fconf = fv.full_config.get()
-    try:
-        bootloader = fconf.get_config_for_path(["nrf52", KEY_BOOTLOADER])
-        if bootloader != BOOTLOADER_MCUBOOT:
-            raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
-    except KeyError:
-        pass
+def _validate_mcumgr_bootloader(config):
+    bootloader = zephyr_data()[KEY_BOOTLOADER]
+    if bootloader != BOOTLOADER_MCUBOOT:
+        raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
 
 
 KEY_ZEPHYR_BLE_SERVER = "zephyr_ble_server"
 
 
 def _validate_ble_server(config):
-    if config[CONF_BLE]:
-        has_ble_server = KEY_ZEPHYR_BLE_SERVER in fv.full_config.get()
-        if not has_ble_server:
-            raise cv.Invalid(
-                f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA"
-            )
+    if config[CONF_BLE] and KEY_ZEPHYR_BLE_SERVER not in CORE.loaded_integrations:
+        raise cv.Invalid(f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA")
 
 
 def _final_validate(config):
-    _validate_mcumgr(config)
+    _validate_mcumgr_bootloader(config)
     _validate_ble_server(config)
 
 
@@ -137,10 +129,10 @@ async def to_code(config):
         zephyr_add_prj_conf("CONSOLE", True)
         zephyr_add_overlay(
             f"""
-/ {{
-    chosen {{
-        zephyr,uart-mcumgr = &{UARTS[config[CONF_HARDWARE_UART]][0]};
-    }};
-}};
-"""
+                / {{
+                    chosen {{
+                        zephyr,uart-mcumgr = &{UARTS[config[CONF_HARDWARE_UART]][0]};
+                    }};
+                }};
+                """
         )
