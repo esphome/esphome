@@ -160,21 +160,21 @@ async def to_code(config):
         zephyr_add_user("io-channels", f"<&adc {channel_id}>")
         zephyr_add_overlay(
             f"""
-&adc {{
-    #address-cells = <1>;
-    #size-cells = <0>;
+                &adc {{
+                    #address-cells = <1>;
+                    #size-cells = <0>;
 
-    channel@{channel_id} {{
-        reg = <{channel_id}>;
-        zephyr,gain = "{gain}";
-        zephyr,reference = "ADC_REF_INTERNAL";
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
-        zephyr,resolution = <14>;
-        zephyr,oversampling = <8>;
-    }};
-}};
-"""
+                    channel@{channel_id} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "{gain}";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
+                        zephyr,resolution = <14>;
+                        zephyr,oversampling = <8>;
+                    }};
+                }};
+            """
         )
 
 
