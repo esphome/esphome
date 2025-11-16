@@ -231,8 +231,7 @@ class Logger : public Component {
   }
 
   // Helper to write tx_buffer_ to console if logging is enabled
-  // offset: starting position in tx_buffer_ (default 0)
-  // length: pointer to length of message at offset (updated with newline if added)
+  // INTERNAL USE ONLY - offset > 0 requires length parameter to be non-null
   inline void HOT write_tx_buffer_to_console_(uint32_t offset = 0, uint16_t *length = nullptr) {
     if (this->baud_rate_ > 0) {
       uint16_t *len_ptr = length ? length : &this->tx_buffer_at_;
