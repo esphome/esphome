@@ -319,8 +319,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
 
       auto bytes_read = container->get_bytes_read();
       if (bytes_read < max_length) {
-        int bytes_read = container->read(buf + bytes_read, std::min<size_t>(max_length - bytes_read, 512));
-        if (bytes_read < 0) {
+        int result = container->read(buf + bytes_read, std::min<size_t>(max_length - bytes_read, 512));
+        if (result < 0) {
           allocator.deallocate(buf, max_length);
           container->end();
           // reader error (e.g. timeout or stream pointer gone)
