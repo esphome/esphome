@@ -9,20 +9,19 @@ namespace font {
 
 static const char *const TAG = "font";
 
-const uint8_t *Glyph::get_char() const { return this->glyph_data_->a_char; }
 // Compare the char at the string position with this char.
 // Return true if this char is less than or equal the other.
 bool Glyph::compare_to(const uint8_t *str) const {
   // 1 -> this->char_
   // 2 -> str
   for (uint32_t i = 0;; i++) {
-    if (this->glyph_data_->a_char[i] == '\0')
+    if (this->a_char[i] == '\0')
       return true;
     if (str[i] == '\0')
       return false;
-    if (this->glyph_data_->a_char[i] > str[i])
+    if (this->a_char[i] > str[i])
       return false;
-    if (this->glyph_data_->a_char[i] < str[i])
+    if (this->a_char[i] < str[i])
       return true;
   }
   // this should not happen
@@ -30,35 +29,32 @@ bool Glyph::compare_to(const uint8_t *str) const {
 }
 int Glyph::match_length(const uint8_t *str) const {
   for (uint32_t i = 0;; i++) {
-    if (this->glyph_data_->a_char[i] == '\0')
+    if (this->a_char[i] == '\0')
       return i;
-    if (str[i] != this->glyph_data_->a_char[i])
+    if (str[i] != this->a_char[i])
       return 0;
   }
   // this should not happen
   return 0;
 }
 void Glyph::scan_area(int *x1, int *y1, int *width, int *height) const {
-  *x1 = this->glyph_data_->offset_x;
-  *y1 = this->glyph_data_->offset_y;
-  *width = this->glyph_data_->width;
-  *height = this->glyph_data_->height;
+  *x1 = this->offset_x;
+  *y1 = this->offset_y;
+  *width = this->width;
+  *height = this->height;
 }
 
-Font::Font(const GlyphData *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
+Font::Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
            uint8_t bpp)
-    : baseline_(baseline),
+    : glyphs_(ConstVector(data, data_nr)),
+      baseline_(baseline),
       height_(height),
       descender_(descender),
       linegap_(height - baseline - descender),
       xheight_(xheight),
       capheight_(capheight),
-      bpp_(bpp) {
-  glyphs_.reserve(data_nr);
-  for (int i = 0; i < data_nr; ++i)
-    glyphs_.emplace_back(&data[i]);
-}
-int Font::match_next_glyph(const uint8_t *str, int *match_length) {
+      bpp_(bpp) {}
+int Font::match_next_glyph(const uint8_t *str, int *match_length) const {
   int lo = 0;
   int hi = this->glyphs_.size() - 1;
   while (lo != hi) {
@@ -88,18 +84,18 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     if (glyph_n < 0) {
       // Unknown char, skip
       if (!this->get_glyphs().empty())
-        x += this->get_glyphs()[0].glyph_data_->advance;
+        x += this->get_glyphs()[0].advance;
       i++;
       continue;
     }
 
     const Glyph &glyph = this->glyphs_[glyph_n];
     if (!has_char) {
-      min_x = glyph.glyph_data_->offset_x;
+      min_x = glyph.offset_x;
     } else {
-      min_x = std::min(min_x, x + glyph.glyph_data_->offset_x);
+      min_x = std::min(min_x, x + glyph.offset_x);
     }
-    x += glyph.glyph_data_->advance;
+    x += glyph.advance;
 
     i += match_length;
     has_char = true;
@@ -118,7 +114,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
       // Unknown char, skip
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
       if (!this->get_glyphs().empty()) {
-        uint8_t glyph_width = this->get_glyphs()[0].glyph_data_->advance;
+        uint8_t glyph_width = this->get_glyphs()[0].advance;
         display->filled_rectangle(x_at, y_start, glyph_width, this->height_, color);
         x_at += glyph_width;
       }
@@ -130,7 +126,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
     const Glyph &glyph = this->get_glyphs()[glyph_n];
     glyph.scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
-    const uint8_t *data = glyph.glyph_data_->data;
+    const uint8_t *data = glyph.data;
     const int max_x = x_at + scan_x1 + scan_width;
     const int max_y = y_start + scan_y1 + scan_height;
 
@@ -168,7 +164,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
         }
       }
     }
-    x_at += glyph.glyph_data_->advance;
+    x_at += glyph.advance;
 
     i += match_length;
   }

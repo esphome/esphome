@@ -43,7 +43,7 @@ FontEngine::FontEngine(font::Font *esp_font) : font_(esp_font) {
 
 const lv_font_t *FontEngine::get_lv_font() { return &this->lv_font_; }
 
-const font::GlyphData *FontEngine::get_glyph_data(uint32_t unicode_letter) {
+const font::Glyph *FontEngine::get_glyph_data(uint32_t unicode_letter) {
   if (unicode_letter == last_letter_)
     return this->last_data_;
   uint8_t unicode[5];
@@ -67,7 +67,7 @@ const font::GlyphData *FontEngine::get_glyph_data(uint32_t unicode_letter) {
   int glyph_n = this->font_->match_next_glyph(unicode, &match_length);
   if (glyph_n < 0)
     return nullptr;
-  this->last_data_ = this->font_->get_glyphs()[glyph_n].get_glyph_data();
+  this->last_data_ = &this->font_->get_glyphs()[glyph_n];
   this->last_letter_ = unicode_letter;
   return this->last_data_;
 }
