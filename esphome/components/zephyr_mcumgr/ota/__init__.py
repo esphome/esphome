@@ -26,10 +26,12 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
 )
 
 CONF_BLE = "ble"
+CONF_TRANSPORT = "transport"
 
 
 def _validate_transport(conf):
-    if conf[CONF_BLE] or conf[CONF_HARDWARE_UART]:
+    transport = conf[CONF_TRANSPORT]
+    if transport[CONF_BLE] or CONF_HARDWARE_UART in transport:
         return conf
     raise cv.Invalid(
         f"At least one trasnport protocol has to be enabled. Set '{CONF_BLE}' or '{CONF_HARDWARE_UART}'"
@@ -43,6 +45,7 @@ UARTS = {
     "UART1": ("uart1", -1),
 }
 
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -51,10 +54,14 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REBOOT_TIMEOUT, default="5min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
-            cv.Optional(CONF_BLE, default=True): cv.boolean,
-            cv.Optional(
-                CONF_HARDWARE_UART,
-            ): cv.one_of(*UARTS, upper=True),
+            cv.Optional(CONF_TRANSPORT, default={CONF_BLE: True}): cv.Schema(
+                {
+                    cv.Optional(CONF_BLE, default=False): cv.boolean,
+                    cv.Optional(
+                        CONF_HARDWARE_UART,
+                    ): cv.one_of(*UARTS, upper=True),
+                }
+            ),
         }
     )
     .extend(BASE_OTA_SCHEMA)
@@ -74,7 +81,10 @@ KEY_ZEPHYR_BLE_SERVER = "zephyr_ble_server"
 
 
 def _validate_ble_server(config):
-    if config[CONF_BLE] and KEY_ZEPHYR_BLE_SERVER not in CORE.loaded_integrations:
+    if (
+        config[CONF_TRANSPORT][CONF_BLE]
+        and KEY_ZEPHYR_BLE_SERVER not in CORE.loaded_integrations
+    ):
         raise cv.Invalid(f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA")
 
 
@@ -114,7 +124,8 @@ async def to_code(config):
     zephyr_add_prj_conf("MCUMGR_MGMT_NOTIFICATION_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK", True)
-    if config[CONF_BLE]:
+    transport = config[CONF_TRANSPORT]
+    if transport[CONF_BLE]:
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
 
@@ -122,8 +133,10 @@ async def to_code(config):
         zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
-    if CONF_HARDWARE_UART in config:
-        cdc_id = UARTS[config[CONF_HARDWARE_UART]][1]
+    if CONF_HARDWARE_UART in transport:
+        uart = UARTS[transport[CONF_HARDWARE_UART]]
+        uart_name = uart[0]
+        cdc_id = uart[1]
         if cdc_id >= 0:
             zephyr_add_cdc_acm(config, cdc_id)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
@@ -133,7 +146,7 @@ async def to_code(config):
             f"""
                 / {{
                     chosen {{
-                        zephyr,uart-mcumgr = &{UARTS[config[CONF_HARDWARE_UART]][0]};
+                        zephyr,uart-mcumgr = &{uart_name};
                     }};
                 }};
                 """
