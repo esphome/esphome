@@ -27,7 +27,7 @@ class Glyph {
         width(width),
         height(height) {}
 
-  bool compare_to(uint32_t other) const { return this->code_point <= other; }
+  bool is_less_or_equal(uint32_t other) const { return this->code_point <= other; }
 
   const uint32_t code_point;
   const uint8_t *data;
@@ -58,7 +58,7 @@ class Font
   Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
        uint8_t bpp = 1);
 
-  int find_glyph(uint32_t codepoint) const;
+  const Glyph *find_glyph(uint32_t codepoint) const;
 
 #ifdef USE_DISPLAY
   void print(int x_start, int y_start, display::Display *display, Color color, const char *text,
