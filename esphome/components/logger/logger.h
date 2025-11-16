@@ -458,7 +458,9 @@ class Logger : public Component {
     }
 
     // Update buffer_at with the formatted length (handle truncation)
-    uint16_t formatted_len = (ret >= remaining) ? remaining : ret;
+    // When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
+    // When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
+    uint16_t formatted_len = (ret >= remaining) ? (remaining - 1) : ret;
     *buffer_at += formatted_len;
 
     // Remove all trailing newlines right after formatting
