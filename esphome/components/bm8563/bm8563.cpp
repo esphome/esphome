@@ -13,6 +13,8 @@ static constexpr uint8_t TIMER_CONTROL_REG = 0x0E;
 static constexpr uint8_t TIMER_VALUE_REG = 0x0F;
 static constexpr uint8_t CLOCK_1_HZ = 0x82;
 static constexpr uint8_t CLOCK_1_60_HZ = 0x83;
+// Maximum duration: 255 minutes (at 1/60 Hz) = 15300 seconds
+static constexpr uint32_t MAX_TIMER_DURATION_S = 255 * 60;
 
 void BM8563::setup() {
   if (!this->write_byte_16(CONTROL_STATUS_1_REG, 0)) {
@@ -143,9 +145,15 @@ void BM8563::write_register_(uint8_t reg, const uint8_t *data, size_t len) {
 
 void BM8563::set_timer_irq_(uint32_t duration_s) {
   ESP_LOGI(TAG, "Timer Duration: %u s", duration_s);
+
+  if (duration_s > MAX_TIMER_DURATION_S) {
+    ESP_LOGW(TAG, "Timer duration %u s exceeds maximum %u s", duration_s, MAX_TIMER_DURATION_S);
+    return;
+  }
+
   if (duration_s > 255) {
-    duration_s = (duration_s / 60) & 0xFF;
-    this->write_byte_(TIMER_VALUE_REG, duration_s);
+    uint8_t duration_minutes = duration_s / 60;
+    this->write_byte_(TIMER_VALUE_REG, duration_minutes);
     this->write_byte_(TIMER_CONTROL_REG, CLOCK_1_60_HZ);
   } else {
     this->write_byte_(TIMER_VALUE_REG, duration_s);
