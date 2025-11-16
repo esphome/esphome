@@ -88,7 +88,7 @@ void BM8563::get_time_(ESPTime &time) {
 
 void BM8563::set_time_(const ESPTime &time) {
   uint8_t buf[3] = {this->byte_to_bcd2_(time.second), this->byte_to_bcd2_(time.minute), this->byte_to_bcd2_(time.hour)};
-  this->write_register(TIME_FIRST_REG, buf, 3);
+  this->write_register_(TIME_FIRST_REG, buf, 3);
 }
 
 void BM8563::get_date_(ESPTime &time) {
@@ -120,7 +120,7 @@ void BM8563::set_date_(const ESPTime &time) {
     buf[2] = buf[2] | 0x80;
   }
 
-  this->write_register(DATE_FIRST_REG, buf, 4);
+  this->write_register_(DATE_FIRST_REG, buf, 4);
 }
 
 uint8_t BM8563::read_reg_(uint8_t reg) {
@@ -132,6 +132,12 @@ uint8_t BM8563::read_reg_(uint8_t reg) {
 void BM8563::write_byte_(uint8_t reg, uint8_t value) {
   if (!this->write_byte(reg, value)) {
     ESP_LOGE(TAG, "Failed to write byte 0x%02X with value 0x%02X", reg, value);
+  }
+}
+
+void BM8563::write_register_(uint8_t reg, const uint8_t *data, size_t len) {
+  if (!this->write_register(reg, data, len)) {
+    ESP_LOGE(TAG, "Failed to write register 0x%02X with %zu bytes", reg, len);
   }
 }
 
