@@ -54,7 +54,7 @@ Font::Font(const Glyph *data, int data_nr, int baseline, int height, int descend
       xheight_(xheight),
       capheight_(capheight),
       bpp_(bpp) {}
-int Font::match_next_glyph(const uint8_t *str, int *match_length) {
+int Font::match_next_glyph(const uint8_t *str, int *match_length) const {
   int lo = 0;
   int hi = this->glyphs_.size() - 1;
   while (lo != hi) {

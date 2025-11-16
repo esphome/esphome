@@ -63,7 +63,7 @@ class Font
   Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
        uint8_t bpp = 1);
 
-  int match_next_glyph(const uint8_t *str, int *match_length);
+  int match_next_glyph(const uint8_t *str, int *match_length) const;
 
 #ifdef USE_DISPLAY
   void print(int x_start, int y_start, display::Display *display, Color color, const char *text,

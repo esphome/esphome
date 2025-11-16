@@ -111,15 +111,17 @@ template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); 
 /// @name Container utilities
 ///@{
 
-/// Lightweight wrapper over a const initializer list
+/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory)
+/// Avoids copying data from flash to RAM by keeping a pointer to the flash data.
+/// Similar to std::span but with minimal overhead for embedded systems.
 
 template<typename T> class ConstVector {
  public:
-  ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+  constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
 
-  operator const T *() const { return data_; }
-  size_t size() const { return size_; }
-  bool empty() const { return size_ == 0; }
+  const constexpr T &operator[](size_t i) const { return data_[i]; }
+  constexpr size_t size() const { return size_; }
+  constexpr bool empty() const { return size_ == 0; }
 
  protected:
   const T *data_;

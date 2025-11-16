@@ -430,7 +430,7 @@ class StaticConstAssignmentExpression(AssignmentExpression):
         super().__init__(type_, "", name, rhs)
 
     def __str__(self):
-        return f"static constexpr {self.type} {self.name}[] = {self.rhs}"
+        return f"static const {self.type} {self.name}[] = {self.rhs}"
 
 
 def progmem_array(id_, rhs) -> "MockObj":
