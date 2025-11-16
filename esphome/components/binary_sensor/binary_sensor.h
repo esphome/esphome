@@ -6,9 +6,7 @@
 
 #include <initializer_list>
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 class BinarySensor;
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj);
@@ -70,5 +68,4 @@ class BinarySensorInitiallyOff : public BinarySensor {
   bool has_state() const override { return true; }
 };
 
-}  // namespace binary_sensor
-}  // namespace esphome
+}  // namespace esphome::binary_sensor
