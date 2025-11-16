@@ -191,6 +191,8 @@ async def to_code(config):
             cg.add(var.set_ca_path(str(path)))
         if verbose := config.get(CONF_VERBOSE):
             cg.add(var.set_verbose(verbose))
+        if verify_ssl := config.get(CONF_VERIFY_SSL):
+            cg.add(var.set_verify_ssl(verify_ssl))
 
     await cg.register_component(var, config)
 

@@ -39,6 +39,8 @@ class HttpRequestHost : public HttpRequestComponent {
 
   void set_verbose(bool verbose) { this->verbose_ = verbose; }
 
+  void set_verify_ssl(bool verify_ssl) { this->verify_ssl_ = verify_ssl; }
+
   void setup() override { curl_global_init(CURL_GLOBAL_DEFAULT); }
 
   virtual bool teardown() override {
@@ -49,6 +51,7 @@ class HttpRequestHost : public HttpRequestComponent {
  protected:
   const char *ca_path_{};
   bool verbose_{};
+  bool verify_ssl_{true};
 };
 
 }  // namespace http_request

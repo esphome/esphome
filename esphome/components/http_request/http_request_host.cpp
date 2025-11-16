@@ -98,9 +98,15 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, 
   }
 
   if (this->ca_path_ != nullptr) {
-    rc = curl_easy_setopt(handle, CURLOPT_CAPATH, this->ca_path_);
+    rc = curl_easy_setopt(handle, CURLOPT_CAINFO, this->ca_path_);
     assert(rc == CURLE_OK);
   }
+
+  curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, this->verify_ssl_ ? 1L : 0L);
+  assert(rc == CURLE_OK);
+
+  curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, this->verify_ssl_ ? 2L : 0L);
+  assert(rc == CURLE_OK);
 
   CURLMcode mc = curl_multi_add_handle(multi, handle);
   assert(mc == CURLM_OK);
