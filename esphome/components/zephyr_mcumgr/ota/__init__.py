@@ -8,14 +8,7 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_HARDWARE_UART,
-    CONF_ID,
-    CONF_NUM_ATTEMPTS,
-    CONF_OTA,
-    CONF_REBOOT_TIMEOUT,
-    Framework,
-)
+from esphome.const import CONF_HARDWARE_UART, CONF_ID, CONF_OTA, Framework
 from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@tomaszduda23"]
@@ -50,10 +43,6 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ZephyrMcumgrOTAComponent),
-            cv.Optional(
-                CONF_REBOOT_TIMEOUT, default="5min"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
             cv.Optional(CONF_TRANSPORT, default={CONF_BLE: True}): cv.Schema(
                 {
                     cv.Optional(CONF_BLE, default=False): cv.boolean,
