@@ -116,8 +116,7 @@ static uint32_t extract_unicode_codepoint(const char *utf8_str, size_t *length) 
   else {
     return 0xFFFFFFFF;
   }
-  if (length != nullptr)
-    *length = current - reinterpret_cast<const uint8_t *>(utf8_str);
+  *length = current - reinterpret_cast<const uint8_t *>(utf8_str);
   return code_point;
 }
 
@@ -130,7 +129,18 @@ Font::Font(const Glyph *data, int data_nr, int baseline, int height, int descend
       linegap_(height - baseline - descender),
       xheight_(xheight),
       capheight_(capheight),
-      bpp_(bpp) {}
+      bpp_(bpp) {
+#ifdef USE_LVGL_FONT
+  this->lv_font_.dsc = this;
+  this->lv_font_.line_height = this->get_height();
+  this->lv_font_.base_line = this->lv_font_.line_height - this->get_baseline();
+  this->lv_font_.get_glyph_dsc = get_glyph_dsc_cb;
+  this->lv_font_.get_glyph_bitmap = get_glyph_bitmap;
+  this->lv_font_.subpx = LV_FONT_SUBPX_NONE;
+  this->lv_font_.underline_position = -1;
+  this->lv_font_.underline_thickness = 1;
+#endif
+}
 
 int Font::find_glyph(uint32_t codepoint) const {
   int lo = 0;
@@ -150,11 +160,10 @@ int Font::find_glyph(uint32_t codepoint) const {
 void Font::measure(const char *str, int *width, int *x_offset, int *baseline, int *height) {
   *baseline = this->baseline_;
   *height = this->height_;
-  int i = 0;
   int min_x = 0;
   bool has_char = false;
   int x = 0;
-  while (str[i] != '\0') {
+  while (*str != '\0') {
     size_t length;
     auto code_point = extract_unicode_codepoint(str, &length);
     auto glyph_n = this->find_glyph(code_point);
@@ -162,7 +171,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
       // Unknown char, skip
       if (!this->get_glyphs().empty())
         x += this->glyphs_[0].advance;
-      i++;
+      str++;
       continue;
     }
 
@@ -174,7 +183,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     }
     x += glyph.advance;
 
-    i += length;
+    str += length;
     has_char = true;
   }
   *x_offset = min_x;
@@ -182,22 +191,21 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
 }
 
 void Font::print(int x_start, int y_start, display::Display *display, Color color, const char *text, Color background) {
-  int i = 0;
   int x_at = x_start;
-  while (text[i] != '\0') {
+  while (*text != '\0') {
     size_t length;
     auto code_point = extract_unicode_codepoint(text, &length);
     int glyph_n = this->find_glyph(code_point);
     if (code_point == 0xFFFFFFFF || glyph_n < 0) {
       // Unknown char, skip
-      ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
+      ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", *text);
       if (!this->get_glyphs().empty()) {
         uint8_t glyph_width = this->get_glyphs()[0].advance;
         display->filled_rectangle(x_at, y_start, glyph_width, this->height_, color);
         x_at += glyph_width;
       }
 
-      i++;
+      text++;
       continue;
     }
 
@@ -242,8 +250,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
       }
     }
     x_at += glyph.advance;
-
-    i += length;
+    text += length;
   }
 }
 #endif

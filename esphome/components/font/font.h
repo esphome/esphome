@@ -27,7 +27,7 @@ class Glyph {
         width(width),
         height(height) {}
 
-  bool compare_to(uint32_t other) const { return other < this->code_point; }
+  bool compare_to(uint32_t other) const { return this->code_point <= other; }
 
   const uint32_t code_point;
   const uint8_t *data;
