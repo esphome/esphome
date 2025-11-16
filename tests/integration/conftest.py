@@ -562,15 +562,18 @@ async def run_binary_and_wait_for_port(
                 _, writer = await asyncio.open_connection(host, port)
                 writer.close()
                 await writer.wait_closed()
-                # Port is open, yield control
-                yield
-                return
             except (ConnectionRefusedError, OSError):
                 # Check if process died
                 if process.returncode is not None:
                     break
                 # Port not open yet, wait a bit and try again
                 await asyncio.sleep(PORT_POLL_INTERVAL)
+            else:
+                # Port is open, yield control
+                # (yield must be in else block, so exceptions raised from it will not
+                # cause the loop to continue and to yield a second time)
+                yield
+                return
 
         # Timeout or process died - build error message
         error_msg = f"Port {port} on {host} did not open within {timeout} seconds"
