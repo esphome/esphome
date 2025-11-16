@@ -138,7 +138,7 @@ void BM8563::write_byte_(uint8_t reg, uint8_t value) {
 }
 
 void BM8563::write_register_(uint8_t reg, const uint8_t *data, size_t len) {
-  if (!this->write_register(reg, data, len)) {
+  if (auto error = this->write_register(reg, data, len); error != i2c::ErrorCode::NO_ERROR) {
     ESP_LOGE(TAG, "Failed to write register 0x%02X with %zu bytes", reg, len);
   }
 }
