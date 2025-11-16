@@ -133,7 +133,7 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 
   // Save the offset before calling format_log_to_buffer_with_terminator_
   // since it will increment tx_buffer_at_ to the end of the formatted string
-  uint32_t msg_start = this->tx_buffer_at_;
+  uint16_t msg_start = this->tx_buffer_at_;
   this->format_log_to_buffer_with_terminator_(level, tag, line, this->tx_buffer_, args, this->tx_buffer_,
                                               &this->tx_buffer_at_, this->tx_buffer_size_);
 
