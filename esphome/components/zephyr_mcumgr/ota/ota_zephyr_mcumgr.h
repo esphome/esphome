@@ -18,12 +18,14 @@ class OTAComponent : public ota::OTAComponent {
   void update_started();
   void update_chunk_wrote();
   void update_pending();
+  void set_cdc_uart() { cdc_uart_ = true; };
 
  protected:
   uint32_t last_progress_ = 0;
   float percentage_ = 0;
   bool is_confirmed_ = false;
   mgmt_callback img_mgmt_callback_;
+  bool cdc_uart_ = false;
 };
 
 }  // namespace esphome::zephyr_mcumgr

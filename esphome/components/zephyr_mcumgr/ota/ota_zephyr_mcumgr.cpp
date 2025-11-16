@@ -55,10 +55,7 @@ void OTAComponent::setup() {
   img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
   img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
   mgmt_callback_register(&img_mgmt_callback_);
-  // TODO check if ota cdc is set
-  // use zephyr,uart-mcumgr
-  const device *uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
-  if (device_is_ready(uart_dev)) {
+  if (cdc_uart_) {
     usb_enable(NULL);
   }
 }
@@ -69,7 +66,7 @@ void OTAComponent::loop() {
     if (!is_confirmed_) {
       if (boot_write_img_confirmed()) {
         ESP_LOGD(TAG, "Unable to confirm image");
-        // TODO reboot
+        this->mark_failed();
       }
     }
   }

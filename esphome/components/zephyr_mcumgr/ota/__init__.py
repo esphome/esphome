@@ -128,6 +128,7 @@ async def to_code(config):
         cdc_id = uart[1]
         if cdc_id >= 0:
             zephyr_add_cdc_acm(config, cdc_id)
+            cg.add(var.set_cdc_uart())
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)
