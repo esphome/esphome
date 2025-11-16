@@ -241,3 +241,4 @@ Logging level can be set with the env var `ESPHOME_LOG_LEVEL` (default is `INFO`
 - {{< docref "cli/" >}}
 - {{< docref "/index" "ESPHome index" >}}
 - {{< docref "getting_started_hassio/" >}}
+- {{< docref "security_best_practices" >}}
