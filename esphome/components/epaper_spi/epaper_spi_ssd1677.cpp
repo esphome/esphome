@@ -83,5 +83,4 @@ bool HOT EPaperSSD1677::transfer_data() {
   return true;
 }
 
-void EPaperSSD1677::fill(Color color) { EPaperBase::fill(color); }
 }  // namespace esphome::epaper_spi
