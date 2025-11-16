@@ -247,7 +247,8 @@ async def to_code(configs):
             type=lv_font_t.operator("ptr").operator("const"),
         )
         cg.new_variable(
-            globfont_id, MockObj(await lvalid.lv_font.process(default_font))
+            globfont_id,
+            MockObj(await lvalid.lv_font.process(default_font), "->").get_lv_font(),
         )
         add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
     else:
