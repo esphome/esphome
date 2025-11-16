@@ -1,4 +1,0 @@
-packages:
-  i2c_low_freq: !include ../../test_build_components/common/i2c_low_freq/esp32-c3-idf.yaml
-
-<<: !include common.yaml
