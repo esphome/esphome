@@ -17,8 +17,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 
-AUTO_LOAD = ["zephyr_mcumgr"]
-
 esphome = cg.esphome_ns.namespace("esphome")
 ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
     "OTAComponent", cg.Component
