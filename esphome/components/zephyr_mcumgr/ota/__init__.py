@@ -37,10 +37,10 @@ def _validate_transport(conf):
 
 
 UARTS = {
-    "cdc": ("cdc_acm_uart0", 0),
-    "cdc1": ("cdc_acm_uart1", 1),
-    "uart0": ("uart0", -1),
-    "uart1": ("uart1", -1),
+    "CDC": ("cdc_acm_uart0", 0),
+    "CDC1": ("cdc_acm_uart1", 1),
+    "UART0": ("uart0", -1),
+    "UART1": ("uart1", -1),
 }
 
 CONFIG_SCHEMA = cv.All(
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BLE, default=True): cv.boolean,
             cv.Optional(
                 CONF_HARDWARE_UART,
-            ): cv.one_of(*UARTS, lower=True),
+            ): cv.one_of(*UARTS, upper=True),
         }
     )
     .extend(BASE_OTA_SCHEMA)
