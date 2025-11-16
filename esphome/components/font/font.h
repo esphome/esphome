@@ -17,9 +17,9 @@ class Font;
 
 class Glyph {
  public:
-  constexpr Glyph(const char *a_char, const uint8_t *data, int advance, int offset_x, int offset_y, int width,
+  constexpr Glyph(uint32_t code_point, const uint8_t *data, int advance, int offset_x, int offset_y, int width,
                   int height)
-      : a_char(a_char),
+      : code_point(code_point),
         data(data),
         advance(advance),
         offset_x(offset_x),
@@ -27,24 +27,15 @@ class Glyph {
         width(width),
         height(height) {}
 
-  const uint8_t *get_char() const { return reinterpret_cast<const uint8_t *>(this->a_char); }
+  bool compare_to(uint32_t other) const { return other < this->code_point; }
 
-  bool compare_to(const uint8_t *str) const;
-
-  int match_length(const uint8_t *str) const;
-
-  void scan_area(int *x1, int *y1, int *width, int *height) const;
-
-  const char *a_char;
+  const uint32_t code_point;
   const uint8_t *data;
   int advance;
   int offset_x;
   int offset_y;
   int width;
   int height;
-
- protected:
-  friend Font;
 };
 
 class Font
@@ -67,7 +58,7 @@ class Font
   Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
        uint8_t bpp = 1);
 
-  int match_next_glyph(const uint8_t *str, int *match_length) const;
+  int find_glyph(uint32_t codepoint) const;
 
 #ifdef USE_DISPLAY
   void print(int x_start, int y_start, display::Display *display, Color color, const char *text,

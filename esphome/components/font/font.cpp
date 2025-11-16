@@ -6,7 +6,6 @@
 
 namespace esphome {
 namespace font {
-
 static const char *const TAG = "font";
 
 #ifdef USE_LVGL_FONT
@@ -34,60 +33,92 @@ bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uin
   dsc->bpp = fe->get_bpp();
   return true;
 }
+
 const Glyph *Font::get_glyph_data_(uint32_t unicode_letter) {
   if (unicode_letter == this->last_letter_)
     return this->last_data_;
-  uint8_t unicode[5]{};
-  if (unicode_letter > 0xFFFF) {
-    unicode[0] = 0xF0 + ((unicode_letter >> 18) & 0x7);
-    unicode[1] = 0x80 + ((unicode_letter >> 12) & 0x3F);
-    unicode[2] = 0x80 + ((unicode_letter >> 6) & 0x3F);
-    unicode[3] = 0x80 + (unicode_letter & 0x3F);
-  } else if (unicode_letter > 0x7FF) {
-    unicode[0] = 0xE0 + ((unicode_letter >> 12) & 0xF);
-    unicode[1] = 0x80 + ((unicode_letter >> 6) & 0x3F);
-    unicode[2] = 0x80 + (unicode_letter & 0x3F);
-  } else if (unicode_letter > 0x7F) {
-    unicode[0] = 0xC0 + ((unicode_letter >> 6) & 0x1F);
-    unicode[1] = 0x80 + (unicode_letter & 0x3F);
-  } else {
-    unicode[0] = unicode_letter;
-  }
-  int match_length;
-  int glyph_n = this->match_next_glyph(unicode, &match_length);
+  int glyph_n = this->find_glyph(unicode_letter);
   if (glyph_n < 0) {
     return nullptr;
   }
-  this->last_data_ = &this->get_glyphs()[glyph_n];
+  this->last_data_ = &this->glyphs_[glyph_n];
   this->last_letter_ = unicode_letter;
   return this->last_data_;
 }
 #endif
 
-// Compare the char at the string position with this char.
-// Return true if this char is less than or equal the other.
-bool Glyph::compare_to(const uint8_t *str) const {
-  // 1 -> this->char_
-  // 2 -> str
-  for (uint32_t i = 0;; i++) {
-    if (this->a_char[i] == '\0')
-      return true;
-    if (str[i] == '\0')
-      return false;
-    if (this->a_char[i] > str[i])
-      return false;
-    if (this->a_char[i] < str[i])
-      return true;
-  }
-}
+static uint32_t extract_unicode_codepoint(const char *utf8_str, size_t *length) {
+  // Safely cast to uint8_t* for correct bitwise operations on bytes
+  const uint8_t *current = reinterpret_cast<const uint8_t *>(utf8_str);
+  uint32_t code_point = 0;
+  uint8_t c1 = *current++;
 
-int Glyph::match_length(const uint8_t *str) const {
-  for (uint32_t i = 0;; i++) {
-    if (this->a_char[i] == '\0')
-      return i;
-    if (str[i] != this->a_char[i])
-      return 0;
+  // --- 1-Byte Sequence: 0xxxxxxx (ASCII) ---
+  if (c1 < 0x80) {
+    // Valid ASCII byte.
+    code_point = c1;
+    // Optimization: No need to check for continuation bytes.
   }
+  // --- 2-Byte Sequence: 110xxxxx 10xxxxxx ---
+  else if ((c1 & 0xE0) == 0xC0) {
+    uint8_t c2 = *current++;
+
+    // Error Check 1: Check if c2 is a valid continuation byte (10xxxxxx)
+    if ((c2 & 0xC0) != 0x80)
+      return 0xFFFFFFFF;
+
+    code_point = (c1 & 0x1F) << 6;
+    code_point |= (c2 & 0x3F);
+
+    // Error Check 2: Overlong check (2-byte must be > 0x7F)
+    if (code_point <= 0x7F)
+      return 0xFFFFFFFF;
+  }
+  // --- 3-Byte Sequence: 1110xxxx 10xxxxxx 10xxxxxx ---
+  else if ((c1 & 0xF0) == 0xE0) {
+    uint8_t c2 = *current++;
+    uint8_t c3 = *current++;
+
+    // Error Check 1: Check continuation bytes
+    if (((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80))
+      return 0xFFFFFFFF;
+
+    code_point = (c1 & 0x0F) << 12;
+    code_point |= (c2 & 0x3F) << 6;
+    code_point |= (c3 & 0x3F);
+
+    // Error Check 2: Overlong check (3-byte must be > 0x7FF)
+    // Also check for surrogates (0xD800-0xDFFF)
+    if (code_point <= 0x7FF || (code_point >= 0xD800 && code_point <= 0xDFFF))
+      return 0xFFFFFFFF;
+  }
+  // --- 4-Byte Sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx ---
+  else if ((c1 & 0xF8) == 0xF0) {
+    uint8_t c2 = *current++;
+    uint8_t c3 = *current++;
+    uint8_t c4 = *current++;
+
+    // Error Check 1: Check continuation bytes
+    if (((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80) || ((c4 & 0xC0) != 0x80))
+      return 0xFFFFFFFF;
+
+    code_point = (c1 & 0x07) << 18;
+    code_point |= (c2 & 0x3F) << 12;
+    code_point |= (c3 & 0x3F) << 6;
+    code_point |= (c4 & 0x3F);
+
+    // Error Check 2: Overlong check (4-byte must be > 0xFFFF)
+    // Also check for valid Unicode range (must be <= 0x10FFFF)
+    if (code_point <= 0xFFFF || code_point > 0x10FFFF)
+      return 0xFFFFFFFF;
+  }
+  // --- Invalid leading byte (e.g., 10xxxxxx or 11111xxx) ---
+  else {
+    return 0xFFFFFFFF;
+  }
+  if (length != nullptr)
+    *length = current - reinterpret_cast<const uint8_t *>(utf8_str);
+  return code_point;
 }
 
 Font::Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
@@ -100,22 +131,21 @@ Font::Font(const Glyph *data, int data_nr, int baseline, int height, int descend
       xheight_(xheight),
       capheight_(capheight),
       bpp_(bpp) {}
-int Font::match_next_glyph(const uint8_t *str, int *match_length) const {
+
+int Font::find_glyph(uint32_t codepoint) const {
   int lo = 0;
   int hi = this->glyphs_.size() - 1;
   while (lo != hi) {
     int mid = (lo + hi + 1) / 2;
-    if (this->glyphs_[mid].compare_to(str)) {
+    if (this->glyphs_[mid].compare_to(codepoint)) {
       lo = mid;
     } else {
       hi = mid - 1;
     }
   }
-  *match_length = this->glyphs_[lo].match_length(str);
-  if (*match_length <= 0)
-    return -1;
   return lo;
 }
+
 #ifdef USE_DISPLAY
 void Font::measure(const char *str, int *width, int *x_offset, int *baseline, int *height) {
   *baseline = this->baseline_;
@@ -125,12 +155,13 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   bool has_char = false;
   int x = 0;
   while (str[i] != '\0') {
-    int match_length;
-    int glyph_n = this->match_next_glyph((const uint8_t *) str + i, &match_length);
-    if (glyph_n < 0) {
+    size_t length;
+    auto code_point = extract_unicode_codepoint(str, &length);
+    auto glyph_n = this->find_glyph(code_point);
+    if (code_point == 0xFFFFFFFF || glyph_n < 0) {
       // Unknown char, skip
       if (!this->get_glyphs().empty())
-        x += this->get_glyphs()[0].advance;
+        x += this->glyphs_[0].advance;
       i++;
       continue;
     }
@@ -143,19 +174,21 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     }
     x += glyph.advance;
 
-    i += match_length;
+    i += length;
     has_char = true;
   }
   *x_offset = min_x;
   *width = x - min_x;
 }
+
 void Font::print(int x_start, int y_start, display::Display *display, Color color, const char *text, Color background) {
   int i = 0;
   int x_at = x_start;
   while (text[i] != '\0') {
-    int match_length;
-    int glyph_n = this->match_next_glyph((const uint8_t *) text + i, &match_length);
-    if (glyph_n < 0) {
+    size_t length;
+    auto code_point = extract_unicode_codepoint(text, &length);
+    int glyph_n = this->find_glyph(code_point);
+    if (code_point == 0xFFFFFFFF || glyph_n < 0) {
       // Unknown char, skip
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
       if (!this->get_glyphs().empty()) {
@@ -210,10 +243,9 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
     }
     x_at += glyph.advance;
 
-    i += match_length;
+    i += length;
   }
 }
 #endif
-
 }  // namespace font
 }  // namespace esphome
