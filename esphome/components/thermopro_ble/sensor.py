@@ -83,6 +83,9 @@ async def to_code(config):
     if temperature_config := config.get(CONF_TEMPERATURE):
         sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature(sens))
+    if external_temperature_config := config.get(CONF_EXTERNAL_TEMPERATURE):
+        sens = await sensor.new_sensor(external_temperature_config)
+        cg.add(var.set_external_temperature(sens))
     if humidity_config := config.get(CONF_HUMIDITY):
         sens = await sensor.new_sensor(humidity_config)
         cg.add(var.set_humidity(sens))
