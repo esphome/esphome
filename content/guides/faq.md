@@ -652,6 +652,10 @@ The {{< docref "/components/deep_sleep" "Deep Sleep" >}} component needs to be p
 configuration when the device is first added to Home Assistant. To prevent entities from appearing as "unavailable",
 you can remove and re-add the device in Home Assistant.
 
+## How do I secure my ESPHome devices?
+
+See the comprehensive {{< docref "security_best_practices" >}} guide for detailed recommendations on API encryption, OTA passwords, network segmentation, physical security, and more.
+
 ## See Also
 
 - {{< docref "/index" "ESPHome index" >}}

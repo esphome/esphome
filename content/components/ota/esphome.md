@@ -29,6 +29,10 @@ ota:
 ## Configuration variables
 
 - **password** (*Optional*, string): The password to use for updates.
+
+> [!IMPORTANT]
+> Always use strong, unique passwords for OTA updates. See the [Security Best Practices](/guides/security_best_practices#ota-password-protection) guide for more information.
+
 - **port** (*Optional*, int): The port to use for OTA updates. Defaults:
 
   - `3232` for the ESP32

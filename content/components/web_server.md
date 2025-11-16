@@ -123,6 +123,9 @@ web_server:
     password: !secret web_server_password
 ```
 
+> [!IMPORTANT]
+> Always enable authentication when using the web server. See the [Security Best Practices](/guides/security_best_practices#web-server-authentication) guide for recommendations.
+
 Use version 1 user interface:
 
 ```yaml
