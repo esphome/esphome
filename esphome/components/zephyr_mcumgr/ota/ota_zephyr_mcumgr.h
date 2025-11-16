@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_ZEPHYR
 #include "esphome/components/ota/ota_backend.h"
+#include <zephyr/mgmt/mcumgr/mgmt/callbacks.h>
 
 struct img_mgmt_upload_check;
 
@@ -22,6 +23,7 @@ class OTAComponent : public ota::OTAComponent {
   uint32_t last_progress_ = 0;
   float percentage_ = 0;
   bool is_confirmed_ = false;
+  mgmt_callback img_mgmt_callback_;
 };
 
 }  // namespace esphome::zephyr_mcumgr

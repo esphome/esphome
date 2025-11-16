@@ -2,11 +2,13 @@
 #include "ota_zephyr_mcumgr.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
-#include <zephyr/mgmt/mcumgr/mgmt/callbacks.h>
 #include <zephyr/sys/math_extras.h>
 #include <zephyr/dfu/mcuboot.h>
 #include <zephyr/usb/usb_device.h>
 
+// It should be from below header but there is problem with internal includes.
+// #include <zephyr/mgmt/mcumgr/grp/img_mgmt/img_mgmt.h>
+// NOLINTBEGIN(readability-identifier-naming,google-runtime-int)
 struct img_mgmt_upload_action {
   /** The total size of the image. */
   unsigned long long size;
@@ -16,11 +18,12 @@ struct img_mgmt_upload_req {
   uint32_t image; /* 0 by default */
   size_t off;     /* SIZE_MAX if unspecified */
 };
+// NOLINTEND(readability-identifier-naming,google-runtime-int)
 
 namespace esphome::zephyr_mcumgr {
 
 static const char *const TAG = "zephyr_mcumgr";
-static OTAComponent *global_ota_component = nullptr;
+static OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #define IMAGE_HASH_LEN 32 /* Size of SHA256 TLV hash */
 
@@ -41,11 +44,6 @@ static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_retur
   return MGMT_CB_OK;
 }
 
-static struct mgmt_callback IMG_MGMT_CALLBACK = {
-    .callback = mcumgr_img_mgmt_cb,
-    .event_id = MGMT_EVT_OP_IMG_MGMT_ALL,
-};
-
 OTAComponent::OTAComponent() {
   global_ota_component = this;
 #ifdef USE_OTA_STATE_CALLBACK
@@ -54,10 +52,12 @@ OTAComponent::OTAComponent() {
 }
 
 void OTAComponent::setup() {
-  mgmt_callback_register(&IMG_MGMT_CALLBACK);
+  img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
+  img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
+  mgmt_callback_register(&img_mgmt_callback_);
   // TODO check if ota cdc is set
   // use zephyr,uart-mcumgr
-  auto uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
+  const device *uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
   if (device_is_ready(uart_dev)) {
     usb_enable(NULL);
   }
