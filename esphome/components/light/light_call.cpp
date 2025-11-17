@@ -77,6 +77,11 @@ void LightCall::perform() {
   const char *name = this->parent_->get_name().c_str();
   LightColorValues v = this->validate_();
   const bool publish = this->get_publish_();
+  const bool save = this->get_save_();
+  const bool has_flash = this->has_flash_();
+  const bool has_transition = this->has_transition_();
+  const bool use_interval =
+      publish && this->parent_->get_transition_state_publish_interval() > 0 && (has_flash || has_transition);
 
   if (publish) {
     ESP_LOGV(TAG, "'%s' Setting:", name);
@@ -120,14 +125,18 @@ void LightCall::perform() {
     }
   }
 
-  if (this->has_flash_()) {
+  if (has_flash) {
     // FLASH
     if (publish) {
       ESP_LOGV(TAG, "  Flash length: %.1fs", this->flash_length_ / 1e3f);
     }
 
-    this->parent_->start_flash_(v, this->flash_length_, publish);
-  } else if (this->has_transition_()) {
+    this->parent_->start_flash_(v, this->flash_length_);
+    if (use_interval) {
+      this->parent_->transition_publish_enabled_ = true;
+      this->parent_->last_transition_state_publish_ = 0;
+    }
+  } else if (has_transition) {
     // TRANSITION
     if (publish) {
       ESP_LOGV(TAG, "  Transition length: %.1fs", this->transition_length_ / 1e3f);
@@ -141,7 +150,11 @@ void LightCall::perform() {
       this->parent_->stop_effect_();
     }
 
-    this->parent_->start_transition_(v, this->transition_length_, publish);
+    this->parent_->start_transition_(v, this->transition_length_);
+    if (use_interval) {
+      this->parent_->transition_publish_enabled_ = true;
+      this->parent_->last_transition_state_publish_ = 0;
+    }
 
   } else if (this->has_effect_()) {
     // EFFECT
@@ -157,16 +170,28 @@ void LightCall::perform() {
     }
 
     this->parent_->start_effect_(this->effect_);
-
-    // Also set light color values when starting an effect
-    // For example to turn off the light
-    this->parent_->set_immediately_(v, true);
+    this->parent_->set_immediately_(v);
   } else {
     // INSTANT CHANGE
-    this->parent_->set_immediately_(v, publish);
+    this->parent_->set_immediately_(v);
   }
 
-  if (!this->has_transition_() && this->parent_->target_state_reached_listeners_) {
+  const bool is_transition_like = has_flash || has_transition;
+  const bool is_effect_call = this->has_effect_();
+  const bool is_instant_call = !is_transition_like && !is_effect_call;
+
+  // Decide whether to perform the *initial* remote_values update for this call.
+  // When use_interval is true, transition/flash calls opt into interval publishing and
+  // hand off all in-flight remote_values updates to LightState::loop(), which copies
+  // current_values to remote_values and publishes on the configured interval.
+  const bool should_update_initial_remote_on_call =
+      (is_transition_like && publish && !use_interval) || is_effect_call || (is_instant_call && publish);
+
+  if (should_update_initial_remote_on_call) {
+    this->parent_->remote_values = v;
+  }
+
+  if (!has_transition && this->parent_->target_state_reached_listeners_) {
     for (auto *listener : *this->parent_->target_state_reached_listeners_) {
       listener->on_light_target_state_reached();
     }
@@ -174,8 +199,12 @@ void LightCall::perform() {
   if (publish) {
     this->parent_->publish_state();
   }
-  if (this->get_save_()) {
-    this->parent_->save_remote_values_();
+  if (save) {
+    if (use_interval && has_transition) {
+      this->parent_->defer_transition_save_ = true;
+    } else {
+      this->parent_->save_remote_values_();
+    }
   }
 }
 

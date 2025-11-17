@@ -166,6 +166,7 @@ light:
     name: Monochromatic Light
     output: test_ledc_1
     gamma_correct: 2.8
+    transition_state_publish_interval: 200ms
     default_transition_length: 2s
     effects:
       - strobe:

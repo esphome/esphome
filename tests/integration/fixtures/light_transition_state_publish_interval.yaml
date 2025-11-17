@@ -1,0 +1,107 @@
+esphome:
+  name: ltspi
+host:
+api:
+logger:
+
+output:
+  # Monochromatic output
+  - platform: template
+    id: mono_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "mono_output: %.2f"
+          args: [state]
+  # RGB outputs
+  - platform: template
+    id: rgb_red
+    type: float
+    write_action:
+      - logger.log:
+          format: "rgb_red: %.2f"
+          args: [state]
+  - platform: template
+    id: rgb_green
+    type: float
+    write_action:
+      - logger.log:
+          format: "rgb_green: %.2f"
+          args: [state]
+  - platform: template
+    id: rgb_blue
+    type: float
+    write_action:
+      - logger.log:
+          format: "rgb_blue: %.2f"
+          args: [state]
+  # CWWW outputs (using rgbww light for CT + cold/warm white coverage)
+  - platform: template
+    id: cwww_red
+    type: float
+    write_action:
+      - logger.log:
+          format: "cwww_red: %.2f"
+          args: [state]
+  - platform: template
+    id: cwww_green
+    type: float
+    write_action:
+      - logger.log:
+          format: "cwww_green: %.2f"
+          args: [state]
+  - platform: template
+    id: cwww_blue
+    type: float
+    write_action:
+      - logger.log:
+          format: "cwww_blue: %.2f"
+          args: [state]
+  - platform: template
+    id: cwww_cold_white
+    type: float
+    write_action:
+      - logger.log:
+          format: "cwww_cold_white: %.2f"
+          args: [state]
+  - platform: template
+    id: cwww_warm_white
+    type: float
+    write_action:
+      - logger.log:
+          format: "cwww_warm_white: %.2f"
+          args: [state]
+
+light:
+  # Monochromatic light (brightness only)
+  - platform: monochromatic
+    id: test_mono_light
+    name: "Test Mono Light"
+    output: mono_output
+    default_transition_length: 1s
+    transition_state_publish_interval: 0.2s
+
+  # RGB light
+  - platform: rgb
+    id: test_rgb_light
+    name: "Test RGB Light"
+    red: rgb_red
+    green: rgb_green
+    blue: rgb_blue
+    default_transition_length: 1s
+    transition_state_publish_interval: 0.2s
+
+  # CWWW/CT-capable light
+  - platform: rgbww
+    id: test_cwww_light
+    name: "Test CWWW Light"
+    red: cwww_red
+    green: cwww_green
+    blue: cwww_blue
+    cold_white: cwww_cold_white
+    warm_white: cwww_warm_white
+    cold_white_color_temperature: 6500 K
+    warm_white_color_temperature: 2000 K
+    constant_brightness: true
+    default_transition_length: 1s
+    transition_state_publish_interval: 0.2s

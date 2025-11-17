@@ -33,6 +33,7 @@ from esphome.const import (
     CONF_RED,
     CONF_RESTORE_MODE,
     CONF_STATE,
+    CONF_TRANSITION_STATE_PUBLISH_INTERVAL,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
@@ -284,6 +285,9 @@ BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
         cv.Optional(
             CONF_FLASH_TRANSITION_LENGTH, default="0s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TRANSITION_STATE_PUBLISH_INTERVAL, default="0s"
+        ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_EFFECTS): validate_effects(MONOCHROMATIC_EFFECTS),
     }
 )
@@ -401,6 +405,16 @@ async def setup_light_core_(light_var, config, output_var):
         flash_transition_length := config.get(CONF_FLASH_TRANSITION_LENGTH)
     ) is not None:
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
+    if (
+        transition_state_publish_interval := config.get(
+            CONF_TRANSITION_STATE_PUBLISH_INTERVAL
+        )
+    ) is not None:
+        cg.add(
+            light_var.set_transition_state_publish_interval(
+                transition_state_publish_interval
+            )
+        )
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
         cg.add(light_var.set_gamma_correct(gamma_correct))
         fwd_arr = _get_or_create_gamma_table(gamma_correct)
