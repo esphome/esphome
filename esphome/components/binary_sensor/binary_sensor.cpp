@@ -3,9 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 static const char *const TAG = "binary_sensor";
 
@@ -63,6 +61,4 @@ void BinarySensor::add_filters(std::initializer_list<Filter *> filters) {
 }
 bool BinarySensor::is_status_binary_sensor() const { return false; }
 
-}  // namespace binary_sensor
-
-}  // namespace esphome
+}  // namespace esphome::binary_sensor
