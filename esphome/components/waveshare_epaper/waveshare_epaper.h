@@ -632,7 +632,7 @@ class GDEQ0426T82 : public WaveshareEPaper {
     // COMMAND POWER OFF
     this->command(0x02);
     this->wait_until_idle_();
-    
+
     // COMMAND DEEP SLEEP
     this->command(0x07);
     this->data(0xA5);
