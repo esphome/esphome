@@ -9,7 +9,7 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    ICON_CURRENT_AC,
+    DEVICE_CLASS_FREQUENCY,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
     UNIT_HERTZ,
@@ -72,8 +72,8 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HERTZ,
-                icon=ICON_CURRENT_AC,
                 accuracy_decimals=1,
+                device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MODEL, default="SONOFF DUALR3"): cv.enum(
