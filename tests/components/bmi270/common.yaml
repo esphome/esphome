@@ -1,0 +1,18 @@
+sensor:
+  - platform: bmi270
+    i2c_id: i2c_bus
+    address: 0x68
+    acceleration_x:
+      name: BMI270 Accel X
+    acceleration_y:
+      name: BMI270 Accel Y
+    acceleration_z:
+      name: BMI270 Accel Z
+    gyroscope_x:
+      name: BMI270 Gyro X
+    gyroscope_y:
+      name: BMI270 Gyro Y
+    gyroscope_z:
+      name: BMI270 Gyro Z
+    temperature:
+      name: BMI270 Temperature
