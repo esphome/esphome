@@ -115,13 +115,13 @@ light::LightTraits TuyaLight::get_traits() {
   if (this->color_temperature_id_.has_value() && this->dimmer_id_.has_value()) {
     if (this->color_id_.has_value()) {
       if (this->color_interlock_) {
-        traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::COLOR_TEMPERATURE});
+        traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::COLOR_TEMPERATURE, light::ColorMode::BRIGHTNESS});
       } else {
         traits.set_supported_color_modes(
-            {light::ColorMode::RGB_COLOR_TEMPERATURE, light::ColorMode::COLOR_TEMPERATURE});
+            {light::ColorMode::RGB_COLOR_TEMPERATURE, light::ColorMode::COLOR_TEMPERATURE, light::ColorMode::BRIGHTNESS});
       }
     } else {
-      traits.set_supported_color_modes({light::ColorMode::COLOR_TEMPERATURE});
+      traits.set_supported_color_modes({light::ColorMode::COLOR_TEMPERATURE, light::ColorMode::BRIGHTNESS});
     }
     traits.set_min_mireds(this->cold_white_temperature_);
     traits.set_max_mireds(this->warm_white_temperature_);
