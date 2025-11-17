@@ -119,8 +119,8 @@ DriverChip(
         (0x85, 0xE3),
         (0x86, 0x88),
         (0xB2, 0x10), # Select number of lanes (2)
-        (0x01), #EK79007_MDCTL_VALUE_DEFAULT
-        (0x11),
-        (0x29),
+        (0x01, 0x00), #EK79007_MDCTL_VALUE_DEFAULT
+        (0x11, 0x00),
+        (0x29, 0x00),
     ],
 )
