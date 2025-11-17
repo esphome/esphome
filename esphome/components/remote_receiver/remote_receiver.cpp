@@ -68,8 +68,10 @@ void RemoteReceiverComponent::setup() {
   this->store_.pin = this->pin_->to_isr();
   this->store_.buffer = new int32_t[this->buffer_size_];
   this->store_.buffer_size = this->buffer_size_;
-  this->store_.prev_micros = this->store_.commit_micros = micros();
-  this->store_.prev_level = this->store_.commit_level = this->pin_->digital_read();
+  this->store_.prev_micros = micros();
+  this->store_.commit_micros = this->store_.prev_micros;
+  this->store_.prev_level = this->pin_->digital_read();
+  this->store_.commit_level = this->store_.prev_level;
   this->pin_->attach_interrupt(RemoteReceiverComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
   this->high_freq_.start();
 }
