@@ -1,21 +1,3 @@
-esphome:
-  name: "hdmi-cec-test"
-  on_boot:
-    priority: -100
-    then:
-      - delay: 50ms
-      - lambda: !lambda |-
-          // send 'Give Physical Address' message to myself: that shall give a reply message
-          id(cec).send(0x1, id(cec).address(), {0x83});
-          // generated the reply message is a broadcast, created by the component built-in handler
-          // such broadcast does not expect an active 'acknowledge' bit
-          id(cec).send(0x1, id(cec).address(), {0x8F}); // send 'Give Device Power Status' to myself
-          // the generated reply message is probably not acknowledged, so will be repeated 5 times
-
-# Enable logging
-logger:
-  level: DEBUG
-
 hdmi_cec:
   id: cec
   pin:   # to HDMI pin 13 (CEC), with HDMI pin 17 (DDC/CEC ground)
