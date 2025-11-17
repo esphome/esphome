@@ -49,6 +49,7 @@ class BH1750Sensor : public sensor::Sensor, public PollingComponent, public i2c:
   bool start_measurement_(BH1750Mode mode, uint8_t mtreg, uint32_t now);
   bool read_measurement_(float &lx_out);
   void process_coarse_result_(float lx);
+  void fail_and_reset_();
 };
 
 }  // namespace esphome::bh1750

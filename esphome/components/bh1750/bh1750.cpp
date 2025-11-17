@@ -124,9 +124,7 @@ void BH1750Sensor::loop() {
     case READING_COARSE_RESULT: {
       float lx;
       if (!this->read_measurement_(lx)) {
-        this->status_set_warning();
-        this->publish_state(NAN);
-        this->state_ = IDLE;
+        this->fail_and_reset_();
         break;
       }
 
@@ -134,9 +132,7 @@ void BH1750Sensor::loop() {
 
       // Start fine measurement with optimal settings
       if (!this->start_measurement_(this->fine_mode_, this->fine_mtreg_, now)) {
-        this->status_set_warning();
-        this->publish_state(NAN);
-        this->state_ = IDLE;
+        this->fail_and_reset_();
         break;
       }
 
@@ -153,9 +149,7 @@ void BH1750Sensor::loop() {
     case READING_FINE_RESULT: {
       float lx;
       if (!this->read_measurement_(lx)) {
-        this->status_set_warning();
-        this->publish_state(NAN);
-        this->state_ = IDLE;
+        this->fail_and_reset_();
         break;
       }
 
@@ -262,6 +256,12 @@ void BH1750Sensor::process_coarse_result_(float lx) {
   }
 
   ESP_LOGV(TAG, "L result: %.1f -> Calculated mode=%d, mtreg=%d", lx, (int) this->fine_mode_, this->fine_mtreg_);
+}
+
+void BH1750Sensor::fail_and_reset_() {
+  this->status_set_warning();
+  this->publish_state(NAN);
+  this->state_ = IDLE;
 }
 
 float BH1750Sensor::get_setup_priority() const { return setup_priority::DATA; }
