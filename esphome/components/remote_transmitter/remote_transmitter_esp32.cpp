@@ -196,10 +196,27 @@ void RemoteTransmitterComponent::configure_rmt_() {
   }
 }
 
+void RemoteTransmitterComponent::wait_for_rmt_() {
+  esp_err_t error = rmt_tx_wait_all_done(this->channel_, -1);
+  if (error != ESP_OK) {
+    ESP_LOGW(TAG, "rmt_tx_wait_all_done failed: %s", esp_err_to_name(error));
+    this->status_set_warning();
+  }
+
+  this->complete_trigger_->trigger();
+}
+
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
+  uint64_t total_duration = 0;
+
   if (this->is_failed()) {
     return;
+  }
+
+  // if the timeout was cancelled, block until the tx is complete
+  if (this->non_blocking_ && this->cancel_timeout("complete")) {
+    this->wait_for_rmt_();
   }
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
@@ -212,6 +229,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   // encode any delay at the start of the buffer to simplify the encoder callback
   // this will be skipped the first time around
+  total_duration += send_wait * (send_times - 1);
   send_wait = this->from_microseconds_(static_cast<uint32_t>(send_wait));
   while (send_wait > 0) {
     int32_t duration = std::min(send_wait, uint32_t(RMT_SYMBOL_DURATION_MAX));
@@ -229,6 +247,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (!level) {
       value = -value;
     }
+    total_duration += value * send_times;
     value = this->from_microseconds_(static_cast<uint32_t>(value));
     while (value > 0) {
       int32_t duration = std::min(value, int32_t(RMT_SYMBOL_DURATION_MAX));
@@ -260,13 +279,12 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   } else {
     this->status_clear_warning();
   }
-  error = rmt_tx_wait_all_done(this->channel_, -1);
-  if (error != ESP_OK) {
-    ESP_LOGW(TAG, "rmt_tx_wait_all_done failed: %s", esp_err_to_name(error));
-    this->status_set_warning();
-  }
 
-  this->complete_trigger_->trigger();
+  if (this->non_blocking_) {
+    this->set_timeout("complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
+  } else {
+    this->wait_for_rmt_();
+  }
 }
 #else
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {

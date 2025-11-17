@@ -24,35 +24,31 @@ void TemplateSelect::setup() {
     ESP_LOGD(TAG, "State from initial: %s", this->option_at(index));
   }
 
-  this->publish_state(this->at(index).value());
+  this->publish_state(index);
 }
 
 void TemplateSelect::update() {
   if (!this->f_.has_value())
     return;
 
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  if (!this->has_option(*val)) {
-    ESP_LOGE(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
-    return;
+  auto val = this->f_();
+  if (val.has_value()) {
+    if (!this->has_option(*val)) {
+      ESP_LOGE(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
+      return;
+    }
+    this->publish_state(*val);
   }
-
-  this->publish_state(*val);
 }
 
-void TemplateSelect::control(const std::string &value) {
-  this->set_trigger_->trigger(value);
+void TemplateSelect::control(size_t index) {
+  this->set_trigger_->trigger(std::string(this->option_at(index)));
 
   if (this->optimistic_)
-    this->publish_state(value);
+    this->publish_state(index);
 
-  if (this->restore_value_) {
-    auto index = this->index_of(value);
-    this->pref_.save(&index.value());
-  }
+  if (this->restore_value_)
+    this->pref_.save(&index);
 }
 
 void TemplateSelect::dump_config() {
