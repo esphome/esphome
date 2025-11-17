@@ -45,7 +45,7 @@ status = 301
 # It is replaced by sed in the makefile when netlify is building the site.
 [[redirects]]
   from = "/api/*"
-  to = "{{API_DOCS_URL}}/:splat"
+  to = "{{HUGOxPARAMSxAPI_DOCS_URL}}/:splat"
   status = 301
 
 # Webserver files
