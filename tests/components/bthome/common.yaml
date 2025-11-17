@@ -1,0 +1,32 @@
+sensor:
+  - platform: template
+    id: test_temperature
+    name: "Test Temperature"
+  - platform: template
+    id: test_humidity
+    name: "Test Humidity"
+  - platform: template
+    id: test_battery
+    name: "Test Battery"
+
+binary_sensor:
+  - platform: template
+    id: test_motion
+    name: "Test Motion"
+  - platform: template
+    id: test_door
+    name: "Test Door"
+
+bthome:
+  measurement:
+    - type: temperature
+      id: test_temperature
+    - type: humidity
+      id: test_humidity
+    - type: battery
+      id: test_battery
+  binary_sensor:
+    - type: motion
+      id: test_motion
+    - type: door
+      id: test_door
