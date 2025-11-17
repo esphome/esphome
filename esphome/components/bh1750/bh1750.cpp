@@ -131,7 +131,7 @@ void BH1750Sensor::loop() {
       this->process_coarse_result_(lx);
 
       // Start fine measurement with optimal settings
-      if (!this->start_measurement_(this->fine_mode_, this->fine_mtreg_, now)) {
+      if (!this->start_measurement_(this->fine_mode_, this->fine_mtreg_, millis())) {
         this->fail_and_reset_();
         break;
       }
