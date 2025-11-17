@@ -609,13 +609,12 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
   if (now < last && (last - now) > HALF_MAX_UINT32) {
     this->millis_major_++;
     major++;
+    this->last_millis_ = now;
 #ifdef ESPHOME_DEBUG_SCHEDULER
     ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
-  }
-
-  // Only update if time moved forward
-  if (now > last) {
+  } else if (now > last) {
+    // Only update if time moved forward
     this->last_millis_ = now;
   }
 
