@@ -49,7 +49,6 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.only_with_esp_idf,
     only_on_variant(supported=[VARIANT_ESP32S3]),
 )
 

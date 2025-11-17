@@ -29,11 +29,15 @@ enum class MotionState : uint8_t {
   MOTION = 1,
 };
 
-/// CSI data structure for storing subcarrier amplitude variance
-struct CSIData {
-  float variance{0.0f};
-  float amplitude{0.0f};
-  uint32_t timestamp{0};
+/// Maximum CSI buffer size for ESP32-S3
+static constexpr size_t MAX_CSI_LEN = 384;
+
+/// CSI data buffer for cross-task communication
+struct CSIDataBuffer {
+  std::array<int8_t, MAX_CSI_LEN> data;
+  size_t len{0};
+  std::array<uint8_t, 6> mac;
+  bool valid{false};
 };
 
 /**
@@ -67,11 +71,11 @@ class MotionMapComponent : public Component {
   /// Initialize CSI capture
   void init_csi_();
 
-  /// CSI callback (static wrapper for ESP-IDF)
+  /// CSI callback (static wrapper for ESP-IDF) - runs in WiFi task
   static void csi_callback_(void *ctx, wifi_csi_info_t *info);
 
-  /// Process CSI data
-  void process_csi_(wifi_csi_info_t *info);
+  /// Process CSI data in main loop
+  void process_csi_data_();
 
   /// Calculate variance from CSI data
   float calculate_variance_(const int8_t *data, size_t len);
@@ -113,10 +117,9 @@ class MotionMapComponent : public Component {
   uint32_t last_update_time_{0};
   bool csi_initialized_{false};
 
-  // Statistics for moving variance
-  float moving_sum_{0.0f};
-  float moving_sum_sq_{0.0f};
-  uint32_t sample_count_{0};
+  // CSI data buffer (written by WiFi task, read by main loop)
+  CSIDataBuffer csi_buffer_;
+  volatile bool new_csi_data_{false};
 };
 
 }  // namespace motion_map

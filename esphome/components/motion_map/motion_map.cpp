@@ -12,8 +12,6 @@ namespace motion_map {
 static const char *const TAG = "motion_map";
 
 void MotionMapComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Motion Map...");
-
   // Reserve space for variance window
   this->variance_window_.reserve(this->window_size_);
 
@@ -22,6 +20,12 @@ void MotionMapComponent::setup() {
 }
 
 void MotionMapComponent::loop() {
+  // Process new CSI data if available
+  if (this->new_csi_data_) {
+    this->new_csi_data_ = false;
+    this->process_csi_data_();
+  }
+
   // Periodic sensor publishing (every 1 second)
   uint32_t now = millis();
   if (now - this->last_update_time_ >= 1000) {
@@ -32,16 +36,16 @@ void MotionMapComponent::loop() {
 
 void MotionMapComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Motion Map:");
-  ESP_LOGCONFIG(TAG, "  Motion Threshold: %.2f", this->motion_threshold_);
-  ESP_LOGCONFIG(TAG, "  Idle Threshold: %.2f", this->idle_threshold_);
-  ESP_LOGCONFIG(TAG, "  Window Size: %u", this->window_size_);
-  ESP_LOGCONFIG(TAG, "  Sensitivity: %.2f", this->sensitivity_);
+  ESP_LOGCONFIG(TAG, "  Motion Threshold: %.2f\n  Idle Threshold: %.2f\n  Window Size: %u\n  Sensitivity: %.2f",
+                this->motion_threshold_, this->idle_threshold_, this->window_size_, this->sensitivity_);
   if (this->mac_address_.has_value()) {
     ESP_LOGCONFIG(TAG, "  MAC Filter: %02X:%02X:%02X:%02X:%02X:%02X", (*this->mac_address_)[0],
                   (*this->mac_address_)[1], (*this->mac_address_)[2], (*this->mac_address_)[3],
                   (*this->mac_address_)[4], (*this->mac_address_)[5]);
   }
-  ESP_LOGCONFIG(TAG, "  CSI Initialized: %s", this->csi_initialized_ ? "YES" : "NO");
+  if (!this->csi_initialized_) {
+    ESP_LOGW(TAG, "CSI not initialized");
+  }
 }
 
 void MotionMapComponent::init_csi_() {
@@ -76,22 +80,35 @@ void MotionMapComponent::init_csi_() {
   }
 
   this->csi_initialized_ = true;
-  ESP_LOGI(TAG, "CSI initialized successfully");
+  ESP_LOGD(TAG, "CSI initialized");
 }
 
 void MotionMapComponent::csi_callback_(void *ctx, wifi_csi_info_t *info) {
   auto *component = static_cast<MotionMapComponent *>(ctx);
-  if (component != nullptr && info != nullptr) {
-    component->process_csi_(info);
+  if (component == nullptr || info == nullptr || info->buf == nullptr || info->len == 0) {
+    return;
   }
+
+  // Copy CSI data to buffer for processing in main loop
+  // This callback runs in WiFi task context
+  size_t len = std::min(static_cast<size_t>(info->len), MAX_CSI_LEN);
+  memcpy(component->csi_buffer_.data.data(), info->buf, len);
+  component->csi_buffer_.len = len;
+  memcpy(component->csi_buffer_.mac.data(), info->mac, 6);
+  component->csi_buffer_.valid = true;
+  component->new_csi_data_ = true;
 }
 
-void MotionMapComponent::process_csi_(wifi_csi_info_t *info) {
+void MotionMapComponent::process_csi_data_() {
+  if (!this->csi_buffer_.valid) {
+    return;
+  }
+
   // Filter by MAC address if configured
   if (this->mac_address_.has_value()) {
     bool mac_match = true;
     for (size_t i = 0; i < 6; i++) {
-      if (info->mac[i] != (*this->mac_address_)[i]) {
+      if (this->csi_buffer_.mac[i] != (*this->mac_address_)[i]) {
         mac_match = false;
         break;
       }
@@ -101,13 +118,9 @@ void MotionMapComponent::process_csi_(wifi_csi_info_t *info) {
     }
   }
 
-  // Extract CSI data
-  const int8_t *csi_data = info->buf;
-  size_t csi_len = info->len;
-
-  if (csi_data == nullptr || csi_len == 0) {
-    return;
-  }
+  // Extract CSI data from buffer
+  const int8_t *csi_data = this->csi_buffer_.data.data();
+  size_t csi_len = this->csi_buffer_.len;
 
   // Calculate variance and amplitude
   float variance = this->calculate_variance_(csi_data, csi_len);
@@ -253,7 +266,7 @@ void MotionMapComponent::update_motion_state_(float variance) {
   // Update state if changed
   if (new_state != this->current_state_) {
     this->current_state_ = new_state;
-    ESP_LOGD(TAG, "Motion state changed: %s", new_state == MotionState::MOTION ? "MOTION" : "IDLE");
+    ESP_LOGV(TAG, "State: %s", new_state == MotionState::MOTION ? "MOTION" : "IDLE");
 
     // Publish binary sensor immediately on state change
     if (this->motion_binary_sensor_ != nullptr) {
