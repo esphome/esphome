@@ -1,4 +1,5 @@
 #pragma once
+#include <tuple>
 #include "coap_client_component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
@@ -29,9 +30,9 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, method)
   TEMPLATABLE_VALUE(std::string, media_type)
   TEMPLATABLE_VALUE(std::string, payload)
-  TEMPLATABLE_VALUE(size_t, max_block_size)
   TEMPLATABLE_VALUE(size_t, max_response_buffer_size)
   TEMPLATABLE_VALUE(bool, capture_response)
+  TEMPLATABLE_VALUE(bool, subscribe)
 
   void play(Ts... x) override {
     std::string payload;
@@ -50,9 +51,9 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
     }
 
     CoapClientRequestData tx_request = {
+        .subscribe = this->subscribe_.value(x...),
         .method = this->get_method_(this->method_.value(x...)),
         .uri = this->url_.value(x...),
-        .max_block_size = this->max_block_size_.value(x...),
         .callback = CoapClientSendAction::callback,
         .callback_context = this,
         .media_type = this->get_media_type_(this->media_type_.value(x...)),
@@ -66,13 +67,13 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
     this->response_has_error = false;
     this->response_finished = false;
     resp_stats->start_ms = esphome::millis();
-    this->parent_->process_request(&tx_request);
-    while (!response_finished) {
-      App.feed_wdt();
-      yield();
-    }
+    this->captured_args = std::make_tuple(x...);
+    this->parent_->process_request(tx_request);
+  }
 
-    auto captured_args = std::make_tuple(x...);
+  void trigger_this() {
+    auto resp_stats = get_response_stats();
+    auto captured_args = this->captured_args;
 
     if (this->response_has_error) {
       std::apply([this, &resp_stats](
@@ -82,7 +83,7 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
       // response_payload will be "" if capture_response = false;
       std::string response_payload = this->response_payload_;
       if (capture_resp) {
-        ESP_LOGV("Payload: %s\n", response_payload.c_str());
+        ESP_LOGV(TAGA, "Payload: %s", response_payload.c_str());
       }
       std::apply(
           [this, &resp_stats, &response_payload](Ts... captured_args_inner) {
@@ -94,35 +95,35 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
 
   static void callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset, size_t total,
                        void *context) {
+    ESP_LOGV(TAGA, "response payload segment, len: %d, offset: %d, is total: %s:\n'%.*s'", len, offset,
+             offset + len == total ? "yes" : "no", len, (const char *) data);
     CoapClientSendAction<Ts...> *obj = (CoapClientSendAction<Ts...> *) context;
     auto resp_stats = obj->get_response_stats();
 
-    if (!obj->response_finished) {
-      if (len == 0 && offset == 0 && total == 0) {
-        // Error
-        obj->response_has_error = true;
-        resp_stats->content_length = 0;
-        resp_stats->status_code = response_code;
-        resp_stats->duration_ms = esphome::millis() - resp_stats->start_ms;
-        obj->response_finished = true;
-        return;
-      }
-      if (len > 0) {
-        ESP_LOGV(TAGA, "response payload segment, len: %d, offset: %d, is total: %s:\n%.*s", len, offset,
-                 offset + len == total ? "yes" : "no", len, (const char *) data);
-        if (obj->capture_resp) {
-          size_t store_len = std::min(len, obj->max_resp_buffer_size - offset);
-          if (store_len > 0) {
-            obj->append_response_payload(data, len, offset);
-          }
+    if (len == 0 && offset == 0 && total == 0) {
+      // Error
+      obj->response_has_error = true;
+      resp_stats->content_length = 0;
+      resp_stats->status_code = response_code;
+      resp_stats->duration_ms = esphome::millis() - resp_stats->start_ms;
+      resp_stats->start_ms = esphome::millis();
+      obj->trigger_this();
+      return;
+    }
+    if (len > 0) {
+      if (obj->capture_resp) {
+        size_t store_len = std::min(len, obj->max_resp_buffer_size - offset);
+        if (store_len > 0) {
+          obj->assign_response_payload(data, len, offset);
         }
       }
-      if (total > 0 && len + offset == total) {
-        resp_stats->content_length = total;
-        resp_stats->status_code = response_code;
-        resp_stats->duration_ms = esphome::millis() - obj->response_stats->start_ms;
-        obj->response_finished = true;
-      }
+    }
+    if (total > 0 && len + offset == total) {
+      resp_stats->content_length = total;
+      resp_stats->status_code = response_code;
+      resp_stats->duration_ms = esphome::millis() - obj->response_stats->start_ms;
+      resp_stats->start_ms = esphome::millis();
+      obj->trigger_this();
     }
   }
 
@@ -143,10 +144,11 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
 
   size_t max_resp_buffer_size{1000};
   bool capture_resp{false};
+  std::tuple<Ts...> captured_args;
 
-  // Qblocks don't work with this would need to use a char* buffer and populate with offset
-  void append_response_payload(const unsigned char *data, size_t len, size_t offset) {
-    this->response_payload_.append(reinterpret_cast<const char *>(data), len);
+  // Blocks, Qblocks don't work with this would need to use a char* buffer and populate with offset
+  void assign_response_payload(const unsigned char *data, size_t len, size_t offset) {
+    this->response_payload_.assign(reinterpret_cast<const char *>(data), len);
   }
 
  protected:

@@ -27,6 +27,7 @@ from .const import (
     CONF_PSK_IDENTITY,
     CONF_PSK_KEY,
     CONF_REQUEST_TIMEOUT,
+    CONF_SUBSCRIBE,
 )
 
 
@@ -64,7 +65,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_CLIENT_CRT): cv.string,
         cv.Optional(CONF_CLIENT_KEY): cv.string,
     }
-).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.polling_component_schema("60s"))
 
 
 async def to_code(config):
@@ -102,11 +103,11 @@ COAP_CLIENT_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(CoapClientComponent),
         cv.Required(CONF_URL): cv.templatable(validate_url),
-        cv.Optional(CONF_MAX_BLOCK_SIZE, default="512B"): cv.validate_bytes,
         cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
+        cv.Optional(CONF_SUBSCRIBE, default="False"): cv.boolean,
     }
 )
 COAP_CLIENT_GET_ACTION_SCHEMA = automation.maybe_conf(
@@ -169,8 +170,6 @@ async def coap_client_action_to_code(config, action_id, template_arg, args):
             cg.add(var.set_media_type("JSON"))
         else:
             cg.add(var.set_media_type(media_type))
-    if (max_block_size := config.get(CONF_MAX_BLOCK_SIZE)) is not None:
-        cg.add(var.set_max_block_size(max_block_size))
     if CONF_PAYLOAD in config:
         template_ = await cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
         cg.add(var.set_payload(template_))
@@ -187,6 +186,8 @@ async def coap_client_action_to_code(config, action_id, template_arg, args):
 
     if capture_response := config.get(CONF_CAPTURE_RESPONSE):
         cg.add(var.set_capture_response(capture_response))
+    if subscribe := config.get(CONF_SUBSCRIBE):
+        cg.add(var.set_subscribe(subscribe))
     if (max_buffer := config.get(CONF_MAX_RESPONSE_BUFFER_SIZE)) is not None:
         cg.add(var.set_max_response_buffer_size(max_buffer))
     if response_conf := config.get(CONF_ON_RESPONSE):

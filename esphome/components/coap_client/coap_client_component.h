@@ -1,8 +1,10 @@
 #pragma once
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #ifdef USE_COAP_CLIENT
 #include <netdb.h>
 #include <string>
+#include <map>
 #include "coap3/coap.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -36,9 +38,13 @@ enum CoapMediaType : uint8_t {
 const char *coap_media_type_to_string(CoapMediaType media_type);
 
 struct CoapClientRequestData {
+  uint32_t timestamp{micros()};
+  bool subscribe{false};
+  bool subscribed{false};
+  bool qblock{false};
+  std::string token{};
   CoapMethod method = CoapMethod::EMPTY;
   std::string uri{};
-  size_t max_block_size{0};
   std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset, size_t total,
                      void *context)>
       callback;
@@ -47,11 +53,12 @@ struct CoapClientRequestData {
   std::string payload{};
 };
 
-class CoapClientComponent : public Component {
+class CoapClientComponent : public PollingComponent {
  public:
   CoapClientComponent();
   void setup() override;
   bool teardown() override;
+  void update() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -59,16 +66,15 @@ class CoapClientComponent : public Component {
            std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
                               size_t total, void *context)>
                callback,
-           void *callback_context, size_t max_block_size = 0);
+           void *callback_context);
 
   void post(std::string uri,
             std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
                                size_t total, void *context)>
                 callback,
-            void *callback_context, std::string payload, CoapMediaType media_type = CoapMediaType::TEXT_PLAIN,
-            size_t max_block_size = 0);
+            void *callback_context, std::string payload, CoapMediaType media_type = CoapMediaType::TEXT_PLAIN);
 
-  void process_request(CoapClientRequestData *request);
+  void process_request(CoapClientRequestData &tx_request);
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                           const coap_mid_t mid);
 
@@ -111,9 +117,13 @@ class CoapClientComponent : public Component {
   void set_client_crt(std::string str) { this->client_crt_str_ = str; }
   void set_client_key(std::string str) { this->client_key_str_ = str; }
 #endif
- protected:
-  void main_();
+  std::map<std::string, std::unique_ptr<CoapClientRequestData>> tx_requests;
 
+ protected:
+  std::map<uint32_t, CoapClientRequestData> tx_request_storage_;
+  void main_();
+  coap_session_t *get_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri, coap_proto_t proto,
+                               coap_oscore_conf_t *oscore_conf);
 #ifdef CONFIG_COAP_MBEDTLS_PSK
   void provision_psk_(coap_dtls_cpsk_t *dtls_psk, coap_uri_t *uri);
   coap_session_t *coap_start_psk_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri,
@@ -127,10 +137,6 @@ class CoapClientComponent : public Component {
   bool torndown_{false};
   QueueHandle_t request_queue_{nullptr};
   TaskHandle_t main_task_handle_{nullptr};
-  std::function<void(uint16_t response_code, const unsigned char *data, size_t len, size_t offset, size_t total,
-                     void *context)>
-      response_callback_{nullptr};
-  void *response_callback_context_{nullptr};
   size_t max_block_size_{512};
   uint8_t uri_path_buffer_size_{100};
   uint32_t request_timeout_{COAP_RESOURCE_CHECK_TIME * 1000};
