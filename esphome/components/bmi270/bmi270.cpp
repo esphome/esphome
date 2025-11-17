@@ -94,42 +94,39 @@ const float GRAVITY_EARTH = 9.80665f;
 
 // BMI270 configuration file (reduced version for basic operation)
 // This is a simplified config file - for full features, you would need the complete config from Bosch
-const uint8_t bmi270_config_file[] = {
+static const uint8_t bmi270_config_file[] = {
     0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x3d, 0xb1, 0xc8, 0x2e, 0x00, 0x2e, 0xc8, 0x2e, 0x00, 0x2e,
     0xc8, 0x2e, 0x00, 0x2e, 0xc8, 0x2e, 0x00, 0x2e, 0xc8, 0x2e, 0x00, 0x2e, 0xc8, 0x2e, 0x00, 0x2e,
     0x90, 0x32, 0x21, 0x2e, 0x59, 0xf5, 0x10, 0x30, 0x21, 0x2e, 0x6a, 0xf5, 0x1a, 0x24, 0x22, 0x00,
     0x80, 0x2e, 0x3b, 0xb1, 0x10, 0x30, 0x21, 0x2e, 0x6a, 0xf5, 0x80, 0x2e, 0x5a, 0xb1, 0x41, 0x33,
 };
 
-void BMI270Component::internal_setup_(int stage) {
-  ESP_LOGCONFIG(TAG, "Setting up BMI270 (stage %d)...", stage);
+void BMI270Component::internal_setup_(SetupState state) {
+  ESP_LOGCONFIG(TAG, "Setting up BMI270...");
 
-  switch (stage) {
-    case 0: {
+  switch (state) {
+    case SetupState::SOFT_RESET: {
       // Soft reset
       ESP_LOGV(TAG, "  Performing soft reset");
       if (!this->write_byte(BMI270_REGISTER_CMD, BMI270_CMD_SOFT_RESET)) {
-        ESP_LOGE(TAG, "  Soft reset failed!");
-        this->mark_failed();
+        this->mark_failed("Soft reset failed");
         return;
       }
       // Wait for reset to complete
-      this->set_timeout(10, [this]() { this->internal_setup_(1); });
+      this->set_timeout(10, [this]() { this->internal_setup_(SetupState::CHECK_CHIP_ID); });
       break;
     }
 
-    case 1: {
+    case SetupState::CHECK_CHIP_ID: {
       // Check chip ID
       uint8_t chip_id;
       if (!this->read_byte(BMI270_REGISTER_CHIP_ID, &chip_id)) {
-        ESP_LOGE(TAG, "  Failed to read chip ID");
-        this->mark_failed();
+        this->mark_failed("Failed to read chip ID");
         return;
       }
 
       if (chip_id != BMI270_CHIP_ID) {
-        ESP_LOGE(TAG, "  Wrong chip ID: 0x%02X (expected 0x%02X)", chip_id, BMI270_CHIP_ID);
-        this->mark_failed();
+        this->mark_failed("Wrong chip ID");
         return;
       }
 
@@ -137,31 +134,29 @@ void BMI270Component::internal_setup_(int stage) {
 
       // Disable advanced power save mode for initialization
       if (!this->write_byte(BMI270_REGISTER_PWR_CONF, 0x00)) {
-        ESP_LOGE(TAG, "  Failed to disable advanced power save");
-        this->mark_failed();
+        this->mark_failed("Failed to disable advanced power save");
         return;
       }
 
-      this->set_timeout(1, [this]() { this->internal_setup_(2); });
+      this->set_timeout(1, [this]() { this->internal_setup_(SetupState::PREPARE_CONFIG_UPLOAD); });
       break;
     }
 
-    case 2: {
+    case SetupState::PREPARE_CONFIG_UPLOAD: {
       // Prepare for config file upload
       ESP_LOGV(TAG, "  Preparing to upload config file");
 
       // Disable loading of the configuration
       if (!this->write_byte(BMI270_REGISTER_INIT_CTRL, 0x00)) {
-        ESP_LOGE(TAG, "  Failed to prepare config upload");
-        this->mark_failed();
+        this->mark_failed("Failed to prepare config upload");
         return;
       }
 
-      this->set_timeout(1, [this]() { this->internal_setup_(3); });
+      this->set_timeout(1, [this]() { this->internal_setup_(SetupState::UPLOAD_CONFIG); });
       break;
     }
 
-    case 3: {
+    case SetupState::UPLOAD_CONFIG: {
       // Upload configuration file in chunks
       ESP_LOGV(TAG, "  Uploading config file (%d bytes)", sizeof(bmi270_config_file));
 
@@ -176,58 +171,52 @@ void BMI270Component::internal_setup_(int stage) {
         uint8_t addr_msb = ((i / 2) >> 8) & 0xFF;
 
         if (!this->write_byte(BMI270_REGISTER_INIT_ADDR_0, addr_lsb)) {
-          ESP_LOGE(TAG, "  Failed to set config address LSB");
-          this->mark_failed();
+          this->mark_failed("Failed to set config address LSB");
           return;
         }
 
         if (!this->write_byte(BMI270_REGISTER_INIT_ADDR_1, addr_msb)) {
-          ESP_LOGE(TAG, "  Failed to set config address MSB");
-          this->mark_failed();
+          this->mark_failed("Failed to set config address MSB");
           return;
         }
 
         // Write data chunk
         if (!this->write_bytes(BMI270_REGISTER_INIT_DATA, &bmi270_config_file[i], bytes_to_write)) {
-          ESP_LOGE(TAG, "  Failed to write config data at offset %d", i);
-          this->mark_failed();
+          this->mark_failed("Failed to write config data");
           return;
         }
       }
 
       ESP_LOGV(TAG, "  Config file uploaded successfully");
-      this->set_timeout(10, [this]() { this->internal_setup_(4); });
+      this->set_timeout(10, [this]() { this->internal_setup_(SetupState::COMPLETE_INIT); });
       break;
     }
 
-    case 4: {
+    case SetupState::COMPLETE_INIT: {
       // Complete initialization
       ESP_LOGV(TAG, "  Completing initialization");
 
       if (!this->write_byte(BMI270_REGISTER_INIT_CTRL, 0x01)) {
-        ESP_LOGE(TAG, "  Failed to complete initialization");
-        this->mark_failed();
+        this->mark_failed("Failed to complete initialization");
         return;
       }
 
-      this->set_timeout(150, [this]() { this->internal_setup_(5); });
+      this->set_timeout(150, [this]() { this->internal_setup_(SetupState::CHECK_STATUS); });
       break;
     }
 
-    case 5: {
+    case SetupState::CHECK_STATUS: {
       // Check internal status
       uint8_t internal_status;
       if (!this->read_byte(BMI270_REGISTER_INTERNAL_STATUS, &internal_status)) {
-        ESP_LOGE(TAG, "  Failed to read internal status");
-        this->mark_failed();
+        this->mark_failed("Failed to read internal status");
         return;
       }
 
       ESP_LOGV(TAG, "  Internal status: 0x%02X", internal_status);
 
       if ((internal_status & 0x01) == 0) {
-        ESP_LOGE(TAG, "  Initialization failed - message not received");
-        this->mark_failed();
+        this->mark_failed("Initialization failed - message not received");
         return;
       }
 
@@ -235,31 +224,28 @@ void BMI270Component::internal_setup_(int stage) {
       ESP_LOGV(TAG, "  Enabling accelerometer and gyroscope");
       uint8_t pwr_ctrl = BMI270_PWR_CTRL_ACC_ENABLE | BMI270_PWR_CTRL_GYR_ENABLE | BMI270_PWR_CTRL_TEMP_ENABLE;
       if (!this->write_byte(BMI270_REGISTER_PWR_CTRL, pwr_ctrl)) {
-        ESP_LOGE(TAG, "  Failed to enable sensors");
-        this->mark_failed();
+        this->mark_failed("Failed to enable sensors");
         return;
       }
 
-      this->set_timeout(50, [this]() { this->internal_setup_(6); });
+      this->set_timeout(50, [this]() { this->internal_setup_(SetupState::CONFIGURE_SENSORS); });
       break;
     }
 
-    case 6: {
+    case SetupState::CONFIGURE_SENSORS: {
       // Configure accelerometer
       ESP_LOGV(TAG, "  Configuring accelerometer");
 
       // Set range to ±16g
       if (!this->write_byte(BMI270_REGISTER_ACC_RANGE, BMI270_ACC_RANGE_16G)) {
-        ESP_LOGE(TAG, "  Failed to set accelerometer range");
-        this->mark_failed();
+        this->mark_failed("Failed to set accelerometer range");
         return;
       }
 
       // Set ODR to 100Hz, normal mode
       uint8_t acc_conf = (BMI270_ACC_BWP_NORMAL << 4) | BMI270_ACC_ODR_100HZ;
       if (!this->write_byte(BMI270_REGISTER_ACC_CONF, acc_conf)) {
-        ESP_LOGE(TAG, "  Failed to configure accelerometer");
-        this->mark_failed();
+        this->mark_failed("Failed to configure accelerometer");
         return;
       }
 
@@ -268,16 +254,14 @@ void BMI270Component::internal_setup_(int stage) {
 
       // Set range to ±2000°/s
       if (!this->write_byte(BMI270_REGISTER_GYR_RANGE, BMI270_GYR_RANGE_2000)) {
-        ESP_LOGE(TAG, "  Failed to set gyroscope range");
-        this->mark_failed();
+        this->mark_failed("Failed to set gyroscope range");
         return;
       }
 
       // Set ODR to 100Hz, normal mode
       uint8_t gyr_conf = (BMI270_GYR_BWP_NORMAL << 4) | BMI270_GYR_ODR_100HZ;
       if (!this->write_byte(BMI270_REGISTER_GYR_CONF, gyr_conf)) {
-        ESP_LOGE(TAG, "  Failed to configure gyroscope");
-        this->mark_failed();
+        this->mark_failed("Failed to configure gyroscope");
         return;
       }
 
@@ -285,10 +269,14 @@ void BMI270Component::internal_setup_(int stage) {
       this->setup_complete_ = true;
       break;
     }
+
+    case SetupState::DONE:
+      // Nothing to do
+      break;
   }
 }
 
-void BMI270Component::setup() { this->internal_setup_(0); }
+void BMI270Component::setup() { this->internal_setup_(SetupState::SOFT_RESET); }
 
 void BMI270Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMI270:");
@@ -329,24 +317,21 @@ void BMI270Component::update() {
   // Read accelerometer data (6 bytes)
   int16_t accel_data[3];
   if (this->read_le_int16_(BMI270_REGISTER_DATA_ACCEL_X_LSB, accel_data, 3) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to read accelerometer data");
-    this->status_set_warning();
+    this->status_set_warning("Failed to read accelerometer data");
     return;
   }
 
   // Read gyroscope data (6 bytes)
   int16_t gyro_data[3];
   if (this->read_le_int16_(BMI270_REGISTER_DATA_GYRO_X_LSB, gyro_data, 3) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to read gyroscope data");
-    this->status_set_warning();
+    this->status_set_warning("Failed to read gyroscope data");
     return;
   }
 
   // Read temperature data (2 bytes)
   int16_t raw_temperature;
   if (this->read_le_int16_(BMI270_REGISTER_TEMPERATURE_LSB, &raw_temperature, 1) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to read temperature data");
-    this->status_set_warning();
+    this->status_set_warning("Failed to read temperature data");
     return;
   }
 

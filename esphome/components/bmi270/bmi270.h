@@ -25,6 +25,17 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   void set_gyro_z_sensor(sensor::Sensor *gyro_z_sensor) { this->gyro_z_sensor_ = gyro_z_sensor; }
 
  protected:
+  enum class SetupState : uint8_t {
+    SOFT_RESET = 0,
+    CHECK_CHIP_ID,
+    PREPARE_CONFIG_UPLOAD,
+    UPLOAD_CONFIG,
+    COMPLETE_INIT,
+    CHECK_STATUS,
+    CONFIGURE_SENSORS,
+    DONE,
+  };
+
   sensor::Sensor *accel_x_sensor_{nullptr};
   sensor::Sensor *accel_y_sensor_{nullptr};
   sensor::Sensor *accel_z_sensor_{nullptr};
@@ -33,7 +44,8 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *gyro_y_sensor_{nullptr};
   sensor::Sensor *gyro_z_sensor_{nullptr};
 
-  void internal_setup_(int stage);
+  void internal_setup_(SetupState state);
+  SetupState setup_state_{SetupState::SOFT_RESET};
   bool setup_complete_{false};
 
   /** reads `len` 16-bit little-endian integers from the given i2c register */
