@@ -336,7 +336,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->connecting_sta_ = sta;
 
         wifi::global_wifi_component->set_sta(sta);
-        wifi::global_wifi_component->start_connecting(sta, false);
+        wifi::global_wifi_component->start_connecting(sta);
         this->set_state_(improv::STATE_PROVISIONING);
         ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
