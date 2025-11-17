@@ -182,7 +182,6 @@ class WidgetType:
         Generate code for a given widget
         :param w: The widget
         :param config: Its configuration
-        :return: Generated code as a list of text lines
         """
 
     async def obj_creator(self, parent: MockObjClass, config: dict):
