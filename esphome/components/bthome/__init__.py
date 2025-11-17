@@ -4,8 +4,9 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import CONF_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_BINARY_SENSOR,
+    CONF_BINARY_SENSORS,
     CONF_ID,
+    CONF_SENSORS,
     CONF_TX_POWER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -52,11 +53,11 @@ BTHome = bthome_ns.class_(
 )
 
 # Configuration constants
-CONF_MEASUREMENT = "measurement"
 CONF_ENCRYPTION_KEY = "encryption_key"
 CONF_MIN_INTERVAL = "min_interval"
 CONF_MAX_INTERVAL = "max_interval"
 CONF_SENSOR_TYPE = "type"
+CONF_ADVERTISE_IMMEDIATELY = "advertise_immediately"
 
 # BTHome object IDs for sensors (mapping from device class to BTHome object ID)
 SENSOR_DEVICE_CLASS_TO_OBJECT_ID = {
@@ -140,23 +141,25 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel, cv.enum(esp32_ble.TX_POWER_LEVELS, int=True)
             ),
             cv.Optional(CONF_ENCRYPTION_KEY): validate_encryption_key,
-            cv.Optional(CONF_MEASUREMENT): cv.ensure_list(
+            cv.Optional(CONF_SENSORS): cv.ensure_list(
                 cv.Schema(
                     {
                         cv.Required(CONF_SENSOR_TYPE): cv.one_of(
                             *SENSOR_DEVICE_CLASS_TO_OBJECT_ID.keys(), lower=True
                         ),
                         cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
+                        cv.Optional(CONF_ADVERTISE_IMMEDIATELY, default=False): cv.boolean,
                     }
                 )
             ),
-            cv.Optional(CONF_BINARY_SENSOR): cv.ensure_list(
+            cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
                 cv.Schema(
                     {
                         cv.Required(CONF_SENSOR_TYPE): cv.one_of(
                             *BINARY_SENSOR_DEVICE_CLASS_TO_OBJECT_ID.keys(), lower=True
                         ),
                         cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
+                        cv.Optional(CONF_ADVERTISE_IMMEDIATELY, default=False): cv.boolean,
                     }
                 )
             ),
@@ -179,26 +182,40 @@ async def to_code(config):
     cg.add(var.set_max_interval(config[CONF_MAX_INTERVAL]))
     cg.add(var.set_tx_power(config[CONF_TX_POWER]))
 
+    # Initialize FixedVectors with proper sizes
+    num_sensors = len(config.get(CONF_SENSORS, []))
+    num_binary_sensors = len(config.get(CONF_BINARY_SENSORS, []))
+    max_packets = max(1, num_sensors + num_binary_sensors)
+
+    # Initialize the measurements and binary_measurements FixedVectors
+    cg.add(cg.RawExpression(f"{var}->measurements_.init({num_sensors})"))
+    cg.add(cg.RawExpression(f"{var}->binary_measurements_.init({num_binary_sensors})"))
+    cg.add(cg.RawExpression(f"{var}->adv_packets_.init({max_packets})"))
+    cg.add(cg.RawExpression(f"{var}->adv_packet_sizes_.init({max_packets})"))
+
     if CONF_ENCRYPTION_KEY in config:
         key = config[CONF_ENCRYPTION_KEY]
-        key_bytes = [int(key[i : i + 2], 16) for i in range(0, len(key), 2)]
-        cg.add(var.set_encryption_key(key_bytes))
+        key_bytes = [cg.RawExpression(f"0x{key[i:i+2]}") for i in range(0, len(key), 2)]
+        key_array = cg.RawExpression(f"std::array<uint8_t, 16>{{{', '.join(str(b) for b in key_bytes)}}}")
+        cg.add(var.set_encryption_key(key_array))
 
     # Add sensor measurements
-    if CONF_MEASUREMENT in config:
-        for measurement in config[CONF_MEASUREMENT]:
+    if CONF_SENSORS in config:
+        for measurement in config[CONF_SENSORS]:
             sensor_type = measurement[CONF_SENSOR_TYPE]
             object_id = SENSOR_DEVICE_CLASS_TO_OBJECT_ID[sensor_type]
             sens = await cg.get_variable(measurement[CONF_ID])
-            cg.add(var.add_measurement(sens, object_id))
+            advertise_immediately = measurement[CONF_ADVERTISE_IMMEDIATELY]
+            cg.add(var.add_measurement(sens, object_id, advertise_immediately))
 
     # Add binary sensor measurements
-    if CONF_BINARY_SENSOR in config:
-        for measurement in config[CONF_BINARY_SENSOR]:
+    if CONF_BINARY_SENSORS in config:
+        for measurement in config[CONF_BINARY_SENSORS]:
             sensor_type = measurement[CONF_SENSOR_TYPE]
             object_id = BINARY_SENSOR_DEVICE_CLASS_TO_OBJECT_ID[sensor_type]
             sens = await cg.get_variable(measurement[CONF_ID])
-            cg.add(var.add_binary_measurement(sens, object_id))
+            advertise_immediately = measurement[CONF_ADVERTISE_IMMEDIATELY]
+            cg.add(var.add_binary_measurement(sens, object_id, advertise_immediately))
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 

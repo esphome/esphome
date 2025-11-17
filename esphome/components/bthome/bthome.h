@@ -4,6 +4,7 @@
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ESP32
 
@@ -13,7 +14,6 @@
 #include <esp_gap_ble_api.h>
 
 #include <array>
-#include <vector>
 
 namespace esphome {
 namespace bthome {
@@ -23,11 +23,13 @@ using namespace esp32_ble;
 struct SensorMeasurement {
   sensor::Sensor *sensor;
   uint8_t object_id;
+  bool advertise_immediately;
 };
 
 struct BinarySensorMeasurement {
   binary_sensor::BinarySensor *sensor;
   uint8_t object_id;
+  bool advertise_immediately;
 };
 
 class BTHome : public Component, public GAPEventHandler, public Parented<ESP32BLE> {
@@ -41,21 +43,22 @@ class BTHome : public Component, public GAPEventHandler, public Parented<ESP32BL
   void set_max_interval(uint16_t val) { this->max_interval_ = val; }
   void set_tx_power(esp_power_level_t val) { this->tx_power_ = val; }
 
-  void set_encryption_key(const std::vector<uint8_t> &key);
-  void add_measurement(sensor::Sensor *sensor, uint8_t object_id);
-  void add_binary_measurement(binary_sensor::BinarySensor *sensor, uint8_t object_id);
+  void set_encryption_key(const std::array<uint8_t, 16> &key);
+  void add_measurement(sensor::Sensor *sensor, uint8_t object_id, bool advertise_immediately);
+  void add_binary_measurement(binary_sensor::BinarySensor *sensor, uint8_t object_id, bool advertise_immediately);
 
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
  protected:
   void on_advertise_();
-  void build_advertisement_data_();
-  void encode_measurement_(std::vector<uint8_t> &data, uint8_t object_id, float value);
-  void encode_binary_measurement_(std::vector<uint8_t> &data, uint8_t object_id, bool value);
-  bool encrypt_payload_(const std::vector<uint8_t> &plaintext, std::vector<uint8_t> &ciphertext);
+  void build_advertisement_packets_();
+  size_t encode_measurement_(uint8_t *data, size_t max_len, uint8_t object_id, float value);
+  size_t encode_binary_measurement_(uint8_t *data, size_t max_len, uint8_t object_id, bool value);
+  bool encrypt_payload_(const uint8_t *plaintext, size_t plaintext_len, uint8_t *ciphertext, size_t *ciphertext_len);
+  void trigger_immediate_advertising_(uint8_t measurement_index, bool is_binary);
 
-  std::vector<SensorMeasurement> measurements_;
-  std::vector<BinarySensorMeasurement> binary_measurements_;
+  FixedVector<SensorMeasurement> measurements_;
+  FixedVector<BinarySensorMeasurement> binary_measurements_;
 
   uint16_t min_interval_{};
   uint16_t max_interval_{};
@@ -68,9 +71,14 @@ class BTHome : public Component, public GAPEventHandler, public Parented<ESP32BL
   std::array<uint8_t, 16> encryption_key_{};
   uint32_t counter_{0};
 
-  // Cached advertisement data
-  std::vector<uint8_t> adv_data_;
+  // Advertisement cycling support
+  FixedVector<std::unique_ptr<uint8_t[]>> adv_packets_;  // Multiple advertisement packets
+  FixedVector<uint16_t> adv_packet_sizes_;               // Size of each packet
+  uint8_t current_packet_index_{0};
   bool data_changed_{true};
+  bool immediate_advertising_pending_{false};
+  uint8_t immediate_adv_measurement_index_{0};
+  bool immediate_adv_is_binary_{false};
 };
 
 }  // namespace bthome

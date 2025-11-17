@@ -18,15 +18,16 @@ binary_sensor:
     name: "Test Door"
 
 bthome:
-  measurement:
+  sensors:
     - type: temperature
       id: test_temperature
     - type: humidity
       id: test_humidity
     - type: battery
       id: test_battery
-  binary_sensor:
+  binary_sensors:
     - type: motion
       id: test_motion
+      advertise_immediately: true
     - type: door
       id: test_door
