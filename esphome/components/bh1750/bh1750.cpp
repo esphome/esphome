@@ -256,7 +256,7 @@ void BH1750Sensor::process_coarse_result_(float lx) {
     // calculate for counts=50000 (allow some range to not saturate, but maximize mtreg)
     // -> mtreg = 50000*(10/12)*(69/lx)
     int ideal_mtreg = COUNTS_TARGET * COUNTS_NUMERATOR * MTREG_DEFAULT / (COUNTS_DENOMINATOR * (int) lx);
-    this->fine_mtreg_ = std::min(MTREG_MAX, std::max(MTREG_MIN, ideal_mtreg));
+    this->fine_mtreg_ = std::min((int) MTREG_MAX, std::max((int) MTREG_MIN, ideal_mtreg));
   }
 
   ESP_LOGV(TAG, "L result: %.1f -> Calculated mode=%d, mtreg=%d", lx, (int) this->fine_mode_, this->fine_mtreg_);
