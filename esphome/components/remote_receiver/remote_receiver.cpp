@@ -116,7 +116,7 @@ void RemoteReceiverComponent::loop() {
   // find the size of the buffer and reserve the memory
   uint32_t temp_read = s.buffer_read;
   uint32_t reserve_size = 0;
-  while (temp_read != last_index && std::abs(s.buffer[temp_read]) < this->idle_us_) {
+  while (temp_read != last_index && (uint32_t) std::abs(s.buffer[temp_read]) < this->idle_us_) {
     reserve_size++;
     temp_read++;
     if (temp_read >= s.buffer_size) {
