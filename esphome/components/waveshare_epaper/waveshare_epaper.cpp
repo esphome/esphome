@@ -2760,6 +2760,77 @@ void WaveshareEPaper4P2InBV2BWR::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void GDEQ0426T82::initialize() {
+  this->wait_until_idle_();
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  this->command(0x0C);
+  this->data(0xAE);
+  this->data(0xC7);
+  this->data(0xC3);
+  this->data(0xC0);
+  this->data(0x80);
+
+  this->command(0x01);
+  this->data((this->get_height_internal() - 1) % 256);
+  this->data((this->get_height_internal() - 1) / 256);
+  this->data(0x00);
+
+  this->command(0x11);
+  this->data(0x03);
+
+  this->command(0x44);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+  this->data((this->get_width_internal() - 1) & 0xFF);
+  this->data(((this->get_width_internal() - 1) >> 8) & 0x03);
+
+  this->command(0x45);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+  this->data((this->get_height_internal() - 1) & 0xFF);
+  this->data(((this->get_height_internal() - 1) >> 8) & 0x03);
+
+  this->command(0x3C);
+  this->data(0x01);
+
+  this->command(0x18);
+  this->data(0x80);
+
+  this->command(0x4E);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+
+  this->command(0x4F);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+}
+
+void HOT GDEQ0426T82::display() {
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  this->command(0x22);
+  this->data(0xF7);
+  this->command(0x20);
+  this->wait_until_idle_();
+}
+
+int GDEQ0426T82::get_width_internal() { return 800; }
+int GDEQ0426T82::get_height_internal() { return 480; }
+
+void GDEQ0426T82::dump_config() {
+  LOG_DISPLAY("", "E-Paper (Good Display)", this);
+  ESP_LOGCONFIG(TAG, "  Model: 4.26in GDEQ0426T82");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 void WaveshareEPaper5P8In::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);
