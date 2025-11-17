@@ -1,0 +1,4 @@
+packages:
+  base: !include ../../test_build_components/base.yaml
+
+<<: !include common.yaml

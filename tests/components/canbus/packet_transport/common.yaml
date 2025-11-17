@@ -1,0 +1,53 @@
+canbus:
+  - platform: esp32_can
+    id: esp32_internal_can
+    rx_pin: GPIO4
+    tx_pin: GPIO5
+    can_id: 4
+    bit_rate: 125kbps
+
+packet_transport:
+  platform: canbus
+  canbus_id: esp32_internal_can
+  can_id: 0x600
+  use_extended_id: false
+  update_interval: 5s
+  encryption: "test encryption key"
+  rolling_code_enable: true
+  ping_pong_enable: true
+  binary_sensors:
+    - binary_sensor_id1
+    - id: binary_sensor_id1
+      broadcast_id: other_id
+  sensors:
+    - sensor_id1
+    - id: sensor_id1
+      broadcast_id: other_id
+  providers:
+    - name: remote-device
+      encryption: "remote device key"
+
+sensor:
+  - platform: template
+    id: sensor_id1
+    name: "Local Sensor"
+  - platform: packet_transport
+    provider: remote-device
+    id: remote_sensor_id
+    remote_id: some_sensor_id
+    name: "Remote Sensor"
+    internal: true
+
+binary_sensor:
+  - platform: packet_transport
+    provider: unencrypted-device
+    id: other_binary_sensor_id
+    name: "Other Binary Sensor"
+    internal: true
+  - platform: packet_transport
+    provider: remote-device
+    type: status
+    name: "Remote Device Status"
+  - platform: template
+    id: binary_sensor_id1
+    name: "Local Binary Sensor"
