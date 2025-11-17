@@ -9,8 +9,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 struct MultiClickTriggerEvent {
   bool state;
@@ -141,7 +140,7 @@ class StateChangeTrigger : public Trigger<optional<bool>, optional<bool> > {
 template<typename... Ts> class BinarySensorCondition : public Condition<Ts...> {
  public:
   BinarySensorCondition(BinarySensor *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(Ts... x) override { return this->parent_->state == this->state_; }
+  bool check(const Ts &...x) override { return this->parent_->state == this->state_; }
 
  protected:
   BinarySensor *parent_;
@@ -153,7 +152,7 @@ template<typename... Ts> class BinarySensorPublishAction : public Action<Ts...> 
   explicit BinarySensorPublishAction(BinarySensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(bool, state)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto val = this->state_.value(x...);
     this->sensor_->publish_state(val);
   }
@@ -166,11 +165,10 @@ template<typename... Ts> class BinarySensorInvalidateAction : public Action<Ts..
  public:
   explicit BinarySensorInvalidateAction(BinarySensor *sensor) : sensor_(sensor) {}
 
-  void play(Ts... x) override { this->sensor_->invalidate_state(); }
+  void play(const Ts &...x) override { this->sensor_->invalidate_state(); }
 
  protected:
   BinarySensor *sensor_;
 };
 
-}  // namespace binary_sensor
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

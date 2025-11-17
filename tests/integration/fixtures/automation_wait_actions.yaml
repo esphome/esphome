@@ -1,0 +1,130 @@
+esphome:
+  name: test-automation-wait-actions
+
+host:
+
+api:
+  actions:
+    # Test 1: Trigger wait_until automation 5 times rapidly
+    - action: test_wait_until
+      then:
+        - logger.log: "=== TEST 1: Triggering wait_until automation 5 times ==="
+        # Publish 5 different values to trigger the on_value automation 5 times
+        - sensor.template.publish:
+            id: wait_until_sensor
+            state: 1
+        - sensor.template.publish:
+            id: wait_until_sensor
+            state: 2
+        - sensor.template.publish:
+            id: wait_until_sensor
+            state: 3
+        - sensor.template.publish:
+            id: wait_until_sensor
+            state: 4
+        - sensor.template.publish:
+            id: wait_until_sensor
+            state: 5
+        # Wait then satisfy the condition so all 5 waiting actions complete
+        - delay: 100ms
+        - globals.set:
+            id: test_flag
+            value: 'true'
+
+    # Test 2: Trigger script.wait automation 5 times rapidly
+    - action: test_script_wait
+      then:
+        - logger.log: "=== TEST 2: Triggering script.wait automation 5 times ==="
+        # Start a long-running script
+        - script.execute: blocking_script
+        # Publish 5 different values to trigger the on_value automation 5 times
+        - sensor.template.publish:
+            id: script_wait_sensor
+            state: 1
+        - sensor.template.publish:
+            id: script_wait_sensor
+            state: 2
+        - sensor.template.publish:
+            id: script_wait_sensor
+            state: 3
+        - sensor.template.publish:
+            id: script_wait_sensor
+            state: 4
+        - sensor.template.publish:
+            id: script_wait_sensor
+            state: 5
+
+    # Test 3: Trigger wait_until timeout automation 5 times rapidly
+    - action: test_wait_timeout
+      then:
+        - logger.log: "=== TEST 3: Triggering timeout automation 5 times ==="
+        # Publish 5 different values (condition will never be true, all will timeout)
+        - sensor.template.publish:
+            id: timeout_sensor
+            state: 1
+        - sensor.template.publish:
+            id: timeout_sensor
+            state: 2
+        - sensor.template.publish:
+            id: timeout_sensor
+            state: 3
+        - sensor.template.publish:
+            id: timeout_sensor
+            state: 4
+        - sensor.template.publish:
+            id: timeout_sensor
+            state: 5
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: test_flag
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  - id: timeout_flag
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+# Sensors with wait_until/script.wait in their on_value automations
+sensor:
+  # Test 1: on_value automation with wait_until
+  - platform: template
+    id: wait_until_sensor
+    on_value:
+      # This wait_until will be hit 5 times before any complete
+      - wait_until:
+          condition:
+            lambda: return id(test_flag);
+      - logger.log: "wait_until automation completed"
+
+  # Test 2: on_value automation with script.wait
+  - platform: template
+    id: script_wait_sensor
+    on_value:
+      # This script.wait will be hit 5 times before any complete
+      - script.wait: blocking_script
+      - logger.log: "script.wait automation completed"
+
+  # Test 3: on_value automation with wait_until timeout
+  - platform: template
+    id: timeout_sensor
+    on_value:
+      # This wait_until will be hit 5 times, all will timeout
+      - wait_until:
+          condition:
+            lambda: return id(timeout_flag);
+          timeout: 200ms
+      - logger.log: "timeout automation completed"
+
+script:
+  # Blocking script for script.wait test
+  - id: blocking_script
+    mode: single
+    then:
+      - logger.log: "Blocking script: START"
+      - delay: 200ms
+      - logger.log: "Blocking script: END"

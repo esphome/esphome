@@ -1,6 +1,8 @@
 import logging
+import textwrap
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_IGNORE_NOT_FOUND
 from esphome.components.esp32 import (
     CONF_CPU_FREQUENCY,
     CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES,
@@ -32,6 +34,9 @@ CODEOWNERS = ["@esphome/core"]
 DOMAIN = "psram"
 
 DEPENDENCIES = [PLATFORM_ESP32]
+
+# PSRAM availability tracking for cross-component coordination
+KEY_PSRAM_GUARANTEED = "psram_guaranteed"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +74,23 @@ def supported() -> bool:
     return variant in SPIRAM_MODES
 
 
+def is_guaranteed() -> bool:
+    """Check if PSRAM is guaranteed to be available.
+
+    Returns True when PSRAM is configured with both 'disabled: false' and
+    'ignore_not_found: false', meaning the device will fail to boot if PSRAM
+    is not found. This ensures safe use of high buffer configurations that
+    depend on PSRAM.
+
+    This function should be called during code generation (to_code phase) by
+    components that need to know PSRAM availability for configuration decisions.
+
+    Returns:
+        bool: True if PSRAM is guaranteed, False otherwise
+    """
+    return CORE.data.get(KEY_PSRAM_GUARANTEED, False)
+
+
 def validate_psram_mode(config):
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if config[CONF_SPEED] == "120MHZ":
@@ -104,6 +126,17 @@ def get_config_schema(config):
     if not speeds:
         raise cv.Invalid("PSRAM is not supported on this chip")
     modes = SPIRAM_MODES[variant]
+    if CONF_MODE not in config and len(modes) != 1:
+        raise (
+            cv.Invalid(
+                textwrap.dedent(
+                    f"""
+                        {variant} requires PSRAM mode selection; one of {", ".join(modes)}
+                        Selection of the wrong mode for the board will cause a runtime failure to initialise PSRAM
+                    """
+                )
+            )
+        )
     return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),
@@ -111,13 +144,29 @@ def get_config_schema(config):
             cv.Optional(CONF_ENABLE_ECC, default=False): cv.boolean,
             cv.Optional(CONF_SPEED, default=speeds[0]): cv.one_of(*speeds, upper=True),
             cv.Optional(CONF_DISABLED, default=False): cv.boolean,
+            cv.Optional(CONF_IGNORE_NOT_FOUND, default=True): cv.boolean,
         }
     )(config)
 
 
 CONFIG_SCHEMA = get_config_schema
 
-FINAL_VALIDATE_SCHEMA = validate_psram_mode
+
+def _store_psram_guaranteed(config):
+    """Store PSRAM guaranteed status in CORE.data for other components.
+
+    PSRAM is "guaranteed" when it will fail if not found, ensuring safe use
+    of high buffer configurations in network/wifi components.
+
+    Called during final validation to ensure the flag is available
+    before any to_code() functions run.
+    """
+    psram_guaranteed = not config[CONF_DISABLED] and not config[CONF_IGNORE_NOT_FOUND]
+    CORE.data[KEY_PSRAM_GUARANTEED] = psram_guaranteed
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(validate_psram_mode, _store_psram_guaranteed)
 
 
 async def to_code(config):
@@ -135,7 +184,9 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
-    add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
+    add_idf_sdkconfig_option(
+        "CONFIG_SPIRAM_IGNORE_NOTFOUND", config[CONF_IGNORE_NOT_FOUND]
+    )
 
     add_idf_sdkconfig_option(f"CONFIG_SPIRAM_MODE_{SDK_MODES[config[CONF_MODE]]}", True)
 
