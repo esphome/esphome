@@ -40,13 +40,17 @@ static const size_t UNENCRYPTED_OVERHEAD = 8;
 static const size_t ENCRYPTED_OVERHEAD = 16;
 
 void BTHome::dump_config() {
-  ESP_LOGCONFIG(TAG, "BTHome:");
-  ESP_LOGCONFIG(TAG, "  Min Interval: %ums", this->min_interval_);
-  ESP_LOGCONFIG(TAG, "  Max Interval: %ums", this->max_interval_);
-  ESP_LOGCONFIG(TAG, "  TX Power: %ddBm", (this->tx_power_ * 3) - 12);
-  ESP_LOGCONFIG(TAG, "  Encryption: %s", this->encryption_enabled_ ? "enabled" : "disabled");
-  ESP_LOGCONFIG(TAG, "  Sensors: %d", this->measurements_.size());
-  ESP_LOGCONFIG(TAG, "  Binary Sensors: %d", this->binary_measurements_.size());
+  ESP_LOGCONFIG(TAG,
+                "BTHome:\n"
+                "  Min Interval: %ums\n"
+                "  Max Interval: %ums\n"
+                "  TX Power: %ddBm\n"
+                "  Encryption: %s\n"
+                "  Sensors: %d\n"
+                "  Binary Sensors: %d",
+                this->min_interval_, this->max_interval_, (this->tx_power_ * 3) - 12,
+                this->encryption_enabled_ ? "enabled" : "disabled", this->measurements_.size(),
+                this->binary_measurements_.size());
 }
 
 float BTHome::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
@@ -95,22 +99,14 @@ void BTHome::setup() {
 }
 
 void BTHome::loop() {
-  // Handle immediate advertising requests
+  // Handle immediate advertising requests only
+  // Regular data changes wait for the next advertising callback
   if (this->immediate_advertising_pending_ && this->advertising_) {
     this->immediate_advertising_pending_ = false;
     // Rebuild with only the immediate measurement
     this->build_advertisement_packets_();
     this->current_packet_index_ = 0;
     this->on_advertise_();
-    return;
-  }
-
-  // Rebuild advertisement if data has changed
-  if (this->data_changed_ && this->advertising_) {
-    this->build_advertisement_packets_();
-    this->current_packet_index_ = 0;
-    this->on_advertise_();
-    this->data_changed_ = false;
   }
 }
 
