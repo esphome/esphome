@@ -31,7 +31,6 @@ class ButtonType(WidgetType):
         return ("btn",)
 
     async def to_code(self, w: Widget, config):
-        print(config)
         if text := config.get(CONF_TEXT):
             button_id = config[CONF_ID]
             if isinstance(button_id, ID):
