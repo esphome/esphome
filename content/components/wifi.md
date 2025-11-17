@@ -35,6 +35,9 @@ wifi:
   password: !secret wifi_password
 ```
 
+> [!TIP]
+> For WiFi security recommendations including `min_auth_mode` configuration, see the [Security Best Practices](/guides/security_best_practices#wifi-security) guide.
+
 {{< anchor "wifi-configuration_variables" >}}
 
 ## Configuration variables

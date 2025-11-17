@@ -717,6 +717,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [fkirill (@fkirill)](https://github.com/fkirill)
 - [FL42 (@fl42)](https://github.com/fl42)
 - [Sean Vig (@flacjacket)](https://github.com/flacjacket)
+- [István Szmozsánszky (@flaki)](https://github.com/flaki)
 - [Diego Elio Pettenò (@Flameeyes)](https://github.com/Flameeyes)
 - [Flaviu Tamas (@flaviut)](https://github.com/flaviut)
 - [fluffymadness (@fluffymadness)](https://github.com/fluffymadness)
@@ -2271,4 +2272,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated November 12, 2025.*
+*This page was last updated November 17, 2025.*

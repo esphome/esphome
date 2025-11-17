@@ -1,0 +1,257 @@
+SAVE YOUR RESPONSES TO TWO FILES:
+  1. Feature Highlights: {{ highlights_file }}
+  2. Release Overview: {{ overview_file }}
+
+NOTE: The output files and directories may not exist yet - that's fine, create them.
+      You can use: Write tool with the full path, or create directories first if needed.
+
+IMPORTANT: Both files will be COMBINED into the same final changelog document:
+  - Feature Highlights ({{ highlights_file }}): Detailed ## sections explaining major features
+  - Release Overview ({{ overview_file }}): Short 2-4 sentence summary placed BEFORE the highlights
+
+Think of it like an executive summary:
+  - Overview = "Here are the 3-10 big themes of this release" (concise, high-level)
+  - Highlights = "Here's what each theme actually means and why it matters" (detailed, technical)
+
+════════════════════════════════════════════════════════════════════════════════
+
+TASK: Write BOTH the Release Overview AND Feature Highlights for ESPHome {{ version }}.
+
+WHY COMBINED: These sections appear in the same document, so they must work together.
+The overview is a concise summary of the highlights, not a separate narrative.
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 1: FEATURE HIGHLIGHTS (write first - save to {{ highlights_file }})
+════════════════════════════════════════════════════════════════════════════════
+
+Write the detailed feature highlight sections FIRST (see PART 2 below for full instructions).
+This is the main content - 3-10 detailed ## sections with measurements, examples, and context.
+
+════════════════════════════════════════════════════════════════════════════════
+STEP 2: RELEASE OVERVIEW (write second - save to {{ overview_file }})
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT:
+This is a SHORT executive summary that appears BEFORE the feature highlights in the final document.
+It simply introduces the 3-10 major themes that you detailed in the feature highlights.
+
+CRITICAL: This is NOT a separate article - it's an introduction to the highlights you just wrote.
+Think: "This release focuses on X, Y, and Z" then the highlights explain X, Y, and Z in detail.
+
+AUDIENCE: ESPHome users (makers, DIY enthusiasts, home automation enthusiasts)
+
+STYLE EXAMPLE from ESPHome 2025.10.0:
+
+  "ESPHome 2025.10.0 delivers major architectural improvements, new communication protocols, and
+   extensive performance optimizations. This release focuses on enhancing security, improving memory
+   efficiency, and expanding hardware support while introducing groundbreaking new features."
+
+INSTRUCTIONS:
+
+1. Look at the 3-10 ## section headings you wrote in feature_highlights.md
+2. Write 2-4 sentences that name these themes in order of priority
+3. Keep it VERY concise - just name the themes, don't explain them (that's what the highlights do)
+4. Include a number or two if highly impactful ("7 new sensors", "5KB RAM savings")
+5. DO NOT duplicate the detailed content from feature highlights
+
+OUTPUT FORMAT FOR OVERVIEW:
+- 1-2 paragraphs, 2-4 sentences total
+- No headings, no bullet points, no PR links
+- Just a concise prose introduction to the themes you detailed in the highlights
+- Should be roughly 1/10th the length of the feature highlights
+
+════════════════════════════════════════════════════════════════════════════════
+DETAILED INSTRUCTIONS FOR STEP 1: FEATURE HIGHLIGHTS
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT:
+These are detailed deep-dive sections that appear AFTER the release overview and before
+"Breaking Changes". Each major feature gets its own ## heading. This is the main content.
+
+WHAT TO WRITE ABOUT:
+Select the 3-10 MOST IMPORTANT features/changes from the PRs and ORDER BY PRIORITY:
+
+**Priority Order (most important first):**
+1. **New Major Features** - Groundbreaking user-facing functionality (new protocols, major capabilities)
+2. **New Hardware/Platform Support** - New chips, new sensors, new component types
+3. **Architectural Improvements** - Framework changes, major refactorings with significant impact
+4. **Performance/Memory Optimizations** - Only if substantial (multiple KB savings, major speedups)
+5. **Security Enhancements** - Critical security improvements
+6. **Notable Bug Fixes** - Important fixes for crashes, data corruption, or major functionality issues
+
+**What qualifies as "Major":**
+- Enables entirely new use cases (Z-Wave support, USB host)
+- Adds support for popular/widely-used hardware
+- Framework changes affecting many components
+- Performance gains of 5KB+ or 50%+ improvements
+- Fixes that prevent crashes, data loss, or major malfunctions
+- Fixes for widely-used components affecting many users
+
+STYLE EXAMPLES from ESPHome 2025.10.0:
+
+## Z-Wave Proxy
+
+The new [zwave_proxy](/components/zwave_proxy) component enables network-based connectivity
+for Z-Wave hardware by proxying serial communication between a Z-Wave modem SoC and Z-Wave JS.
+
+**Key Features:**
+
+- **Remote Z-Wave placement** - Position your Z-Wave modem anywhere with WiFi/Ethernet
+- **Serial-to-network bridge** - Proxies UART communication between hardware and Z-Wave JS
+- **Low latency** - Achieves 50-60ms typical latency
+
+## Arduino as IDF Component (Major Architectural Change)
+
+This release includes a fundamental change - **Arduino is now integrated as an ESP-IDF component**.
+
+**Memory Savings:**
+
+- **20-30KB RAM savings** on Arduino builds
+- **Additional ~8KB RAM savings** if using the web server
+
+### Should You Migrate to ESP-IDF?
+
+**We recommend ESP-IDF for most users**, especially for:
+- Bluetooth Proxy devices (lower memory usage)
+- New projects
+
+## Notable Bug Fixes (Example)
+
+This release fixes critical WiFi mesh network failover issues that left devices stuck attempting to connect to failed access points ([#11805](https://github.com/esphome/esphome/pull/11805)).
+
+**The Problem:**
+Devices running ESPHome 2025.8.2+ would get stuck connecting to the strongest AP in a mesh network, even when that AP rejected the connection due to auth failures or capacity limits. The priority degradation system (designed to cycle through APs on failure) was rendered useless by a bug that always sorted by signal strength first.
+
+**The Fix:**
+- **Priority-based failover restored** - Failed APs are now correctly sorted lower, enabling automatic failover to working APs
+- **False positive filtering** - Two connection attempts per BSSID before marking as failed (eliminates transient auth failures)
+- **Hidden network handling fixed** - Networks marked `hidden: true` are tried before scanning, with smart skip logic to avoid wasting time on visible networks
+
+Devices now automatically fail over to the next strongest AP when connection fails, making mesh networks reliable again.
+
+INSTRUCTIONS:
+
+1. **Read ALL PR JSON files** below (new features + new components)
+   - Read the FULL PR body, not just titles
+   - Understand what the PR actually does (check description, motivation, testing notes)
+   - Look for measurements, benchmarks, use cases in the PR body
+
+2. **Accurately characterize each PR**:
+   - ESP32-P4 = new chip support (variant of ESP32 platform)
+   - "Native" platform = running multiple ESP chips together via networking
+   - Component PRs = new hardware support (sensors, displays, etc.)
+   - Framework PRs = internal improvements affecting existing components
+   - Don't mischaracterize platform features (read the PR description!)
+
+3. **Identify 3-10 major themes** - group related PRs:
+   - All memory optimizations together (if substantial)
+   - All new sensor/hardware components together
+   - Major new features separately (if truly groundbreaking)
+   - Notable bug fixes in their own section (especially crashes, data corruption, major malfunctions)
+
+4. **Write detailed sections**:
+   - ## Heading for each major feature
+   - Opening paragraph: what it is and why it matters
+   - **Key Features/Benefits** bulleted list with bold labels
+   - Subsections (###) for migration guidance or recommendations
+   - Use `[component_name](/components/component_name)` for component links
+   - Use `code formatting` for config keys
+   - Use **bold** for emphasis
+
+5. **What makes good sections**:
+   ✓ Explains WHY the feature matters, not just what it does
+   ✓ Includes specific numbers (RAM savings, performance gains)
+   ✓ Groups related PRs into one cohesive narrative
+   ✓ Provides actionable guidance (migration steps, recommendations)
+   ✓ Professional but enthusiastic tone
+
+6. **What to avoid**:
+   ✗ Don't write about every PR - focus on major themes
+   ✗ Don't just list features - explain benefits and context
+   ✗ Don't discuss breaking changes themselves (they go in their own section)
+   ✗ Don't discuss deprecation removals (these are breaking changes)
+   ✗ Skip minor bug fixes and small improvements
+   ✗ Don't include sections about "Deprecation Removals" or "Migration Considerations"
+   ✗ Don't claim breaking changes are "backward compatible" - be honest about compatibility
+
+   **CRITICAL - Handling Breaking Change PRs:**
+
+   Some PRs labeled "breaking-change" introduce important new features. You may discuss
+   these features, BUT you MUST acknowledge if they require user action:
+
+   ✓ GOOD: "The new min_auth_mode option improves WiFi security. ESP32 devices now
+            default to WPA2 (configure min_auth_mode: WPA if using legacy routers)."
+
+   ✗ BAD:  "These optimizations are backward compatible with existing configurations."
+           (when the PR list includes breaking changes that require config updates)
+
+   When discussing features from breaking-change PRs:
+   - Mention if users need to update configs (briefly, not in detail)
+   - Don't claim full backward compatibility
+   - Save migration details for the Breaking Changes section
+
+OUTPUT FORMAT FOR HIGHLIGHTS:
+- 3-10 complete ## sections ordered by PRIORITY (see Priority Order above)
+- Order: New Major Features → New Hardware → Architectural Changes → Optimizations
+- Do NOT include "Feature Highlights" heading - just write the ## sections
+- Do NOT include introductory text
+- Do NOT include "Deprecation Removals" or "Migration Considerations" sections
+
+────────────────────────────────────────────────────────────────────────────────
+📁 PR DATA FILES - CRITICAL: You MUST read ALL of these files using the Read tool
+────────────────────────────────────────────────────────────────────────────────
+
+RELEASE STATISTICS:
+Total PRs: {{ total_prs }}
+New Features: {{ new_features|length }}
+New Components: {{ new_components|length }}
+Breaking Changes: {{ breaking_changes|length }}
+
+⚠️  CRITICAL INSTRUCTIONS FOR LOADING PR DATA:
+
+1. You MUST use the Read tool to read EVERY SINGLE JSON file listed below
+2. Do NOT skip any files or try to summarize without reading them all
+3. Do NOT assume you know the content - you must READ each file
+4. Each JSON file contains: number, title, body, author, labels, url
+5. Read ALL files in parallel for efficiency, then analyze the complete data
+6. After reading ALL files: identify themes, write feature highlights, then write overview
+
+NEW COMPONENT PR FILES ({{ new_components|length }} total) - READ ALL {{ new_components|length }} FILES:
+{% for pr in new_components %}
+  {{ prs_cache_dir }}/{{ pr.number }}.json
+{% endfor %}
+
+NEW FEATURE PR FILES ({{ new_features|length }} total) - READ ALL {{ new_features|length }} FILES:
+{% for pr in new_features %}
+  {{ prs_cache_dir }}/{{ pr.number }}.json
+{% endfor %}
+
+{% if breaking_changes %}
+BREAKING CHANGE PR FILES ({{ breaking_changes|length }} total) - READ ALL {{ breaking_changes|length }} FILES:
+
+⚠️  IMPORTANT: These PRs have breaking changes, but for THIS section, ONLY evaluate them for
+    their NEW FEATURES and FUNCTIONALITY. Do NOT discuss the breaking changes themselves -
+    those will be covered in a separate "Breaking Changes" section of the release notes.
+    Focus on what new capabilities or improvements these PRs bring.
+
+{% for pr in breaking_changes %}
+  {{ prs_cache_dir }}/{{ pr.number }}.json
+{% endfor %}
+{% endif %}
+────────────────────────────────────────────────────────────────────────────────
+⚠️  FINAL REMINDER: Read ALL files above, then write BOTH files:
+
+STEP 1 - Write Feature Highlights FIRST:
+   File: {{ highlights_file }}
+   Content: 3-10 detailed ## sections with measurements, examples, context
+   Length: ~10-15KB of detailed technical content
+
+STEP 2 - Write Release Overview SECOND (based on the highlights you just wrote):
+   File: {{ overview_file }}
+   Content: 2-4 sentence introduction that names the themes from your highlights
+   Length: ~1KB - roughly 1/10th the length of highlights
+   Purpose: Concise executive summary that introduces the detailed sections
+
+Remember: Both go in the same final document. Overview comes first, then highlights.
+Don't repeat detailed information - overview introduces, highlights explain.
+────────────────────────────────────────────────────────────────────────────────

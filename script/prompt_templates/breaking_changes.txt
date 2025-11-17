@@ -1,0 +1,103 @@
+SAVE YOUR RESPONSES TO TWO FILES:
+  1. User-Facing Breaking Changes: {{ users_file }}
+  2. Developer-Facing Breaking Changes: {{ devs_file }}
+
+NOTE: The output files and directories may not exist yet - that's fine, create them.
+      You can use: Write tool with the full path, or create directories first if needed.
+
+════════════════════════════════════════════════════════════════════════════════
+
+TASK: Write BOTH User and Developer Breaking Changes for ESPHome {{ version }}.
+
+WHY COMBINED: These must be written together so you can properly categorize each change as
+user-facing (YAML config changes) or developer-facing (C++ API changes) without duplication.
+
+════════════════════════════════════════════════════════════════════════════════
+PART 1: USER-FACING BREAKING CHANGES (save to {{ users_file }})
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT:
+Explain breaking changes that affect ESPHome users' YAML configurations or component behavior.
+Users need clear migration guidance.
+
+AUDIENCE: ESPHome users (makers, DIY enthusiasts, home automation users)
+
+STYLE EXAMPLE from ESPHome 2025.10.0:
+
+### Component Changes
+
+- **EKTF2232**: `rts_pin` renamed to `reset_pin` [#10720](https://github.com/esphome/esphome/pull/10720)
+- **MMC5603**: Fixed incorrect calculation factor (values will change)
+  [#9925](https://github.com/esphome/esphome/pull/9925)
+- **ESP32 BLE**: max_connections now shared between client and server
+  [#11006](https://github.com/esphome/esphome/pull/11006)
+
+INSTRUCTIONS:
+
+1. **Group by category** using ### headings (e.g., "Component Changes", "Platform Changes")
+2. **Use bullet points** with bold names: - **ComponentName**: Description [#PR](url)
+3. **Be concise but clear** - explain what changed and who is affected
+4. **Skip pure developer changes** (C++ API changes that don't affect YAML)
+5. **Include PR links**: [#12345](https://github.com/esphome/esphome/pull/12345)
+
+OUTPUT FORMAT FOR USER CHANGES:
+- ### Category headings
+- Bullet points with bold component names
+- Focus ONLY on YAML config updates and behavior changes affecting users
+
+════════════════════════════════════════════════════════════════════════════════
+PART 2: DEVELOPER-FACING BREAKING CHANGES (save to {{ devs_file }})
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT:
+Brief summary of breaking changes affecting external component developers.
+Keep it concise and link to developers.esphome.io for full details.
+
+AUDIENCE: External component developers and those extending ESPHome with C++ code
+
+INSTRUCTIONS:
+
+1. **Be very brief** - this is just a summary
+2. **Use bullet points** (e.g., API changes, class renames, header changes)
+3. **List change + PR link**: - Change description [#PR](url)
+4. **End with link** to https://developers.esphome.io/ for full details
+5. **Skip user-facing changes** already covered in Part 1
+
+FORMAT TEMPLATE:
+
+- **ComponentName API**: Brief description [#PR](url)
+- **ClassName renamed**: Old name → New name [#PR](url)
+- **Method signature changed**: Brief description [#PR](url)
+
+For detailed migration guides and API documentation, see the [ESPHome Developers Documentation](https://developers.esphome.io/).
+
+OUTPUT FORMAT FOR DEVELOPER CHANGES:
+- Bullet points (no ### headings needed)
+- Very brief descriptions
+- Link to developers.esphome.io at the end
+
+────────────────────────────────────────────────────────────────────────────────
+📁 PR DATA FILES - CRITICAL: You MUST read ALL of these files using the Read tool
+────────────────────────────────────────────────────────────────────────────────
+
+BREAKING CHANGE PULL REQUESTS ({{ breaking_changes|length }} total):
+
+⚠️  CRITICAL INSTRUCTIONS FOR LOADING PR DATA:
+
+1. You MUST use the Read tool to read EVERY SINGLE JSON file listed below
+2. Do NOT skip any files or try to write without reading them all
+3. Do NOT assume you know the content - you must READ each file
+4. Each JSON file contains: number, title, body (with migration details), author, labels, url
+5. Read ALL files in parallel for efficiency, then analyze the complete data
+6. After reading: categorize each as user-facing or developer-facing, then write BOTH files
+
+BREAKING CHANGE PR FILES - READ ALL {{ breaking_changes|length }} FILES:
+{% for pr in breaking_changes %}
+  {{ prs_cache_dir }}/{{ pr.number }}.json
+{% endfor %}
+
+────────────────────────────────────────────────────────────────────────────────
+⚠️  REMINDER: Read ALL files above, then write BOTH files:
+    1. User Changes: {{ users_file }} (### headings, detailed)
+    2. Developer Changes: {{ devs_file }} (bullet points, brief)
+────────────────────────────────────────────────────────────────────────────────
