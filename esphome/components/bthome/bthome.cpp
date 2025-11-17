@@ -96,6 +96,9 @@ void BTHome::setup() {
       }
     });
   }
+
+  // Start with loop disabled - only enable when immediate advertising is needed
+  this->disable_loop();
 }
 
 void BTHome::loop() {
@@ -107,6 +110,8 @@ void BTHome::loop() {
     this->build_advertisement_packets_();
     this->current_packet_index_ = 0;
     this->on_advertise_();
+    // Disable loop again until next immediate advertising request
+    this->disable_loop();
   }
 }
 
@@ -128,6 +133,8 @@ void BTHome::trigger_immediate_advertising_(uint8_t measurement_index, bool is_b
   this->immediate_advertising_pending_ = true;
   this->immediate_adv_measurement_index_ = measurement_index;
   this->immediate_adv_is_binary_ = is_binary;
+  // Enable loop to process immediate advertising
+  this->enable_loop();
 }
 
 void BTHome::build_advertisement_packets_() {
