@@ -94,7 +94,7 @@ const float GRAVITY_EARTH = 9.80665f;
 
 // BMI270 configuration file (reduced version for basic operation)
 // This is a simplified config file - for full features, you would need the complete config from Bosch
-static const uint8_t bmi270_config_file[] = {
+static const uint8_t BMI270_CONFIG_FILE[] = {
     0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x3d, 0xb1, 0xc8, 0x2e, 0x00, 0x2e, 0xc8, 0x2e, 0x00, 0x2e,
     0xc8, 0x2e, 0x00, 0x2e, 0xc8, 0x2e, 0x00, 0x2e, 0xc8, 0x2e, 0x00, 0x2e, 0xc8, 0x2e, 0x00, 0x2e,
     0x90, 0x32, 0x21, 0x2e, 0x59, 0xf5, 0x10, 0x30, 0x21, 0x2e, 0x6a, 0xf5, 0x1a, 0x24, 0x22, 0x00,
@@ -158,10 +158,10 @@ void BMI270Component::internal_setup_(SetupState state) {
 
     case SetupState::UPLOAD_CONFIG: {
       // Upload configuration file in chunks
-      ESP_LOGV(TAG, "  Uploading config file (%d bytes)", sizeof(bmi270_config_file));
+      ESP_LOGV(TAG, "  Uploading config file (%d bytes)", sizeof(BMI270_CONFIG_FILE));
 
       const size_t chunk_size = 16;
-      const size_t total_size = sizeof(bmi270_config_file);
+      const size_t total_size = sizeof(BMI270_CONFIG_FILE);
 
       for (size_t i = 0; i < total_size; i += chunk_size) {
         size_t bytes_to_write = (i + chunk_size > total_size) ? (total_size - i) : chunk_size;
@@ -181,7 +181,7 @@ void BMI270Component::internal_setup_(SetupState state) {
         }
 
         // Write data chunk
-        if (!this->write_bytes(BMI270_REGISTER_INIT_DATA, &bmi270_config_file[i], bytes_to_write)) {
+        if (!this->write_bytes(BMI270_REGISTER_INIT_DATA, &BMI270_CONFIG_FILE[i], bytes_to_write)) {
           this->mark_failed("Failed to write config data");
           return;
         }
