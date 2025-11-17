@@ -82,10 +82,12 @@ void BH1750Sensor::dump_config() {
 }
 
 void BH1750Sensor::update() {
+  const uint32_t now = millis();
+
   // Start coarse measurement to determine optimal mode/mtreg
   if (this->state_ != IDLE) {
     // Safety timeout: reset if stuck
-    if (millis() - this->measurement_start_time_ > MEASUREMENT_TIMEOUT_MS) {
+    if (now - this->measurement_start_time_ > MEASUREMENT_TIMEOUT_MS) {
       ESP_LOGW(TAG, "Measurement timeout, resetting state");
       this->state_ = IDLE;
     } else {
@@ -94,7 +96,7 @@ void BH1750Sensor::update() {
     }
   }
 
-  if (!this->start_measurement_(BH1750_MODE_L, 31)) {
+  if (!this->start_measurement_(BH1750_MODE_L, MTREG_MIN, now)) {
     this->status_set_warning();
     this->publish_state(NAN);
     return;
@@ -131,7 +133,7 @@ void BH1750Sensor::loop() {
       this->process_coarse_result_(lx);
 
       // Start fine measurement with optimal settings
-      if (!this->start_measurement_(this->fine_mode_, this->fine_mtreg_)) {
+      if (!this->start_measurement_(this->fine_mode_, this->fine_mtreg_, now)) {
         this->status_set_warning();
         this->publish_state(NAN);
         this->state_ = IDLE;
@@ -166,7 +168,7 @@ void BH1750Sensor::loop() {
   }
 }
 
-bool BH1750Sensor::start_measurement_(BH1750Mode mode, uint8_t mtreg) {
+bool BH1750Sensor::start_measurement_(BH1750Mode mode, uint8_t mtreg, uint32_t now) {
   // Power on
   uint8_t turn_on = BH1750_COMMAND_POWER_ON;
   if (this->write(&turn_on, 1) != i2c::ERROR_OK) {
@@ -214,7 +216,7 @@ bool BH1750Sensor::start_measurement_(BH1750Mode mode, uint8_t mtreg) {
   // Store current measurement parameters
   this->current_mode_ = mode;
   this->current_mtreg_ = mtreg;
-  this->measurement_start_time_ = millis();
+  this->measurement_start_time_ = now;
   this->measurement_duration_ = meas_time + 1;  // Add 1ms for safety
 
   return true;

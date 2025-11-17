@@ -46,7 +46,7 @@ class BH1750Sensor : public sensor::Sensor, public PollingComponent, public i2c:
   uint8_t active_mtreg_{0};
 
   // Helper methods
-  bool start_measurement_(BH1750Mode mode, uint8_t mtreg);
+  bool start_measurement_(BH1750Mode mode, uint8_t mtreg, uint32_t now);
   bool read_measurement_(float &lx_out);
   void process_coarse_result_(float lx);
 };
