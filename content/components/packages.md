@@ -194,6 +194,32 @@ sensor:
     update_interval: 10s
 ```
 
+LVGL-style configuration hierarchies are also supported:
+
+```yaml
+# In interface.yaml
+lvgl:
+  pages:
+    - id: main_page
+      widgets:
+        - label:
+            id: title_label
+            text: "Main Page"
+```
+
+```yaml
+packages:
+  - !include interface.yaml
+lvgl:
+  pages:
+    - id: !extend main_page
+      widgets:
+        - label:
+            id: !extend title_label
+            text: "New Title"
+            text_color: red
+```
+
 `!extend` also works with substitutions and jinja:
 
 ```yaml
@@ -233,6 +259,19 @@ packages: !include common.yaml  # see above
 
 sensor:
   - id: !remove uptime_sensor
+```
+
+Remove an item in a LVGL-style configuration:
+
+```yaml
+packages:
+  - !include interface.yaml # see above
+lvgl:
+  pages:
+    - id: !extend main_page
+      widgets:
+        - label:
+            id: !remove title_label
 ```
 
 To remove captive portal for a specific device:
