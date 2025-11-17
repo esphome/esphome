@@ -82,5 +82,37 @@ void MCP23X08Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
+optional<uint8_t> MCP23X08Base::read_interrupt_status_(uint8_t bank) {
+  // MCP23X08 only has one bank (bank 0)
+  if (bank != 0) {
+    return 0;
+  }
+
+  // Read interrupt flag register
+  uint8_t intf = 0;
+  if (!this->read_reg(mcp23x08_base::MCP23X08_INTF, &intf)) {
+    ESP_LOGW(TAG, "Failed to read interrupt flags");
+    return nullopt;
+  }
+
+  // If no interrupts, return early
+  if (intf == 0) {
+    return 0;
+  }
+
+  // Read interrupt capture register (pin values at time of interrupt)
+  uint8_t intcap = 0;
+  if (!this->read_reg(mcp23x08_base::MCP23X08_INTCAP, &intcap)) {
+    ESP_LOGW(TAG, "Failed to read interrupt capture");
+    return nullopt;
+  }
+
+  // Update the input_mask_ with captured values
+  this->input_mask_ = intcap;
+
+  ESP_LOGV(TAG, "Interrupt: flags=0x%02X, captured=0x%02X", intf, intcap);
+  return intf;
+}
+
 }  // namespace mcp23x08_base
 }  // namespace esphome

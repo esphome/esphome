@@ -17,10 +17,24 @@ void MCP23017::setup() {
   this->read_reg(mcp23x17_base::MCP23X17_OLATA, &this->olat_a_);
   this->read_reg(mcp23x17_base::MCP23X17_OLATB, &this->olat_b_);
 
+  // Configure IOCON register for interrupt operation
+  uint8_t iocon_value = 0x00;
   if (this->open_drain_ints_) {
-    // enable open-drain interrupt pins, 3.3V-safe
-    this->write_reg(mcp23x17_base::MCP23X17_IOCONA, 0x04);
-    this->write_reg(mcp23x17_base::MCP23X17_IOCONB, 0x04);
+    // Enable open-drain interrupt pins, 3.3V-safe
+    iocon_value |= 0x04;  // ODR bit
+  }
+  if (this->interrupt_pin_internal_ != nullptr) {
+    // Mirror interrupts (INTA and INTB are internally connected)
+    iocon_value |= 0x40;  // MIRROR bit
+  }
+  if (iocon_value != 0x00) {
+    this->write_reg(mcp23x17_base::MCP23X17_IOCONA, iocon_value);
+    this->write_reg(mcp23x17_base::MCP23X17_IOCONB, iocon_value);
+  }
+
+  // Setup interrupt pin if configured
+  if (this->interrupt_pin_internal_ != nullptr) {
+    this->setup_interrupt_pin(this->interrupt_pin_internal_, this);
   }
 }
 

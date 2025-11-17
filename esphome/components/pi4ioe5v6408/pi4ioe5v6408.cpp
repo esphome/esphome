@@ -33,6 +33,11 @@ void PI4IOE5V6408Component::setup() {
       return;
     }
   }
+
+  // Setup interrupt pin if configured
+  if (this->interrupt_pin_internal_ != nullptr) {
+    this->setup_interrupt_pin(this->interrupt_pin_internal_, this);
+  }
 }
 void PI4IOE5V6408Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PI4IOE5V6408:");
@@ -155,6 +160,38 @@ bool PI4IOE5V6408Component::write_gpio_modes_() {
 }
 
 bool PI4IOE5V6408Component::digital_read_cache(uint8_t pin) { return (this->input_mask_ & (1 << pin)); }
+
+optional<uint8_t> PI4IOE5V6408Component::read_interrupt_status_(uint8_t bank) {
+  // PI4IOE5V6408 only has one bank (bank 0)
+  if (bank != 0) {
+    return 0;
+  }
+
+  // Read interrupt status register
+  uint8_t int_status = 0;
+  if (!this->read_byte(PI4IOE5V6408_REGISTER_INTERRUPT_STATUS, &int_status)) {
+    ESP_LOGW(TAG, "Failed to read interrupt status");
+    return nullopt;
+  }
+
+  // If no interrupts, return early
+  if (int_status == 0) {
+    return 0;
+  }
+
+  // Read current input state (reading the input register clears the interrupt)
+  uint8_t input_state = 0;
+  if (!this->read_byte(PI4IOE5V6408_REGISTER_IN_STATE, &input_state)) {
+    ESP_LOGW(TAG, "Failed to read input state");
+    return nullopt;
+  }
+
+  // Update the input_mask_ with current values
+  this->input_mask_ = input_state;
+
+  ESP_LOGV(TAG, "Interrupt: status=0x%02X, input=0x%02X", int_status, input_state);
+  return int_status;
+}
 
 float PI4IOE5V6408Component::get_setup_priority() const { return setup_priority::IO; }
 

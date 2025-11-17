@@ -31,13 +31,19 @@ class MCP23X08Base : public mcp23xxx_base::MCP23XXXBase<8> {
   void pin_mode(uint8_t pin, gpio::Flags flags) override;
   void pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterruptMode interrupt_mode) override;
 
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_internal_ = pin; }
+
  protected:
   void update_reg(uint8_t pin, bool pin_value, uint8_t reg_a) override;
+  optional<uint8_t> read_interrupt_status_(uint8_t bank) override;
 
   uint8_t olat_{0x00};
 
   /// State read in digital_read_hw
   uint8_t input_mask_{0x00};
+
+  /// Internal interrupt pin reference (stored before setup)
+  InternalGPIOPin *interrupt_pin_internal_{nullptr};
 };
 
 }  // namespace mcp23x08_base

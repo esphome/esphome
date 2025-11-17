@@ -16,9 +16,19 @@ void MCP23008::setup() {
   // Read current output register state
   this->read_reg(mcp23x08_base::MCP23X08_OLAT, &this->olat_);
 
+  // Configure IOCON register for interrupt operation
+  uint8_t iocon_value = 0x00;
   if (this->open_drain_ints_) {
-    // enable open-drain interrupt pins, 3.3V-safe
-    this->write_reg(mcp23x08_base::MCP23X08_IOCON, 0x04);
+    // Enable open-drain interrupt pins, 3.3V-safe
+    iocon_value |= 0x04;  // ODR bit
+  }
+  if (iocon_value != 0x00) {
+    this->write_reg(mcp23x08_base::MCP23X08_IOCON, iocon_value);
+  }
+
+  // Setup interrupt pin if configured
+  if (this->interrupt_pin_internal_ != nullptr) {
+    this->setup_interrupt_pin(this->interrupt_pin_internal_, this);
   }
 }
 

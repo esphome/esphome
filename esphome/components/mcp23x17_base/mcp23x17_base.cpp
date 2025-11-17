@@ -98,5 +98,39 @@ void MCP23X17Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
+optional<uint8_t> MCP23X17Base::read_interrupt_status_(uint8_t bank) {
+  uint8_t intf_reg = bank == 0 ? mcp23x17_base::MCP23X17_INTFA : mcp23x17_base::MCP23X17_INTFB;
+  uint8_t intcap_reg = bank == 0 ? mcp23x17_base::MCP23X17_INTCAPA : mcp23x17_base::MCP23X17_INTCAPB;
+
+  // Read interrupt flag register
+  uint8_t intf = 0;
+  if (!this->read_reg(intf_reg, &intf)) {
+    ESP_LOGW(TAG, "Failed to read interrupt flags for bank %u", bank);
+    return nullopt;
+  }
+
+  // If no interrupts, return early
+  if (intf == 0) {
+    return 0;
+  }
+
+  // Read interrupt capture register (pin values at time of interrupt)
+  uint8_t intcap = 0;
+  if (!this->read_reg(intcap_reg, &intcap)) {
+    ESP_LOGW(TAG, "Failed to read interrupt capture for bank %u", bank);
+    return nullopt;
+  }
+
+  // Update the input_mask_ with captured values
+  if (bank == 0) {
+    this->input_mask_ = encode_uint16(this->input_mask_ >> 8, intcap);
+  } else {
+    this->input_mask_ = encode_uint16(intcap, this->input_mask_ & 0xFF);
+  }
+
+  ESP_LOGV(TAG, "Interrupt on bank %u: flags=0x%02X, captured=0x%02X", bank, intf, intcap);
+  return intf;
+}
+
 }  // namespace mcp23x17_base
 }  // namespace esphome

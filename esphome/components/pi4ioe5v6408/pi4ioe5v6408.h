@@ -23,10 +23,13 @@ class PI4IOE5V6408Component : public Component,
   /// Indicate if the component should reset the state during setup
   void set_reset(bool reset) { this->reset_ = reset; }
 
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_internal_ = pin; }
+
  protected:
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
+  optional<uint8_t> read_interrupt_status_(uint8_t bank) override;
 
   /// Mask for the pin mode - 1 means output, 0 means input
   uint8_t mode_mask_{0x00};
@@ -40,6 +43,9 @@ class PI4IOE5V6408Component : public Component,
   uint8_t pull_up_down_mask_{0x00};
 
   bool reset_{true};
+
+  /// Internal interrupt pin reference (stored before setup)
+  InternalGPIOPin *interrupt_pin_internal_{nullptr};
 
   bool read_gpio_modes_();
   bool write_gpio_modes_();

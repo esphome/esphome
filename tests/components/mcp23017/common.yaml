@@ -1,6 +1,9 @@
 mcp23017:
-  i2c_id: i2c_bus
-  id: mcp23017_hub
+  - i2c_id: i2c_bus
+    id: mcp23017_hub
+  - i2c_id: i2c_bus
+    id: mcp23017_hub_interrupt
+    interrupt_pin: GPIO5
 
 binary_sensor:
   - platform: gpio
@@ -9,6 +12,14 @@ binary_sensor:
       mcp23xxx: mcp23017_hub
       number: 0
       mode: INPUT
+      interrupt: CHANGE
+  - platform: gpio
+    id: mcp23017_binary_sensor_interrupt
+    pin:
+      mcp23xxx: mcp23017_hub_interrupt
+      number: 0
+      mode: INPUT
+      interrupt: CHANGE
 
 switch:
   - platform: gpio
