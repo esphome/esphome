@@ -158,7 +158,7 @@ void BTHome::build_advertisement_packets_() {
 
     // Service UUID
     size_t service_data_start = pos;
-    pos++;  // Length placeholder
+    pos++;               // Length placeholder
     data[pos++] = 0x16;  // Service Data type
     data[pos++] = BTHOME_SERVICE_UUID & 0xFF;
     data[pos++] = (BTHOME_SERVICE_UUID >> 8) & 0xFF;
@@ -179,7 +179,7 @@ void BTHome::build_advertisement_packets_() {
       auto &measurement = this->measurements_[this->immediate_adv_measurement_index_];
       if (measurement.sensor->has_state() && !std::isnan(measurement.sensor->state)) {
         pos += this->encode_measurement_(data + pos, max_payload - (pos - measurement_start), measurement.object_id,
-                                        measurement.sensor->state);
+                                         measurement.sensor->state);
       }
     }
 
@@ -225,7 +225,7 @@ void BTHome::build_advertisement_packets_() {
 
     // Service UUID
     measurement_start = pos;
-    pos++;  // Length placeholder
+    pos++;               // Length placeholder
     data[pos++] = 0x16;  // Service Data type
     data[pos++] = BTHOME_SERVICE_UUID & 0xFF;
     data[pos++] = (BTHOME_SERVICE_UUID >> 8) & 0xFF;
@@ -288,7 +288,7 @@ void BTHome::build_advertisement_packets_() {
     }
 
     pos += this->encode_measurement_(data + pos, max_payload - (pos - measurement_start), measurement.object_id,
-                                    measurement.sensor->state);
+                                     measurement.sensor->state);
   }
 
   // Add all binary sensor measurements
@@ -304,8 +304,8 @@ void BTHome::build_advertisement_packets_() {
       start_new_packet();
     }
 
-    pos += this->encode_binary_measurement_(data + pos, max_payload - (pos - measurement_start),
-                                           measurement.object_id, measurement.sensor->state);
+    pos += this->encode_binary_measurement_(data + pos, max_payload - (pos - measurement_start), measurement.object_id,
+                                            measurement.sensor->state);
   }
 
   finish_packet();
@@ -468,13 +468,13 @@ bool BTHome::encrypt_payload_(const uint8_t *plaintext, size_t plaintext_len, ui
   // MAC (6 bytes) + UUID (2 bytes) + device info (1 byte) + counter (4 bytes) = 13 bytes
   uint8_t nonce[13];
   memcpy(nonce, mac, 6);
-  nonce[6] = BTHOME_SERVICE_UUID & 0xFF;          // UUID byte 1
-  nonce[7] = (BTHOME_SERVICE_UUID >> 8) & 0xFF;   // UUID byte 2
-  nonce[8] = BTHOME_DEVICE_INFO_ENCRYPTED;        // Device info byte
-  nonce[9] = this->counter_ & 0xFF;               // Counter byte 0
-  nonce[10] = (this->counter_ >> 8) & 0xFF;       // Counter byte 1
-  nonce[11] = (this->counter_ >> 16) & 0xFF;      // Counter byte 2
-  nonce[12] = (this->counter_ >> 24) & 0xFF;      // Counter byte 3
+  nonce[6] = BTHOME_SERVICE_UUID & 0xFF;         // UUID byte 1
+  nonce[7] = (BTHOME_SERVICE_UUID >> 8) & 0xFF;  // UUID byte 2
+  nonce[8] = BTHOME_DEVICE_INFO_ENCRYPTED;       // Device info byte
+  nonce[9] = this->counter_ & 0xFF;              // Counter byte 0
+  nonce[10] = (this->counter_ >> 8) & 0xFF;      // Counter byte 1
+  nonce[11] = (this->counter_ >> 16) & 0xFF;     // Counter byte 2
+  nonce[12] = (this->counter_ >> 24) & 0xFF;     // Counter byte 3
 
   // Initialize mbedtls CCM context
   mbedtls_ccm_context ctx;
@@ -490,7 +490,7 @@ bool BTHome::encrypt_payload_(const uint8_t *plaintext, size_t plaintext_len, ui
 
   // Encrypt and generate tag (4-byte MIC)
   ret = mbedtls_ccm_encrypt_and_tag(&ctx, plaintext_len, nonce, sizeof(nonce), nullptr, 0, plaintext, ciphertext,
-                                     ciphertext + plaintext_len, 4);
+                                    ciphertext + plaintext_len, 4);
 
   mbedtls_ccm_free(&ctx);
 

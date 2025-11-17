@@ -148,7 +148,9 @@ CONFIG_SCHEMA = cv.All(
                             *SENSOR_DEVICE_CLASS_TO_OBJECT_ID.keys(), lower=True
                         ),
                         cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
-                        cv.Optional(CONF_ADVERTISE_IMMEDIATELY, default=False): cv.boolean,
+                        cv.Optional(
+                            CONF_ADVERTISE_IMMEDIATELY, default=False
+                        ): cv.boolean,
                     }
                 )
             ),
@@ -159,7 +161,9 @@ CONFIG_SCHEMA = cv.All(
                             *BINARY_SENSOR_DEVICE_CLASS_TO_OBJECT_ID.keys(), lower=True
                         ),
                         cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
-                        cv.Optional(CONF_ADVERTISE_IMMEDIATELY, default=False): cv.boolean,
+                        cv.Optional(
+                            CONF_ADVERTISE_IMMEDIATELY, default=False
+                        ): cv.boolean,
                     }
                 )
             ),
@@ -194,8 +198,12 @@ async def to_code(config):
 
     if CONF_ENCRYPTION_KEY in config:
         key = config[CONF_ENCRYPTION_KEY]
-        key_bytes = [cg.RawExpression(f"0x{key[i:i+2]}") for i in range(0, len(key), 2)]
-        key_array = cg.RawExpression(f"std::array<uint8_t, 16>{{{', '.join(str(b) for b in key_bytes)}}}")
+        key_bytes = [
+            cg.RawExpression(f"0x{key[i : i + 2]}") for i in range(0, len(key), 2)
+        ]
+        key_array = cg.RawExpression(
+            f"std::array<uint8_t, 16>{{{', '.join(str(b) for b in key_bytes)}}}"
+        )
         cg.add(var.set_encryption_key(key_array))
 
     # Add sensor measurements
