@@ -13,8 +13,6 @@ namespace esphome {
 namespace ld2410 {
 
 static const char *const TAG = "ld2410";
-static const char *const UNKNOWN_MAC = "unknown";
-static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -181,15 +179,15 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 }
 
 void LD2410Component::dump_config() {
-  std::string mac_str =
-      mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
-  std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
-                                    this->version_[4], this->version_[3], this->version_[2]);
+  char mac_s[18];
+  char version_s[20];
+  const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
+  ld24xx::format_version_str(this->version_, version_s);
   ESP_LOGCONFIG(TAG,
                 "LD2410:\n"
                 "  Firmware version: %s\n"
                 "  MAC address: %s",
-                version.c_str(), mac_str.c_str());
+                version_s, mac_str);
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
   LOG_BINARY_SENSOR("  ", "Target", this->target_binary_sensor_);
@@ -448,12 +446,12 @@ bool LD2410Component::handle_ack_data_() {
 
     case CMD_QUERY_VERSION: {
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
-      std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
-                                        this->version_[4], this->version_[3], this->version_[2]);
-      ESP_LOGV(TAG, "Firmware version: %s", version.c_str());
+      char version_s[20];
+      ld24xx::format_version_str(this->version_, version_s);
+      ESP_LOGV(TAG, "Firmware version: %s", version_s);
 #ifdef USE_TEXT_SENSOR
       if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(version);
+        this->version_text_sensor_->publish_state(version_s);
       }
 #endif
       break;
@@ -506,9 +504,9 @@ bool LD2410Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      std::string mac_str =
-          mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
-      ESP_LOGV(TAG, "MAC address: %s", mac_str.c_str());
+      char mac_s[18];
+      const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
+      ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
       if (this->mac_text_sensor_ != nullptr) {
         this->mac_text_sensor_->publish_state(mac_str);
