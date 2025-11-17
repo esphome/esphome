@@ -39,7 +39,7 @@ class HashBase {
 
   /// Compare the hash against a provided hex-encoded hash
   bool equals_hex(const char *expected) {
-    uint8_t parsed[this->get_size()];
+    uint8_t parsed[32];  // Fixed size for max hash (SHA256 = 32 bytes)
     if (!parse_hex(expected, parsed, this->get_size())) {
       return false;
     }

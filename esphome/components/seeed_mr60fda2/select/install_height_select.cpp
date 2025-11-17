@@ -3,12 +3,9 @@
 namespace esphome {
 namespace seeed_mr60fda2 {
 
-void InstallHeightSelect::control(const std::string &value) {
-  this->publish_state(value);
-  auto index = this->index_of(value);
-  if (index.has_value()) {
-    this->parent_->set_install_height(index.value());
-  }
+void InstallHeightSelect::control(size_t index) {
+  this->publish_state(index);
+  this->parent_->set_install_height(index);
 }
 
 }  // namespace seeed_mr60fda2

@@ -43,7 +43,6 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   }
 
   auto values = state.remote_values;
-  auto traits = state.get_output()->get_traits();
 
   const auto color_mode = values.get_color_mode();
   const char *mode_str = get_color_mode_json_str(color_mode);

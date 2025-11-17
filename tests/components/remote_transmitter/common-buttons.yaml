@@ -1,3 +1,11 @@
+number:
+  - platform: template
+    id: test_number
+    optimistic: true
+    min_value: 0
+    max_value: 255
+    step: 1
+
 button:
   - platform: template
     name: Beo4 audio mute
@@ -6,6 +14,13 @@ button:
       remote_transmitter.transmit_beo4:
         source: 0x01
         command: 0x0C
+  - platform: template
+    name: Dyson fan up
+    id: dyson_fan_up
+    on_press:
+      remote_transmitter.transmit_dyson:
+        code: 0x1215
+        index: 0x0
   - platform: template
     name: JVC Off
     id: living_room_lights_on
@@ -52,6 +67,12 @@ button:
     on_press:
       remote_transmitter.transmit_sony:
         data: 0xABCDEF
+        nbits: 12
+  - platform: template
+    name: Symphony
+    on_press:
+      remote_transmitter.transmit_symphony:
+        data: 0xE88
         nbits: 12
   - platform: template
     name: Panasonic
@@ -115,10 +136,16 @@ button:
         address: 0x00
         command: 0x0B
   - platform: template
-    name: RC5 Raw
+    name: RC5 Raw static
     on_press:
       remote_transmitter.transmit_raw:
         code: [1000, -1000]
+  - platform: template
+    name: RC5 Raw lambda
+    on_press:
+      remote_transmitter.transmit_raw:
+        code: !lambda |-
+          return {(int32_t)id(test_number).state * 100, -1000};
   - platform: template
     name: AEHA
     id: eaha_hitachi_climate_power_on
@@ -204,6 +231,23 @@ button:
           command: 0xEC
           rc_code_1: 0x0D
           rc_code_2: 0x0D
+  - platform: template
+    name: ABBWelcome static
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x1234
+        destination_address: 0x5678
+        message_type: 0x01
+        data: [0x10, 0x20, 0x30]
+  - platform: template
+    name: ABBWelcome lambda
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x1234
+        destination_address: 0x5678
+        message_type: 0x01
+        data: !lambda |-
+          return {(uint8_t)id(test_number).state, 0x20, 0x30};
   - platform: template
     name: Digital Write
     on_press:

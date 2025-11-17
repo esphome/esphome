@@ -9,12 +9,6 @@ esphome:
           finger_id: 2
       - fingerprint_grow.delete_all:
 
-uart:
-  - id: uart_fingerprint_grow
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 57600
-
 fingerprint_grow:
   sensing_pin: ${sensing_pin}
   password: 0x12FE37DC

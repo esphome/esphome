@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import dataclass
 import itertools
 import logging
@@ -101,6 +102,10 @@ COMPILER_OPTIMIZATIONS = {
     "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
 }
+
+# Socket limit configuration for ESP-IDF
+# ESP-IDF CONFIG_LWIP_MAX_SOCKETS has range 1-253, default 10
+DEFAULT_MAX_SOCKETS = 10  # ESP-IDF default
 
 ARDUINO_ALLOWED_VARIANTS = [
     VARIANT_ESP32,
@@ -296,17 +301,27 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"pioarduino/framework-arduinoespressif32@https://github.com/espressif/arduino-esp32/releases/download/{str(ver)}/esp32-{str(ver)}.zip"
 
 
-def _format_framework_espidf_version(
-    ver: cv.Version, release: str, for_platformio: bool
-) -> str:
-    # format the given arduino (https://github.com/espressif/esp-idf/releases) version to
+def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
+    # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
-    # List of package versions: https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-    if for_platformio:
-        return f"platformio/framework-espidf@~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+    if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
+        ext = "tar.xz"
+    else:
+        ext = "zip"
     if release:
-        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.zip"
-    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.zip"
+        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.{ext}"
+    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.{ext}"
+
+
+def _is_framework_url(source: str) -> str:
+    # platformio accepts many URL schemes for framework repositories and archives including http, https, git, file, and symlink
+    import urllib.parse
+
+    try:
+        parsed = urllib.parse.urlparse(source)
+    except ValueError:
+        return False
+    return bool(parsed.scheme)
 
 
 # NOTE: Keep this in mind when updating the recommended version:
@@ -317,184 +332,134 @@ def _format_framework_espidf_version(
 
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 2, 1)
-# The platform-espressif32 version to use for arduino frameworks
-#  - https://github.com/pioarduino/platform-espressif32/releases
-ARDUINO_PLATFORM_VERSION = cv.Version(54, 3, 21, "2")
+ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
+    "recommended": cv.Version(3, 3, 2),
+    "latest": cv.Version(3, 3, 4),
+    "dev": cv.Version(3, 3, 4),
+}
+ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 4): cv.Version(55, 3, 31, "2"),
+    cv.Version(3, 3, 3): cv.Version(55, 3, 31, "2"),
+    cv.Version(3, 3, 2): cv.Version(55, 3, 31, "2"),
+    cv.Version(3, 3, 1): cv.Version(55, 3, 31, "2"),
+    cv.Version(3, 3, 0): cv.Version(55, 3, 30, "2"),
+    cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
+    cv.Version(3, 2, 0): cv.Version(54, 3, 20),
+    cv.Version(3, 1, 3): cv.Version(53, 3, 13),
+    cv.Version(3, 1, 2): cv.Version(53, 3, 12),
+    cv.Version(3, 1, 1): cv.Version(53, 3, 11),
+    cv.Version(3, 1, 0): cv.Version(53, 3, 10),
+}
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(5, 4, 2)
-# The platformio/espressif32 version to use for esp-idf frameworks
-#  - https://github.com/platformio/platform-espressif32/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(54, 3, 21, "2")
+ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
+    "recommended": cv.Version(5, 5, 1),
+    "latest": cv.Version(5, 5, 1),
+    "dev": cv.Version(5, 5, 1),
+}
+ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
+    cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
+    cv.Version(5, 4, 3): cv.Version(55, 3, 32),
+    cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
+    cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
+    cv.Version(5, 4, 0): cv.Version(54, 3, 21, "2"),
+    cv.Version(5, 3, 2): cv.Version(53, 3, 13),
+    cv.Version(5, 3, 1): cv.Version(53, 3, 13),
+    cv.Version(5, 3, 0): cv.Version(53, 3, 13),
+    cv.Version(5, 1, 6): cv.Version(51, 3, 7),
+    cv.Version(5, 1, 5): cv.Version(51, 3, 7),
+}
 
-# List based on https://registry.platformio.org/tools/platformio/framework-espidf/versions
-SUPPORTED_PLATFORMIO_ESP_IDF_5X = [
-    cv.Version(5, 3, 1),
-    cv.Version(5, 3, 0),
-    cv.Version(5, 2, 2),
-    cv.Version(5, 2, 1),
-    cv.Version(5, 1, 2),
-    cv.Version(5, 1, 1),
-    cv.Version(5, 1, 0),
-    cv.Version(5, 0, 2),
-    cv.Version(5, 0, 1),
-    cv.Version(5, 0, 0),
-]
-
-# pioarduino versions that don't require a release number
-# List based on https://github.com/pioarduino/esp-idf/releases
-SUPPORTED_PIOARDUINO_ESP_IDF_5X = [
-    cv.Version(5, 5, 1),
-    cv.Version(5, 5, 0),
-    cv.Version(5, 4, 2),
-    cv.Version(5, 4, 1),
-    cv.Version(5, 4, 0),
-    cv.Version(5, 3, 3),
-    cv.Version(5, 3, 2),
-    cv.Version(5, 3, 1),
-    cv.Version(5, 3, 0),
-    cv.Version(5, 1, 5),
-    cv.Version(5, 1, 6),
-]
+# The platform-espressif32 version
+#  - https://github.com/pioarduino/platform-espressif32/releases
+PLATFORM_VERSION_LOOKUP = {
+    "recommended": cv.Version(55, 3, 31, "2"),
+    "latest": cv.Version(55, 3, 31, "2"),
+    "dev": cv.Version(55, 3, 31, "2"),
+}
 
 
-def _check_versions(value):
-    value = value.copy()
-    if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
-        lookups = {
-            "dev": (
-                cv.Version(3, 2, 1),
-                "https://github.com/espressif/arduino-esp32.git",
-            ),
-            "latest": (cv.Version(3, 2, 1), None),
-            "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
-        }
+def _check_versions(config):
+    config = config.copy()
+    value = config[CONF_FRAMEWORK]
 
-        if value[CONF_VERSION] in lookups:
-            if CONF_SOURCE in value:
-                raise cv.Invalid(
-                    "Framework version needs to be explicitly specified when custom source is used."
-                )
-
-            version, source = lookups[value[CONF_VERSION]]
-        else:
-            version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
-            source = value.get(CONF_SOURCE, None)
-
-        value[CONF_VERSION] = str(version)
-        value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
-
-        value[CONF_PLATFORM_VERSION] = value.get(
-            CONF_PLATFORM_VERSION,
-            _parse_platform_version(str(ARDUINO_PLATFORM_VERSION)),
-        )
-
-        if value[CONF_SOURCE].startswith("http"):
-            # prefix is necessary or platformio will complain with a cryptic error
-            value[CONF_SOURCE] = f"framework-arduinoespressif32@{value[CONF_SOURCE]}"
-
-        if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
-            _LOGGER.warning(
-                "The selected Arduino framework version is not the recommended one. "
-                "If there are connectivity or build issues please remove the manual version."
-            )
-
-        return value
-
-    lookups = {
-        "dev": (cv.Version(5, 4, 2), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(5, 2, 2), None),
-        "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
-    }
-
-    if value[CONF_VERSION] in lookups:
-        if CONF_SOURCE in value:
+    if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
+        if CONF_SOURCE in value or CONF_PLATFORM_VERSION in value:
             raise cv.Invalid(
-                "Framework version needs to be explicitly specified when custom source is used."
+                "Version needs to be explicitly set when a custom source or platform_version is used."
             )
 
-        version, source = lookups[value[CONF_VERSION]]
+        platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
+        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
+
+        if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
+            version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
+        else:
+            version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
     else:
         version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
-        source = value.get(CONF_SOURCE, None)
-
-    if version < cv.Version(5, 0, 0):
-        raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
-
-    # flag this for later *before* we set value[CONF_PLATFORM_VERSION] below
-    has_platform_ver = CONF_PLATFORM_VERSION in value
-
-    value[CONF_PLATFORM_VERSION] = value.get(
-        CONF_PLATFORM_VERSION, _parse_platform_version(str(ESP_IDF_PLATFORM_VERSION))
-    )
-
-    if (
-        is_platformio := _platform_is_platformio(value[CONF_PLATFORM_VERSION])
-    ) and version not in SUPPORTED_PLATFORMIO_ESP_IDF_5X:
-        raise cv.Invalid(
-            f"ESP-IDF {str(version)} not supported by platformio/espressif32"
-        )
-
-    if (
-        version in SUPPORTED_PLATFORMIO_ESP_IDF_5X
-        and version not in SUPPORTED_PIOARDUINO_ESP_IDF_5X
-    ) and not has_platform_ver:
-        raise cv.Invalid(
-            f"ESP-IDF {value[CONF_VERSION]} may be supported by platformio/espressif32; please specify '{CONF_PLATFORM_VERSION}'"
-        )
-
-    if (
-        not is_platformio
-        and CONF_RELEASE not in value
-        and version not in SUPPORTED_PIOARDUINO_ESP_IDF_5X
-    ):
-        raise cv.Invalid(
-            f"ESP-IDF {value[CONF_VERSION]} is not available with pioarduino; you may need to specify '{CONF_RELEASE}'"
-        )
 
     value[CONF_VERSION] = str(version)
-    value[CONF_SOURCE] = source or _format_framework_espidf_version(
-        version, value.get(CONF_RELEASE, None), is_platformio
-    )
 
-    if value[CONF_SOURCE].startswith("http"):
-        # prefix is necessary or platformio will complain with a cryptic error
-        value[CONF_SOURCE] = f"framework-espidf@{value[CONF_SOURCE]}"
+    if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
+        if version < cv.Version(3, 0, 0):
+            raise cv.Invalid("Only Arduino 3.0+ is supported.")
+        recommended_version = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
+        platform_lookup = ARDUINO_PLATFORM_VERSION_LOOKUP.get(version)
+        value[CONF_SOURCE] = value.get(
+            CONF_SOURCE, _format_framework_arduino_version(version)
+        )
+        if _is_framework_url(value[CONF_SOURCE]):
+            value[CONF_SOURCE] = (
+                f"pioarduino/framework-arduinoespressif32@{value[CONF_SOURCE]}"
+            )
+    else:
+        if version < cv.Version(5, 0, 0):
+            raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
+        recommended_version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
+        platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
+        value[CONF_SOURCE] = value.get(
+            CONF_SOURCE,
+            _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
+        )
+        if _is_framework_url(value[CONF_SOURCE]):
+            value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
 
-    if version != RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION:
+    if CONF_PLATFORM_VERSION not in value:
+        if platform_lookup is None:
+            raise cv.Invalid(
+                "Framework version not recognized; please specify platform_version"
+            )
+        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
+
+    if version != recommended_version:
         _LOGGER.warning(
-            "The selected ESP-IDF framework version is not the recommended one. "
+            "The selected framework version is not the recommended one. "
             "If there are connectivity or build issues please remove the manual version."
         )
 
-    return value
+    if value[CONF_PLATFORM_VERSION] != _parse_platform_version(
+        str(PLATFORM_VERSION_LOOKUP["recommended"])
+    ):
+        _LOGGER.warning(
+            "The selected platform version is not the recommended one. "
+            "If there are connectivity or build issues please remove the manual version."
+        )
+
+    return config
 
 
 def _parse_platform_version(value):
     try:
         ver = cv.Version.parse(cv.version_number(value))
-        if ver.major >= 50:  # a pioarduino version
-            release = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
-            if ver.extra:
-                release += f"-{ver.extra}"
-            return f"https://github.com/pioarduino/platform-espressif32/releases/download/{release}/platform-espressif32.zip"
-        # if platform version is a valid version constraint, prefix the default package
-        cv.platformio_version_constraint(value)
-        return f"platformio/espressif32@{value}"
+        release = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
+        if ver.extra:
+            release += f"-{ver.extra}"
+        return f"https://github.com/pioarduino/platform-espressif32/releases/download/{release}/platform-espressif32.zip"
     except cv.Invalid:
         return value
-
-
-def _platform_is_platformio(value):
-    try:
-        ver = cv.Version.parse(cv.version_number(value))
-        return ver.major < 50
-    except cv.Invalid:
-        return "platformio" in value
 
 
 def _detect_variant(value):
@@ -533,6 +498,8 @@ def final_validate(config):
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
     errs = []
+    conf_fw = config[CONF_FRAMEWORK]
+    advanced = conf_fw[CONF_ADVANCED]
     full_config = fv.full_config.get()
     if pio_options := full_config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS):
         pio_flash_size_key = "board_upload.flash_size"
@@ -549,22 +516,14 @@ def final_validate(config):
                     f"Please specify {CONF_FLASH_SIZE} within esp32 configuration only"
                 )
             )
-    if (
-        config[CONF_VARIANT] != VARIANT_ESP32
-        and CONF_ADVANCED in (conf_fw := config[CONF_FRAMEWORK])
-        and CONF_IGNORE_EFUSE_MAC_CRC in conf_fw[CONF_ADVANCED]
-    ):
+    if config[CONF_VARIANT] != VARIANT_ESP32 and advanced[CONF_IGNORE_EFUSE_MAC_CRC]:
         errs.append(
             cv.Invalid(
                 f"'{CONF_IGNORE_EFUSE_MAC_CRC}' is not supported on {config[CONF_VARIANT]}",
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_IGNORE_EFUSE_MAC_CRC],
             )
         )
-    if (
-        config.get(CONF_FRAMEWORK, {})
-        .get(CONF_ADVANCED, {})
-        .get(CONF_EXECUTE_FROM_PSRAM)
-    ):
+    if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] != VARIANT_ESP32S3:
             errs.append(
                 cv.Invalid(
@@ -580,6 +539,17 @@ def final_validate(config):
                 )
             )
 
+    if (
+        config[CONF_FLASH_SIZE] == "32MB"
+        and "ota" in full_config
+        and not advanced[CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES]
+    ):
+        errs.append(
+            cv.Invalid(
+                f"OTA with 32MB flash requires '{CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES}' to be set in the '{CONF_ADVANCED}' section of the esp32 configuration",
+                path=[CONF_FLASH_SIZE],
+            )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -592,6 +562,34 @@ CONF_ENABLE_LWIP_MDNS_QUERIES = "enable_lwip_mdns_queries"
 CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
 CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
 CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
+CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
+CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
+CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
+CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
+CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
+
+# VFS requirement tracking
+# Components that need VFS features can call require_vfs_select() or require_vfs_dir()
+KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
+KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
+
+
+def require_vfs_select() -> None:
+    """Mark that VFS select support is required by a component.
+
+    Call this from components that use esp_vfs_eventfd or other VFS select features.
+    This prevents CONFIG_VFS_SUPPORT_SELECT from being disabled.
+    """
+    CORE.data[KEY_VFS_SELECT_REQUIRED] = True
+
+
+def require_vfs_dir() -> None:
+    """Mark that VFS directory support is required by a component.
+
+    Call this from components that use directory functions (opendir, readdir, mkdir, etc.).
+    This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
+    """
+    CORE.data[KEY_VFS_DIR_REQUIRED] = True
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -606,76 +604,74 @@ def _validate_idf_component(config: ConfigType) -> ConfigType:
 
 FRAMEWORK_ESP_IDF = "esp-idf"
 FRAMEWORK_ARDUINO = "arduino"
-FRAMEWORK_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_TYPE, default=FRAMEWORK_ARDUINO): cv.one_of(
-                FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO
-            ),
-            cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_RELEASE): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
-            cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
-                cv.string_strict: cv.string_strict
-            },
-            cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
-                *LOG_LEVELS_IDF, upper=True
-            ),
-            cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
-                {
-                    cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
-                        *ASSERTION_LEVELS, upper=True
-                    ),
-                    cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
-                        *COMPILER_OPTIMIZATIONS, upper=True
-                    ),
-                    cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
-                    cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
-                    cv.Optional(
-                        CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
-                    ): cv.boolean,
-                    cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
-                    # DHCP server is needed for WiFi AP mode. When WiFi component is used,
-                    # it will handle disabling DHCP server when AP is not configured.
-                    # Default to false (disabled) when WiFi is not used.
-                    cv.OnlyWithout(
-                        CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, default=True
-                    ): cv.boolean,
-                    cv.Optional(
-                        CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
-                    ): cv.boolean,
-                    cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
-                }
-            ),
-            cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
-                cv.All(
-                    cv.Schema(
-                        {
-                            cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_SOURCE): cv.git_ref,
-                            cv.Optional(CONF_REF): cv.string,
-                            cv.Optional(CONF_PATH): cv.string,
-                            cv.Optional(CONF_REFRESH): cv.All(
-                                cv.string, cv.source_refresh
-                            ),
-                        }
-                    ),
-                    _validate_idf_component,
-                )
-            ),
-        }
-    ),
-    _check_versions,
+FRAMEWORK_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
+        cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
+        cv.Optional(CONF_RELEASE): cv.string_strict,
+        cv.Optional(CONF_SOURCE): cv.string_strict,
+        cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+        cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
+            cv.string_strict: cv.string_strict
+        },
+        cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
+            *LOG_LEVELS_IDF, upper=True
+        ),
+        cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+            {
+                cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
+                    *ASSERTION_LEVELS, upper=True
+                ),
+                cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
+                    *COMPILER_OPTIMIZATIONS, upper=True
+                ),
+                cv.Optional(
+                    CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES, default=False
+                ): cv.boolean,
+                cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
+                cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
+                cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
+                # DHCP server is needed for WiFi AP mode. When WiFi component is used,
+                # it will handle disabling DHCP server when AP is not configured.
+                # Default to false (disabled) when WiFi is not used.
+                cv.OnlyWithout(
+                    CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
+                ): cv.boolean,
+                cv.Optional(CONF_ENABLE_LWIP_MDNS_QUERIES, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, default=True
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
+                ): cv.boolean,
+                cv.Optional(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_SELECT, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
+                cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
+                cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
+                    min=8192, max=32768
+                ),
+            }
+        ),
+        cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
+            cv.All(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_NAME): cv.string_strict,
+                        cv.Optional(CONF_SOURCE): cv.git_ref,
+                        cv.Optional(CONF_REF): cv.string,
+                        cv.Optional(CONF_PATH): cv.string,
+                        cv.Optional(CONF_REFRESH): cv.All(cv.string, cv.source_refresh),
+                    }
+                ),
+                _validate_idf_component,
+            )
+        ),
+    }
 )
 
 
@@ -705,6 +701,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "Why change? ESP-IDF offers:\n"
         + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
         + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
         + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
         + color(
             AnsiFore.GREEN,
@@ -712,7 +709,6 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         )
         + "\n"
         + "Trade-offs:\n"
-        + color(AnsiFore.YELLOW, "  ⏱️  Compile times are ~25% longer\n")
         + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
         + "\n"
         + "What should I do?\n"
@@ -738,11 +734,11 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
 
 
 def _set_default_framework(config):
+    config = config.copy()
     if CONF_FRAMEWORK not in config:
-        config = config.copy()
-
-        variant = config[CONF_VARIANT]
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
+    if CONF_TYPE not in config[CONF_FRAMEWORK]:
+        variant = config[CONF_VARIANT]
         if variant in ARDUINO_ALLOWED_VARIANTS:
             config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
             _show_framework_migration_message(
@@ -782,12 +778,77 @@ CONFIG_SCHEMA = cv.All(
     ),
     _detect_variant,
     _set_default_framework,
+    _check_versions,
     set_core_data,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
 
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
+
+
+def _configure_lwip_max_sockets(conf: dict) -> None:
+    """Calculate and set CONFIG_LWIP_MAX_SOCKETS based on component needs.
+
+    Socket component tracks consumer needs via consume_sockets() called during config validation.
+    This function runs in to_code() after all components have registered their socket needs.
+    User-provided sdkconfig_options take precedence.
+    """
+    from esphome.components.socket import KEY_SOCKET_CONSUMERS
+
+    # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
+    user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
+
+    socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
+    total_sockets = sum(socket_consumers.values())
+
+    # Early return if no sockets registered and no user override
+    if total_sockets == 0 and user_max_sockets is None:
+        return
+
+    components_list = ", ".join(
+        f"{name}={count}" for name, count in sorted(socket_consumers.items())
+    )
+
+    # User specified their own value - respect it but warn if insufficient
+    if user_max_sockets is not None:
+        _LOGGER.info(
+            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %s",
+            user_max_sockets,
+        )
+
+        # Warn if user's value is less than what components need
+        if total_sockets > 0:
+            user_sockets_int = 0
+            with contextlib.suppress(ValueError, TypeError):
+                user_sockets_int = int(user_max_sockets)
+
+            if user_sockets_int < total_sockets:
+                _LOGGER.warning(
+                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
+                    "needs %d sockets (registered: %s). You may experience socket "
+                    "exhaustion errors. Consider increasing to at least %d.",
+                    user_sockets_int,
+                    total_sockets,
+                    components_list,
+                    total_sockets,
+                )
+        # User's value already added via sdkconfig_options processing
+        return
+
+    # Auto-calculate based on component needs
+    # Use at least the ESP-IDF default (10), or the total needed by components
+    max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
+
+    log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
+    _LOGGER.log(
+        log_level,
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (registered: %s)",
+        max_sockets,
+        components_list,
+    )
+
+    add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
 
 
 async def to_code(config):
@@ -808,6 +869,8 @@ async def to_code(config):
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+    if CONF_SOURCE in conf:
+        cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
 
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
@@ -815,11 +878,26 @@ async def to_code(config):
     for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
         os.environ.pop(clean_var, None)
 
+    # Set the location of the IDF component manager cache
+    os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
+        CORE.relative_internal_path(".espressif")
+    )
+
     add_extra_script(
         "post",
         "post_build.py",
         Path(__file__).parent / "post_build.py.script",
     )
+
+    # In testing mode, add IRAM fix script to allow linking grouped component tests
+    # Similar to ESP8266's approach but for ESP-IDF
+    if CORE.testing_mode:
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+        add_extra_script(
+            "pre",
+            "iram_fix.py",
+            Path(__file__).parent / "iram_fix.py.script",
+        )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
@@ -844,13 +922,16 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+        add_idf_sdkconfig_option(
+            "CONFIG_ARDUINO_LOOP_STACK_SIZE",
+            conf[CONF_ADVANCED][CONF_LOOP_TASK_STACK_SIZE],
+        )
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
-
-    cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
     add_idf_sdkconfig_option(
@@ -872,6 +953,9 @@ async def to_code(config):
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
 
+    # Reduce PHY TX power in the event of a brownout
+    add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
+
     # Set default CPU frequency
     add_idf_sdkconfig_option(
         f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{config[CONF_CPU_FREQUENCY][:-3]}", True
@@ -883,20 +967,18 @@ async def to_code(config):
     # WiFi component handles its own optimization when AP mode is not used
     # When using Arduino with Ethernet, DHCP server functions must be available
     # for the Network library to compile, even if not actively used
-    if (
-        CONF_ENABLE_LWIP_DHCP_SERVER in advanced
-        and not advanced[CONF_ENABLE_LWIP_DHCP_SERVER]
-        and not (
-            conf[CONF_TYPE] == FRAMEWORK_ARDUINO
-            and "ethernet" in CORE.loaded_integrations
-        )
+    if advanced.get(CONF_ENABLE_LWIP_DHCP_SERVER) is False and not (
+        conf[CONF_TYPE] == FRAMEWORK_ARDUINO and "ethernet" in CORE.loaded_integrations
     ):
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
-    if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, True):
+    if not advanced[CONF_ENABLE_LWIP_MDNS_QUERIES]:
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
-    if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
+    if not advanced[CONF_ENABLE_LWIP_BRIDGE_INTERFACE]:
         add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
-    if advanced.get(CONF_EXECUTE_FROM_PSRAM, False):
+
+    _configure_lwip_max_sockets(conf)
+
+    if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
 
@@ -907,10 +989,50 @@ async def to_code(config):
     # - select() on 4 sockets: ~190μs (Arduino/core locking) vs ~235μs (ESP-IDF default)
     # - Up to 200% slower under load when all operations queue through tcpip_thread
     # Enabling this makes ESP-IDF socket performance match Arduino framework.
-    if advanced.get(CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, True):
+    if advanced[CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING]:
         add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_CORE_LOCKING", True)
-    if advanced.get(CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, True):
+    if advanced[CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY]:
         add_idf_sdkconfig_option("CONFIG_LWIP_CHECK_THREAD_SAFETY", True)
+
+    # Disable placing libc locks in IRAM to save RAM
+    # This is safe for ESPHome since no IRAM ISRs (interrupts that run while cache is disabled)
+    # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
+    if advanced[CONF_DISABLE_LIBC_LOCKS_IN_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
+
+    # Disable VFS support for termios (terminal I/O functions)
+    # ESPHome doesn't use termios functions on ESP32 (only used in host UART driver).
+    # Saves approximately 1.8KB of flash when disabled (default).
+    add_idf_sdkconfig_option(
+        "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
+    )
+
+    # Disable VFS support for select() with file descriptors
+    # ESPHome only uses select() with sockets via lwip_select(), which still works.
+    # VFS select is only needed for UART/eventfd file descriptors.
+    # Components that need it (e.g., openthread) call require_vfs_select().
+    # Saves approximately 2.7KB of flash when disabled (default).
+    if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
+        # Component requires VFS select - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_SELECT", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_SELECT", not advanced[CONF_DISABLE_VFS_SUPPORT_SELECT]
+        )
+
+    # Disable VFS support for directory functions (opendir, readdir, mkdir, etc.)
+    # ESPHome doesn't use directory functions on ESP32.
+    # Components that need it (e.g., storage components) call require_vfs_dir().
+    # Saves approximately 0.5KB+ of flash when disabled (default).
+    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
+        # Component requires VFS directory support - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_DIR", not advanced[CONF_DISABLE_VFS_SUPPORT_DIR]
+        )
 
     cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
@@ -923,7 +1045,7 @@ async def to_code(config):
             add_idf_sdkconfig_option(flag, assertion_level == key)
 
     add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
-    compiler_optimization = advanced.get(CONF_COMPILER_OPTIMIZATION)
+    compiler_optimization = advanced[CONF_COMPILER_OPTIMIZATION]
     for key, flag in COMPILER_OPTIMIZATIONS.items():
         add_idf_sdkconfig_option(flag, compiler_optimization == key)
 
@@ -932,14 +1054,20 @@ async def to_code(config):
         conf[CONF_ADVANCED][CONF_ENABLE_LWIP_ASSERT],
     )
 
-    if advanced.get(CONF_IGNORE_EFUSE_MAC_CRC):
+    if advanced[CONF_IGNORE_EFUSE_MAC_CRC]:
         add_idf_sdkconfig_option("CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR", True)
         add_idf_sdkconfig_option("CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE", False)
-    if advanced.get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES):
+    if advanced[CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES]:
         _LOGGER.warning(
             "Using experimental features in ESP-IDF may result in unexpected failures."
         )
         add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
+        if config[CONF_FLASH_SIZE] == "32MB":
+            add_idf_sdkconfig_option(
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
+            )
+
+    cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
     cg.add_define(
         "USE_ESP_IDF_VERSION_CODE",

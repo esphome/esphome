@@ -22,8 +22,6 @@ uv pip install -e ".[dev,test]" --config-settings editable_mode=compat
 
 pre-commit install
 
-script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
-
 mkdir -p .temp
 
 echo

@@ -229,17 +229,17 @@ FileDecoderState AudioDecoder::decode_flac_() {
     auto result = this->flac_decoder_->read_header(this->input_transfer_buffer_->get_buffer_start(),
                                                    this->input_transfer_buffer_->available());
 
-    if (result == esp_audio_libs::flac::FLAC_DECODER_HEADER_OUT_OF_DATA) {
-      return FileDecoderState::POTENTIALLY_FAILED;
-    }
-
-    if (result != esp_audio_libs::flac::FLAC_DECODER_SUCCESS) {
-      // Couldn't read FLAC header
+    if (result > esp_audio_libs::flac::FLAC_DECODER_HEADER_OUT_OF_DATA) {
+      // Serrious error reading FLAC header, there is no recovery
       return FileDecoderState::FAILED;
     }
 
     size_t bytes_consumed = this->flac_decoder_->get_bytes_index();
     this->input_transfer_buffer_->decrease_buffer_length(bytes_consumed);
+
+    if (result == esp_audio_libs::flac::FLAC_DECODER_HEADER_OUT_OF_DATA) {
+      return FileDecoderState::MORE_TO_PROCESS;
+    }
 
     // Reallocate the output transfer buffer to the smallest necessary size
     this->free_buffer_required_ = flac_decoder_->get_output_buffer_size_bytes();
@@ -256,9 +256,9 @@ FileDecoderState AudioDecoder::decode_flac_() {
   }
 
   uint32_t output_samples = 0;
-  auto result = this->flac_decoder_->decode_frame(
-      this->input_transfer_buffer_->get_buffer_start(), this->input_transfer_buffer_->available(),
-      reinterpret_cast<int16_t *>(this->output_transfer_buffer_->get_buffer_end()), &output_samples);
+  auto result = this->flac_decoder_->decode_frame(this->input_transfer_buffer_->get_buffer_start(),
+                                                  this->input_transfer_buffer_->available(),
+                                                  this->output_transfer_buffer_->get_buffer_end(), &output_samples);
 
   if (result == esp_audio_libs::flac::FLAC_DECODER_ERROR_OUT_OF_DATA) {
     // Not an issue, just needs more data that we'll get next time.

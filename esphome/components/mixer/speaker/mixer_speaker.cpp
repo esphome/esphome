@@ -572,7 +572,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
       }
     } else {
       // Determine how many frames to mix
-      for (int i = 0; i < transfer_buffers_with_data.size(); ++i) {
+      for (size_t i = 0; i < transfer_buffers_with_data.size(); ++i) {
         const uint32_t frames_available_in_buffer =
             speakers_with_data[i]->get_audio_stream_info().bytes_to_frames(transfer_buffers_with_data[i]->available());
         frames_to_mix = std::min(frames_to_mix, frames_available_in_buffer);
@@ -581,7 +581,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
       audio::AudioStreamInfo primary_stream_info = speakers_with_data[0]->get_audio_stream_info();
 
       // Mix two streams together
-      for (int i = 1; i < transfer_buffers_with_data.size(); ++i) {
+      for (size_t i = 1; i < transfer_buffers_with_data.size(); ++i) {
         mix_audio_samples(primary_buffer, primary_stream_info,
                           reinterpret_cast<int16_t *>(transfer_buffers_with_data[i]->get_buffer_start()),
                           speakers_with_data[i]->get_audio_stream_info(),
@@ -596,7 +596,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
       }
 
       // Update source transfer buffer lengths and add new audio durations to the source speaker pending playbacks
-      for (int i = 0; i < transfer_buffers_with_data.size(); ++i) {
+      for (size_t i = 0; i < transfer_buffers_with_data.size(); ++i) {
         transfer_buffers_with_data[i]->decrease_buffer_length(
             speakers_with_data[i]->get_audio_stream_info().frames_to_bytes(frames_to_mix));
         speakers_with_data[i]->pending_playback_frames_ += frames_to_mix;
