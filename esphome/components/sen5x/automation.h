@@ -9,7 +9,7 @@ namespace sen5x {
 
 template<typename... Ts> class SetAmbientPressurehPa : public Action<Ts...>, public Parented<SEN5XComponent> {
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->value_.has_value()) {
       this->parent_->set_ambient_pressure_compensation(this->value_.value(x...));
     }
@@ -22,7 +22,7 @@ template<typename... Ts> class SetAmbientPressurehPa : public Action<Ts...>, pub
 template<typename... Ts>
 class PerformForcedCo2CalibrationAction : public Action<Ts...>, public Parented<SEN5XComponent> {
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->value_.has_value()) {
       this->parent_->perform_forced_co2_calibration(this->value_.value(x...));
     }
@@ -34,12 +34,12 @@ class PerformForcedCo2CalibrationAction : public Action<Ts...>, public Parented<
 
 template<typename... Ts> class StartFanAction : public Action<Ts...>, public Parented<SEN5XComponent> {
  public:
-  void play(Ts... x) override { this->parent_->start_fan_cleaning(); }
+  void play(const Ts &...x) override { this->parent_->start_fan_cleaning(); }
 };
 
 template<typename... Ts> class ActivateHeaterAction : public Action<Ts...>, public Parented<SEN5XComponent> {
  public:
-  void play(Ts... x) override { this->parent_->activate_heater(); }
+  void play(const Ts &...x) override { this->parent_->activate_heater(); }
 };
 
 }  // namespace sen5x
