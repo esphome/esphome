@@ -126,7 +126,10 @@ class BSSIDWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
 
 class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
  public:
-  void setup() override { this->publish_state(get_mac_address_pretty()); }
+  void setup() override {
+    char mac_s[18];
+    this->publish_state(get_mac_address_pretty_into_buffer(mac_s));
+  }
   void dump_config() override;
 };
 

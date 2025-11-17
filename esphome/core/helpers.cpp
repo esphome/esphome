@@ -636,9 +636,8 @@ std::string get_mac_address() {
 }
 
 std::string get_mac_address_pretty() {
-  uint8_t mac[6];
-  get_mac_address_raw(mac);
-  return format_mac_address_pretty(mac);
+  char buf[18];
+  return std::string(get_mac_address_pretty_into_buffer(buf));
 }
 
 void get_mac_address_into_buffer(std::span<char, 13> buf) {
