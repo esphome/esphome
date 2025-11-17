@@ -1,1 +1,1 @@
-CODEOWNERS = []
+CODEOWNERS = ["@esphome/core"]
