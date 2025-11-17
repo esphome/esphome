@@ -172,6 +172,16 @@ FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
 
 
 async def to_code(config):
+    # Calculate sizes for StaticVector compile-time allocation
+    num_sensors = max(1, len(config.get(CONF_SENSORS, [])))
+    num_binary_sensors = max(1, len(config.get(CONF_BINARY_SENSORS, [])))
+    max_packets = max(1, num_sensors + num_binary_sensors)
+
+    # Add defines for compile-time sizes (must be before new_Pvariable)
+    cg.add_define("BTHOME_MAX_MEASUREMENTS", num_sensors)
+    cg.add_define("BTHOME_MAX_BINARY_MEASUREMENTS", num_binary_sensors)
+    cg.add_define("BTHOME_MAX_ADV_PACKETS", max_packets)
+
     var = cg.new_Pvariable(config[CONF_ID])
 
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
@@ -181,17 +191,6 @@ async def to_code(config):
     cg.add(var.set_min_interval(config[CONF_MIN_INTERVAL]))
     cg.add(var.set_max_interval(config[CONF_MAX_INTERVAL]))
     cg.add(var.set_tx_power(config[CONF_TX_POWER]))
-
-    # Initialize FixedVectors with proper sizes
-    num_sensors = len(config.get(CONF_SENSORS, []))
-    num_binary_sensors = len(config.get(CONF_BINARY_SENSORS, []))
-    max_packets = max(1, num_sensors + num_binary_sensors)
-
-    # Initialize the measurements and binary_measurements FixedVectors
-    cg.add(cg.RawExpression(f"{var}->measurements_.init({num_sensors})"))
-    cg.add(cg.RawExpression(f"{var}->binary_measurements_.init({num_binary_sensors})"))
-    cg.add(cg.RawExpression(f"{var}->adv_packets_.init({max_packets})"))
-    cg.add(cg.RawExpression(f"{var}->adv_packet_sizes_.init({max_packets})"))
 
     if CONF_ENCRYPTION_KEY in config:
         key = config[CONF_ENCRYPTION_KEY]
