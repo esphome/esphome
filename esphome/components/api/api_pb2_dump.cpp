@@ -675,6 +675,22 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
   }
 }
 #endif
+#ifdef USE_WATER_HEATER
+template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::WaterHeaterMode value) {
+  switch (value) {
+    case enums::WATER_HEATER_MODE_OFF:
+      return "WATER_HEATER_MODE_OFF";
+    case enums::WATER_HEATER_MODE_HEAT:
+      return "WATER_HEATER_MODE_HEAT";
+    case enums::WATER_HEATER_MODE_ECO:
+      return "WATER_HEATER_MODE_ECO";
+    case enums::WATER_HEATER_MODE_BOOST:
+      return "WATER_HEATER_MODE_BOOST";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
@@ -2195,6 +2211,52 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
   out.append("  data: ");
   out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
+}
+#endif
+#ifdef USE_WATER_HEATER
+void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesWaterHeaterResponse");
+  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "key", this->key);
+  dump_field(out, "name", this->name_ref_);
+  for (const auto &it : this->supported_modes) {
+    dump_field(out, "supported_modes", static_cast<enums::WaterHeaterMode>(it), 4);
+  }
+  dump_field(out, "supports_current_temperature", this->supports_current_temperature);
+  dump_field(out, "visual_min_temperature", this->visual_min_temperature);
+  dump_field(out, "visual_max_temperature", this->visual_max_temperature);
+  dump_field(out, "visual_target_temperature_step", this->visual_target_temperature_step);
+  dump_field(out, "disabled_by_default", this->disabled_by_default);
+#ifdef USE_ENTITY_ICON
+  dump_field(out, "icon", this->icon_ref_);
+#endif
+  dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+}
+void WaterHeaterStateResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "WaterHeaterStateResponse");
+  dump_field(out, "key", this->key);
+  dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
+  dump_field(out, "current_temperature", this->current_temperature);
+  dump_field(out, "missing_current_temperature", this->missing_current_temperature);
+  dump_field(out, "target_temperature", this->target_temperature);
+  dump_field(out, "missing_target_temperature", this->missing_target_temperature);
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+}
+void WaterHeaterCommandRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "WaterHeaterCommandRequest");
+  dump_field(out, "key", this->key);
+  dump_field(out, "has_mode", this->has_mode);
+  dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
+  dump_field(out, "has_target_temperature", this->has_target_temperature);
+  dump_field(out, "target_temperature", this->target_temperature);
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
 }
 #endif
 

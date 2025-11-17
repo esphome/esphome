@@ -48,6 +48,7 @@ service APIConnection {
   rpc time_command (TimeCommandRequest) returns (void) {}
   rpc update_command (UpdateCommandRequest) returns (void) {}
   rpc valve_command (ValveCommandRequest) returns (void) {}
+  rpc water_heater_command (WaterHeaterCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
@@ -86,7 +87,7 @@ service APIConnection {
 //  * First, the client connects to the server and sends a "Hello Request" identifying itself
 //  * The server responds with a "Hello Response" and selects the protocol version
 //  * After receiving this message, the client attempts to authenticate itself using
-//    the password and a "Connect Request"
+//    the password and a "Connewater_heater_api.cppct Request"
 //  * The server responds with a "Connect Response" and notifies of invalid password.
 // If anything in this initial process fails, the connection must immediately closed
 // by both sides and _no_ disconnection message is to be sent.
@@ -2336,4 +2337,74 @@ message ZWaveProxyRequest {
 
   ZWaveProxyRequestType type = 1;
   bytes data = 2 [(pointer_to_buffer) = true];
+}
+
+// ==================== WATER HEATER ====================
+enum WaterHeaterMode {
+  WATER_HEATER_MODE_OFF   = 0;
+  WATER_HEATER_MODE_HEAT  = 1;
+  WATER_HEATER_MODE_ECO   = 2;
+  WATER_HEATER_MODE_BOOST = 3;
+}
+
+message ListEntitiesWaterHeaterResponse {
+  option (id) = 133;
+  option (base_class) = "InfoResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+
+  string  object_id = 1;
+  fixed32 key       = 2;
+  string  name      = 3;
+  reserved 4;
+
+  repeated WaterHeaterMode supported_modes = 5;
+
+  bool  supports_current_temperature = 6;
+  float visual_min_temperature       = 7;
+  float visual_max_temperature       = 8;
+  float visual_target_temperature_step = 9;
+
+  bool   disabled_by_default = 10;
+  string icon                = 11 [(field_ifdef) = "USE_ENTITY_ICON"];
+  EntityCategory entity_category = 12;
+  uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
+}
+
+message WaterHeaterStateResponse {
+  option (id) = 134;
+  option (base_class) = "StateResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+
+  WaterHeaterMode mode = 2;
+
+  float current_temperature = 3;
+  bool  missing_current_temperature = 4;
+
+  float target_temperature = 5;
+  bool  missing_target_temperature = 6;
+
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+}
+
+message WaterHeaterCommandRequest {
+  option (id) = 135;
+  option (base_class) = "CommandProtoMessage";
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+
+  bool has_mode = 2;
+  WaterHeaterMode mode = 3;
+
+  bool  has_target_temperature = 4;
+  float target_temperature = 5;
+
+  uint32 device_id = 6 [(field_ifdef) = "USE_DEVICES"];
 }

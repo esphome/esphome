@@ -217,6 +217,10 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_ZWAVE_PROXY
   virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
+
+#ifdef USE_WATER_HEATER
+  virtual void on_water_heater_command_request(const WaterHeaterCommandRequest &value){};
+#endif
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -298,6 +302,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_VALVE
   virtual void valve_command(const ValveCommandRequest &msg) = 0;
+#endif
+#ifdef USE_WATER_HEATER
+  virtual void water_heater_command(const WaterHeaterCommandRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
@@ -427,6 +434,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_VALVE
   void on_valve_command_request(const ValveCommandRequest &msg) override;
+#endif
+#ifdef USE_WATER_HEATER
+  void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
