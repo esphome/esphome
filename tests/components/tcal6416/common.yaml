@@ -1,0 +1,23 @@
+tcal6416:
+  - id: tcal6416_hub
+    i2c_id: i2c_bus
+    address: 0x20
+
+binary_sensor:
+  - platform: gpio
+    id: tcal6416_binary_sensor
+    name: TCAL6416 Binary Sensor
+    pin:
+      tcal6416: tcal6416_hub
+      number: 1
+      mode: INPUT
+      inverted: true
+
+output:
+  - platform: gpio
+    id: tcal6416_output
+    pin:
+      tcal6416: tcal6416_hub
+      number: 0
+      mode: OUTPUT
+      inverted: false
