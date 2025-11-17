@@ -433,10 +433,9 @@ async def _add_platformio_options(pio_options):
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_environment_variables(env_vars):
+async def _add_environment_variables(env_vars: dict[str, str]) -> None:
     # Set environment variables for the build process
-    for key, val in env_vars.items():
-        os.environ[key] = val
+    os.environ.update(env_vars)
 
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
