@@ -1,0 +1,27 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+motion_map:
+  id: motion_map_component
+  motion_threshold: 0.6
+  idle_threshold: 0.2
+  window_size: 100
+  sensitivity: 1.5
+
+binary_sensor:
+  - platform: motion_map
+    motion_map_id: motion_map_component
+    name: "Motion Detected"
+
+sensor:
+  - platform: motion_map
+    motion_map_id: motion_map_component
+    variance:
+      name: "CSI Variance"
+    amplitude:
+      name: "CSI Amplitude"
+    entropy:
+      name: "CSI Entropy"
+    skewness:
+      name: "CSI Skewness"
