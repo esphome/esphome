@@ -263,7 +263,9 @@ async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
         return []
     if not isinstance(config, list):
         config = [config]
-    return [await get_widget_(c[id]) for c in config if id in c]
+    if all(isinstance(c, dict) for c in config):
+        config = [c[id] for c in config if id in c]
+    return [await get_widget_(c) for c in config]
 
 
 def collect_props(config):

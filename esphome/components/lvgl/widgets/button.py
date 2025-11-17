@@ -40,5 +40,9 @@ class ButtonType(WidgetType):
             )
             await label_widget.set_property(CONF_TEXT, await lv_text.process(text))
 
+    def final_validate(self, widget, update_config, widget_config, path):
+        if CONF_TEXT in update_config and CONF_TEXT not in widget_config:
+            raise cv.Invalid("Button must have 'text:' configured to update text", path)
+
 
 button_spec = ButtonType()

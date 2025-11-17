@@ -48,6 +48,7 @@ from .schemas import (
     any_widget_schema,
     container_schema,
     obj_schema,
+    updated_widgets,
 )
 from .styles import add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
@@ -140,11 +141,11 @@ def multi_conf_validate(configs: list[dict]):
                 )
 
 
-def final_validation(configs):
-    if len(configs) != 1:
-        multi_conf_validate(configs)
+def final_validation(config_list):
+    if len(config_list) != 1:
+        multi_conf_validate(config_list)
     global_config = full_config.get()
-    for config in configs:
+    for config in config_list:
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
         for display_id in config[df.CONF_DISPLAYS]:
@@ -190,6 +191,13 @@ def final_validation(configs):
                 raise cv.Invalid(
                     f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
+        # Do per-widget type final validation for update actions
+        for widget_type, update_configs in updated_widgets.items():
+            for conf in update_configs:
+                for name in conf.get(CONF_ID, ()):
+                    path = global_config.get_path_for_id(name)
+                    widget_conf = global_config.get_config_for_path(path[:-1])
+                    widget_type.final_validate(name, conf, widget_conf, path[1:])
 
 
 async def to_code(configs):

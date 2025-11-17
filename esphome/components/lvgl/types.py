@@ -152,18 +152,18 @@ class WidgetType:
 
         # Local import to avoid circular import
         from .automation import update_to_code
-        from .schemas import WIDGET_TYPES, create_modify_schema
+        from .schemas import WIDGET_TYPES, base_update_schema
 
         if not is_mock:
             if self.name in WIDGET_TYPES:
                 raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
             WIDGET_TYPES[self.name] = self
 
-            # Register the update action automatically
+            # Register the update action automatically, adding widget-specific properties
             register_action(
                 f"lvgl.{self.name}.update",
                 ObjUpdateAction,
-                create_modify_schema(self),
+                base_update_schema(self, self.parts).extend(self.modify_schema),
             )(update_to_code)
 
     @property
@@ -226,6 +226,13 @@ class WidgetType:
         :return:
         """
         return value
+
+    def final_validate(self, widget, update_conf, widget_conf, path):
+        """
+        Allow final validation for a given widget type update action
+        :param widget: A widget name
+        :param config: Its configuration
+        """
 
 
 class NumberType(WidgetType):
