@@ -109,7 +109,6 @@ DriverChip(
     lane_bit_rate="900Mbps",
     no_transform=True,
     color_order="RGB",
-    reset_pin=33,
     initsequence=[
         (0x80, 0x8B),
         (0x81, 0x78),
