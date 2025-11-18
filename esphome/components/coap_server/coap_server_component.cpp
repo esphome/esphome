@@ -42,7 +42,7 @@ void CoapServerComponent::setup() {
 }
 
 bool CoapServerComponent::teardown() {
-  this->main_looping_ = false;
+  this->main_coap_loop_ = false;
   xTaskAbortDelay(this->main_task_handle_);
   return this->torndown_;
 }
@@ -95,7 +95,7 @@ void CoapServerComponent::main_() {
   };
 
   // ESP_LOGV(TAG, "Begin coap main loop");
-  for (; this->main_looping_ && this->server_failure_cntdown_ > 0; cleanup(this, context)) {
+  for (; this->main_coap_loop_ && this->server_failure_cntdown_ > 0; cleanup(this, context)) {
     unsigned wait_ms;
     context = coap_new_context(NULL);
     if (!context) {

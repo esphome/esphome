@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <string>
 #include <map>
+#include <mutex>
 #include "coap3/coap.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -38,11 +39,12 @@ enum CoapMediaType : uint8_t {
 const char *coap_media_type_to_string(CoapMediaType media_type);
 
 struct CoapClientRequestData {
-  uint32_t timestamp{micros()};
+  uint32_t create_timestamp{};
+  uint32_t response_timestamp{};
   bool subscribe{false};
   bool subscribed{false};
   bool qblock{false};
-  std::string token{};
+  coap_bin_const_t *pdu_token{nullptr};
   CoapMethod method = CoapMethod::EMPTY;
   std::string uri{};
   std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset, size_t total,
@@ -51,6 +53,20 @@ struct CoapClientRequestData {
   void *callback_context;
   CoapMediaType media_type = CoapMediaType::TEXT_PLAIN;
   std::string payload{};
+
+  void set_pdu_token(const uint8_t *data, size_t size) { this->pdu_token = coap_new_bin_const(data, size); }
+
+  void set_pdu_token(coap_bin_const_t *pdu_token) {
+    this->pdu_token = coap_new_bin_const(pdu_token->s, pdu_token->length);
+  }
+
+  void delete_pdu_token() {
+    if (this->pdu_token) {
+      coap_delete_bin_const(this->pdu_token);
+      this->pdu_token = nullptr;
+    }
+  }
+  ~CoapClientRequestData() { delete_pdu_token(); }
 };
 
 class CoapClientComponent : public PollingComponent {
@@ -62,6 +78,8 @@ class CoapClientComponent : public PollingComponent {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+  bool is_inner_coap_loop() { return this->inner_coap_loop_; }
+  void set_inner_coap_loop(bool loop) { this->inner_coap_loop_ = loop; }
   void get(std::string uri,
            std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
                               size_t total, void *context)>
@@ -117,7 +135,8 @@ class CoapClientComponent : public PollingComponent {
   void set_client_crt(std::string str) { this->client_crt_str_ = str; }
   void set_client_key(std::string str) { this->client_key_str_ = str; }
 #endif
-  std::map<std::string, std::unique_ptr<CoapClientRequestData>> tx_requests;
+  std::vector<std::unique_ptr<CoapClientRequestData>> tx_requests;
+  std::mutex mutex_lock;
 
  protected:
   std::map<uint32_t, CoapClientRequestData> tx_request_storage_;
@@ -133,7 +152,8 @@ class CoapClientComponent : public PollingComponent {
   coap_session_t *coap_start_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri,
                                           coap_proto_t proto);
 
-  bool main_looping_{true};
+  bool main_coap_loop_{true};
+  bool inner_coap_loop_{true};
   bool torndown_{false};
   QueueHandle_t request_queue_{nullptr};
   TaskHandle_t main_task_handle_{nullptr};

@@ -58,7 +58,7 @@ class CoapServerComponent : public Component {
   void provision_pki_(coap_dtls_pki_t *dtls_pki);
 #endif
 
-  bool main_looping_{true};
+  bool main_coap_loop_{true};
   uint8_t server_failure_cntdown_{100};
   bool torndown_{false};
   uint16_t listen_port_{5683};

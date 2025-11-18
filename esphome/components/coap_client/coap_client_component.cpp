@@ -100,7 +100,7 @@ void CoapClientComponent::setup() {
 }
 
 bool CoapClientComponent::teardown() {
-  this->main_looping_ = false;
+  this->main_coap_loop_ = false;
   xTaskAbortDelay(this->main_task_handle_);
   return this->torndown_;
 }
@@ -157,25 +157,39 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
   size_t data_len;
   size_t offset;
   size_t total;
+  std::lock_guard<std::mutex> lock(mutex_lock);
   coap_pdu_code_t rcvd_code = coap_pdu_get_code(received);
   uint16_t rcode = (((rcvd_code >> 5) & 0x07) * 100) + (rcvd_code & 0x1F);
   coap_bin_const_t pdu_token = coap_pdu_get_token(received);
-  std::string token_str(reinterpret_cast<const char *>(pdu_token.s), pdu_token.length);
-  if (!this->tx_requests.count(token_str)) {
+  ESP_LOGV(TAG, "Response pdu_token %d", coap_decode_var_bytes8(pdu_token.s, pdu_token.length));
+  size_t tx_i = 0;
+  bool is_found = false;
+  for (const auto &ptr : this->tx_requests) {
+    if (coap_binary_equal(&pdu_token, ptr->pdu_token)) {
+      is_found = true;
+      break;
+    }
+    tx_i++;
+  }
+  CoapClientRequestData &tx_request = *this->tx_requests[tx_i];
+  if (!is_found) {
     ESP_LOGE(TAG, "Unable to find CoAP Client Request");
     return COAP_RESPONSE_FAIL;
   }
-  CoapClientRequestData &tx_request = *this->tx_requests[token_str];
+  ESP_LOGV(TAG, "CoAP Client Request: %d", tx_request.create_timestamp);
 
   if (COAP_RESPONSE_CLASS(rcvd_code) == 2) {
-    tx_request.timestamp = micros();
+    tx_request.response_timestamp = micros();
     if (tx_request.subscribe && !tx_request.subscribed) {
       tx_request.subscribed = true;
     }
     if (coap_get_data_large(received, &data_len, &data, &offset, &total)) {
       tx_request.callback(rcode, data, data_len, offset, total, tx_request.callback_context);
-      if (data_len + offset == total && !tx_request.subscribe) {
-        this->tx_requests.erase(token_str);
+      if (data_len + offset == total) {
+        if (!tx_request.subscribe) {
+          this->tx_requests.erase(this->tx_requests.begin() + tx_i);
+        }
+        this->set_inner_coap_loop(false);
       }
     }
   } else {
@@ -185,7 +199,10 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
     offset = 0;
     total = 0;
     tx_request.callback(rcode, data, data_len, offset, total, tx_request.callback_context);
-    this->tx_requests.erase(token_str);
+    if (!tx_request.subscribe) {
+      this->tx_requests.erase(this->tx_requests.begin() + tx_i);
+    }
+    this->set_inner_coap_loop(false);
   }
   return COAP_RESPONSE_OK;
 }
@@ -225,6 +242,9 @@ void CoapClientComponent::process_request(CoapClientRequestData &tx_request) {
              std::min(10, (int) tx_request.payload.length()), tx_request.payload.c_str());
   }
   uint32_t dtime = micros();
+  ESP_LOGV(TAG, "Timestamp %d", dtime);
+  tx_request.create_timestamp = dtime;
+  tx_request.response_timestamp = dtime;
   this->tx_request_storage_.emplace(dtime, tx_request);
   BaseType_t sent_status;
   sent_status = xQueueSend(this->request_queue_, (void *) &dtime, pdMS_TO_TICKS(1000));
@@ -258,18 +278,25 @@ void CoapClientComponent::main_() {
   size_t token_length;
   unsigned char uri_path[this->uri_path_buffer_size_];
 
-  auto cleanup = [](void *self, coap_optlist_t *&opt_list, coap_session_t *&session,
-                    CoapClientRequestData *tx_request) {
+  auto cleanup = [](void *self, coap_optlist_t *&opt_list, coap_session_t *&session, CoapClientRequestData *tx_request,
+                    uint32_t dtime) {
     // ESP_LOGV(TAG, "Coap cleanup");
     if (opt_list) {
       coap_delete_optlist(opt_list);
       opt_list = nullptr;
     }
     if (session) {
+      ESP_LOGD(TAG, "Release Session");
       coap_session_release(session);
+      session = nullptr;
     }
     if (tx_request) {
-      tx_request->callback(0, nullptr, 0, 0, 0, tx_request->callback_context);
+      CoapClientComponent *obj = (CoapClientComponent *) self;
+      ESP_LOGV(TAG, "Send Error End to tx_request %d %d", tx_request->create_timestamp, obj->is_inner_coap_loop());
+      if (obj->is_inner_coap_loop()) {
+        tx_request->callback(0, nullptr, 0, 0, 0, tx_request->callback_context);
+      }
+      obj->tx_request_storage_.erase(dtime);
       tx_request = nullptr;
     }
   };
@@ -284,132 +311,155 @@ void CoapClientComponent::main_() {
     coap_context_set_max_block_size(ctx, this->max_block_size_);
 
     // ESP_LOGV(TAG, "Begin coap main loop");
-    for (; this->main_looping_; cleanup(this, opt_list, session, tx_request)) {
+    for (; this->main_coap_loop_; cleanup(this, opt_list, session, tx_request, dtime)) {
       ESP_LOGV(TAG, "Top of main loop");
-      receive_status = xQueueReceive(this->request_queue_, &dtime, portMAX_DELAY);
+      this->set_inner_coap_loop(true);
+      receive_status = xQueueReceive(this->request_queue_, &dtime, 0);
       ESP_LOGV(TAG, "recieve_status: %d num: %d", receive_status, uxQueueMessagesWaiting(this->request_queue_));
       // Request recieved from Queue
       if (receive_status == pdPASS) {
-        uint32_t wait_ms = this->request_timeout_;
+        std::lock_guard<std::mutex> lock(mutex_lock);
         // A subscribe and subscribed request is checking to see if any follow on
         // requests have happened.
         tx_request = &this->tx_request_storage_[dtime];
-        if (!(tx_request->subscribe && tx_request->subscribed)) {
-          // Parse uri
-          if (coap_split_uri((const uint8_t *) tx_request->uri.c_str(), tx_request->uri.length(), &uri) == -1) {
-            ESP_LOGE(TAG, "Error coap_split_uri %s", tx_request->uri.c_str());
-            continue;
-          }
-          ESP_LOGV(TAG, "  Scheme: %d", uri.scheme);
-          ESP_LOGV(TAG, "  Host: %.*s (length %zu)", (int) uri.host.length, uri.host.s, uri.host.length);
-          ESP_LOGV(TAG, "  Port: %u", uri.port);  // Use %u for uint16_t
-          ESP_LOGV(TAG, "  Path: %.*s (length %zu)\n", (int) uri.path.length, uri.path.s, uri.path.length);
+        ESP_LOGV(TAG, "Timestamp %d %d", dtime, tx_request->create_timestamp);
+        // Parse uri
+        if (coap_split_uri((const uint8_t *) tx_request->uri.c_str(), tx_request->uri.length(), &uri) == -1) {
+          ESP_LOGE(TAG, "Error coap_split_uri %s", tx_request->uri.c_str());
+          continue;
+        }
+        ESP_LOGV(TAG, "  Scheme: %d", uri.scheme);
+        ESP_LOGV(TAG, "  Host: %.*s (length %zu)", (int) uri.host.length, uri.host.s, uri.host.length);
+        ESP_LOGV(TAG, "  Port: %u", uri.port);  // Use %u for uint16_t
+        ESP_LOGV(TAG, "  Path: %.*s (length %zu)\n", (int) uri.path.length, uri.path.s, uri.path.length);
 
-          // Get info_list (addr is destination, proto(col) is UDP, DTLS, TCP, TLS)
-          info_list = coap_resolve_address_info(&uri.host, uri.port, uri.port, uri.port, uri.port, 0, 1 << uri.scheme,
-                                                COAP_RESOLVE_TYPE_REMOTE);
-          if (info_list == NULL) {
-            ESP_LOGE(TAG, "Error coap_resolve_address_info %s", tx_request->uri.c_str());
-            continue;
-          }
-          // Copy out proto(col) and destination
-          proto = info_list->proto;
-          memcpy(&dst_addr, &info_list->addr, sizeof(dst_addr));
-          coap_free_address_info(info_list);
+        // Get info_list (addr is destination, proto(col) is UDP, DTLS, TCP, TLS)
+        info_list = coap_resolve_address_info(&uri.host, uri.port, uri.port, uri.port, uri.port, 0, 1 << uri.scheme,
+                                              COAP_RESOLVE_TYPE_REMOTE);
+        if (info_list == NULL) {
+          ESP_LOGE(TAG, "Error coap_resolve_address_info %s", tx_request->uri.c_str());
+          continue;
+        }
+        // Copy out proto(col) and destination
+        proto = info_list->proto;
+        memcpy(&dst_addr, &info_list->addr, sizeof(dst_addr));
+        coap_free_address_info(info_list);
 
-          // Build CoAP Options (header)
-          if (coap_uri_into_options(&uri, &dst_addr, &opt_list, 1, uri_path, sizeof(uri_path)) < 0) {
-            ESP_LOGE(TAG, "Failed to create options for URI %s", tx_request->uri.c_str());
-            continue;
-          }
-          // Create CoAP Session
-          session = this->get_session_(ctx, &dst_addr, &uri, proto, oscore_conf);
-          if (!session) {
-            ESP_LOGE(TAG, "create coap session failed");
-            continue;
-          }
+        // Build CoAP Options (header)
+        if (coap_uri_into_options(&uri, &dst_addr, &opt_list, 1, uri_path, sizeof(uri_path)) < 0) {
+          ESP_LOGE(TAG, "Failed to create options for URI %s", tx_request->uri.c_str());
+          continue;
+        }
+        // Create CoAP Session
+        // TBD existing session with subscribe
+        session = this->get_session_(ctx, &dst_addr, &uri, proto, oscore_conf);
+        if (!session) {
+          ESP_LOGE(TAG, "create coap session failed");
+          continue;
+        }
+        coap_encode_var_safe8(token, 4, dtime);
+        coap_session_init_token(session, 4, token);
 
-          // Create CoAP Request
-          request = coap_new_pdu(coap_is_mcast(&dst_addr) ? COAP_MESSAGE_NON : COAP_MESSAGE_CON,
-                                 (coap_pdu_code_t) tx_request->method, session);
-          if (!request) {
-            ESP_LOGE(TAG, "coap_new_pdu() failed");
-            continue;
-          }
+        // Create CoAP Request
+        request = coap_new_pdu(coap_is_mcast(&dst_addr) ? COAP_MESSAGE_NON : COAP_MESSAGE_CON,
+                               (coap_pdu_code_t) tx_request->method, session);
+        if (!request) {
+          ESP_LOGE(TAG, "coap_new_pdu() failed");
+          continue;
+        }
 
-          // Create CoAP token
-          if (tx_request->token.length() == 0) {
-            coap_session_new_token(session, &token_length, token);
-            tx_request->token.assign(reinterpret_cast<const char *>(token), token_length);
+        // Create CoAP token
+        if (tx_request->pdu_token)  // subscribe, so session exists libcoap
+        {
+          ESP_LOGV(TAG, "Use pdu_token %d from %d",
+                   coap_decode_var_bytes8(tx_request->pdu_token->s, tx_request->pdu_token->length),
+                   tx_request->create_timestamp);
+          if (!coap_add_token(request, tx_request->pdu_token->length, tx_request->pdu_token->s)) {
+            ESP_LOGE(TAG, "Unable to add token to request");
           }
-          coap_add_token(request, tx_request->token.length(), (const uint8_t *) tx_request->token.c_str());
-
-          // Subscribe
-          if (tx_request->subscribe && !tx_request->subscribed) {
-            u_char buf[4];
-            coap_add_option(
-                request, COAP_OPTION_OBSERVE,
-                coap_encode_var_safe(buf, sizeof(buf), COAP_OBSERVE_ESTABLISH),  // COAP_OBSERVE_ESTABLISH is 0
-                buf);
-          }
-          // Unsubscribe
-          if (tx_request->subscribed && !tx_request->subscribe) {
-            u_char buf[4];
-            coap_add_option(request, COAP_OPTION_OBSERVE,
-                            coap_encode_var_safe(buf, sizeof(buf), COAP_OBSERVE_CANCEL),  // COAP_OBSERVE_ESTABLISH is 1
-                            buf);
-          }
-          // Payload
-          if (tx_request->payload.length() > 0) {
-            u_char buf[4];
-            coap_insert_optlist(&opt_list,
-                                coap_new_optlist(COAP_OPTION_CONTENT_FORMAT,
-                                                 coap_encode_var_safe(buf, sizeof(buf), tx_request->media_type), buf));
-            coap_add_data_large_request(session, request, tx_request->payload.length(),
-                                        (const uint8_t *) tx_request->payload.c_str(), NULL, NULL);
-          }
-
-          // Add option list to CoAP request (it is added as part of header)
-          coap_add_optlist_pdu(request, &opt_list);
-
-          // Send CoAP request
-          std::unique_ptr<CoapClientRequestData> utx_request_ptr = std::make_unique<CoapClientRequestData>();
-          utx_request_ptr->subscribe = tx_request->subscribe;
-          utx_request_ptr->subscribed = tx_request->subscribed;
-          utx_request_ptr->qblock = tx_request->qblock;
-          utx_request_ptr->token = tx_request->token;
-          utx_request_ptr->method = tx_request->method;
-          utx_request_ptr->uri = tx_request->uri;
-          utx_request_ptr->callback = tx_request->callback;
-          utx_request_ptr->callback_context = tx_request->callback_context;
-          utx_request_ptr->media_type = tx_request->media_type;
-          utx_request_ptr->payload = tx_request->payload;
-          this->tx_requests.emplace(tx_request->token, std::move(utx_request_ptr));
-          this->tx_request_storage_.erase(dtime);
-          coap_send(session, request);
         } else {
-          wait_ms = COAP_IO_NO_WAIT;
+          coap_session_new_token(session, &token_length, token);
+          ESP_LOGV(TAG, "New pdu_token %d for %d", coap_decode_var_bytes8(token, token_length),
+                   tx_request->create_timestamp);
+          if (!coap_add_token(request, token_length, token)) {
+            ESP_LOGE(TAG, "Unable to add token to request");
+          }
+          tx_request->set_pdu_token(token, token_length);
         }
+
+        // Subscribe
+        if (tx_request->subscribe && !tx_request->subscribed) {
+          u_char buf[4];
+          coap_add_option(
+              request, COAP_OPTION_OBSERVE,
+              coap_encode_var_safe(buf, sizeof(buf), COAP_OBSERVE_ESTABLISH),  // COAP_OBSERVE_ESTABLISH is 0
+              buf);
+        }
+        // Unsubscribe
+        if (!tx_request->subscribe && tx_request->subscribed) {
+          u_char buf[4];
+          coap_add_option(request, COAP_OPTION_OBSERVE,
+                          coap_encode_var_safe(buf, sizeof(buf), COAP_OBSERVE_CANCEL),  // COAP_OBSERVE_ESTABLISH is 1
+                          buf);
+        }
+        // Payload
+        if (tx_request->payload.length() > 0) {
+          u_char buf[4];
+          coap_insert_optlist(&opt_list,
+                              coap_new_optlist(COAP_OPTION_CONTENT_FORMAT,
+                                               coap_encode_var_safe(buf, sizeof(buf), tx_request->media_type), buf));
+          coap_add_data_large_request(session, request, tx_request->payload.length(),
+                                      (const uint8_t *) tx_request->payload.c_str(), NULL, NULL);
+        }
+
+        // Add option list to CoAP request (it is added as part of header)
+        coap_add_optlist_pdu(request, &opt_list);
+
+        // Send CoAP request
+        std::unique_ptr<CoapClientRequestData> utx_request_ptr = std::make_unique<CoapClientRequestData>();
+        utx_request_ptr->create_timestamp = tx_request->create_timestamp;
+        utx_request_ptr->response_timestamp = tx_request->response_timestamp;
+        utx_request_ptr->subscribe = tx_request->subscribe;
+        utx_request_ptr->subscribe = tx_request->subscribe;
+        utx_request_ptr->subscribed = tx_request->subscribed;
+        utx_request_ptr->qblock = tx_request->qblock;
+        utx_request_ptr->set_pdu_token(tx_request->pdu_token);
+        utx_request_ptr->method = tx_request->method;
+        utx_request_ptr->uri = tx_request->uri;
+        utx_request_ptr->callback = tx_request->callback;
+        utx_request_ptr->callback_context = tx_request->callback_context;
+        utx_request_ptr->media_type = tx_request->media_type;
+        utx_request_ptr->payload = tx_request->payload;
+        this->tx_requests.push_back(std::move(utx_request_ptr));
+        coap_send(session, request);
+        // Temporary
+        if (tx_request->subscribe) {
+          session = nullptr;
+        }
+      } else {
         tx_request = nullptr;
-        // coap_io_process returns -1 on error.
-        // coap_io_pending returns 1 if there's ongoing I/O (transfer in process), 0 if done.
-        int result = 0;
-        while (1) {
-          int pending = coap_io_pending(ctx);
-          if (pending < 1) {
-            ESP_LOGD(TAG, "No I/O Pending");
-            break;
-          }
-          // Wait for up to request_timeout_ milliseconds for I/O to happen.
-          // The return value is the time spent in the function in milliseconds.
-          result = coap_io_process(ctx, wait_ms);
-          if (result < 0) {
-            ESP_LOGE(TAG, "CoAP I/O error! Exiting loop.");
-            break;
-          }
-        }
-        ESP_LOGV(TAG, "CoAP Request Processed");
       }
+      // coap_io_process returns -1 on error.
+      // coap_io_pending returns 1 if there's ongoing I/O (transfer in process), 0 if done.
+      int result = 0;
+      uint32_t wait_ms = this->request_timeout_;
+      while (this->is_inner_coap_loop()) {
+        // Wait for up to request_timeout_ milliseconds for I/O to happen.
+        // The return value is the time spent in the function in milliseconds.
+        result = coap_io_process(ctx, wait_ms);
+        if (result < 0) {
+          ESP_LOGE(TAG, "CoAP I/O error! Exiting Inner Loop.");
+          break;
+        }
+        if (result >= wait_ms) {
+          ESP_LOGV(TAG, "No Processing Occurred Exiting Inner Loop");
+          break;
+        } else {
+          // sample code did a speed up here
+        }
+      }
+      yield();
+      ESP_LOGV(TAG, "CoAP Request Processed");
     }
     if (ctx) {
       coap_free_context(ctx);
