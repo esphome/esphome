@@ -533,6 +533,7 @@ class WiFiComponent : public Component {
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
   bool force_scan_after_provision_{false};
+  bool did_scan_this_cycle_{false};
 
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
