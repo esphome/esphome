@@ -3,7 +3,6 @@ import functools
 import hashlib
 from itertools import accumulate
 import logging
-import os
 from pathlib import Path
 import re
 
@@ -37,7 +36,7 @@ from esphome.const import (
     CONF_WEIGHT,
 )
 from esphome.core import CORE, HexInt
-from esphome.helpers import cpp_string_escape
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +49,6 @@ font_ns = cg.esphome_ns.namespace("font")
 
 Font = font_ns.class_("Font")
 Glyph = font_ns.class_("Glyph")
-GlyphData = font_ns.struct("GlyphData")
 
 CONF_BPP = "bpp"
 CONF_EXTRAS = "extras"
@@ -253,11 +251,11 @@ def validate_truetype_file(value):
     return CORE.relative_config_path(cv.file_(value))
 
 
-def add_local_file(value):
+def add_local_file(value: ConfigType) -> ConfigType:
     if value in FONT_CACHE:
         return value
-    path = value[CONF_PATH]
-    if not os.path.isfile(path):
+    path = Path(value[CONF_PATH])
+    if not path.is_file():
         raise cv.Invalid(f"File '{path}' not found.")
     FONT_CACHE[value] = path
     return value
@@ -318,7 +316,7 @@ def download_gfont(value):
         external_files.compute_local_file_dir(DOMAIN)
         / f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1.ttf"
     )
-    if not external_files.is_file_recent(str(path), value[CONF_REFRESH]):
+    if not external_files.is_file_recent(path, value[CONF_REFRESH]):
         _LOGGER.debug("download_gfont: path=%s", path)
         try:
             req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
@@ -463,7 +461,7 @@ FONT_SCHEMA = cv.Schema(
             )
         ),
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-        cv.GenerateID(CONF_RAW_GLYPH_ID): cv.declare_id(GlyphData),
+        cv.GenerateID(CONF_RAW_GLYPH_ID): cv.declare_id(Glyph),
     },
 )
 
@@ -488,6 +486,8 @@ class GlyphInfo:
 
 
 def glyph_to_glyphinfo(glyph, font, size, bpp):
+    # Convert to 32 bit unicode codepoint
+    glyph = ord(glyph)
     scale = 256 // (1 << bpp)
     if not font.is_scalable:
         sizes = [pt_to_px(x.size) for x in font.available_sizes]
@@ -583,22 +583,15 @@ async def to_code(config):
 
     # Create the glyph table that points to data in the above array.
     glyph_initializer = [
-        cg.StructInitializer(
-            GlyphData,
-            (
-                "a_char",
-                cg.RawExpression(f"(const uint8_t *){cpp_string_escape(x.glyph)}"),
-            ),
-            (
-                "data",
-                cg.RawExpression(f"{str(prog_arr)} + {str(y - len(x.bitmap_data))}"),
-            ),
-            ("advance", x.advance),
-            ("offset_x", x.offset_x),
-            ("offset_y", x.offset_y),
-            ("width", x.width),
-            ("height", x.height),
-        )
+        [
+            x.glyph,
+            prog_arr + (y - len(x.bitmap_data)),
+            x.advance,
+            x.offset_x,
+            x.offset_y,
+            x.width,
+            x.height,
+        ]
         for (x, y) in zip(
             glyph_args, list(accumulate([len(x.bitmap_data) for x in glyph_args]))
         )

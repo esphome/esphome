@@ -89,3 +89,73 @@ async def test_delay_action_cancellation(
         assert 0.4 < time_from_second_start < 0.6, (
             f"Delay completed {time_from_second_start:.3f}s after second start, expected ~0.5s"
         )
+
+
+@pytest.mark.asyncio
+async def test_parallel_script_delays(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that parallel scripts with delays don't interfere with each other."""
+    loop = asyncio.get_running_loop()
+
+    # Track script executions
+    script_starts: list[float] = []
+    script_ends: list[float] = []
+
+    # Patterns to match
+    start_pattern = re.compile(r"Parallel script instance \d+ started")
+    end_pattern = re.compile(r"Parallel script instance \d+ completed after delay")
+
+    # Future to track when all scripts have completed
+    all_scripts_completed = loop.create_future()
+
+    def check_output(line: str) -> None:
+        """Check log output for parallel script messages."""
+        current_time = loop.time()
+
+        if start_pattern.search(line):
+            script_starts.append(current_time)
+
+        if end_pattern.search(line):
+            script_ends.append(current_time)
+            # Check if we have all 3 completions
+            if len(script_ends) == 3 and not all_scripts_completed.done():
+                all_scripts_completed.set_result(True)
+
+    async with (
+        run_compiled(yaml_config, line_callback=check_output),
+        api_client_connected() as client,
+    ):
+        # Get services
+        entities, services = await client.list_entities_services()
+
+        # Find our test service
+        test_service = next(
+            (s for s in services if s.name == "test_parallel_delays"), None
+        )
+        assert test_service is not None, "test_parallel_delays service not found"
+
+        # Execute the test - this will start 3 parallel scripts with 1 second delays
+        client.execute_service(test_service, {})
+
+        # Wait for all scripts to complete (should take ~1 second, not 3)
+        await asyncio.wait_for(all_scripts_completed, timeout=2.0)
+
+        # Verify we had 3 starts and 3 ends
+        assert len(script_starts) == 3, (
+            f"Expected 3 script starts, got {len(script_starts)}"
+        )
+        assert len(script_ends) == 3, f"Expected 3 script ends, got {len(script_ends)}"
+
+        # Verify they ran in parallel - all should complete within ~1.5 seconds
+        first_start = min(script_starts)
+        last_end = max(script_ends)
+        total_time = last_end - first_start
+
+        # If running in parallel, total time should be close to 1 second
+        # If they were interfering (running sequentially), it would take 3+ seconds
+        assert total_time < 1.5, (
+            f"Parallel scripts took {total_time:.2f}s total, should be ~1s if running in parallel"
+        )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from aioesphomeapi import APIConnectionError
+from aioesphomeapi import APIConnectionError, InvalidAuthAPIError
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -48,6 +48,22 @@ async def test_host_mode_api_password(
             assert len(states) > 0
 
         # Test with wrong password - should fail
-        with pytest.raises(APIConnectionError, match="Invalid password"):
-            async with api_client_connected(password="wrong_password"):
-                pass  # Should not reach here
+        # Try connecting with wrong password
+        try:
+            async with api_client_connected(
+                password="wrong_password", timeout=5
+            ) as client:
+                # If we get here without exception, try to use the connection
+                # which should fail if auth failed
+                await client.device_info_and_list_entities()
+                # If we successfully got device info and entities, auth didn't fail properly
+                pytest.fail("Connection succeeded with wrong password")
+        except (InvalidAuthAPIError, APIConnectionError) as e:
+            # Expected - auth should fail
+            # Accept either InvalidAuthAPIError or generic APIConnectionError
+            # since the client might not always distinguish
+            assert (
+                "password" in str(e).lower()
+                or "auth" in str(e).lower()
+                or "invalid" in str(e).lower()
+            )

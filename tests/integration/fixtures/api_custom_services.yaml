@@ -11,6 +11,28 @@ api:
       then:
         - logger.log: "YAML service called"
 
+    # Test YAML service with arguments (tests UserServiceBase with const char* array)
+    - action: test_yaml_service_with_args
+      variables:
+        my_int: int
+        my_string: string
+      then:
+        - logger.log:
+            format: "YAML service with args: %d, %s"
+            args: [my_int, my_string.c_str()]
+
+    # Test YAML service with multiple arguments
+    - action: test_yaml_service_many_args
+      variables:
+        arg1: int
+        arg2: float
+        arg3: bool
+        arg4: string
+      then:
+        - logger.log:
+            format: "YAML service many args: %d, %.2f, %d, %s"
+            args: [arg1, arg2, arg3, arg4.c_str()]
+
 logger:
   level: DEBUG
 

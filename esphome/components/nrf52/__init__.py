@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from pathlib import Path
 
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     copy_files as zephyr_copy_files,
     zephyr_add_pm_static,
+    zephyr_add_prj_conf,
+    zephyr_data,
     zephyr_set_core_data,
     zephyr_to_code,
 )
@@ -18,6 +23,9 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
+    CONF_ID,
+    CONF_RESET_PIN,
+    CONF_VOLTAGE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -25,7 +33,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     ThreadModel,
 )
-from esphome.core import CORE, EsphomeError, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -43,6 +51,7 @@ from .gpio import nrf52_pin_to_code  # noqa
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr"]
 IS_TARGET_PLATFORM = True
+_LOGGER = logging.getLogger(__name__)
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
@@ -90,19 +99,63 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     return config
 
 
+nrf52_ns = cg.esphome_ns.namespace("nrf52")
+DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
+
+CONF_DFU = "dfu"
+CONF_DCDC = "dcdc"
+CONF_REG0 = "reg0"
+CONF_UICR_ERASE = "uicr_erase"
+
+VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
+
 CONFIG_SCHEMA = cv.All(
+    _detect_bootloader,
+    set_core_data,
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
+            cv.Optional(CONF_DFU): cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(DeviceFirmwareUpdate),
+                    cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+                }
+            ),
+            cv.Optional(CONF_DCDC, default=True): cv.boolean,
+            cv.Optional(CONF_REG0): cv.Schema(
+                {
+                    cv.Required(CONF_VOLTAGE): cv.All(
+                        cv.voltage,
+                        cv.one_of(*VOLTAGE_LEVELS, float=True),
+                    ),
+                    cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
+                }
+            ),
         }
     ),
-    _detect_bootloader,
-    set_core_data,
 )
 
 
-@coroutine_with_priority(1000)
+def _validate_mcumgr(config):
+    bootloader = zephyr_data()[KEY_BOOTLOADER]
+    if bootloader == BOOTLOADER_MCUBOOT:
+        raise cv.Invalid(f"'{bootloader}' bootloader does not support DFU")
+
+
+def _final_validate(config):
+    if CONF_DFU in config:
+        _validate_mcumgr(config)
+    if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
+        _LOGGER.warning(
+            "Selected generic Adafruit bootloader. The board might crash. Consider settings `bootloader:`"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
     cg.add_platformio_option("board", config[CONF_BOARD])
@@ -119,14 +172,21 @@ async def to_code(config: ConfigType) -> None:
     cg.add_platformio_option(
         "platform_packages",
         [
-            "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v2.6.1-4.zip",
-            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng/archive/refs/tags/v0.16.1-1.zip",
+            "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v2.6.1-7.zip",
+            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng/archive/refs/tags/v0.17.4-0.zip",
         ],
     )
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
     else:
+        if "_sd" in config[KEY_BOOTLOADER]:
+            bootloader = config[KEY_BOOTLOADER].split("_")
+            sd_id = bootloader[2][2:]
+            cg.add_define("USE_SOFTDEVICE_ID", int(sd_id))
+            if (len(bootloader)) > 3:
+                sd_version = bootloader[3][1:]
+                cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
         # make sure that firmware.zip is created
         # for Adafruit_nRF52_Bootloader
         cg.add_platformio_option("board_upload.protocol", "nrfutil")
@@ -135,6 +195,26 @@ async def to_code(config: ConfigType) -> None:
         cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
 
     zephyr_to_code(config)
+
+    if dfu_config := config.get(CONF_DFU):
+        CORE.add_job(_dfu_to_code, dfu_config)
+    zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+
+    if reg0_config := config.get(CONF_REG0):
+        value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
+        cg.add_define("USE_NRF52_REG0_VOUT", value)
+        if reg0_config[CONF_UICR_ERASE]:
+            cg.add_define("USE_NRF52_UICR_ERASE")
+
+
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
+async def _dfu_to_code(dfu_config):
+    cg.add_define("USE_NRF52_DFU")
+    var = cg.new_Pvariable(dfu_config[CONF_ID])
+    pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
+    cg.add(var.set_reset_pin(pin))
+    zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+    await cg.register_component(var, dfu_config)
 
 
 def copy_files() -> None:
@@ -221,3 +301,20 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         raise EsphomeError(f"Upload failed with result: {result}")
 
     return handled
+
+
+def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
+    address = devices[0]
+    from .ble_logger import is_mac_address, logger_connect, logger_scan
+
+    if devices[0] == "BLE":
+        ble_device = asyncio.run(logger_scan(CORE.config["esphome"]["name"]))
+        if ble_device:
+            address = ble_device.address
+        else:
+            return True
+
+    if is_mac_address(address):
+        asyncio.run(logger_connect(address))
+        return True
+    return False
