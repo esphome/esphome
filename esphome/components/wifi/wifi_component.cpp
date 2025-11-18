@@ -1232,9 +1232,16 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
-      // After restart, go back to explicit hidden if we went through it initially, otherwise scan
-      return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
-                                                         : WiFiRetryPhase::SCAN_CONNECTING;
+      // After restart, go back to explicit hidden if we went through it initially
+      if (this->went_through_explicit_hidden_phase_()) {
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;
+      }
+      // Skip scanning when captive portal/improv is active to avoid disrupting AP
+      // Even passive scans can cause brief AP disconnections on ESP32
+      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+        return WiFiRetryPhase::RETRY_HIDDEN;
+      }
+      return WiFiRetryPhase::SCAN_CONNECTING;
   }
 
   // Should never reach here
