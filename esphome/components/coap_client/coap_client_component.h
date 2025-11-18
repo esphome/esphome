@@ -44,6 +44,7 @@ struct CoapClientRequestData {
   bool subscribe{false};
   bool subscribed{false};
   bool qblock{false};
+  coap_session_t *session{nullptr};
   coap_bin_const_t *pdu_token{nullptr};
   CoapMethod method = CoapMethod::EMPTY;
   std::string uri{};
@@ -57,7 +58,9 @@ struct CoapClientRequestData {
   void set_pdu_token(const uint8_t *data, size_t size) { this->pdu_token = coap_new_bin_const(data, size); }
 
   void set_pdu_token(coap_bin_const_t *pdu_token) {
-    this->pdu_token = coap_new_bin_const(pdu_token->s, pdu_token->length);
+    if (pdu_token) {
+      this->pdu_token = coap_new_bin_const(pdu_token->s, pdu_token->length);
+    }
   }
 
   void delete_pdu_token() {
@@ -66,20 +69,26 @@ struct CoapClientRequestData {
       this->pdu_token = nullptr;
     }
   }
-  ~CoapClientRequestData() { delete_pdu_token(); }
+
+  void release_session() {
+    coap_session_release(session);
+    session = nullptr;
+  }
+
+  ~CoapClientRequestData() {
+    release_session();
+    delete_pdu_token();
+  }
 };
 
-class CoapClientComponent : public PollingComponent {
+class CoapClientComponent : public Component {
  public:
   CoapClientComponent();
   void setup() override;
   bool teardown() override;
-  void update() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  bool is_inner_coap_loop() { return this->inner_coap_loop_; }
-  void set_inner_coap_loop(bool loop) { this->inner_coap_loop_ = loop; }
   void get(std::string uri,
            std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
                               size_t total, void *context)>
@@ -135,10 +144,12 @@ class CoapClientComponent : public PollingComponent {
   void set_client_crt(std::string str) { this->client_crt_str_ = str; }
   void set_client_key(std::string str) { this->client_key_str_ = str; }
 #endif
-  std::vector<std::unique_ptr<CoapClientRequestData>> tx_requests;
-  std::mutex mutex_lock;
 
  protected:
+  void house_keeping_();
+  bool is_process_requests_{true};
+  std::vector<std::unique_ptr<CoapClientRequestData>> tx_requests_;
+  std::mutex mutex_lock_;
   std::map<uint32_t, CoapClientRequestData> tx_request_storage_;
   void main_();
   coap_session_t *get_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri, coap_proto_t proto,
@@ -162,6 +173,7 @@ class CoapClientComponent : public PollingComponent {
   uint32_t request_timeout_{COAP_RESOURCE_CHECK_TIME * 1000};
   uint32_t ack_timeout_{2000};
   uint8_t max_retransmit_{4};
+  uint32_t request_subscribe_timeout_{128000};
 #ifdef CONFIG_COAP_OSCORE_SUPPORT
   std::string oscore_conf_str_{};
 #endif

@@ -9,7 +9,7 @@
 
 namespace esphome::coap {
 
-static const char *const TAG = "coap_client_component.ota";
+static const char *const TAG = "coap_client.ota";
 
 void OtaCoapClientComponent::setup() {
 #ifdef USE_OTA_STATE_CALLBACK
@@ -115,6 +115,7 @@ uint8_t OtaCoapClientComponent::do_ota_() {
   this->parent_->get(this->url_, OtaCoapClientComponent::image_callback, this);
   while (!this->image_download_ready_) {
     App.feed_wdt();
+    yield();
     delay(100);  // NOLINT
   }
 
@@ -162,7 +163,8 @@ bool OtaCoapClientComponent::get_md5_expected_() {
   this->parent_->get(this->md5_url_, OtaCoapClientComponent::md5_callback, this);
   while (!this->md5_url_ready_) {
     App.feed_wdt();
-    delay(10);  // NOLINT
+    yield();
+    delay(100);  // NOLINT
   }
   return this->md5_expected().size() == MD5_SIZE;
 }

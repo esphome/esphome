@@ -6,7 +6,7 @@
 
 namespace esphome::coap {
 
-static const char *const TAGA = "coap_client_component_auto";
+static const char *const TAGA = "coap_client_auto";
 
 class CoapResponseStatistics {
  public:

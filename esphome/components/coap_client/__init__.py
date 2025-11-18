@@ -65,7 +65,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_CLIENT_CRT): cv.string,
         cv.Optional(CONF_CLIENT_KEY): cv.string,
     }
-).extend(cv.polling_component_schema("60s"))
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):
