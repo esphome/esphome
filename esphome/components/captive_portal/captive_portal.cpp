@@ -52,13 +52,7 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
   wifi::global_wifi_component->save_wifi_sta(ssid, psk);
   wifi::global_wifi_component->start_scanning();
-
-  // Add Connection: close header to ensure socket is released immediately
-  // Without this, sockets can stay in TIME_WAIT and exhaust the socket pool
-  auto *response = request->beginResponse(302, ESPHOME_F("text/plain"), ESPHOME_F(""));
-  response->addHeader(ESPHOME_F("Location"), ESPHOME_F("/?save"));
-  response->addHeader(ESPHOME_F("Connection"), ESPHOME_F("close"));
-  request->send(response);
+  request->redirect(ESPHOME_F("/?save"));
 }
 
 void CaptivePortal::setup() {
