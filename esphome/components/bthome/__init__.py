@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_SENSORS,
     CONF_TX_POWER,
+    CONF_TYPE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
     DEVICE_CLASS_CARBON_DIOXIDE,
@@ -56,7 +57,6 @@ BTHome = bthome_ns.class_(
 CONF_ENCRYPTION_KEY = "encryption_key"
 CONF_MIN_INTERVAL = "min_interval"
 CONF_MAX_INTERVAL = "max_interval"
-CONF_SENSOR_TYPE = "type"
 CONF_ADVERTISE_IMMEDIATELY = "advertise_immediately"
 
 # BTHome object IDs for sensors (mapping from device class to BTHome object ID)
@@ -144,7 +144,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SENSORS): cv.ensure_list(
                 cv.Schema(
                     {
-                        cv.Required(CONF_SENSOR_TYPE): cv.one_of(
+                        cv.Required(CONF_TYPE): cv.one_of(
                             *SENSOR_DEVICE_CLASS_TO_OBJECT_ID.keys(), lower=True
                         ),
                         cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
@@ -157,7 +157,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
                 cv.Schema(
                     {
-                        cv.Required(CONF_SENSOR_TYPE): cv.one_of(
+                        cv.Required(CONF_TYPE): cv.one_of(
                             *BINARY_SENSOR_DEVICE_CLASS_TO_OBJECT_ID.keys(), lower=True
                         ),
                         cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
@@ -209,7 +209,7 @@ async def to_code(config):
     # Add sensor measurements
     if CONF_SENSORS in config:
         for measurement in config[CONF_SENSORS]:
-            sensor_type = measurement[CONF_SENSOR_TYPE]
+            sensor_type = measurement[CONF_TYPE]
             object_id = SENSOR_DEVICE_CLASS_TO_OBJECT_ID[sensor_type]
             sens = await cg.get_variable(measurement[CONF_ID])
             advertise_immediately = measurement[CONF_ADVERTISE_IMMEDIATELY]
@@ -218,7 +218,7 @@ async def to_code(config):
     # Add binary sensor measurements
     if CONF_BINARY_SENSORS in config:
         for measurement in config[CONF_BINARY_SENSORS]:
-            sensor_type = measurement[CONF_SENSOR_TYPE]
+            sensor_type = measurement[CONF_TYPE]
             object_id = BINARY_SENSOR_DEVICE_CLASS_TO_OBJECT_ID[sensor_type]
             sens = await cg.get_variable(measurement[CONF_ID])
             advertise_immediately = measurement[CONF_ADVERTISE_IMMEDIATELY]
