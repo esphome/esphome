@@ -50,8 +50,8 @@ void ImprovSerialComponent::loop() {
     if (wifi::global_wifi_component->is_connected()) {
       wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
                                                  this->connecting_sta_.get_password());
-      // Trigger immediate retry to attempt connection with new credentials
-      wifi::global_wifi_component->retry_connect();
+      // Trigger connection attempt (exits cooldown if needed, no-op if already connected)
+      wifi::global_wifi_component->connect_soon();
       this->connecting_sta_ = {};
       this->cancel_timeout("wifi-connect-timeout");
       this->set_state_(improv::STATE_PROVISIONED);

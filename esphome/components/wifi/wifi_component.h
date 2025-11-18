@@ -292,6 +292,9 @@ class WiFiComponent : public Component {
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
 
+  /// Trigger connection attempt soon (exits cooldown if needed, otherwise no-op if already connecting/connected)
+  void connect_soon();
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup WiFi interface.

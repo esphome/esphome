@@ -53,8 +53,8 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   // Defer save to main loop thread to avoid NVS operations from HTTP thread
   this->defer([ssid, psk]() {
     wifi::global_wifi_component->save_wifi_sta(ssid, psk);
-    // Trigger immediate retry to attempt connection with new credentials
-    wifi::global_wifi_component->retry_connect();
+    // Trigger connection attempt (exits cooldown if needed)
+    wifi::global_wifi_component->connect_soon();
   });
   request->redirect(ESPHOME_F("/?save"));
 }

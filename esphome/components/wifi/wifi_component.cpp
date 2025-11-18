@@ -676,6 +676,14 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   this->force_scan_after_provision_ = true;
 }
 
+void WiFiComponent::connect_soon() {
+  // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
+  if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
+    ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
+    this->retry_connect();
+  }
+}
+
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // Log connection attempt at INFO level with priority
   char bssid_s[18];
