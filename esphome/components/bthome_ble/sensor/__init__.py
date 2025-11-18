@@ -4,6 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINDKEY,
     CONF_ID,
+    CONF_MAC_ADDRESS,
+    CONF_SENSORS,
     CONF_TYPE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CO2,
@@ -24,14 +26,11 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_KILOGRAM,
-    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
     UNIT_KILOWATT_HOURS,
     UNIT_LUX,
     UNIT_METER,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_MILLIGRAM_PER_CUBIC_METER,
     UNIT_MILLIMETER,
-    UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
     UNIT_PASCAL,
     UNIT_PERCENT,
@@ -40,7 +39,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@esphome/core"]
-DEPENDENCIES = ["bthome_ble"]
+DEPENDENCIES = ["esp32_ble_tracker"]
 
 bthome_ble_ns = cg.esphome_ns.namespace("bthome_ble")
 BTHomeSensor = bthome_ble_ns.class_(
@@ -232,25 +231,36 @@ def apply_defaults(config):
     return config
 
 
-CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(BTHomeSensor)
-    .extend(
+# Schema for individual sensors in the list
+SENSOR_SCHEMA = cv.All(
+    sensor.sensor_schema(BTHomeSensor).extend(
         {
             cv.Required(CONF_TYPE): cv.enum(SENSOR_TYPES, lower=True),
-            cv.Optional(CONF_BINDKEY): cv.bind_key,
         }
-    )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA),
+    ),
     apply_defaults,
+)
+
+# Platform schema with list of sensors
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(esp32_ble_tracker.ESP32BLETracker),
+        cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_BINDKEY): cv.bind_key,
+        cv.Required(CONF_SENSORS): cv.ensure_list(SENSOR_SCHEMA),
+    }
 )
 
 
 async def to_code(config):
-    var = await sensor.new_sensor(config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    tracker = await cg.get_variable(config[CONF_ID])
 
-    object_id = SENSOR_TYPES[config[CONF_TYPE]]
-    cg.add(var.set_object_id(object_id))
+    for sensor_config in config[CONF_SENSORS]:
+        var = await sensor.new_sensor(sensor_config)
+        await esp32_ble_tracker.register_ble_device(var, config)
 
-    if bindkey := config.get(CONF_BINDKEY):
-        cg.add(var.set_bindkey(bindkey))
+        object_id = SENSOR_TYPES[sensor_config[CONF_TYPE]]
+        cg.add(var.set_object_id(object_id))
+
+        if bindkey := config.get(CONF_BINDKEY):
+            cg.add(var.set_bindkey(bindkey))

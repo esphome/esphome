@@ -2,8 +2,10 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, esp32_ble_tracker
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BINARY_SENSORS,
     CONF_BINDKEY,
     CONF_ID,
+    CONF_MAC_ADDRESS,
     CONF_TYPE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -34,7 +36,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@esphome/core"]
-DEPENDENCIES = ["bthome_ble"]
+DEPENDENCIES = ["esp32_ble_tracker"]
 
 bthome_ble_ns = cg.esphome_ns.namespace("bthome_ble")
 BTHomeBinarySensor = bthome_ble_ns.class_(
@@ -114,25 +116,36 @@ def apply_defaults(config):
     return config
 
 
-CONFIG_SCHEMA = cv.All(
-    binary_sensor.binary_sensor_schema(BTHomeBinarySensor)
-    .extend(
+# Schema for individual binary sensors in the list
+BINARY_SENSOR_SCHEMA = cv.All(
+    binary_sensor.binary_sensor_schema(BTHomeBinarySensor).extend(
         {
             cv.Required(CONF_TYPE): cv.enum(BINARY_SENSOR_TYPES, lower=True),
-            cv.Optional(CONF_BINDKEY): cv.bind_key,
         }
-    )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA),
+    ),
     apply_defaults,
+)
+
+# Platform schema with list of binary sensors
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(esp32_ble_tracker.ESP32BLETracker),
+        cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_BINDKEY): cv.bind_key,
+        cv.Required(CONF_BINARY_SENSORS): cv.ensure_list(BINARY_SENSOR_SCHEMA),
+    }
 )
 
 
 async def to_code(config):
-    var = await binary_sensor.new_binary_sensor(config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    tracker = await cg.get_variable(config[CONF_ID])
 
-    object_id = BINARY_SENSOR_TYPES[config[CONF_TYPE]]
-    cg.add(var.set_object_id(object_id))
+    for sensor_config in config[CONF_BINARY_SENSORS]:
+        var = await binary_sensor.new_binary_sensor(sensor_config)
+        await esp32_ble_tracker.register_ble_device(var, config)
 
-    if bindkey := config.get(CONF_BINDKEY):
-        cg.add(var.set_bindkey(bindkey))
+        object_id = BINARY_SENSOR_TYPES[sensor_config[CONF_TYPE]]
+        cg.add(var.set_object_id(object_id))
+
+        if bindkey := config.get(CONF_BINDKEY):
+            cg.add(var.set_bindkey(bindkey))
