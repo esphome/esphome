@@ -40,7 +40,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   void end() {
     this->active_ = false;
     this->disable_loop();  // Stop processing DNS requests
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
     // Disable LRU socket purging now that captive portal is done
     this->base_->get_server()->set_lru_purge_enable(false);
 #endif

@@ -63,7 +63,7 @@ void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler(this);
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
     // Enable LRU socket purging to handle captive portal detection probe bursts
     // OS captive portal detection makes many simultaneous HTTP requests which can
     // exhaust sockets. LRU purging automatically closes oldest idle connections.
