@@ -1268,9 +1268,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
       // Skip scanning when captive portal/improv is active to avoid disrupting AP
       // Even passive scans can cause brief AP disconnections on ESP32
-      // UNLESS new credentials were just provisioned - then we need to scan
-      if ((this->is_captive_portal_active_() || this->is_esp32_improv_active_()) &&
-          !this->force_scan_after_provision_) {
+      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
       return WiFiRetryPhase::SCAN_CONNECTING;
