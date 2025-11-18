@@ -50,8 +50,8 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "Requested WiFi Settings Change:");
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
-  wifi::global_wifi_component->save_wifi_sta(ssid, psk);
-  wifi::global_wifi_component->start_scanning();
+  // Defer save to main loop thread to avoid NVS operations from HTTP thread
+  this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid, psk); });
   request->redirect(ESPHOME_F("/?save"));
 }
 
@@ -63,6 +63,12 @@ void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler(this);
+#ifdef USE_ESP32
+    // Enable LRU socket purging to handle captive portal detection probe bursts
+    // OS captive portal detection makes many simultaneous HTTP requests which can
+    // exhaust sockets. LRU purging automatically closes oldest idle connections.
+    this->base_->get_server()->set_lru_purge_enable(true);
+#endif
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();

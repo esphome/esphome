@@ -199,7 +199,12 @@ static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;
 
 /// Cooldown duration in milliseconds after adapter restart or repeated failures
 /// Allows WiFi hardware to stabilize before next connection attempt
-static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 1000;
+static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
+
+/// Cooldown duration when fallback AP is active and captive portal may be running
+/// Longer interval gives users time to configure WiFi without constant connection attempts
+/// While connecting, WiFi can't beacon the AP properly, so needs longer cooldown
+static constexpr uint32_t WIFI_COOLDOWN_WITH_AP_ACTIVE_MS = 30000;
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
@@ -275,7 +280,9 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
       }
     }
 
-    if (!this->ssid_was_seen_in_scan_(sta.get_ssid())) {
+    // If we didn't scan this cycle, treat all networks as potentially hidden
+    // Otherwise, only retry networks that weren't seen in the scan
+    if (!this->did_scan_this_cycle_ || !this->ssid_was_seen_in_scan_(sta.get_ssid())) {
       ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", sta.get_ssid().c_str(), static_cast<int>(i));
       return static_cast<int8_t>(i);
     }
@@ -417,10 +424,6 @@ void WiFiComponent::start() {
 void WiFiComponent::restart_adapter() {
   ESP_LOGW(TAG, "Restarting adapter");
   this->wifi_mode_(false, {});
-  // Enter cooldown state to allow WiFi hardware to stabilize after restart
-  // Don't set retry_phase_ or num_retried_ here - state machine handles transitions
-  this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
-  this->action_started_ = millis();
   this->error_from_callback_ = false;
 }
 
@@ -441,7 +444,16 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
-        if (now - this->action_started_ > WIFI_COOLDOWN_DURATION_MS) {
+        // Skip cooldown if new credentials were provided while connecting
+        if (this->skip_cooldown_next_cycle_) {
+          this->skip_cooldown_next_cycle_ = false;
+          this->check_connecting_finished();
+          break;
+        }
+        // Use longer cooldown when captive portal/improv is active to avoid disrupting user config
+        bool portal_active = this->is_captive_portal_active_() || this->is_esp32_improv_active_();
+        uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
+        if (now - this->action_started_ > cooldown_duration) {
           // After cooldown we either restarted the adapter because of
           // a failure, or something tried to connect over and over
           // so we entered cooldown. In both cases we call
@@ -495,7 +507,8 @@ void WiFiComponent::loop() {
 #endif  // USE_WIFI_AP
 
 #ifdef USE_IMPROV
-    if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active()) {
+    if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active() &&
+        !esp32_improv::global_improv_component->should_start()) {
       if (now - this->last_connected_ > esp32_improv::global_improv_component->get_wifi_timeout()) {
         if (this->wifi_mode_(true, {}))
           esp32_improv::global_improv_component->start();
@@ -605,6 +618,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
+  // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
+  this->skip_cooldown_next_cycle_ = true;
 }
 
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
@@ -666,6 +681,17 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   sta.set_ssid(ssid);
   sta.set_password(password);
   this->set_sta(sta);
+
+  // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
+  this->connect_soon_();
+}
+
+void WiFiComponent::connect_soon_() {
+  // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
+  if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
+    ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
+    this->retry_connect();
+  }
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
@@ -963,6 +989,7 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
+  this->did_scan_this_cycle_ = true;
 
   if (this->scan_result_.empty()) {
     ESP_LOGW(TAG, "No networks found");
@@ -1229,9 +1256,16 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
-      // After restart, go back to explicit hidden if we went through it initially, otherwise scan
-      return this->went_through_explicit_hidden_phase_() ? WiFiRetryPhase::EXPLICIT_HIDDEN
-                                                         : WiFiRetryPhase::SCAN_CONNECTING;
+      // After restart, go back to explicit hidden if we went through it initially
+      if (this->went_through_explicit_hidden_phase_()) {
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;
+      }
+      // Skip scanning when captive portal/improv is active to avoid disrupting AP
+      // Even passive scans can cause brief AP disconnections on ESP32
+      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+        return WiFiRetryPhase::RETRY_HIDDEN;
+      }
+      return WiFiRetryPhase::SCAN_CONNECTING;
   }
 
   // Should never reach here
@@ -1319,6 +1353,12 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
         this->restart_adapter();
       }
+      // Clear scan flag - we're starting a new retry cycle
+      this->did_scan_this_cycle_ = false;
+      // Always enter cooldown after restart (or skip-restart) to allow stabilization
+      // Use extended cooldown when AP is active to avoid constant scanning that blocks DNS
+      this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+      this->action_started_ = millis();
       // Return true to indicate we should wait (go to COOLDOWN) instead of immediately connecting
       return true;
 
