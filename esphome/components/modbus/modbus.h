@@ -32,13 +32,13 @@ class Modbus : public uart::UARTDevice, public Component {
  protected:
   void receive_bytes_();
   bool timeout_();
-  virtual void parse_modbus_frames_() = 0;
+  virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
-  virtual void process_modbus_server_frame_(uint8_t address, uint8_t function_code,
-                                            const std::vector<uint8_t> &data) = 0;
+  virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code,
+                                           const std::vector<uint8_t> &data) = 0;
   void clear_rx_buffer_(const std::string &reason, bool warn = false, size_t bytes_to_clear = 0);
-  void send_frame_(const std::vector<uint8_t> &payload);
-  static const std::vector<uint8_t> add_crc_to_payload_(const std::vector<uint8_t> &payload);
+  void send_frame_(const std::vector<uint8_t> &frame);
+  static std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload);
 
   uint32_t last_modbus_byte_{0};
   uint32_t last_receive_check_{0};
@@ -76,8 +76,8 @@ class ModbusClient : public Modbus {
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
 
  protected:
-  void parse_modbus_frames_() override;
-  void process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
+  void parse_modbus_frames() override;
+  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void send_next_frame_();
 
   uint16_t send_wait_time_{2000};
@@ -98,9 +98,9 @@ class ModbusServer : public Modbus {
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
-  void parse_modbus_frames_() override;
+  void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
-  void process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
+  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;

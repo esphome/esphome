@@ -85,7 +85,7 @@ inline uint8_t client_frame_length(const std::vector<uint8_t> &frame) {
     case ModbusFunctionCode::READ_DISCRETE_INPUTS:
     case ModbusFunctionCode::READ_HOLDING_REGISTERS:
     case ModbusFunctionCode::READ_INPUT_REGISTERS:
-      return 8;  // address(1) + function(1) + start address(2) + quantity(2) + CRC(2)
+      // address(1) + function(1) + start address(2) + quantity(2) + CRC(2)
     case ModbusFunctionCode::WRITE_SINGLE_COIL:
     case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
       return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
