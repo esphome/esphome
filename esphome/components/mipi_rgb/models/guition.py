@@ -13,8 +13,8 @@ st7701s.extend(
     pclk_frequency="12MHz",
     pclk_inverted=False,
     pixel_mode="18bit",
-    mirror_x=False,
-    mirror_y=False,
+    mirror_x=True,
+    mirror_y=True,
     data_pins={
         "red": [11, 12, 13, 14, 0],
         "green": [8, 20, 3, 46, 9, 10],
