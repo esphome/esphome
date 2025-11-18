@@ -1,14 +1,14 @@
 ---
 description: "Instructions for setting up a USB Host UART interface on an ESP32 in ESPHome"
-title: "USB UART Interface"
+title: "USB Host UART Interface"
 params:
   seo:
     description: Instructions for setting up a USB Host UART interface on an ESP32 in ESPHome
     image: usb.svg
 ---
 
-This component allows an ESP32-S3 or ESP32-S2 to connect to USB-serial devices. It uses the {{< docref "/components/usb_host" >}}
-component to connect to the device.
+This component allows an ESP32-S3 or ESP32-S2 to host USB-serial peripheral devices. It uses the {{< docref "/components/usb_host" >}}
+component to interface to the device as a USB-OTG host.
 
 Currently supported devices are listed in the table below:
 
