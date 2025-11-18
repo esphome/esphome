@@ -479,11 +479,14 @@ async def to_code(config):
         cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
     if config[CONF_FAST_CONNECT]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
-    cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
+    # passive_scan defaults to false in C++ - only set if true
+    if config[CONF_PASSIVE_SCAN]:
+        cg.add(var.set_passive_scan(True))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
-
-    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
+    # enable_on_boot defaults to true in C++ - only set if false
+    if not config[CONF_ENABLE_ON_BOOT]:
+        cg.add(var.set_enable_on_boot(False))
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
