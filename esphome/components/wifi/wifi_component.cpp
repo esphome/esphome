@@ -503,6 +503,7 @@ void WiFiComponent::loop() {
 #ifdef USE_IMPROV
     if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active()) {
       if (now - this->last_connected_ > esp32_improv::global_improv_component->get_wifi_timeout()) {
+        ESP_LOGI(TAG, "Starting Improv");
         if (this->wifi_mode_(true, {}))
           esp32_improv::global_improv_component->start();
       }
