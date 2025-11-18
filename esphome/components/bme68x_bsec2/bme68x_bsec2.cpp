@@ -70,7 +70,7 @@ void BME68xBSEC2Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication failed (BSEC2 status: %d, BME68X status: %d)", this->bsec_status_,
              this->bme68x_status_);
-    if (this->bsec_status_ == BSEC_E_SU_SUBSCRIBEDOUTPUTGATES) {
+    if (this->bsec_status_ == BSEC_I_SU_SUBSCRIBEDOUTPUTGATES) {
       ESP_LOGE(TAG, "No sensors, add at least one sensor to the config");
     }
   }
