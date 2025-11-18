@@ -674,6 +674,9 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   // Force scan on next attempt even if captive portal is still active
   // This ensures new credentials are tried with proper BSSID selection after provisioning
   this->force_scan_after_provision_ = true;
+
+  // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
+  this->connect_soon();
 }
 
 void WiFiComponent::connect_soon() {

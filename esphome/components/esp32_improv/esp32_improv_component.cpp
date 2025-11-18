@@ -381,8 +381,6 @@ void ESP32ImprovComponent::check_wifi_connection_() {
 
   if (this->state_ == improv::STATE_PROVISIONING) {
     wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
-    // Trigger connection attempt (exits cooldown if needed, no-op if already connected)
-    wifi::global_wifi_component->connect_soon();
     this->connecting_sta_ = {};
     this->cancel_timeout("wifi-connect-timeout");
 
