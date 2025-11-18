@@ -618,9 +618,6 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
-  // Force scan on next attempt even if captive portal is still active
-  // This ensures new credentials are tried with proper BSSID selection after provisioning
-  this->force_scan_after_provision_ = true;
 }
 
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
@@ -682,10 +679,6 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   sta.set_ssid(ssid);
   sta.set_password(password);
   this->set_sta(sta);
-
-  // Force scan on next attempt even if captive portal is still active
-  // This ensures new credentials are tried with proper BSSID selection after provisioning
-  this->force_scan_after_provision_ = true;
 
   // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
   this->connect_soon_();
