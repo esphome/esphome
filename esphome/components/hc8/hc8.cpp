@@ -61,8 +61,8 @@ void HC8Component::update() {
     }
 
     this->status_clear_warning();
-    const uint16_t ppm = encode_uint16(response[5], response[4]);
 
+    const uint16_t ppm = encode_uint16(response[5], response[4]);
     ESP_LOGD(TAG, "HC8 Received CO₂=%uppm", ppm);
     if (this->co2_sensor_ != nullptr)
       this->co2_sensor_->publish_state(ppm);
