@@ -1538,7 +1538,6 @@ The `slider` can be also integrated as {{< docref "/components/number/lvgl" "Num
 
 See [Light brightness slider](/cookbook/lvgl#lvgl-cookbook-bright) and [Media player volume slider](/cookbook/lvgl#lvgl-cookbook-volume) for examples which demonstrate how to use a slider to control entities in Home Assistant.
 
-{{< anchor "lvgl-widget-canvas" >}}
 {{< anchor "lvgl-widget-spinbox" >}}
 
 ## `spinbox`
@@ -1589,7 +1588,7 @@ The spinbox contains a numeric value (as text) which can be increased or decreas
     text_align: center
     range_from: -10
     range_to: 40
-    step: 0.5
+    selected_digit: 2
     digits: 3
     decimal_places: 1
 
