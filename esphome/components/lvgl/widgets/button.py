@@ -33,7 +33,9 @@ class ButtonType(WidgetType):
     async def to_code(self, w: Widget, config):
         if text := config.get(CONF_TEXT):
             button_id = config[CONF_ID]
+            # When generating code for an update, the "id" will be a list
             if isinstance(button_id, ID):
+                # We are creating the object, so we need to create the label
                 lv.label_create(w.obj)
             label_widget = Widget.create(
                 None, lv_expr.obj_get_child(w.obj, 0), label_spec
