@@ -149,6 +149,13 @@ template<typename T, size_t N> class StaticVector {
     }
   }
 
+  // Move version for types like unique_ptr
+  void push_back(T &&value) {
+    if (count_ < N) {
+      data_[count_++] = std::move(value);
+    }
+  }
+
   // Return reference to next element and increment count (with bounds checking)
   T &emplace_next() {
     if (count_ >= N) {
@@ -158,6 +165,8 @@ template<typename T, size_t N> class StaticVector {
     }
     return data_[count_++];
   }
+
+  void clear() { count_ = 0; }
 
   size_t size() const { return count_; }
   bool empty() const { return count_ == 0; }

@@ -6,6 +6,7 @@
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #endif
+#include <esp_bt_device.h>
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
 #include <freertos/FreeRTOS.h>
@@ -460,9 +461,8 @@ bool BTHome::encrypt_payload_(const uint8_t *plaintext, size_t plaintext_len, ui
     return false;
   }
 
-  // Get MAC address
-  uint8_t mac[6];
-  esp_read_mac(mac, ESP_MAC_BT);
+  // Get Bluetooth MAC address
+  const uint8_t *mac = esp_bt_dev_get_address();
 
   // Build nonce according to BTHome spec:
   // MAC (6 bytes) + UUID (2 bytes) + device info (1 byte) + counter (4 bytes) = 13 bytes
