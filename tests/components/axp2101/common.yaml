@@ -1,0 +1,51 @@
+axp2101:
+  - id: pmic
+    i2c_id: i2c_bus
+    address: 0x34
+    update_interval: 60s
+
+sensor:
+  - platform: axp2101
+    axp2101_id: pmic
+    battery_voltage:
+      name: "Battery Voltage"
+    battery_level:
+      name: "Battery Level"
+    vbus_voltage:
+      name: "VBUS Voltage"
+    vsys_voltage:
+      name: "VSYS Voltage"
+    temperature:
+      name: "Die Temperature"
+
+switch:
+  - platform: axp2101
+    axp2101_id: pmic
+    name: "DCDC1 Enable"
+    power_rail: DCDC1
+  - platform: axp2101
+    axp2101_id: pmic
+    name: "ALDO1 Enable"
+    power_rail: ALDO1
+  - platform: axp2101
+    axp2101_id: pmic
+    name: "BLDO1 Enable"
+    power_rail: BLDO1
+
+number:
+  - platform: axp2101
+    axp2101_id: pmic
+    name: "DCDC1 Voltage"
+    power_rail: DCDC1
+  - platform: axp2101
+    axp2101_id: pmic
+    name: "DCDC2 Voltage"
+    power_rail: DCDC2
+  - platform: axp2101
+    axp2101_id: pmic
+    name: "ALDO1 Voltage"
+    power_rail: ALDO1
+  - platform: axp2101
+    axp2101_id: pmic
+    name: "CPUSLDO Voltage"
+    power_rail: CPUSLDO
