@@ -896,8 +896,6 @@ void WiFiComponent::start_scanning() {
   ESP_LOGD(TAG, "Starting scan");
   this->wifi_scan_start_(this->passive_scan_);
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
-  // Clear the force scan flag after starting the scan
-  this->force_scan_after_provision_ = false;
 }
 
 /// Comparator for WiFi scan result sorting - determines which network should be tried first
