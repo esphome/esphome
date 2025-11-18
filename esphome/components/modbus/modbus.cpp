@@ -115,7 +115,7 @@ void ModbusClient::parse_modbus_frames() {
       size = this->rx_buffer_.size();
       if (!this->parse_modbus_server_frame_())
         this->clear_rx_buffer_("parse failed", true);
-    } while (this->rx_buffer_.size() && size > this->rx_buffer_.size());
+    } while (!this->rx_buffer_.empty() && size > this->rx_buffer_.size());
     if (this->timeout_())
       this->clear_rx_buffer_("timeout after partial response", true);
   }

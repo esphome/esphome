@@ -151,7 +151,7 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
   response.push_back(this->address_);
   response.push_back(function_code);
   response.insert(response.end(), data.begin(), data.begin() + 4);
-  this->send_raw(std::move(response));
+  this->send_raw(response);
 }
 
 void ModbusServer::dump_config() {
