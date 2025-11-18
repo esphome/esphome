@@ -203,7 +203,8 @@ static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
 /// Longer interval gives users time to configure WiFi without constant connection attempts
-static constexpr uint32_t WIFI_COOLDOWN_WITH_AP_ACTIVE_MS = 5000;
+/// While connecting, WiFi can't beacon the AP properly, so needs longer cooldown
+static constexpr uint32_t WIFI_COOLDOWN_WITH_AP_ACTIVE_MS = 30000;
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
