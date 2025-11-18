@@ -120,6 +120,7 @@ class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
+#ifdef USE_SENSOR
   // Sensor setters
   void set_battery_voltage_sensor(sensor::Sensor *sensor) { this->battery_voltage_sensor_ = sensor; }
   void set_battery_current_sensor(sensor::Sensor *sensor) { this->battery_current_sensor_ = sensor; }
@@ -127,6 +128,7 @@ class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
   void set_vbus_voltage_sensor(sensor::Sensor *sensor) { this->vbus_voltage_sensor_ = sensor; }
   void set_vsys_voltage_sensor(sensor::Sensor *sensor) { this->vsys_voltage_sensor_ = sensor; }
   void set_die_temperature_sensor(sensor::Sensor *sensor) { this->die_temperature_sensor_ = sensor; }
+#endif
 
   // Power rail control methods
   bool enable_power_rail(PowerRail rail);
@@ -144,9 +146,6 @@ class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
   float read_die_temperature();
   uint8_t read_battery_level();
 
-  // Utility methods
-  void update_sensors();
-
  protected:
   // Helper methods for register access
   bool set_register_bit(uint8_t reg, uint8_t bit);
@@ -161,6 +160,7 @@ class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t calculate_voltage_register_value(PowerRail rail, uint16_t millivolts);
   uint16_t calculate_millivolts_from_register(PowerRail rail, uint8_t reg_value);
 
+#ifdef USE_SENSOR
   // Sensor pointers (optional)
   sensor::Sensor *battery_voltage_sensor_{nullptr};
   sensor::Sensor *battery_current_sensor_{nullptr};
@@ -168,6 +168,7 @@ class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *vbus_voltage_sensor_{nullptr};
   sensor::Sensor *vsys_voltage_sensor_{nullptr};
   sensor::Sensor *die_temperature_sensor_{nullptr};
+#endif
 };
 
 }  // namespace axp2101

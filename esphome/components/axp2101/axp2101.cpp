@@ -47,15 +47,39 @@ void AXP2101Component::dump_config() {
     return;
   }
 
+#ifdef USE_SENSOR
   // Log sensor configuration
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
   LOG_SENSOR("  ", "VBUS Voltage", this->vbus_voltage_sensor_);
   LOG_SENSOR("  ", "VSYS Voltage", this->vsys_voltage_sensor_);
   LOG_SENSOR("  ", "Die Temperature", this->die_temperature_sensor_);
+#endif
 }
 
-void AXP2101Component::update() { this->update_sensors(); }
+void AXP2101Component::update() {
+#ifdef USE_SENSOR
+  if (this->battery_voltage_sensor_ != nullptr) {
+    this->battery_voltage_sensor_->publish_state(this->read_battery_voltage() / 1000.0f);
+  }
+
+  if (this->battery_level_sensor_ != nullptr) {
+    this->battery_level_sensor_->publish_state(this->read_battery_level());
+  }
+
+  if (this->vbus_voltage_sensor_ != nullptr) {
+    this->vbus_voltage_sensor_->publish_state(this->read_vbus_voltage() / 1000.0f);
+  }
+
+  if (this->vsys_voltage_sensor_ != nullptr) {
+    this->vsys_voltage_sensor_->publish_state(this->read_vsys_voltage() / 1000.0f);
+  }
+
+  if (this->die_temperature_sensor_ != nullptr) {
+    this->die_temperature_sensor_->publish_state(this->read_die_temperature());
+  }
+#endif
+}
 
 bool AXP2101Component::set_register_bit(uint8_t reg, uint8_t bit) {
   uint8_t value;
@@ -312,24 +336,24 @@ uint16_t AXP2101Component::get_rail_voltage(PowerRail rail) {
 }
 
 uint16_t AXP2101Component::read_battery_voltage() {
-  uint16_t raw = this->read_register_h5l8(AXP2101_ADC_DATA_RELUST0, AXP2101_ADC_DATA_RELUST1);
-  return raw;  // 1 LSB = 1mV
+  // 1 LSB = 1mV
+  return this->read_register_h5l8(AXP2101_ADC_DATA_RELUST0, AXP2101_ADC_DATA_RELUST1);
 }
 
 uint16_t AXP2101Component::read_vbus_voltage() {
-  uint16_t raw = this->read_register_h5l8(AXP2101_ADC_DATA_RELUST4, AXP2101_ADC_DATA_RELUST5);
-  return raw;  // 1 LSB = 1mV
+  // 1 LSB = 1mV
+  return this->read_register_h5l8(AXP2101_ADC_DATA_RELUST4, AXP2101_ADC_DATA_RELUST5);
 }
 
 uint16_t AXP2101Component::read_vsys_voltage() {
-  uint16_t raw = this->read_register_h6l8(AXP2101_ADC_DATA_RELUST6, AXP2101_ADC_DATA_RELUST7);
-  return raw;  // 1 LSB = 1mV
+  // 1 LSB = 1mV
+  return this->read_register_h6l8(AXP2101_ADC_DATA_RELUST6, AXP2101_ADC_DATA_RELUST7);
 }
 
 float AXP2101Component::read_die_temperature() {
-  uint16_t raw = this->read_register_h6l8(AXP2101_ADC_DATA_RELUST8, AXP2101_ADC_DATA_RELUST9);
   // Temperature conversion: T = raw * 0.1 - 267.15
-  return (raw * TEMP_CONVERSION_FACTOR) + TEMP_OFFSET;
+  return (this->read_register_h6l8(AXP2101_ADC_DATA_RELUST8, AXP2101_ADC_DATA_RELUST9) * TEMP_CONVERSION_FACTOR) +
+         TEMP_OFFSET;
 }
 
 uint8_t AXP2101Component::read_battery_level() {
@@ -340,30 +364,6 @@ uint8_t AXP2101Component::read_battery_level() {
   return level > 100 ? 100 : level;
 }
 
-void AXP2101Component::update_sensors() {
-  if (this->battery_voltage_sensor_ != nullptr) {
-    float voltage = this->read_battery_voltage() / 1000.0f;
-    this->battery_voltage_sensor_->publish_state(voltage);
-  }
-
-  if (this->battery_level_sensor_ != nullptr) {
-    this->battery_level_sensor_->publish_state(this->read_battery_level());
-  }
-
-  if (this->vbus_voltage_sensor_ != nullptr) {
-    float voltage = this->read_vbus_voltage() / 1000.0f;
-    this->vbus_voltage_sensor_->publish_state(voltage);
-  }
-
-  if (this->vsys_voltage_sensor_ != nullptr) {
-    float voltage = this->read_vsys_voltage() / 1000.0f;
-    this->vsys_voltage_sensor_->publish_state(voltage);
-  }
-
-  if (this->die_temperature_sensor_ != nullptr) {
-    this->die_temperature_sensor_->publish_state(this->read_die_temperature());
-  }
-}
 
 }  // namespace axp2101
 }  // namespace esphome

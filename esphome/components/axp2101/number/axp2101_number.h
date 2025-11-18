@@ -6,7 +6,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/number/number.h"
-#include "axp2101.h"
+#include "../axp2101.h"
 
 namespace esphome {
 namespace axp2101 {
