@@ -224,6 +224,7 @@ async def to_code(config):
             advertise_immediately = measurement[CONF_ADVERTISE_IMMEDIATELY]
             cg.add(var.add_binary_measurement(sens, object_id, advertise_immediately))
 
+    cg.add_define("USE_ESP32_BLE_UUID")
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
     add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
