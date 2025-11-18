@@ -529,6 +529,7 @@ class WiFiComponent : public Component {
   bool enable_on_boot_;
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
+  bool force_scan_after_provision_{false};
 
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};

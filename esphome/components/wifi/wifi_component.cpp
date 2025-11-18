@@ -669,6 +669,10 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   sta.set_ssid(ssid);
   sta.set_password(password);
   this->set_sta(sta);
+
+  // Force scan on next attempt even if captive portal is still active
+  // This ensures new credentials are tried with proper BSSID selection after provisioning
+  this->force_scan_after_provision_ = true;
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
@@ -867,6 +871,8 @@ void WiFiComponent::start_scanning() {
   ESP_LOGD(TAG, "Starting scan");
   this->wifi_scan_start_(this->passive_scan_);
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
+  // Clear the force scan flag after starting the scan
+  this->force_scan_after_provision_ = false;
 }
 
 /// Comparator for WiFi scan result sorting - determines which network should be tried first
@@ -1238,7 +1244,9 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
       // Skip scanning when captive portal/improv is active to avoid disrupting AP
       // Even passive scans can cause brief AP disconnections on ESP32
-      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+      // UNLESS new credentials were just provisioned - then we need to scan
+      if ((this->is_captive_portal_active_() || this->is_esp32_improv_active_()) &&
+          !this->force_scan_after_provision_) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
       return WiFiRetryPhase::SCAN_CONNECTING;
