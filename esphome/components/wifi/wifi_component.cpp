@@ -444,6 +444,12 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
+        // Skip cooldown if new credentials were provided while connecting
+        if (this->skip_cooldown_next_cycle_) {
+          this->skip_cooldown_next_cycle_ = false;
+          this->check_connecting_finished();
+          break;
+        }
         // Use longer cooldown when captive portal/improv is active to avoid disrupting user config
         bool portal_active = this->is_captive_portal_active_() || this->is_esp32_improv_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
@@ -612,6 +618,9 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
+  // Force scan on next attempt even if captive portal is still active
+  // This ensures new credentials are tried with proper BSSID selection after provisioning
+  this->force_scan_after_provision_ = true;
 }
 
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
@@ -691,6 +700,14 @@ void WiFiComponent::connect_soon_() {
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
+  // If already connecting/connected, set flag to skip cooldown on next cycle
+  // Caller (e.g., improv) already called set_sta() with new credentials, state machine will retry
+  if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING || this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
+    ESP_LOGD(TAG, "Already connecting, will retry on next cycle");
+    this->skip_cooldown_next_cycle_ = true;
+    return;
+  }
+
   // Log connection attempt at INFO level with priority
   char bssid_s[18];
   int8_t priority = 0;
