@@ -8,6 +8,7 @@ substitutions:
   area: 25
   numberOne: 1
   var1: 79
+  double_width: ${width * 2}
 
 test_list:
   - "The area is ${width * height}"
@@ -23,3 +24,4 @@ test_list:
   - ord("a") = ${ ord("a") }
   - chr(97) = ${ chr(97) }
   - len([1,2,3]) = ${ len([1,2,3]) }
+  - width = ${width}, double_width = ${double_width}

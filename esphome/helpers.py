@@ -224,36 +224,37 @@ def resolve_ip_address(
         return res
 
     # Process hosts
-    cached_addresses: list[str] = []
+
     uncached_hosts: list[str] = []
-    has_cache = address_cache is not None
 
     for h in hosts:
         if is_ip_address(h):
-            if has_cache:
-                # If we have a cache, treat IPs as cached
-                cached_addresses.append(h)
-            else:
-                # If no cache, pass IPs through to resolver with hostnames
-                uncached_hosts.append(h)
+            _add_ip_addresses_to_addrinfo([h], port, res)
         elif address_cache and (cached := address_cache.get_addresses(h)):
-            # Found in cache
-            cached_addresses.extend(cached)
+            _add_ip_addresses_to_addrinfo(cached, port, res)
         else:
             # Not cached, need to resolve
             if address_cache and address_cache.has_cache():
                 _LOGGER.info("Host %s not in cache, will need to resolve", h)
             uncached_hosts.append(h)
 
-    # Process cached addresses (includes direct IPs and cached lookups)
-    _add_ip_addresses_to_addrinfo(cached_addresses, port, res)
-
     # If we have uncached hosts (only non-IP hostnames), resolve them
     if uncached_hosts:
+        from aioesphomeapi.host_resolver import AddrInfo as AioAddrInfo
+
+        from esphome.core import EsphomeError
         from esphome.resolver import AsyncResolver
 
         resolver = AsyncResolver(uncached_hosts, port)
-        addr_infos = resolver.resolve()
+        addr_infos: list[AioAddrInfo] = []
+        try:
+            addr_infos = resolver.resolve()
+        except EsphomeError as err:
+            if not res:
+                # No pre-resolved addresses available, DNS resolution is fatal
+                raise
+            _LOGGER.info("%s (using %d already resolved IP addresses)", err, len(res))
+
         # Convert aioesphomeapi AddrInfo to our format
         for addr_info in addr_infos:
             sockaddr = addr_info.sockaddr
