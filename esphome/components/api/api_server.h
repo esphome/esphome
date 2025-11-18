@@ -54,8 +54,8 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
   bool clear_noise_psk(bool make_active = true);
-  void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(psk); }
-  std::shared_ptr<APINoiseContext> get_noise_ctx() { return noise_ctx_; }
+  void set_noise_psk(psk_t psk) { this->noise_ctx_.set_psk(psk); }
+  APINoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
 
   void handle_disconnect(APIConnection *conn);
@@ -228,7 +228,7 @@ class APIServer : public Component, public Controller {
   // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE
-  std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
+  APINoiseContext noise_ctx_;
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
 };
