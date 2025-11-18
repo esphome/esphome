@@ -4,7 +4,7 @@ dependencies:
   espressif/esp32-camera:
     version: 2.1.1
   espressif/esp_modem:
-    version: 1.4.0
+    version: 1.4.2
   espressif/mdns:
     version: 1.8.2
   espressif/esp_wifi_remote:
