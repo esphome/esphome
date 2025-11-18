@@ -65,22 +65,22 @@ async def to_code(config):
     """Generate code for AXP2101 sensors."""
     paren = await cg.get_variable(config[CONF_AXP2101_ID])
 
-    if CONF_BATTERY_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
+    if conf := config.get(CONF_BATTERY_VOLTAGE):
+        sens = await sensor.new_sensor(conf)
         cg.add(paren.set_battery_voltage_sensor(sens))
 
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
+    if conf := config.get(CONF_BATTERY_LEVEL):
+        sens = await sensor.new_sensor(conf)
         cg.add(paren.set_battery_level_sensor(sens))
 
-    if CONF_VBUS_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_VBUS_VOLTAGE])
+    if conf := config.get(CONF_VBUS_VOLTAGE):
+        sens = await sensor.new_sensor(conf)
         cg.add(paren.set_vbus_voltage_sensor(sens))
 
-    if CONF_VSYS_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_VSYS_VOLTAGE])
+    if conf := config.get(CONF_VSYS_VOLTAGE):
+        sens = await sensor.new_sensor(conf)
         cg.add(paren.set_vsys_voltage_sensor(sens))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if conf := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(conf)
         cg.add(paren.set_die_temperature_sensor(sens))
