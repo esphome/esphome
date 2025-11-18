@@ -262,9 +262,9 @@ async def component_to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
     # LibreTiny uses MULTI_NO_ATOMICS because platforms like BK7231N (ARM968E-S) lack
-    # atomic instructions (no LDREX/STREX). Even if libatomic were linked, it would report
-    # ATOMIC_INT_LOCK_FREE=1 (sometimes), meaning atomics would use locks internally anyway.
-    # Direct FreeRTOS mutex locking is simpler and avoids 4-8KB libatomic overhead.
+    # exclusive load/store (no LDREX/STREX). std::atomic RMW operations require libatomic,
+    # which is not linked to save flash (4-8KB). Even if linked, libatomic would use locks
+    # (ATOMIC_INT_LOCK_FREE=1), so explicit FreeRTOS mutexes are simpler and equivalent.
     cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
 
     # force using arduino framework
