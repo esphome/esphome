@@ -88,6 +88,12 @@ static void dump_field(std::string &out, const char *field_name, StringRef value
   out.append("\n");
 }
 
+static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
+  out.append("\n");
+}
+
 template<typename T> static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
@@ -1292,6 +1298,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "feature_flags", this->feature_flags);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ClimateStateResponse");
@@ -2046,7 +2053,7 @@ void ListEntitiesEventResponse::dump_to(std::string &out) const {
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "device_class", this->device_class_ref_);
-  for (const auto &it : this->event_types) {
+  for (const auto &it : *this->event_types) {
     dump_field(out, "event_types", it, 4);
   }
 #ifdef USE_DEVICES

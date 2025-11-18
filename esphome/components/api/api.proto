@@ -425,7 +425,7 @@ message ListEntitiesFanResponse {
   bool disabled_by_default = 9;
   string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 11;
-  repeated string supported_preset_modes = 12 [(container_pointer) = "std::set"];
+  repeated string supported_preset_modes = 12 [(container_pointer_no_template) = "std::vector<const char *>"];
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
 }
 // Deprecated in API version 1.6 - only used in deprecated fields
@@ -506,7 +506,7 @@ message ListEntitiesLightResponse {
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
-  repeated ColorMode supported_color_modes = 12 [(container_pointer) = "std::set<light::ColorMode>"];
+  repeated ColorMode supported_color_modes = 12 [(container_pointer_no_template) = "light::ColorModeMask"];
   // next four supports_* are for legacy clients, newer clients should use color modes
   // Deprecated in API version 1.6
   bool legacy_supports_brightness = 5 [deprecated=true];
@@ -776,9 +776,9 @@ message HomeassistantActionRequest {
   option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 
   string service = 1;
-  repeated HomeassistantServiceMap data = 2;
-  repeated HomeassistantServiceMap data_template = 3;
-  repeated HomeassistantServiceMap variables = 4;
+  repeated HomeassistantServiceMap data = 2 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap data_template = 3 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap variables = 4 [(fixed_vector) = true];
   bool is_event = 5;
   uint32 call_id = 6 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES"];
   bool wants_response = 7 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
@@ -866,7 +866,7 @@ message ListEntitiesServicesResponse {
 
   string name = 1;
   fixed32 key = 2;
-  repeated ListEntitiesServicesArgument args = 3;
+  repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
 }
 message ExecuteServiceArgument {
   option (ifdef) = "USE_API_SERVICES";
@@ -876,10 +876,10 @@ message ExecuteServiceArgument {
   string string_ = 4;
   // ESPHome 1.14 (api v1.3) make int a signed value
   sint32 int_ = 5;
-  repeated bool bool_array = 6 [packed=false];
-  repeated sint32 int_array = 7 [packed=false];
-  repeated float float_array = 8 [packed=false];
-  repeated string string_array = 9;
+  repeated bool bool_array = 6 [packed=false, (fixed_vector) = true];
+  repeated sint32 int_array = 7 [packed=false, (fixed_vector) = true];
+  repeated float float_array = 8 [packed=false, (fixed_vector) = true];
+  repeated string string_array = 9 [(fixed_vector) = true];
 }
 message ExecuteServiceRequest {
   option (id) = 42;
@@ -888,7 +888,7 @@ message ExecuteServiceRequest {
   option (ifdef) = "USE_API_SERVICES";
 
   fixed32 key = 1;
-  repeated ExecuteServiceArgument args = 2;
+  repeated ExecuteServiceArgument args = 2 [(fixed_vector) = true];
 }
 
 // ==================== CAMERA ====================
@@ -987,9 +987,9 @@ message ListEntitiesClimateResponse {
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
-  bool supports_current_temperature = 5;
-  bool supports_two_point_target_temperature = 6;
-  repeated ClimateMode supported_modes = 7 [(container_pointer) = "std::set<climate::ClimateMode>"];
+  bool supports_current_temperature = 5; // Deprecated: use feature_flags
+  bool supports_two_point_target_temperature = 6; // Deprecated: use feature_flags
+  repeated ClimateMode supported_modes = 7 [(container_pointer_no_template) = "climate::ClimateModeMask"];
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
   float visual_target_temperature_step = 10;
@@ -997,21 +997,22 @@ message ListEntitiesClimateResponse {
   // is if CLIMATE_PRESET_AWAY exists is supported_presets
   // Deprecated in API version 1.5
   bool legacy_supports_away = 11 [deprecated=true];
-  bool supports_action = 12;
-  repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer) = "std::set<climate::ClimateFanMode>"];
-  repeated ClimateSwingMode supported_swing_modes = 14 [(container_pointer) = "std::set<climate::ClimateSwingMode>"];
-  repeated string supported_custom_fan_modes = 15 [(container_pointer) = "std::set"];
-  repeated ClimatePreset supported_presets = 16 [(container_pointer) = "std::set<climate::ClimatePreset>"];
-  repeated string supported_custom_presets = 17 [(container_pointer) = "std::set"];
+  bool supports_action = 12; // Deprecated: use feature_flags
+  repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer_no_template) = "climate::ClimateFanModeMask"];
+  repeated ClimateSwingMode supported_swing_modes = 14 [(container_pointer_no_template) = "climate::ClimateSwingModeMask"];
+  repeated string supported_custom_fan_modes = 15 [(container_pointer_no_template) = "std::vector<const char *>"];
+  repeated ClimatePreset supported_presets = 16 [(container_pointer_no_template) = "climate::ClimatePresetMask"];
+  repeated string supported_custom_presets = 17 [(container_pointer_no_template) = "std::vector<const char *>"];
   bool disabled_by_default = 18;
   string icon = 19 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 20;
   float visual_current_temperature_step = 21;
-  bool supports_current_humidity = 22;
-  bool supports_target_humidity = 23;
+  bool supports_current_humidity = 22; // Deprecated: use feature_flags
+  bool supports_target_humidity = 23; // Deprecated: use feature_flags
   float visual_min_humidity = 24;
   float visual_max_humidity = 25;
   uint32 device_id = 26 [(field_ifdef) = "USE_DEVICES"];
+  uint32 feature_flags = 27;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -1142,7 +1143,7 @@ message ListEntitiesSelectResponse {
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
-  repeated string options = 6 [(container_pointer) = "std::vector"];
+  repeated string options = 6 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
@@ -1519,7 +1520,7 @@ message BluetoothGATTCharacteristic {
   repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   uint32 properties = 3;
-  repeated BluetoothGATTDescriptor descriptors = 4;
+  repeated BluetoothGATTDescriptor descriptors = 4 [(fixed_vector) = true];
 
   // New field for efficient UUID (v1.12+)
   // Only one of uuid or short_uuid will be set.
@@ -1531,7 +1532,7 @@ message BluetoothGATTCharacteristic {
 message BluetoothGATTService {
   repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
-  repeated BluetoothGATTCharacteristic characteristics = 3;
+  repeated BluetoothGATTCharacteristic characteristics = 3 [(fixed_vector) = true];
 
   // New field for efficient UUID (v1.12+)
   // Only one of uuid or short_uuid will be set.
@@ -2146,7 +2147,7 @@ message ListEntitiesEventResponse {
   EntityCategory entity_category = 7;
   string device_class = 8;
 
-  repeated string event_types = 9;
+  repeated string event_types = 9 [(container_pointer_no_template) = "FixedVector<const char *>"];
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
 }
 message EventResponse {

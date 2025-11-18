@@ -461,7 +461,9 @@ async def parse_value(value_config, args):
     if isinstance(value, str):
         value = list(value.encode(value_config[CONF_STRING_ENCODING]))
     if isinstance(value, list):
-        return cg.std_vector.template(cg.uint8)(value)
+        # Generate initializer list {1, 2, 3} instead of std::vector<uint8_t>({1, 2, 3})
+        # This calls the set_value(std::initializer_list<uint8_t>) overload
+        return cg.ArrayInitializer(*value)
     val = cg.RawExpression(f"{value_config[CONF_TYPE]}({cg.safe_exp(value)})")
     return ByteBuffer_ns.wrap(val, value_config[CONF_ENDIANNESS])
 
@@ -546,8 +548,8 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
-    cg.add(parent.register_gatts_event_handler(var))
-    cg.add(parent.register_ble_status_event_handler(var))
+    esp32_ble.register_gatts_event_handler(parent, var)
+    esp32_ble.register_ble_status_event_handler(parent, var)
     cg.add(var.set_parent(parent))
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
     if CONF_MANUFACTURER_DATA in config:

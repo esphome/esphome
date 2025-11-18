@@ -1,9 +1,3 @@
-uart:
-  - id: uart_sonoff_d1
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 light:
   - platform: sonoff_d1
     id: d1_light

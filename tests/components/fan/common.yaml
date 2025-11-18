@@ -1,0 +1,11 @@
+fan:
+  - platform: template
+    id: test_fan
+    name: "Test Fan"
+    preset_modes:
+      - Eco
+      - Sleep
+      - Turbo
+    has_oscillating: true
+    has_direction: true
+    speed_count: 3

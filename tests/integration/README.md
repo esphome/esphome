@@ -7,6 +7,7 @@ This directory contains end-to-end integration tests for ESPHome, focusing on te
 - `conftest.py` - Common fixtures and utilities
 - `const.py` - Constants used throughout the integration tests
 - `types.py` - Type definitions for fixtures and functions
+- `state_utils.py` - State handling utilities (e.g., `InitialStateHelper`, `build_key_to_entity_mapping`)
 - `fixtures/` - YAML configuration files for tests
 - `test_*.py` - Individual test files
 
@@ -25,6 +26,32 @@ The `yaml_config` fixture automatically loads YAML configurations based on the t
 - `api_client_connected` - Creates an API client that automatically connects using ReconnectLogic
 - `reserved_tcp_port` - Reserves a TCP port by holding the socket open until ESPHome needs it
 - `unused_tcp_port` - Provides the reserved port number for each test
+
+### Helper Utilities
+
+#### InitialStateHelper (`state_utils.py`)
+
+The `InitialStateHelper` class solves a common problem in integration tests: when an API client connects, ESPHome automatically broadcasts the current state of all entities. This can interfere with tests that want to track only new state changes triggered by test actions.
+
+**What it does:**
+- Tracks all entities (except stateless ones like buttons)
+- Swallows the first state broadcast for each entity
+- Forwards all subsequent state changes to your test callback
+- Provides `wait_for_initial_states()` to synchronize before test actions
+
+**When to use it:**
+- Any test that triggers entity state changes and needs to verify them
+- Tests that would otherwise see duplicate or unexpected states
+- Tests that need clean separation between initial state and test-triggered changes
+
+**Implementation details:**
+- Uses `(device_id, key)` tuples to uniquely identify entities across devices
+- Automatically excludes `ButtonInfo` entities (stateless)
+- Provides debug logging to track state reception (use `--log-cli-level=DEBUG`)
+- Safe for concurrent use with multiple entity types
+
+**Future work:**
+Consider converting existing integration tests to use `InitialStateHelper` for more reliable state tracking and to eliminate race conditions related to initial state broadcasts.
 
 ### Writing Tests
 
@@ -125,6 +152,54 @@ async def test_my_sensor(
 ```
 
 ##### State Subscription Pattern
+
+**Recommended: Using InitialStateHelper**
+
+When an API client connects, ESPHome automatically sends the current state of all entities. The `InitialStateHelper` (from `state_utils.py`) handles this by swallowing these initial states and only forwarding subsequent state changes to your test callback:
+
+```python
+from .state_utils import InitialStateHelper
+
+# Track state changes with futures
+loop = asyncio.get_running_loop()
+states: dict[int, EntityState] = {}
+state_future: asyncio.Future[EntityState] = loop.create_future()
+
+def on_state(state: EntityState) -> None:
+    """This callback only receives NEW state changes, not initial states."""
+    states[state.key] = state
+    # Check for specific condition using isinstance
+    if isinstance(state, SensorState) and state.state == expected_value:
+        if not state_future.done():
+            state_future.set_result(state)
+
+# Get entities and set up state synchronization
+entities, services = await client.list_entities_services()
+initial_state_helper = InitialStateHelper(entities)
+
+# Subscribe with the wrapper that filters initial states
+client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+# Wait for all initial states to be broadcast
+try:
+    await initial_state_helper.wait_for_initial_states()
+except TimeoutError:
+    pytest.fail("Timeout waiting for initial states")
+
+# Now perform your test actions - on_state will only receive new changes
+# ... trigger state changes ...
+
+# Wait for expected state
+try:
+    result = await asyncio.wait_for(state_future, timeout=5.0)
+except asyncio.TimeoutError:
+    pytest.fail(f"Expected state not received. Got: {list(states.values())}")
+```
+
+**Legacy: Manual State Tracking**
+
+If you need to handle initial states manually (not recommended for new tests):
+
 ```python
 # Track state changes with futures
 loop = asyncio.get_running_loop()

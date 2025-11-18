@@ -8,7 +8,6 @@
 #include <functional>
 #include <list>
 #include <map>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -315,7 +314,10 @@ class AsyncEventSource : public AsyncWebHandler {
 
  protected:
   std::string url_;
-  std::set<AsyncEventSourceResponse *> sessions_;
+  // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
+  // Linear search is faster than red-black tree overhead for this small dataset.
+  // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
+  std::vector<AsyncEventSourceResponse *> sessions_;
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
 };

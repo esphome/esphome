@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from argparse import Namespace
 import asyncio
 from collections.abc import Generator
 from contextlib import asynccontextmanager
@@ -17,6 +18,8 @@ from tornado.ioloop import IOLoop
 from tornado.testing import bind_unused_port
 from tornado.websocket import WebSocketClientConnection, websocket_connect
 
+from esphome import yaml_util
+from esphome.core import CORE
 from esphome.dashboard import web_server
 from esphome.dashboard.const import DashboardEvent
 from esphome.dashboard.core import DASHBOARD
@@ -30,6 +33,26 @@ from esphome.dashboard.web_server import DashboardSubscriber
 from esphome.zeroconf import DiscoveredImport
 
 from .common import get_fixture_path
+
+
+def get_build_path(base_path: Path, device_name: str) -> Path:
+    """Get the build directory path for a device.
+
+    This is a test helper that constructs the standard ESPHome build directory
+    structure. Note: This helper does NOT perform path traversal sanitization
+    because it's only used in tests where we control the inputs. The actual
+    web_server.py code handles sanitization in DownloadBinaryRequestHandler.get()
+    via file_name.replace("..", "").lstrip("/").
+
+    Args:
+        base_path: The base temporary path (typically tmp_path from pytest)
+        device_name: The name of the device (should not contain path separators
+                     in production use, but tests may use it for specific scenarios)
+
+    Returns:
+        Path to the build directory (.esphome/build/device_name)
+    """
+    return base_path / ".esphome" / "build" / device_name
 
 
 class DashboardTestHelper:
@@ -412,6 +435,180 @@ async def test_download_binary_handler_idedata_fallback(
     )
     assert response.code == 200
     assert response.body == b"bootloader content"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_subdirectory_file(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get with file in subdirectory (nRF52 case).
+
+    This is a regression test for issue #11343 where the Path migration broke
+    downloads for nRF52 firmware files in subdirectories like 'zephyr/zephyr.uf2'.
+
+    The issue was that with_name() doesn't accept path separators:
+    - Before: path = storage_json.firmware_bin_path.with_name(file_name)
+      ValueError: Invalid name 'zephyr/zephyr.uf2'
+    - After: path = storage_json.firmware_bin_path.parent.joinpath(file_name)
+      Works correctly with subdirectory paths
+    """
+    # Create a fake nRF52 build structure with firmware in subdirectory
+    build_dir = get_build_path(tmp_path, "nrf52-device")
+    zephyr_dir = build_dir / "zephyr"
+    zephyr_dir.mkdir(parents=True)
+
+    # Create the main firmware binary (would be in build root)
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"main firmware")
+
+    # Create the UF2 file in zephyr subdirectory (nRF52 specific)
+    uf2_file = zephyr_dir / "zephyr.uf2"
+    uf2_file.write_bytes(b"nRF52 UF2 firmware content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "nrf52-device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    # Request the UF2 file with subdirectory path
+    response = await dashboard.fetch(
+        "/download.bin?configuration=nrf52-device.yaml&file=zephyr/zephyr.uf2",
+        method="GET",
+    )
+    assert response.code == 200
+    assert response.body == b"nRF52 UF2 firmware content"
+    assert response.headers["Content-Type"] == "application/octet-stream"
+    assert "attachment" in response.headers["Content-Disposition"]
+    # Download name should be device-name + full file path
+    assert "nrf52-device-zephyr/zephyr.uf2" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_subdirectory_file_url_encoded(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get with URL-encoded subdirectory path.
+
+    Verifies that URL-encoded paths (e.g., zephyr%2Fzephyr.uf2) are correctly
+    decoded and handled, and that custom download names work with subdirectories.
+    """
+    # Create a fake build structure with firmware in subdirectory
+    build_dir = get_build_path(tmp_path, "test")
+    zephyr_dir = build_dir / "zephyr"
+    zephyr_dir.mkdir(parents=True)
+
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"content")
+
+    uf2_file = zephyr_dir / "zephyr.uf2"
+    uf2_file.write_bytes(b"content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    # Request with URL-encoded path and custom download name
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=zephyr%2Fzephyr.uf2&download=custom_name.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert "custom_name.bin" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+@pytest.mark.parametrize(
+    "attack_path",
+    [
+        pytest.param("../../../secrets.yaml", id="basic_traversal"),
+        pytest.param("..%2F..%2F..%2Fsecrets.yaml", id="url_encoded"),
+        pytest.param("zephyr/../../../secrets.yaml", id="traversal_with_prefix"),
+        pytest.param("/etc/passwd", id="absolute_path"),
+        pytest.param("//etc/passwd", id="double_slash_absolute"),
+        pytest.param("....//secrets.yaml", id="multiple_dots"),
+    ],
+)
+async def test_download_binary_handler_path_traversal_protection(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+    attack_path: str,
+) -> None:
+    """Test that DownloadBinaryRequestHandler prevents path traversal attacks.
+
+    Verifies that attempts to use '..' in file paths are sanitized to prevent
+    accessing files outside the build directory. Tests multiple attack vectors.
+    """
+    # Create build structure
+    build_dir = get_build_path(tmp_path, "test")
+    build_dir.mkdir(parents=True)
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"firmware content")
+
+    # Create a sensitive file outside the build directory that should NOT be accessible
+    sensitive_file = tmp_path / "secrets.yaml"
+    sensitive_file.write_bytes(b"secret: my_secret_password")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    # Attempt path traversal attack - should be blocked
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            f"/download.bin?configuration=test.yaml&file={attack_path}",
+            method="GET",
+        )
+    # Should get 404 (file not found after sanitization) or 500 (idedata fails)
+    assert exc_info.value.code in (404, 500)
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_multiple_subdirectory_levels(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test downloading files from multiple subdirectory levels.
+
+    Verifies that joinpath correctly handles multi-level paths like 'build/output/firmware.bin'.
+    """
+    # Create nested directory structure
+    build_dir = get_build_path(tmp_path, "test")
+    nested_dir = build_dir / "build" / "output"
+    nested_dir.mkdir(parents=True)
+
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"main")
+
+    nested_file = nested_dir / "firmware.bin"
+    nested_file.write_bytes(b"nested firmware content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=build/output/firmware.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert response.body == b"nested firmware content"
 
 
 @pytest.mark.asyncio
@@ -1302,3 +1499,71 @@ async def test_dashboard_subscriber_refresh_event(
 
         # Give it a moment to clean up
         await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+async def test_dashboard_yaml_loading_with_packages_and_secrets(
+    tmp_path: Path,
+) -> None:
+    """Test dashboard YAML loading with packages referencing secrets.
+
+    This is a regression test for issue #11280 where binary download failed
+    when using packages with secrets after the Path migration in 2025.10.0.
+
+    This test verifies that CORE.config_path initialization in the dashboard
+    allows yaml_util.load_yaml() to correctly resolve secrets from packages.
+    """
+    # Create test directory structure with secrets and packages
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create secrets.yaml with obviously fake test values
+    secrets_file = config_dir / "secrets.yaml"
+    secrets_file.write_text(
+        "wifi_ssid: TEST-DUMMY-SSID\n"
+        "wifi_password: not-a-real-password-just-for-testing\n"
+    )
+
+    # Create package file that uses secrets
+    package_file = config_dir / "common.yaml"
+    package_file.write_text(
+        "wifi:\n  ssid: !secret wifi_ssid\n  password: !secret wifi_password\n"
+    )
+
+    # Create main device config that includes the package
+    device_config = config_dir / "test-download-secrets.yaml"
+    device_config.write_text(
+        "esphome:\n  name: test-download-secrets\n  platform: ESP32\n  board: esp32dev\n\n"
+        "packages:\n  common: !include common.yaml\n"
+    )
+
+    # Initialize DASHBOARD settings with our test config directory
+    # This is what sets CORE.config_path - the critical code path for the bug
+    args = Namespace(
+        configuration=str(config_dir),
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
+    )
+    DASHBOARD.settings.parse_args(args)
+
+    # With the fix: CORE.config_path should be config_dir / "___DASHBOARD_SENTINEL___.yaml"
+    # so CORE.config_path.parent would be config_dir
+    # Without the fix: CORE.config_path is config_dir / "." which normalizes to config_dir
+    # so CORE.config_path.parent would be tmp_path (the parent of config_dir)
+
+    # The fix ensures CORE.config_path.parent points to config_dir
+    assert CORE.config_path.parent == config_dir.resolve(), (
+        f"CORE.config_path.parent should point to config_dir. "
+        f"Got {CORE.config_path.parent}, expected {config_dir.resolve()}. "
+        f"CORE.config_path is {CORE.config_path}"
+    )
+
+    # Now load the YAML with packages that reference secrets
+    # This is where the bug would manifest - yaml_util.load_yaml would fail
+    # to find secrets.yaml because CORE.config_path.parent pointed to the wrong place
+    config = yaml_util.load_yaml(device_config)
+    # If we get here, secret resolution worked!
+    assert "esphome" in config
+    assert config["esphome"]["name"] == "test-download-secrets"

@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_qmp6988
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: qmp6988
+    i2c_id: i2c_bus
     temperature:
       name: QMP6988 Temperature
       oversampling: 32x

@@ -18,6 +18,7 @@ i2s_audio:
 
 micro_wake_word:
   id: mww_id
+  microphone: mic_id_external
   on_wake_word_detected:
     - voice_assistant.start:
         wake_word: !lambda return wake_word;

@@ -4,6 +4,7 @@
 #include <memory>
 #include <cstring>
 #include <cctype>
+#include <cinttypes>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -245,8 +246,8 @@ void AsyncWebServerRequest::redirect(const std::string &url) {
 }
 
 void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type) {
-  // Set status code - use constants for common codes to avoid string allocation
-  const char *status = nullptr;
+  // Set status code - use constants for common codes, default to 500 for unknown codes
+  const char *status;
   switch (code) {
     case 200:
       status = HTTPD_200;
@@ -258,9 +259,10 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
       status = HTTPD_409;
       break;
     default:
+      status = HTTPD_500;
       break;
   }
-  httpd_resp_set_status(*this, status == nullptr ? to_string(code).c_str() : status);
+  httpd_resp_set_status(*this, status);
 
   if (content_type && *content_type) {
     httpd_resp_set_type(*this, content_type);
@@ -348,7 +350,13 @@ void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
   httpd_resp_set_hdr(*this->req_, name, value);
 }
 
-void AsyncResponseStream::print(float value) { this->print(to_string(value)); }
+void AsyncResponseStream::print(float value) {
+  // Use stack buffer to avoid temporary string allocation
+  // Size: sign (1) + digits (10) + decimal (1) + precision (6) + exponent (5) + null (1) = 24, use 32 for safety
+  char buf[32];
+  int len = snprintf(buf, sizeof(buf), "%f", value);
+  this->content_.append(buf, len);
+}
 
 void AsyncResponseStream::printf(const char *fmt, ...) {
   va_list args;
@@ -380,24 +388,25 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
   if (this->on_connect_) {
     this->on_connect_(rsp);
   }
-  this->sessions_.insert(rsp);
+  this->sessions_.push_back(rsp);
 }
 
 void AsyncEventSource::loop() {
   // Clean up dead sessions safely
   // This follows the ESP-IDF pattern where free_ctx marks resources as dead
   // and the main loop handles the actual cleanup to avoid race conditions
-  auto it = this->sessions_.begin();
-  while (it != this->sessions_.end()) {
-    auto *ses = *it;
+  for (size_t i = 0; i < this->sessions_.size();) {
+    auto *ses = this->sessions_[i];
     // If the session has a dead socket (marked by destroy callback)
     if (ses->fd_.load() == 0) {
       ESP_LOGD(TAG, "Removing dead event source session");
-      it = this->sessions_.erase(it);
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+      // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
+      this->sessions_[i] = this->sessions_.back();
+      this->sessions_.pop_back();
     } else {
       ses->loop();
-      ++it;
+      ++i;
     }
   }
 }
@@ -412,6 +421,9 @@ void AsyncEventSource::try_send_nodefer(const char *message, const char *event, 
 
 void AsyncEventSource::deferrable_send_state(void *source, const char *event_type,
                                              message_generator_t *message_generator) {
+  // Skip if no connected clients to avoid unnecessary processing
+  if (this->empty())
+    return;
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
       ses->deferrable_send_state(source, event_type, message_generator);
@@ -477,10 +489,18 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
-  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", rsp->fd_.load());
-  // Mark as dead by setting fd to 0 - will be cleaned up in the main loop
-  rsp->fd_.store(0);
-  // Note: We don't delete or remove from set here to avoid race conditions
+  int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
+
+  if (fd > 0) {
+    ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
+    // Immediately shut down the socket to prevent lwIP from delivering more data
+    // This prevents "recv_tcp: recv for wrong pcb!" assertions when the TCP stack
+    // tries to deliver queued data after the session is marked as dead
+    // See: https://github.com/esphome/esphome/issues/11936
+    shutdown(fd, SHUT_RDWR);
+    // Note: We don't close() the socket - httpd owns it and will close it
+  }
+  // Session will be cleaned up in the main loop to avoid race conditions
 }
 
 // helper for allowing only unique entries in the queue
@@ -490,8 +510,7 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
   // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
   for (auto &event : this->deferred_queue_) {
     if (event == item) {
-      event = item;
-      return;
+      return;  // Already in queue, no need to update since items are equal
     }
   }
   this->deferred_queue_.push_back(item);
@@ -590,16 +609,19 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
 
   event_buffer_.append(chunk_len_header);
 
+  // Use stack buffer for formatting numeric fields to avoid temporary string allocations
+  // Size: "retry: " (7) + max uint32 (10 digits) + CRLF (2) + null (1) = 20 bytes, use 32 for safety
+  constexpr size_t num_buf_size = 32;
+  char num_buf[num_buf_size];
+
   if (reconnect) {
-    event_buffer_.append("retry: ", sizeof("retry: ") - 1);
-    event_buffer_.append(to_string(reconnect));
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+    int len = snprintf(num_buf, num_buf_size, "retry: %" PRIu32 CRLF_STR, reconnect);
+    event_buffer_.append(num_buf, len);
   }
 
   if (id) {
-    event_buffer_.append("id: ", sizeof("id: ") - 1);
-    event_buffer_.append(to_string(id));
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+    int len = snprintf(num_buf, num_buf_size, "id: %" PRIu32 CRLF_STR, id);
+    event_buffer_.append(num_buf, len);
   }
 
   if (event && *event) {

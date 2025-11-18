@@ -69,6 +69,11 @@ climate:
       - logger.log: swing_vertical_action
     swing_both_action:
       - logger.log: swing_both_action
+    humidity_control_humidify_action:
+      - logger.log: humidity_control_humidify_action
+    humidity_control_off_action:
+      - logger.log: humidity_control_off_action
+    humidity_hysteresis: 1.0
     startup_delay: true
     supplemental_cooling_delta: 2.0
     cool_deadband: 0.5

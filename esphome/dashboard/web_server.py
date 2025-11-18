@@ -1058,7 +1058,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
             "download",
             f"{storage_json.name}-{file_name}",
         )
-        path = storage_json.firmware_bin_path.with_name(file_name)
+
+        path = storage_json.firmware_bin_path.parent.joinpath(file_name)
 
         if not path.is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]

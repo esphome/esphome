@@ -1,8 +1,5 @@
-remote_transmitter:
-  pin: ${pin}
-  carrier_duty_percent: 50%
-
 climate:
   - platform: gree
     name: GREE
     model: generic
+    transmitter_id: xmitr

@@ -58,7 +58,6 @@ class EthernetComponent : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  bool can_proceed() override;
   void on_powerdown() override { powerdown(); }
   bool is_connected();
 
@@ -88,8 +87,8 @@ class EthernetComponent : public Component {
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
-  std::string get_use_address() const;
-  void set_use_address(const std::string &use_address);
+  const char *get_use_address() const;
+  void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
   std::string get_eth_mac_address_pretty();
   eth_duplex_t get_duplex_mode();
@@ -114,7 +113,6 @@ class EthernetComponent : public Component {
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 
-  std::string use_address_;
 #ifdef USE_ETHERNET_SPI
   uint8_t clk_pin_;
   uint8_t miso_pin_;
@@ -158,6 +156,11 @@ class EthernetComponent : public Component {
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
   optional<std::array<uint8_t, 6>> fixed_mac_;
+
+ private:
+  // Stores a pointer to a string literal (static storage duration).
+  // ONLY set from Python-generated code with string literals - never dynamic strings.
+  const char *use_address_{""};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

@@ -27,6 +27,9 @@
 #ifdef USE_BLUETOOTH_PROXY
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
 #endif
+#ifdef USE_CLIMATE
+#include "esphome/components/climate/climate_mode.h"
+#endif
 #ifdef USE_VOICE_ASSISTANT
 #include "esphome/components/voice_assistant/voice_assistant.h"
 #endif
@@ -407,8 +410,8 @@ uint16_t APIConnection::try_send_fan_state(EntityBase *entity, APIConnection *co
   }
   if (traits.supports_direction())
     msg.direction = static_cast<enums::FanDirection>(fan->direction);
-  if (traits.supports_preset_modes())
-    msg.set_preset_mode(StringRef(fan->preset_mode));
+  if (traits.supports_preset_modes() && fan->has_preset_mode())
+    msg.set_preset_mode(StringRef(fan->get_preset_mode()));
   return fill_and_encode_entity_state(fan, msg, FanStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -420,7 +423,7 @@ uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *con
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
-  msg.supported_preset_modes = &traits.supported_preset_modes_for_api_();
+  msg.supported_preset_modes = &traits.supported_preset_modes();
   return fill_and_encode_entity_info(fan, msg, ListEntitiesFanResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -450,7 +453,6 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
                                              bool is_single) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto traits = light->get_traits();
   auto values = light->remote_values;
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
@@ -474,7 +476,9 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   auto *light = static_cast<light::LightState *>(entity);
   ListEntitiesLightResponse msg;
   auto traits = light->get_traits();
-  msg.supported_color_modes = &traits.get_supported_color_modes_for_api_();
+  auto supported_modes = traits.get_supported_color_modes();
+  // Pass pointer to ColorModeMask so the iterator can encode actual ColorMode enum values
+  msg.supported_color_modes = &supported_modes;
   if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
       traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE)) {
     msg.min_mireds = traits.get_min_mireds();
@@ -483,7 +487,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   if (light->supports_effects()) {
     msg.effects.emplace_back("None");
     for (auto *effect : light->get_effects()) {
-      msg.effects.push_back(effect->get_name());
+      msg.effects.emplace_back(effect->get_name());
     }
   }
   return fill_and_encode_entity_info(light, msg, ListEntitiesLightResponse::MESSAGE_TYPE, conn, remaining_size,
@@ -623,9 +627,10 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   auto traits = climate->get_traits();
   resp.mode = static_cast<enums::ClimateMode>(climate->mode);
   resp.action = static_cast<enums::ClimateAction>(climate->action);
-  if (traits.get_supports_current_temperature())
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE))
     resp.current_temperature = climate->current_temperature;
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     resp.target_temperature_low = climate->target_temperature_low;
     resp.target_temperature_high = climate->target_temperature_high;
   } else {
@@ -633,20 +638,20 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   }
   if (traits.get_supports_fan_modes() && climate->fan_mode.has_value())
     resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode.value());
-  if (!traits.get_supported_custom_fan_modes().empty() && climate->custom_fan_mode.has_value()) {
-    resp.set_custom_fan_mode(StringRef(climate->custom_fan_mode.value()));
+  if (!traits.get_supported_custom_fan_modes().empty() && climate->has_custom_fan_mode()) {
+    resp.set_custom_fan_mode(StringRef(climate->get_custom_fan_mode()));
   }
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
   }
-  if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value()) {
-    resp.set_custom_preset(StringRef(climate->custom_preset.value()));
+  if (!traits.get_supported_custom_presets().empty() && climate->has_custom_preset()) {
+    resp.set_custom_preset(StringRef(climate->get_custom_preset()));
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
-  if (traits.get_supports_current_humidity())
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY))
     resp.current_humidity = climate->current_humidity;
-  if (traits.get_supports_target_humidity())
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY))
     resp.target_humidity = climate->target_humidity;
   return fill_and_encode_entity_state(climate, resp, ClimateStateResponse::MESSAGE_TYPE, conn, remaining_size,
                                       is_single);
@@ -656,23 +661,27 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   auto *climate = static_cast<climate::Climate *>(entity);
   ListEntitiesClimateResponse msg;
   auto traits = climate->get_traits();
-  msg.supports_current_temperature = traits.get_supports_current_temperature();
-  msg.supports_current_humidity = traits.get_supports_current_humidity();
-  msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
-  msg.supports_target_humidity = traits.get_supports_target_humidity();
-  msg.supported_modes = &traits.get_supported_modes_for_api_();
+  // Flags set for backward compatibility, deprecated in 2025.11.0
+  msg.supports_current_temperature = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  msg.supports_current_humidity = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
+  msg.supports_two_point_target_temperature = traits.has_feature_flags(
+      climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE | climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
+  msg.supports_target_humidity = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
+  msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
+  // Current feature flags and other supported parameters
+  msg.feature_flags = traits.get_feature_flags();
+  msg.supported_modes = &traits.get_supported_modes();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
   msg.visual_target_temperature_step = traits.get_visual_target_temperature_step();
   msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
   msg.visual_min_humidity = traits.get_visual_min_humidity();
   msg.visual_max_humidity = traits.get_visual_max_humidity();
-  msg.supports_action = traits.get_supports_action();
-  msg.supported_fan_modes = &traits.get_supported_fan_modes_for_api_();
-  msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes_for_api_();
-  msg.supported_presets = &traits.get_supported_presets_for_api_();
-  msg.supported_custom_presets = &traits.get_supported_custom_presets_for_api_();
-  msg.supported_swing_modes = &traits.get_supported_swing_modes_for_api_();
+  msg.supported_fan_modes = &traits.get_supported_fan_modes();
+  msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes();
+  msg.supported_presets = &traits.get_supported_presets();
+  msg.supported_custom_presets = &traits.get_supported_custom_presets();
+  msg.supported_swing_modes = &traits.get_supported_swing_modes();
   return fill_and_encode_entity_info(climate, msg, ListEntitiesClimateResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -869,7 +878,7 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
                                               bool is_single) {
   auto *select = static_cast<select::Select *>(entity);
   SelectStateResponse resp;
-  resp.set_state(StringRef(select->state));
+  resp.set_state(StringRef(select->current_option()));
   resp.missing_state = !select->has_state();
   return fill_and_encode_entity_state(select, resp, SelectStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -1074,13 +1083,8 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
     if (value.timezone_len > 0) {
-      const std::string &current_tz = homeassistant::global_homeassistant_time->get_timezone();
-      // Compare without allocating a string
-      if (current_tz.length() != value.timezone_len ||
-          memcmp(current_tz.c_str(), value.timezone, value.timezone_len) != 0) {
-        homeassistant::global_homeassistant_time->set_timezone(
-            std::string(reinterpret_cast<const char *>(value.timezone), value.timezone_len));
-      }
+      homeassistant::global_homeassistant_time->set_timezone(reinterpret_cast<const char *>(value.timezone),
+                                                             value.timezone_len);
     }
 #endif
   }
@@ -1291,11 +1295,11 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 #endif
 
 #ifdef USE_EVENT
-void APIConnection::send_event(event::Event *event, const std::string &event_type) {
-  this->schedule_message_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
-                          EventResponse::ESTIMATED_SIZE);
+void APIConnection::send_event(event::Event *event, const char *event_type) {
+  this->send_message_smart_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
+                            EventResponse::ESTIMATED_SIZE);
 }
-uint16_t APIConnection::try_send_event_response(event::Event *event, const std::string &event_type, APIConnection *conn,
+uint16_t APIConnection::try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                                 uint32_t remaining_size, bool is_single) {
   EventResponse resp;
   resp.set_event_type(StringRef(event_type));
@@ -1307,8 +1311,7 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
   auto *event = static_cast<event::Event *>(entity);
   ListEntitiesEventResponse msg;
   msg.set_device_class(event->get_device_class_ref());
-  for (const auto &event_type : event->get_event_types())
-    msg.event_types.push_back(event_type);
+  msg.event_types = &event->get_event_types();
   return fill_and_encode_entity_info(event, msg, ListEntitiesEventResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -1406,7 +1409,7 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 12;
+  resp.api_version_minor = 13;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
@@ -1465,6 +1468,8 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   static constexpr auto MANUFACTURER = StringRef::from_lit("Beken");
 #elif defined(USE_LN882X)
   static constexpr auto MANUFACTURER = StringRef::from_lit("Lightning");
+#elif defined(USE_NRF52)
+  static constexpr auto MANUFACTURER = StringRef::from_lit("Nordic Semiconductor");
 #elif defined(USE_RTL87XX)
   static constexpr auto MANUFACTURER = StringRef::from_lit("Realtek");
 #elif defined(USE_HOST)
@@ -1569,7 +1574,13 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
   resp.success = false;
 
   psk_t psk{};
-  if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
+  if (msg.key.empty()) {
+    if (this->parent_->clear_noise_psk(true)) {
+      resp.success = true;
+    } else {
+      ESP_LOGW(TAG, "Failed to clear encryption key");
+    }
+  } else if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
   } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");
@@ -1640,9 +1651,7 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
   // O(n) but optimized for RAM and not performance.
   for (auto &item : items) {
     if (item.entity == entity && item.message_type == message_type) {
-      // Clean up old creator before replacing
-      item.creator.cleanup(message_type);
-      // Move assign the new creator
+      // Replace with new creator
       item.creator = std::move(creator);
       return;
     }
@@ -1812,7 +1821,7 @@ void APIConnection::process_batch_() {
 
   // Handle remaining items more efficiently
   if (items_processed < this->deferred_batch_.size()) {
-    // Remove processed items from the beginning with proper cleanup
+    // Remove processed items from the beginning
     this->deferred_batch_.remove_front(items_processed);
     // Reschedule for remaining items
     this->schedule_batch_();
@@ -1825,10 +1834,10 @@ void APIConnection::process_batch_() {
 uint16_t APIConnection::MessageCreator::operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                    bool is_single, uint8_t message_type) const {
 #ifdef USE_EVENT
-  // Special case: EventResponse uses string pointer
+  // Special case: EventResponse uses const char * pointer
   if (message_type == EventResponse::MESSAGE_TYPE) {
     auto *e = static_cast<event::Event *>(entity);
-    return APIConnection::try_send_event_response(e, *data_.string_ptr, conn, remaining_size, is_single);
+    return APIConnection::try_send_event_response(e, data_.const_char_ptr, conn, remaining_size, is_single);
   }
 #endif
 
