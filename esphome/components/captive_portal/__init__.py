@@ -74,9 +74,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     # Register socket needs for DNS server and additional HTTP connections
     # - 1 UDP socket for DNS server
-    # - 3 additional TCP sockets for captive portal detection probes + configuration requests
-    #   (OS captive portal detection makes multiple probe requests that stay in TIME_WAIT,
-    #    need headroom for actual user configuration requests)
+    # - 3 additional TCP sockets for captive portal HTTP connections
+    #   OS captive portal detection makes multiple simultaneous probe requests.
+    #   LRU purging will reclaim idle sockets, but we need enough for the initial burst.
     from esphome.components import socket
 
     socket.consume_sockets(4, "captive_portal")(config)
