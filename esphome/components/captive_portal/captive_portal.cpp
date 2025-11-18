@@ -51,7 +51,11 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
   // Defer save to main loop thread to avoid NVS operations from HTTP thread
-  this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid, psk); });
+  this->defer([ssid, psk]() {
+    wifi::global_wifi_component->save_wifi_sta(ssid, psk);
+    // Trigger immediate retry to attempt connection with new credentials
+    wifi::global_wifi_component->retry_connect();
+  });
   request->redirect(ESPHOME_F("/?save"));
 }
 
