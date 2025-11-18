@@ -50,9 +50,8 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "Requested WiFi Settings Change:");
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
-  wifi::global_wifi_component->save_wifi_sta(ssid, psk);
-  // Don't call start_scanning() from HTTP thread - WiFi operations must happen on main loop
-  // The force_scan_after_provision_ flag will trigger scan on next retry cycle
+  // Defer save to main loop thread to avoid NVS operations from HTTP thread
+  this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid, psk); });
   request->redirect(ESPHOME_F("/?save"));
 }
 
