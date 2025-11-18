@@ -140,7 +140,7 @@ void MQTTClientComponent::send_device_info_() {
 #endif
 
 #ifdef USE_API_NOISE
-        root[api::global_api_server->get_noise_ctx()->has_psk() ? "api_encryption" : "api_encryption_supported"] =
+        root[api::global_api_server->get_noise_ctx().has_psk() ? "api_encryption" : "api_encryption_supported"] =
             "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
 #endif
       },

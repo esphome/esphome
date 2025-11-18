@@ -21,8 +21,7 @@
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
@@ -119,7 +118,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION, "api_encryption");
     MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION_SUPPORTED, "api_encryption_supported");
     MDNS_STATIC_CONST_CHAR(NOISE_ENCRYPTION, "Noise_NNpsk0_25519_ChaChaPoly_SHA256");
-    bool has_psk = api::global_api_server->get_noise_ctx()->has_psk();
+    bool has_psk = api::global_api_server->get_noise_ctx().has_psk();
     const char *encryption_key = has_psk ? TXT_API_ENCRYPTION : TXT_API_ENCRYPTION_SUPPORTED;
     txt_records.push_back({MDNS_STR(encryption_key), MDNS_STR(NOISE_ENCRYPTION)});
 #endif
@@ -189,6 +188,5 @@ void MDNSComponent::dump_config() {
 #endif
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 #endif

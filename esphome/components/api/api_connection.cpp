@@ -90,8 +90,8 @@ static const int CAMERA_STOP_STREAM = 5000;
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
     : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
-  auto noise_ctx = parent->get_noise_ctx();
-  if (noise_ctx->has_psk()) {
+  auto &noise_ctx = parent->get_noise_ctx();
+  if (noise_ctx.has_psk()) {
     this->helper_ =
         std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, &this->client_info_)};
   } else {
