@@ -1,9 +1,12 @@
 #include "cover.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
+
 #include <strings.h>
+
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cover {
+namespace esphome::cover {
 
 static const char *const TAG = "cover";
 
@@ -169,6 +172,9 @@ void Cover::publish_state(bool save) {
   ESP_LOGD(TAG, "  Current Operation: %s", cover_operation_to_str(this->current_operation));
 
   this->state_callback_.call();
+#if defined(USE_COVER) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_cover_update(this);
+#endif
 
   if (save) {
     CoverRestoreState restore{};
@@ -205,5 +211,4 @@ void CoverRestoreState::apply(Cover *cover) {
   cover->publish_state();
 }
 
-}  // namespace cover
-}  // namespace esphome
+}  // namespace esphome::cover

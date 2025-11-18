@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.11.0-dev"
+__version__ = "2025.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -336,6 +336,7 @@ CONF_ENERGY = "energy"
 CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
 CONF_ENUM_DATAPOINT = "enum_datapoint"
+CONF_ENVIRONMENT_VARIABLES = "environment_variables"
 CONF_EQUATION = "equation"
 CONF_ESP8266_DISABLE_SSL_SUPPORT = "esp8266_disable_ssl_support"
 CONF_ESPHOME = "esphome"

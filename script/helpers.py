@@ -196,6 +196,20 @@ def splitlines_no_ends(string: str) -> list[str]:
     return [s.strip() for s in string.splitlines()]
 
 
+@cache
+def _get_github_event_data() -> dict | None:
+    """Read and parse GitHub event file (cached).
+
+    Returns:
+        Parsed event data dictionary, or None if not available
+    """
+    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if github_event_path and os.path.exists(github_event_path):
+        with open(github_event_path) as f:
+            return json.load(f)
+    return None
+
+
 def _get_pr_number_from_github_env() -> str | None:
     """Extract PR number from GitHub environment variables.
 
@@ -208,13 +222,30 @@ def _get_pr_number_from_github_env() -> str | None:
         return github_ref.split("/pull/")[1].split("/")[0]
 
     # Fallback to GitHub event file
-    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
-            event_data = json.load(f)
-            pr_data = event_data.get("pull_request", {})
-            if pr_number := pr_data.get("number"):
-                return str(pr_number)
+    if event_data := _get_github_event_data():
+        pr_data = event_data.get("pull_request", {})
+        if pr_number := pr_data.get("number"):
+            return str(pr_number)
+
+    return None
+
+
+def get_target_branch() -> str | None:
+    """Get the target branch from GitHub environment variables.
+
+    Returns:
+        Target branch name (e.g., "dev", "release", "beta"), or None if not in PR context
+    """
+    # First try GITHUB_BASE_REF (set for pull_request events)
+    if base_ref := os.environ.get("GITHUB_BASE_REF"):
+        return base_ref
+
+    # Fallback to GitHub event file
+    if event_data := _get_github_event_data():
+        pr_data = event_data.get("pull_request", {})
+        base_data = pr_data.get("base", {})
+        if ref := base_data.get("ref"):
+            return ref
 
     return None
 
