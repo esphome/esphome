@@ -425,6 +425,8 @@ class WiFiComponent : public Component {
     return true;
   }
 
+  void connect_soon_();
+
   void wifi_loop_();
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
   bool wifi_sta_pre_setup_();

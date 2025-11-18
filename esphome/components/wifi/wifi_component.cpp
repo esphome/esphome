@@ -676,10 +676,10 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   this->force_scan_after_provision_ = true;
 
   // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
-  this->connect_soon();
+  this->connect_soon_();
 }
 
-void WiFiComponent::connect_soon() {
+void WiFiComponent::connect_soon_() {
   // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
   if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
     ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
