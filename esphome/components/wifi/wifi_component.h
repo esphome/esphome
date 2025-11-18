@@ -529,7 +529,7 @@ class WiFiComponent : public Component {
   bool btm_{false};
   bool rrm_{false};
 #endif
-  bool enable_on_boot_;
+  bool enable_on_boot_{true};
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
   bool did_scan_this_cycle_{false};
