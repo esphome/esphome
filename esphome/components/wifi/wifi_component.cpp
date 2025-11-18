@@ -280,7 +280,9 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
       }
     }
 
-    if (!this->ssid_was_seen_in_scan_(sta.get_ssid())) {
+    // If we didn't scan this cycle, treat all networks as potentially hidden
+    // Otherwise, only retry networks that weren't seen in the scan
+    if (!this->did_scan_this_cycle_ || !this->ssid_was_seen_in_scan_(sta.get_ssid())) {
       ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", sta.get_ssid().c_str(), static_cast<int>(i));
       return static_cast<int8_t>(i);
     }
@@ -986,6 +988,7 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
+  this->did_scan_this_cycle_ = true;
 
   if (this->scan_result_.empty()) {
     ESP_LOGW(TAG, "No networks found");
@@ -1351,6 +1354,8 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
         this->restart_adapter();
       }
+      // Clear scan flag - we're starting a new retry cycle
+      this->did_scan_this_cycle_ = false;
       // Always enter cooldown after restart (or skip-restart) to allow stabilization
       // Use extended cooldown when AP is active to avoid constant scanning that blocks DNS
       this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
