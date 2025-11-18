@@ -72,6 +72,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "Add 'ap:' to your WiFi configuration to enable the captive portal."
         )
 
+    # Register socket needs for DNS server (1 UDP socket)
+    from esphome.components import socket
+
+    socket.consume_sockets(1, "captive_portal")(config)
+
     return config
 
 
