@@ -94,6 +94,18 @@ void AsyncWebServer::end() {
   }
 }
 
+void AsyncWebServer::set_lru_purge_enable(bool enable) {
+  if (this->lru_purge_enable_ == enable) {
+    return;  // No change needed
+  }
+  this->lru_purge_enable_ = enable;
+  // If server is already running, restart it with new config
+  if (this->server_) {
+    this->end();
+    this->begin();
+  }
+}
+
 void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
@@ -101,9 +113,8 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
-  // Enable LRU purging to close oldest idle connections when socket limit is reached
-  // This prevents socket exhaustion when multiple clients connect (e.g., captive portal probes)
-  config.lru_purge_enable = true;
+  // Enable LRU purging if requested (e.g., by captive portal to handle probe bursts)
+  config.lru_purge_enable = this->lru_purge_enable_;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
