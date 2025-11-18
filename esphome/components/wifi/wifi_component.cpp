@@ -618,6 +618,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
+  // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
+  this->skip_cooldown_next_cycle_ = true;
 }
 
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
@@ -693,14 +695,6 @@ void WiFiComponent::connect_soon_() {
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
-  // If already connecting/connected, set flag to skip cooldown on next cycle
-  // Caller (e.g., improv) already called set_sta() with new credentials, state machine will retry
-  if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING || this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
-    ESP_LOGD(TAG, "Already connecting, will retry on next cycle");
-    this->skip_cooldown_next_cycle_ = true;
-    return;
-  }
-
   // Log connection attempt at INFO level with priority
   char bssid_s[18];
   int8_t priority = 0;
