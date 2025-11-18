@@ -15,7 +15,7 @@ sensor:
     number: 0
     diff_mode: false
     update_interval: 5s
-    
+
   - platform: mcp3204
     id: mcp3204_diff_0_1
     mcp3204_id: mcp3204_hub
