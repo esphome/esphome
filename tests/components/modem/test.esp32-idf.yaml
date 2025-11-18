@@ -44,3 +44,28 @@ switch:
     gnss:
       name: GNSS
       restore_mode: ALWAYS_ON
+
+button:
+  - platform: restart
+    name: "reboot"
+  - platform: template
+    name: "reset modem"
+    on_press:
+      then:
+        modem.reset:
+  - platform: template
+    name: "send_at"
+    on_press:
+      then:
+        if:
+          condition:
+            modem.enabled:
+          then:
+            modem.send_at: "AT+CGSN"
+          else:
+            modem.enable:
+  - platform: template
+    name: "disable modem"
+    on_press:
+      then:
+        modem.disable:
