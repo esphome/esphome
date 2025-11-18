@@ -523,7 +523,7 @@ lvgl:
                     width: 50
                     range_from: 15
                     range_to: 35
-                    step: 0.5
+                    selected_digit: 0
                     rollover: false
                     digits: 3
                     decimal_places: 1
