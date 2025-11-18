@@ -76,7 +76,7 @@ lvgl:
       line_width: 8
       line_rounded: true
     - id: date_style
-      text_font: roboto10
+      text_font: !lambda return id(roboto10);
       align: center
       text_color: !lambda return color_id2;
       bg_opa: cover
@@ -267,7 +267,7 @@ lvgl:
               snprintf(buf, sizeof(buf), "Setup: %d", 42);
               return std::string(buf);
             align: top_mid
-            text_font: space16
+            text_font: !lambda return id(space16);
         - label:
             id: chip_info_label
             # Test complex setup lambda (real-world pattern)
