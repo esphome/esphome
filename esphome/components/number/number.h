@@ -6,8 +6,7 @@
 #include "number_call.h"
 #include "number_traits.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 
 class Number;
 void log_number(const char *tag, const char *prefix, const char *type, Number *obj);
@@ -53,5 +52,4 @@ class Number : public EntityBase {
   CallbackManager<void(float)> state_callback_;
 };
 
-}  // namespace number
-}  // namespace esphome
+}  // namespace esphome::number
