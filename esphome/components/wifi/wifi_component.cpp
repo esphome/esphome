@@ -619,9 +619,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
-  // Force scan on next attempt even if captive portal is still active
-  // This ensures new credentials are tried with proper BSSID selection after provisioning
-  this->force_scan_after_provision_ = true;
+  // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
+  this->skip_cooldown_next_cycle_ = true;
 }
 
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
@@ -684,10 +683,6 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   sta.set_password(password);
   this->set_sta(sta);
 
-  // Force scan on next attempt even if captive portal is still active
-  // This ensures new credentials are tried with proper BSSID selection after provisioning
-  this->force_scan_after_provision_ = true;
-
   // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
   this->connect_soon_();
 }
@@ -701,14 +696,6 @@ void WiFiComponent::connect_soon_() {
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
-  // If already connecting/connected, set flag to skip cooldown on next cycle
-  // Caller (e.g., improv) already called set_sta() with new credentials, state machine will retry
-  if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING || this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
-    ESP_LOGD(TAG, "Already connecting, will retry on next cycle");
-    this->skip_cooldown_next_cycle_ = true;
-    return;
-  }
-
   // Log connection attempt at INFO level with priority
   char bssid_s[18];
   int8_t priority = 0;
@@ -905,8 +892,6 @@ void WiFiComponent::start_scanning() {
   ESP_LOGD(TAG, "Starting scan");
   this->wifi_scan_start_(this->passive_scan_);
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
-  // Clear the force scan flag after starting the scan
-  this->force_scan_after_provision_ = false;
 }
 
 /// Comparator for WiFi scan result sorting - determines which network should be tried first
@@ -1279,9 +1264,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
       // Skip scanning when captive portal/improv is active to avoid disrupting AP
       // Even passive scans can cause brief AP disconnections on ESP32
-      // UNLESS new credentials were just provisioned - then we need to scan
-      if ((this->is_captive_portal_active_() || this->is_esp32_improv_active_()) &&
-          !this->force_scan_after_provision_) {
+      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
       return WiFiRetryPhase::SCAN_CONNECTING;
