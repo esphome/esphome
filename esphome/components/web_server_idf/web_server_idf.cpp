@@ -94,6 +94,18 @@ void AsyncWebServer::end() {
   }
 }
 
+void AsyncWebServer::set_lru_purge_enable(bool enable) {
+  if (this->lru_purge_enable_ == enable) {
+    return;  // No change needed
+  }
+  this->lru_purge_enable_ = enable;
+  // If server is already running, restart it with new config
+  if (this->server_) {
+    this->end();
+    this->begin();
+  }
+}
+
 void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
@@ -101,6 +113,8 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
+  // Enable LRU purging if requested (e.g., by captive portal to handle probe bursts)
+  config.lru_purge_enable = this->lru_purge_enable_;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
@@ -242,6 +256,7 @@ void AsyncWebServerRequest::send(int code, const char *content_type, const char 
 void AsyncWebServerRequest::redirect(const std::string &url) {
   httpd_resp_set_status(*this, "302 Found");
   httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
 

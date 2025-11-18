@@ -291,6 +291,7 @@ class WiFiComponent : public Component {
   void set_passive_scan(bool passive);
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
@@ -424,6 +425,8 @@ class WiFiComponent : public Component {
     return true;
   }
 
+  void connect_soon_();
+
   void wifi_loop_();
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
   bool wifi_sta_pre_setup_();
@@ -529,6 +532,7 @@ class WiFiComponent : public Component {
   bool enable_on_boot_;
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
+  bool force_scan_after_provision_{false};
 
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
