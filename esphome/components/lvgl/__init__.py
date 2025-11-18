@@ -194,7 +194,8 @@ def final_validation(config_list):
         # Do per-widget type final validation for update actions
         for widget_type, update_configs in updated_widgets.items():
             for conf in update_configs:
-                for name in conf.get(CONF_ID, ()):
+                for id_conf in conf.get(CONF_ID, ()):
+                    name = id_conf[CONF_ID]
                     path = global_config.get_path_for_id(name)
                     widget_conf = global_config.get_config_for_path(path[:-1])
                     widget_type.final_validate(name, conf, widget_conf, path[1:])

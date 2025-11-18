@@ -320,7 +320,14 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     """
     schema = part_schema(parts).extend(
         {
-            cv.Required(CONF_ID): cv.ensure_list(cv.use_id(widget_type)),
+            cv.Required(CONF_ID): cv.ensure_list(
+                cv.maybe_simple_value(
+                    {
+                        cv.Required(CONF_ID): cv.use_id(widget_type),
+                    },
+                    key=CONF_ID,
+                )
+            ),
             cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
         }
     )

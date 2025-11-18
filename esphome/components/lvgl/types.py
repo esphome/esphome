@@ -227,7 +227,7 @@ class WidgetType:
         """
         return value
 
-    def final_validate(self, widget, update_conf, widget_conf, path):
+    def final_validate(self, widget, update_config, widget_config, path):
         """
         Allow final validation for a given widget type update action
         :param widget: A widget name

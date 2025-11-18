@@ -42,7 +42,9 @@ class ButtonType(WidgetType):
 
     def final_validate(self, widget, update_config, widget_config, path):
         if CONF_TEXT in update_config and CONF_TEXT not in widget_config:
-            raise cv.Invalid("Button must have 'text:' configured to update text", path)
+            raise cv.Invalid(
+                "Button must have 'text:' configured to allow updating text", path
+            )
 
 
 button_spec = ButtonType()
