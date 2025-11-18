@@ -72,8 +72,8 @@ MAX_WIFI_NETWORKS = 127
 # Default AP timeout - allows sufficient time to try all BSSIDs during initial connection
 # After AP starts, WiFi scanning is skipped to avoid disrupting the AP, so we only
 # get best-effort connection attempts. Longer timeout ensures we exhaust all options
-# before falling back to AP mode.
-DEFAULT_AP_TIMEOUT = "2min"
+# before falling back to AP mode. Aligned with improv wifi_timeout default.
+DEFAULT_AP_TIMEOUT = "90s"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
