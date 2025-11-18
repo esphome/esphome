@@ -79,7 +79,7 @@ class ModemComponent : public Component {
   void reset();
 
   network::IPAddresses get_ip_addresses();
-  std::string get_use_address() const;
+  const char *get_use_address() const;
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases, you won't need these)

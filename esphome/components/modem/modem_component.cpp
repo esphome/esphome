@@ -79,12 +79,14 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
   return addresses;
 }
 
-std::string ModemComponent::get_use_address() const {
+const char *ModemComponent::get_use_address() const {
   // Not useful for a modem?
   if (this->use_address_.empty()) {
-    return App.get_name() + ".local";
+    static std::string full_name;
+    full_name = App.get_name() + ".local";
+    return full_name.c_str();
   }
-  return this->use_address_;
+  return this->use_address_.c_str();
 }
 
 void ModemComponent::setup() {
