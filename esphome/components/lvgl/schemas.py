@@ -318,12 +318,14 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     :param parts:  The allowable parts to specify
     :return:
     """
+
+    w_type = widget_type.w_type if isinstance(widget_type, WidgetType) else widget_type
     schema = part_schema(parts).extend(
         {
             cv.Required(CONF_ID): cv.ensure_list(
                 cv.maybe_simple_value(
                     {
-                        cv.Required(CONF_ID): cv.use_id(widget_type),
+                        cv.Required(CONF_ID): cv.use_id(w_type),
                     },
                     key=CONF_ID,
                 )
