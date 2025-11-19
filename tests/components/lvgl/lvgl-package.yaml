@@ -478,19 +478,19 @@ lvgl:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: time_id
+                    time: sntp_time
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: !lambda return id(time_id).now();
+                    time: !lambda return id(sntp_time).now();
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
                     time: !lambda |-
                         ESP_LOGD("label", "multi-line lambda");
-                        return id(time_id).now();
+                        return id(sntp_time).now();
             on_value:
               logger.log:
                 format: "state now %d"
