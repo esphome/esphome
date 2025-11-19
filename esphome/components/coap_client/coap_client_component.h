@@ -39,13 +39,7 @@ enum CoapMediaType : uint8_t {
 const char *coap_media_type_to_string(CoapMediaType media_type);
 
 struct CoapClientRequestData {
-  uint32_t create_timestamp{};
-  uint32_t response_timestamp{};
-  bool subscribe{false};
-  bool subscribed{false};
-  bool qblock{false};
-  coap_session_t *session{nullptr};
-  coap_bin_const_t *pdu_token{nullptr};
+  std::string name{};
   CoapMethod method = CoapMethod::EMPTY;
   std::string uri{};
   std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset, size_t total,
@@ -54,6 +48,14 @@ struct CoapClientRequestData {
   void *callback_context;
   CoapMediaType media_type = CoapMediaType::TEXT_PLAIN;
   std::string payload{};
+  uint32_t response_timeout{4000};
+  bool observe{false};
+  bool qblock{false};
+  uint32_t create_timestamp{};
+  uint32_t response_timestamp{};
+  bool observing{false};
+  coap_session_t *session{nullptr};
+  coap_bin_const_t *pdu_token{nullptr};
 
   void set_pdu_token(const uint8_t *data, size_t size) { this->pdu_token = coap_new_bin_const(data, size); }
 
@@ -88,23 +90,21 @@ class CoapClientComponent : public Component {
   bool teardown() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-
   void get(std::string uri,
            std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
                               size_t total, void *context)>
                callback,
-           void *callback_context);
-
+           void *callback_context, uint32_t response_timeout = 4000);
   void post(std::string uri,
             std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
                                size_t total, void *context)>
                 callback,
-            void *callback_context, std::string payload, CoapMediaType media_type = CoapMediaType::TEXT_PLAIN);
-
+            void *callback_context, std::string payload, CoapMediaType media_type = CoapMediaType::TEXT_PLAIN,
+            uint32_t response_timeout = 4000);
   void process_request(CoapClientRequestData &tx_request);
+  bool remove_observation(std::string name);
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                           const coap_mid_t mid);
-
   coap_response_t process_response(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                    const coap_mid_t mid);
 
@@ -146,7 +146,7 @@ class CoapClientComponent : public Component {
 #endif
 
  protected:
-  void house_keeping_();
+  void housekeeping_();
   bool is_process_requests_{true};
   std::vector<std::unique_ptr<CoapClientRequestData>> tx_requests_;
   std::mutex mutex_lock_;
@@ -173,7 +173,7 @@ class CoapClientComponent : public Component {
   uint32_t request_timeout_{COAP_RESOURCE_CHECK_TIME * 1000};
   uint32_t ack_timeout_{2000};
   uint8_t max_retransmit_{4};
-  uint32_t request_subscribe_timeout_{128000};
+  uint32_t request_observe_timeout_{128000};
 #ifdef CONFIG_COAP_OSCORE_SUPPORT
   std::string oscore_conf_str_{};
 #endif

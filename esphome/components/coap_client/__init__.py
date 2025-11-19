@@ -22,20 +22,22 @@ from .const import (
     CONF_MAX_RESPONSE_BUFFER_SIZE,
     CONF_MAX_RETRANSMIT,
     CONF_MEDIA_TYPE,
+    CONF_OBSERVE,
     CONF_OSCORE_CONF,
     CONF_PAYLOAD,
     CONF_PSK_IDENTITY,
     CONF_PSK_KEY,
+    CONF_REQUEST_NAME,
     CONF_REQUEST_TIMEOUT,
-    CONF_SUBSCRIBE,
+    CONF_RESPONSE_TIMEOUT,
 )
 
 
 def validate_url(value):
     value = cv.url(value)
-    if value.startswith("coap://") or value.startswith("coaps://"):
+    if value.startswith("coap") or value.startswith("coaps"):
         return value
-    raise cv.Invalid("URL must start with 'coap://' or 'coaps://'")
+    raise cv.Invalid("URL must start with 'coap[s][+tcp|+ws]'")
 
 
 CONF_COAP_CLIENT_ID = "coap_client_id"
@@ -55,9 +57,13 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CoapClientComponent),
         cv.Optional(CONF_MAX_BLOCK_SIZE, default="512B"): cv.validate_bytes,
-        cv.Optional(CONF_REQUEST_TIMEOUT): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_ACK_TIMEOUT): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_MAX_RETRANSMIT): cv.uint8_t,
+        cv.Optional(
+            CONF_REQUEST_TIMEOUT, default="2sec"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_ACK_TIMEOUT, default="2sec"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_RETRANSMIT, default=4): cv.uint8_t,
         cv.Optional(CONF_OSCORE_CONF): cv.string,
         cv.Optional(CONF_PSK_IDENTITY): cv.string,
         cv.Optional(CONF_PSK_KEY): cv.string,
@@ -99,15 +105,31 @@ async def to_code(config):
         cg.add(var.set_client_key(client_key))
 
 
+CONF_MEDIA_TYPES = [
+    "TEXT_PLAIN",
+    "APPLICATION_JSON",
+    "APPLICATION_LINK_FORMAT",
+    "APPLICATION_XML",
+    "APPLICATION_OCTET_STREAM",
+    "APPLICATION_RDF_XML",
+    "APPLICATION_EXI",
+    "APPLICATION_CBOR",
+    "APPLICATION_CWT",
+]
+
 COAP_CLIENT_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(CoapClientComponent),
         cv.Required(CONF_URL): cv.templatable(validate_url),
+        cv.Optional(CONF_REQUEST_NAME): cv.string,
         cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
+        cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
+        cv.Optional(
+            CONF_RESPONSE_TIMEOUT, default="4sec"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_OBSERVE, default="False"): cv.boolean,
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
-        cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
-        cv.Optional(CONF_SUBSCRIBE, default="False"): cv.boolean,
     }
 )
 COAP_CLIENT_GET_ACTION_SCHEMA = automation.maybe_conf(
@@ -123,7 +145,9 @@ COAP_CLIENT_POST_ACTION_SCHEMA = automation.maybe_conf(
     COAP_CLIENT_ACTION_SCHEMA.extend(
         {
             cv.Optional(CONF_METHOD, default="POST"): cv.one_of("POST", upper=True),
-            cv.Optional(CONF_MEDIA_TYPE, default="TEXT"): cv.one_of("TEXT", upper=True),
+            cv.Optional(CONF_MEDIA_TYPE, default="TEXT_PLAIN"): cv.one_of(
+                CONF_MEDIA_TYPES, upper=True
+            ),
             cv.Exclusive(CONF_PAYLOAD, "payload"): cv.templatable(cv.string),
             cv.Exclusive(CONF_JSON, "payload"): cv.Any(
                 cv.lambda_,
@@ -139,7 +163,9 @@ COAP_CLIENT_SEND_ACTION_SCHEMA = automation.maybe_conf(
             cv.Required(CONF_METHOD): cv.one_of(
                 "GET", "POST", "PUT", "DELETE", "PATCH", upper=True
             ),
-            cv.Optional(CONF_MEDIA_TYPE, default="TEXT"): cv.one_of("TEXT", upper=True),
+            cv.Optional(CONF_MEDIA_TYPE, default="TEXT_PLAIN"): cv.one_of(
+                CONF_MEDIA_TYPES, upper=True
+            ),
             cv.Exclusive(CONF_PAYLOAD, "payload"): cv.templatable(cv.string),
             cv.Exclusive(CONF_JSON, "payload"): cv.Any(
                 cv.lambda_,
@@ -154,20 +180,22 @@ COAP_CLIENT_SEND_ACTION_SCHEMA = automation.maybe_conf(
     "coap_client.get", CoapClientSendAction, COAP_CLIENT_GET_ACTION_SCHEMA
 )
 @automation.register_action(
-    "coap_client.get", CoapClientSendAction, COAP_CLIENT_POST_ACTION_SCHEMA
+    "coap_client.post", CoapClientSendAction, COAP_CLIENT_POST_ACTION_SCHEMA
 )
 @automation.register_action(
-    "coap_client.get", CoapClientSendAction, COAP_CLIENT_SEND_ACTION_SCHEMA
+    "coap_client.send", CoapClientSendAction, COAP_CLIENT_SEND_ACTION_SCHEMA
 )
 async def coap_client_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
+    if (name := config.get(CONF_REQUEST_NAME)) is not None:
+        cg.add(var.set_request_name(name))
     cg.add(var.set_method(config[CONF_METHOD]))
     if (media_type := config.get(CONF_MEDIA_TYPE)) is not None:
         if CONF_JSON in config:
-            cg.add(var.set_media_type("JSON"))
+            cg.add(var.set_media_type("APPLICATION_JSON"))
         else:
             cg.add(var.set_media_type(media_type))
     if CONF_PAYLOAD in config:
@@ -186,8 +214,10 @@ async def coap_client_action_to_code(config, action_id, template_arg, args):
 
     if capture_response := config.get(CONF_CAPTURE_RESPONSE):
         cg.add(var.set_capture_response(capture_response))
-    if subscribe := config.get(CONF_SUBSCRIBE):
-        cg.add(var.set_subscribe(subscribe))
+    if (response_timeout := config.get(CONF_RESPONSE_TIMEOUT)) is not None:
+        cg.add(var.set_response_timeout(response_timeout))
+    if observe := config.get(CONF_OBSERVE):
+        cg.add(var.set_observe(observe))
     if (max_buffer := config.get(CONF_MAX_RESPONSE_BUFFER_SIZE)) is not None:
         cg.add(var.set_max_response_buffer_size(max_buffer))
     if response_conf := config.get(CONF_ON_RESPONSE):

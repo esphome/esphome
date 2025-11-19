@@ -1,5 +1,6 @@
 #pragma once
 #include <tuple>
+#include <format>
 #include "coap_client_component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
@@ -10,6 +11,7 @@ static const char *const TAGA = "coap_client_auto";
 
 class CoapResponseStatistics {
  public:
+  std::string request_name;
   size_t content_length;
   uint16_t status_code;
   uint32_t duration_ms;
@@ -26,13 +28,15 @@ class CoapResponseStatistics {
 template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
  public:
   CoapClientSendAction(CoapClientComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, request_name)
   TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(std::string, method)
   TEMPLATABLE_VALUE(std::string, media_type)
   TEMPLATABLE_VALUE(std::string, payload)
   TEMPLATABLE_VALUE(size_t, max_response_buffer_size)
   TEMPLATABLE_VALUE(bool, capture_response)
-  TEMPLATABLE_VALUE(bool, subscribe)
+  TEMPLATABLE_VALUE(bool, observe)
+  TEMPLATABLE_VALUE(uint32_t, response_timeout)
 
   void play(Ts... x) override {
     std::string payload;
@@ -49,16 +53,22 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
       auto f = std::bind(&CoapClientSendAction<Ts...>::encode_json_func_, this, x..., std::placeholders::_1);
       payload = json::build_json(f);
     }
-
+    this->request_name = this->request_name_.value(x...);
+    if (this->request_name.length() == 0) {
+      this->request_name = std::format("{}", esphome::micros());
+    }
     CoapClientRequestData tx_request = {
-        .subscribe = this->subscribe_.value(x...),
+        .name = this->request_name,
         .method = this->get_method_(this->method_.value(x...)),
         .uri = this->url_.value(x...),
         .callback = CoapClientSendAction::callback,
         .callback_context = this,
         .media_type = this->get_media_type_(this->media_type_.value(x...)),
         .payload = payload,
+        .response_timeout = this->response_timeout_.value(x...),
+        .observe = this->observe_.value(x...),
     };
+
     auto resp_stats = get_response_stats();
     resp_stats->clean();
     this->max_resp_buffer_size = this->max_response_buffer_size_.value(x...);
@@ -100,9 +110,10 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
     CoapClientSendAction<Ts...> *obj = (CoapClientSendAction<Ts...> *) context;
     auto resp_stats = obj->get_response_stats();
 
-    if (len == 0 && offset == 0 && total == 0) {
+    if (len == 0 && offset == 0 && total == 0 && (response_code < 200 || response_code > 299)) {
       // Error
       obj->response_has_error = true;
+      resp_stats->request_name = obj->request_name;
       resp_stats->content_length = 0;
       resp_stats->status_code = response_code;
       resp_stats->duration_ms = esphome::millis() - resp_stats->start_ms;
@@ -119,6 +130,7 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
       }
     }
     if (total > 0 && len + offset == total) {
+      resp_stats->request_name = obj->request_name;
       resp_stats->content_length = total;
       resp_stats->status_code = response_code;
       resp_stats->duration_ms = esphome::millis() - obj->response_stats->start_ms;
@@ -143,6 +155,7 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
   bool response_has_error{false};
 
   size_t max_resp_buffer_size{1000};
+  std::string request_name{};
   bool capture_resp{false};
   std::tuple<Ts...> captured_args;
 

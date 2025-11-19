@@ -193,10 +193,12 @@ void OtaCoapClientComponent::append_image(const uint8_t *block, uint16_t length,
 }
 
 bool OtaCoapClientComponent::validate_url_(const std::string &url) {
+  /*
   if ((url.length() < 8) || !url.starts_with("coap") || (url.find("://") == std::string::npos)) {
-    ESP_LOGE(TAG, "URL is invalid and/or must be prefixed with 'coap://' or 'coaps://'");
+    ESP_LOGE(TAG, "URL is invalid allowed schemes: coap[s][+tcp|+ws]");
     return false;
   }
+  */
   return true;
 }
 
