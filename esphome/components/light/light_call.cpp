@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -647,5 +646,4 @@ LightCall &LightCall::set_rgbw(float red, float green, float blue, float white) 
   return *this;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

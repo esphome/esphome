@@ -102,7 +102,7 @@ def customise_schema(config):
     """
     config = cv.Schema(
         {
-            cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
+            cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True, space="-"),
         },
         extra=cv.ALLOW_EXTRA,
     )(config)

@@ -872,7 +872,13 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
-int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
+int8_t WiFiComponent::wifi_rssi() {
+  if (WiFi.status() != WL_CONNECTED)
+    return WIFI_RSSI_DISCONNECTED;
+  int8_t rssi = WiFi.RSSI();
+  // Values >= 31 are error codes per NONOS SDK API, not valid RSSI readings
+  return rssi >= 31 ? WIFI_RSSI_DISCONNECTED : rssi;
+}
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
