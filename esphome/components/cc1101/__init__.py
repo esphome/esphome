@@ -1,4 +1,4 @@
-from esphome import automation, pins
+from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import remote_base, spi
@@ -17,7 +17,6 @@ from .const import (
     CONF_FILTER_LENGTH_FSK_MSK,
     CONF_FREEZE,
     CONF_FSK_DEVIATION,
-    CONF_GDO0_PIN,
     CONF_HYST_LEVEL,
     CONF_IF_FREQUENCY,
     CONF_LNA_PRIORITY,
@@ -28,6 +27,7 @@ from .const import (
     CONF_MODULATION_TYPE,
     CONF_MSK_DEVIATION,
     CONF_NUM_PREAMBLE,
+    CONF_OPERATION_MODE,
     CONF_OUTPUT_POWER,
     CONF_PKTLEN,
     CONF_RX_ATTENUATION,
@@ -38,11 +38,15 @@ from .const import (
     FILTER_LENGTH_ASK_OOK,
     FILTER_LENGTH_FSK_MSK,
     FREEZE,
+    GDO_CFG_ASYNC_SERIAL_IO,
+    GDO_CFG_HIGH_IMPEDANCE,
+    GDO_CFG_TX_DATA_INPUT,
     HYST_LEVEL,
     MAGN_TARGET,
     MAX_DVGA_GAIN,
     MAX_LNA_GAIN,
     MODULATION,
+    OPERATION_MODE,
     RX_ATTENUATION,
     SYNC_MODE,
     WAIT_TIME,
@@ -95,7 +99,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CC1101Component),
-            cv.Optional(CONF_GDO0_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_OPERATION_MODE, default="DUAL_PIN"): cv.enum(
+                OPERATION_MODE, upper=True
+            ),
         }
     )
     .extend({cv.Optional(key): validator for key, validator in CONFIG_MAP.items()})
@@ -108,10 +114,21 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
+    # NEW: Logic to set IOCFG0/2 based on module's fixed pinout
+    operation_mode = config[CONF_OPERATION_MODE]
 
-    if CONF_GDO0_PIN in config:
-        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
-        cg.add(var.set_config_gdo0_pin(gdo0_pin))
+    if operation_mode == OPERATION_MODE["DUAL_PIN"]:
+        # Dual-Pin Mode (GDO0=TX Input, GDO2=RX Output)
+        # GDO0 (TX pin, Module Pin 3) is set to dedicated TX Data Input (0x29)
+        cg.add(var.set_gdo0_config(GDO_CFG_TX_DATA_INPUT))
+        # GDO2 (RX pin, Module Pin 8) is set to RX Output (0x0D)
+        cg.add(var.set_gdo2_config(GDO_CFG_ASYNC_SERIAL_IO))
+    else:  # SINGLE_PIN mode
+        # Single-Pin Mode (GDO0=Bi-directional, GDO2=Disabled)
+        # GDO0 (Single Pin, Module Pin 3) is set to Bi-directional I/O (0x0D)
+        cg.add(var.set_gdo0_config(GDO_CFG_ASYNC_SERIAL_IO))
+        # GDO2 (Unused, Module Pin 8) is set to High-Z (0x2E)
+        cg.add(var.set_gdo2_config(GDO_CFG_HIGH_IMPEDANCE))
 
     # Simplified loop: directly maps key -> set_key
     for key in CONFIG_MAP:

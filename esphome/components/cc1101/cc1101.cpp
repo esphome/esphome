@@ -16,7 +16,6 @@ constexpr bool is_float_in_range(float value, float min, float max) { return val
 constexpr bool is_int_in_range(int value, int min, int max) { return value >= min && value <= max; }
 
 CC1101Component::CC1101Component() {
-  this->gdo0_ = nullptr;
   this->reset_ = false;
   this->output_power_requested_ = 10.0f;  // Default 10dBm
   this->output_power_effective_ = 10.0f;
@@ -120,11 +119,6 @@ CC1101Component::CC1101Component() {
 }
 
 void CC1101Component::setup() {
-  if (this->gdo0_ != nullptr) {
-    this->gdo0_->setup();
-    this->gdo0_->pin_mode(gpio::FLAG_INPUT);
-  }
-
   this->spi_setup();
   this->cs_->digital_write(true);
   delayMicroseconds(1);
@@ -166,7 +160,6 @@ void CC1101Component::setup() {
 void CC1101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CC1101:");
   LOG_PIN("  CS Pin: ", this->cs_);
-  LOG_PIN("  GDO0: ", this->gdo0_);
   ESP_LOGCONFIG(TAG, "  Chip ID: %s", this->chip_id_.c_str());
 }
 
@@ -193,11 +186,6 @@ void CC1101Component::end_tx() {
 
   // 1. Return to RX Mode
   this->enter_rx_();
-
-  // 3. Ensure MCU pin is safe (High-Z)
-  if (this->gdo0_ != nullptr) {
-    this->gdo0_->pin_mode(gpio::FLAG_INPUT);
-  }
 }
 
 void CC1101Component::reset() {
@@ -209,6 +197,20 @@ void CC1101Component::set_idle() {
   // The private helper function handles the strobe to Command::IDLE
   this->enter_idle_();
   ESP_LOGV(TAG, "Transitioned to IDLE state.");
+}
+
+void CC1101Component::set_gdo0_config(uint8_t value) {
+  this->state_.GDO0_CFG = value;
+  if (!this->reset_)
+    return;
+  this->write_(Register::IOCFG0);
+}
+
+void CC1101Component::set_gdo2_config(uint8_t value) {
+  this->state_.GDO2_CFG = value;
+  if (!this->reset_)
+    return;
+  this->write_(Register::IOCFG2);
 }
 
 bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {

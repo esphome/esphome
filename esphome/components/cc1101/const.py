@@ -9,8 +9,12 @@ DEPENDENCIES = ["spi", "button", "remote_receiver"]
 AUTO_LOAD = ["remote_base", "remote_transmitter", "binary_sensor"]
 MULTI_CONF = True
 
-CONF_GDO0_PIN = "gdo0_pin"
-CONF_GDO0_ADC_ID = "gdo0_adc_id"
+CONF_OPERATION_MODE = "operation_mode"
+
+# CC1101 IOCFG values (GDOx_CFG field, bits [5:0])
+GDO_CFG_ASYNC_SERIAL_IO = 0x0D  # Asynchronous Serial Data I/O (RX Output / TX Input)
+GDO_CFG_TX_DATA_INPUT = 0x29  # TX Data Input (Dedicated TX pin)
+GDO_CFG_HIGH_IMPEDANCE = 0x2E  # High Impedance (Default for unused GDOs)
 CONF_OUTPUT_POWER = "output_power"
 CONF_RX_ATTENUATION = "rx_attenuation"
 CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
@@ -44,6 +48,11 @@ CONF_FREEZE = "freeze"
 CONF_HYST_LEVEL = "hyst_level"
 
 # Enums
+OperationMode = ns.enum("OperationMode", True)
+OPERATION_MODE = {
+    "DUAL_PIN": OperationMode.OPERATION_MODE_DUAL_PIN,
+    "SINGLE_PIN": OperationMode.OPERATION_MODE_SINGLE_PIN,
+}
 SyncMode = ns.enum("SyncMode", True)
 SYNC_MODE = {
     "None": SyncMode.SYNC_MODE_NONE,

@@ -17,8 +17,6 @@ class CC1101Component : public Component,
  public:
   CC1101Component();
 
-  void set_config_gdo0_pin(GPIOPin *pin) { gdo0_ = pin; }
-
   void setup() override;
   void dump_config() override;
   void loop() override;
@@ -28,10 +26,9 @@ class CC1101Component : public Component,
   void end_tx();
   void reset();
   void set_idle();
-
-  // --- NEW HELPER FOR LAMBDAS ---
-  void write_register(uint8_t reg, uint8_t value) { this->write_((Register) reg, value); }
-  // ------------------------------
+  // GDO Pin Configuration
+  void set_gdo0_config(uint8_t value);  // Added
+  void set_gdo2_config(uint8_t value);  // Added
 
   // Configuration Setters
   void set_output_power(float value);
@@ -70,7 +67,6 @@ class CC1101Component : public Component,
   void set_hyst_level(HystLevel value);
 
  protected:
-  GPIOPin *gdo0_{nullptr};
   std::string chip_id_;
   bool reset_{false};
   bool is_calibrated_{false};
