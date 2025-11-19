@@ -100,6 +100,29 @@ nrf52:
 
 - **reset_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The pin to use for trigger a hardware reset. This pin should be connected to the MCU's reset line or to a circuit that causes the bootloader to enter DFU mode after reset.
 
+## REGOUT0
+
+Output voltage from the REG0 regulator stage, which powers the GPIO pins when the board operates in high-voltage mode.
+This setting can only be changed a limited number of times, unless uicr_erase is set to true.
+Requires `mcuboot` or `adafruit` bootloader version 0.9.3 or higher.
+
+### Example Configuration
+
+```yaml
+nrf52:
+  reg0:
+    voltage: 3.3V
+    uicr_erase: true
+```
+
+### Configuration variables
+
+- **voltage** (**Required**, voltage): The desired output voltage - must be one of
+  1.8V, 2.1V, 2.4V, 2.7V, 3.0V, 3.3V.
+- **uicr_erase** (**Optional**, bool): If set to true, the User Information Configuration Registers (UICR)
+will be erased before writing the new voltage setting.
+⚠️ Warning: Enabling this may cause the board to fail to boot if misconfigured. Default is false.
+
 ## Troubleshooting
 
 ### Flashing is unstable
