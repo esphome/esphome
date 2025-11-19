@@ -407,3 +407,6 @@ class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
 #endif  // USE_LVGL_KEYBOARD
 }  // namespace lvgl
 }  // namespace esphome
+
+// Include HA card widget types - must be after LvCompound is defined
+#include "ha_cards.h"

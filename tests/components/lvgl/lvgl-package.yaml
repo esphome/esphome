@@ -1055,6 +1055,91 @@ lvgl:
                 hidden: true
                 mode: text_lower
 
+    - id: page4
+      layout:
+        type: flex
+        flex_flow: column
+        pad_row: 10
+      widgets:
+        # Test HA-style card widgets
+        - gauge_card:
+            id: test_gauge_card
+            width: 150
+            height: 150
+            min_value: 0
+            max_value: 100
+            value: 75
+            name: "Temperature"
+            unit_of_measurement: "°C"
+            format: "%.1f"
+            arc_color: 0x3498DB
+            background_arc_color: 0x404040
+            show_value: true
+            show_name: true
+            on_value:
+              logger.log:
+                format: "Gauge value: %.1f"
+                args: [x]
+
+        - button_card:
+            id: test_button_card
+            width: 100
+            height: 100
+            icon: cat_image
+            name: "Light"
+            state: false
+            icon_color: 0xFFFFFF
+            icon_on_color: 0xFFD700
+            show_state: true
+            state_text_on: "On"
+            state_text_off: "Off"
+            on_click:
+              - lvgl.button_card.update:
+                  id: test_button_card
+                  state: true
+
+        - tile_card:
+            id: test_tile_card
+            width: 200
+            height: 80
+            icon: dog_image
+            name: "Living Room"
+            state: false
+            state_text: "Idle"
+            icon_color: 0xFFFFFF
+            vertical: false
+            on_click:
+              logger.log: "Tile card clicked"
+
+        - entity_card:
+            id: test_entity_card
+            width: 250
+            height: 60
+            icon: cat_image
+            name: "Sensor"
+            value: "23.5°C"
+            icon_color: 0x3498DB
+
+        - thermostat_card:
+            id: test_thermostat_card
+            width: 200
+            height: 200
+            name: "Thermostat"
+            current_temperature: 21.5
+            target_temperature: 22.0
+            min_value: 10.0
+            max_value: 30.0
+            step: 0.5
+            show_current: true
+            show_setpoint: true
+            show_buttons: true
+            arc_color: 0x3498DB
+            unit: "°"
+            on_value:
+              logger.log:
+                format: "Thermostat value: %.1f"
+                args: [x]
+
 font:
   - file: "gfonts://Roboto"
     id: space16
