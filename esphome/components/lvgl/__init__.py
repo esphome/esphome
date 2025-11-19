@@ -4,7 +4,11 @@ import pkgutil
 
 from esphome.automation import build_automation, validate_automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_COLOR_DEPTH, CONF_DRAW_ROUNDING
+from esphome.components.const import (
+    CONF_BYTE_ORDER,
+    CONF_COLOR_DEPTH,
+    CONF_DRAW_ROUNDING,
+)
 from esphome.components.display import Display
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
@@ -49,7 +53,7 @@ from .schemas import (
     container_schema,
     obj_schema,
 )
-from .styles import add_top_layer, styles_to_code, theme_to_code
+from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import add_on_boot_triggers, generate_triggers
 from .types import IdleTrigger, PlainTrigger, lv_font_t, lv_group_t, lv_style_t, lvgl_ns
@@ -131,7 +135,7 @@ def multi_conf_validate(configs: list[dict]):
         for item in (
             CONF_LOG_LEVEL,
             CONF_COLOR_DEPTH,
-            df.CONF_BYTE_ORDER,
+            CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
         ):
             if base_config[item] != config[item]:
@@ -208,6 +212,7 @@ async def to_code(configs):
         "LV_LOG_LEVEL",
         f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[CONF_LOG_LEVEL]]}",
     )
+    add_define("LV_USE_LOG", "1")
     cg.add_define(
         "LVGL_LOG_LEVEL",
         cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
@@ -219,7 +224,7 @@ async def to_code(configs):
     if config_0[CONF_COLOR_DEPTH] == 16:
         add_define(
             "LV_COLOR_16_SWAP",
-            "1" if config_0[df.CONF_BYTE_ORDER] == "big_endian" else "0",
+            "1" if config_0[CONF_BYTE_ORDER] == "big_endian" else "0",
         )
     add_define(
         "LV_COLOR_CHROMA_KEY",
@@ -288,7 +293,7 @@ async def to_code(configs):
             await add_pages(lv_component, config)
             await layers_to_code(lv_component, config)
             await msgboxes_to_code(lv_component, config)
-            await disp_update(lv_component.get_disp(), config)
+            # await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
     Widget.widgets_completed = True
     async with LvContext():
@@ -326,7 +331,7 @@ async def to_code(configs):
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
     cg.add_build_flag("-DLV_CONF_H=1")
-    cg.add_build_flag(f'-DLV_CONF_PATH="{LV_CONF_FILENAME}"')
+    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{LV_CONF_FILENAME}\\"')
 
 
 def display_schema(config):
@@ -373,7 +378,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
-                cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
+                cv.Optional(CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
                     "big_endian", "little_endian", lower=True
                 ),
                 cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(

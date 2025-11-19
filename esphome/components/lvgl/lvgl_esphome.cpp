@@ -444,9 +444,12 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
 }
 
 void LvglComponent::setup() {
+  ESP_LOGD(TAG, "Start setup");
   auto *display = this->displays_[0];
   auto rounding = this->draw_rounding;
   // cater for displays with dimensions that don't divide by the required rounding
+  this->width_ = display->get_width();
+  this->height_ = display->get_height();
   auto width = (display->get_width() + rounding - 1) / rounding * rounding;
   auto height = (display->get_height() + rounding - 1) / rounding * rounding;
   auto frac = this->buffer_frac_;
@@ -458,6 +461,7 @@ void LvglComponent::setup() {
     buffer = malloc(buf_bytes);  // NOLINT
   if (buffer == nullptr)
     buffer = lv_malloc_core(buf_bytes);  // NOLINT
+  ESP_LOGD(TAG, "malloc complete");
   // if specific buffer size not set and can't get 100%, try for a smaller one
   if (buffer == nullptr && this->buffer_frac_ == 0) {
     frac = MIN_BUFFER_FRAC;
@@ -471,13 +475,20 @@ void LvglComponent::setup() {
   }
   this->buffer_frac_ = frac;
   this->draw_buf_ = static_cast<uint8_t *>(buffer);
+  ESP_LOGD(TAG, "Setting resolution to %d/%d", this->width_, this->height_);
   lv_display_set_resolution(this->disp_, this->width_, this->height_);
+  ESP_LOGD(TAG, "Setting color format");
   lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_RGB565);
+  ESP_LOGD(TAG, "Setting flush cb");
+  lv_display_set_flush_cb(this->disp_, static_flush_cb);
+  ESP_LOGD(TAG, "Setting user data");
+  lv_display_set_user_data(this->disp_, this);
+  ESP_LOGD(TAG, "Setting rounder cb");
+  lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
+  ESP_LOGD(TAG, "Setting buffers, buf_bytes = %zu", buf_bytes);
   lv_display_set_buffers(this->disp_, this->draw_buf_, nullptr, buf_bytes,
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
-  lv_display_set_user_data(this->disp_, this);
-  lv_display_set_flush_cb(this->disp_, static_flush_cb);
-  lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
+  ESP_LOGD(TAG, "Done Setting buffers");
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_malloc_core(buf_bytes));  // NOLINT
@@ -488,12 +499,15 @@ void LvglComponent::setup() {
     }
   }
   if (this->draw_start_callback_ != nullptr) {
+    ESP_LOGD(TAG, "Setting render cb");
     lv_display_add_event_cb(this->disp_, render_start_cb, LV_EVENT_RENDER_START, this);
   }
   if (this->draw_end_callback_ != nullptr) {
+    ESP_LOGD(TAG, "Setting refr cb");
     lv_display_add_event_cb(this->disp_, render_end_cb, LV_EVENT_REFR_READY, this);
   }
 #if LV_USE_LOG
+  ESP_LOGD(TAG, "Setting log cb");
   lv_log_register_print_cb([](lv_log_level_t level, const char *buf) {
     auto next = strchr(buf, ')');
     if (next != nullptr)
@@ -505,12 +519,15 @@ void LvglComponent::setup() {
     esp_log_printf_(log_level_map[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
 #endif
+  ESP_LOGD(TAG, "Setting tick_cb");
   lv_tick_set_cb([] { return millis(); });
   // Rotation will be handled by our drawing function, so reset the display rotation.
   for (auto *disp : this->displays_)
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
+  ESP_LOGD(TAG, "Showing page");
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
+  ESP_LOGD(TAG, "Setup done");
 }
 
 void LvglComponent::update() {

@@ -11,7 +11,6 @@ from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
-from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
@@ -21,6 +20,17 @@ LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
 lv_defines = {}  # Dict of #defines to provide as build flags
+
+
+class StaticCastExpression(Expression):
+    __slots__ = ("type", "exp")
+
+    def __init__(self, type: str, exp: SafeExpType):
+        self.type = type
+        self.exp = cg.safe_exp(exp)
+
+    def __str__(self):
+        return f"static_cast<{self.type}>({self.exp})"
 
 
 def add_define(macro, value="1"):
@@ -35,10 +45,6 @@ def literal(arg) -> MockObj:
     if isinstance(arg, str):
         return MockObj(arg)
     return arg
-
-
-def static_cast(type, value):
-    return literal(f"static_cast<{type}>({value})")
 
 
 def call_lambda(lamb: LambdaExpression):
@@ -110,9 +116,10 @@ class LvConstant(LValidator):
     The property `one_of` has the single case validator, and `several_of` allows a list of constants.
     """
 
-    def __init__(self, prefix: str, *choices):
+    def __init__(self, prefix: str, *choices, typename=None):
         self.prefix = prefix
         self.choices = choices
+        self.typename = typename or prefix.lower() + "t"
         prefixed_choices = [prefix + v for v in choices]
         prefixed_validator = cv.one_of(*prefixed_choices, upper=True)
 
@@ -124,24 +131,30 @@ class LvConstant(LValidator):
                 return prefixed_validator(value)
             return self.prefix + cv.one_of(*choices, upper=True)(value)
 
-        super().__init__(validator, rtype=uint32)
+        super().__init__(validator, rtype=cg.uint32)
         self.retmapper = self.mapper
-        self.one_of = LValidator(validator, uint32, retmapper=self.mapper)
+        self.one_of = LValidator(validator, cg.uint32, retmapper=self.mapper)
         self.several_of = LValidator(
-            cv.ensure_list(self.one_of), uint32, retmapper=self.mapper
+            cv.ensure_list(self.one_of), cg.uint32, retmapper=self.mapper
         )
 
     def mapper(self, value):
         if not isinstance(value, list):
             value = [value]
-        return literal(
-            "|".join(
-                [
-                    str(v) if str(v).startswith(self.prefix) else self.prefix + str(v)
-                    for v in value
-                ]
-            ).upper()
-        )
+        value = [
+            (
+                str(v).upper()
+                if str(v).startswith(self.prefix)
+                else self.prefix + str(v).upper()
+            )
+            for v in value
+        ]
+        if len(value) == 1:
+            return literal(value[0])
+        value = literal("|".join(value))
+        if self.typename is None:
+            return value
+        return StaticCastExpression(self.typename, value)
 
     def extend(self, *choices):
         """
@@ -149,7 +162,9 @@ class LvConstant(LValidator):
         :param choices: The extra choices
         :return: A new LVConstant instance
         """
-        return LvConstant(self.prefix, *(self.choices + choices))
+        return LvConstant(
+            self.prefix, *(self.choices + choices), typename=self.typename
+        )
 
 
 # Parts
@@ -168,7 +183,9 @@ TYPE_FLEX = "flex"
 TYPE_GRID = "grid"
 TYPE_NONE = "none"
 
-DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
+DIRECTIONS = LvConstant(
+    "LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP", typename="lv_dir_t"
+)
 
 LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
     "dejavu_16_persian_hebrew",
@@ -355,9 +372,10 @@ OBJ_FLAGS = (
 
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
+SLIDER_MODES = LvConstant("LV_SLIDER_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
 
 BUTTONMATRIX_CTRLS = LvConstant(
-    "LV_BTNMATRIX_CTRL_",
+    "LV_BUTTONMATRIX_CTRL_",
     "HIDDEN",
     "NO_REPEAT",
     "DISABLED",
@@ -368,6 +386,7 @@ BUTTONMATRIX_CTRLS = LvConstant(
     "RECOLOR",
     "CUSTOM_1",
     "CUSTOM_2",
+    typename="lv_buttonmatrix_ctrl_t",
 )
 
 LV_BASE_ALIGNMENTS = (
@@ -420,12 +439,15 @@ CONF_ACCEPTED_CHARS = "accepted_chars"
 CONF_ADJUSTABLE = "adjustable"
 CONF_ALIGN = "align"
 CONF_ALIGN_TO = "align_to"
+CONF_ANGLE_RANGE = "angle_range"
 CONF_ANIMATED = "animated"
 CONF_ANIMATION = "animation"
+CONF_ANIMATIONS = "animations"
 CONF_ANTIALIAS = "antialias"
 CONF_ARC_LENGTH = "arc_length"
 CONF_AUTO_START = "auto_start"
 CONF_BACKGROUND_STYLE = "background_style"
+CONF_BOTTOM_LAYER = "bottom_layer"
 CONF_BUTTON_STYLE = "button_style"
 CONF_DECIMAL_PLACES = "decimal_places"
 CONF_COLUMN = "column"
@@ -435,9 +457,11 @@ CONF_DISP_BG_IMAGE = "disp_bg_image"
 CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
 CONF_BUTTONS = "buttons"
-CONF_BYTE_ORDER = "byte_order"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
+CONF_COLOR_DEPTH = "color_depth"
+CONF_COLOR_END = "color_end"
+CONF_COLOR_START = "color_start"
 CONF_CONTAINER = "container"
 CONF_CONTROL = "control"
 CONF_DEFAULT_FONT = "default_font"
@@ -469,8 +493,10 @@ CONF_GRID_COLUMN_ALIGN = "grid_column_align"
 CONF_GRID_COLUMNS = "grid_columns"
 CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
+CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
+CONF_INDICATORS = "indicators"
 CONF_INITIAL_FOCUS = "initial_focus"
 CONF_SELECTED_DIGIT = "selected_digit"
 CONF_KEY_CODE = "key_code"
@@ -482,6 +508,7 @@ CONF_LONG_PRESS_TIME = "long_press_time"
 CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
+CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
@@ -503,12 +530,14 @@ CONF_PIVOT_Y = "pivot_y"
 CONF_PLACEHOLDER_TEXT = "placeholder_text"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
+CONF_RADIUS = "radius"
 CONF_REPEAT_COUNT = "repeat_count"
 CONF_RECOLOR = "recolor"
 CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
+CONF_ROWS = "rows"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SELECTED_INDEX = "selected_index"
@@ -519,6 +548,7 @@ CONF_SRC = "src"
 CONF_START_ANGLE = "start_angle"
 CONF_START_VALUE = "start_value"
 CONF_STATES = "states"
+CONF_STRIDE = "stride"
 CONF_STYLE = "style"
 CONF_STYLES = "styles"
 CONF_STYLE_DEFINITIONS = "style_definitions"
@@ -527,6 +557,7 @@ CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
 CONF_TAB_ID = "tab_id"
 CONF_TABS = "tabs"
+CONF_TICK_STYLE = "tick_style"
 CONF_TIME_FORMAT = "time_format"
 CONF_TILE = "tile"
 CONF_TILE_ID = "tile_id"
@@ -540,6 +571,8 @@ CONF_UPDATE_ON_RELEASE = "update_on_release"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
+CONF_X = "x"
+CONF_Y = "y"
 CONF_ZOOM = "zoom"
 
 # Keypad keys
@@ -558,6 +591,16 @@ LV_KEYS = LvConstant(
     "PREV",
     "HOME",
     "END",
+)
+
+LV_SCALE_MODE = LvConstant(
+    "LV_SCALE_MODE_",
+    "HORIZONTAL_TOP",
+    "HORIZONTAL_BOTTOM",
+    "VERTICAL_LEFT",
+    "VERTICAL_RIGHT",
+    "ROUND_INNER",
+    "ROUND_OUTER",
 )
 
 

@@ -10,14 +10,17 @@ from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
+    CONF_BOTTOM_LAYER,
     CONF_EDITING,
     CONF_FREEZE,
     CONF_LVGL_ID,
+    CONF_MAIN,
+    CONF_OBJ,
+    CONF_SCROLLBAR,
     CONF_SHOW_SNOW,
     CONF_TOP_LAYER,
     PARTS,
-    literal,
-    static_cast,
+    StaticCastExpression,
 )
 from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import (
@@ -46,6 +49,7 @@ from .types import (
     LvglAction,
     LvglCondition,
     ObjUpdateAction,
+    WidgetType,
     lv_group_t,
     lv_obj_base_t,
     lv_obj_t,
@@ -190,6 +194,9 @@ async def obj_invalidate_to_code(config, action_id, template_arg, args):
     return await action_to_code(widgets, do_invalidate, action_id, template_arg, args)
 
 
+layer_spec = WidgetType(CONF_OBJ, lv_obj_t, (CONF_MAIN, CONF_SCROLLBAR), is_mock=True)
+
+
 @automation.register_action(
     "lvgl.update",
     LvglAction,
@@ -206,7 +213,6 @@ async def obj_invalidate_to_code(config, action_id, template_arg, args):
 async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config, CONF_LVGL_ID)
     w = widgets[0]
-    disp = literal(f"{w.obj}->get_disp()")
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
         await layers_to_code(w, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
@@ -327,7 +333,7 @@ async def widget_focus(config, action_id, template_arg, args):
     widget = await get_widgets(config)
     if widget:
         widget = widget[0]
-        group = static_cast(
+        group = StaticCastExpression(
             lv_group_t.operator("ptr"), lv_expr.obj_get_group(widget.obj)
         )
     elif group := config.get(CONF_GROUP):
