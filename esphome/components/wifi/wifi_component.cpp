@@ -330,6 +330,16 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   this->wifi_pre_setup_();
+
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  // Create semaphore for high-performance mode requests
+  // Start at 0, increment on request, decrement on release
+  this->high_performance_semaphore_ = xSemaphoreCreateCounting(UINT32_MAX, 0);
+  if (this->high_performance_semaphore_ == nullptr) {
+    ESP_LOGE(TAG, "Failed semaphore");
+  }
+#endif
+
   if (this->enable_on_boot_) {
     this->start();
   } else {
@@ -366,13 +376,6 @@ void WiFiComponent::start() {
   }
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
-  // Create semaphore for high-performance mode requests
-  // Start at 0, increment on request, decrement on release
-  this->high_performance_semaphore_ = xSemaphoreCreateCounting(UINT32_MAX, 0);
-  if (this->high_performance_semaphore_ == nullptr) {
-    ESP_LOGE(TAG, "Failed semaphore");
-  }
-
   // Store the configured power save mode as baseline
   this->configured_power_save_ = this->power_save_;
 #endif
