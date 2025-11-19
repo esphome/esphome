@@ -36,11 +36,11 @@ class C4002Listener {
   virtual void on_target_state(bool presence){};
 };
 
-#define TIME_OUT 0x64       ///< time out
-#define FRAME_HEADER1 0xFA  ///< frame header1
-#define FRAME_HEADER2 0xF5  ///< frame header2
-#define FRAME_HEADER3 0xAA  ///< frame header3
-#define FRAME_HEADER4 0xA5  ///< frame header4
+#define TIME_OUT 0x64             ///< time out
+#define C4002_FRAME_HEADER1 0xFA  ///< frame header1
+#define C4002_FRAME_HEADER2 0xF5  ///< frame header2
+#define C4002_FRAME_HEADER3 0xAA  ///< frame header3
+#define C4002_FRAME_HEADER4 0xA5  ///< frame header4
 
 #define FRAME_TYPE_WRITE_REQUSET 0x00  ///< write request frame type
 #define FRAME_TYPE_READ_REQUSET 0x01   ///< read request frame type
@@ -251,7 +251,7 @@ class C4002Component : public Component, public uart::UARTDevice {
   bool set_light_threshold(float threshold);
   bool set_resolution_mode(ResolutionMode mode);
 
-  bool enable_distance_door(DistanceDoorType door_type, uint8_t *door_data);
+  bool enable_distance_door(DistanceDoorType door_type, const uint8_t *door_data);
   bool enable_all_distance_door(uint8_t *door_data);
 
   bool set_detect_range(uint16_t closest, uint16_t farthest);
@@ -286,8 +286,8 @@ class C4002Component : public Component, public uart::UARTDevice {
 
   void send_pack(void *pdata, uint16_t len, uint8_t msg_type);
   RecvPck recv_pack();
-  bool check_sum(uint8_t *pdata, uint8_t len);
-  uint16_t get_check_sum(uint8_t *pdata, uint16_t len);
+  bool check_sum(const uint8_t *pdata, uint8_t len);
+  uint16_t get_check_sum(const uint8_t *pdata, uint16_t len);
 
   size_t uart_read_raw(uint8_t *buf, size_t bufsize, uint32_t timeout_ms = 200);
   void uart_write_data(uint8_t *datas, size_t len);

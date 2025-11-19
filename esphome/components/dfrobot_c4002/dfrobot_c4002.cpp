@@ -28,8 +28,9 @@ void C4002Component::loop() {
   // Perform periodic tasks here
   static uint32_t last_time = 0;
   uint32_t now = millis();
+  RetResult ret = {};
 
-  RetResult ret = get_note_info_loop();
+  ret = get_note_info_loop();
   if (ret.noteType == NOTE_INFO_RESULT) {
     ESP_LOGD(TAG, "******run print NOTE_INFO_RESULT*********");
   } else if (ret.noteType == NOTE_INFO_CALIBRATION) {
@@ -98,15 +99,15 @@ void C4002Component::update_config_param() {
 
   if (min_range_number_ != nullptr) {
     min_range_number_->publish_state(current_detection_range_min_);
-    ESP_LOGD(TAG, "Publishing min_range_: %.2f", min_detect_range_);
+    ESP_LOGD(TAG, "Publishing min_range_: %.2f", current_detection_range_min_);
   }
   if (max_range_number_ != nullptr) {
     max_range_number_->publish_state(current_detection_range_max_);
-    ESP_LOGD(TAG, "Publishing max_range_: %.2f", max_detect_range_);
+    ESP_LOGD(TAG, "Publishing max_range_: %.2f", current_detection_range_max_);
   }
   if (light_threshold_number_ != nullptr) {
     light_threshold_number_->publish_state(current_light_threshold);
-    ESP_LOGD(TAG, "Publishing light_threshold_: %.2f", light_threshold_number_);
+    ESP_LOGD(TAG, "Publishing light_threshold_: %.2f", current_light_threshold);
   }
   if (area1_min_range_number_ != nullptr) {
     area1_min_range_number_->publish_state(current_area_[AREA1_DOOR_MIN] + 1);
@@ -140,8 +141,6 @@ void C4002Component::update_config_param() {
   } else {
     ESP_LOGD(TAG, "set report period failed");
   }
-
-  return;
 }
 
 bool C4002Component::get_out_mode() {
@@ -154,8 +153,8 @@ bool C4002Component::get_out_mode() {
   send_pack(send_date, data_len, FRAME_TYPE_READ_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    out_mode_ = (OutMode) rec_pack .data[0];
+  if (SUCCEED == rec_pack.resPonCode) {
+    out_mode_ = (OutMode) rec_pack.data[0];
     return true;
   } else {
     return false;
@@ -174,7 +173,7 @@ bool C4002Component::set_out_mode(OutMode out_mode) {
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
+  if (SUCCEED == rec_pack.resPonCode) {
     out_mode_ = out_mode;
     return true;
   } else {
@@ -190,17 +189,13 @@ bool C4002Component::set_light_threshold(float threshold) {
   send_date[data_len++] = READ_AND_WRITE_REQ;
   send_date[data_len++] = temp >> 0 & 0xFF;
   send_date[data_len++] = temp >> 8 & 0xFF;
-  uint16_t thresholdTemp = (uint16_t) (threshold * 10);
-  send_date[data_len++] = thresholdTemp >> 0 & 0xFF;
-  send_date[data_len++] = thresholdTemp >> 8 & 0xFF;
+  uint16_t threshold_temp = (uint16_t) (threshold * 10);
+  send_date[data_len++] = threshold_temp >> 0 & 0xFF;
+  send_date[data_len++] = threshold_temp >> 8 & 0xFF;
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    return true;
-  } else {
-    return false;
-  }
+  return (SUCCEED == rec_pack.resPonCode);
 }
 
 bool C4002Component::factory_reset() {
@@ -215,11 +210,7 @@ bool C4002Component::factory_reset() {
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    return true;
-  } else {
-    return false;
-  }
+  return (SUCCEED == rec_pack.resPonCode);
 }
 
 bool C4002Component::set_resolution_mode(ResolutionMode mode) {
@@ -233,7 +224,7 @@ bool C4002Component::set_resolution_mode(ResolutionMode mode) {
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
+  if (SUCCEED == rec_pack.resPonCode) {
     resolution_mode_ = mode;
     return true;
   } else {
@@ -241,7 +232,7 @@ bool C4002Component::set_resolution_mode(ResolutionMode mode) {
   }
 }
 
-bool C4002Component::enable_distance_door(DistanceDoorType door_type, uint8_t *door_data) {
+bool C4002Component::enable_distance_door(DistanceDoorType door_type, const uint8_t *door_data) {
   uint8_t send_date[40];
   uint16_t data_len = 0;
   uint16_t temp = 5;
@@ -264,11 +255,7 @@ bool C4002Component::enable_distance_door(DistanceDoorType door_type, uint8_t *d
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    return true;
-  } else {
-    return false;
-  }
+  return (SUCCEED == rec_pack.resPonCode);
 }
 
 bool C4002Component::set_detect_range(uint16_t closest, uint16_t farthest)  // 0-1200cm
@@ -296,11 +283,7 @@ bool C4002Component::set_detect_range(uint16_t closest, uint16_t farthest)  // 0
 
   RecvPack rec_pack = recv_pack();
 
-  if (SUCCEED == rec_pack .resPonCode) {
-    return true;
-  } else {
-    return false;
-  }
+  return (SUCCEED == rec_pack.resPonCode);
 }
 
 void C4002Component::start_env_calibration(uint16_t delay_time, uint16_t cont_time) {
@@ -335,11 +318,7 @@ bool C4002Component::set_run_led(LedMode run_led) {
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    return true;
-  } else {
-    return false;
-  }
+  return (SUCCEED == rec_pack.resPonCode);
 }
 
 bool C4002Component::set_out_led(LedMode out_led) {
@@ -356,11 +335,7 @@ bool C4002Component::set_out_led(LedMode out_led) {
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    return true;
-  } else {
-    return false;
-  }
+  return (SUCCEED == rec_pack.resPonCode);
 }
 
 TargetState C4002Component::get_target_state() { return (TargetState) detect_result_.targetStatus; }
@@ -394,12 +369,12 @@ bool C4002Component::begin() {
   bool ret;
 
   ret = set_report_period(255);
-  if (ret == false) {
+  if (!ret) {
     return false;
   }
   delay(10);
   ret = set_resolution_mode(resolution_mode_);
-  if (ret == false) {
+  if (!ret) {
     return false;
   }
   ret = enable_all_distance_door(enable_door_);
@@ -409,7 +384,7 @@ bool C4002Component::begin() {
 bool C4002Component::enable_all_distance_door(uint8_t *door_data) {
   bool ret = false;
   ret = enable_distance_door(MOVE_DIST_DOOR, door_data);
-  if (ret == false) {
+  if (!ret) {
     return false;
   }
   ret = enable_distance_door(EXIST_DIST_DOOR, door_data);
@@ -424,26 +399,26 @@ bool C4002Component::enable_all_distance_door(uint8_t *door_data) {
  */
 RetResult C4002Component::get_note_info_loop() {
   RetResult ret;
-  RecvPack recData = recv_pack();
+  RecvPack rec_data = recv_pack();
 
-  if (SUCCEED == recData.resPonCode) {
-    if (recData.packType == FRAME_TYPE_NOTIFICATION) {  // note
-      if (recData.dataHeader.cmd == NOTE_RESULT_CMD) {
-        // memcpy(&this->detect_result_, recData.data, sizeof(DetectRet));
-        this->detect_result_.targetStatus = recData.data[0];
-        this->detect_result_.light = recData.data[2] << 8 | recData.data[1];
+  if (SUCCEED == rec_data.resPonCode) {
+    if (rec_data.packType == FRAME_TYPE_NOTIFICATION) {  // note
+      if (rec_data.dataHeader.cmd == NOTE_RESULT_CMD) {
+        // memcpy(&this->detect_result_, rec_data.data, sizeof(DetectRet));
+        this->detect_result_.targetStatus = rec_data.data[0];
+        this->detect_result_.light = rec_data.data[2] << 8 | rec_data.data[1];
         this->detect_result_.existDistIndex =
-            recData.data[6] << 24 | recData.data[5] << 16 | recData.data[4] << 8 | recData.data[3];
-        this->detect_result_.existCountDown = recData.data[8] << 8 | recData.data[7];
-        this->detect_result_.existTargetDist = recData.data[10] << 8 | recData.data[9];
-        this->detect_result_.existTargetEnery = recData.data[11];
-        this->detect_result_.moveTargetDist = recData.data[13] << 8 | recData.data[12];
-        this->detect_result_.moveTargetSpeed = recData.data[15] << 8 | recData.data[14];
-        this->detect_result_.moveTargetEnery = recData.data[16];
-        this->detect_result_.moveTargetDirect = recData.data[17];
+            rec_data.data[6] << 24 | rec_data.data[5] << 16 | rec_data.data[4] << 8 | rec_data.data[3];
+        this->detect_result_.existCountDown = rec_data.data[8] << 8 | rec_data.data[7];
+        this->detect_result_.existTargetDist = rec_data.data[10] << 8 | rec_data.data[9];
+        this->detect_result_.existTargetEnery = rec_data.data[11];
+        this->detect_result_.moveTargetDist = rec_data.data[13] << 8 | rec_data.data[12];
+        this->detect_result_.moveTargetSpeed = rec_data.data[15] << 8 | rec_data.data[14];
+        this->detect_result_.moveTargetEnery = rec_data.data[16];
+        this->detect_result_.moveTargetDirect = rec_data.data[17];
         ret.noteType = NOTE_INFO_RESULT;
-      } else if (recData.dataHeader.cmd == NOTE_ENVIRNMENT_CALIBRATION_CMD) {
-        ret.calibCountdown = recData.data[1] << 8 | recData.data[0];
+      } else if (rec_data.dataHeader.cmd == NOTE_ENVIRNMENT_CALIBRATION_CMD) {
+        ret.calibCountdown = rec_data.data[1] << 8 | rec_data.data[0];
         ret.noteType = NOTE_INFO_CALIBRATION;
       } else {
         ret.noteType = NO_NOTE;
@@ -468,8 +443,8 @@ bool C4002Component::get_resolution_mode() {
   send_pack(send_date, data_len, FRAME_TYPE_READ_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    resolution_mode_ = (ResolutionMode) rec_pack .data[0];
+  if (SUCCEED == rec_pack.resPonCode) {
+    resolution_mode_ = (ResolutionMode) rec_pack.data[0];
     return true;
   } else {
     return false;
@@ -494,11 +469,7 @@ bool C4002Component::set_report_period(uint8_t period)  //范围0-255.单位100m
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    return true;
-  } else {
-    return false;
-  }
+  return (SUCCEED == rec_pack.resPonCode);
 }
 
 /**
@@ -514,10 +485,10 @@ void C4002Component::send_pack(void *pdata, uint16_t len, uint8_t msg_type) {
   uint16_t data_len = 0;
   uint16_t check_sums = 0;
 
-  send_date[data_len++] = FRAME_HEADER1;
-  send_date[data_len++] = FRAME_HEADER2;
-  send_date[data_len++] = FRAME_HEADER3;
-  send_date[data_len++] = FRAME_HEADER4;
+  send_date[data_len++] = C4002_FRAME_HEADER1;
+  send_date[data_len++] = C4002_FRAME_HEADER2;
+  send_date[data_len++] = C4002_FRAME_HEADER3;
+  send_date[data_len++] = C4002_FRAME_HEADER4;
   uint16_t temp = len + 10;
   send_date[data_len++] = temp >> 0 & 0xFF;
   send_date[data_len++] = temp >> 8 & 0xFF;
@@ -541,40 +512,36 @@ void C4002Component::send_pack(void *pdata, uint16_t len, uint8_t msg_type) {
 RecvPack C4002Component::recv_pack() {
   RecvPack recv_dat;
   memset(&recv_dat, 0, sizeof(recv_dat));
-  uint8_t *pdata = (uint8_t *) malloc(60 * sizeof(uint8_t));
-  if (pdata == NULL) {
-    recv_dat.packType = FRAME_ERROR;
-    return recv_dat;
-  }
 
-  size_t recv_len = uart_read_raw(pdata, 8, 20);
+  // 使用 std::vector 替代 malloc
+  std::vector<uint8_t> pdata(60, 0);  // 创建大小为60的vector，初始化为0
 
-  if (recv_len == 8 && pdata[0] == FRAME_HEADER1 && pdata[1] == FRAME_HEADER2 && pdata[2] == FRAME_HEADER3 &&
-      pdata[3] == FRAME_HEADER4) {
+  size_t recv_len = uart_read_raw(pdata.data(), 8, 20);  // 使用 .data() 获取原始指针
+
+  if (recv_len == 8 && pdata[0] == C4002_FRAME_HEADER1 && pdata[1] == C4002_FRAME_HEADER2 &&
+      pdata[2] == C4002_FRAME_HEADER3 && pdata[3] == C4002_FRAME_HEADER4) {
     size_t pack_len = (pdata[5] << 8) | pdata[4];
 
     recv_len = uart_read_raw(&pdata[8], (size_t) (pack_len - 8), 20);
-    // ESP_LOGD(TAG, "recvLen: %d", recvLen);
 
     if (recv_len == (pack_len - 8)) {
       recv_dat.packType = pdata[7];
-      if (check_sum(pdata, pack_len)) {
+      if (check_sum(pdata.data(), pack_len)) {  // 使用 .data() 获取原始指针
         uint16_t data_len = (pdata[11] << 8) | pdata[10];
 
         memcpy(&recv_dat, &pdata[8], data_len);
         recv_dat.resPonCode = (ResponseCode) recv_dat.dataHeader.respCode;
 
-        if (recv_dat.packType == FRAME_TYPE_NOTIFICATION) {  // note
+        if (recv_dat.packType == FRAME_TYPE_NOTIFICATION) {
           ESP_LOGD(TAG, "get note result");
-        } else if (recv_dat.packType == FRAME_TYPE_WRITE_RESPOND) {  // write
+        } else if (recv_dat.packType == FRAME_TYPE_WRITE_RESPOND) {
           ESP_LOGD(TAG, "get write respond");
-        } else if (recv_dat.packType == FRAME_TYPE_READ_RESPOND) {  // read
+        } else if (recv_dat.packType == FRAME_TYPE_READ_RESPOND) {
           ESP_LOGD(TAG, "get read respond");
         } else {
           ESP_LOGD(TAG, "this is error pack");
           recv_dat.resPonCode = CMD_ERR;
         }
-
       } else {
         recv_dat.resPonCode = AUTHENTICATION_ERR;
         ESP_LOGD(TAG, "Authentication error");
@@ -585,9 +552,9 @@ RecvPack C4002Component::recv_pack() {
     }
   } else {
     recv_dat.resPonCode = AUTHENTICATION_ERR;
-    // ESP_LOGD(TAG, "Authentication error");
   }
-  free(pdata);
+
+  // 不需要手动释放，vector 会自动管理内存
   return recv_dat;
 }
 
@@ -595,7 +562,7 @@ RecvPack C4002Component::recv_pack() {
  * check_sum
  * Check the check_sum of the data.
  */
-bool C4002Component::check_sum(uint8_t *pdata, uint8_t len) {
+bool C4002Component::check_sum(const uint8_t *pdata, uint8_t len) {
   uint16_t calculateparity = 0;
 
   for (uint8_t i = 0; i < len - 2; i++) {
@@ -604,17 +571,16 @@ bool C4002Component::check_sum(uint8_t *pdata, uint8_t len) {
   uint16_t temp = (pdata[len - 1] << 8) | pdata[len - 2];
   if (calculateparity == temp) {
     return true;
-  }else{
+  } else {
     return false;
   }
-  
 }
 
 /**
  * get_check_sum
  * Calculate the checksum of the data.
  */
-uint16_t C4002Component::get_check_sum(uint8_t *pdata, uint16_t len) {
+uint16_t C4002Component::get_check_sum(const uint8_t *pdata, uint16_t len) {
   uint16_t parity = 0;
   for (uint16_t i = 0; i < len; i++) {
     parity += pdata[i];
@@ -688,24 +654,22 @@ bool C4002Component::get_detect_range() {
 
   RecvPack rec_pack = recv_pack();
 
-  if (SUCCEED == rec_pack .resPonCode) {
-    this->current_detection_range_min_ = (float) ((rec_pack .data[1] << 8) | rec_pack .data[0]) * 0.01;
-    this->current_detection_range_max_ = (float) ((rec_pack .data[3] << 8) | rec_pack .data[2]) * 0.01;
+  if (SUCCEED == rec_pack.resPonCode) {
+    this->current_detection_range_min_ = (float) ((rec_pack.data[1] << 8) | rec_pack.data[0]) * 0.01;
+    this->current_detection_range_max_ = (float) ((rec_pack.data[3] << 8) | rec_pack.data[2]) * 0.01;
     return true;
   } else {
     return false;
   }
 }
 
-void C4002Component::set_area_range(RangValue range_value, float range) {
-  current_area_[range_value] = range - 1;
-}
+void C4002Component::set_area_range(RangValue range_value, float range) { current_area_[range_value] = range - 1; }
 
 float C4002Component::get_area_range(RangValue range_value) { return current_area_[range_value] + 1; }
 
 bool C4002Component::joint_enable_door() {
-  for (int i = 0; i < 11; ++i) {
-    enable_door_[i] = 0;
+  for (auto &element : enable_door_) {
+    element = 0;
   }
 
   auto apply_range = [this](int min_index, int max_index) {
@@ -741,7 +705,7 @@ bool C4002Component::joint_enable_door() {
 void C4002Component::setup_number() {
   bool ret;
   ret = get_detect_range();
-  if (ret == true) {
+  if (ret) {
     ESP_LOGD(TAG, "get detect range success");
   } else {
     ESP_LOGD(TAG, "get detect range failed");
@@ -760,8 +724,8 @@ float C4002Component::get_light_threshold() {
 
   send_pack(send_date, data_len, FRAME_TYPE_READ_REQUSET);
   RecvPack rec_pack = recv_pack();
-  if (SUCCEED == rec_pack .resPonCode) {
-    threshold = (float) ((rec_pack .data[1] << 8) | rec_pack .data[0]) * 0.1;
+  if (SUCCEED == rec_pack.resPonCode) {
+    threshold = (float) ((rec_pack.data[1] << 8) | rec_pack.data[0]) * 0.1;
   } else {
     ESP_LOGD(TAG, "get light threshold failed");
   }

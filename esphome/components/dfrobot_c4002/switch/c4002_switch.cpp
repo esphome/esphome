@@ -60,7 +60,7 @@ void C4002SwitchFactoryReset::write_state(bool state) {
 
 void C4002SwitchEnvironmentalCalibration::write_state(bool state) {
   if (this->parent_) {
-    if (state == true) {
+    if (state) {
       // ESP_LOGW("C4002SwitchEnvironmentalCalibration ", "Start environmental calibration");
       this->parent_->start_env_calibration(3, 15);  // (delayTime,contTime)
       this->publish_state(true);

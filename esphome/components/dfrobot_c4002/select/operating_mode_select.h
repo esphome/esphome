@@ -3,7 +3,7 @@
 #include "../dfrobot_c4002.h"
 #include "esphome/components/select/select.h"
 
-static const char *const TAG = "dfrobot_c4002.select";
+static const char *const TAG = "dfrobot_c4002 select";
 
 #define MODE_1 "Mode_1"
 #define MODE_2 "Mode_2"
