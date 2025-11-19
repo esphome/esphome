@@ -84,9 +84,7 @@ class APIFrameHelper {
  public:
   APIFrameHelper() = default;
   explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : socket_owned_(std::move(socket)), client_info_(client_info) {
-    socket_ = socket_owned_.get();
-  }
+      : socket_(std::move(socket)), client_info_(client_info) {}
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
   virtual APIError loop();
@@ -149,9 +147,8 @@ class APIFrameHelper {
   APIError write_raw_(const struct iovec *iov, int iovcnt, socket::Socket *socket, std::vector<uint8_t> &tx_buf,
                       const std::string &info, StateEnum &state, StateEnum failed_state);
 
-  // Pointers first (4 bytes each)
-  socket::Socket *socket_{nullptr};
-  std::unique_ptr<socket::Socket> socket_owned_;
+  // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
+  std::unique_ptr<socket::Socket> socket_;
 
   // Common state enum for all frame helpers
   // Note: Not all states are used by all implementations
