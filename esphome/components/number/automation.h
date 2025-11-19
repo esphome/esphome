@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 
 class NumberStateTrigger : public Trigger<float> {
  public:
@@ -91,5 +90,4 @@ template<typename... Ts> class NumberInRangeCondition : public Condition<Ts...> 
   float max_{NAN};
 };
 
-}  // namespace number
-}  // namespace esphome
+}  // namespace esphome::number

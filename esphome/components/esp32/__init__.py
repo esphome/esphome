@@ -931,6 +931,12 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
         add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
+        # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
+        if get_esp32_variant() == VARIANT_ESP32S2:
+            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
+            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=0")
+            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=0")
+
     cg.add_build_flag("-Wno-nonnull-compare")
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
