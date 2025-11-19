@@ -13,8 +13,7 @@
 #include <cmath>
 #include <numbers>
 
-namespace esphome {
-namespace ld2450 {
+namespace esphome::ld2450 {
 
 static const char *const TAG = "ld2450";
 
@@ -939,5 +938,4 @@ float LD2450Component::restore_from_flash_() {
 }
 #endif
 
-}  // namespace ld2450
-}  // namespace esphome
+}  // namespace esphome::ld2450
