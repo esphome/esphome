@@ -399,7 +399,8 @@ bool C4002Component::enable_all_distance_door(uint8_t *door_data) {
  */
 RetResult C4002Component::get_note_info_loop() {
   RetResult ret;
-  RecvPack rec_data = recv_pack();
+  RecvPack rec_data = {0};
+  rec_data = recv_pack();
 
   if (SUCCEED == rec_data.resPonCode) {
     if (rec_data.packType == FRAME_TYPE_NOTIFICATION) {  // note
@@ -569,11 +570,7 @@ bool C4002Component::check_sum(const uint8_t *pdata, uint8_t len) {
     calculateparity += pdata[i];
   }
   uint16_t temp = (pdata[len - 1] << 8) | pdata[len - 2];
-  if (calculateparity == temp) {
-    return true;
-  } else {
-    return false;
-  }
+  return (calculateparity == temp);
 }
 
 /**

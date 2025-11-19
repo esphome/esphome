@@ -5,7 +5,7 @@
 
 namespace esphome {
 namespace dfrobot_c4002 {
-static const char *const TAG = "dfrobot_c4002.select";
+static const char *const TAG = "dfrobot_c4002.sensor";
 class C4002Sensor : public C4002Listener, public Component, sensor::Sensor {
  public:
   void setup() override {
