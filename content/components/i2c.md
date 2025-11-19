@@ -9,7 +9,7 @@ params:
 
 {{< anchor "i2c" >}}
 
-This component sets up the I²C bus for your ESP32 or ESP8266. In order for these components
+This component sets up the I²C bus for your ESP32, ESP8266, RP2040 or NRF52. In order for these components
 to work correctly, you need to define the I²C bus in your configuration. Please note the ESP
 will enable its internal 10kΩ pullup resistors for these pins, so you usually don't need to
 put on external ones. You can use multiple devices on one I²C bus as each device is given a
@@ -39,7 +39,8 @@ i2c:
   Defaults to `true`.
 
 - **frequency** (*Optional*, float): Set the frequency the I²C bus should operate on.
-  Defaults to `50kHz`. Values are `10kHz`, `50kHz`, `100kHz`, `200kHz`, ... `800kHz`
+  Defaults to `50kHz`. Default for NRF52 is `100kHz`. Values are `10kHz`, `50kHz`, `100kHz`, `200kHz`, ... `800kHz`.
+  NRF52 supports only `100kHz` and `400kHz`.
 
 - **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Set the I²C bus timeout.
   Defaults to the framework defaults (`100us` on `esp32` with `esp-idf`, `50ms` on `esp32` with `Arduino`,

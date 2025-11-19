@@ -45,6 +45,7 @@ Multiple remote receivers can be configured as a list of dict definitions within
   - **dish**: Decode and dump Dish infrared codes.
   - **dooya**: Decode and dump Dooya RF codes.
   - **drayton**: Decode and dump Drayton Digistat RF codes.
+  - **dyson**: Decode and dump Dyson Cool AM7 tower fan codes.
   - **jvc**: Decode and dump JVC infrared codes.
   - **gobox**: Decode and dump Go-Box infrared codes.
   - **keeloq**: Decode and dump KeeLoq RF codes.
@@ -64,6 +65,7 @@ Multiple remote receivers can be configured as a list of dict definitions within
   - **roomba**: Decode and dump Roomba infrared codes.
   - **samsung**: Decode and dump Samsung infrared codes.
   - **samsung36**: Decode and dump Samsung36 infrared codes.
+  - **symphony**: Decode and dump Symphony infrared codes.
   - **sony**: Decode and dump Sony infrared codes.
   - **toshiba_ac**: Decode and dump Toshiba AC infrared codes.
   - **mirage**: Decode and dump Mirage infrared codes.
@@ -187,6 +189,10 @@ To enable signal demodulation, configure the signal carrier frequency and duty c
   Drayton Digistat RF code has been decoded. A variable `x` of type {{< apistruct "remote_base::DraytonData" "remote_base::DraytonData" >}}
   is passed to the automation for use in lambdas.
 
+- **on_dyson** (*Optional*, [Automation](/automations)): An automation to perform when a
+  Dyson cool AM07 code has been decoded. A variable `x` of type {{< apistruct "remote_base::DysonData" "remote_base::DysonData" >}}
+  is passed to the automation for use in lambdas.
+
 - **on_gobox** (*Optional*, [Automation](/automations)): An automation to perform when a
   Go-Box remote code has been decoded. A variable `x` of type {{< apistruct "remote_base::GoboxData" "remote_base::GoboxData" >}}
   is passed to the automation for use in lambdas.
@@ -265,6 +271,10 @@ To enable signal demodulation, configure the signal carrier frequency and duty c
 
 - **on_sony** (*Optional*, [Automation](/automations)): An automation to perform when a
   Sony remote code has been decoded. A variable `x` of type {{< apistruct "remote_base::SonyData" "remote_base::SonyData" >}}
+  is passed to the automation for use in lambdas.
+
+- **on_symphony** (*Optional*, [Automation](/automations)): An automation to perform when a
+  Symphony remote code has been decoded. A variable `x` of type {{< apistruct "remote_base::SymphonyData" "remote_base::SymphonyData" >}}
   is passed to the automation for use in lambdas.
 
 - **on_toshiba_ac** (*Optional*, [Automation](/automations)): An automation to perform when a
@@ -424,6 +434,11 @@ Remote code selection (exactly one of these has to be included):
   - **channel** (**Required**, int): The 7-bit switch/channel to listen for.
   - **command** (**Required**, int): The 5-bit command to listen for.
 
+- **dyson**: Trigger on a decoded dyson cool AM07 infrared remote code with the given data.
+
+  - **code** (**Required**, int): The 16-bit code to trigger on, e.g. 0x1200=power, 0x1215=fan++,0x122a=swing..., see dumper output for more info.
+  - **index** (**Required**, int): The 8-bit rolling index [0..3], to be increased with every transmit, see dumper output for more info.
+
 - **gobox**: Trigger on a decoded Go-Box remote code with the given data.
 
   - **code** (**Required**, int): The Go-Box code to trigger on, see dumper output for more info.
@@ -566,6 +581,11 @@ Remote code selection (exactly one of these has to be included):
 
   - **data** (**Required**, int): The Sony code to trigger on, see dumper output for more info.
   - **nbits** (*Optional*, int): The number of bits of the remote code. Defaults to `12`.
+
+- **symphony**: Trigger on a decoded Symphony remote code with the given data.
+
+  - **data** (**Required**, int): The Symphony code to trigger on, see dumper output for more info.
+  - **nbits** (**Required**, int): The number of bits of the remote code. Typical values: `8`, `12`, or `16`.
 
 - **toshiba_ac**: Trigger on a decoded Toshiba AC remote code with the given data.
 

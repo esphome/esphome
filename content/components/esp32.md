@@ -82,18 +82,27 @@ esp32:
 
 - **version** (*Optional*, string): The base framework version number to use, from
   [ESP32 ESP-IDF releases](https://github.com/espressif/esp-idf/releases) or
-  [ESP32 arduino releases](https://github.com/espressif/arduino-esp32/releases). Defaults to `recommended`.
+  [ESP32 Arduino releases](https://github.com/espressif/arduino-esp32/releases). Defaults to `recommended`.
   Additional values are:
 
   - `dev`  : Use the latest commit, note this may break at any time
   - `latest`  : Use the latest *release*, even if it hasn't been recommended yet.
   - `recommended`  : Use the recommended framework version.
 
-- **source** (*Optional*, string): The PlatformIO package or repository to use for the framework. This can be used to
-  use a custom or patched version of the framework.
+- **source** (*Optional*, string): The PlatformIO package to use for the framework. This variable provides
+  the URL of the git repository or file archive of a custom or patched version of the
+  [pioarduino/framework-arduinoespressif32](https://github.com/espressif/arduino-esp32) or
+  [pioarduino/framework-espidf](https://github.com/pioarduino/esp-idf) package for the framework type. Refer to
+  [PlatformIO package specifications](https://docs.platformio.org/en/latest/core/userguide/pkg/cmd_install.html#package-specifications)
+  for the supported URL schemes. Examples:
+
+  - `https://github.com/user/arduino-esp32/releases/download/archive.zip`
+  - `https://github.com/user/esp-idf.git#branch`
+  - `symlink:///path/to/esp-idf`
 
 - **platform_version** (*Optional*, string): The version of the
-  [pioarduino/espressif32](https://github.com/pioarduino/platform-espressif32/releases/) package to use.
+  [pioarduino/espressif32](https://github.com/pioarduino/platform-espressif32/releases/) package to use. For known framework versions
+  this value will be set automatically.
 
 - **sdkconfig_options** (*Optional*, mapping): Custom sdkconfig
   [compiler options](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig.html#compiler-options)
@@ -139,6 +148,10 @@ esp32:
 - **enable_idf_experimental_features** (*Optional*, boolean): Can be set to `true` to enable experimental features. Use of
   experimental features may cause instability or other issues.
 
+- **loop_task_stack_size** (*Optional*, int): Loop task stack size in bytes. Increase if experiencing stack overflow
+  errors (e.g., with complex code or deep recursion). Higher values reduce heap availability. Valid range is 8192-32768
+  bytes. Defaults to 8192 bytes.
+
 **LWIP Optimization Options (ESP-IDF only):**
 
 The following options are available under the `advanced` section when using the ESP-IDF framework to optimize
@@ -162,11 +175,34 @@ LWIP (Lightweight IP) behavior. Some options improve performance while others sa
 - **enable_lwip_check_thread_safety** (*Optional*, boolean): Enable LWIP thread safety checks to detect incorrect usage of
   the TCP/IP stack from multiple threads. This helps catch thread safety issues when core locking is enabled. Defaults to `true`.
 
+- **disable_libc_locks_in_iram** (*Optional*, boolean): Disable placing libc lock functions in IRAM. This saves approximately
+  1.3 KB of IRAM by placing these functions in flash memory instead. This is safe for ESPHome since no IRAM interrupt service
+  routines (ISRs that run while cache is disabled) use libc lock APIs. Defaults to `true` (IRAM placement disabled to save RAM).
+
+**VFS (Virtual File System) Optimization Options:**
+
+The following options disable unused VFS features to save flash memory:
+
+- **disable_vfs_support_termios** (*Optional*, boolean): Disable VFS support for termios (terminal I/O) functions. ESPHome
+  doesn't use termios functions on ESP32 (they're only used in the host UART driver for Linux/macOS). Disabling this saves
+  approximately 1.8 KB of flash. Defaults to `true` (VFS termios disabled to save flash).
+
+- **disable_vfs_support_select** (*Optional*, boolean): Disable VFS support for select() with file descriptors. ESPHome uses
+  `lwip_select()` for socket operations, which works independently of VFS select support. VFS select is only needed for UART
+  and eventfd file descriptors. Socket operations continue to work normally with this disabled. Components that require VFS
+  select (e.g., OpenThread) automatically enable it regardless of this setting. Disabling this saves approximately 2.7 KB of
+  flash. Defaults to `true` (VFS select disabled to save flash).
+
+- **disable_vfs_support_dir** (*Optional*, boolean): Disable VFS support for directory-related functions (opendir, readdir,
+  mkdir, rmdir, etc.). ESPHome doesn't use directory operations on ESP32. Components that require directory support (e.g.,
+  future storage components) automatically enable it regardless of this setting. Disabling this saves approximately 0.5 KB+
+  of flash. Defaults to `true` (VFS directory support disabled to save flash).
+
 Some options can be disabled to save flash memory without affecting typical ESPHome functionality. The performance
 options (defaulting to `true`  ) improve socket operation performance but can be disabled if you need better
 multi-threaded scalability (which is uncommon since ESPHome uses an event loop).
 
-**Example configuration with advanced LWIP options:**
+**Example configuration with advanced LWIP and VFS options:**
 
 ```yaml
 # Example configuration entry
@@ -180,6 +216,10 @@ esp32:
       enable_lwip_check_thread_safety: true  # Thread safety validation
 
       # Memory saving options
+      disable_libc_locks_in_iram: true  # Enabled by default, saves 1.3 KB IRAM
+      disable_vfs_support_termios: true  # Enabled by default, saves 1.8 KB flash
+      disable_vfs_support_select: true  # Enabled by default, saves 2.7 KB flash (auto-enabled by openthread)
+      disable_vfs_support_dir: true  # Enabled by default, saves 0.5 KB+ flash
       enable_lwip_dhcp_server: false  # Disabled by default, only needed for AP mode
       enable_lwip_mdns_queries: false  # Enabled by default, can disable if not using .local hostnames
       enable_lwip_bridge_interface: false  # Disabled by default

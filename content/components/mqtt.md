@@ -100,6 +100,9 @@ mqtt:
 - **certificate_authority** (*Optional*, string): Only with `esp-idf`. CA certificate in PEM format. See
   [TLS with esp-idf (esp32)](#mqtt-tls-idf) for more information.
 
+> [!TIP]
+> For MQTT security recommendations including TLS configuration, see the [Security Best Practices](/guides/security_best_practices#mqtt) guide.
+
 - **client_certificate** (*Optional*, string): Only on `esp32`. Client certificate in PEM format.
 - **client_certificate_key** (*Optional*, string): Only on `esp32`. Client private key in PEM format.
 - **skip_cert_cn_check** (*Optional*, bool): Only with `esp-idf`. Don't verify if the common name in the server

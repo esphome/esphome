@@ -245,6 +245,23 @@ If set, opens the dashboard UI in a browser once the server is up and running. D
 `--socket`.
 {{< /option >}}
 
+### `analyze-memory` Command
+
+> [!NOTE]
+> This is an advanced command primarily intended for developers and debugging memory issues.
+
+The `esphome analyze-memory <CONFIG>` command compiles the configuration and analyzes memory usage by component.
+
+This command is useful for:
+
+* Understanding which components are consuming the most memory
+* Identifying optimization opportunities to reduce flash or RAM usage
+* Analyzing memory usage before adding more components to a tight build
+* Debugging builds that are approaching memory limits (especially on ESP8266)
+* Contributing to ESPHome development and optimization efforts
+
+The command automatically compiles the configuration if needed (or quickly relinks if sources haven't changed), then analyzes the resulting firmware to show a detailed breakdown of memory usage by component, including flash memory (code and data) and RAM usage (data and BSS).
+
 ### `logs` Command
 
 The `esphome logs <CONFIG>` command validates the configuration and shows all logs.

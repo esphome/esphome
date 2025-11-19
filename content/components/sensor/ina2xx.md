@@ -19,9 +19,9 @@ requred to be set up in your configuration for this sensor to work.
 | ----------------------------------------------------- | ----------- | ------------------------------------------------------ |
 | [INA228](http://www.ti.com/lit/ds/symlink/ina228.pdf) | I²C       8 | 5-V, 20-Bit, Ultra-Precise Power/Energy/Charge Monitor |
 | [INA229](http://www.ti.com/lit/ds/symlink/ina229.pdf) | SPI       8 | 5-V, 20-Bit, Ultra-Precise Power/Energy/Charge Monitor |
-| [INA238](http://www.ti.com/lit/ds/symlink/ina238.pdf) | I²C 8 | 5-V, 16-Bit, High-Precision Power Monitor |
-| [INA239](http://www.ti.com/lit/ds/symlink/ina239.pdf) | SPI 8 | 5-V, 16-Bit, High-Precision Power Monitor |
-| [INA237](http://www.ti.com/lit/ds/symlink/ina237.pdf) | I²C 8 | 5-V, 16-Bit, Precision Power Monitor |
+| [INA238](http://www.ti.com/lit/ds/symlink/ina238.pdf) | I²C 8       | 5-V, 16-Bit, High-Precision Power Monitor              |
+| [INA239](http://www.ti.com/lit/ds/symlink/ina239.pdf) | SPI 8       | 5-V, 16-Bit, High-Precision Power Monitor              |
+| [INA237](http://www.ti.com/lit/ds/symlink/ina237.pdf) | I²C 8       | 5-V, 16-Bit, Precision Power Monitor                   |
 
 All devices can measure a selectable full-scale differential input of ±163.84 mV
 or ±40.96 mV across the shunt with common-mode voltage support from –0.3 V to +85 V.
@@ -79,7 +79,12 @@ sensor:
   shunt for temperature compensation correction. Only applicable to INA228 and INA229 devices. Zero value means
   no compensation is done. Defaults to `0`.
 
-- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor.
+  Defaults to `60s`.
+
+- **reset_on_boot** (*Optional*, boolean): Whether or not to reset the device configuration (including counters) on
+  component initialization. Defaults to `true`; set `false` to preserve counters through ESPHome resets.
+
 - All other options from [Sensor](/components/sensor) and [I²C device](/components/i2c).
 
 ## Over SPI
@@ -129,7 +134,12 @@ sensor:
   shunt for temperature compensation correction. Only applicable to INA228 and INA229 devices. Zero value means
   no compensation is done. Defaults to `0`.
 
-- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor.
+  Defaults to `60s`.
+
+- **reset_on_boot** (*Optional*, boolean): Whether or not to reset the device configuration (including counters) on
+  component initialization. Defaults to `true`; set `false` to preserve counters through ESPHome resets.
+  
 - All other options from [Sensor](/components/sensor) and [SPI device](/components/spi).
 
 ## Sensors

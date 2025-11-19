@@ -12,7 +12,7 @@ params:
 The purpose of this component is to allow ESPHome nodes to directly communicate with each over a communication channel.
 It permits the state of sensors and binary sensors to be transmitted from one node to another, without the need for a
 central server or broker. The actual transport channel is provided by another component. Currently the supported
-transports are {{< docref "/components/sx126x" >}}, {{< docref "/components/sx127x" >}}, {{< docref "/components/uart" >}} and {{< docref "/components/udp" >}}.
+transports are {{< docref "/components/espnow" >}}, {{< docref "/components/sx126x" >}}, {{< docref "/components/sx127x" >}}, {{< docref "/components/uart" >}} and {{< docref "/components/udp" >}}.
 
 Nodes may be *providers* which transmit or broadcast sensor data, or *consumers* which receive sensor data from one or more
 providers. A node may be both a provider and a consumer. Optional security is provided by one or more of:

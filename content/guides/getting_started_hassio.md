@@ -197,3 +197,4 @@ a new issue on the [GitHub issue tracker](https://github.com/esphome/esphome/iss
 
 - {{< docref "/index" "ESPHome index" >}}
 - {{< docref "getting_started_command_line/" >}}
+- {{< docref "security_best_practices" >}}
