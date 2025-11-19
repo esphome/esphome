@@ -302,16 +302,16 @@ class C4002Component : public Component, public uart::UARTDevice {
 
 #ifdef USE_SELECT
   void set_operating_mode_select(select::Select *selector) { this->operating_selector_ = selector; };
-  uint8_t get_out_mode_select(void) { return (uint8_t) this->out_mode_; };
+  uint8_t get_out_mode_select() { return (uint8_t) this->out_mode_; };
 #endif
 
-  void setup_number(void);
-  float get_light_threshold(void);
-  bool joint_enable_door(void);
+  void setup_number();
+  float get_light_threshold();
+  bool joint_enable_door();
 
 #ifdef USE_NUMBER
-  float get_min_detect_range_number(void) { return (float) this->min_detect_range_; };
-  float get_max_detect_range_number(void) { return (float) this->max_detect_range_; };
+  float get_min_detect_range_number() { return (float) this->min_detect_range_; };
+  float get_max_detect_range_number() { return (float) this->max_detect_range_; };
 
   bool set_min_range(float range);
   bool set_max_range(float range);

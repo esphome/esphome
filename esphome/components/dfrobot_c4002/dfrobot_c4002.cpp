@@ -153,9 +153,9 @@ bool C4002Component::get_out_mode() {
   send_date[3] = data_len >> 8 & 0xFF;
   send_pack(send_date, data_len, FRAME_TYPE_READ_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
-    out_mode_ = (OutMode) recPack.data[0];
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
+    out_mode_ = (OutMode) rec_pack .data[0];
     return true;
   } else {
     return false;
@@ -173,8 +173,8 @@ bool C4002Component::set_out_mode(OutMode out_mode) {
   send_date[data_len++] = (uint8_t) out_mode;
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
     out_mode_ = out_mode;
     return true;
   } else {
@@ -195,8 +195,8 @@ bool C4002Component::set_light_threshold(float threshold) {
   send_date[data_len++] = thresholdTemp >> 8 & 0xFF;
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
     return true;
   } else {
     return false;
@@ -214,8 +214,8 @@ bool C4002Component::factory_reset() {
   send_date[4] = 0x00;
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
     return true;
   } else {
     return false;
@@ -232,8 +232,8 @@ bool C4002Component::set_resolution_mode(ResolutionMode mode) {
   send_date[4] = (uint8_t) mode;
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
     resolution_mode_ = mode;
     return true;
   } else {
@@ -245,26 +245,26 @@ bool C4002Component::enable_distance_door(DistanceDoorType door_type, uint8_t *d
   uint8_t send_date[40];
   uint16_t data_len = 0;
   uint16_t temp = 5;
-  int doorNum = 0;
+  int door_num = 0;
   if (resolution_mode_ == RESOLUTION_80CM) {
-    doorNum = 15;
+    door_num = 15;
   } else if (resolution_mode_ == RESOLUTION_20CM) {
-    doorNum = 25;
+    door_num = 25;
   }
-  temp += doorNum;
+  temp += door_num;
 
   send_date[data_len++] = CMD_SET_DISTANCE_DOOR;
   send_date[data_len++] = READ_AND_WRITE_REQ;
   send_date[data_len++] = temp >> 0 & 0xFF;
   send_date[data_len++] = temp >> 8 & 0xFF;
   send_date[data_len++] = (uint8_t) door_type;
-  for (int i = 0; i < doorNum; i++) {
+  for (int i = 0; i < door_num; i++) {
     send_date[data_len++] = door_data[i];
   }
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
     return true;
   } else {
     return false;
@@ -276,27 +276,27 @@ bool C4002Component::set_detect_range(uint16_t closest, uint16_t farthest)  // 0
   uint8_t send_date[10];
   uint16_t data_len = 0;
   uint16_t temp = 8;
-  uint16_t closestTemp = closest, farthestTemp = farthest;
+  uint16_t closest_temp = closest, farthest_temp = farthest;
   send_date[data_len++] = CMD_SET_DETECT_RANGE;
   send_date[data_len++] = READ_AND_WRITE_REQ;
   send_date[data_len++] = temp >> 0 & 0xFF;
   send_date[data_len++] = temp >> 8 & 0xFF;
 
-  if (farthestTemp > 1200) {
-    farthestTemp = 1200;
+  if (farthest_temp > 1200) {
+    farthest_temp = 1200;
   }
-  if (closestTemp > farthestTemp) {
+  if (closest_temp > farthest_temp) {
     return false;
   }
-  send_date[data_len++] = closestTemp >> 0 & 0xFF;
-  send_date[data_len++] = closestTemp >> 8 & 0xFF;
-  send_date[data_len++] = farthestTemp >> 0 & 0xFF;
-  send_date[data_len++] = farthestTemp >> 8 & 0xFF;
+  send_date[data_len++] = closest_temp >> 0 & 0xFF;
+  send_date[data_len++] = closest_temp >> 8 & 0xFF;
+  send_date[data_len++] = farthest_temp >> 0 & 0xFF;
+  send_date[data_len++] = farthest_temp >> 8 & 0xFF;
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
+  RecvPack rec_pack = recv_pack();
 
-  if (SUCCEED == recPack.resPonCode) {
+  if (SUCCEED == rec_pack .resPonCode) {
     return true;
   } else {
     return false;
@@ -334,8 +334,8 @@ bool C4002Component::set_run_led(LedMode run_led) {
 
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
     return true;
   } else {
     return false;
@@ -355,8 +355,8 @@ bool C4002Component::set_out_led(LedMode out_led) {
   send_date[data_len++] = out_led;
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
     return true;
   } else {
     return false;
@@ -467,9 +467,9 @@ bool C4002Component::get_resolution_mode() {
   send_date[3] = data_len >> 8 & 0xFF;
   send_pack(send_date, data_len, FRAME_TYPE_READ_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
-    resolution_mode_ = (ResolutionMode) recPack.data[0];
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
+    resolution_mode_ = (ResolutionMode) rec_pack .data[0];
     return true;
   } else {
     return false;
@@ -493,8 +493,8 @@ bool C4002Component::set_report_period(uint8_t period)  //范围0-255.单位100m
   send_date[data_len++] = period;
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
     return true;
   } else {
     return false;
@@ -539,56 +539,56 @@ void C4002Component::send_pack(void *pdata, uint16_t len, uint8_t msg_type) {
  * Returns a RecvPack struct with the parsed data.
  */
 RecvPack C4002Component::recv_pack() {
-  RecvPack recvDat;
-  memset(&recvDat, 0, sizeof(recvDat));
+  RecvPack recv_dat;
+  memset(&recv_dat, 0, sizeof(recv_dat));
   uint8_t *pdata = (uint8_t *) malloc(60 * sizeof(uint8_t));
   if (pdata == NULL) {
-    recvDat.packType = FRAME_ERROR;
-    return recvDat;
+    recv_dat.packType = FRAME_ERROR;
+    return recv_dat;
   }
 
-  size_t recvLen = uart_read_raw(pdata, 8, 20);
+  size_t recv_len = uart_read_raw(pdata, 8, 20);
 
-  if (recvLen == 8 && pdata[0] == FRAME_HEADER1 && pdata[1] == FRAME_HEADER2 && pdata[2] == FRAME_HEADER3 &&
+  if (recv_len == 8 && pdata[0] == FRAME_HEADER1 && pdata[1] == FRAME_HEADER2 && pdata[2] == FRAME_HEADER3 &&
       pdata[3] == FRAME_HEADER4) {
-    size_t packLen = (pdata[5] << 8) | pdata[4];
+    size_t pack_len = (pdata[5] << 8) | pdata[4];
 
-    recvLen = uart_read_raw(&pdata[8], (size_t) (packLen - 8), 20);
+    recv_len = uart_read_raw(&pdata[8], (size_t) (pack_len - 8), 20);
     // ESP_LOGD(TAG, "recvLen: %d", recvLen);
 
-    if (recvLen == (packLen - 8)) {
-      recvDat.packType = pdata[7];
-      if (check_sum(pdata, packLen)) {
+    if (recv_len == (pack_len - 8)) {
+      recv_dat.packType = pdata[7];
+      if (check_sum(pdata, pack_len)) {
         uint16_t data_len = (pdata[11] << 8) | pdata[10];
 
-        memcpy(&recvDat, &pdata[8], data_len);
-        recvDat.resPonCode = (ResponseCode) recvDat.dataHeader.respCode;
+        memcpy(&recv_dat, &pdata[8], data_len);
+        recv_dat.resPonCode = (ResponseCode) recv_dat.dataHeader.respCode;
 
-        if (recvDat.packType == FRAME_TYPE_NOTIFICATION) {  // note
+        if (recv_dat.packType == FRAME_TYPE_NOTIFICATION) {  // note
           ESP_LOGD(TAG, "get note result");
-        } else if (recvDat.packType == FRAME_TYPE_WRITE_RESPOND) {  // write
+        } else if (recv_dat.packType == FRAME_TYPE_WRITE_RESPOND) {  // write
           ESP_LOGD(TAG, "get write respond");
-        } else if (recvDat.packType == FRAME_TYPE_READ_RESPOND) {  // read
+        } else if (recv_dat.packType == FRAME_TYPE_READ_RESPOND) {  // read
           ESP_LOGD(TAG, "get read respond");
         } else {
           ESP_LOGD(TAG, "this is error pack");
-          recvDat.resPonCode = CMD_ERR;
+          recv_dat.resPonCode = CMD_ERR;
         }
 
       } else {
-        recvDat.resPonCode = AUTHENTICATION_ERR;
+        recv_dat.resPonCode = AUTHENTICATION_ERR;
         ESP_LOGD(TAG, "Authentication error");
       }
     } else {
-      recvDat.resPonCode = DATALEN_ERR;
-      ESP_LOGD(TAG, " recvLen error");
+      recv_dat.resPonCode = DATALEN_ERR;
+      ESP_LOGD(TAG, " recvlen error");
     }
   } else {
-    recvDat.resPonCode = AUTHENTICATION_ERR;
+    recv_dat.resPonCode = AUTHENTICATION_ERR;
     // ESP_LOGD(TAG, "Authentication error");
   }
   free(pdata);
-  return recvDat;
+  return recv_dat;
 }
 
 /**
@@ -596,16 +596,18 @@ RecvPack C4002Component::recv_pack() {
  * Check the check_sum of the data.
  */
 bool C4002Component::check_sum(uint8_t *pdata, uint8_t len) {
-  uint16_t calculateParity = 0;
+  uint16_t calculateparity = 0;
 
   for (uint8_t i = 0; i < len - 2; i++) {
-    calculateParity += pdata[i];
+    calculateparity += pdata[i];
   }
   uint16_t temp = (pdata[len - 1] << 8) | pdata[len - 2];
-  if (calculateParity == temp) {
+  if (calculateparity == temp) {
     return true;
+  }else{
+    return false;
   }
-  return false;
+  
 }
 
 /**
@@ -613,11 +615,11 @@ bool C4002Component::check_sum(uint8_t *pdata, uint8_t len) {
  * Calculate the checksum of the data.
  */
 uint16_t C4002Component::get_check_sum(uint8_t *pdata, uint16_t len) {
-  uint16_t Parity = 0;
+  uint16_t parity = 0;
   for (uint16_t i = 0; i < len; i++) {
-    Parity += pdata[i];
+    parity += pdata[i];
   }
-  return Parity;
+  return parity;
 }
 
 /**
@@ -684,11 +686,11 @@ bool C4002Component::get_detect_range() {
 
   send_pack(send_date, data_len, FRAME_TYPE_READ_REQUSET);
 
-  RecvPack recPack = recv_pack();
+  RecvPack rec_pack = recv_pack();
 
-  if (SUCCEED == recPack.resPonCode) {
-    this->current_detection_range_min_ = (float) ((recPack.data[1] << 8) | recPack.data[0]) * 0.01;
-    this->current_detection_range_max_ = (float) ((recPack.data[3] << 8) | recPack.data[2]) * 0.01;
+  if (SUCCEED == rec_pack .resPonCode) {
+    this->current_detection_range_min_ = (float) ((rec_pack .data[1] << 8) | rec_pack .data[0]) * 0.01;
+    this->current_detection_range_max_ = (float) ((rec_pack .data[3] << 8) | rec_pack .data[2]) * 0.01;
     return true;
   } else {
     return false;
@@ -697,7 +699,6 @@ bool C4002Component::get_detect_range() {
 
 void C4002Component::set_area_range(RangValue range_value, float range) {
   current_area_[range_value] = range - 1;
-  return;
 }
 
 float C4002Component::get_area_range(RangValue range_value) { return current_area_[range_value] + 1; }
@@ -758,9 +759,9 @@ float C4002Component::get_light_threshold() {
   send_date[3] = data_len >> 8 & 0xFF;
 
   send_pack(send_date, data_len, FRAME_TYPE_READ_REQUSET);
-  RecvPack recPack = recv_pack();
-  if (SUCCEED == recPack.resPonCode) {
-    threshold = (float) ((recPack.data[1] << 8) | recPack.data[0]) * 0.1;
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack .resPonCode) {
+    threshold = (float) ((rec_pack .data[1] << 8) | rec_pack .data[0]) * 0.1;
   } else {
     ESP_LOGD(TAG, "get light threshold failed");
   }
@@ -772,7 +773,7 @@ float C4002Component::get_light_threshold() {
 bool C4002Component::set_min_range(float range) {
   uint16_t closest = (uint16_t) (range * 100);
   uint16_t farthest = (uint16_t) (this->max_detect_range_ * 100);
-  if (set_detect_range(closest, farthest) == false) {
+  if (!set_detect_range(closest, farthest)) {
     return false;
   } else {
     this->min_detect_range_ = range;
@@ -783,7 +784,7 @@ bool C4002Component::set_min_range(float range) {
 bool C4002Component::set_max_range(float range) {
   uint16_t closest = (uint16_t) (this->min_detect_range_ * 100);
   uint16_t farthest = (uint16_t) (range * 100);
-  if (set_detect_range(closest, farthest) == false) {
+  if (!set_detect_range(closest, farthest)) {
     return false;
   } else {
     this->max_detect_range_ = range;
