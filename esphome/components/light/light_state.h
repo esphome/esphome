@@ -15,8 +15,7 @@
 #include <strings.h>
 #include <vector>
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class LightOutput;
 
@@ -301,5 +300,4 @@ class LightState : public EntityBase, public Component {
   LightRestoreMode restore_mode_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

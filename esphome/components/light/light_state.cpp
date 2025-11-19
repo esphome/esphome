@@ -5,8 +5,7 @@
 #include "light_output.h"
 #include "transformers.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -328,5 +327,4 @@ void LightState::save_remote_values_() {
   this->rtc_.save(&saved);
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
