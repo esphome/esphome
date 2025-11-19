@@ -243,11 +243,11 @@ class C4002Component : public Component, public uart::UARTDevice {
   void print_config();
 
   void update_config_param();
-  void get_data(void);
+  void get_data();
 
   void register_listener(C4002Listener *listener) { this->listeners_.push_back(listener); }
 
-  bool factory_reset(void);
+  bool factory_reset();
   bool set_light_threshold(float threshold);
   bool set_resolution_mode(ResolutionMode mode);
 
@@ -266,28 +266,28 @@ class C4002Component : public Component, public uart::UARTDevice {
   //#endif
 
   //数据获取类
-  TargetState get_target_state(void);
-  float get_light(void);
-  uint32_t get_exist_dist_index(void);
-  ExistTgt get_exist_target_info(void);
-  MoveTgt get_move_target_info(void);
+  TargetState get_target_state();
+  float get_light();
+  uint32_t get_exist_dist_index();
+  ExistTgt get_exist_target_info();
+  MoveTgt get_move_target_info();
 
   bool begin();
-  bool get_resolution_mode(void);
+  bool get_resolution_mode();
   //#if 0
   //*****************************************/
-  bool get_out_mode(void);
-  bool get_detect_range(void);
+  bool get_out_mode();
+  bool get_detect_range();
 
   //#endif
 
-  RetResult get_note_info_loop(void);
+  RetResult get_note_info_loop();
   bool set_report_period(uint8_t period);
 
   void send_pack(void *pdata, uint16_t len, uint8_t msg_type);
   RecvPck recv_pack();
-  bool checkSum(uint8_t *pdata, uint8_t len);
-  uint16_t getCheckSum(uint8_t *pdata, uint16_t len);
+  bool check_sum(uint8_t *pdata, uint8_t len);
+  uint16_t get_check_sum(uint8_t *pdata, uint16_t len);
 
   size_t uart_read_raw(uint8_t *buf, size_t bufsize, uint32_t timeout_ms = 200);
   void uart_write_data(uint8_t *datas, size_t len);
@@ -332,7 +332,7 @@ class C4002Component : public Component, public uart::UARTDevice {
 #endif
 
  protected:
-  DetectRet _detectResult;
+  DetectRet detect_result_;
   ResolutionMode resolution_mode_ = RESOLUTION_80CM;
 
   OutMode out_mode_;

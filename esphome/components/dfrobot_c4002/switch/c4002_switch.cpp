@@ -6,7 +6,7 @@ namespace dfrobot_c4002 {
 void C4002Switch1::write_state(bool state) {
   bool send_flag = false;
   if (this->parent_) {
-    if (state == true) {
+    if (state) {
       send_flag = this->parent_->set_out_led(LED_ON);
     } else {
       send_flag = this->parent_->set_out_led(LED_OFF);
@@ -22,7 +22,7 @@ void C4002Switch1::write_state(bool state) {
 void C4002Switch2::write_state(bool state) {
   bool send_flag = false;
   if (this->parent_) {
-    if (state == true) {
+    if (state) {
       send_flag = this->parent_->set_run_led(LED_ON);
     } else {
       send_flag = this->parent_->set_run_led(LED_OFF);
@@ -37,7 +37,7 @@ void C4002Switch2::write_state(bool state) {
 
 void C4002SwitchFactoryReset::write_state(bool state) {
   if (this->parent_) {
-    if (state == true) {
+    if (state) {
       bool send_flag = this->parent_->factory_reset();
 
       ESP_LOGW("C4002SwitchFactoryReset", "bool: %d", send_flag);

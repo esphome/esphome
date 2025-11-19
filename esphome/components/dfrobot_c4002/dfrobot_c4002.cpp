@@ -53,7 +53,7 @@ void C4002Component::loop() {
  *
  * After parsing, update exist_, speed_, distance_ members.
  */
-void C4002Component::get_data(void) {
+void C4002Component::get_data() {
   /** 1.获取数据帧 **/
   /** 2.解析数据 **/
   /** 3.保存数据在类内变量中 **/
@@ -144,7 +144,7 @@ void C4002Component::update_config_param() {
   return;
 }
 
-bool C4002Component::get_out_mode(void) {
+bool C4002Component::get_out_mode() {
   uint8_t send_date[10];
   uint16_t data_len = 4;
   send_date[0] = CMD_CONFIG_OUT_MODE;
@@ -203,7 +203,7 @@ bool C4002Component::set_light_threshold(float threshold) {
   }
 }
 
-bool C4002Component::factory_reset(void) {
+bool C4002Component::factory_reset() {
   uint8_t send_date[10];
   uint16_t data_len = 5;
 
@@ -363,25 +363,25 @@ bool C4002Component::set_out_led(LedMode out_led) {
   }
 }
 
-TargetState C4002Component::get_target_state(void) { return (TargetState) _detectResult.targetStatus; }
+TargetState C4002Component::get_target_state() { return (TargetState) detect_result_.targetStatus; }
 
-float C4002Component::get_light(void) { return ((float) _detectResult.light * 0.1); }
+float C4002Component::get_light() { return ((float) detect_result_.light * 0.1); }
 
-uint32_t C4002Component::get_exist_dist_index(void) { return _detectResult.existDistIndex; }
+uint32_t C4002Component::get_exist_dist_index() { return detect_result_.existDistIndex; }
 
-ExistTgt C4002Component::get_exist_target_info(void) {
+ExistTgt C4002Component::get_exist_target_info() {
   ExistTgt info;
-  info.distance = ((float) _detectResult.existTargetDist * 0.01);
-  info.energy = _detectResult.existTargetEnery;
+  info.distance = ((float) detect_result_.existTargetDist * 0.01);
+  info.energy = detect_result_.existTargetEnery;
   return info;
 }
 
-MoveTgt C4002Component::get_move_target_info(void) {
+MoveTgt C4002Component::get_move_target_info() {
   MoveTgt info;
-  info.distance = ((float) _detectResult.moveTargetDist * 0.01);
-  info.energy = _detectResult.moveTargetEnery;
-  info.speed = ((float) _detectResult.moveTargetSpeed * 0.01);
-  info.direction = (MoveDirection) _detectResult.moveTargetDirect;
+  info.distance = ((float) detect_result_.moveTargetDist * 0.01);
+  info.energy = detect_result_.moveTargetEnery;
+  info.speed = ((float) detect_result_.moveTargetSpeed * 0.01);
+  info.direction = (MoveDirection) detect_result_.moveTargetDirect;
   return info;
 }
 
@@ -422,25 +422,25 @@ bool C4002Component::enable_all_distance_door(uint8_t *door_data) {
  * Read UART and parse notification data.
  * Returns a RetResult struct with the parsed data.
  */
-RetResult C4002Component::get_note_info_loop(void) {
+RetResult C4002Component::get_note_info_loop() {
   RetResult ret;
   RecvPack recData = recv_pack();
 
   if (SUCCEED == recData.resPonCode) {
     if (recData.packType == FRAME_TYPE_NOTIFICATION) {  // note
       if (recData.dataHeader.cmd == NOTE_RESULT_CMD) {
-        // memcpy(&this->_detectResult, recData.data, sizeof(DetectRet));
-        this->_detectResult.targetStatus = recData.data[0];
-        this->_detectResult.light = recData.data[2] << 8 | recData.data[1];
-        this->_detectResult.existDistIndex =
+        // memcpy(&this->detect_result_, recData.data, sizeof(DetectRet));
+        this->detect_result_.targetStatus = recData.data[0];
+        this->detect_result_.light = recData.data[2] << 8 | recData.data[1];
+        this->detect_result_.existDistIndex =
             recData.data[6] << 24 | recData.data[5] << 16 | recData.data[4] << 8 | recData.data[3];
-        this->_detectResult.existCountDown = recData.data[8] << 8 | recData.data[7];
-        this->_detectResult.existTargetDist = recData.data[10] << 8 | recData.data[9];
-        this->_detectResult.existTargetEnery = recData.data[11];
-        this->_detectResult.moveTargetDist = recData.data[13] << 8 | recData.data[12];
-        this->_detectResult.moveTargetSpeed = recData.data[15] << 8 | recData.data[14];
-        this->_detectResult.moveTargetEnery = recData.data[16];
-        this->_detectResult.moveTargetDirect = recData.data[17];
+        this->detect_result_.existCountDown = recData.data[8] << 8 | recData.data[7];
+        this->detect_result_.existTargetDist = recData.data[10] << 8 | recData.data[9];
+        this->detect_result_.existTargetEnery = recData.data[11];
+        this->detect_result_.moveTargetDist = recData.data[13] << 8 | recData.data[12];
+        this->detect_result_.moveTargetSpeed = recData.data[15] << 8 | recData.data[14];
+        this->detect_result_.moveTargetEnery = recData.data[16];
+        this->detect_result_.moveTargetDirect = recData.data[17];
         ret.noteType = NOTE_INFO_RESULT;
       } else if (recData.dataHeader.cmd == NOTE_ENVIRNMENT_CALIBRATION_CMD) {
         ret.calibCountdown = recData.data[1] << 8 | recData.data[0];
@@ -458,7 +458,7 @@ RetResult C4002Component::get_note_info_loop(void) {
  * Get the resolution mode of the device.
  * Returns true if successful, false otherwise.
  */
-bool C4002Component::get_resolution_mode(void) {
+bool C4002Component::get_resolution_mode() {
   uint8_t send_date[10];
   uint16_t data_len = 4;
   send_date[0] = CMD_GET_AND_SET_RESOLUTION_MODE;
@@ -512,7 +512,7 @@ void C4002Component::send_pack(void *pdata, uint16_t len, uint8_t msg_type) {
   uint8_t send_date[50] = {0};
 
   uint16_t data_len = 0;
-  uint16_t checkSum = 0;
+  uint16_t check_sums = 0;
 
   send_date[data_len++] = FRAME_HEADER1;
   send_date[data_len++] = FRAME_HEADER2;
@@ -525,10 +525,10 @@ void C4002Component::send_pack(void *pdata, uint16_t len, uint8_t msg_type) {
   send_date[data_len++] = msg_type;
   memcpy(&send_date[data_len], pdata, len);
   data_len += len;
-  checkSum = getCheckSum((uint8_t *) send_date, data_len);
+  check_sums = get_check_sum((uint8_t *) send_date, data_len);
 
-  send_date[data_len++] = checkSum >> 0 & 0xFF;
-  send_date[data_len++] = checkSum >> 8 & 0xFF;
+  send_date[data_len++] = check_sums >> 0 & 0xFF;
+  send_date[data_len++] = check_sums >> 8 & 0xFF;
 
   uart_write_data(send_date, (size_t) data_len);
 }
@@ -558,7 +558,7 @@ RecvPack C4002Component::recv_pack() {
 
     if (recvLen == (packLen - 8)) {
       recvDat.packType = pdata[7];
-      if (checkSum(pdata, packLen)) {
+      if (check_sum(pdata, packLen)) {
         uint16_t data_len = (pdata[11] << 8) | pdata[10];
 
         memcpy(&recvDat, &pdata[8], data_len);
@@ -592,10 +592,10 @@ RecvPack C4002Component::recv_pack() {
 }
 
 /**
- * checkSum
- * Check the checksum of the data.
+ * check_sum
+ * Check the check_sum of the data.
  */
-bool C4002Component::checkSum(uint8_t *pdata, uint8_t len) {
+bool C4002Component::check_sum(uint8_t *pdata, uint8_t len) {
   uint16_t calculateParity = 0;
 
   for (uint8_t i = 0; i < len - 2; i++) {
@@ -609,10 +609,10 @@ bool C4002Component::checkSum(uint8_t *pdata, uint8_t len) {
 }
 
 /**
- * getCheckSum
+ * get_check_sum
  * Calculate the checksum of the data.
  */
-uint16_t C4002Component::getCheckSum(uint8_t *pdata, uint16_t len) {
+uint16_t C4002Component::get_check_sum(uint8_t *pdata, uint16_t len) {
   uint16_t Parity = 0;
   for (uint16_t i = 0; i < len; i++) {
     Parity += pdata[i];
@@ -673,7 +673,7 @@ size_t C4002Component::uart_read_raw(uint8_t *buf, size_t bufsize, uint32_t time
   return idx;
 }
 
-bool C4002Component::get_detect_range(void) {
+bool C4002Component::get_detect_range() {
   uint8_t send_date[10];
   uint16_t data_len = 0;
   uint16_t temp = 4;
@@ -702,7 +702,7 @@ void C4002Component::set_area_range(RangValue range_value, float range) {
 
 float C4002Component::get_area_range(RangValue range_value) { return current_area_[range_value] + 1; }
 
-bool C4002Component::joint_enable_door(void) {
+bool C4002Component::joint_enable_door() {
   for (int i = 0; i < 11; ++i) {
     enable_door_[i] = 0;
   }
@@ -737,7 +737,7 @@ bool C4002Component::joint_enable_door(void) {
   return enable_all_distance_door(enable_door_);
 }
 
-void C4002Component::setup_number(void) {
+void C4002Component::setup_number() {
   bool ret;
   ret = get_detect_range();
   if (ret == true) {
@@ -747,7 +747,7 @@ void C4002Component::setup_number(void) {
   }
 }
 
-float C4002Component::get_light_threshold(void) {
+float C4002Component::get_light_threshold() {
   float threshold = 0.0;
   uint8_t send_date[10];
 

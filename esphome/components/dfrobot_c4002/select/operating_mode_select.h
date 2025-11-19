@@ -20,7 +20,7 @@ class C4002Select : public Component, public select::Select, public Parented<C40
 
  protected:
   void control(const std::string &value) override;
-  std::string options[3] = {"Mode_1", "Mode_2", "Mode_3"};
+  std::string options_[3] = {"Mode_1", "Mode_2", "Mode_3"};
 };
 
 }  // namespace dfrobot_c4002
