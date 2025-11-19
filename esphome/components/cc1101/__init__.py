@@ -122,6 +122,7 @@ async def to_code(config):
 BeginTxAction = ns.class_("BeginTxAction", automation.Action)
 EndTxAction = ns.class_("EndTxAction", automation.Action)
 ResetAction = ns.class_("ResetAction", automation.Action)
+SetIdleAction = ns.class_("SetIdleAction", automation.Action)
 
 CC1101_ACTION_SCHEMA = cv.Schema(
     maybe_simple_id(
@@ -135,6 +136,9 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 @automation.register_action("cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA)
 @automation.register_action("cc1101.end_tx", EndTxAction, CC1101_ACTION_SCHEMA)
 @automation.register_action("cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA)
+@automation.register_action(
+    "cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA
+)  # <--- ADD THIS
 async def cc1101_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])

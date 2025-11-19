@@ -27,6 +27,7 @@ class CC1101Component : public Component,
   void begin_tx();
   void end_tx();
   void reset();
+  void set_idle();
 
   // --- NEW HELPER FOR LAMBDAS ---
   void write_register(uint8_t reg, uint8_t value) { this->write_((Register) reg, value); }
@@ -111,6 +112,12 @@ template<typename... Ts> class EndTxAction : public Action<Ts...>, public Parent
 template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void play(Ts... x) override { this->parent_->reset(); }
+};
+
+template<typename... Ts>
+class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {  // <--- ADD THIS CLASS
+ public:
+  void play(Ts... x) override { this->parent_->set_idle(); }
 };
 
 }  // namespace cc1101

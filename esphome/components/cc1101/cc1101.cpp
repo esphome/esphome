@@ -205,6 +205,12 @@ void CC1101Component::reset() {
   this->setup();
 }
 
+void CC1101Component::set_idle() {
+  // The private helper function handles the strobe to Command::IDLE
+  this->enter_idle_();
+  ESP_LOGV(TAG, "Transitioned to IDLE state.");
+}
+
 bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
   uint32_t start = millis();
   while (millis() - start < timeout_ms) {
