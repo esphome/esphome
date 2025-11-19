@@ -71,7 +71,7 @@ class ModemOnEnableTrigger : public Trigger<> {
 template<typename... Ts> class ModemSendAtAction : public Action<Ts...> {
  public:
   void set_command(const std::string &command) { this->command_ = command; }
-  void play(const Ts... x) override {
+  void play(const Ts &...x) override {
     if (global_modem_component) {
       global_modem_component->send_at(this->command_, 1000, true);
     }
@@ -84,23 +84,23 @@ template<typename... Ts> class ModemSendAtAction : public Action<Ts...> {
 // Actions
 template<typename... Ts> class ModemEnableAction : public Action<Ts...> {
  public:
-  void play(const Ts... x) override { global_modem_component->enable(); }
+  void play(const Ts &...x) override { global_modem_component->enable(); }
 };
 
 template<typename... Ts> class ModemDisableAction : public Action<Ts...> {
  public:
-  void play(const Ts... x) override { global_modem_component->disable(); }
+  void play(const Ts &...x) override { global_modem_component->disable(); }
 };
 
 template<typename... Ts> class ModemResetAction : public Action<Ts...> {
  public:
-  void play(const Ts... x) override { global_modem_component->reset(); }
+  void play(const Ts &...x) override { global_modem_component->reset(); }
 };
 
 // Conditions
 template<typename... Ts> class ModemConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(const Ts... x) override {
+  bool check(const Ts &...x) override {
     if (global_modem_component) {
       return global_modem_component->is_connected();
     }
@@ -110,7 +110,7 @@ template<typename... Ts> class ModemConnectedCondition : public Condition<Ts...>
 
 template<typename... Ts> class ModemEnabledCondition : public Condition<Ts...> {
  public:
-  bool check(const Ts... x) override {
+  bool check(const Ts &...x) override {
     if (global_modem_component) {
       return !global_modem_component->is_disabled();
     }
