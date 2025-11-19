@@ -365,7 +365,7 @@ void WiFiComponent::start() {
     this->set_sta(sta);
   }
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   // Create semaphore for high-performance mode requests
   // Start at 0, increment on request, decrement on release
   this->high_performance_semaphore_ = xSemaphoreCreateCounting(UINT32_MAX, 0);
@@ -538,7 +538,7 @@ void WiFiComponent::loop() {
     }
   }
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   // Check if power save mode needs to be updated based on high-performance requests
   if (this->high_performance_semaphore_ != nullptr) {
     // Semaphore count directly represents active requests (starts at 0, increments on request)
@@ -1605,7 +1605,7 @@ bool WiFiComponent::is_connected() {
 }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   this->configured_power_save_ = power_save;
 #endif
 }
@@ -1627,8 +1627,8 @@ bool WiFiComponent::is_esp32_improv_active_() {
 #endif
 }
 
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
 bool WiFiComponent::request_high_performance() {
-#ifdef USE_ESP32
   // Skip if already configured for high performance or semaphore initialization failed
   if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE || this->high_performance_semaphore_ == nullptr) {
     return false;
@@ -1636,13 +1636,9 @@ bool WiFiComponent::request_high_performance() {
 
   // Give the semaphore (non-blocking). This increments the count.
   return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
-#else
-  return false;
-#endif
 }
 
 bool WiFiComponent::release_high_performance() {
-#ifdef USE_ESP32
   // Skip if already configured for high performance or semaphore initialization failed
   if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE || this->high_performance_semaphore_ == nullptr) {
     return false;
@@ -1650,10 +1646,8 @@ bool WiFiComponent::release_high_performance() {
 
   // Take the semaphore (non-blocking). This decrements the count.
   return xSemaphoreTake(this->high_performance_semaphore_, 0) == pdTRUE;
-#else
-  return false;
-#endif
 }
+#endif  // USE_ESP32 && USE_WIFI_RUNTIME_POWER_SAVE
 
 #ifdef USE_WIFI_FAST_CONNECT
 bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {

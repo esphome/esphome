@@ -369,6 +369,7 @@ class WiFiComponent : public Component {
 
   int32_t get_wifi_channel();
 
+#ifdef USE_WIFI_RUNTIME_POWER_SAVE
   /** Request high-performance mode (no power saving) for improved WiFi throughput.
    *
    * Components that need maximum WiFi performance (e.g., audio streaming, large data transfers)
@@ -397,6 +398,7 @@ class WiFiComponent : public Component {
    * @return true if the release was successful, false otherwise
    */
   bool release_high_performance();
+#endif  // USE_WIFI_RUNTIME_POWER_SAVE
 
  protected:
 #ifdef USE_WIFI_AP
@@ -541,7 +543,6 @@ class WiFiComponent : public Component {
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
-  WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
@@ -569,7 +570,8 @@ class WiFiComponent : public Component {
   bool keep_scan_results_{false};
   bool did_scan_this_cycle_{false};
   bool skip_cooldown_next_cycle_{false};
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   bool is_high_performance_mode_{false};
 
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
