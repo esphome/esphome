@@ -70,22 +70,24 @@ class C4002Listener {
 #define HARDWARE_VERSION 0x00  ///< get hardware version
 
 /**
- * @enum eResolutionMode_t
+ * @enum ResolutionMode
  * @brief Resolution mode
  */
-typedef enum { eResolution80Cm = 0x00, eResolution20Cm = 0x01 } eResolutionMode_t;
+enum ResolutionMode{
+   eResolution80Cm = 0x00, eResolution20Cm = 0x01 
+  };
 
 /**
- * @enum eDistanceDoorType_t
+ * @enum DistanceDoorType
  * @brief Distance door type
  */
-typedef enum { eMoveDistDoor = 0x00, eExistDistDoor = 0x01 } eDistanceDoorType_t;
+ enum DistanceDoorType { eMoveDistDoor = 0x00, eExistDistDoor = 0x01 };
 
 /**
- * @enum eResponseCode_t
+ * @enum ResponseCode
  * @brief Response code
  */
-typedef enum {
+enum ResponseCode {
   eReadAndWriteReq = 0x00, /*read and write request       */
   eSucceed = 0x01,
   eCmdErr = 0x02,            /* The CMD does not exist      */
@@ -94,30 +96,30 @@ typedef enum {
   eParamsErr = 0x05,         /* The parameters are illegal  */
   eDataLenErr = 0x06,        /* Abnormal data length        */
   eInternalErr = 0x07        /* internal error              */
-} eResponseCode_t;
+};
 
 /**
- * @enum eMoveDirection_t
+ * @enum MoveDirection
  * @brief The direction of the movement
  */
-typedef enum { eAway = 0, eStay = 1, eNear = 2 } eMoveDirection_t;
+enum MoveDirection { eAway = 0, eStay = 1, eNear = 2 } ;
 
 /**
- * @enum eOutMode_t
+ * @enum OutMode
  * @brief Output mode
  */
-typedef enum {
+enum OutMode {
   eOutMode1 = 0x01, /* Only when motion is detected will a high level be output */
   eOutMode2 = 0x02, /* A high level is output only when its presence is detected */
   eOutMode3 = 0x03, /* A high level only appears when movement or presence is detected */
   eOutModex = 0xFF  /* reserved                          */
-} eOutMode_t;
+};
 
 /**
- * @enum eTargetState_t
+ * @enum TargetState
  * @brief The state of the target
  */
-typedef enum {
+enum TargetState {
   eNobody = 0,
   eExist = 1,
   eMove = 2,
@@ -125,29 +127,29 @@ typedef enum {
   eMoveOrNobody = 4,
   eExistOrNobody = 5,
   ePinError = 255
-} eTargetState_t;
+} ;
 
 /**
- * @enum eLedMode_t
+ * @enum LedMode
  * @brief The operation led mode
  */
-typedef enum { eLedOff = 0x00, eLedOn = 0x01, eLedKeep = 0xFF } eLedMode_t;
+enum LedMode { eLedOff = 0x00, eLedOn = 0x01, eLedKeep = 0xFF };
 
 /**
- * @enum eNoteType_t
+ * @enum NoteType
  * @brief The type of the notification message
  */
-typedef enum {
+enum NoteType{
   eNoNote = 0x00,
   eNoteInfoResult = 0x01,
   eNoteInfoCalibration = 0x02,
-} eNoteType_t;
+};
 
 /**
- * @struct sDetectResult_t
+ * @struct DetectResult
  * @brief The detection result
  */
-typedef struct {
+struct DetectResult{
   uint8_t targetStatus;
   uint16_t light;
   uint32_t existDistIndex;
@@ -158,77 +160,77 @@ typedef struct {
   int16_t moveTargetSpeed;
   uint8_t moveTargetEnery;
   uint8_t moveTargetDirect;
-} sDetectResult_t;
+};
+
+using DetectRet = DetectResult;
 
 /**
- * @struct sDataHeader_t
+ * @struct DetectHead
  * @brief The data header of the received package
  */
-typedef struct {
+struct DataHeader{
   uint8_t cmd;
   uint8_t respCode;
   uint16_t dataLen;
-} sDataHeader_t;
+};
+using  DetectHead = DataHeader;
 
 /**
- * @struct sRecvPack_t
+ * @struct RecvPack
  * @brief The received package
  */
-typedef struct {
-  sDataHeader_t dataHeader;
+struct RecvPack{
+  DetectHead dataHeader;
   uint8_t data[50];
   uint8_t packType;
-  eResponseCode_t resPonCode;
-} sRecvPack_t;
+  ResponseCode resPonCode;
+};
+
+using RecvPck = RecvPack;
 
 /**
- * @struct sResData_t
- * @brief The detection result and environment calibration information
- */
-typedef struct {
-  uint8_t cmd;
-  uint8_t respCode;
-  sDetectResult_t dectResult;
-  uint16_t calibCountdown;
-} sResData_t;
-
-/**
- * @struct sMoveTarget_t
+ * @struct ExistTarget
  * @brief The movement target
  */
-typedef struct {
+struct ExistTarget{
   float distance;
   uint8_t energy;
-} sExistTarget_t;
+} ;
+
+  using ExistTgt = ExistTarget;
 
 /**
- * @struct sMoveTarget_t
+ * @struct MoveTarget
  * @brief The movement target
  */
-typedef struct {
+struct MoveTarget{
   float distance;
   float speed;
   uint8_t energy;
-  eMoveDirection_t direction;
-} sMoveTarget_t;
+  MoveDirection direction;
+} ;
+
+using MoveTgt = MoveTarget;
 
 /**
- *  @struct sRetResult_t
+ *  @struct ReturnResult
  *  @brief The detection result and environment calibration information
  */
-typedef struct {
-  eNoteType_t noteType;
+struct ReturnResult{
+  NoteType noteType;
   uint16_t calibCountdown;
-} sRetResult_t;
+} ;
 
-typedef enum {
+using RetResult = ReturnResult;
+
+enum RangValue{
   AREA1_DOOR_MIN = 0,
   AREA1_DOOR_MAX = 1,
   AREA2_DOOR_MIN = 2,
   AREA2_DOOR_MAX = 3,
   AREA3_DOOR_MIN = 4,
   AREA3_DOOR_MAX = 5,
-} range_value_t;
+} ;
 
 /**
  * @brief Main component for the DFRobot C4002 device.
@@ -257,28 +259,28 @@ class C4002Component : public Component, public uart::UARTDevice {
 
   bool factoryReset(void);
   bool setLightThreshold(float threshold);
-  bool setResolutionMode(eResolutionMode_t mode);
+  bool setResolutionMode(ResolutionMode mode);
 
-  bool enableDistanceDoor(eDistanceDoorType_t doorType, uint8_t *doorData);
+  bool enableDistanceDoor(DistanceDoorType doorType, uint8_t *doorData);
   bool enable_all_distance_door(uint8_t *door_data);
 
   bool setDetectRange(uint16_t closest, uint16_t farthest);
   void startEnvCalibration(uint16_t delayTime, uint16_t contTime);
-  bool setRunLed(eLedMode_t runLed);
+  bool setRunLed(LedMode runLed);
 
   //#if 0
   //************************************/
-  bool setOutLed(eLedMode_t outLed);
-  bool setOutMode(eOutMode_t outMode);
+  bool setOutLed(LedMode outLed);
+  bool setOutMode(OutMode outMode);
 
   //#endif
 
   //数据获取类
-  eTargetState_t getTargetState(void);
+  TargetState getTargetState(void);
   float getLight(void);
   uint32_t getExistDistIndex(void);
-  sExistTarget_t getExistTargetInfo(void);
-  sMoveTarget_t getMoveTargetInfo(void);
+  ExistTgt getExistTargetInfo(void);
+  MoveTgt getMoveTargetInfo(void);
 
   bool begin();
   bool getResolutionMode(void);
@@ -289,11 +291,11 @@ class C4002Component : public Component, public uart::UARTDevice {
 
   //#endif
 
-  sRetResult_t getNotInfoLoop(void);
+  RetResult getNotInfoLoop(void);
   bool setReportPeriod(uint8_t period);
 
   void sendPack(void *pdata, uint16_t len, uint8_t msgType);
-  sRecvPack_t recvPack();
+  RecvPck recvPack();
   bool checkSum(uint8_t *pdata, uint8_t len);
   uint16_t getCheckSum(uint8_t *pdata, uint16_t len);
 
@@ -324,8 +326,8 @@ class C4002Component : public Component, public uart::UARTDevice {
   bool set_min_range(float range);
   bool set_max_range(float range);
 
-  float get_area_range(range_value_t range_value);
-  void set_area_range(range_value_t range_value, float range);
+  float get_area_range(RangValue range_value);
+  void set_area_range(RangValue range_value, float range);
 
   void set_min_range_number(number::Number *number) { this->min_range_number_ = number; }
   void set_max_range_number(number::Number *number) { this->max_range_number_ = number; }
@@ -340,10 +342,10 @@ class C4002Component : public Component, public uart::UARTDevice {
 #endif
 
  protected:
-  sDetectResult_t _detectResult;
-  eResolutionMode_t _resolutionMode = eResolution80Cm;
+  DetectRet _detectResult;
+  ResolutionMode _resolutionMode = eResolution80Cm;
 
-  eOutMode_t _outMode;
+  OutMode _outMode;
 
   float min_detect_range_ = 0;
   float max_detect_range_ = 11;

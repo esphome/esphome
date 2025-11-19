@@ -29,7 +29,7 @@ void C4002Component::loop() {
   static uint32_t last_time = 0;
   uint32_t now = millis();
 
-  sRetResult_t ret = getNotInfoLoop();
+  RetResult ret = getNotInfoLoop();
   if (ret.noteType == eNoteInfoResult) {
     ESP_LOGD(TAG, "******run print eNoteInfoResult*********");
   } else if (ret.noteType == eNoteInfoCalibration) {
@@ -57,9 +57,9 @@ void C4002Component::get_data(void) {
   /** 1.获取数据帧 **/
   /** 2.解析数据 **/
   /** 3.保存数据在类内变量中 **/
-  sExistTarget_t exit_taget_data = getExistTargetInfo();
-  sMoveTarget_t move_taget_data = getMoveTargetInfo();
-  eTargetState_t target_state = getTargetState();
+  ExistTgt exit_taget_data = getExistTargetInfo();
+  MoveTgt move_taget_data = getMoveTargetInfo();
+  TargetState target_state = getTargetState();
 
   /** 4.判断数据是否有效，如果有效，发布数据到home assistant上通过回调 **/
   for (auto &listener : this->listeners_) {
@@ -145,35 +145,35 @@ void C4002Component::update_config_param() {
 }
 
 bool C4002Component::getOutMode(void) {
-  uint8_t sendData[10];
+  uint8_t send_date[10];
   uint16_t dataLen = 4;
-  sendData[0] = CMD_CONFIG_OUT_MODE;
-  sendData[1] = eReadAndWriteReq;
-  sendData[2] = dataLen >> 0 & 0xFF;
-  sendData[3] = dataLen >> 8 & 0xFF;
-  sendPack(sendData, dataLen, FRAME_TYPE_READ_REQUSET);
+  send_date[0] = CMD_CONFIG_OUT_MODE;
+  send_date[1] = eReadAndWriteReq;
+  send_date[2] = dataLen >> 0 & 0xFF;
+  send_date[3] = dataLen >> 8 & 0xFF;
+  sendPack(send_date, dataLen, FRAME_TYPE_READ_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
-    _outMode = (eOutMode_t) recPack.data[0];
+    _outMode = (OutMode) recPack.data[0];
     return true;
   } else {
     return false;
   }
 }
 
-bool C4002Component::setOutMode(eOutMode_t outMode) {
-  uint8_t sendData[10];
+bool C4002Component::setOutMode(OutMode outMode) {
+  uint8_t send_date[10];
   uint16_t dataLen = 0;
   uint16_t temp = 5;
-  sendData[dataLen++] = CMD_CONFIG_OUT_MODE;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
-  sendData[dataLen++] = (uint8_t) outMode;
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  send_date[dataLen++] = CMD_CONFIG_OUT_MODE;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = (uint8_t) outMode;
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     _outMode = outMode;
     return true;
@@ -183,19 +183,19 @@ bool C4002Component::setOutMode(eOutMode_t outMode) {
 }
 
 bool C4002Component::setLightThreshold(float threshold) {
-  uint8_t sendData[10];
+  uint8_t send_date[10];
   uint16_t dataLen = 0;
   uint16_t temp = 6;
-  sendData[dataLen++] = CMD_SET_LIGHT_THRESHOLD;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = CMD_SET_LIGHT_THRESHOLD;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
   uint16_t thresholdTemp = (uint16_t) (threshold * 10);
-  sendData[dataLen++] = thresholdTemp >> 0 & 0xFF;
-  sendData[dataLen++] = thresholdTemp >> 8 & 0xFF;
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  send_date[dataLen++] = thresholdTemp >> 0 & 0xFF;
+  send_date[dataLen++] = thresholdTemp >> 8 & 0xFF;
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     return true;
   } else {
@@ -204,17 +204,17 @@ bool C4002Component::setLightThreshold(float threshold) {
 }
 
 bool C4002Component::factoryReset(void) {
-  uint8_t sendData[10];
+  uint8_t send_date[10];
   uint16_t dataLen = 5;
 
-  sendData[0] = CMD_FACTORY_RESET;
-  sendData[1] = eReadAndWriteReq;
-  sendData[2] = dataLen >> 0 & 0xFF;
-  sendData[3] = dataLen >> 8 & 0xFF;
-  sendData[4] = 0x00;
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  send_date[0] = CMD_FACTORY_RESET;
+  send_date[1] = eReadAndWriteReq;
+  send_date[2] = dataLen >> 0 & 0xFF;
+  send_date[3] = dataLen >> 8 & 0xFF;
+  send_date[4] = 0x00;
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     return true;
   } else {
@@ -222,17 +222,17 @@ bool C4002Component::factoryReset(void) {
   }
 }
 
-bool C4002Component::setResolutionMode(eResolutionMode_t mode) {
-  uint8_t sendData[10];
+bool C4002Component::setResolutionMode(ResolutionMode mode) {
+  uint8_t send_date[10];
   uint16_t dataLen = 5;
-  sendData[0] = CMD_GET_AND_SET_RESOLUTION_MODE;
-  sendData[1] = eReadAndWriteReq;
-  sendData[2] = dataLen >> 0 & 0xFF;
-  sendData[3] = dataLen >> 8 & 0xFF;
-  sendData[4] = (uint8_t) mode;
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  send_date[0] = CMD_GET_AND_SET_RESOLUTION_MODE;
+  send_date[1] = eReadAndWriteReq;
+  send_date[2] = dataLen >> 0 & 0xFF;
+  send_date[3] = dataLen >> 8 & 0xFF;
+  send_date[4] = (uint8_t) mode;
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     _resolutionMode = mode;
     return true;
@@ -241,8 +241,8 @@ bool C4002Component::setResolutionMode(eResolutionMode_t mode) {
   }
 }
 
-bool C4002Component::enableDistanceDoor(eDistanceDoorType_t doorType, uint8_t *doorData) {
-  uint8_t sendData[40];
+bool C4002Component::enableDistanceDoor(DistanceDoorType doorType, uint8_t *doorData) {
+  uint8_t send_date[40];
   uint16_t dataLen = 0;
   uint16_t temp = 5;
   int doorNum = 0;
@@ -253,17 +253,17 @@ bool C4002Component::enableDistanceDoor(eDistanceDoorType_t doorType, uint8_t *d
   }
   temp += doorNum;
 
-  sendData[dataLen++] = CMD_SET_DISTANCE_DOOR;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
-  sendData[dataLen++] = (uint8_t) doorType;
+  send_date[dataLen++] = CMD_SET_DISTANCE_DOOR;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = (uint8_t) doorType;
   for (int i = 0; i < doorNum; i++) {
-    sendData[dataLen++] = doorData[i];
+    send_date[dataLen++] = doorData[i];
   }
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     return true;
   } else {
@@ -273,14 +273,14 @@ bool C4002Component::enableDistanceDoor(eDistanceDoorType_t doorType, uint8_t *d
 
 bool C4002Component::setDetectRange(uint16_t closest, uint16_t farthest)  // 0-1200cm
 {
-  uint8_t sendData[10];
+  uint8_t send_date[10];
   uint16_t dataLen = 0;
   uint16_t temp = 8;
   uint16_t closestTemp = closest, farthestTemp = farthest;
-  sendData[dataLen++] = CMD_SET_DETECT_RANGE;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = CMD_SET_DETECT_RANGE;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
 
   if (farthestTemp > 1200) {
     farthestTemp = 1200;
@@ -288,13 +288,13 @@ bool C4002Component::setDetectRange(uint16_t closest, uint16_t farthest)  // 0-1
   if (closestTemp > farthestTemp) {
     return false;
   }
-  sendData[dataLen++] = closestTemp >> 0 & 0xFF;
-  sendData[dataLen++] = closestTemp >> 8 & 0xFF;
-  sendData[dataLen++] = farthestTemp >> 0 & 0xFF;
-  sendData[dataLen++] = farthestTemp >> 8 & 0xFF;
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  send_date[dataLen++] = closestTemp >> 0 & 0xFF;
+  send_date[dataLen++] = closestTemp >> 8 & 0xFF;
+  send_date[dataLen++] = farthestTemp >> 0 & 0xFF;
+  send_date[dataLen++] = farthestTemp >> 8 & 0xFF;
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
 
   if (eSucceed == recPack.resPonCode) {
     return true;
@@ -304,37 +304,37 @@ bool C4002Component::setDetectRange(uint16_t closest, uint16_t farthest)  // 0-1
 }
 
 void C4002Component::startEnvCalibration(uint16_t delayTime, uint16_t contTime) {
-  uint8_t sendData[10];
+  uint8_t send_date[10];
   uint16_t dataLen = 0;
   uint16_t temp = 9;
-  sendData[dataLen++] = CMD_ENVIRNMENT_CALIBRATION;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
-  sendData[dataLen++] = delayTime >> 0 & 0xFF;
-  sendData[dataLen++] = delayTime >> 8 & 0xFF;
-  sendData[dataLen++] = contTime >> 0 & 0xFF;
-  sendData[dataLen++] = contTime >> 8 & 0xFF;
-  sendData[dataLen++] = 0x01;  // Automatically generate thresholds
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  send_date[dataLen++] = CMD_ENVIRNMENT_CALIBRATION;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = delayTime >> 0 & 0xFF;
+  send_date[dataLen++] = delayTime >> 8 & 0xFF;
+  send_date[dataLen++] = contTime >> 0 & 0xFF;
+  send_date[dataLen++] = contTime >> 8 & 0xFF;
+  send_date[dataLen++] = 0x01;  // Automatically generate thresholds
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
   recvPack();
 }
 
-bool C4002Component::setRunLed(eLedMode_t runLed) {
-  uint8_t sendData[10];
+bool C4002Component::setRunLed(LedMode runLed) {
+  uint8_t send_date[10];
   uint16_t dataLen = 0;
   uint16_t temp = 6;
-  sendData[dataLen++] = CMD_SET_LED_MODE;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
-  sendData[dataLen++] = runLed;
-  sendData[dataLen++] = eLedKeep;
+  send_date[dataLen++] = CMD_SET_LED_MODE;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = runLed;
+  send_date[dataLen++] = eLedKeep;
 
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     return true;
   } else {
@@ -342,20 +342,20 @@ bool C4002Component::setRunLed(eLedMode_t runLed) {
   }
 }
 
-bool C4002Component::setOutLed(eLedMode_t outLed) {
-  uint8_t sendData[10];
+bool C4002Component::setOutLed(LedMode outLed) {
+  uint8_t send_date[10];
   uint16_t dataLen = 0;
   uint16_t temp = 6;
 
-  sendData[dataLen++] = CMD_SET_LED_MODE;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
-  sendData[dataLen++] = eLedKeep;
-  sendData[dataLen++] = outLed;
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  send_date[dataLen++] = CMD_SET_LED_MODE;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = eLedKeep;
+  send_date[dataLen++] = outLed;
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     return true;
   } else {
@@ -363,25 +363,25 @@ bool C4002Component::setOutLed(eLedMode_t outLed) {
   }
 }
 
-eTargetState_t C4002Component::getTargetState(void) { return (eTargetState_t) _detectResult.targetStatus; }
+TargetState C4002Component::getTargetState(void) { return (TargetState) _detectResult.targetStatus; }
 
 float C4002Component::getLight(void) { return ((float) _detectResult.light * 0.1); }
 
 uint32_t C4002Component::getExistDistIndex(void) { return _detectResult.existDistIndex; }
 
-sExistTarget_t C4002Component::getExistTargetInfo(void) {
-  sExistTarget_t info;
+ExistTgt C4002Component::getExistTargetInfo(void) {
+  ExistTgt info;
   info.distance = ((float) _detectResult.existTargetDist * 0.01);
   info.energy = _detectResult.existTargetEnery;
   return info;
 }
 
-sMoveTarget_t C4002Component::getMoveTargetInfo(void) {
-  sMoveTarget_t info;
+MoveTgt C4002Component::getMoveTargetInfo(void) {
+  MoveTgt info;
   info.distance = ((float) _detectResult.moveTargetDist * 0.01);
   info.energy = _detectResult.moveTargetEnery;
   info.speed = ((float) _detectResult.moveTargetSpeed * 0.01);
-  info.direction = (eMoveDirection_t) _detectResult.moveTargetDirect;
+  info.direction = (MoveDirection) _detectResult.moveTargetDirect;
   return info;
 }
 
@@ -420,16 +420,16 @@ bool C4002Component::enable_all_distance_door(uint8_t *door_data) {
 /**
  * getNotInfoLoop
  * Read UART and parse notification data.
- * Returns a sRetResult_t struct with the parsed data.
+ * Returns a RetResult struct with the parsed data.
  */
-sRetResult_t C4002Component::getNotInfoLoop(void) {
-  sRetResult_t ret;
-  sRecvPack_t recData = recvPack();
+RetResult C4002Component::getNotInfoLoop(void) {
+  RetResult ret;
+  RecvPack recData = recvPack();
 
   if (eSucceed == recData.resPonCode) {
     if (recData.packType == FRAME_TYPE_NOTIFICATION) {  // note
       if (recData.dataHeader.cmd == NOTE_RESULT_CMD) {
-        // memcpy(&this->_detectResult, recData.data, sizeof(sDetectResult_t));
+        // memcpy(&this->_detectResult, recData.data, sizeof(DetectRet));
         this->_detectResult.targetStatus = recData.data[0];
         this->_detectResult.light = recData.data[2] << 8 | recData.data[1];
         this->_detectResult.existDistIndex =
@@ -459,17 +459,17 @@ sRetResult_t C4002Component::getNotInfoLoop(void) {
  * Returns true if successful, false otherwise.
  */
 bool C4002Component::getResolutionMode(void) {
-  uint8_t sendData[10];
+  uint8_t send_date[10];
   uint16_t dataLen = 4;
-  sendData[0] = CMD_GET_AND_SET_RESOLUTION_MODE;
-  sendData[1] = eReadAndWriteReq;
-  sendData[2] = dataLen >> 0 & 0xFF;
-  sendData[3] = dataLen >> 8 & 0xFF;
-  sendPack(sendData, dataLen, FRAME_TYPE_READ_REQUSET);
+  send_date[0] = CMD_GET_AND_SET_RESOLUTION_MODE;
+  send_date[1] = eReadAndWriteReq;
+  send_date[2] = dataLen >> 0 & 0xFF;
+  send_date[3] = dataLen >> 8 & 0xFF;
+  sendPack(send_date, dataLen, FRAME_TYPE_READ_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
-    _resolutionMode = (eResolutionMode_t) recPack.data[0];
+    _resolutionMode = (ResolutionMode) recPack.data[0];
     return true;
   } else {
     return false;
@@ -483,17 +483,17 @@ bool C4002Component::getResolutionMode(void) {
  */
 bool C4002Component::setReportPeriod(uint8_t period)  //范围0-255.单位100ms
 {
-  uint8_t sendData[10];
+  uint8_t send_date[10];
   uint16_t dataLen = 0;
   uint16_t temp = 5;
-  sendData[dataLen++] = CMD_SET_REPORT_PERIOD;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
-  sendData[dataLen++] = period;
-  sendPack(sendData, dataLen, FRAME_TYPE_WRITE_REQUSET);
+  send_date[dataLen++] = CMD_SET_REPORT_PERIOD;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = period;
+  sendPack(send_date, dataLen, FRAME_TYPE_WRITE_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     return true;
   } else {
@@ -509,37 +509,37 @@ bool C4002Component::setReportPeriod(uint8_t period)  //范围0-255.单位100ms
  * type uint8_t msgType: Type of message to send.
  */
 void C4002Component::sendPack(void *pdata, uint16_t len, uint8_t msgType) {
-  uint8_t sendData[50] = {0};
+  uint8_t send_date[50] = {0};
 
   uint16_t dataLen = 0;
   uint16_t checkSum = 0;
 
-  sendData[dataLen++] = FRAME_HEADER1;
-  sendData[dataLen++] = FRAME_HEADER2;
-  sendData[dataLen++] = FRAME_HEADER3;
-  sendData[dataLen++] = FRAME_HEADER4;
+  send_date[dataLen++] = FRAME_HEADER1;
+  send_date[dataLen++] = FRAME_HEADER2;
+  send_date[dataLen++] = FRAME_HEADER3;
+  send_date[dataLen++] = FRAME_HEADER4;
   uint16_t temp = len + 10;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
-  sendData[dataLen++] = 0x00;
-  sendData[dataLen++] = msgType;
-  memcpy(&sendData[dataLen], pdata, len);
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = 0x00;
+  send_date[dataLen++] = msgType;
+  memcpy(&send_date[dataLen], pdata, len);
   dataLen += len;
-  checkSum = getCheckSum((uint8_t *) sendData, dataLen);
+  checkSum = getCheckSum((uint8_t *) send_date, dataLen);
 
-  sendData[dataLen++] = checkSum >> 0 & 0xFF;
-  sendData[dataLen++] = checkSum >> 8 & 0xFF;
+  send_date[dataLen++] = checkSum >> 0 & 0xFF;
+  send_date[dataLen++] = checkSum >> 8 & 0xFF;
 
-  uart_write_data(sendData, (size_t) dataLen);
+  uart_write_data(send_date, (size_t) dataLen);
 }
 
 /**
  * recvPack
  * Read a data frame from the UART and parse it.
- * Returns a sRecvPack_t struct with the parsed data.
+ * Returns a RecvPack struct with the parsed data.
  */
-sRecvPack_t C4002Component::recvPack() {
-  sRecvPack_t recvDat;
+RecvPack C4002Component::recvPack() {
+  RecvPack recvDat;
   memset(&recvDat, 0, sizeof(recvDat));
   uint8_t *pdata = (uint8_t *) malloc(60 * sizeof(uint8_t));
   if (pdata == NULL) {
@@ -562,7 +562,7 @@ sRecvPack_t C4002Component::recvPack() {
         uint16_t DataLen = (pdata[11] << 8) | pdata[10];
         uint16_t light = (pdata[14] << 8) | pdata[13];
         memcpy(&recvDat, &pdata[8], DataLen);
-        recvDat.resPonCode = (eResponseCode_t) recvDat.dataHeader.respCode;
+        recvDat.resPonCode = (ResponseCode) recvDat.dataHeader.respCode;
 
         if (recvDat.packType == FRAME_TYPE_NOTIFICATION) {  // note
           ESP_LOGD(TAG, "get note result");
@@ -674,17 +674,17 @@ size_t C4002Component::uart_read_raw(uint8_t *buf, size_t bufsize, uint32_t time
 }
 
 bool C4002Component::get_detect_range(void) {
-  uint8_t sendData[10];
+  uint8_t send_date[10];
   uint16_t dataLen = 0;
   uint16_t temp = 4;
-  sendData[dataLen++] = CMD_SET_DETECT_RANGE;
-  sendData[dataLen++] = eReadAndWriteReq;
-  sendData[dataLen++] = temp >> 0 & 0xFF;
-  sendData[dataLen++] = temp >> 8 & 0xFF;
+  send_date[dataLen++] = CMD_SET_DETECT_RANGE;
+  send_date[dataLen++] = eReadAndWriteReq;
+  send_date[dataLen++] = temp >> 0 & 0xFF;
+  send_date[dataLen++] = temp >> 8 & 0xFF;
 
-  sendPack(sendData, dataLen, FRAME_TYPE_READ_REQUSET);
+  sendPack(send_date, dataLen, FRAME_TYPE_READ_REQUSET);
 
-  sRecvPack_t recPack = recvPack();
+  RecvPack recPack = recvPack();
 
   if (eSucceed == recPack.resPonCode) {
     this->current_detection_range_min_ = (float) ((recPack.data[1] << 8) | recPack.data[0]) * 0.01;
@@ -695,12 +695,12 @@ bool C4002Component::get_detect_range(void) {
   }
 }
 
-void C4002Component::set_area_range(range_value_t range_value, float range) {
+void C4002Component::set_area_range(RangValue range_value, float range) {
   current_area_[range_value] = range - 1;
   return;
 }
 
-float C4002Component::get_area_range(range_value_t range_value) { return current_area_[range_value] + 1; }
+float C4002Component::get_area_range(RangValue range_value) { return current_area_[range_value] + 1; }
 
 bool C4002Component::joint_enable_door(void) {
   for (int i = 0; i < 11; ++i) {
@@ -749,16 +749,16 @@ void C4002Component::setup_number(void) {
 
 float C4002Component::get_light_threshold(void) {
   float threshold = 0.0;
-  uint8_t sendData[10];
+  uint8_t send_date[10];
 
   uint16_t dataLen = 4;
-  sendData[0] = CMD_SET_LIGHT_THRESHOLD;
-  sendData[1] = eReadAndWriteReq;
-  sendData[2] = dataLen >> 0 & 0xFF;
-  sendData[3] = dataLen >> 8 & 0xFF;
+  send_date[0] = CMD_SET_LIGHT_THRESHOLD;
+  send_date[1] = eReadAndWriteReq;
+  send_date[2] = dataLen >> 0 & 0xFF;
+  send_date[3] = dataLen >> 8 & 0xFF;
 
-  sendPack(sendData, dataLen, FRAME_TYPE_READ_REQUSET);
-  sRecvPack_t recPack = recvPack();
+  sendPack(send_date, dataLen, FRAME_TYPE_READ_REQUSET);
+  RecvPack recPack = recvPack();
   if (eSucceed == recPack.resPonCode) {
     threshold = (float) ((recPack.data[1] << 8) | recPack.data[0]) * 0.1;
   } else {
