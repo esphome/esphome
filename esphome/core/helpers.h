@@ -1052,6 +1052,11 @@ std::string get_mac_address_pretty();
 /// Assumes buffer length is 13 (12 digits for hexadecimal representation followed by null terminator).
 void get_mac_address_into_buffer(std::span<char, 13> buf);
 
+/// Get the device MAC address into the given buffer, in colon-separated uppercase hex notation.
+/// Buffer must be exactly 18 bytes (17 for "XX:XX:XX:XX:XX:XX" + null terminator).
+/// Returns pointer to the buffer for convenience.
+const char *get_mac_address_pretty_into_buffer(std::span<char, 18> buf);
+
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);

@@ -703,7 +703,9 @@ lvgl:
             on_value:
               - lvgl.spinbox.update:
                   id: spinbox_id
-                  value: !lambda return x;
+                  value: !lambda |-
+                      static float yyy = 83.0;
+                      return yyy + .8;
         - button:
             styles: spin_button
             id: spin_up
