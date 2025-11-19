@@ -370,7 +370,7 @@ class WiFiComponent : public Component {
   int32_t get_wifi_channel();
 
 #ifdef USE_WIFI_RUNTIME_POWER_SAVE
-  /** Request high-performance mode (no power saving) for improved WiFi throughput.
+  /** Request high-performance mode (no power saving) for improved WiFi latency.
    *
    * Components that need maximum WiFi performance (e.g., audio streaming, large data transfers)
    * can call this method to temporarily disable WiFi power saving. Multiple components can
@@ -389,7 +389,7 @@ class WiFiComponent : public Component {
 
   /** Release a high-performance mode request.
    *
-   * Should be called when a component no longer needs maximum WiFi throughput.
+   * Should be called when a component no longer needs maximum WiFi latency.
    * When all requests are released (semaphore count reaches zero), WiFi power saving
    * is restored to the YAML-configured mode.
    *

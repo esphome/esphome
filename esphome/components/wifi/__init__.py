@@ -617,7 +617,7 @@ def request_wifi_scan_results():
 def enable_runtime_power_save_control():
     """Enable runtime WiFi power save control.
 
-    Components that need to dynamically switch WiFi power saving on/off for
+    Components that need to dynamically switch WiFi power saving on/off for latency
     performance (e.g., audio streaming, large data transfers) should call this
     function during their code generation. This enables the request_high_performance()
     and release_high_performance() APIs.
