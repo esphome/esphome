@@ -10,8 +10,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace ld2412 {
+namespace esphome::ld2412 {
 
 static const char *const TAG = "ld2412";
 
@@ -855,5 +854,4 @@ void LD2412Component::set_gate_still_sensor(uint8_t gate, sensor::Sensor *s) {
 }
 #endif
 
-}  // namespace ld2412
-}  // namespace esphome
+}  // namespace esphome::ld2412
