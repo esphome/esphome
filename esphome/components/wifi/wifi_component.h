@@ -49,7 +49,7 @@ extern "C" {
 #include <WiFi.h>
 #endif
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #endif
