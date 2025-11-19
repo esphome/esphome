@@ -115,8 +115,8 @@ wifi:
   password: PASSWORD123
 
 time:
-  platform: sntp
-  id: time_id
+  - platform: sntp
+    id: sntp_time
 
 text:
   - id: lvgl_text
