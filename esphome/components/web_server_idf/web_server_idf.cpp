@@ -94,6 +94,18 @@ void AsyncWebServer::end() {
   }
 }
 
+void AsyncWebServer::set_lru_purge_enable(bool enable) {
+  if (this->lru_purge_enable_ == enable) {
+    return;  // No change needed
+  }
+  this->lru_purge_enable_ = enable;
+  // If server is already running, restart it with new config
+  if (this->server_) {
+    this->end();
+    this->begin();
+  }
+}
+
 void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
@@ -101,6 +113,8 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
+  // Enable LRU purging if requested (e.g., by captive portal to handle probe bursts)
+  config.lru_purge_enable = this->lru_purge_enable_;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
@@ -242,6 +256,7 @@ void AsyncWebServerRequest::send(int code, const char *content_type, const char 
 void AsyncWebServerRequest::redirect(const std::string &url) {
   httpd_resp_set_status(*this, "302 Found");
   httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
 
@@ -489,10 +504,18 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
-  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", rsp->fd_.load());
-  // Mark as dead by setting fd to 0 - will be cleaned up in the main loop
-  rsp->fd_.store(0);
-  // Note: We don't delete or remove from set here to avoid race conditions
+  int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
+
+  if (fd > 0) {
+    ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
+    // Immediately shut down the socket to prevent lwIP from delivering more data
+    // This prevents "recv_tcp: recv for wrong pcb!" assertions when the TCP stack
+    // tries to deliver queued data after the session is marked as dead
+    // See: https://github.com/esphome/esphome/issues/11936
+    shutdown(fd, SHUT_RDWR);
+    // Note: We don't close() the socket - httpd owns it and will close it
+  }
+  // Session will be cleaned up in the main loop to avoid race conditions
 }
 
 // helper for allowing only unique entries in the queue

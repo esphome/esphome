@@ -45,7 +45,6 @@ lv_coord_t = cg.global_ns.namespace("lv_coord_t")
 lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 lv_key_t = cg.global_ns.enum("lv_key_t")
-FontEngine = lvgl_ns.class_("FontEngine")
 PlainTrigger = esphome_ns.class_("Trigger<>", automation.Trigger.template())
 DrawEndTrigger = esphome_ns.class_(
     "Trigger<uint32_t, uint32_t>", automation.Trigger.template(cg.uint32, cg.uint32)

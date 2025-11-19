@@ -45,6 +45,7 @@ class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
   void start();
   void stop();
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
+  bool should_start() const { return this->should_start_; }
 
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
   void add_on_state_callback(std::function<void(improv::State, improv::Error)> &&callback) {
