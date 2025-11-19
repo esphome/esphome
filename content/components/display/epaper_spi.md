@@ -31,6 +31,7 @@ display:
 | Model name             | Manufacturer | Product Description                                        |
 | ---------------------- | ------------ | ---------------------------------------------------------- |
 | Spectra-E6             | Eink         | <https://www.eink.com/brand/detail/Spectra6>               |
+| 7.3in Spectra-E6       | Eink         | <https://www.eink.com/product/detail/EL073TF1U5>           |
 | Seeed-reTerminal-E1002 | Seeed Studio | <https://www.seeedstudio.com/reTerminal-E1002-p-6533.html> |
 
 ## Configuration variables
