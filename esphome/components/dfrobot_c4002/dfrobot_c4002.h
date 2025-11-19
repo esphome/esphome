@@ -73,83 +73,73 @@ class C4002Listener {
  * @enum ResolutionMode
  * @brief Resolution mode
  */
-enum ResolutionMode{
-   eResolution80Cm = 0x00, eResolution20Cm = 0x01 
-  };
+enum ResolutionMode { RESOLUTION_80CM = 0x00, RESOLUTION_20CM = 0x01 };
 
 /**
  * @enum DistanceDoorType
  * @brief Distance door type
  */
- enum DistanceDoorType { eMoveDistDoor = 0x00, eExistDistDoor = 0x01 };
+enum DistanceDoorType { MOVE_DIST_DOOR = 0x00, EXIST_DIST_DOOR = 0x01 };
 
 /**
  * @enum ResponseCode
  * @brief Response code
  */
 enum ResponseCode {
-  eReadAndWriteReq = 0x00, /*read and write request       */
-  eSucceed = 0x01,
-  eCmdErr = 0x02,            /* The CMD does not exist      */
-  eAuthenticationErr = 0x03, /* Authentication error        */
-  eResourcesBusy = 0x04,     /* Resources are busy          */
-  eParamsErr = 0x05,         /* The parameters are illegal  */
-  eDataLenErr = 0x06,        /* Abnormal data length        */
-  eInternalErr = 0x07        /* internal error              */
+  READ_AND_WRITE_REQ = 0x00, /*read and write request       */
+  SUCCEED = 0x01,
+  CMD_ERR = 0x02,            /* The CMD does not exist      */
+  AUTHENTICATION_ERR = 0x03, /* Authentication error        */
+  RESOURCES_BUSY = 0x04,     /* Resources are busy          */
+  PARAMS_ERR = 0x05,         /* The parameters are illegal  */
+  DATALEN_ERR = 0x06,        /* Abnormal data length        */
+  INTERNAL_ERR = 0x07        /* internal error              */
 };
 
 /**
  * @enum MoveDirection
  * @brief The direction of the movement
  */
-enum MoveDirection { eAway = 0, eStay = 1, eNear = 2 } ;
+enum MoveDirection { AWAY = 0, STAY = 1, NEAR = 2 };
 
 /**
  * @enum OutMode
  * @brief Output mode
  */
 enum OutMode {
-  eOutMode1 = 0x01, /* Only when motion is detected will a high level be output */
-  eOutMode2 = 0x02, /* A high level is output only when its presence is detected */
-  eOutMode3 = 0x03, /* A high level only appears when movement or presence is detected */
-  eOutModex = 0xFF  /* reserved                          */
+  OUT_MODE1 = 0x01, /* Only when motion is detected will a high level be output */
+  OUT_MODE2 = 0x02, /* A high level is output only when its presence is detected */
+  OUT_MODE3 = 0x03, /* A high level only appears when movement or presence is detected */
+  OUT_MODEX = 0xFF  /* reserved                          */
 };
 
 /**
  * @enum TargetState
  * @brief The state of the target
  */
-enum TargetState {
-  eNobody = 0,
-  eExist = 1,
-  eMove = 2,
-  eMoveOrExist = 3,
-  eMoveOrNobody = 4,
-  eExistOrNobody = 5,
-  ePinError = 255
-} ;
+enum TargetState { NO_BODY = 0, EXIST = 1, MOVE = 2, TARGET_ERROR = 255 };
 
 /**
  * @enum LedMode
  * @brief The operation led mode
  */
-enum LedMode { eLedOff = 0x00, eLedOn = 0x01, eLedKeep = 0xFF };
+enum LedMode { LED_OFF = 0x00, LED_ON = 0x01, LED_KEEP = 0xFF };
 
 /**
  * @enum NoteType
  * @brief The type of the notification message
  */
-enum NoteType{
-  eNoNote = 0x00,
-  eNoteInfoResult = 0x01,
-  eNoteInfoCalibration = 0x02,
+enum NoteType {
+  NO_NOTE = 0x00,
+  NOTE_INFO_RESULT = 0x01,
+  NOTE_INFO_CALIBRATION = 0x02,
 };
 
 /**
  * @struct DetectResult
  * @brief The detection result
  */
-struct DetectResult{
+struct DetectResult {
   uint8_t targetStatus;
   uint16_t light;
   uint32_t existDistIndex;
@@ -168,18 +158,18 @@ using DetectRet = DetectResult;
  * @struct DetectHead
  * @brief The data header of the received package
  */
-struct DataHeader{
+struct DataHeader {
   uint8_t cmd;
   uint8_t respCode;
   uint16_t dataLen;
 };
-using  DetectHead = DataHeader;
+using DetectHead = DataHeader;
 
 /**
  * @struct RecvPack
  * @brief The received package
  */
-struct RecvPack{
+struct RecvPack {
   DetectHead dataHeader;
   uint8_t data[50];
   uint8_t packType;
@@ -192,23 +182,23 @@ using RecvPck = RecvPack;
  * @struct ExistTarget
  * @brief The movement target
  */
-struct ExistTarget{
+struct ExistTarget {
   float distance;
   uint8_t energy;
-} ;
+};
 
-  using ExistTgt = ExistTarget;
+using ExistTgt = ExistTarget;
 
 /**
  * @struct MoveTarget
  * @brief The movement target
  */
-struct MoveTarget{
+struct MoveTarget {
   float distance;
   float speed;
   uint8_t energy;
   MoveDirection direction;
-} ;
+};
 
 using MoveTgt = MoveTarget;
 
@@ -216,21 +206,21 @@ using MoveTgt = MoveTarget;
  *  @struct ReturnResult
  *  @brief The detection result and environment calibration information
  */
-struct ReturnResult{
+struct ReturnResult {
   NoteType noteType;
   uint16_t calibCountdown;
-} ;
+};
 
 using RetResult = ReturnResult;
 
-enum RangValue{
+enum RangValue {
   AREA1_DOOR_MIN = 0,
   AREA1_DOOR_MAX = 1,
   AREA2_DOOR_MIN = 2,
   AREA2_DOOR_MAX = 3,
   AREA3_DOOR_MIN = 4,
   AREA3_DOOR_MAX = 5,
-} ;
+};
 
 /**
  * @brief Main component for the DFRobot C4002 device.
@@ -257,45 +247,45 @@ class C4002Component : public Component, public uart::UARTDevice {
 
   void register_listener(C4002Listener *listener) { this->listeners_.push_back(listener); }
 
-  bool factoryReset(void);
-  bool setLightThreshold(float threshold);
-  bool setResolutionMode(ResolutionMode mode);
+  bool factory_reset(void);
+  bool set_light_threshold(float threshold);
+  bool set_resolution_mode(ResolutionMode mode);
 
-  bool enableDistanceDoor(DistanceDoorType doorType, uint8_t *doorData);
+  bool enable_distance_door(DistanceDoorType door_type, uint8_t *door_data);
   bool enable_all_distance_door(uint8_t *door_data);
 
-  bool setDetectRange(uint16_t closest, uint16_t farthest);
-  void startEnvCalibration(uint16_t delayTime, uint16_t contTime);
-  bool setRunLed(LedMode runLed);
+  bool set_detect_range(uint16_t closest, uint16_t farthest);
+  void start_env_calibration(uint16_t delay_time, uint16_t cont_time);
+  bool set_run_led(LedMode run_led);
 
   //#if 0
   //************************************/
-  bool setOutLed(LedMode outLed);
-  bool setOutMode(OutMode outMode);
+  bool set_out_led(LedMode out_led);
+  bool set_out_mode(OutMode out_mode);
 
   //#endif
 
   //数据获取类
-  TargetState getTargetState(void);
-  float getLight(void);
-  uint32_t getExistDistIndex(void);
-  ExistTgt getExistTargetInfo(void);
-  MoveTgt getMoveTargetInfo(void);
+  TargetState get_target_state(void);
+  float get_light(void);
+  uint32_t get_exist_dist_index(void);
+  ExistTgt get_exist_target_info(void);
+  MoveTgt get_move_target_info(void);
 
   bool begin();
-  bool getResolutionMode(void);
+  bool get_resolution_mode(void);
   //#if 0
   //*****************************************/
-  bool getOutMode(void);
+  bool get_out_mode(void);
   bool get_detect_range(void);
 
   //#endif
 
-  RetResult getNotInfoLoop(void);
-  bool setReportPeriod(uint8_t period);
+  RetResult get_note_info_loop(void);
+  bool set_report_period(uint8_t period);
 
-  void sendPack(void *pdata, uint16_t len, uint8_t msgType);
-  RecvPck recvPack();
+  void send_pack(void *pdata, uint16_t len, uint8_t msg_type);
+  RecvPck recv_pack();
   bool checkSum(uint8_t *pdata, uint8_t len);
   uint16_t getCheckSum(uint8_t *pdata, uint16_t len);
 
@@ -306,13 +296,13 @@ class C4002Component : public Component, public uart::UARTDevice {
   void set_run_led_switch(switch_::Switch *sw) { this->run_led_switch_ = sw; };
   void set_out_led_switch(switch_::Switch *sw) { this->out_led_switch_ = sw; };
   void set_factory_reset_switch(switch_::Switch *sw) { this->factory_reset_switch_ = sw; };
-  void set_environmental_calibration_switch(switch_::Switch *sw) { this->Env_calibration_switch_ = sw; };
+  void set_environmental_calibration_switch(switch_::Switch *sw) { this->env_calibration_switch_ = sw; };
 
 #endif
 
 #ifdef USE_SELECT
   void set_operating_mode_select(select::Select *selector) { this->operating_selector_ = selector; };
-  uint8_t get_out_mode_select(void) { return (uint8_t) this->_outMode; };
+  uint8_t get_out_mode_select(void) { return (uint8_t) this->out_mode_; };
 #endif
 
   void setup_number(void);
@@ -343,9 +333,9 @@ class C4002Component : public Component, public uart::UARTDevice {
 
  protected:
   DetectRet _detectResult;
-  ResolutionMode _resolutionMode = eResolution80Cm;
+  ResolutionMode resolution_mode_ = RESOLUTION_80CM;
 
-  OutMode _outMode;
+  OutMode out_mode_;
 
   float min_detect_range_ = 0;
   float max_detect_range_ = 11;
@@ -356,7 +346,7 @@ class C4002Component : public Component, public uart::UARTDevice {
   float current_area_[6] = {0, 10, 0, 10, 0, 10};
   uint8_t enable_door_[11] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
-  uint16_t _lightThreshold;
+  uint16_t light_threshold_;
 
 #ifdef USE_SELECT
   select::Select *operating_selector_{nullptr};
@@ -366,7 +356,7 @@ class C4002Component : public Component, public uart::UARTDevice {
   switch_::Switch *run_led_switch_{nullptr};
   switch_::Switch *out_led_switch_{nullptr};
   switch_::Switch *factory_reset_switch_{nullptr};
-  switch_::Switch *Env_calibration_switch_{nullptr};
+  switch_::Switch *env_calibration_switch_{nullptr};
 #endif
 
 #ifdef USE_NUMBER

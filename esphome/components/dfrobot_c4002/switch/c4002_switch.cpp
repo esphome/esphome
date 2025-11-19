@@ -7,9 +7,9 @@ void C4002Switch1::write_state(bool state) {
   bool send_flag = false;
   if (this->parent_) {
     if (state == true) {
-      send_flag = this->parent_->setOutLed(eLedOn);
+      send_flag = this->parent_->set_out_led(LED_ON);
     } else {
-      send_flag = this->parent_->setOutLed(eLedOff);
+      send_flag = this->parent_->set_out_led(LED_OFF);
     }
     if (send_flag) {
       this->publish_state(state);
@@ -23,9 +23,9 @@ void C4002Switch2::write_state(bool state) {
   bool send_flag = false;
   if (this->parent_) {
     if (state == true) {
-      send_flag = this->parent_->setRunLed(eLedOn);
+      send_flag = this->parent_->set_run_led(LED_ON);
     } else {
-      send_flag = this->parent_->setRunLed(eLedOff);
+      send_flag = this->parent_->set_run_led(LED_OFF);
     }
     if (send_flag) {
       this->publish_state(state);
@@ -38,7 +38,7 @@ void C4002Switch2::write_state(bool state) {
 void C4002SwitchFactoryReset::write_state(bool state) {
   if (this->parent_) {
     if (state == true) {
-      bool send_flag = this->parent_->factoryReset();
+      bool send_flag = this->parent_->factory_reset();
 
       ESP_LOGW("C4002SwitchFactoryReset", "bool: %d", send_flag);
 
@@ -62,7 +62,7 @@ void C4002SwitchEnvironmentalCalibration::write_state(bool state) {
   if (this->parent_) {
     if (state == true) {
       // ESP_LOGW("C4002SwitchEnvironmentalCalibration ", "Start environmental calibration");
-      this->parent_->startEnvCalibration(3, 15);  // (delayTime,contTime)
+      this->parent_->start_env_calibration(3, 15);  // (delayTime,contTime)
       this->publish_state(true);
 
       this->set_timeout(18000, [this]() {  // 18000ms = 18秒

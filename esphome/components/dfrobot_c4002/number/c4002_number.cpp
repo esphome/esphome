@@ -46,7 +46,7 @@ void LightThresholdNumber::control(float value) {
   if (this->parent_) {
     ESP_LOGD(TAG, "Set light threshold to %.1f", value);
 
-    if (this->parent_->setLightThreshold(value)) {
+    if (this->parent_->set_light_threshold(value)) {
       ESP_LOGD(TAG, "Set light threshold success");
       this->publish_state(value);
     } else {
