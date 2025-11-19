@@ -102,6 +102,8 @@ def is_relocated(option):
         )
 
     return validator
+
+
 def _final_validate(config):
     enable_ipv6 = fv.full_config.get().get(CONF_NETWORK).get(CONF_ENABLE_IPV6)
     if not enable_ipv6:
@@ -115,6 +117,7 @@ def require_internal_with_name(config):
     if CONF_NAME in config and CONF_INTERNAL not in config:
         raise cv.Invalid("Must provide internal: config when using name:")
     return config
+
 
 def is_relocated(option):
     def validator(value):

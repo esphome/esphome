@@ -1288,6 +1288,7 @@ def ipaddress_multi_broadcast(value):
         f"{value} is neither a multicast address nor the local broadcast address"
     )
 
+
 def ipv4network(value):
     """Validate that the value is a valid IPv4 network."""
     try:
