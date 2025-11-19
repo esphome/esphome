@@ -437,7 +437,7 @@ async def add_widgets(parent: Widget, config: dict):
         await widget_to_code(w_cnfig, w_type, parent.obj)
 
 
-async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
+async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent):
     """
     Converts a Widget definition to C code.
     :param w_cnfig: The widget configuration
@@ -445,7 +445,9 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     :param parent: The parent to which the widget should be added
     :return:
     """
-    spec: WidgetType = WIDGET_TYPES[w_type]
+    spec: WidgetType = (
+        w_type if isinstance(w_type, WidgetType) else WIDGET_TYPES[w_type]
+    )
     creator = await spec.obj_creator(parent, w_cnfig)
     add_lv_use(spec.name)
     add_lv_use(*spec.get_uses())
