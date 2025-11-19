@@ -4,6 +4,7 @@ wifi:
 
 time:
   - platform: sntp
+    id: sntp_time
 
 mqtt:
   broker: "192.168.178.84"

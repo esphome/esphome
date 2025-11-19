@@ -462,7 +462,7 @@ class Int64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -482,7 +482,7 @@ class UInt64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%llu", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRIu64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -522,7 +522,7 @@ class Fixed64Type(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%llu", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRIu64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -1106,7 +1106,7 @@ class SFixed64Type(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -1150,7 +1150,7 @@ class SInt64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -2546,7 +2546,7 @@ static void dump_field(std::string &out, const char *field_name, float value, in
 static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%llu", value);
+  snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 

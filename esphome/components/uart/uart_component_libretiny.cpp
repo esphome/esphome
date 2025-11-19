@@ -53,7 +53,7 @@ void LibreTinyUARTComponent::setup() {
 
   auto shouldFallbackToSoftwareSerial = [&]() -> bool {
     auto hasFlags = [](InternalGPIOPin *pin, const gpio::Flags mask) -> bool {
-      return pin && pin->get_flags() & mask != gpio::Flags::FLAG_NONE;
+      return pin && (pin->get_flags() & mask) != gpio::Flags::FLAG_NONE;
     };
     if (hasFlags(this->tx_pin_, gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN) ||
         hasFlags(this->rx_pin_, gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN)) {

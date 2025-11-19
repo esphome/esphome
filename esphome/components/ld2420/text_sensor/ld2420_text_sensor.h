@@ -3,8 +3,7 @@
 #include "../ld2420.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
 class LD2420TextSensor : public LD2420Listener, public Component, text_sensor::TextSensor {
  public:
@@ -20,5 +19,4 @@ class LD2420TextSensor : public LD2420Listener, public Component, text_sensor::T
   text_sensor::TextSensor *fw_version_text_sensor_{nullptr};
 };
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420
