@@ -243,9 +243,6 @@ class MockLv:
         self.base = base
 
     def __getattr__(self, attr: str) -> "MockLv":
-        attr = attr.replace("btn", "button")
-        attr = attr.replace("img", "image")
-        attr = attr.replace("animimage", "animimg")
         attr = MockLv.ATTR_MAP.get(attr, attr)
         return MockLv(f"{self.base}{attr}")
 
@@ -300,9 +297,6 @@ class ReturnStatement(ExpressionStatement):
 
 class LvExpr(MockLv):
     def __getattr__(self, attr: str) -> "MockLv":
-        attr = attr.replace("btn", "button")
-        attr = attr.replace("img", "image")
-        attr = attr.replace("animimage", "animimg")
         attr = MockLv.ATTR_MAP.get(attr, attr)
         return LvExpr(f"{self.base}{attr}")
 
