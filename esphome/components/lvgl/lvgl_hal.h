@@ -3,6 +3,8 @@
 //
 
 #pragma once
+#ifdef USE_LVGL
+#include <lvgl.h>
 
 #ifdef __cplusplus
 #define EXTERNC extern "C"
@@ -15,7 +17,13 @@ namespace lvgl {}
 #include <stddef.h>
 #endif
 
-EXTERNC size_t lv_millis(void);
-EXTERNC void *lv_custom_mem_alloc(size_t size);
-EXTERNC void lv_custom_mem_free(void *ptr);
-EXTERNC void *lv_custom_mem_realloc(void *ptr, size_t size);
+EXTERNC void *lv_malloc_core(size_t size);
+EXTERNC void lv_free_core(void *ptr);
+EXTERNC void *lv_realloc_core(void *ptr, size_t size);
+EXTERNC lv_result_t lv_mem_test_core(void);
+
+EXTERNC void lv_init_core(void);
+EXTERNC void lv_deinit_core(void);
+EXTERNC void lv_mem_monitor_core(lv_mem_monitor_t *mon_p);
+
+#endif  // USE_LVGL

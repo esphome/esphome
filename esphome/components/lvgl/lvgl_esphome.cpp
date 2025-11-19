@@ -61,18 +61,26 @@ static const char *const EVENT_NAMES[] = {
     "GET_SELF_SIZE",
 };
 
-std::string lv_event_code_name_for(uint8_t event_code) {
+static unsigned log_level_map[] = {
+    ESPHOME_LOG_LEVEL_DEBUG, ESPHOME_LOG_LEVEL_INFO,  ESPHOME_LOG_LEVEL_WARN,
+    ESPHOME_LOG_LEVEL_ERROR, ESPHOME_LOG_LEVEL_ERROR, ESPHOME_LOG_LEVEL_NONE,
+
+};
+
+std::string lv_event_code_name_for(lv_event_t *event) {
+  auto event_code = lv_event_get_code(event);
   if (event_code < sizeof(EVENT_NAMES) / sizeof(EVENT_NAMES[0])) {
     return EVENT_NAMES[event_code];
   }
   return str_sprintf("%2d", event_code);
 }
 
-static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
+static void rounder_cb(lv_event_t *event) {
+  auto *comp = static_cast<LvglComponent *>(lv_event_get_user_data(event));
+  auto *area = static_cast<lv_area_t *>(lv_event_get_param(event));
   // cater for display driver chips with special requirements for bounds of partial
   // draw areas. Extend the draw area to satisfy:
   // * Coordinates must be a multiple of draw_rounding
-  auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
   auto draw_rounding = comp->draw_rounding;
   // round down the start coordinates
   area->x1 = area->x1 / draw_rounding * draw_rounding;
@@ -82,15 +90,14 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   area->y2 = (area->y2 + draw_rounding) / draw_rounding * draw_rounding - 1;
 }
 
-void LvglComponent::monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px) {
-  ESP_LOGVV(TAG, "Draw end: %" PRIu32 " pixels in %" PRIu32 " ms", px, time);
-  auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
+void LvglComponent::render_end_cb(lv_event_t *event) {
+  auto *comp = static_cast<LvglComponent *>(lv_event_get_user_data(event));
   comp->draw_end_();
 }
 
-void LvglComponent::render_start_cb(lv_disp_drv_t *disp_drv) {
+void LvglComponent::render_start_cb(lv_event_t *event) {
   ESP_LOGVV(TAG, "Draw start");
-  auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
+  auto *comp = static_cast<LvglComponent *>(lv_event_get_user_data(event));
   comp->draw_start_();
 }
 
@@ -103,8 +110,7 @@ void LvglComponent::dump_config() {
                 "  Buffer size: %zu%%\n"
                 "  Rotation: %d\n"
                 "  Draw rounding: %d",
-                this->disp_drv_.hor_res, this->disp_drv_.ver_res, 100 / this->buffer_frac_, this->rotation,
-                (int) this->draw_rounding);
+                this->width_, this->height_, 100 / this->buffer_frac_, this->rotation, (int) this->draw_rounding);
 }
 void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
@@ -168,13 +174,15 @@ void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
 }
 size_t LvglComponent::get_current_page() const { return this->current_page_; }
 bool LvPageType::is_showing() const { return this->parent_->get_current_page() == this->index; }
-void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
+void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   auto width = lv_area_get_width(area);
   auto height = lv_area_get_height(area);
   auto height_rounded = (height + this->draw_rounding - 1) / this->draw_rounding * this->draw_rounding;
   auto x1 = area->x1;
   auto y1 = area->y1;
-  lv_color_t *dst = this->rotate_buf_;
+  if (this->big_endian_)
+    lv_draw_sw_rgb565_swap(ptr, width * height);
+  lv_color_data *dst = reinterpret_cast<lv_color_data *>(this->rotate_buf_);
   switch (this->rotation) {
     case display::DISPLAY_ROTATION_90_DEGREES:
       for (lv_coord_t x = height; x-- != 0;) {
@@ -183,7 +191,8 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
         }
       }
       y1 = x1;
-      x1 = this->disp_drv_.ver_res - area->y1 - height;
+      x1 = this->height_ - area->y1 - height;
+      width = height;
       height = width;
       width = height_rounded;
       break;
@@ -194,8 +203,8 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
           dst[y * width + x] = *ptr++;
         }
       }
-      x1 = this->disp_drv_.hor_res - x1 - width;
-      y1 = this->disp_drv_.ver_res - y1 - height;
+      x1 = this->width_ - x1 - width;
+      y1 = this->height_ - y1 - height;
       break;
 
     case display::DISPLAY_ROTATION_270_DEGREES:
@@ -205,7 +214,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
         }
       }
       x1 = y1;
-      y1 = this->disp_drv_.hor_res - area->x1 - width;
+      y1 = this->width_ - area->x1 - width;
       height = width;
       width = height_rounded;
       break;
@@ -215,18 +224,17 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
       break;
   }
   for (auto *display : this->displays_) {
-    ESP_LOGV(TAG, "draw buffer x1=%d, y1=%d, width=%d, height=%d", x1, y1, width, height);
     display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) dst, display::COLOR_ORDER_RGB, LV_BITNESS,
-                            LV_COLOR_16_SWAP);
+                            this->big_endian_);
   }
 }
 
-void LvglComponent::flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
+void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
   if (!this->paused_) {
     auto now = millis();
-    this->draw_buffer_(area, color_p);
-    ESP_LOGVV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
-              lv_area_get_height(area), (int) (millis() - now));
+    this->draw_buffer_(area, reinterpret_cast<lv_color_data *>(color_p));
+    ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
+             lv_area_get_height(area), (int) (millis() - now));
   }
   lv_disp_flush_ready(disp_drv);
 }
@@ -244,14 +252,14 @@ IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeo
 #ifdef USE_LVGL_TOUCHSCREEN
 LVTouchListener::LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time, LvglComponent *parent) {
   this->set_parent(parent);
-  lv_indev_drv_init(&this->drv_);
-  this->drv_.disp = parent->get_disp();
-  this->drv_.long_press_repeat_time = long_press_repeat_time;
-  this->drv_.long_press_time = long_press_time;
-  this->drv_.type = LV_INDEV_TYPE_POINTER;
-  this->drv_.user_data = this;
-  this->drv_.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
-    auto *l = static_cast<LVTouchListener *>(d->user_data);
+  this->drv_ = lv_indev_create();
+  lv_indev_set_type(this->drv_, LV_INDEV_TYPE_POINTER);
+  lv_indev_set_disp(this->drv_, parent->get_disp());
+  lv_indev_set_long_press_time(this->drv_, long_press_time);
+  // long press repeat time TBD
+  lv_indev_set_user_data(this->drv_, this);
+  lv_indev_set_read_cb(this->drv_, [](lv_indev_t *d, lv_indev_data_t *data) {
+    auto *l = static_cast<LVTouchListener *>(lv_indev_get_user_data(d));
     if (l->touch_pressed_) {
       data->point.x = l->touch_point_.x;
       data->point.y = l->touch_point_.y;
@@ -259,7 +267,7 @@ LVTouchListener::LVTouchListener(uint16_t long_press_time, uint16_t long_press_r
     } else {
       data->state = LV_INDEV_STATE_RELEASED;
     }
-  };
+  });
 }
 
 void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
@@ -270,20 +278,20 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 #endif  // USE_LVGL_TOUCHSCREEN
 
 #ifdef USE_LVGL_KEY_LISTENER
-LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt) {
-  lv_indev_drv_init(&this->drv_);
-  this->drv_.type = type;
-  this->drv_.user_data = this;
-  this->drv_.long_press_time = lpt;
-  this->drv_.long_press_repeat_time = lprt;
-  this->drv_.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
-    auto *l = static_cast<LVEncoderListener *>(d->user_data);
+LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time) {
+  this->drv_ = lv_indev_create();
+  lv_indev_set_type(this->drv_, type);
+  lv_indev_set_long_press_time(this->drv_, long_press_time);
+  // long press repeat time TBD
+  lv_indev_set_user_data(this->drv_, this);
+  lv_indev_set_read_cb(this->drv_, [](lv_indev_t *d, lv_indev_data_t *data) {
+    auto *l = static_cast<LVEncoderListener *>(lv_indev_get_user_data(d));
     data->state = l->pressed_ ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
     data->key = l->key_;
     data->enc_diff = (int16_t) (l->count_ - l->last_count_);
     l->last_count_ = l->count_;
     data->continue_reading = false;
-  };
+  });
 }
 #endif  // USE_LVGL_KEY_LISTENER
 
@@ -305,7 +313,7 @@ void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t a
   auto index = std::find(this->options_.begin(), this->options_.end(), text);
   if (index != this->options_.end()) {
     this->set_selected_index(index - this->options_.begin(), anim);
-    lv_event_send(this->obj, lv_api_event, nullptr);
+    lv_obj_send_event(this->obj, lv_api_event, nullptr);
   }
 }
 
@@ -315,7 +323,7 @@ void LvSelectable::set_options(std::vector<std::string> options) {
     index = options.size() - 1;
   this->options_ = std::move(options);
   this->set_option_string(join_string(this->options_).c_str());
-  lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
+  lv_obj_send_event(this->obj, LV_EVENT_REFRESH, nullptr);
   this->set_selected_index(index, LV_ANIM_OFF);
 }
 #endif  // USE_LVGL_DROPDOWN || LV_USE_ROLLER
@@ -326,17 +334,17 @@ void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
   lv_obj_add_event_cb(
       lv_obj,
       [](lv_event_t *event) {
-        auto *self = static_cast<LvButtonMatrixType *>(event->user_data);
+        auto *self = static_cast<LvButtonMatrixType *>(lv_event_get_user_data(event));
         if (self->key_callback_.size() == 0)
           return;
-        auto key_idx = lv_btnmatrix_get_selected_btn(self->obj);
-        if (key_idx == LV_BTNMATRIX_BTN_NONE)
+        auto key_idx = lv_buttonmatrix_get_selected_button(self->obj);
+        if (key_idx == LV_BUTTONMATRIX_BUTTON_NONE)
           return;
         if (self->key_map_.count(key_idx) != 0) {
           self->send_key_(self->key_map_[key_idx]);
           return;
         }
-        const auto *str = lv_btnmatrix_get_btn_text(self->obj, key_idx);
+        const auto *str = lv_buttonmatrix_get_button_text(self->obj, key_idx);
         auto len = strlen(str);
         while (len--)
           self->send_key_(*str++);
@@ -356,14 +364,14 @@ void LvKeyboardType::set_obj(lv_obj_t *lv_obj) {
   lv_obj_add_event_cb(
       lv_obj,
       [](lv_event_t *event) {
-        auto *self = static_cast<LvKeyboardType *>(event->user_data);
+        auto *self = static_cast<LvKeyboardType *>(lv_event_get_user_data(event));
         if (self->key_callback_.size() == 0)
           return;
 
-        auto key_idx = lv_btnmatrix_get_selected_btn(self->obj);
-        if (key_idx == LV_BTNMATRIX_BTN_NONE)
+        auto key_idx = lv_buttonmatrix_get_selected_button(self->obj);
+        if (key_idx == LV_BUTTONMATRIX_BUTTON_NONE)
           return;
-        const char *txt = lv_btnmatrix_get_btn_text(self->obj, key_idx);
+        const char *txt = lv_buttonmatrix_get_button_text(self->obj, key_idx);
         if (txt == nullptr)
           return;
         for (const auto *kb_special_key : KB_SPECIAL_KEYS) {
@@ -382,9 +390,9 @@ void LvglComponent::write_random_() {
   if (iterations <= 0)
     iterations = 1;
   while (iterations-- != 0) {
-    auto col = random_uint32() % this->disp_drv_.hor_res;
+    auto col = random_uint32() % this->width_;
     col = col / this->draw_rounding * this->draw_rounding;
-    auto row = random_uint32() % this->disp_drv_.ver_res;
+    auto row = random_uint32() % this->height_;
     row = row / this->draw_rounding * this->draw_rounding;
     auto size = (random_uint32() % 32) / this->draw_rounding * this->draw_rounding - 1;
     lv_area_t area;
@@ -392,16 +400,16 @@ void LvglComponent::write_random_() {
     area.y1 = row;
     area.x2 = col + size;
     area.y2 = row + size;
-    if (area.x2 >= this->disp_drv_.hor_res)
-      area.x2 = this->disp_drv_.hor_res - 1;
-    if (area.y2 >= this->disp_drv_.ver_res)
-      area.y2 = this->disp_drv_.ver_res - 1;
+    if (area.x2 >= this->width_)
+      area.x2 = this->width_ - 1;
+    if (area.y2 >= this->height_)
+      area.y2 = this->height_ - 1;
 
     size_t line_len = lv_area_get_width(&area) * lv_area_get_height(&area) / 2;
     for (size_t i = 0; i != line_len; i++) {
-      ((uint32_t *) (this->draw_buf_.buf1))[i] = random_uint32();
+      ((uint32_t *) (this->draw_buf_))[i] = random_uint32();
     }
-    this->draw_buffer_(&area, (lv_color_t *) this->draw_buf_.buf1);
+    this->draw_buffer_(&area, (lv_color_data *) this->draw_buf_);
   }
 }
 
@@ -432,14 +440,7 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
       buffer_frac_(buffer_frac),
       full_refresh_(full_refresh),
       resume_on_input_(resume_on_input) {
-  lv_disp_draw_buf_init(&this->draw_buf_, nullptr, nullptr, 0);
-  lv_disp_drv_init(&this->disp_drv_);
-  this->disp_drv_.draw_buf = &this->draw_buf_;
-  this->disp_drv_.user_data = this;
-  this->disp_drv_.full_refresh = this->full_refresh_;
-  this->disp_drv_.flush_cb = static_flush_cb;
-  this->disp_drv_.rounder_cb = rounder_cb;
-  this->disp_ = lv_disp_drv_register(&this->disp_drv_);
+  this->disp_ = lv_display_create(240, 240);
 }
 
 void LvglComponent::setup() {
@@ -451,19 +452,17 @@ void LvglComponent::setup() {
   auto frac = this->buffer_frac_;
   if (frac == 0)
     frac = 1;
-  size_t buffer_pixels = width * height / frac;
-  auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
+  auto buf_bytes = width * height / frac * LV_COLOR_DEPTH / 8;
   void *buffer = nullptr;
   if (this->buffer_frac_ >= MIN_BUFFER_FRAC / 2)
     buffer = malloc(buf_bytes);  // NOLINT
   if (buffer == nullptr)
-    buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
+    buffer = lv_malloc_core(buf_bytes);  // NOLINT
   // if specific buffer size not set and can't get 100%, try for a smaller one
   if (buffer == nullptr && this->buffer_frac_ == 0) {
     frac = MIN_BUFFER_FRAC;
-    buffer_pixels /= MIN_BUFFER_FRAC;
     buf_bytes /= MIN_BUFFER_FRAC;
-    buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
+    buffer = lv_malloc_core(buf_bytes);  // NOLINT
   }
   if (buffer == nullptr) {
     this->status_set_error("Memory allocation failure");
@@ -471,13 +470,17 @@ void LvglComponent::setup() {
     return;
   }
   this->buffer_frac_ = frac;
-  lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buffer_pixels);
-  this->disp_drv_.hor_res = display->get_width();
-  this->disp_drv_.ver_res = display->get_height();
-  lv_disp_drv_update(this->disp_, &this->disp_drv_);
+  this->draw_buf_ = static_cast<uint8_t *>(buffer);
+  lv_display_set_resolution(this->disp_, this->width_, this->height_);
+  lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_buffers(this->disp_, this->draw_buf_, nullptr, buf_bytes,
+                         this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
+  lv_display_set_user_data(this->disp_, this);
+  lv_display_set_flush_cb(this->disp_, static_flush_cb);
+  lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
-    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
+    this->rotate_buf_ = static_cast<lv_color_t *>(lv_malloc_core(buf_bytes));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
       this->status_set_error("Memory allocation failure");
       this->mark_failed();
@@ -485,21 +488,24 @@ void LvglComponent::setup() {
     }
   }
   if (this->draw_start_callback_ != nullptr) {
-    this->disp_drv_.render_start_cb = render_start_cb;
+    lv_display_add_event_cb(this->disp_, render_start_cb, LV_EVENT_RENDER_START, this);
   }
   if (this->draw_end_callback_ != nullptr) {
-    this->disp_drv_.monitor_cb = monitor_cb;
+    lv_display_add_event_cb(this->disp_, render_end_cb, LV_EVENT_REFR_READY, this);
   }
 #if LV_USE_LOG
-  lv_log_register_print_cb([](const char *buf) {
+  lv_log_register_print_cb([](lv_log_level_t level, const char *buf) {
     auto next = strchr(buf, ')');
     if (next != nullptr)
       buf = next + 1;
     while (isspace(*buf))
       buf++;
-    esp_log_printf_(LVGL_LOG_LEVEL, TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
+    if (level >= sizeof(log_level_map) / sizeof(log_level_map[0]))
+      level = sizeof(log_level_map) / sizeof(log_level_map[0]) - 1;
+    esp_log_printf_(log_level_map[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
 #endif
+  lv_tick_set_cb([] { return millis(); });
   // Rotation will be handled by our drawing function, so reset the display rotation.
   for (auto *disp : this->displays_)
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
@@ -525,35 +531,54 @@ void LvglComponent::loop() {
 
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj) {
-  auto *animg = (lv_animimg_t *) obj;
-  int32_t duration = animg->anim.time;
+  int32_t duration = lv_animimg_get_duration(obj);
   lv_animimg_set_duration(obj, 0);
   lv_animimg_start(obj);
   lv_animimg_set_duration(obj, duration);
 }
 #endif
-void LvglComponent::static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
-  reinterpret_cast<LvglComponent *>(disp_drv->user_data)->flush_cb_(disp_drv, area, color_p);
+void LvglComponent::static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
+  reinterpret_cast<LvglComponent *>(lv_display_get_user_data(disp_drv))->flush_cb_(disp_drv, area, color_p);
 }
 }  // namespace lvgl
 }  // namespace esphome
 
-size_t lv_millis(void) { return esphome::millis(); }
+lv_result_t lv_mem_test_core() { return LV_RESULT_OK; }
+
+void lv_mem_init() {}
+void lv_mem_deinit() {}
 
 #if defined(USE_HOST) || defined(USE_RP2040) || defined(USE_ESP8266)
-void *lv_custom_mem_alloc(size_t size) {
+void *lv_malloc_core(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {
     ESP_LOGE(esphome::lvgl::TAG, "Failed to allocate %zu bytes", size);
   }
   return ptr;
 }
-void lv_custom_mem_free(void *ptr) { return free(ptr); }                            // NOLINT
-void *lv_custom_mem_realloc(void *ptr, size_t size) { return realloc(ptr, size); }  // NOLINT
-#else
+void lv_free_core(void *ptr) { return free(ptr); }                            // NOLINT
+void *lv_realloc_core(void *ptr, size_t size) { return realloc(ptr, size); }  // NOLINT
+
+void lv_mem_monitor_core(lv_mem_monitor_t *mon_p) { memset(mon_p, 0, sizeof(lv_mem_monitor_t)); }
+
+#endif
+#ifdef USE_ESP32
 static unsigned cap_bits = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;  // NOLINT
 
-void *lv_custom_mem_alloc(size_t size) {
+void lv_mem_monitor_core(lv_mem_monitor_t *mon_p) {
+  multi_heap_info_t heap_info;
+  heap_caps_get_info(&heap_info, cap_bits);
+  mon_p->total_size = heap_info.total_allocated_bytes + heap_info.total_free_bytes;
+  mon_p->free_size = heap_info.total_free_bytes;
+  mon_p->max_used = heap_info.total_allocated_bytes;
+  mon_p->free_biggest_size = heap_info.largest_free_block;
+  mon_p->used_cnt = heap_info.allocated_blocks;
+  mon_p->free_cnt = heap_info.free_blocks;
+  mon_p->used_pct = heap_info.allocated_blocks * 100 / (heap_info.allocated_blocks + heap_info.free_blocks);
+  mon_p->frag_pct = 0;
+}
+
+void *lv_malloc_core(size_t size) {
   void *ptr;
   ptr = heap_caps_malloc(size, cap_bits);
   if (ptr == nullptr) {
@@ -568,14 +593,14 @@ void *lv_custom_mem_alloc(size_t size) {
   return ptr;
 }
 
-void lv_custom_mem_free(void *ptr) {
+void lv_free_core(void *ptr) {
   ESP_LOGV(esphome::lvgl::TAG, "free %p", ptr);
   if (ptr == nullptr)
     return;
   heap_caps_free(ptr);
 }
 
-void *lv_custom_mem_realloc(void *ptr, size_t size) {
+void *lv_realloc_core(void *ptr, size_t size) {
   ESP_LOGV(esphome::lvgl::TAG, "realloc %p: %zu", ptr, size);
   return heap_caps_realloc(ptr, size, cap_bits);
 }

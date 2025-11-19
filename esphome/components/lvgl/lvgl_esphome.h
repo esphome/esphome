@@ -20,6 +20,8 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
+
+#include <list>
 #include <lvgl.h>
 #include <map>
 #include <utility>
@@ -39,9 +41,16 @@
 namespace esphome {
 namespace lvgl {
 
+#if LV_COLOR_DEPTH == 16
+using lv_color_data = uint16_t;
+#endif
+#if LV_COLOR_DEPTH == 32
+using lv_color_data = uint32_t;
+#endif
+
 extern lv_event_code_t lv_api_event;     // NOLINT
 extern lv_event_code_t lv_update_event;  // NOLINT
-extern std::string lv_event_code_name_for(uint8_t event_code);
+extern std::string lv_event_code_name_for(lv_event_t *event);
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -63,9 +72,6 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
 // from within a lambda.
 inline void lv_img_set_src(lv_obj_t *obj, esphome::image::Image *image) {
   lv_img_set_src(obj, image->get_lv_img_dsc());
-}
-inline void lv_disp_set_bg_image(lv_disp_t *disp, esphome::image::Image *image) {
-  lv_disp_set_bg_image(disp, image->get_lv_img_dsc());
 }
 
 inline void lv_obj_set_style_bg_img_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
@@ -130,7 +136,7 @@ class LvPageType : public Parented<LvglComponent> {
 
 using LvLambdaType = std::function<void(lv_obj_t *)>;
 using set_value_lambda_t = std::function<void(float)>;
-using event_callback_t = void(_lv_event_t *);
+using event_callback_t = void(lv_event_t *);
 using text_lambda_t = std::function<const char *()>;
 
 template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
@@ -152,7 +158,7 @@ class LvglComponent : public PollingComponent {
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
                 bool resume_on_input);
-  static void static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
+  static void static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void setup() override;
@@ -162,8 +168,8 @@ class LvglComponent : public PollingComponent {
     this->idle_callbacks_.add(std::move(callback));
   }
 
-  static void monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px);
-  static void render_start_cb(lv_disp_drv_t *disp_drv);
+  static void render_end_cb(lv_event_t *event);
+  static void render_start_cb(lv_event_t *event);
   void dump_config() override;
   lv_disp_t *get_disp() { return this->disp_; }
   lv_obj_t *get_scr_act() { return lv_disp_get_scr_act(this->disp_); }
@@ -192,6 +198,7 @@ class LvglComponent : public PollingComponent {
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
   void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
+  void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
   size_t get_current_page() const;
   void set_focus_mark(lv_group_t *group) { this->focus_marks_[group] = lv_group_get_focused(group); }
   void restore_focus_mark(lv_group_t *group) {
@@ -216,21 +223,24 @@ class LvglComponent : public PollingComponent {
   void draw_end_() const { this->draw_end_callback_->trigger(); }
 
   void write_random_();
-  void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
-  void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
+  void draw_buffer_(const lv_area_t *area, lv_color_data *ptr);
+  void flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
+
   std::vector<display::Display *> displays_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
   bool resume_on_input_{};
 
-  lv_disp_draw_buf_t draw_buf_{};
-  lv_disp_drv_t disp_drv_{};
-  lv_disp_t *disp_{};
+  uint8_t *draw_buf_{};
+  lv_display_t *disp_{};
+  uint16_t width_{};
+  uint16_t height_{};
   bool paused_{};
   std::vector<LvPageType *> pages_{};
   size_t current_page_{0};
   bool show_snow_{};
   bool page_wrap_{true};
+  bool big_endian_{};
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   CallbackManager<void(uint32_t)> idle_callbacks_{};
@@ -277,10 +287,10 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
     touch_pressed_ = false;
     this->parent_->maybe_wakeup();
   }
-  lv_indev_drv_t *get_drv() { return &this->drv_; }
+  lv_indev_t *get_drv() { return this->drv_; }
 
  protected:
-  lv_indev_drv_t drv_{};
+  lv_indev_t *drv_{};
   touchscreen::TouchPoint touch_point_{};
   bool touch_pressed_{};
 };
@@ -321,10 +331,10 @@ class LVEncoderListener : public Parented<LvglComponent> {
     }
   }
 
-  lv_indev_drv_t *get_drv() { return &this->drv_; }
+  lv_indev_t *get_drv() { return this->drv_; }
 
  protected:
-  lv_indev_drv_t drv_{};
+  lv_indev_t *drv_{};
   bool pressed_{};
   int32_t count_{};
   int32_t last_count_{};
@@ -391,7 +401,7 @@ class LvRollerType : public LvSelectable {
 class LvButtonMatrixType : public key_provider::KeyProvider, public LvCompound {
  public:
   void set_obj(lv_obj_t *lv_obj) override;
-  uint16_t get_selected() { return lv_btnmatrix_get_selected_btn(this->obj); }
+  uint16_t get_selected() { return lv_buttonmatrix_get_selected_button(this->obj); }
   void set_key(size_t idx, uint8_t key) { this->key_map_[idx] = key; }
 
  protected:

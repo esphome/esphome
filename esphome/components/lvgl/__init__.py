@@ -28,7 +28,7 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
-from .automation import disp_update, focused_widgets, refreshed_widgets
+from .automation import focused_widgets, layers_to_code, refreshed_widgets
 from .defines import add_define
 from .encoders import (
     ENCODERS_CONFIG,
@@ -195,20 +195,14 @@ def final_validation(configs):
 async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
-    cg.add_library("lvgl/lvgl", "8.4.0")
+    cg.add_library("lvgl/lvgl", "9.4.0")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
     add_define("LV_DRAW_COMPLEX", "1")
-    add_define("LV_TICK_CUSTOM", "1")
-    add_define("LV_TICK_CUSTOM_INCLUDE", '"esphome/components/lvgl/lvgl_hal.h"')
-    add_define("LV_TICK_CUSTOM_SYS_TIME_EXPR", "(lv_millis())")
-    add_define("LV_MEM_CUSTOM", "1")
-    add_define("LV_MEM_CUSTOM_ALLOC", "lv_custom_mem_alloc")
-    add_define("LV_MEM_CUSTOM_FREE", "lv_custom_mem_free")
-    add_define("LV_MEM_CUSTOM_REALLOC", "lv_custom_mem_realloc")
-    add_define("LV_MEM_CUSTOM_INCLUDE", '"esphome/components/lvgl/lvgl_hal.h"')
+    add_define("LV_DRAW_BUF_ALIGN", "1")
+    add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
 
     add_define(
         "LV_LOG_LEVEL",
@@ -282,6 +276,7 @@ async def to_code(configs):
 
         lv_scr_act = get_scr_act(lv_component)
         async with LvContext():
+            cg.add(lv_component.set_big_endian(config[CONF_BYTE_ORDER] == "big_endian"))
             await touchscreens_to_code(lv_component, config)
             await encoders_to_code(lv_component, config, default_group)
             await keypads_to_code(lv_component, config, default_group)
@@ -291,7 +286,7 @@ async def to_code(configs):
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
             await add_pages(lv_component, config)
-            await add_top_layer(lv_component, config)
+            await layers_to_code(lv_component, config)
             await msgboxes_to_code(lv_component, config)
             await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
@@ -379,7 +374,7 @@ LVGL_SCHEMA = cv.All(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
                 cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
-                    "big_endian", "little_endian"
+                    "big_endian", "little_endian", lower=True
                 ),
                 cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
                     cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)}).extend(
@@ -407,6 +402,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
                 cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
                 cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
+                cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,

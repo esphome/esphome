@@ -10,18 +10,16 @@ from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
-    CONF_DISP_BG_COLOR,
-    CONF_DISP_BG_IMAGE,
-    CONF_DISP_BG_OPA,
     CONF_EDITING,
     CONF_FREEZE,
     CONF_LVGL_ID,
     CONF_SHOW_SNOW,
+    CONF_TOP_LAYER,
     PARTS,
     literal,
     static_cast,
 )
-from .lv_validation import lv_bool, lv_color, lv_image, lv_milliseconds, opacity
+from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
@@ -38,17 +36,16 @@ from .lvcode import (
 )
 from .schemas import (
     ALL_STYLES,
-    DISP_BG_SCHEMA,
     LIST_ACTION_SCHEMA,
     LVGL_SCHEMA,
     base_update_schema,
+    part_schema,
 )
 from .types import (
     LV_STATE,
     LvglAction,
     LvglCondition,
     ObjUpdateAction,
-    lv_disp_t,
     lv_group_t,
     lv_obj_base_t,
     lv_obj_t,
@@ -56,6 +53,7 @@ from .types import (
 )
 from .widgets import (
     Widget,
+    add_widgets,
     get_scr_act,
     get_widgets,
     set_obj_properties,
@@ -65,6 +63,21 @@ from .widgets import (
 # Record widgets that are used in a focused action here
 focused_widgets = set()
 refreshed_widgets = set()
+
+
+async def layers_to_code(lv_component, config):
+    if top_conf := config.get(CONF_TOP_LAYER):
+        top_layer = lv_expr.display_get_layer_top(lv_component.get_disp())
+        with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
+            top_w = Widget(top_layer_obj, layer_spec, top_conf)
+            await set_obj_properties(top_w, top_conf)
+            await add_widgets(top_w, top_conf)
+    if bottom_conf := config.get(CONF_BOTTOM_LAYER):
+        bottom_layer = lv_expr.display_get_layer_bottom(lv_component.get_disp())
+        with LocalVariable("bottom_layer", lv_obj_t, bottom_layer) as bottom_layer_obj:
+            bottom_w = Widget(bottom_layer_obj, layer_spec, bottom_conf)
+            await set_obj_properties(bottom_w, bottom_conf)
+            await add_widgets(bottom_w, bottom_conf)
 
 
 async def action_to_code(
@@ -151,25 +164,6 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
     return var
 
 
-async def disp_update(disp, config: dict):
-    if (
-        CONF_DISP_BG_COLOR not in config
-        and CONF_DISP_BG_IMAGE not in config
-        and CONF_DISP_BG_OPA not in config
-    ):
-        return
-    with LocalVariable("lv_disp_tmp", lv_disp_t, disp) as disp_temp:
-        if (bg_color := config.get(CONF_DISP_BG_COLOR)) is not None:
-            lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
-        if bg_image := config.get(CONF_DISP_BG_IMAGE):
-            if bg_image == "none":
-                lv.disp_set_bg_image(disp_temp, static_cast("void *", "nullptr"))
-            else:
-                lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
-        if (bg_opa := config.get(CONF_DISP_BG_OPA)) is not None:
-            lv.disp_set_bg_opa(disp_temp, await opacity.process(bg_opa))
-
-
 @automation.register_action(
     "lvgl.widget.redraw",
     ObjUpdateAction,
@@ -199,8 +193,14 @@ async def obj_invalidate_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "lvgl.update",
     LvglAction,
-    DISP_BG_SCHEMA.extend(LVGL_SCHEMA).add_extra(
-        cv.has_at_least_one_key(CONF_DISP_BG_COLOR, CONF_DISP_BG_IMAGE)
+    part_schema(layer_spec.parts)
+    .extend(LVGL_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.use_id(LvglComponent),
+            cv.Optional(CONF_TOP_LAYER): part_schema(layer_spec.parts),
+            cv.Optional(CONF_BOTTOM_LAYER): part_schema(layer_spec.parts),
+        }
     ),
 )
 async def lvgl_update_to_code(config, action_id, template_arg, args):
@@ -208,7 +208,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     w = widgets[0]
     disp = literal(f"{w.obj}->get_disp()")
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
-        await disp_update(disp, config)
+        await layers_to_code(w, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)
     return var
