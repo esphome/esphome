@@ -380,7 +380,9 @@ on_...:
 ```
 
 > [!NOTE]
-> Be aware that if you disable WiFi, the API timeout will need to be disabled otherwise the device will reboot.
+> Be mindful of the reboot timeouts set for both the [API component](/components/api/) and the
+> [WiFi component](#configuration-variables) if you disable WiFi. If WiFi remains off for longer than the duration of
+> either timeout, the device will reboot!
 
 {{< anchor "wifi-on_enable" >}}
 
