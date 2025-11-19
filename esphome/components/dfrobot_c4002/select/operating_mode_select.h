@@ -10,8 +10,6 @@
 namespace esphome {
 namespace dfrobot_c4002 {
 
-static const char *const TAG = "dfrobot_c4002 mode select";
-
 class C4002Select : public Component, public select::Select, public Parented<C4002Component> {
  public:
   C4002Select() = default;

@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 namespace esphome {
 namespace dfrobot_c4002 {
+static const char *const TAG = "dfrobot_c4002.number: ";
 
 // -------- Min Range --------
 void MinDetectRangeNumber::control(float value) {

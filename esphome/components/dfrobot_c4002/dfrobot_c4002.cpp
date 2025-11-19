@@ -4,7 +4,7 @@
 namespace esphome {
 namespace dfrobot_c4002 {
 
-static const char *const TAG = "dfrobot_c4002";
+static const char *const TAG = "dfrobot_c4002: ";
 
 /**
  * setup
@@ -398,8 +398,8 @@ bool C4002Component::enable_all_distance_door(uint8_t *door_data) {
  * Returns a RetResult struct with the parsed data.
  */
 RetResult C4002Component::get_note_info_loop() {
-  RetResult ret;
-  RecvPack rec_data = {0};
+  RetResult ret = {};
+  RecvPack rec_data = {};
   rec_data = recv_pack();
 
   if (SUCCEED == rec_data.resPonCode) {
@@ -424,7 +424,12 @@ RetResult C4002Component::get_note_info_loop() {
       } else {
         ret.noteType = NO_NOTE;
       }
+    } else {
+      ret.noteType = NO_NOTE;
     }
+
+  } else {
+    ret.noteType = NO_NOTE;
   }
   return ret;
 }

@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 namespace esphome {
 namespace dfrobot_c4002 {
+static const char *const TAG = "dfrobot_c4002.switch: ";
 
 void C4002Switch1::write_state(bool state) {
   bool send_flag = false;

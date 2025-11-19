@@ -7,6 +7,8 @@
 namespace esphome {
 namespace dfrobot_c4002 {
 
+static const char *const TAG = "dfrobot_c4002.select: ";
+
 void C4002Select::control(const std::string &value) {
   if (this->parent_) {
     for (int i = 0; i < 3; i++) {
