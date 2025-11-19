@@ -2,9 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DISTANCE,
     CONF_ID,
-    CONF_SPEED,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SPEED,
     ICON_RULER,
