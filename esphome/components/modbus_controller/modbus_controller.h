@@ -103,6 +103,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
+  /// called when modbus can't send for any reason
+  void on_modbus_not_sent() override;
   /// called when a modbus timeout occurred
   void on_modbus_no_response() override;
   uint16_t register_address{0};
@@ -231,6 +233,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   /// Check if the command should be retried based on the max_retries parameter
   bool can_send() { return this->cmd_non_responses_ <= this->max_cmd_retries_; };
 
+  // Queue a one-shot command (will not be polled)
+  void queue_command(const ModbusCommandItem &command);
+  void unqueue_command(const ModbusCommandItem *command);
+
  protected:
   friend ModbusCommandItem;
   /// parse sensormap_ and create range of sequential addresses
@@ -242,7 +248,9 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   /// Collection of all sensors for this component
   SensorSet sensorset_;
   /// Continuous range of modbus registers
-  std::vector<ModbusCommandItem> command_items_{};
+  std::vector<ModbusCommandItem> polling_command_items_{};
+  /// One-shot command items
+  std::list<std::unique_ptr<ModbusCommandItem>> one_shot_command_items_;
   /// count updates to enable skipping
   uint16_t update_counter_{0};
   /// count updates to enable skipping

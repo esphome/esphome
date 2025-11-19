@@ -72,11 +72,7 @@ void ModbusSwitch::write_state(bool state) {
   }
   if (!data.empty()) {
     ESP_LOGV(TAG, "Modbus Switch write raw: %s", format_hex_pretty(data).c_str());
-    cmd = ModbusCommandItem::create_custom_command(
-        this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-          this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
-        });
+    cmd = ModbusCommandItem::create_custom_command(this->parent_, data);
   } else {
     ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
              ONOFF(state), (int) this->register_type, this->start_address, this->offset);

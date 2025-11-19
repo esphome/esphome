@@ -21,7 +21,7 @@ void ModbusController::set_online(bool online, const ModbusCommandItem &command)
     this->online_callback_.call((int) command.function_code, command.register_address);
 
   } else if (!online) {
-    this->clear_tx_queue(false);
+    this->clear_tx_queue_for_address(false);
 
     if (!this->module_offline_) {
       ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
@@ -36,9 +36,9 @@ void ModbusController::set_online(bool online, const ModbusCommandItem &command)
 void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
   this->controller->set_online(true, *this);
 
-  if (this->on_data_func)
+  if (this->on_data_func) {
     this->on_data_func(this->register_type, this->register_address, data);
-  else {
+  } else {
     if (this->function_code == ModbusFunctionCode::CUSTOM) {
       ESP_LOGI(TAG, "Custom Command sent");
     } else if (is_function_code_write((u_int8_t(this->function_code)))) {
@@ -53,19 +53,27 @@ void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
       }
     }
   }
+  this->controller->unqueue_command(this);
 }
 
 // Modbus error message is a legit response from the device. Consider the device online.
 void ModbusCommandItem::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
   this->controller->set_online(true, *this);
+  this->controller->unqueue_command(this);
 }
+
+// Command not being sent doesn't tell us whether device is online or offline
+// So we just unqueue it.
+void ModbusCommandItem::on_modbus_not_sent() { this->controller->unqueue_command(this); }
 
 void ModbusCommandItem::on_modbus_no_response() {
   this->controller->increment_non_response_count();
-  if (this->controller->can_send())
+  if (this->controller->can_send()) {
     this->send();
-  else
+  } else {
     this->controller->set_online(false, *this);
+    this->controller->unqueue_command(this);
+  }
 }
 
 void SensorItem::on_write_response(const std::vector<uint8_t> &data) {
@@ -93,13 +101,27 @@ void ModbusController::update() {
   }
 
   if (this->can_send()) {
-    for (auto &cmd : this->command_items_) {
+    for (auto &cmd : this->polling_command_items_) {
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address);
       update_range_(cmd);
     }
   }
 
   this->update_counter_++;
+}
+
+void ModbusController::queue_command(const ModbusCommandItem &command) {
+  this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(command));
+  this->one_shot_command_items_.back()->send();
+  ESP_LOGV(TAG, "Added item to one shot commands. %d items total", this->one_shot_command_items_.size());
+}
+
+void ModbusController::unqueue_command(const ModbusCommandItem *command) {
+  auto erased = std::erase_if(this->one_shot_command_items_, [command](const std::unique_ptr<ModbusCommandItem> &item) {
+    return command == item.get();
+  });
+  ESP_LOGV(TAG, "Erased %d items from one shot commands. %d items remaining", erased,
+           this->one_shot_command_items_.size());
 }
 
 // walk through the sensors and determine the register ranges to read
@@ -110,8 +132,7 @@ size_t ModbusController::create_register_ranges_() {
   }
 
   // Clear the tx queue to remove any pending commands for this device
-  this->clear_tx_queue();
-  this->command_items_.clear();
+  this->polling_command_items_.clear();
 
   std::vector<RegisterRange> register_ranges;
 
@@ -220,7 +241,7 @@ size_t ModbusController::create_register_ranges_() {
     // TODO: Create a factory method for this
     cmd.sensors = std::move(r.sensors);
     cmd.skip_updates = r.skip_updates;
-    this->command_items_.push_back(cmd);
+    this->polling_command_items_.push_back(cmd);
   }
 
   for (auto &sensor : this->sensorset_) {
@@ -228,11 +249,11 @@ size_t ModbusController::create_register_ranges_() {
       ModbusCommandItem cmd = ModbusCommandItem::create_custom_command(this, sensor->custom_data);
       cmd.register_address = sensor->start_address;  // TODO: Is this needed?
       cmd.register_count = sensor->register_count;   // TODO: Is this needed?
-      this->command_items_.push_back(std::move(cmd));
+      this->polling_command_items_.push_back(std::move(cmd));
     }
   }
 
-  return this->command_items_.size();
+  return this->polling_command_items_.size();
 }
 
 void ModbusController::dump_config() {
@@ -251,7 +272,7 @@ void ModbusController::dump_config() {
                   it->get_register_size());
   }
   ESP_LOGCONFIG(TAG, "ranges");
-  for (auto &it : this->command_items_) {
+  for (auto &it : this->polling_command_items_) {
     ESP_LOGCONFIG(TAG, "  Range type=%zu start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type),
                   it.register_address, it.register_count, it.skip_updates);
   }
