@@ -102,7 +102,7 @@ class CoapClientComponent : public Component {
             void *callback_context, std::string payload, CoapMediaType media_type = CoapMediaType::TEXT_PLAIN,
             uint32_t response_timeout = 4000);
   void process_request(CoapClientRequestData &tx_request);
-  bool remove_observation(std::string name);
+  void remove(std::string name);
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                           const coap_mid_t mid);
   coap_response_t process_response(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,

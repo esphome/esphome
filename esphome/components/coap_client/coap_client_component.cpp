@@ -104,7 +104,7 @@ bool CoapClientComponent::teardown() {
   for (const auto &ptr : this->tx_requests_) {
     // Stop response or never response
     if (ptr->observe && ptr->observing) {
-      ESP_LOGD(TAG, "Queue Request to terminate observation of Request: %s", ptr->name);
+      ESP_LOGD(TAG, "Queue Request to terminate observation of Request: %s", ptr->name.c_str());
       ptr->observe = false;
       xQueueSend(this->request_queue_, (void *) &ptr->create_timestamp, pdMS_TO_TICKS(1000));
     }
@@ -171,7 +171,7 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
     ESP_LOGVV(TAG, "Unable to find CoAP Client Request");
     return COAP_RESPONSE_OK;
   }
-  ESP_LOGV(TAG, "CoAP Client Request: %s", tx_request.name);
+  ESP_LOGV(TAG, "CoAP Client Request: %s", tx_request.name.c_str());
   tx_request.response_timestamp = micros();
 
   if (COAP_RESPONSE_CLASS(rcvd_code) == 2) {
@@ -268,16 +268,14 @@ void CoapClientComponent::process_request(CoapClientRequestData &tx_request) {
   }
 }
 
-bool CoapClientComponent::remove_observation(std::string name) {
+void CoapClientComponent::remove(std::string name) {
   for (const auto &ptr : this->tx_requests_) {
-    if (ptr->observe && ptr->name == name) {
-      ESP_LOGD(TAG, "Queue Request to terminate observation of Request: %s", ptr->name);
+    if (ptr->observe && (name.length() == 0 || ptr->name == name)) {
+      ESP_LOGD(TAG, "Queue Request to terminate observation of Request: %s", ptr->name.c_str());
       ptr->observe = false;
       xQueueSend(this->request_queue_, (void *) &ptr->create_timestamp, pdMS_TO_TICKS(1000));
-      return 1;
     }
   }
-  return 0;
 }
 
 void CoapClientComponent::main_() {
@@ -341,7 +339,7 @@ void CoapClientComponent::main_() {
           ESP_LOGE(TAG, "unable to find queued request");
           continue;
         }
-        ESP_LOGV(TAG, "Timestamp %d %s", dtime, tx_request->name);
+        ESP_LOGV(TAG, "Timestamp %d %s", dtime, tx_request->name.c_str());
         // Parse uri
         if (coap_split_uri((const uint8_t *) tx_request->uri.c_str(), tx_request->uri.length(), &uri) == -1) {
           ESP_LOGE(TAG, "Error coap_split_uri %s", tx_request->uri.c_str());
@@ -395,13 +393,15 @@ void CoapClientComponent::main_() {
         if (tx_request->pdu_token)  // observe, so session exists libcoap
         {
           ESP_LOGV(TAG, "Use pdu_token %d from %s",
-                   coap_decode_var_bytes8(tx_request->pdu_token->s, tx_request->pdu_token->length), tx_request->name);
+                   coap_decode_var_bytes8(tx_request->pdu_token->s, tx_request->pdu_token->length),
+                   tx_request->name.c_str());
           if (!coap_add_token(request, tx_request->pdu_token->length, tx_request->pdu_token->s)) {
             ESP_LOGE(TAG, "Unable to add token to request");
           }
         } else {
           coap_session_new_token(session, &token_length, token);
-          ESP_LOGV(TAG, "New pdu_token %d for %s", coap_decode_var_bytes8(token, token_length), tx_request->name);
+          ESP_LOGV(TAG, "New pdu_token %d for %s", coap_decode_var_bytes8(token, token_length),
+                   tx_request->name.c_str());
           if (!coap_add_token(request, token_length, token)) {
             ESP_LOGE(TAG, "Unable to add token to request");
           }
@@ -476,7 +476,7 @@ void CoapClientComponent::housekeeping_() {
     for (const auto &ptr : this->tx_requests_) {
       // Stop response or never response
       if (micros() - ptr->response_timestamp > 1000u * ptr->response_timeout) {
-        ESP_LOGD(TAG, "Remove Request %s due to Response timeout of %ums", ptr->name, ptr->response_timeout);
+        ESP_LOGD(TAG, "Remove Request %s due to Response timeout of %ums", ptr->name.c_str(), ptr->response_timeout);
         tx_request = ptr.get();
         break;
       }
@@ -485,13 +485,14 @@ void CoapClientComponent::housekeeping_() {
     if (tx_request) {
       std::lock_guard<std::mutex> lock(this->mutex_lock_);
       if (tx_request->create_timestamp == tx_request->response_timestamp) {
-        ESP_LOGV(TAG, "Send Error End to tx_request %s", tx_request->name);
+        ESP_LOGV(TAG, "Send Error End to tx_request %s", tx_request->name.c_str());
         tx_request->callback(0, nullptr, 0, 0, 0, tx_request->callback_context);
       }
       this->tx_requests_.erase(this->tx_requests_.begin() + tx_i);
     }
   }
 }
+
 #ifdef CONFIG_COAP_MBEDTLS_PKI
 int CoapClientComponent::validate_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
                                               coap_session_t *session, unsigned depth, int validated, void *arg) {

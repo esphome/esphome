@@ -228,4 +228,15 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
       new Trigger<std::shared_ptr<CoapResponseStatistics>, Ts...>();
 };
 
+template<typename... Ts> class CoapClientRemoveAction : public Action<Ts...> {
+ public:
+  CoapClientRemoveAction(CoapClientComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, request_name)
+
+  void play(Ts... x) override { this->parent_->remove(this->request_name_.value(x...)); }
+
+ protected:
+  CoapClientComponent *parent_;
+};
+
 }  // namespace esphome::coap

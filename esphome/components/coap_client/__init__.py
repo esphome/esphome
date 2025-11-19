@@ -52,6 +52,9 @@ CoapResponseStatistics = coap_client_component_ns.class_("CoapResponseStatistics
 CoapClientSendAction = coap_client_component_ns.class_(
     "CoapClientSendAction", automation.Action
 )
+CoapClientRemoveAction = coap_client_component_ns.class_(
+    "CoapClientRemoveAction", automation.Action
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -174,6 +177,12 @@ COAP_CLIENT_SEND_ACTION_SCHEMA = automation.maybe_conf(
         }
     ),
 )
+COAP_CLIENT_REMOVE_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(CoapClientComponent),
+        cv.Optional(CONF_REQUEST_NAME): cv.string,
+    }
+)
 
 
 @automation.register_action(
@@ -240,5 +249,17 @@ async def coap_client_action_to_code(config, action_id, template_arg, args):
             ],
             error_conf,
         )
+
+    return var
+
+
+@automation.register_action(
+    "coap_client.remove", CoapClientRemoveAction, COAP_CLIENT_REMOVE_ACTION_SCHEMA
+)
+async def coap_client_remove_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    if (name := config.get(CONF_REQUEST_NAME)) is not None:
+        cg.add(var.set_request_name(name))
 
     return var
