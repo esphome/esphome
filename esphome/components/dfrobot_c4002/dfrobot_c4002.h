@@ -7,6 +7,8 @@
 #include <stdint.h>
 //#include "esphome/core/automation.h"
 
+const char *const TAG = "dfrobot_c4002: ";
+
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
