@@ -1632,8 +1632,13 @@ bool WiFiComponent::is_esp32_improv_active_() {
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
 bool WiFiComponent::request_high_performance() {
-  // Skip if already configured for high performance or semaphore initialization failed
-  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE || this->high_performance_semaphore_ == nullptr) {
+  // Already configured for high performance - request satisfied
+  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+    return true;
+  }
+
+  // Semaphore initialization failed
+  if (this->high_performance_semaphore_ == nullptr) {
     return false;
   }
 
@@ -1642,8 +1647,13 @@ bool WiFiComponent::request_high_performance() {
 }
 
 bool WiFiComponent::release_high_performance() {
-  // Skip if already configured for high performance or semaphore initialization failed
-  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE || this->high_performance_semaphore_ == nullptr) {
+  // Already configured for high performance - nothing to release
+  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+    return true;
+  }
+
+  // Semaphore initialization failed
+  if (this->high_performance_semaphore_ == nullptr) {
     return false;
   }
 

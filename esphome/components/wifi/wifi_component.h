@@ -379,11 +379,10 @@ class WiFiComponent : public Component {
    * Power saving will be restored to the YAML-configured mode when all components have
    * called release_high_performance().
    *
-   * If the YAML-configured power_save_mode is already NONE, this is a no-op.
+   * Note: Only supported on ESP32.
    *
-   * Note: Only supported on ESP32. No-op on other platforms.
-   *
-   * @return true if the request was successful, false otherwise
+   * @return true if request was satisfied (high-performance mode active or already configured),
+   *         false if operation failed (semaphore error)
    */
   bool request_high_performance();
 
@@ -393,9 +392,10 @@ class WiFiComponent : public Component {
    * When all requests are released (semaphore count reaches zero), WiFi power saving
    * is restored to the YAML-configured mode.
    *
-   * Note: Only supported on ESP32. No-op on other platforms.
+   * Note: Only supported on ESP32.
    *
-   * @return true if the release was successful, false otherwise
+   * @return true if release was successful (or already in high-performance config),
+   *         false if operation failed (semaphore error)
    */
   bool release_high_performance();
 #endif  // USE_WIFI_RUNTIME_POWER_SAVE
