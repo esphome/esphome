@@ -338,6 +338,9 @@ void WiFiComponent::setup() {
   if (this->high_performance_semaphore_ == nullptr) {
     ESP_LOGE(TAG, "Failed semaphore");
   }
+
+  // Store the configured power save mode as baseline
+  this->configured_power_save_ = this->power_save_;
 #endif
 
   if (this->enable_on_boot_) {
@@ -375,17 +378,25 @@ void WiFiComponent::start() {
     this->set_sta(sta);
   }
 
-#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
-  // Store the configured power save mode as baseline
-  this->configured_power_save_ = this->power_save_;
-#endif
-
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
     if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+    // Synchronize power_save_ with semaphore state before applying
+    if (this->high_performance_semaphore_ != nullptr) {
+      UBaseType_t semaphore_count = uxSemaphoreGetCount(this->high_performance_semaphore_);
+      if (semaphore_count > 0) {
+        this->power_save_ = WIFI_POWER_SAVE_NONE;
+        this->is_high_performance_mode_ = true;
+      } else {
+        this->power_save_ = this->configured_power_save_;
+        this->is_high_performance_mode_ = false;
+      }
+    }
+#endif
     if (!this->wifi_apply_power_save_()) {
       ESP_LOGV(TAG, "Setting Power Save Option failed");
     }
