@@ -14,8 +14,7 @@
 #include "esphome/components/power_supply/power_supply.h"
 #endif
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 /// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
 Color color_from_light_color_values(LightColorValues val);
@@ -116,5 +115,4 @@ class AddressableLightTransformer : public LightTransformer {
   Color target_color_{};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
