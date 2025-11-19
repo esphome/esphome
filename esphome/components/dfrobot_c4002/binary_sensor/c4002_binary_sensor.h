@@ -26,5 +26,5 @@ class C4002BinarySensor : public C4002Listener, public Component, binary_sensor:
   binary_sensor::BinarySensor *presence_bsensor_{nullptr};
 };
 
-}  // namespace dfrobot_C4002
+}  // namespace dfrobot_c4002
 }  // namespace esphome

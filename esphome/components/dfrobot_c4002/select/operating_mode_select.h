@@ -14,11 +14,10 @@ namespace dfrobot_c4002 {
 
 class C4002Select : public Component, public select::Select, public Parented<C4002Component> {
  public:
-  
   C4002Select() = default;
 
- void set_options(const std::vector<std::string> &options) {};
-  
+  void set_options(const std::vector<std::string> &options){};
+
  protected:
   void control(const std::string &value) override;
   std::string options[3] = {"Mode_1", "Mode_2", "Mode_3"};

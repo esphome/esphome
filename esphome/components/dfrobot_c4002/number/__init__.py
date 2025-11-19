@@ -56,7 +56,7 @@ CONFIG_SCHEMA = cv.Schema(
             icon="mdi:lightbulb",
             unit_of_measurement="lx",
         ),
-                cv.Optional(CONF_AREA1_MIN): number.number_schema(
+        cv.Optional(CONF_AREA1_MIN): number.number_schema(
             Area1MinRangeNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
@@ -92,7 +92,6 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:counter",
         ),
-
     }
 )
 
@@ -116,7 +115,7 @@ async def to_code(config):
         )
         await cg.register_parented(light_threshold, config[CONF_C4002_ID])
         cg.add(number_component.set_light_threshold_number(light_threshold))
-     # 区域 1 最小范围
+    # 区域 1 最小范围
     if area1_min_config := config.get(CONF_AREA1_MIN):
         n = await number.new_number(area1_min_config, min_value=1, max_value=11, step=1)
         await cg.register_parented(n, config[CONF_C4002_ID])

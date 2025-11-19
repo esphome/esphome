@@ -23,12 +23,10 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
-
 namespace esphome {
 namespace dfrobot_c4002 {
 
-
-  /*  */
+/*  */
 class C4002Listener {
  public:
   virtual void on_movement_distance(float distance){};
@@ -38,206 +36,190 @@ class C4002Listener {
   virtual void on_target_state(bool presence){};
 };
 
+#define TIME_OUT 0x64       ///< time out
+#define FRAME_HEADER1 0xFA  ///< frame header1
+#define FRAME_HEADER2 0xF5  ///< frame header2
+#define FRAME_HEADER3 0xAA  ///< frame header3
+#define FRAME_HEADER4 0xA5  ///< frame header4
 
-#define TIME_OUT      0x64    ///< time out
-#define FRAME_HEADER1 0xFA    ///< frame header1
-#define FRAME_HEADER2 0xF5    ///< frame header2
-#define FRAME_HEADER3 0xAA    ///< frame header3
-#define FRAME_HEADER4 0xA5    ///< frame header4
+#define FRAME_TYPE_WRITE_REQUSET 0x00  ///< write request frame type
+#define FRAME_TYPE_READ_REQUSET 0x01   ///< read request frame type
+#define FRAME_TYPE_WRITE_RESPOND 0x02  ///< write respond frame type
+#define FRAME_TYPE_READ_RESPOND 0x03   ///< read respond frame type
+#define FRAME_TYPE_NOTIFICATION 0x04   ///< notification frame type
+#define FRAME_ERROR 0xFF               ///< error frame type
 
-#define FRAME_TYPE_WRITE_REQUSET 0x00    ///< write request frame type
-#define FRAME_TYPE_READ_REQUSET  0x01    ///< read request frame type
-#define FRAME_TYPE_WRITE_RESPOND 0x02    ///< write respond frame type
-#define FRAME_TYPE_READ_RESPOND  0x03    ///< read respond frame type
-#define FRAME_TYPE_NOTIFICATION  0x04    ///< notification frame type
-#define FRAME_ERROR              0xFF    ///< error frame type
+#define CMD_SET_LED_MODE 0xA1                 ///< set led mode
+#define CMD_CONFIG_OUT_MODE 0xA0              ///< set output mode
+#define CMD_ENVIRNMENT_CALIBRATION 0x60       ///< environment calibration
+#define CMD_RESTART 0x00                      ///< restart command
+#define CMD_SET_DETECT_RANGE 0x86             ///< set detect sensitivity
+#define CMD_FACTORY_RESET 0x80                ///< factory reset command
+#define CMD_SET_REPORT_PERIOD 0x83            ///< set report period
+#define CMD_SET_LIGHT_THRESHOLD 0x88          ///< set light threshold
+#define CMD_SET_DISTANCE_DOOR 0x62            ///< set distance door
+#define CMD_GET_VERSION 0x82                  ///< get version command
+#define CMD_GET_AND_SET_RESOLUTION_MODE 0x66  ///< get resolution mode command
+#define CMD_SET_DISTANCE_DOOR_THRESHOLD 0x63  ///< set distance door threshold
+#define CMD_SET_BAUDRATE 0x21                 ///< set baudrate command
 
-#define CMD_SET_LED_MODE                0xA1    ///< set led mode
-#define CMD_CONFIG_OUT_MODE             0xA0    ///< set output mode
-#define CMD_ENVIRNMENT_CALIBRATION      0x60    ///< environment calibration
-#define CMD_RESTART                     0x00    ///< restart command
-#define CMD_SET_DETECT_RANGE            0x86    ///< set detect sensitivity
-#define CMD_FACTORY_RESET               0x80    ///< factory reset command
-#define CMD_SET_REPORT_PERIOD           0x83    ///< set report period
-#define CMD_SET_LIGHT_THRESHOLD         0x88    ///< set light threshold
-#define CMD_SET_DISTANCE_DOOR           0x62    ///< set distance door
-#define CMD_GET_VERSION                 0x82    ///< get version command
-#define CMD_GET_AND_SET_RESOLUTION_MODE 0x66    ///< get resolution mode command
-#define CMD_SET_DISTANCE_DOOR_THRESHOLD 0x63    ///< set distance door threshold
-#define CMD_SET_BAUDRATE                0x21    ///< set baudrate command
+#define NOTE_RESULT_CMD 0x60                  ///< detection result notification command
+#define NOTE_ENVIRNMENT_CALIBRATION_CMD 0x03  ///< environment calibration notification command
 
-#define NOTE_RESULT_CMD                 0x60    ///< detection result notification command
-#define NOTE_ENVIRNMENT_CALIBRATION_CMD 0x03    ///< environment calibration notification command
-
-#define SOFTWARE_VERSION 0x01    ///< get software version
-#define HARDWARE_VERSION 0x00    ///< get hardware version
+#define SOFTWARE_VERSION 0x01  ///< get software version
+#define HARDWARE_VERSION 0x00  ///< get hardware version
 
 /**
  * @enum eResolutionMode_t
  * @brief Resolution mode
-*/
-typedef enum {
-  eResolution80Cm = 0x00,
-  eResolution20Cm = 0x01
-} eResolutionMode_t;
+ */
+typedef enum { eResolution80Cm = 0x00, eResolution20Cm = 0x01 } eResolutionMode_t;
 
 /**
  * @enum eDistanceDoorType_t
  * @brief Distance door type
-*/
-typedef enum {
-  eMoveDistDoor  = 0x00,
-  eExistDistDoor = 0x01
-} eDistanceDoorType_t;
+ */
+typedef enum { eMoveDistDoor = 0x00, eExistDistDoor = 0x01 } eDistanceDoorType_t;
 
 /**
  * @enum eResponseCode_t
  * @brief Response code
-*/
+ */
 typedef enum {
-  eReadAndWriteReq   = 0x00, /*read and write request       */
-  eSucceed           = 0x01,
-  eCmdErr            = 0x02, /* The CMD does not exist      */
+  eReadAndWriteReq = 0x00, /*read and write request       */
+  eSucceed = 0x01,
+  eCmdErr = 0x02,            /* The CMD does not exist      */
   eAuthenticationErr = 0x03, /* Authentication error        */
-  eResourcesBusy     = 0x04, /* Resources are busy          */
-  eParamsErr         = 0x05, /* The parameters are illegal  */
-  eDataLenErr        = 0x06, /* Abnormal data length        */
-  eInternalErr       = 0x07  /* internal error              */
+  eResourcesBusy = 0x04,     /* Resources are busy          */
+  eParamsErr = 0x05,         /* The parameters are illegal  */
+  eDataLenErr = 0x06,        /* Abnormal data length        */
+  eInternalErr = 0x07        /* internal error              */
 } eResponseCode_t;
 
 /**
  * @enum eMoveDirection_t
  * @brief The direction of the movement
-*/
-typedef enum {
-  eAway = 0,
-  eStay = 1,
-  eNear = 2
-} eMoveDirection_t;
+ */
+typedef enum { eAway = 0, eStay = 1, eNear = 2 } eMoveDirection_t;
 
 /**
  * @enum eOutMode_t
  * @brief Output mode
-*/
-typedef enum{
-  eOutMode1     = 0x01, /* Only when motion is detected will a high level be output */
-  eOutMode2     = 0x02, /* A high level is output only when its presence is detected */
-  eOutMode3     = 0x03, /* A high level only appears when movement or presence is detected */
-  eOutModex     = 0xFF  /* reserved                          */
-}eOutMode_t;
+ */
+typedef enum {
+  eOutMode1 = 0x01, /* Only when motion is detected will a high level be output */
+  eOutMode2 = 0x02, /* A high level is output only when its presence is detected */
+  eOutMode3 = 0x03, /* A high level only appears when movement or presence is detected */
+  eOutModex = 0xFF  /* reserved                          */
+} eOutMode_t;
 
 /**
  * @enum eTargetState_t
  * @brief The state of the target
-*/
+ */
 typedef enum {
-  eNobody        = 0,
-  eExist         = 1,
-  eMove          = 2,
-  eMoveOrExist   = 3,
-  eMoveOrNobody  = 4,
+  eNobody = 0,
+  eExist = 1,
+  eMove = 2,
+  eMoveOrExist = 3,
+  eMoveOrNobody = 4,
   eExistOrNobody = 5,
-  ePinError      = 255
+  ePinError = 255
 } eTargetState_t;
 
 /**
  * @enum eLedMode_t
  * @brief The operation led mode
-*/
-typedef enum {
-  eLedOff  = 0x00,
-  eLedOn   = 0x01,
-  eLedKeep = 0xFF
-} eLedMode_t;
+ */
+typedef enum { eLedOff = 0x00, eLedOn = 0x01, eLedKeep = 0xFF } eLedMode_t;
 
 /**
  * @enum eNoteType_t
  * @brief The type of the notification message
-*/
+ */
 typedef enum {
-  eNoNote              = 0x00,
-  eNoteInfoResult      = 0x01,
+  eNoNote = 0x00,
+  eNoteInfoResult = 0x01,
   eNoteInfoCalibration = 0x02,
 } eNoteType_t;
 
 /**
  * @struct sDetectResult_t
  * @brief The detection result
-*/
+ */
 typedef struct {
-  uint8_t  targetStatus;
+  uint8_t targetStatus;
   uint16_t light;
   uint32_t existDistIndex;
   uint16_t existCountDown;
   uint16_t existTargetDist;
-  uint8_t  existTargetEnery;
+  uint8_t existTargetEnery;
   uint16_t moveTargetDist;
-  int16_t  moveTargetSpeed;
-  uint8_t  moveTargetEnery;
-  uint8_t  moveTargetDirect;
+  int16_t moveTargetSpeed;
+  uint8_t moveTargetEnery;
+  uint8_t moveTargetDirect;
 } sDetectResult_t;
 
 /**
  * @struct sDataHeader_t
  * @brief The data header of the received package
-*/
+ */
 typedef struct {
-  uint8_t  cmd;
-  uint8_t  respCode;
+  uint8_t cmd;
+  uint8_t respCode;
   uint16_t dataLen;
 } sDataHeader_t;
 
 /**
  * @struct sRecvPack_t
  * @brief The received package
-*/
+ */
 typedef struct {
-  sDataHeader_t   dataHeader;
-  uint8_t         data[50];
-  uint8_t         packType;
+  sDataHeader_t dataHeader;
+  uint8_t data[50];
+  uint8_t packType;
   eResponseCode_t resPonCode;
 } sRecvPack_t;
 
 /**
  * @struct sResData_t
  * @brief The detection result and environment calibration information
-*/
+ */
 typedef struct {
-  uint8_t         cmd;
-  uint8_t         respCode;
+  uint8_t cmd;
+  uint8_t respCode;
   sDetectResult_t dectResult;
-  uint16_t        calibCountdown;
+  uint16_t calibCountdown;
 } sResData_t;
 
 /**
  * @struct sMoveTarget_t
  * @brief The movement target
-*/
+ */
 typedef struct {
-  float   distance;
+  float distance;
   uint8_t energy;
 } sExistTarget_t;
 
 /**
  * @struct sMoveTarget_t
  * @brief The movement target
-*/
+ */
 typedef struct {
-  float            distance;
-  float            speed;
-  uint8_t          energy;
+  float distance;
+  float speed;
+  uint8_t energy;
   eMoveDirection_t direction;
 } sMoveTarget_t;
 
 /**
  *  @struct sRetResult_t
  *  @brief The detection result and environment calibration information
-*/
+ */
 typedef struct {
   eNoteType_t noteType;
-  uint16_t    calibCountdown;
+  uint16_t calibCountdown;
 } sRetResult_t;
-
 
 typedef enum {
   AREA1_DOOR_MIN = 0,
@@ -246,7 +228,7 @@ typedef enum {
   AREA2_DOOR_MAX = 3,
   AREA3_DOOR_MIN = 4,
   AREA3_DOOR_MAX = 5,
-}range_value_t;
+} range_value_t;
 
 /**
  * @brief Main component for the DFRobot C4002 device.
@@ -260,11 +242,11 @@ class C4002Component : public Component, public uart::UARTDevice {
 
   /** Lifecycle hooks */
   void setup() override;
-  void loop() override; // 循环中处理数据
+  void loop() override;  // 循环中处理数据
 
   /** UART helpers */
   void uart_clear_buffer();
-  
+
   /** Debug / configuration helpers */
   void print_config();
 
@@ -284,12 +266,12 @@ class C4002Component : public Component, public uart::UARTDevice {
   void startEnvCalibration(uint16_t delayTime, uint16_t contTime);
   bool setRunLed(eLedMode_t runLed);
 
-//#if 0
-//************************************/
+  //#if 0
+  //************************************/
   bool setOutLed(eLedMode_t outLed);
   bool setOutMode(eOutMode_t outMode);
 
-//#endif
+  //#endif
 
   //数据获取类
   eTargetState_t getTargetState(void);
@@ -300,13 +282,12 @@ class C4002Component : public Component, public uart::UARTDevice {
 
   bool begin();
   bool getResolutionMode(void);
-//#if 0
-//*****************************************/
+  //#if 0
+  //*****************************************/
   bool getOutMode(void);
   bool get_detect_range(void);
-  
 
-//#endif
+  //#endif
 
   sRetResult_t getNotInfoLoop(void);
   bool setReportPeriod(uint8_t period);
@@ -320,26 +301,26 @@ class C4002Component : public Component, public uart::UARTDevice {
   void uart_write_data(uint8_t *datas, size_t len);
 
 #ifdef USE_SWITCH
-  void set_run_led_switch(switch_::Switch *sw) { this->run_led_switch_ = sw;};
-  void set_out_led_switch(switch_::Switch *sw) { this->out_led_switch_ = sw;};
-  void set_factory_reset_switch(switch_::Switch *sw) { this->factory_reset_switch_ = sw;};
-  void set_environmental_calibration_switch(switch_::Switch *sw) { this->Env_calibration_switch_ = sw;};
+  void set_run_led_switch(switch_::Switch *sw) { this->run_led_switch_ = sw; };
+  void set_out_led_switch(switch_::Switch *sw) { this->out_led_switch_ = sw; };
+  void set_factory_reset_switch(switch_::Switch *sw) { this->factory_reset_switch_ = sw; };
+  void set_environmental_calibration_switch(switch_::Switch *sw) { this->Env_calibration_switch_ = sw; };
 
 #endif
 
 #ifdef USE_SELECT
   void set_operating_mode_select(select::Select *selector) { this->operating_selector_ = selector; };
-  uint8_t get_out_mode_select(void){return (uint8_t)this->_outMode;};
+  uint8_t get_out_mode_select(void) { return (uint8_t) this->_outMode; };
 #endif
 
-void setup_number(void);
-float get_light_threshold(void);
-bool joint_enable_door(void);
+  void setup_number(void);
+  float get_light_threshold(void);
+  bool joint_enable_door(void);
 
 #ifdef USE_NUMBER
-  float get_min_detect_range_number(void){return (float)this->min_detect_range_;};
-  float get_max_detect_range_number(void){return (float)this->max_detect_range_;};
-  
+  float get_min_detect_range_number(void) { return (float) this->min_detect_range_; };
+  float get_max_detect_range_number(void) { return (float) this->max_detect_range_; };
+
   bool set_min_range(float range);
   bool set_max_range(float range);
 
@@ -359,8 +340,7 @@ bool joint_enable_door(void);
 #endif
 
  protected:
-  
-  sDetectResult_t   _detectResult;
+  sDetectResult_t _detectResult;
   eResolutionMode_t _resolutionMode = eResolution80Cm;
 
   eOutMode_t _outMode;
@@ -371,8 +351,8 @@ bool joint_enable_door(void);
   float current_detection_range_min_ = 0;
   float current_detection_range_max_ = 11;
 
-  float current_area_[6] = {0,10,0,10,0,10};
-  uint8_t enable_door_[11] = {1,1,1,1,1,1,1,1,1,1,1};
+  float current_area_[6] = {0, 10, 0, 10, 0, 10};
+  uint8_t enable_door_[11] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
   uint16_t _lightThreshold;
 
@@ -403,7 +383,7 @@ bool joint_enable_door(void);
   std::vector<C4002Listener *> listeners_{};
 };
 
-}  // namespace dfrobot_C4002
+}  // namespace dfrobot_c4002
 }  // namespace esphome
 
 //开关和模式的默认读取与更新

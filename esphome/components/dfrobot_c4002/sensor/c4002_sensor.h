@@ -9,11 +9,15 @@ static const char *const TAG = "dfrobot_c4002.select";
 class C4002Sensor : public C4002Listener, public Component, sensor::Sensor {
  public:
   void setup() override {
-    if (movement_distance_) this->movement_distance_->publish_state(0.0f);
-    if (existing_distance_) this->existing_distance_->publish_state(0.0f);
-    if (movement_speed_) this->movement_speed_->publish_state(0.0f);
-    if (movement_direction_) this->movement_direction_->publish_state(0.0f);
-    //if (target_state_) target_state_->publish_state(0.0f);
+    if (movement_distance_)
+      this->movement_distance_->publish_state(0.0f);
+    if (existing_distance_)
+      this->existing_distance_->publish_state(0.0f);
+    if (movement_speed_)
+      this->movement_speed_->publish_state(0.0f);
+    if (movement_direction_)
+      this->movement_direction_->publish_state(0.0f);
+    // if (target_state_) target_state_->publish_state(0.0f);
   }
   void set_movement_distance_sensor(sensor::Sensor *sensor) { this->movement_distance_ = sensor; }
   void set_existing_distance_sensor(sensor::Sensor *sensor) { this->existing_distance_ = sensor; }
@@ -50,14 +54,13 @@ class C4002Sensor : public C4002Listener, public Component, sensor::Sensor {
         this->movement_direction_->publish_state(direction);
       }
     }
-  } 
+  }
 
  protected:
   sensor::Sensor *movement_distance_{nullptr};
   sensor::Sensor *existing_distance_{nullptr};
   sensor::Sensor *movement_speed_{nullptr};
   sensor::Sensor *movement_direction_{nullptr};
-  
 };
 
 }  // namespace dfrobot_c4002
