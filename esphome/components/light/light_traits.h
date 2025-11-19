@@ -18,7 +18,8 @@ class LightTraits {
  public:
   LightTraits() = default;
 
-  const ColorModeMask &get_supported_color_modes() const { return this->supported_color_modes_; }
+  // Return by value to avoid dangling reference when get_traits() returns a temporary
+  ColorModeMask get_supported_color_modes() const { return this->supported_color_modes_; }
   void set_supported_color_modes(ColorModeMask supported_color_modes) {
     this->supported_color_modes_ = supported_color_modes;
   }
@@ -26,9 +27,9 @@ class LightTraits {
     this->supported_color_modes_ = ColorModeMask(modes);
   }
 
-  bool supports_color_mode(ColorMode color_mode) const { return this->supported_color_modes_.contains(color_mode); }
+  bool supports_color_mode(ColorMode color_mode) const { return this->supported_color_modes_.count(color_mode) > 0; }
   bool supports_color_capability(ColorCapability color_capability) const {
-    return this->supported_color_modes_.has_capability(color_capability);
+    return has_capability(this->supported_color_modes_, color_capability);
   }
 
   float get_min_mireds() const { return this->min_mireds_; }

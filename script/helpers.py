@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import cache
+import hashlib
 import json
 import os
 import os.path
@@ -25,11 +26,20 @@ CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
 # Python file extensions
 PYTHON_FILE_EXTENSIONS = (".py", ".pyi")
 
+# Combined C++ and Python file extensions for convenience
+CPP_AND_PYTHON_FILE_EXTENSIONS = (*CPP_FILE_EXTENSIONS, *PYTHON_FILE_EXTENSIONS)
+
 # YAML file extensions
 YAML_FILE_EXTENSIONS = (".yaml", ".yml")
 
 # Component path prefix
 ESPHOME_COMPONENTS_PATH = "esphome/components/"
+
+# Test components path prefix
+ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
+
+# Tuple of component and test paths for efficient startswith checks
+COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
 
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
@@ -42,6 +52,10 @@ BASE_BUS_COMPONENTS = {
     "remote_transmitter",
     "remote_receiver",
 }
+
+# Cache version for components graph
+# Increment this when the cache format or graph building logic changes
+COMPONENTS_GRAPH_CACHE_VERSION = 1
 
 
 def parse_list_components_output(output: str) -> list[str]:
@@ -81,16 +95,22 @@ def get_component_from_path(file_path: str) -> str | None:
     """Extract component name from a file path.
 
     Args:
-        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp")
+        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp"
+                                or "tests/components/uart/test.esp32-idf.yaml")
 
     Returns:
-        Component name if path is in components directory, None otherwise
+        Component name if path is in components or tests directory, None otherwise
     """
-    if not file_path.startswith(ESPHOME_COMPONENTS_PATH):
-        return None
-    parts = file_path.split("/")
-    if len(parts) >= 3:
-        return parts[2]
+    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
+        ESPHOME_TESTS_COMPONENTS_PATH
+    ):
+        parts = file_path.split("/")
+        if len(parts) >= 3 and parts[2]:
+            # Verify that parts[2] is actually a component directory, not a file
+            # like .gitignore or README.md in the components directory itself
+            component_name = parts[2]
+            if "." not in component_name:
+                return component_name
     return None
 
 
@@ -176,6 +196,20 @@ def splitlines_no_ends(string: str) -> list[str]:
     return [s.strip() for s in string.splitlines()]
 
 
+@cache
+def _get_github_event_data() -> dict | None:
+    """Read and parse GitHub event file (cached).
+
+    Returns:
+        Parsed event data dictionary, or None if not available
+    """
+    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if github_event_path and os.path.exists(github_event_path):
+        with open(github_event_path) as f:
+            return json.load(f)
+    return None
+
+
 def _get_pr_number_from_github_env() -> str | None:
     """Extract PR number from GitHub environment variables.
 
@@ -188,13 +222,30 @@ def _get_pr_number_from_github_env() -> str | None:
         return github_ref.split("/pull/")[1].split("/")[0]
 
     # Fallback to GitHub event file
-    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
-            event_data = json.load(f)
-            pr_data = event_data.get("pull_request", {})
-            if pr_number := pr_data.get("number"):
-                return str(pr_number)
+    if event_data := _get_github_event_data():
+        pr_data = event_data.get("pull_request", {})
+        if pr_number := pr_data.get("number"):
+            return str(pr_number)
+
+    return None
+
+
+def get_target_branch() -> str | None:
+    """Get the target branch from GitHub environment variables.
+
+    Returns:
+        Target branch name (e.g., "dev", "release", "beta"), or None if not in PR context
+    """
+    # First try GITHUB_BASE_REF (set for pull_request events)
+    if base_ref := os.environ.get("GITHUB_BASE_REF"):
+        return base_ref
+
+    # Fallback to GitHub event file
+    if event_data := _get_github_event_data():
+        pr_data = event_data.get("pull_request", {})
+        base_data = pr_data.get("base", {})
+        if ref := base_data.get("ref"):
+            return ref
 
     return None
 
@@ -658,17 +709,32 @@ def get_components_from_integration_fixtures() -> set[str]:
     return components
 
 
-def filter_component_files(file_path: str) -> bool:
-    """Check if a file path is a component file.
+def filter_component_and_test_files(file_path: str) -> bool:
+    """Check if a file path is a component or test file.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is in a component directory
+        True if the file is in a component or test directory
     """
-    return file_path.startswith("esphome/components/") or file_path.startswith(
-        "tests/components/"
+    return file_path.startswith(COMPONENT_AND_TESTS_PATHS) or (
+        file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
+        and file_path.endswith(YAML_FILE_EXTENSIONS)
+    )
+
+
+def filter_component_and_test_cpp_files(file_path: str) -> bool:
+    """Check if a file is a C++ source file in component or test directories.
+
+    Args:
+        file_path: Path to check
+
+    Returns:
+        True if the file is a C++ source/header file in component or test directories
+    """
+    return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
+        COMPONENT_AND_TESTS_PATHS
     )
 
 
@@ -726,21 +792,72 @@ def resolve_auto_load(
     return auto_load()
 
 
+@cache
+def get_components_graph_cache_key() -> str:
+    """Generate cache key based on all component Python file hashes.
+
+    Uses git ls-files with sha1 hashes to generate a stable cache key that works
+    across different machines and CI runs. This is faster and more reliable than
+    reading file contents or using modification times.
+
+    Returns:
+        SHA256 hex string uniquely identifying the current component state
+    """
+
+    # Use git ls-files -s to get sha1 hashes of all component Python files
+    # Format: <mode> <sha1> <stage> <path>
+    # This is fast and works consistently across CI and local dev
+    # We hash all .py files because AUTO_LOAD, DEPENDENCIES, etc. can be defined
+    # in any Python file, not just __init__.py
+    cmd = ["git", "ls-files", "-s", "esphome/components/**/*.py"]
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, check=True, cwd=root_path, close_fds=False
+    )
+
+    # Hash the git output (includes file paths and their sha1 hashes)
+    # This changes only when component Python files actually change
+    hasher = hashlib.sha256()
+    hasher.update(result.stdout.encode())
+
+    return hasher.hexdigest()
+
+
 def create_components_graph() -> dict[str, list[str]]:
-    """Create a graph of component dependencies.
+    """Create a graph of component dependencies (cached).
+
+    This function is expensive (5-6 seconds) because it imports all ESPHome components
+    to extract their DEPENDENCIES and AUTO_LOAD metadata. The result is cached based
+    on component file modification times, so unchanged components don't trigger a rebuild.
 
     Returns:
         Dictionary mapping parent components to their children (dependencies)
     """
-    from pathlib import Path
+    # Check cache first - use fixed filename since GitHub Actions cache doesn't support wildcards
+    cache_file = Path(temp_folder) / "components_graph.json"
+
+    if cache_file.exists():
+        try:
+            cached_data = json.loads(cache_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            # Cache file corrupted or unreadable, rebuild
+            pass
+        else:
+            # Verify cache version matches
+            if cached_data.get("_version") == COMPONENTS_GRAPH_CACHE_VERSION:
+                # Verify cache is for current component state
+                cache_key = get_components_graph_cache_key()
+                if cached_data.get("_cache_key") == cache_key:
+                    return cached_data.get("graph", {})
+                # Cache key mismatch - stale cache, rebuild
+            # Cache version mismatch - incompatible format, rebuild
 
     from esphome import const
     from esphome.core import CORE
     from esphome.loader import ComponentManifest, get_component, get_platform
 
     # The root directory of the repo
-    root = Path(__file__).parent.parent
-    components_dir = root / "esphome" / "components"
+    root = Path(root_path)
+    components_dir = root / ESPHOME_COMPONENTS_PATH
     # Fake some directory so that get_component works
     CORE.config_path = root
     # Various configuration to capture different outcomes used by `AUTO_LOAD` function.
@@ -816,6 +933,15 @@ def create_components_graph() -> dict[str, list[str]]:
             # restore config
             CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
+    # Save to cache with version and cache key for validation
+    cache_data = {
+        "_version": COMPONENTS_GRAPH_CACHE_VERSION,
+        "_cache_key": get_components_graph_cache_key(),
+        "graph": components_graph,
+    }
+    cache_file.parent.mkdir(exist_ok=True)
+    cache_file.write_text(json.dumps(cache_data))
+
     return components_graph
 
 
@@ -873,3 +999,81 @@ def get_components_with_dependencies(
         return sorted(all_changed_components)
 
     return sorted(components)
+
+
+def get_all_component_files() -> list[str]:
+    """Get all component and test files from git.
+
+    Returns:
+        List of all component and test file paths
+    """
+    files = git_ls_files()
+    return list(filter(filter_component_and_test_files, files))
+
+
+def get_all_components() -> list[str]:
+    """Get all component names.
+
+    This function uses git to find all component files and extracts the component names.
+    It returns the same list as calling list-components.py without arguments.
+
+    Returns:
+        List of all component names
+    """
+    return get_components_with_dependencies(get_all_component_files(), False)
+
+
+def core_changed(files: list[str]) -> bool:
+    """Check if any core C++ or Python files have changed.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any core C++ or Python files have changed
+    """
+    return any(
+        f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
+def get_cpp_changed_components(files: list[str]) -> list[str]:
+    """Get components that have changed C++ files or tests.
+
+    This function analyzes a list of changed files and determines which components
+    are affected. It handles two scenarios:
+
+    1. Test files changed (tests/components/<component>/*.cpp):
+       - Adds the component to the affected list
+       - Only that component needs to be tested
+
+    2. Component C++ files changed (esphome/components/<component>/*):
+       - Adds the component to the affected list
+       - Also adds all components that depend on this component (recursively)
+       - This ensures that changes propagate to dependent components
+
+    Args:
+        files: List of file paths to analyze (should be C++ files)
+
+    Returns:
+        Sorted list of component names that need C++ unit tests run
+    """
+    components_graph = create_components_graph()
+    affected: set[str] = set()
+    for file in files:
+        if not file.endswith(CPP_FILE_EXTENSIONS):
+            continue
+        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 4:
+                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
+                if component_dir.is_dir():
+                    affected.add(parts[2])
+        elif file.startswith(ESPHOME_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 4:
+                component = parts[2]
+                affected.update(find_children_of_component(components_graph, component))
+                affected.add(component)
+    return sorted(affected)

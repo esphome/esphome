@@ -1,6 +1,7 @@
 #include "i2c.h"
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <memory>
 
@@ -23,6 +24,8 @@ void I2CBus::i2c_scan_() {
     } else if (err == ERROR_UNKNOWN) {
       scan_results_.emplace_back(address, false);
     }
+    // it takes 16sec to scan on nrf52. It prevents board reset.
+    arch_feed_wdt();
   }
 #if defined(USE_ESP32) && defined(USE_LOGGER)
   esp_log_level_set("*", previous);

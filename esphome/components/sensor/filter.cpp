@@ -372,8 +372,12 @@ optional<float> HeartbeatFilter::new_value(float value) {
   this->last_input_ = value;
   this->has_value_ = true;
 
+  if (this->optimistic_) {
+    return value;
+  }
   return {};
 }
+
 void HeartbeatFilter::setup() {
   this->set_interval("heartbeat", this->time_period_, [this]() {
     ESP_LOGVV(TAG, "HeartbeatFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),
@@ -384,6 +388,7 @@ void HeartbeatFilter::setup() {
     this->output(this->last_input_);
   });
 }
+
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 CalibrateLinearFilter::CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions)

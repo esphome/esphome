@@ -127,6 +127,7 @@ void ESP32ImprovComponent::loop() {
           // Set initial state based on whether we have an authorizer
           this->set_state_(this->get_initial_state_(), false);
           this->set_error_(improv::ERROR_NONE);
+          this->should_start_ = false;  // Clear flag after starting
           ESP_LOGD(TAG, "Service started!");
         }
       }
@@ -270,8 +271,8 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
-  this->rpc_response_->set_value(ByteBuffer::wrap(response));
+void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &&response) {
+  this->rpc_response_->set_value(std::move(response));
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
 }
@@ -336,7 +337,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->connecting_sta_ = sta;
 
         wifi::global_wifi_component->set_sta(sta);
-        wifi::global_wifi_component->start_connecting(sta, false);
+        wifi::global_wifi_component->start_connecting(sta);
         this->set_state_(improv::STATE_PROVISIONING);
         ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
@@ -409,10 +410,8 @@ void ESP32ImprovComponent::check_wifi_connection_() {
       }
     }
 #endif
-    // Pass to build_rpc_response using vector constructor from iterators to avoid extra copies
-    std::vector<uint8_t> data = improv::build_rpc_response(
-        improv::WIFI_SETTINGS, std::vector<std::string>(url_strings, url_strings + url_count));
-    this->send_response_(data);
+    this->send_response_(improv::build_rpc_response(improv::WIFI_SETTINGS,
+                                                    std::vector<std::string>(url_strings, url_strings + url_count)));
   } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
     ESP_LOGD(TAG, "WiFi provisioned externally");
   }

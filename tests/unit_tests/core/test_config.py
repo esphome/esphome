@@ -261,6 +261,17 @@ def test_device_duplicate_id(
     assert "ID duplicate_device redefined!" in captured.out
 
 
+def test_substitution_with_id(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that a ids coming from substitutions do not cause false positive ID redefinition."""
+    load_config_from_fixture(
+        yaml_file, "id_collision_with_substitution.yaml", FIXTURES_DIR
+    )
+    captured = capsys.readouterr()
+    assert "ID some_switch_id redefined!" not in captured.out
+
+
 def test_add_platform_defines_priority() -> None:
     """Test that _add_platform_defines runs after globals.
 
