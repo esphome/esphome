@@ -77,7 +77,7 @@ async def layers_to_code(lv_component, config):
             await set_obj_properties(top_w, top_conf)
             await add_widgets(top_w, top_conf)
     if bottom_conf := config.get(CONF_BOTTOM_LAYER):
-        bottom_layer = lv_expr.display_get_layer_bottom(lv_component.get_disp())
+        bottom_layer = lv_expr.display_get_layer_bottom(lv_component.var.get_disp())
         with LocalVariable("bottom_layer", lv_obj_t, bottom_layer) as bottom_layer_obj:
             bottom_w = Widget(bottom_layer_obj, layer_spec, bottom_conf)
             await set_obj_properties(bottom_w, bottom_conf)

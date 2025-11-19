@@ -45,7 +45,7 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from ..schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
+from ..schemas import ALL_STYLES, WIDGET_TYPES, remap_property
 from ..types import LV_STATE, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
@@ -84,10 +84,14 @@ class Widget:
         return w
 
     def add_state(self, state):
+        if "|" in state:
+            state = f"(lv_state_t)({state})"
         return lv_obj.add_state(self.obj, literal(state))
 
     def clear_state(self, state):
-        return lv_obj.clear_state(self.obj, literal(state))
+        if "|" in state:
+            state = f"(lv_state_t)({state})"
+        return lv_obj.remove_state(self.obj, literal(state))
 
     def has_state(self, state):
         return (lv_expr.obj_get_state(self.obj) & literal(state)) != 0
@@ -99,10 +103,14 @@ class Widget:
         return self.has_state(LV_STATE.CHECKED)
 
     def add_flag(self, flag):
+        if "|" in flag:
+            flag = f"(lv_obj_flag_t)({flag})"
         return lv_obj.add_flag(self.obj, literal(flag))
 
     def clear_flag(self, flag):
-        return lv_obj.clear_flag(self.obj, literal(flag))
+        if "|" in flag:
+            flag = f"(lv_obj_flag_t)({flag})"
+        return lv_obj.remove_flag(self.obj, literal(flag))
 
     async def set_property(self, prop, value, animated: bool = None, lv_name=None):
         """
@@ -360,7 +368,7 @@ async def set_obj_properties(w: Widget, config):
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
-                prop_r = STYLE_REMAP.get(prop, prop)
+                prop_r = remap_property(prop)
                 w.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):
         group = await cg.get_variable(group)

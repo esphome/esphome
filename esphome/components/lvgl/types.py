@@ -73,7 +73,7 @@ lv_gradient_t = LvType("lv_grad_dsc_t")
 
 LV_EVENT = MockObj(base="LV_EVENT_", op="")
 LV_STATE = MockObj(base="LV_STATE_", op="")
-LV_BTNMATRIX_CTRL = MockObj(base="LV_BTNMATRIX_CTRL_", op="")
+LV_BTNMATRIX_CTRL = MockObj(base="LV_BUTTONMATRIX_CTRL_", op="")
 
 
 class LvText(LvType):

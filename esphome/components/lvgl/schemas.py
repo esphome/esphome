@@ -42,6 +42,7 @@ from .types import (
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
 
+
 TIME_TEXT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_TIME_FORMAT): cv.string,
@@ -203,6 +204,7 @@ STYLE_PROPS = {
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
+    "transform_rotation": lvalid.lv_angle,
     "transform_zoom": lvalid.zoom,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
@@ -217,14 +219,19 @@ STYLE_PROPS = {
 }
 
 STYLE_REMAP = {
-    "bg_image_opa": "bg_img_opa",
-    "bg_image_recolor": "bg_img_recolor",
-    "bg_image_recolor_opa": "bg_img_recolor_opa",
-    "bg_image_src": "bg_img_src",
-    "bg_image_tiled": "bg_img_tiled",
-    "image_recolor": "img_recolor",
-    "image_recolor_opa": "img_recolor_opa",
+    "transform_angle": "transform_rotation",
 }
+
+# Log use of deprecated properties here
+REMAPPED_USES = set()
+
+
+def remap_property(prop):
+    if prop in STYLE_REMAP:
+        REMAPPED_USES.add(prop)
+        return STYLE_REMAP[prop]
+    return prop
+
 
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(

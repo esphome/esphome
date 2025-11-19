@@ -345,14 +345,14 @@ class LVEncoderListener : public Parented<LvglComponent> {
 #ifdef USE_LVGL_LINE
 class LvLineType : public LvCompound {
  public:
-  std::vector<lv_point_t> get_points() { return this->points_; }
-  void set_points(std::vector<lv_point_t> points) {
+  std::vector<lv_point_precise_t> get_points() { return this->points_; }
+  void set_points(std::vector<lv_point_precise_t> points) {
     this->points_ = std::move(points);
     lv_line_set_points(this->obj, this->points_.data(), this->points_.size());
   }
 
  protected:
-  std::vector<lv_point_t> points_{};
+  std::vector<lv_point_precise_t> points_{};
 };
 #endif
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)

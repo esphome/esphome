@@ -161,7 +161,7 @@ async def get_button_data(config, buttonmatrix: Widget):
             text_list.append(button_conf.get(CONF_TEXT) or "")
             key_list.append(button_conf.get(CONF_KEY_CODE) or 0)
             width_list.append(button_conf[CONF_WIDTH])
-            ctrl = ["LV_BTNMATRIX_CTRL_CLICK_TRIG"]
+            ctrl = ["CLICK_TRIG"]
             for item in button_conf.get(CONF_CONTROL, ()):
                 ctrl.extend([k for k, v in item.items() if v])
             ctrl_list.append(await BUTTONMATRIX_CTRLS.process(ctrl))
@@ -259,12 +259,8 @@ async def button_update_to_code(config, action_id, template_arg, args):
             adds = []
             clrs = []
             for item in controls:
-                adds.extend(
-                    [f"LV_BTNMATRIX_CTRL_{k.upper()}" for k, v in item.items() if v]
-                )
-                clrs.extend(
-                    [f"LV_BTNMATRIX_CTRL_{k.upper()}" for k, v in item.items() if not v]
-                )
+                adds.extend([f"{k.upper()}" for k, v in item.items() if v])
+                clrs.extend([f"{k.upper()}" for k, v in item.items() if not v])
             if adds:
                 lv.btnmatrix_set_btn_ctrl(
                     w.obj, w.index, await BUTTONMATRIX_CTRLS.process(adds)
