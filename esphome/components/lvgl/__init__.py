@@ -337,7 +337,7 @@ async def to_code(configs):
 
     for prop in REMAPPED_USES:
         LOGGER.warning(
-            "Property %s is deprecated, use %s instead", prop, STYLE_REMAP[prop]
+            "Property '%s' is deprecated, use '%s' instead", prop, STYLE_REMAP[prop]
         )
 
 

@@ -19,6 +19,7 @@ from .defines import (
     CONF_SCROLLBAR,
     CONF_SHOW_SNOW,
     CONF_TOP_LAYER,
+    LOGGER,
     PARTS,
     StaticCastExpression,
 )
@@ -39,6 +40,7 @@ from .lvcode import (
 )
 from .schemas import (
     ALL_STYLES,
+    DISP_BG_SCHEMA,
     LIST_ACTION_SCHEMA,
     LVGL_SCHEMA,
     base_update_schema,
@@ -196,12 +198,15 @@ async def obj_invalidate_to_code(config, action_id, template_arg, args):
 
 layer_spec = WidgetType(CONF_OBJ, lv_obj_t, (CONF_MAIN, CONF_SCROLLBAR), is_mock=True)
 
+DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
+
 
 @automation.register_action(
     "lvgl.update",
     LvglAction,
     part_schema(layer_spec.parts)
     .extend(LVGL_SCHEMA)
+    .extend(DISP_BG_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.use_id(LvglComponent),
@@ -213,6 +218,18 @@ layer_spec = WidgetType(CONF_OBJ, lv_obj_t, (CONF_MAIN, CONF_SCROLLBAR), is_mock
 async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config, CONF_LVGL_ID)
     w = widgets[0]
+    if any(x in config for x in DISP_PROPS):
+        config = config.copy()
+        bottom = config.get(CONF_BOTTOM_LAYER, {})
+        bottom.update(
+            {k.removeprefix("disp_"): v for k, v in config.items() if k in DISP_PROPS}
+        )
+        LOGGER.warning(
+            "The properties ' + "
+            ","
+            ".join(DISP_PROPS) +' are deprecated, use 'bottom_layer' instead."
+        )
+        config[CONF_BOTTOM_LAYER] = bottom
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
         await layers_to_code(w, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())

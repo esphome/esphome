@@ -1,9 +1,15 @@
 from esphome import config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_COLOR, CONF_DIRECTION, CONF_ID, CONF_POSITION
+from esphome.const import (
+    CONF_COLOR,
+    CONF_DIRECTION,
+    CONF_DITHER,
+    CONF_ID,
+    CONF_POSITION,
+)
 from esphome.cpp_generator import MockObj
 
-from .defines import CONF_GRADIENTS, LV_GRAD_DIR, add_define
+from .defines import CONF_GRADIENTS, LV_DITHER, LV_GRAD_DIR, add_define
 from .lv_validation import lv_color, lv_fraction
 from .lvcode import lv_assign
 from .types import lv_gradient_t
@@ -22,6 +28,7 @@ GRADIENT_SCHEMA = cv.ensure_list(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(lv_gradient_t),
             cv.Optional(CONF_DIRECTION, default="NONE"): LV_GRAD_DIR.one_of,
+            cv.Optional(CONF_DITHER, default="NONE"): LV_DITHER.one_of,
             cv.Required(CONF_STOPS): cv.All(
                 [
                     cv.Schema(
