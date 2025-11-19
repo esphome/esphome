@@ -1,5 +1,13 @@
 psram:
 
+esphome:
+  on_boot:
+    - then:
+        - lambda: |-
+            # Test WiFi high-performance mode API
+            esphome::wifi::global_wifi_component->request_high_performance();
+            esphome::wifi::global_wifi_component->release_high_performance();
+
 wifi:
   use_psram: true
   min_auth_mode: WPA
