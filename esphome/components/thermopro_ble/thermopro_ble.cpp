@@ -125,7 +125,8 @@ static inline uint32_t read_uint32(const uint8_t *data, std::size_t offset) {
          (static_cast<uint32_t>(data[offset + 2]) << 16) | (static_cast<uint32_t>(data[offset + 3]) << 24);
 }
 
-// this code is stolen from https://github.com/Bluetooth-Devices/thermopro-ble/blob/main/src/thermopro_ble/parser.py
+// Battery calculation used with permission from:
+// https://github.com/Bluetooth-Devices/thermopro-ble/blob/main/src/thermopro_ble/parser.py
 //
 // TP96x battery values appear to be a voltage reading, probably in millivolts.
 // This means that calculating battery life from it is a non-linear function.
