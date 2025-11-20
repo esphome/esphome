@@ -3,11 +3,8 @@
 #include <format>
 #include "coap_client_component.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/log.h"
 
-namespace esphome::coap {
-
-static const char *const TAGA = "coap_client_auto";
+namespace esphome::coap_client {
 
 class CoapResponseStatistics {
  public:
@@ -86,9 +83,6 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
 
     // response_payload will be "" if capture_response = false;
     std::string response_payload = this->response_payload_;
-    if (capture_resp) {
-      ESP_LOGV(TAGA, "Payload: %s", response_payload.c_str());
-    }
     std::apply(
         [this, &resp_stats, &request_name, &response_payload](Ts... captured_args_inner) {
           this->success_trigger_->trigger(resp_stats, request_name, response_payload, captured_args_inner...);
@@ -98,8 +92,6 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
 
   static void callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset, size_t total,
                        void *context) {
-    ESP_LOGV(TAGA, "response payload segment, len: %d, offset: %d, is total: %s:\n'%.*s'", len, offset,
-             offset + len == total ? "yes" : "no", len, (const char *) data);
     CoapClientSendAction<Ts...> *obj = (CoapClientSendAction<Ts...> *) context;
     auto resp_stats = obj->get_response_stats();
 
@@ -223,4 +215,4 @@ template<typename... Ts> class CoapClientRemoveAction : public Action<Ts...> {
   CoapClientComponent *parent_;
 };
 
-}  // namespace esphome::coap
+}  // namespace esphome::coap_client

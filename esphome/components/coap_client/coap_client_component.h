@@ -11,7 +11,7 @@
 #include <freertos/queue.h>
 #include "esphome/core/component.h"
 
-namespace esphome::coap {
+namespace esphome::coap_client {
 
 enum CoapMethod : uint8_t {
   EMPTY = COAP_EMPTY_CODE,
@@ -190,5 +190,5 @@ class CoapClientComponent : public Component {
 
 extern CoapClientComponent *global_coap_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esphome::coap
+}  // namespace esphome::coap_client
 #endif

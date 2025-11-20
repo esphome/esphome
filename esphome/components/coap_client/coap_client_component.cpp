@@ -13,7 +13,7 @@
 #include "esphome/core/log.h"
 #include "coap_client_component.h"
 
-namespace esphome::coap {
+namespace esphome::coap_client {
 
 static const char *TAG = "coap_client";
 
@@ -628,5 +628,5 @@ coap_session_t *CoapClientComponent::coap_start_pki_session_(coap_context_t *ctx
 #endif
 }
 
-}  // namespace esphome::coap
+}  // namespace esphome::coap_client
 #endif
