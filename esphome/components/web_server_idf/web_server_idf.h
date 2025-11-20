@@ -209,6 +209,7 @@ class AsyncWebServer {
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
+  static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
 #ifdef USE_WEBSERVER_OTA
   esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
 #endif
