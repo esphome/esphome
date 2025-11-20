@@ -415,6 +415,14 @@ lvgl:
               - buttons:
                   - id: button_e
         - button:
+            id: button_with_text
+            text: Button
+            on_click:
+              lvgl.button.update:
+                id: button_with_text
+                text: Clicked
+
+        - button:
             layout: 2x1
             id: button_button
             width: 20%
