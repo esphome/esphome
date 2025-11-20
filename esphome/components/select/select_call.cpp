@@ -2,8 +2,7 @@
 #include "select.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 static const char *const TAG = "select";
 
@@ -125,5 +124,4 @@ void SelectCall::perform() {
   parent->control(idx);
 }
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select

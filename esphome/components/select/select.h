@@ -6,8 +6,7 @@
 #include "select_call.h"
 #include "select_traits.h"
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 #define LOG_SELECT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -114,5 +113,4 @@ class Select : public EntityBase {
   CallbackManager<void(std::string, size_t)> state_callback_;
 };
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select
