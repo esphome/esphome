@@ -37,8 +37,7 @@
 #define highbyte(val) (uint8_t)((val) >> 8)
 #define lowbyte(val) (uint8_t)((val) &0xff)
 
-namespace esphome {
-namespace ld24xx {
+namespace esphome::ld24xx {
 
 static const char *const UNKNOWN_MAC = "unknown";
 static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
@@ -83,5 +82,4 @@ template<typename T> class SensorWithDedup {
   Deduplicator<T> publish_dedup;
 };
 #endif
-}  // namespace ld24xx
-}  // namespace esphome
+}  // namespace esphome::ld24xx
