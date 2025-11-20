@@ -6,10 +6,11 @@
 
 #include <cinttypes>
 
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
-#include <driver/pcnt.h>
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
+    !defined(USE_ESP32_VARIANT_ESP32C5)
+#include <driver/pulse_cnt.h>
 #define HAS_PCNT
-#endif  // defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#endif  // HAS_PCNT check
 
 namespace esphome {
 namespace pulse_counter {
@@ -54,8 +55,8 @@ struct HwPulseCounterStorage : public PulseCounterStorageBase {
   bool pulse_counter_setup(InternalGPIOPin *pin) override;
   pulse_counter_t read_raw_value() override;
 
-  pcnt_unit_t pcnt_unit;
-  pcnt_channel_t pcnt_channel;
+  pcnt_unit_handle_t pcnt_unit;
+  pcnt_channel_handle_t pcnt_channel;
 };
 #endif  // HAS_PCNT
 

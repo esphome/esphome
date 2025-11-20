@@ -56,99 +56,112 @@ pulse_counter_t BasicPulseCounterStorage::read_raw_value() {
 
 #ifdef HAS_PCNT
 bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
-  static pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
-  static pcnt_channel_t next_pcnt_channel = PCNT_CHANNEL_0;
   this->pin = pin;
   this->pin->setup();
-  this->pcnt_unit = next_pcnt_unit;
-  this->pcnt_channel = next_pcnt_channel;
-  next_pcnt_unit = pcnt_unit_t(int(next_pcnt_unit) + 1);
-  if (int(next_pcnt_unit) >= PCNT_UNIT_0 + PCNT_UNIT_MAX) {
-    next_pcnt_unit = PCNT_UNIT_0;
-    next_pcnt_channel = pcnt_channel_t(int(next_pcnt_channel) + 1);
+
+  // Create unit configuration
+  pcnt_unit_config_t unit_config = {};
+  unit_config.high_limit = 32767;
+  unit_config.low_limit = -32768;
+
+  esp_err_t error = pcnt_new_unit(&unit_config, &this->pcnt_unit);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Creating Pulse Counter unit failed: %s", esp_err_to_name(error));
+    return false;
   }
 
-  ESP_LOGCONFIG(TAG, "    PCNT Unit Number: %u", this->pcnt_unit);
-  ESP_LOGCONFIG(TAG, "    PCNT Channel Number: %u", this->pcnt_channel);
+  // Set up glitch filter if needed
+  if (this->filter_us != 0) {
+    pcnt_glitch_filter_config_t filter_config = {};
+    filter_config.max_glitch_ns = this->filter_us * 1000;  // Convert microseconds to nanoseconds
 
-  pcnt_count_mode_t rising = PCNT_COUNT_DIS, falling = PCNT_COUNT_DIS;
+    ESP_LOGCONFIG(TAG, "    Filter Value: %" PRIu32 "us", this->filter_us);
+    error = pcnt_unit_set_glitch_filter(this->pcnt_unit, &filter_config);
+    if (error != ESP_OK) {
+      ESP_LOGE(TAG, "Setting glitch filter failed: %s", esp_err_to_name(error));
+      return false;
+    }
+  }
+
+  // Determine count modes
+  pcnt_channel_edge_action_t rising_action = PCNT_CHANNEL_EDGE_ACTION_HOLD;
+  pcnt_channel_edge_action_t falling_action = PCNT_CHANNEL_EDGE_ACTION_HOLD;
+
   switch (this->rising_edge_mode) {
     case PULSE_COUNTER_DISABLE:
-      rising = PCNT_COUNT_DIS;
+      rising_action = PCNT_CHANNEL_EDGE_ACTION_HOLD;
       break;
     case PULSE_COUNTER_INCREMENT:
-      rising = PCNT_COUNT_INC;
+      rising_action = PCNT_CHANNEL_EDGE_ACTION_INCREASE;
       break;
     case PULSE_COUNTER_DECREMENT:
-      rising = PCNT_COUNT_DEC;
+      rising_action = PCNT_CHANNEL_EDGE_ACTION_DECREASE;
       break;
   }
+
   switch (this->falling_edge_mode) {
     case PULSE_COUNTER_DISABLE:
-      falling = PCNT_COUNT_DIS;
+      falling_action = PCNT_CHANNEL_EDGE_ACTION_HOLD;
       break;
     case PULSE_COUNTER_INCREMENT:
-      falling = PCNT_COUNT_INC;
+      falling_action = PCNT_CHANNEL_EDGE_ACTION_INCREASE;
       break;
     case PULSE_COUNTER_DECREMENT:
-      falling = PCNT_COUNT_DEC;
+      falling_action = PCNT_CHANNEL_EDGE_ACTION_DECREASE;
       break;
   }
 
-  pcnt_config_t pcnt_config = {
-      .pulse_gpio_num = this->pin->get_pin(),
-      .ctrl_gpio_num = PCNT_PIN_NOT_USED,
-      .lctrl_mode = PCNT_MODE_KEEP,
-      .hctrl_mode = PCNT_MODE_KEEP,
-      .pos_mode = rising,
-      .neg_mode = falling,
-      .counter_h_lim = 0,
-      .counter_l_lim = 0,
-      .unit = this->pcnt_unit,
-      .channel = this->pcnt_channel,
-  };
-  esp_err_t error = pcnt_unit_config(&pcnt_config);
+  // Create channel configuration
+  pcnt_chan_config_t channel_config = {};
+  channel_config.edge_gpio_num = this->pin->get_pin();
+  channel_config.level_gpio_num = -1;  // Not used
+
+  error = pcnt_new_channel(this->pcnt_unit, &channel_config, &this->pcnt_channel);
   if (error != ESP_OK) {
-    ESP_LOGE(TAG, "Configuring Pulse Counter failed: %s", esp_err_to_name(error));
+    ESP_LOGE(TAG, "Creating Pulse Counter channel failed: %s", esp_err_to_name(error));
     return false;
   }
 
-  if (this->filter_us != 0) {
-    uint16_t filter_val = std::min(static_cast<unsigned int>(this->filter_us * 80u), 1023u);
-    ESP_LOGCONFIG(TAG, "    Filter Value: %" PRIu32 "us (val=%u)", this->filter_us, filter_val);
-    error = pcnt_set_filter_value(this->pcnt_unit, filter_val);
-    if (error != ESP_OK) {
-      ESP_LOGE(TAG, "Setting filter value failed: %s", esp_err_to_name(error));
-      return false;
-    }
-    error = pcnt_filter_enable(this->pcnt_unit);
-    if (error != ESP_OK) {
-      ESP_LOGE(TAG, "Enabling filter failed: %s", esp_err_to_name(error));
-      return false;
-    }
-  }
-
-  error = pcnt_counter_pause(this->pcnt_unit);
+  // Set edge actions
+  error = pcnt_channel_set_edge_action(this->pcnt_channel, rising_action, falling_action);
   if (error != ESP_OK) {
-    ESP_LOGE(TAG, "Pausing pulse counter failed: %s", esp_err_to_name(error));
+    ESP_LOGE(TAG, "Setting edge actions failed: %s", esp_err_to_name(error));
     return false;
   }
-  error = pcnt_counter_clear(this->pcnt_unit);
+
+  // Set level actions (not used, keep at hold)
+  error =
+      pcnt_channel_set_level_action(this->pcnt_channel, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_KEEP);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Setting level actions failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  // Enable and start the unit
+  error = pcnt_unit_enable(this->pcnt_unit);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Enabling pulse counter failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  error = pcnt_unit_clear_count(this->pcnt_unit);
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "Clearing pulse counter failed: %s", esp_err_to_name(error));
     return false;
   }
-  error = pcnt_counter_resume(this->pcnt_unit);
+
+  error = pcnt_unit_start(this->pcnt_unit);
   if (error != ESP_OK) {
-    ESP_LOGE(TAG, "Resuming pulse counter failed: %s", esp_err_to_name(error));
+    ESP_LOGE(TAG, "Starting pulse counter failed: %s", esp_err_to_name(error));
     return false;
   }
+
   return true;
 }
 
 pulse_counter_t HwPulseCounterStorage::read_raw_value() {
-  pulse_counter_t counter;
-  pcnt_get_counter_value(this->pcnt_unit, &counter);
+  int counter;
+  pcnt_unit_get_count(this->pcnt_unit, &counter);
   pulse_counter_t ret = counter - this->last_value;
   this->last_value = counter;
   return ret;
