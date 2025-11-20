@@ -195,8 +195,8 @@ static void add(std::vector<uint8_t> &vec, const char *str) {
 void PacketTransport::setup() {
   this->name_ = App.get_name().c_str();
   if (strlen(this->name_) > 255) {
-    this->mark_failed();
     this->status_set_error("Device name exceeds 255 chars");
+    this->mark_failed();
     return;
   }
   this->resend_ping_key_ = this->ping_pong_enable_;
