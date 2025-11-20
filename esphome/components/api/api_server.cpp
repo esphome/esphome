@@ -431,25 +431,73 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 
 #ifdef USE_API_HOMEASSISTANT_STATES
+// New const char* overload (for internal components - zero allocation)
+void APIServer::subscribe_home_assistant_state(const char *entity_id, const char *attribute,
+                                               std::function<void(std::string)> f) {
+  HomeAssistantStateSubscription sub;
+  sub.entity_id_ = entity_id;
+  sub.attribute_ = attribute;
+  sub.callback_ = std::move(f);
+  sub.once_ = false;
+  sub.has_attribute_ = (attribute != nullptr);
+  // entity_id_copy_ and attribute_copy_ remain nullptr (no heap allocation)
+  this->state_subs_.push_back(std::move(sub));
+}
+
+void APIServer::get_home_assistant_state(const char *entity_id, const char *attribute,
+                                         std::function<void(std::string)> f) {
+  HomeAssistantStateSubscription sub;
+  sub.entity_id_ = entity_id;
+  sub.attribute_ = attribute;
+  sub.callback_ = std::move(f);
+  sub.once_ = true;
+  sub.has_attribute_ = (attribute != nullptr);
+  // entity_id_copy_ and attribute_copy_ remain nullptr (no heap allocation)
+  this->state_subs_.push_back(std::move(sub));
+}
+
+// Existing std::string overload (for custom_api_device.h - heap allocation)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
-  this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = std::move(entity_id),
-      .attribute = std::move(attribute),
-      .callback = std::move(f),
-      .once = false,
-  });
+  HomeAssistantStateSubscription sub;
+  // Allocate heap storage for the strings
+  sub.entity_id_copy_ = std::make_unique<std::string>(std::move(entity_id));
+  sub.entity_id_ = sub.entity_id_copy_->c_str();
+
+  if (attribute.has_value()) {
+    sub.attribute_copy_ = std::make_unique<std::string>(std::move(attribute.value()));
+    sub.attribute_ = sub.attribute_copy_->c_str();
+    sub.has_attribute_ = true;
+  } else {
+    sub.attribute_ = nullptr;
+    sub.has_attribute_ = false;
+  }
+
+  sub.callback_ = std::move(f);
+  sub.once_ = false;
+  this->state_subs_.push_back(std::move(sub));
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                          std::function<void(std::string)> f) {
-  this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = std::move(entity_id),
-      .attribute = std::move(attribute),
-      .callback = std::move(f),
-      .once = true,
-  });
-};
+  HomeAssistantStateSubscription sub;
+  // Allocate heap storage for the strings
+  sub.entity_id_copy_ = std::make_unique<std::string>(std::move(entity_id));
+  sub.entity_id_ = sub.entity_id_copy_->c_str();
+
+  if (attribute.has_value()) {
+    sub.attribute_copy_ = std::make_unique<std::string>(std::move(attribute.value()));
+    sub.attribute_ = sub.attribute_copy_->c_str();
+    sub.has_attribute_ = true;
+  } else {
+    sub.attribute_ = nullptr;
+    sub.has_attribute_ = false;
+  }
+
+  sub.callback_ = std::move(f);
+  sub.once_ = true;
+  this->state_subs_.push_back(std::move(sub));
+}
 
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
