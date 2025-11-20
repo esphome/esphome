@@ -234,17 +234,41 @@ advanced stuff.
     id(my_climate).target_humidity
     // Fan mode, type: FanMode (enum)
     id(my_climate).fan_mode
-    // Custom Fan mode, type: string
-    id(my_climate).custom_fan_mode
     // Swing mode, type: SwingMode (enum)
     id(my_climate).swing_mode
     // Current action (currentl on idle, cooling, heating, etc.), ClimateAction (enum)
     id(my_climate).action
     // Preset, type: Preset (enum)
     id(my_climate).preset
-    // Custom Preset, type: string
-    id(my_climate).custom_preset
 ```
+
+- Custom mode accessor methods:
+
+```cpp
+    // Check if custom fan mode is active, type: bool
+    id(my_climate).has_custom_fan_mode()
+    // Get custom fan mode (read-only), type: const char*
+    id(my_climate).get_custom_fan_mode()
+    // Check if custom preset is active, type: bool
+    id(my_climate).has_custom_preset()
+    // Get custom preset (read-only), type: const char*
+    id(my_climate).get_custom_preset()
+```
+
+> [!WARNING]
+> Always check if a custom mode is active before accessing it. Calling `get_custom_fan_mode()` or `get_custom_preset()` when no custom mode is set will return `nullptr`, which can cause crashes if dereferenced.
+>
+> ```cpp
+> // Correct - check before accessing
+> if (id(my_climate).has_custom_fan_mode()) {
+>   const char* mode = id(my_climate).get_custom_fan_mode();
+>   // Now safe to use mode
+> }
+>
+> // Wrong - may crash if no custom mode is set
+> const char* mode = id(my_climate).get_custom_fan_mode();
+> ESP_LOGD("tag", "Mode: %s", mode);  // Crashes if mode is nullptr
+> ```
 
 - `.make_call`  : Control the climate device
 
