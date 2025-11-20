@@ -2,8 +2,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 class Select;
 
@@ -45,5 +44,4 @@ class SelectCall {
   bool cycle_;
 };
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select

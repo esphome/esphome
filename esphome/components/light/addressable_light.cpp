@@ -1,8 +1,7 @@
 #include "addressable_light.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light.addressable";
 
@@ -112,5 +111,4 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   return {};
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

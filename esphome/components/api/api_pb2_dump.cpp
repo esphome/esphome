@@ -66,7 +66,7 @@ static void dump_field(std::string &out, const char *field_name, float value, in
 static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%llu", value);
+  snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 

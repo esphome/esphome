@@ -36,7 +36,30 @@ class Framework(StrEnum):
 
 
 class ThreadModel(StrEnum):
-    """Threading model identifiers for ESPHome scheduler."""
+    """Threading model identifiers for ESPHome scheduler.
+
+    ESPHome currently uses three threading models based on platform capabilities:
+
+    SINGLE:
+        - Single-threaded platforms (ESP8266, RP2040)
+        - No RTOS task switching
+        - No concurrent access to scheduler data structures
+        - No atomics or locks required
+        - Minimal overhead
+
+    MULTI_NO_ATOMICS:
+        - Multi-threaded platforms without hardware atomic RMW support (e.g. LibreTiny BK7231N)
+        - Uses FreeRTOS or another RTOS with multiple tasks
+        - CPU lacks exclusive load/store instructions (ARM968E-S has no LDREX/STREX)
+        - std::atomic cannot provide lock-free RMW; libatomic is avoided to save flash (4–8 KB)
+        - Scheduler uses explicit FreeRTOS mutexes for synchronization
+
+    MULTI_ATOMICS:
+        - Multi-threaded platforms with hardware atomic RMW support (ESP32, Cortex-M, Host)
+        - CPU provides native atomic instructions (ESP32 S32C1I, ARM LDREX/STREX)
+        - std::atomic is used for lock-free synchronization
+        - Reduced contention and better performance
+    """
 
     SINGLE = "ESPHOME_THREAD_SINGLE"
     MULTI_NO_ATOMICS = "ESPHOME_THREAD_MULTI_NO_ATOMICS"
