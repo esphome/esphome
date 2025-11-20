@@ -159,10 +159,10 @@ class APIServer : public Component, public Controller {
     std::function<void(std::string)> callback_;
     bool once_;
 
-    // Storage for external components using std::string API (custom_api_device.h)
-    // These are only allocated when using the std::string overload
-    std::unique_ptr<std::string> entity_id_copy_;
-    std::unique_ptr<std::string> attribute_copy_;
+    // Dynamic storage for external components using std::string API (custom_api_device.h)
+    // These are only allocated when using the std::string overload (nullptr for const char* overload)
+    std::unique_ptr<std::string> entity_id_dynamic_storage_;
+    std::unique_ptr<std::string> attribute_dynamic_storage_;
   };
 
   // New const char* overload (for internal components - zero allocation)
