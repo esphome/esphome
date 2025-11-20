@@ -196,7 +196,7 @@ Color Image::get_rgb565_pixel_(int x, int y) const {
   auto a = 0xFF;
   switch (this->transparency_) {
     case TRANSPARENCY_ALPHA_CHANNEL:
-      a = progmem_read_byte(pos + 2);
+      a = progmem_read_byte(this->data_start_ + this->width_ * this->height_ * 2 + (x + y * this->width_));
       break;
     case TRANSPARENCY_CHROMA_KEY:
       if (rgb565 == 0x0020)
@@ -235,7 +235,7 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
       this->bpp_ = 8;
       break;
     case IMAGE_TYPE_RGB565:
-      this->bpp_ = transparency == TRANSPARENCY_ALPHA_CHANNEL ? 24 : 16;
+      this->bpp_ = 16;
       break;
     case IMAGE_TYPE_RGB:
       this->bpp_ = this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? 32 : 24;

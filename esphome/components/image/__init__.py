@@ -74,7 +74,7 @@ class ImageEncoder:
 
     def __init__(self, width, height, transparency, dither, invert_alpha):
         """
-        :param width:  The image width in pixels
+        :param width:  The image width in pixels (or bytes)
         :param height:  The image height in pixels
         :param transparency: Transparency type
         :param dither: Dither method
@@ -83,7 +83,7 @@ class ImageEncoder:
         self.transparency = transparency
         self.width = width
         self.height = height
-        self.data = [0 for _ in range(width * height)]
+        self.data = [0] * width * height
         self.dither = dither
         self.index = 0
         self.invert_alpha = invert_alpha
@@ -106,6 +106,12 @@ class ImageEncoder:
     def end_row(self):
         """
         Marks the end of a pixel row
+        :return:
+        """
+
+    def end_image(self):
+        """
+        Called at the end of the image.
         :return:
         """
 
@@ -202,14 +208,14 @@ class ImageGrayscale(ImageEncoder):
 
 class ImageRGB565(ImageEncoder):
     def __init__(self, width, height, transparency, dither, invert_alpha):
-        stride = 3 if transparency == CONF_ALPHA_CHANNEL else 2
         super().__init__(
-            width * stride,
+            width * 2,
             height,
             transparency,
             dither,
             invert_alpha,
         )
+        self.alpha = [0] * width * height
         self.big_endian = True
 
     def set_big_endian(self, big_endian: bool) -> None:
@@ -223,6 +229,9 @@ class ImageRGB565(ImageEncoder):
         r = r >> 3
         g = g >> 2
         b = b >> 3
+        if self.invert_alpha:
+            a ^= 0xFF
+        self.alpha[self.index // 2] = a
         if self.transparency == CONF_CHROMA_KEY:
             if r == 0 and g == 1 and b == 0:
                 g = 0
@@ -241,11 +250,10 @@ class ImageRGB565(ImageEncoder):
             self.index += 1
             self.data[self.index] = rgb >> 8
             self.index += 1
+
+    def end_image(self):
         if self.transparency == CONF_ALPHA_CHANNEL:
-            if self.invert_alpha:
-                a ^= 0xFF
-            self.data[self.index] = a
-            self.index += 1
+            self.data.extend(self.alpha)
 
 
 class ImageRGB(ImageEncoder):
@@ -761,6 +769,7 @@ async def write_image(config, all_frames=False):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
             encoder.end_row()
+        encoder.end_image()
 
     rhs = [HexInt(x) for x in encoder.data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
