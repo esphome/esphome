@@ -324,7 +324,7 @@ template<typename... Ts> class StartAction : public Action<Ts...>, public Parent
   TEMPLATABLE_VALUE(std::string, wake_word);
 
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->set_wake_word(this->wake_word_.value(x...));
     this->parent_->request_start(false, this->silence_detection_);
   }
@@ -337,22 +337,22 @@ template<typename... Ts> class StartAction : public Action<Ts...>, public Parent
 
 template<typename... Ts> class StartContinuousAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_start(true, true); }
+  void play(const Ts &...x) override { this->parent_->request_start(true, true); }
 };
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_stop(); }
+  void play(const Ts &...x) override { this->parent_->request_stop(); }
 };
 
 template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
 };
 
 template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
-  bool check(Ts... x) override { return this->parent_->get_api_connection() != nullptr; }
+  bool check(const Ts &...x) override { return this->parent_->get_api_connection() != nullptr; }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

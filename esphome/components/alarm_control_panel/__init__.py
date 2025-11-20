@@ -172,12 +172,6 @@ def alarm_control_panel_schema(
     return _ALARM_CONTROL_PANEL_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-ALARM_CONTROL_PANEL_SCHEMA = alarm_control_panel_schema(AlarmControlPanel)
-ALARM_CONTROL_PANEL_SCHEMA.add_extra(
-    cv.deprecated_schema_constant("alarm_control_panel")
-)
-
 ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(AlarmControlPanel),

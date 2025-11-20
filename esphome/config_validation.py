@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,13 +19,13 @@ import logging
 from pathlib import Path
 import re
 from string import ascii_letters, digits
+import typing
 import uuid as uuid_
 
 import voluptuous as vol
 
 from esphome import core
 import esphome.codegen as cg
-from esphome.config_helpers import Extend, Remove
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
@@ -244,6 +245,20 @@ RESERVED_IDS = [
     "uart0",
     "uart1",
     "uart2",
+    # ESP32 ROM functions
+    "crc16_be",
+    "crc16_le",
+    "crc32_be",
+    "crc32_le",
+    "crc8_be",
+    "crc8_le",
+    "dbg_state",
+    "debug_timer",
+    "one_bits",
+    "recv_packet",
+    "send_packet",
+    "check_pos",
+    "software_reset",
 ]
 
 
@@ -609,12 +624,6 @@ def declare_id(type):
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
-
-        if isinstance(value, Extend):
-            raise Invalid(f"Source for extension of ID '{value.value}' was not found.")
-
-        if isinstance(value, Remove):
-            raise Invalid(f"Source for Removal of ID '{value.value}' was not found.")
 
         return core.ID(validate_id_name(value), is_declaration=True, type=type)
 
@@ -1195,6 +1204,13 @@ def validate_bytes(value):
 
 
 def hostname(value):
+    """Validate that the value is a valid hostname.
+
+    Maximum length is 63 characters per RFC 1035.
+
+    Note: If this limit is changed, update MAX_NAME_WITH_SUFFIX_SIZE in
+    esphome/core/helpers.cpp to accommodate the new maximum length.
+    """
     value = string(value)
     if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
         return value
@@ -1749,16 +1765,37 @@ class SplitDefault(Optional):
 
 
 class OnlyWith(Optional):
-    """Set the default value only if the given component is loaded."""
+    """Set the default value only if the given component(s) is/are loaded.
 
-    def __init__(self, key, component, default=None):
+    This validator allows configuration keys to have defaults that are only applied
+    when specific component(s) are loaded. Supports both single component names and
+    lists of components.
+
+    Args:
+        key: Configuration key
+        component: Single component name (str) or list of component names.
+                  For lists, ALL components must be loaded for the default to apply.
+        default: Default value to use when condition is met
+
+    Example:
+        # Single component
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(MQTTComponent)
+
+        # Multiple components (all must be loaded)
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["zigbee", "nrf52"]): cv.use_id(Zigbee)
+    """
+
+    def __init__(self, key, component: str | list[str], default=None) -> None:
         super().__init__(key)
         self._component = component
         self._default = vol.default_factory(default)
 
     @property
-    def default(self):
-        if self._component in CORE.loaded_integrations:
+    def default(self) -> Callable[[], typing.Any] | vol.Undefined:
+        if isinstance(self._component, list):
+            if all(c in CORE.loaded_integrations for c in self._component):
+                return self._default
+        elif self._component in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
 
@@ -2178,29 +2215,6 @@ def rename_key(old_key, new_key):
         config = config.copy()
         if old_key in config:
             config[new_key] = config.pop(old_key)
-        return config
-
-    return validator
-
-
-# Remove before 2025.11.0
-def deprecated_schema_constant(entity_type: str):
-    def validator(config):
-        type: str = "unknown"
-        if (id := config.get(CONF_ID)) is not None and isinstance(id, core.ID):
-            type = str(id.type).split("::", maxsplit=1)[0]
-        _LOGGER.warning(
-            "Using `%s.%s_SCHEMA` is deprecated and will be removed in ESPHome 2025.11.0. "
-            "Please use `%s.%s_schema(...)` instead. "
-            "If you are seeing this, report an issue to the external_component author and ask them to update it. "
-            "https://developers.esphome.io/blog/2025/05/14/_schema-deprecations/. "
-            "Component using this schema: %s",
-            entity_type,
-            entity_type.upper(),
-            entity_type,
-            entity_type,
-            type,
-        )
         return config
 
     return validator

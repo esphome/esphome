@@ -33,19 +33,13 @@ Message Format:
 class ABBWelcomeData {
  public:
   // Make default
-  ABBWelcomeData() {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
-    this->data_[0] = 0x55;
-    this->data_[1] = 0xff;
-  }
+  ABBWelcomeData() : data_{0x55, 0xff} {}
   // Make from initializer_list
-  ABBWelcomeData(std::initializer_list<uint8_t> data) {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
+  ABBWelcomeData(std::initializer_list<uint8_t> data) : data_{} {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Make from vector
-  ABBWelcomeData(const std::vector<uint8_t> &data) {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
+  ABBWelcomeData(const std::vector<uint8_t> &data) : data_{} {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Default copy constructor
@@ -220,10 +214,13 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   TEMPLATABLE_VALUE(uint8_t, message_type)
   TEMPLATABLE_VALUE(uint8_t, message_id)
   TEMPLATABLE_VALUE(bool, auto_message_id)
-  void set_data_static(std::vector<uint8_t> data) { data_static_ = std::move(data); }
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
-    has_data_func_ = true;
+  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->data_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
+  }
+  void set_data_static(const uint8_t *data, size_t len) {
+    this->data_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     ABBWelcomeData data;
@@ -234,19 +231,25 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
     data.set_message_type(this->message_type_.value(x...));
     data.set_message_id(this->message_id_.value(x...));
     data.auto_message_id = this->auto_message_id_.value(x...);
-    if (has_data_func_) {
-      data.set_data(this->data_func_(x...));
+    std::vector<uint8_t> data_vec;
+    if (this->len_ >= 0) {
+      // Static mode: copy from flash to vector
+      data_vec.assign(this->data_.data, this->data_.data + this->len_);
     } else {
-      data.set_data(this->data_static_);
+      // Template mode: call function
+      data_vec = this->data_.func(x...);
     }
+    data.set_data(data_vec);
     data.finalize();
     ABBWelcomeProtocol().encode(dst, data);
   }
 
  protected:
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
-  bool has_data_func_{false};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
+  union Data {
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
+  } data_;
 };
 
 }  // namespace remote_base

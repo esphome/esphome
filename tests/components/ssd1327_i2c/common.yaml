@@ -4,7 +4,7 @@ display:
     model: SSD1327_128x128
     reset_pin: ${reset_pin}
     address: 0x3C
-    id: display1
+    id: ssd1327_i2c_display
     pages:
       - id: ssd1327_i2c_page1
         lambda: |-

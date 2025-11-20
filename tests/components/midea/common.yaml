@@ -2,10 +2,6 @@ wifi:
   ssid: MySSID
   password: password1
 
-remote_transmitter:
-  pin: ${pin}
-  carrier_duty_percent: 50%
-
 climate:
   - platform: midea
     id: midea_unit
@@ -16,7 +12,7 @@ climate:
           x.set_mode(CLIMATE_MODE_FAN_ONLY);
     on_state:
       - logger.log: State changed!
-    transmitter_id:
+    transmitter_id: xmitr
     period: 1s
     num_attempts: 5
     timeout: 2s

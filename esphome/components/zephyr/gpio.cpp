@@ -8,8 +8,8 @@ namespace zephyr {
 
 static const char *const TAG = "zephyr";
 
-static int flags_to_mode(gpio::Flags flags, bool inverted, bool value) {
-  int ret = 0;
+static gpio_flags_t flags_to_mode(gpio::Flags flags, bool inverted, bool value) {
+  gpio_flags_t ret = 0;
   if (flags & gpio::FLAG_INPUT) {
     ret |= GPIO_INPUT;
   }
@@ -79,7 +79,10 @@ void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
   if (nullptr == this->gpio_) {
     return;
   }
-  gpio_pin_configure(this->gpio_, this->pin_ % 32, flags_to_mode(flags, this->inverted_, this->value_));
+  auto ret = gpio_pin_configure(this->gpio_, this->pin_ % 32, flags_to_mode(flags, this->inverted_, this->value_));
+  if (ret != 0) {
+    ESP_LOGE(TAG, "gpio %u cannot be configured %d.", this->pin_, ret);
+  }
 }
 
 std::string ZephyrGPIOPin::dump_summary() const {

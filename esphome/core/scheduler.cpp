@@ -117,12 +117,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   item->set_name(name_cstr, !is_static_string);
   item->type = type;
   item->callback = std::move(func);
-  // Initialize remove to false (though it should already be from constructor)
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  item->remove.store(false, std::memory_order_relaxed);
-#else
-  item->remove = false;
-#endif
+  // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
+  this->set_item_removed_(item.get(), false);
   item->is_retry = is_retry;
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -153,27 +149,13 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  // Validate static strings in debug mode
-  if (is_static_string && name_cstr != nullptr) {
-    validate_static_string(name_cstr);
-  }
-
-  // Debug logging
-  const char *type_str = (type == SchedulerItem::TIMEOUT) ? "timeout" : "interval";
-  if (type == SchedulerItem::TIMEOUT) {
-    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
-             name_cstr ? name_cstr : "(null)", type_str, delay);
-  } else {
-    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
-             name_cstr ? name_cstr : "(null)", type_str, delay,
-             static_cast<uint32_t>(item->get_next_execution() - now));
-  }
+  this->debug_log_timer_(item.get(), is_static_string, name_cstr, type, delay, now);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
   // For retries, check if there's a cancelled timeout first
   if (is_retry && name_cstr != nullptr && type == SchedulerItem::TIMEOUT &&
-      (has_cancelled_timeout_in_container_(this->items_, component, name_cstr, /* match_retry= */ true) ||
-       has_cancelled_timeout_in_container_(this->to_add_, component, name_cstr, /* match_retry= */ true))) {
+      (has_cancelled_timeout_in_container_locked_(this->items_, component, name_cstr, /* match_retry= */ true) ||
+       has_cancelled_timeout_in_container_locked_(this->to_add_, component, name_cstr, /* match_retry= */ true))) {
     // Skip scheduling - the retry was cancelled
 #ifdef ESPHOME_DEBUG_SCHEDULER
     ESP_LOGD(TAG, "Skipping retry '%s' - found cancelled item", name_cstr);
@@ -316,39 +298,37 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
     return 0;
   return next_exec - now_64;
 }
+
+void Scheduler::full_cleanup_removed_items_() {
+  // We hold the lock for the entire cleanup operation because:
+  // 1. We're rebuilding the entire items_ list, so we need exclusive access throughout
+  // 2. Other threads must see either the old state or the new state, not intermediate states
+  // 3. The operation is already expensive (O(n)), so lock overhead is negligible
+  // 4. No operations inside can block or take other locks, so no deadlock risk
+  LockGuard guard{this->lock_};
+
+  std::vector<std::unique_ptr<SchedulerItem>> valid_items;
+
+  // Move all non-removed items to valid_items, recycle removed ones
+  for (auto &item : this->items_) {
+    if (!is_item_removed_(item.get())) {
+      valid_items.push_back(std::move(item));
+    } else {
+      // Recycle removed items
+      this->recycle_item_(std::move(item));
+    }
+  }
+
+  // Replace items_ with the filtered list
+  this->items_ = std::move(valid_items);
+  // Rebuild the heap structure since items are no longer in heap order
+  std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
+  this->to_remove_ = 0;
+}
+
 void HOT Scheduler::call(uint32_t now) {
 #ifndef ESPHOME_THREAD_SINGLE
-  // Process defer queue first to guarantee FIFO execution order for deferred items.
-  // Previously, defer() used the heap which gave undefined order for equal timestamps,
-  // causing race conditions on multi-core systems (ESP32, BK7200).
-  // With the defer queue:
-  // - Deferred items (delay=0) go directly to defer_queue_ in set_timer_common_
-  // - Items execute in exact order they were deferred (FIFO guarantee)
-  // - No deferred items exist in to_add_, so processing order doesn't affect correctness
-  // Single-core platforms don't use this queue and fall back to the heap-based approach.
-  //
-  // Note: Items cancelled via cancel_item_locked_() are marked with remove=true but still
-  // processed here. They are removed from the queue normally via pop_front() but skipped
-  // during execution by should_skip_item_(). This is intentional - no memory leak occurs.
-  while (!this->defer_queue_.empty()) {
-    // The outer check is done without a lock for performance. If the queue
-    // appears non-empty, we lock and process an item. We don't need to check
-    // empty() again inside the lock because only this thread can remove items.
-    std::unique_ptr<SchedulerItem> item;
-    {
-      LockGuard lock(this->lock_);
-      item = std::move(this->defer_queue_.front());
-      this->defer_queue_.pop_front();
-    }
-
-    // Execute callback without holding lock to prevent deadlocks
-    // if the callback tries to call defer() again
-    if (!this->should_skip_item_(item.get())) {
-      now = this->execute_item_(item.get(), now);
-    }
-    // Recycle the defer item after execution
-    this->recycle_item_(std::move(item));
-  }
+  this->process_defer_queue_(now);
 #endif /* not ESPHOME_THREAD_SINGLE */
 
   // Convert the fresh timestamp from main loop to 64-bit for scheduler operations
@@ -409,30 +389,7 @@ void HOT Scheduler::call(uint32_t now) {
   // If we still have too many cancelled items, do a full cleanup
   // This only happens if cancelled items are stuck in the middle/bottom of the heap
   if (this->to_remove_ >= MAX_LOGICALLY_DELETED_ITEMS) {
-    // We hold the lock for the entire cleanup operation because:
-    // 1. We're rebuilding the entire items_ list, so we need exclusive access throughout
-    // 2. Other threads must see either the old state or the new state, not intermediate states
-    // 3. The operation is already expensive (O(n)), so lock overhead is negligible
-    // 4. No operations inside can block or take other locks, so no deadlock risk
-    LockGuard guard{this->lock_};
-
-    std::vector<std::unique_ptr<SchedulerItem>> valid_items;
-
-    // Move all non-removed items to valid_items, recycle removed ones
-    for (auto &item : this->items_) {
-      if (!is_item_removed_(item.get())) {
-        valid_items.push_back(std::move(item));
-      } else {
-        // Recycle removed items
-        this->recycle_item_(std::move(item));
-      }
-    }
-
-    // Replace items_ with the filtered list
-    this->items_ = std::move(valid_items);
-    // Rebuild the heap structure since items are no longer in heap order
-    std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
-    this->to_remove_ = 0;
+    this->full_cleanup_removed_items_();
   }
   while (!this->items_.empty()) {
     // Don't copy-by value yet
@@ -599,7 +556,8 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
 #ifndef ESPHOME_THREAD_SINGLE
   // Mark items in defer queue as cancelled (they'll be skipped when processed)
   if (type == SchedulerItem::TIMEOUT) {
-    total_cancelled += this->mark_matching_items_removed_(this->defer_queue_, component, name_cstr, type, match_retry);
+    total_cancelled +=
+        this->mark_matching_items_removed_locked_(this->defer_queue_, component, name_cstr, type, match_retry);
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
@@ -608,19 +566,20 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   // (removing the last element doesn't break heap structure)
   if (!this->items_.empty()) {
     auto &last_item = this->items_.back();
-    if (this->matches_item_(last_item, component, name_cstr, type, match_retry)) {
+    if (this->matches_item_locked_(last_item, component, name_cstr, type, match_retry)) {
       this->recycle_item_(std::move(this->items_.back()));
       this->items_.pop_back();
       total_cancelled++;
     }
     // For other items in heap, we can only mark for removal (can't remove from middle of heap)
-    size_t heap_cancelled = this->mark_matching_items_removed_(this->items_, component, name_cstr, type, match_retry);
+    size_t heap_cancelled =
+        this->mark_matching_items_removed_locked_(this->items_, component, name_cstr, type, match_retry);
     total_cancelled += heap_cancelled;
     this->to_remove_ += heap_cancelled;  // Track removals for heap items
   }
 
   // Cancel items in to_add_
-  total_cancelled += this->mark_matching_items_removed_(this->to_add_, component, name_cstr, type, match_retry);
+  total_cancelled += this->mark_matching_items_removed_locked_(this->to_add_, component, name_cstr, type, match_retry);
 
   return total_cancelled > 0;
 }
@@ -652,13 +611,12 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
   if (now < last && (last - now) > HALF_MAX_UINT32) {
     this->millis_major_++;
     major++;
+    this->last_millis_ = now;
 #ifdef ESPHOME_DEBUG_SCHEDULER
     ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
-  }
-
-  // Only update if time moved forward
-  if (now > last) {
+  } else if (now > last) {
+    // Only update if time moved forward
     this->last_millis_ = now;
   }
 
@@ -811,5 +769,26 @@ void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
   }
   // else: unique_ptr will delete the item when it goes out of scope
 }
+
+#ifdef ESPHOME_DEBUG_SCHEDULER
+void Scheduler::debug_log_timer_(const SchedulerItem *item, bool is_static_string, const char *name_cstr,
+                                 SchedulerItem::Type type, uint32_t delay, uint64_t now) {
+  // Validate static strings in debug mode
+  if (is_static_string && name_cstr != nullptr) {
+    validate_static_string(name_cstr);
+  }
+
+  // Debug logging
+  const char *type_str = (type == SchedulerItem::TIMEOUT) ? "timeout" : "interval";
+  if (type == SchedulerItem::TIMEOUT) {
+    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
+             name_cstr ? name_cstr : "(null)", type_str, delay);
+  } else {
+    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
+             name_cstr ? name_cstr : "(null)", type_str, delay,
+             static_cast<uint32_t>(item->get_next_execution() - now));
+  }
+}
+#endif /* ESPHOME_DEBUG_SCHEDULER */
 
 }  // namespace esphome

@@ -165,13 +165,13 @@ class MQTTComponent : public Component {
   virtual const EntityBase *get_entity() const = 0;
 
   /// Get the friendly name of this MQTT component.
-  virtual std::string friendly_name() const;
+  std::string friendly_name_() const;
 
-  /// Get the icon field of this component
-  virtual std::string get_icon() const;
+  /// Get the icon field of this component as StringRef
+  StringRef get_icon_ref_() const;
 
   /// Get whether the underlying Entity is disabled by default
-  virtual bool is_disabled_by_default() const;
+  bool is_disabled_by_default_() const;
 
   /// Get the MQTT topic that new states will be shared to.
   std::string get_state_topic_() const;

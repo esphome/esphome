@@ -6,7 +6,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/sensor/filter.h"
 
-#include <vector>
+#include <initializer_list>
 #include <memory>
 
 namespace esphome {
@@ -77,10 +77,10 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    *   SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
    * });
    */
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the filters and replace them by filters.
-  void set_filters(const std::vector<Filter *> &filters);
+  void set_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the entire filter chain.
   void clear_filters();

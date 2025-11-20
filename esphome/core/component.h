@@ -141,6 +141,14 @@ class Component {
    */
   bool is_in_loop_state() const;
 
+  /** Check if this component is idle.
+   * Being idle means being in LOOP_DONE state.
+   * This means the component has completed setup, is not failed, but its loop is currently disabled.
+   *
+   * @return True if the component is idle
+   */
+  bool is_idle() const;
+
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
    * This might be useful if a component wants to indicate that a connection to its peripheral failed.

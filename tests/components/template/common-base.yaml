@@ -9,6 +9,13 @@ esphome:
         id: template_sens
         state: !lambda "return 42.0;"
 
+    # Test C++ API: set_template() with stateless lambda (no captures)
+    # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
+    - lambda: |-
+        id(template_sens).set_template([]() -> esphome::optional<float> {
+          return 123.0f;
+        });
+
     - datetime.date.set:
         id: test_date
         date:
@@ -59,9 +66,8 @@ binary_sensor:
       - lambda: |-
           if (id(other_binary_sensor).state) {
             return x;
-          } else {
-            return {};
           }
+          return {};
       - settle: 500ms
       - timeout: 5s
 
@@ -72,9 +78,8 @@ sensor:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return 42.0;
-      } else {
-        return 0.0;
       }
+      return 0.0;
     update_interval: 60s
     filters:
       - calibrate_linear:
@@ -103,6 +108,9 @@ sensor:
       - filter_out: 10
       - filter_out: !lambda return NAN;
       - heartbeat: 5s
+      - heartbeat:
+          period: 5s
+          optimistic: true
       - lambda: return x * (9.0/5.0) + 32.0;
       - max:
           window_size: 10
@@ -183,9 +191,8 @@ switch:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return true;
-      } else {
-        return false;
       }
+      return false;
     turn_on_action:
       - logger.log: "turn_on_action"
     turn_off_action:
@@ -203,9 +210,8 @@ cover:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return COVER_OPEN;
-      } else {
-        return COVER_CLOSED;
       }
+      return COVER_CLOSED;
     open_action:
       - logger.log: open_action
     close_action:
@@ -216,6 +222,7 @@ cover:
 
 number:
   - platform: template
+    id: template_number
     name: "Template number"
     optimistic: true
     min_value: 0
@@ -238,9 +245,8 @@ lock:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return LOCK_STATE_LOCKED;
-      } else {
-        return LOCK_STATE_UNLOCKED;
       }
+      return LOCK_STATE_UNLOCKED;
     lock_action:
       - logger.log: lock_action
     unlock_action:
@@ -255,9 +261,8 @@ valve:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return VALVE_OPEN;
-      } else {
-        return VALVE_CLOSED;
       }
+      return VALVE_CLOSED;
     open_action:
       - logger.log: open_action
     close_action:

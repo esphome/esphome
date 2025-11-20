@@ -3,10 +3,10 @@ sensor:
     i2c_id: i2c_bus
     address: 0x77
     temperature:
-      id: bmp280_temperature
+      id: bmp280_i2c_temperature
       name: Outside Temperature
     pressure:
       name: Outside Pressure
-      id: bmp280_pressure
+      id: bmp280_i2c_pressure
     iir_filter: 16x
     update_interval: 15s
