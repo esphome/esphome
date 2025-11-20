@@ -175,6 +175,10 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   uint32_t *glut2_{nullptr};
   uint32_t pin_lut_[256];
 
+  // Cached values for performance - computed once in setup()
+  uint32_t data_mask_{0};
+  uint32_t clock_{0};
+
   uint32_t full_update_every_;
   uint32_t partial_updates_{0};
 

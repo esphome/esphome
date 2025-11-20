@@ -41,6 +41,10 @@ void Inkplate::setup() {
   this->display_data_6_pin_->setup();
   this->display_data_7_pin_->setup();
 
+  // Cache pin masks for performance - these don't change after setup
+  this->data_mask_ = this->get_data_pin_mask_();
+  this->clock_ = (1 << this->cl_pin_->get_pin());
+
   this->wakeup_pin_->digital_write(true);
   delay(1);
   this->write_bytes(0x09, {
@@ -219,7 +223,7 @@ void Inkplate::eink_off_() {
   this->oe_pin_->digital_write(false);
   this->gmod_pin_->digital_write(false);
 
-  GPIO.out &= ~(this->get_data_pin_mask_() | (1 << this->cl_pin_->get_pin()) | (1 << this->le_pin_->get_pin()));
+  GPIO.out &= ~(this->data_mask_ | this->clock_ | (1 << this->le_pin_->get_pin()));
   this->ckv_pin_->digital_write(false);
   this->sph_pin_->digital_write(false);
   this->spv_pin_->digital_write(false);
@@ -390,32 +394,54 @@ void Inkplate::display1b_() {
       break;
   }
 
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
-  uint32_t data_mask = this->get_data_pin_mask_();
+  uint32_t clock = this->clock_;
+  uint32_t data_mask = this->data_mask_;
+  int height = this->get_height_internal();
+  int width_bytes = this->get_width_internal() / 8;
+  size_t buffer_len = this->get_buffer_length_();
+  bool is_6_plus = (this->model_ == INKPLATE_6_PLUS);
+  bool needs_last_clock = (this->model_ != INKPLATE_6_V2);
+
   ESP_LOGV(TAG, "Display1b start loops (%ums)", millis() - start_time);
 
   for (uint8_t k = 0; k < rep; k++) {
-    buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
+    buffer_ptr = &this->buffer_[buffer_len - 1];
     vscan_start_();
-    for (int i = 0, im = this->get_height_internal(); i < im; i++) {
+    for (int i = 0; i < height; i++) {
       buffer_value = *(buffer_ptr--);
-      data = this->model_ == INKPLATE_6_PLUS ? LUTW[(~buffer_value >> 4) & 0x0F] : LUTB[(buffer_value >> 4) & 0x0F];
+      if (is_6_plus) {
+        data = LUTW[(~buffer_value >> 4) & 0x0F];
+      } else {
+        data = LUTB[(buffer_value >> 4) & 0x0F];
+      }
       hscan_start_(this->pin_lut_[data]);
-      data = this->model_ == INKPLATE_6_PLUS ? LUTW[(~buffer_value) & 0x0F] : LUTB[buffer_value & 0x0F];
+      if (is_6_plus) {
+        data = LUTW[(~buffer_value) & 0x0F];
+      } else {
+        data = LUTB[buffer_value & 0x0F];
+      }
       GPIO.out_w1ts = this->pin_lut_[data] | clock;
       GPIO.out_w1tc = data_mask | clock;
 
-      for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
+      for (int j = 0; j < width_bytes - 1; j++) {
         buffer_value = *(buffer_ptr--);
-        data = this->model_ == INKPLATE_6_PLUS ? LUTW[(~buffer_value >> 4) & 0x0F] : LUTB[(buffer_value >> 4) & 0x0F];
+        if (is_6_plus) {
+          data = LUTW[(~buffer_value >> 4) & 0x0F];
+        } else {
+          data = LUTB[(buffer_value >> 4) & 0x0F];
+        }
         GPIO.out_w1ts = this->pin_lut_[data] | clock;
         GPIO.out_w1tc = data_mask | clock;
-        data = this->model_ == INKPLATE_6_PLUS ? LUTW[(~buffer_value) & 0x0F] : LUTB[buffer_value & 0x0F];
+        if (is_6_plus) {
+          data = LUTW[(~buffer_value) & 0x0F];
+        } else {
+          data = LUTB[buffer_value & 0x0F];
+        }
         GPIO.out_w1ts = this->pin_lut_[data] | clock;
         GPIO.out_w1tc = data_mask | clock;
       }
       // New Inkplate6 panel doesn't need last clock
-      if (this->model_ != INKPLATE_6_V2) {
+      if (needs_last_clock) {
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = data_mask | clock;
       }
@@ -425,27 +451,43 @@ void Inkplate::display1b_() {
   }
   ESP_LOGV(TAG, "Display1b first loop x %d (%ums)", 4, millis() - start_time);
 
-  buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
+  buffer_ptr = &this->buffer_[buffer_len - 1];
   vscan_start_();
-  for (int i = 0, im = this->get_height_internal(); i < im; i++) {
+  for (int i = 0; i < height; i++) {
     buffer_value = *(buffer_ptr--);
-    data = this->model_ == INKPLATE_6_PLUS ? LUTB[(buffer_value >> 4) & 0x0F] : LUT2[(buffer_value >> 4) & 0x0F];
+    if (is_6_plus) {
+      data = LUTB[(buffer_value >> 4) & 0x0F];
+    } else {
+      data = LUT2[(buffer_value >> 4) & 0x0F];
+    }
     hscan_start_(this->pin_lut_[data] | clock);
-    data = this->model_ == INKPLATE_6_PLUS ? LUTB[buffer_value & 0x0F] : LUT2[buffer_value & 0x0F];
+    if (is_6_plus) {
+      data = LUTB[buffer_value & 0x0F];
+    } else {
+      data = LUT2[buffer_value & 0x0F];
+    }
     GPIO.out_w1ts = this->pin_lut_[data] | clock;
     GPIO.out_w1tc = data_mask | clock;
 
-    for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
+    for (int j = 0; j < width_bytes - 1; j++) {
       buffer_value = *(buffer_ptr--);
-      data = this->model_ == INKPLATE_6_PLUS ? LUTB[(buffer_value >> 4) & 0x0F] : LUT2[(buffer_value >> 4) & 0x0F];
+      if (is_6_plus) {
+        data = LUTB[(buffer_value >> 4) & 0x0F];
+      } else {
+        data = LUT2[(buffer_value >> 4) & 0x0F];
+      }
       GPIO.out_w1ts = this->pin_lut_[data] | clock;
       GPIO.out_w1tc = data_mask | clock;
-      data = this->model_ == INKPLATE_6_PLUS ? LUTB[buffer_value & 0x0F] : LUT2[buffer_value & 0x0F];
+      if (is_6_plus) {
+        data = LUTB[buffer_value & 0x0F];
+      } else {
+        data = LUT2[buffer_value & 0x0F];
+      }
       GPIO.out_w1ts = this->pin_lut_[data] | clock;
       GPIO.out_w1tc = data_mask | clock;
     }
     // New Inkplate6 panel doesn't need last clock
-    if (this->model_ != INKPLATE_6_V2) {
+    if (needs_last_clock) {
       GPIO.out_w1ts = clock;
       GPIO.out_w1tc = data_mask | clock;
     }
@@ -454,24 +496,24 @@ void Inkplate::display1b_() {
   delayMicroseconds(230);
   ESP_LOGV(TAG, "Display1b second loop (%ums)", millis() - start_time);
 
-  if (this->model_ == INKPLATE_6_PLUS) {
+  if (is_6_plus) {
     clean_fast_(2, 2);
     clean_fast_(3, 1);
   } else {
     uint32_t send = this->pin_lut_[0];
     vscan_start_();
-    for (int i = 0, im = this->get_height_internal(); i < im; i++) {
+    for (int i = 0; i < height; i++) {
       hscan_start_(send);
       GPIO.out_w1ts = send | clock;
       GPIO.out_w1tc = data_mask | clock;
-      for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
+      for (int j = 0; j < width_bytes - 1; j++) {
         GPIO.out_w1ts = send | clock;
         GPIO.out_w1tc = data_mask | clock;
         GPIO.out_w1ts = send | clock;
         GPIO.out_w1tc = data_mask | clock;
       }
       // New Inkplate6 panel doesn't need last clock
-      if (this->model_ != INKPLATE_6_V2) {
+      if (needs_last_clock) {
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = data_mask | clock;
       }
@@ -558,35 +600,43 @@ void Inkplate::display3b_() {
       break;
   }
 
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
-  uint32_t data_mask = this->get_data_pin_mask_();
+  uint32_t clock = this->clock_;
+  uint32_t data_mask = this->data_mask_;
   uint32_t pos;
   uint32_t data;
-  uint8_t glut_size = 9;
-  for (int k = 0; k < glut_size; k++) {
-    pos = this->get_buffer_length_();
+  int height = this->get_height_internal();
+  int width_bytes = this->get_width_internal() / 8;
+  size_t buffer_len = this->get_buffer_length_();
+  bool needs_last_clock = (this->model_ != INKPLATE_6_V2);
+
+  for (int k = 0; k < GLUT_SIZE; k++) {
+    // Precompute LUT base pointers for this waveform phase
+    const uint32_t *glut_base = &this->glut_[k * 256];
+    const uint32_t *glut2_base = &this->glut2_[k * 256];
+
+    pos = buffer_len;
     vscan_start_();
-    for (int i = 0; i < this->get_height_internal(); i++) {
-      data = this->glut2_[k * 256 + this->buffer_[--pos]];
-      data |= this->glut_[k * 256 + this->buffer_[--pos]];
+    for (int i = 0; i < height; i++) {
+      data = glut2_base[this->buffer_[--pos]];
+      data |= glut_base[this->buffer_[--pos]];
       hscan_start_(data);
-      data = this->glut2_[k * 256 + this->buffer_[--pos]];
-      data |= this->glut_[k * 256 + this->buffer_[--pos]];
+      data = glut2_base[this->buffer_[--pos]];
+      data |= glut_base[this->buffer_[--pos]];
       GPIO.out_w1ts = data | clock;
       GPIO.out_w1tc = data_mask | clock;
 
-      for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
-        data = this->glut2_[k * 256 + this->buffer_[--pos]];
-        data |= this->glut_[k * 256 + this->buffer_[--pos]];
+      for (int j = 0; j < width_bytes - 1; j++) {
+        data = glut2_base[this->buffer_[--pos]];
+        data |= glut_base[this->buffer_[--pos]];
         GPIO.out_w1ts = data | clock;
         GPIO.out_w1tc = data_mask | clock;
-        data = this->glut2_[k * 256 + this->buffer_[--pos]];
-        data |= this->glut_[k * 256 + this->buffer_[--pos]];
+        data = glut2_base[this->buffer_[--pos]];
+        data |= glut_base[this->buffer_[--pos]];
         GPIO.out_w1ts = data | clock;
         GPIO.out_w1tc = data_mask | clock;
       }
       // New Inkplate6 panel doesn't need last clock
-      if (this->model_ != INKPLATE_6_V2) {
+      if (needs_last_clock) {
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = data_mask | clock;
       }
@@ -610,13 +660,17 @@ bool Inkplate::partial_update_() {
 
   this->partial_updates_++;
 
-  uint32_t pos = this->get_buffer_length_() - 1;
+  size_t buffer_len = this->get_buffer_length_();
+  int height = this->get_height_internal();
+  int width_bytes = this->get_width_internal() / 8;
+
+  uint32_t pos = buffer_len - 1;
   uint8_t data;
   uint8_t diffw, diffb;
-  uint32_t n = (this->get_buffer_length_() * 2) - 1;
+  uint32_t n = (buffer_len * 2) - 1;
 
-  for (int i = 0, im = this->get_height_internal(); i < im; i++) {
-    for (int j = 0, jm = (this->get_width_internal() / 8); j < jm; j++) {
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width_bytes; j++) {
       diffw = this->buffer_[pos] & ~(this->partial_buffer_[pos]);
       diffb = ~(this->buffer_[pos]) & this->partial_buffer_[pos];
       pos--;
@@ -627,23 +681,25 @@ bool Inkplate::partial_update_() {
   ESP_LOGV(TAG, "Partial update buffer built after (%ums)", millis() - start_time);
 
   int rep = (this->model_ == INKPLATE_6_V2) ? 6 : 5;
+  bool needs_last_clock = (this->model_ != INKPLATE_6_V2);
+  int width_quarter = this->get_width_internal() / 4;
 
   eink_on_();
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
-  uint32_t data_mask = this->get_data_pin_mask_();
+  uint32_t clock = this->clock_;
+  uint32_t data_mask = this->data_mask_;
   for (int k = 0; k < rep; k++) {
     vscan_start_();
-    const uint8_t *data_ptr = &this->partial_buffer_2_[(this->get_buffer_length_() * 2) - 1];
-    for (int i = 0; i < this->get_height_internal(); i++) {
+    const uint8_t *data_ptr = &this->partial_buffer_2_[(buffer_len * 2) - 1];
+    for (int i = 0; i < height; i++) {
       data = *(data_ptr--);
       hscan_start_(this->pin_lut_[data]);
-      for (int j = 0, jm = (this->get_width_internal() / 4) - 1; j < jm; j++) {
+      for (int j = 0; j < width_quarter - 1; j++) {
         data = *(data_ptr--);
         GPIO.out_w1ts = this->pin_lut_[data] | clock;
         GPIO.out_w1tc = data_mask | clock;
       }
       // New Inkplate panel doesn't need last clock
-      if (this->model_ != INKPLATE_6_V2) {
+      if (needs_last_clock) {
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = data_mask | clock;
       }
@@ -687,10 +743,9 @@ void Inkplate::vscan_start_() {
 }
 
 void Inkplate::hscan_start_(uint32_t d) {
-  uint8_t clock = (1 << this->cl_pin_->get_pin());
   this->sph_pin_->digital_write(false);
-  GPIO.out_w1ts = d | clock;
-  GPIO.out_w1tc = this->get_data_pin_mask_() | clock;
+  GPIO.out_w1ts = d | this->clock_;
+  GPIO.out_w1tc = this->data_mask_ | this->clock_;
   this->sph_pin_->digital_write(true);
   this->ckv_pin_->digital_write(true);
 }
@@ -734,22 +789,25 @@ void Inkplate::clean_fast_(uint8_t c, uint8_t rep) {
 
   uint32_t send = ((data & 0b00000011) << 4) | (((data & 0b00001100) >> 2) << 18) | (((data & 0b00010000) >> 4) << 23) |
                   (((data & 0b11100000) >> 5) << 25);
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = this->clock_;
+  int height = this->get_height_internal();
+  int width_bytes = this->get_width_internal() / 8;
+  bool needs_last_clock = (this->model_ != INKPLATE_6_V2);
 
   for (int k = 0; k < rep; k++) {
     vscan_start_();
-    for (int i = 0; i < this->get_height_internal(); i++) {
+    for (int i = 0; i < height; i++) {
       hscan_start_(send);
       GPIO.out_w1ts = send | clock;
       GPIO.out_w1tc = clock;
-      for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
+      for (int j = 0; j < width_bytes - 1; j++) {
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = clock;
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = clock;
       }
       // New Inkplate panel doesn't need last clock
-      if (this->model_ != INKPLATE_6_V2) {
+      if (needs_last_clock) {
         GPIO.out_w1ts = send | clock;
         GPIO.out_w1tc = clock;
       }
