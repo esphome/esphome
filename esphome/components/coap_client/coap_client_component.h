@@ -59,7 +59,7 @@ struct CoapClientRequestData {
 
   void set_pdu_token(const uint8_t *data, size_t size) { this->pdu_token = coap_new_bin_const(data, size); }
 
-  void set_pdu_token(coap_bin_const_t *const pdu_token) {
+  void set_pdu_token(const coap_bin_const_t *pdu_token) {
     if (pdu_token) {
       this->pdu_token = coap_new_bin_const(pdu_token->s, pdu_token->length);
     }
@@ -104,9 +104,9 @@ class CoapClientComponent : public Component {
   void process_request(CoapClientRequestData &tx_request);
   void remove(std::string name);
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
-                                          const coap_mid_t mid);
+                                          coap_mid_t mid);
   coap_response_t process_response(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
-                                   const coap_mid_t mid);
+                                   coap_mid_t mid);
 
 #ifdef CONFIG_COAP_MBEDTLS_PKI
   static int validate_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
