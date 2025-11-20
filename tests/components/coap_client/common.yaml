@@ -1,0 +1,71 @@
+network:
+
+coap_client:
+  id: coap_id
+
+button:
+  - platform: template
+    name: "01 - short form call to californium/test"
+    on_press:
+      then:
+        - coap_client.get: coap://californium.eclipseprojects.io/test
+
+  - platform: template
+    name: "02 - call to californium/test"
+    on_press:
+      then:
+        - coap_client.get:
+            url: coap://californium.eclipseprojects.io/test
+            capture_response: true
+            on_response:
+              then:
+                - logger.log:
+                    format: '%s Response status: %d, Duration: %u ms, %s'
+                    args:
+                      - request_name.c_str()
+                      - response->status_code
+                      - response->duration_ms
+                      - payload.c_str()
+
+  - platform: template
+    name: "03 - 404 call to californium"
+    on_press:
+      then:
+        - coap_client.get:
+            url: coap://californium.eclipseprojects.io/test404
+            capture_response: true
+            on_response:
+              then:
+                - logger.log:
+                    format: '%s Response status: %d, Duration: %u, ms'
+                    args:
+                      - request_name.c_str()
+                      - response->status_code
+                      - response->duration_ms
+
+  - platform: template
+    name: 04 - call to californium/obs
+    on_press:
+      then:
+        - coap_client.get:
+            request_name: "TestObserve"
+            url: coap://californium.eclipseprojects.io/obs
+            capture_response: true
+            response_timeout: 10sec
+            observe: true
+            on_response:
+              then:
+                - logger.log:
+                    format: '%s Response status: %d, Duration: %u ms, %s'
+                    args:
+                      - request_name.c_str()
+                      - response->status_code
+                      - response->duration_ms
+                      - payload.c_str()
+
+  - platform: template
+    name: "05 - remove TestObserve"
+    on_press:
+      then:
+        - coap_client.remove:
+            request_name: "TestObserve"
