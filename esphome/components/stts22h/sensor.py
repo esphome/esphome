@@ -7,6 +7,8 @@ from esphome.const import (
     UNIT_CELSIUS,
 )
 
+DEPENDENCIES = ["i2c"]
+
 sensor_ns = cg.esphome_ns.namespace("stts22h")
 stts22h = sensor_ns.class_(
     "STTS22HComponent", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
