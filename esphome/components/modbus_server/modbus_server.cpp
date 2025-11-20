@@ -63,7 +63,9 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
   }
 
   std::vector<uint8_t> response;
-  response.push_back(number_of_registers * 2);  // byte count
+  if (number_of_registers != sixteen_bit_response.size())
+    ESP_LOGW(TAG, "Response size not matched to request register count.");
+  response.push_back(sixteen_bit_response.size() * 2);  // actual byte count
   for (auto v : sixteen_bit_response) {
     auto decoded_value = decode_value(v);
     response.push_back(decoded_value[0]);
@@ -137,9 +139,13 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
   }
 
   // Actually write to the registers:
-  if (!for_each_register([&data](ServerRegister *server_register, uint16_t offset) {
-        int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
-        return server_register->write_lambda(number);
+  if (!for_each_register([this, function_code, &data](ServerRegister *server_register, uint16_t offset) {
+        bool error = false;
+        int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF, &error);
+        if (error)
+          return false;
+        else
+          return server_register->write_lambda(number);
       })) {
     ESP_LOGW(TAG, "Could not write all registers. Sending exception response.");
     this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);

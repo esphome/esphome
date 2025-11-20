@@ -48,7 +48,7 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
 }
 
 int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                          uint32_t bitmask) {
+                          uint32_t bitmask, bool *error_return) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
 
   size_t size = data.size() - offset;
@@ -133,6 +133,8 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
   }
   if (error)
     ESP_LOGE(TAG, "not enough data for value");
+  if (error_return)
+    *error_return = error;
   return value;
 }
 
