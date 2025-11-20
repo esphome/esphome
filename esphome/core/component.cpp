@@ -35,7 +35,7 @@ static const char *const TAG = "component";
 namespace {
 struct ComponentErrorMessage {
   const Component *component;
-  const char *message;
+  std::string message;
 };
 
 struct ComponentPriorityOverride {
@@ -146,7 +146,7 @@ void Component::call_dump_config() {
     if (component_error_messages) {
       for (const auto &entry : *component_error_messages) {
         if (entry.component == this) {
-          error_msg = entry.message;
+          error_msg = entry.message.c_str();
           break;
         }
       }
@@ -307,28 +307,33 @@ void Component::status_set_warning(const LogString *message) {
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
-void Component::status_set_error(const char *message) {
+void Component::status_set_error(const std::string &message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
-  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
-           message ? message : LOG_STR_LITERAL("unspecified"));
-  if (message != nullptr) {
-    // Lazy allocate the error messages vector if needed
-    if (!component_error_messages) {
-      component_error_messages = std::make_unique<std::vector<ComponentErrorMessage>>();
-    }
-    // Check if this component already has an error message
-    for (auto &entry : *component_error_messages) {
-      if (entry.component == this) {
-        entry.message = message;
-        return;
-      }
-    }
-    // Add new error message
-    component_error_messages->emplace_back(ComponentErrorMessage{this, message});
+  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()), message.c_str());
+  // Lazy allocate the error messages vector if needed
+  if (!component_error_messages) {
+    component_error_messages = std::make_unique<std::vector<ComponentErrorMessage>>();
   }
+  // Check if this component already has an error message
+  for (auto &entry : *component_error_messages) {
+    if (entry.component == this) {
+      entry.message = message;
+      return;
+    }
+  }
+  // Add new error message
+  component_error_messages->emplace_back(ComponentErrorMessage{this, message});
+}
+void Component::status_set_error() {
+  // No message version - just set the error flag
+  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+    return;
+  this->component_state_ |= STATUS_LED_ERROR;
+  App.app_state_ |= STATUS_LED_ERROR;
+  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()), LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_clear_warning() {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)

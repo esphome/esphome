@@ -216,7 +216,8 @@ class Component {
   void status_set_warning(const char *message = nullptr);
   void status_set_warning(const LogString *message);
 
-  void status_set_error(const char *message = nullptr);
+  void status_set_error(const std::string &message);
+  void status_set_error();
 
   void status_clear_warning();
 
