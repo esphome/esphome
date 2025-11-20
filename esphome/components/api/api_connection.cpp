@@ -1537,13 +1537,8 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   for (auto &it : this->parent_->get_state_subs()) {
     // Compare entity_id and attribute with message fields
     bool entity_match = (strcmp(it.entity_id_, msg.entity_id.c_str()) == 0);
-    bool attribute_match = false;
-
-    if (it.has_attribute_) {
-      attribute_match = (strcmp(it.attribute_, msg.attribute.c_str()) == 0);
-    } else {
-      attribute_match = msg.attribute.empty();
-    }
+    bool attribute_match =
+        it.has_attribute_ ? (strcmp(it.attribute_, msg.attribute.c_str()) == 0) : msg.attribute.empty();
 
     if (entity_match && attribute_match) {
       it.callback_(msg.state);
