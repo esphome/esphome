@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, HexInt
+from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -661,6 +662,24 @@ def _config_schema(value):
 
 
 CONFIG_SCHEMA = _config_schema
+
+
+def _final_validate(config):
+    """
+    For LVGL 9 the default byte order for RGB565 images is little-endian
+    :param config:
+    :return:
+    """
+    fv = full_config.get()
+    if "lvgl" in fv and not all(x.get(CONF_BYTE_ORDER) in x for x in config):
+        config = config.copy()
+        for c in config:
+            if not c.get(CONF_BYTE_ORDER):
+                c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def write_image(config, all_frames=False):
