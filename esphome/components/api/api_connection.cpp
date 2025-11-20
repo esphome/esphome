@@ -1536,12 +1536,12 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   for (auto &it : this->parent_->get_state_subs()) {
     // Compare entity_id and attribute with message fields
-    bool entity_match = (strcmp(it.entity_id_, msg.entity_id.c_str()) == 0);
-    bool attribute_match = (it.attribute_ != nullptr && strcmp(it.attribute_, msg.attribute.c_str()) == 0) ||
-                           (it.attribute_ == nullptr && msg.attribute.empty());
+    bool entity_match = (strcmp(it.entity_id, msg.entity_id.c_str()) == 0);
+    bool attribute_match = (it.attribute != nullptr && strcmp(it.attribute, msg.attribute.c_str()) == 0) ||
+                           (it.attribute == nullptr && msg.attribute.empty());
 
     if (entity_match && attribute_match) {
-      it.callback_(msg.state);
+      it.callback(msg.state);
     }
   }
 }
@@ -1878,12 +1878,12 @@ void APIConnection::process_state_subscriptions_() {
 
   const auto &it = subs[this->state_subs_at_];
   SubscribeHomeAssistantStateResponse resp;
-  resp.set_entity_id(StringRef(it.entity_id_));
+  resp.set_entity_id(StringRef(it.entity_id));
 
   // Avoid string copy by using the const char* pointer if it exists
-  resp.set_attribute(it.attribute_ != nullptr ? StringRef(it.attribute_) : StringRef(""));
+  resp.set_attribute(it.attribute != nullptr ? StringRef(it.attribute) : StringRef(""));
 
-  resp.once = it.once_;
+  resp.once = it.once;
   if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {
     this->state_subs_at_++;
   }

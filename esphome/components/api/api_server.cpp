@@ -435,8 +435,8 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
                                         std::function<void(std::string)> f, bool once) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id_ = entity_id, .attribute_ = attribute, .callback_ = std::move(f), .once_ = once,
-      // entity_id_dynamic_storage_ and attribute_dynamic_storage_ remain nullptr (no heap allocation)
+      .entity_id = entity_id, .attribute = attribute, .callback = std::move(f), .once = once,
+      // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
   });
 }
 
@@ -445,18 +445,18 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
                                         std::function<void(std::string)> f, bool once) {
   HomeAssistantStateSubscription sub;
   // Allocate heap storage for the strings
-  sub.entity_id_dynamic_storage_ = std::make_unique<std::string>(std::move(entity_id));
-  sub.entity_id_ = sub.entity_id_dynamic_storage_->c_str();
+  sub.entity_id_dynamic_storage = std::make_unique<std::string>(std::move(entity_id));
+  sub.entity_id = sub.entity_id_dynamic_storage->c_str();
 
   if (attribute.has_value()) {
-    sub.attribute_dynamic_storage_ = std::make_unique<std::string>(std::move(attribute.value()));
-    sub.attribute_ = sub.attribute_dynamic_storage_->c_str();
+    sub.attribute_dynamic_storage = std::make_unique<std::string>(std::move(attribute.value()));
+    sub.attribute = sub.attribute_dynamic_storage->c_str();
   } else {
-    sub.attribute_ = nullptr;
+    sub.attribute = nullptr;
   }
 
-  sub.callback_ = std::move(f);
-  sub.once_ = once;
+  sub.callback = std::move(f);
+  sub.once = once;
   this->state_subs_.push_back(std::move(sub));
 }
 
