@@ -17,6 +17,10 @@ void CustomAPIDeviceComponent::setup() {
   // Test array types
   register_service(&CustomAPIDeviceComponent::on_service_with_arrays, "custom_service_with_arrays",
                    {"bool_array", "int_array", "float_array", "string_array"});
+
+  // Test Home Assistant state subscription using std::string API (custom_api_device.h)
+  // This tests the backward compatibility of the std::string overloads
+  subscribe_homeassistant_state(&CustomAPIDeviceComponent::on_ha_state_changed, std::string("sensor.custom_test"));
 }
 
 void CustomAPIDeviceComponent::on_test_service() { ESP_LOGI(TAG, "Custom test service called!"); }
@@ -46,6 +50,11 @@ void CustomAPIDeviceComponent::on_service_with_arrays(std::vector<bool> bool_arr
   if (!string_array.empty()) {
     ESP_LOGI(TAG, "First string: %s", string_array[0].c_str());
   }
+}
+
+void CustomAPIDeviceComponent::on_ha_state_changed(std::string entity_id, std::string state) {
+  ESP_LOGI(TAG, "Home Assistant state changed for %s: %s", entity_id.c_str(), state.c_str());
+  ESP_LOGI(TAG, "This subscription uses std::string API for backward compatibility");
 }
 
 }  // namespace custom_api_device_component

@@ -5,6 +5,7 @@ host:
 # This is required for CustomAPIDevice to work
 api:
   custom_services: true
+  homeassistant_states: true
   # Also test that YAML services still work
   actions:
     - action: test_yaml_service
