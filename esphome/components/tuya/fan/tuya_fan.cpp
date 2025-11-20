@@ -1,3 +1,4 @@
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "tuya_fan.h"
 
@@ -21,6 +22,15 @@ void TuyaFan::setup() {
         ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_int);
         this->speed = datapoint.value_int;
         this->publish_state();
+      } else if (datapoint.type == TuyaDatapointType::STRING) {
+        auto speed = parse_number<int>(datapoint.value_string);
+        if (!speed.has_value()) {
+          ESP_LOGE(TAG, "Speed has invalid value '%s'", datapoint.value_string.c_str());
+        } else {
+          ESP_LOGV(TAG, "MCU reported speed of: %d", *speed);
+          this->speed = *speed;
+          this->publish_state();
+        }
       }
       this->speed_type_ = datapoint.type;
     });
@@ -112,6 +122,14 @@ void TuyaFan::set_integer_(uint8_t datapoint_id, uint32_t value) {
   }
 }
 
+void TuyaFan::set_string_(uint8_t datapoint_id, const std::string &value) {
+  if (this->optimistic_) {
+    this->parent_->force_set_string_datapoint_value(datapoint_id, value);
+  } else {
+    this->parent_->set_string_datapoint_value(datapoint_id, value);
+  }
+}
+
 void TuyaFan::control(const fan::FanCall &call) {
   auto switch_id = this->switch_id_;
   if (switch_id.has_value()) {
@@ -146,6 +164,10 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (speed.has_value()) {
       if (this->speed_type_ == TuyaDatapointType::ENUM) {
         this->set_enum_(*spd_id, *speed - 1);
+      } else if (this->speed_type_ == TuyaDatapointType::STRING) {
+        char buf[UINT32_MAX_STR_SIZE];
+        uint32_to_str(buf, *speed);
+        this->set_string_(*spd_id, buf);
       } else if (this->speed_type_ == TuyaDatapointType::INTEGER || this->optimistic_) {
         // Until the MCU reports the type, optimistic mode assumes an integer datapoint
         this->set_integer_(*spd_id, *speed);
