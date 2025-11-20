@@ -9,6 +9,15 @@ from esphome.const import (
 )
 
 from .. import CONF_C4002_ID, C4002Component, dfrobot_c4002_ns
+from .const import (
+    CONF_AREA1_MAX,
+    CONF_AREA1_MIN,
+    CONF_AREA2_MAX,
+    CONF_AREA2_MIN,
+    CONF_AREA3_MAX,
+    CONF_AREA3_MIN,
+    CONF_LIGHT_THRESHOLD,
+)
 
 MinDetectRangeNumber = dfrobot_c4002_ns.class_("MinDetectRangeNumber", number.Number)
 MaxRDetectangeNumber = dfrobot_c4002_ns.class_("MaxDetectRangeNumber", number.Number)
@@ -23,7 +32,7 @@ Area2MaxRangeNumber = dfrobot_c4002_ns.class_("Area2MaxRangeNumber", number.Numb
 Area3MinRangeNumber = dfrobot_c4002_ns.class_("Area3MinRangeNumber", number.Number)
 Area3MaxRangeNumber = dfrobot_c4002_ns.class_("Area3MaxRangeNumber", number.Number)
 
-CONF_LIGHT_THRESHOLD = "light_threshold"
+# CONF_LIGHT_THRESHOLD = "light_threshold"
 CONF_AREA1_MIN = "area1_min"
 CONF_AREA1_MAX = "area1_max"
 CONF_AREA2_MIN = "area2_min"
