@@ -11,7 +11,7 @@
 namespace esphome {
 namespace ltr_als_ps {
 
-enum DataAvail : uint8_t { NO_DATA, BAD_DATA, DATA_OK };
+enum LtrDataAvail : uint8_t { LTR_NO_DATA, LTR_BAD_DATA, LTR_DATA_OK };
 
 enum LtrType : uint8_t {
   LTR_TYPE_UNKNOWN = 0,
@@ -106,7 +106,7 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   void configure_als_();
   void configure_integration_time_(IntegrationTime time);
   void configure_gain_(AlsGain gain);
-  DataAvail is_als_data_ready_(AlsReadings &data);
+  LtrDataAvail is_als_data_ready_(AlsReadings &data);
   void read_sensor_data_(AlsReadings &data);
   bool are_adjustments_required_(AlsReadings &data);
   void apply_lux_calculation_(AlsReadings &data);
