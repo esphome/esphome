@@ -108,10 +108,6 @@ class CoapClientComponent : public Component {
   coap_response_t process_response(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                    coap_mid_t mid);
 
-#ifdef CONFIG_COAP_MBEDTLS_PKI
-  static int validate_cn_callback(const char *cn, const uint8_t *asn1_public_cert, size_t asn1_length,
-                                  coap_session_t *session, unsigned depth, int validated, void *arg);
-#endif
   void set_max_block_size(size_t block_size) {
     if (block_size > 16) {
       this->max_block_size_ = block_size;
@@ -132,18 +128,6 @@ class CoapClientComponent : public Component {
       this->max_retransmit_ = max;
     }
   }
-#ifdef CONFIG_COAP_OSCORE_SUPPORT
-  void set_oscore_conf(std::string str) { this->oscore_conf_str_ = str; }
-#endif
-#ifdef CONFIG_COAP_MBEDTLS_PSK
-  void set_psk_identity(std::string str) { this->psk_identity_ = str; }
-  void set_psk_key(std::string str) { this->psk_key_ = str; }
-#endif
-#ifdef CONFIG_COAP_MBEDTLS_PKI
-  void set_ca_pem(std::string str) { this->ca_pem_str_ = str; }
-  void set_client_crt(std::string str) { this->client_crt_str_ = str; }
-  void set_client_key(std::string str) { this->client_key_str_ = str; }
-#endif
 
  protected:
   void housekeeping_();
@@ -152,16 +136,7 @@ class CoapClientComponent : public Component {
   std::mutex mutex_lock_;
   std::map<uint32_t, CoapClientRequestData> tx_request_storage_;
   void main_();
-  coap_session_t *get_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri, coap_proto_t proto,
-                               coap_oscore_conf_t *oscore_conf);
-#ifdef CONFIG_COAP_MBEDTLS_PSK
-  void provision_psk_(coap_dtls_cpsk_t *dtls_psk, coap_uri_t *uri);
-  coap_session_t *coap_start_psk_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri,
-                                          coap_proto_t proto);
-#endif
-  void provision_pki_(coap_dtls_pki_t *dtls_pki, coap_uri_t *uri);
-  coap_session_t *coap_start_pki_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri,
-                                          coap_proto_t proto);
+  coap_session_t *get_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri, coap_proto_t proto);
 
   bool main_coap_loop_{true};
   bool inner_coap_loop_{true};
@@ -174,18 +149,6 @@ class CoapClientComponent : public Component {
   uint32_t ack_timeout_{2000};
   uint8_t max_retransmit_{4};
   uint32_t request_observe_timeout_{128000};
-#ifdef CONFIG_COAP_OSCORE_SUPPORT
-  std::string oscore_conf_str_{};
-#endif
-#ifdef CONFIG_COAP_MBEDTLS_PSK
-  std::string psk_identity_{};
-  std::string psk_key_{};
-#endif
-#ifdef CONFIG_COAP_MBEDTLS_PKI
-  std::string ca_pem_str_{};
-  std::string client_crt_str_{};
-  std::string client_key_str_{};
-#endif
 };
 
 extern CoapClientComponent *global_coap_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

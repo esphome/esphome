@@ -4,9 +4,6 @@ from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CAPTURE_RESPONSE,
-    CONF_CERTIFICATE_AUTHORITY,
-    CONF_CLIENT_CERTIFICATE,
-    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_ID,
     CONF_METHOD,
     CONF_ON_RESPONSE,
@@ -23,9 +20,6 @@ from .const import (
     CONF_MAX_RETRANSMIT,
     CONF_MEDIA_TYPE,
     CONF_OBSERVE,
-    CONF_OSCORE_CONF,
-    CONF_PSK_IDENTITY,
-    CONF_PSK_KEY,
     CONF_REQUEST_NAME,
     CONF_REQUEST_TIMEOUT,
     CONF_RESPONSE_TIMEOUT,
@@ -69,12 +63,6 @@ CONFIG_SCHEMA = cv.Schema(
             CONF_ACK_TIMEOUT, default="2sec"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_RETRANSMIT, default=4): cv.uint8_t,
-        cv.Optional(CONF_OSCORE_CONF): cv.string,
-        cv.Optional(CONF_PSK_IDENTITY): cv.string,
-        cv.Optional(CONF_PSK_KEY): cv.string,
-        cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.string,
-        cv.Optional(CONF_CLIENT_CERTIFICATE): cv.string,
-        cv.Optional(CONF_CLIENT_CERTIFICATE_KEY): cv.string,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -93,21 +81,6 @@ async def to_code(config):
         cg.add(var.set_ack_timeout(ack_timeout))
     if (max_retransmit := config.get(CONF_MAX_RETRANSMIT)) is not None:
         cg.add(var.set_max_retransmit(max_retransmit))
-    if (oscore_conf := config.get(CONF_OSCORE_CONF)) is not None:
-        add_idf_sdkconfig_option("CONFIG_COAP_OSCORE_SUPPORT", True)
-        cg.add(var.set_oscore_conf(oscore_conf))
-    if (psk_identity := config.get(CONF_PSK_IDENTITY)) is not None:
-        add_idf_sdkconfig_option("CONFIG_COAP_MBEDTLS_PSK", True)
-        cg.add(var.set_psk_identity(psk_identity))
-    if (psk_key := config.get(CONF_PSK_KEY)) is not None:
-        cg.add(var.set_psk_key(psk_key))
-    if (ca_pem := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
-        add_idf_sdkconfig_option("CONFIG_COAP_MBEDTLS_PKI", True)
-        cg.add(var.set_psk_key(ca_pem))
-    if (client_crt := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
-        cg.add(var.set_client_crt(client_crt))
-    if (client_key := config.get(CONF_CLIENT_CERTIFICATE_KEY)) is not None:
-        cg.add(var.set_client_key(client_key))
 
 
 CONF_MEDIA_TYPES = {
