@@ -19,11 +19,10 @@ void HomeassistantBinarySensor::setup() {
           case PARSE_ON:
           case PARSE_OFF:
             bool new_state = val == PARSE_ON;
-            if (this->attribute_.has_value()) {
-              ESP_LOGD(TAG, "'%s::%s': Got attribute state %s", this->entity_id_.c_str(),
-                       this->attribute_.value().c_str(), ONOFF(new_state));
+            if (this->attribute_ != nullptr) {
+              ESP_LOGD(TAG, "'%s::%s': Got attribute state %s", this->entity_id_, this->attribute_, ONOFF(new_state));
             } else {
-              ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
+              ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_, ONOFF(new_state));
             }
             if (this->initial_) {
               this->publish_initial_state(new_state);
@@ -37,9 +36,9 @@ void HomeassistantBinarySensor::setup() {
 }
 void HomeassistantBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Homeassistant Binary Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_.c_str());
-  if (this->attribute_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Attribute: '%s'", this->attribute_.value().c_str());
+  ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_);
+  if (this->attribute_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Attribute: '%s'", this->attribute_);
   }
 }
 float HomeassistantBinarySensor::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
