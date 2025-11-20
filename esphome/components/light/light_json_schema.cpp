@@ -3,8 +3,7 @@
 
 #ifdef USE_JSON
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
 
@@ -43,7 +42,6 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   }
 
   auto values = state.remote_values;
-  auto traits = state.get_output()->get_traits();
 
   const auto color_mode = values.get_color_mode();
   const char *mode_str = get_color_mode_json_str(color_mode);
@@ -170,7 +168,6 @@ void LightJSONSchema::parse_json(LightState &state, LightCall &call, JsonObject 
   }
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
 
 #endif

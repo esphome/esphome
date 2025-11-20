@@ -81,7 +81,12 @@ struct IPAddress {
     ip_addr_.type = IPADDR_TYPE_V6;
   }
 #endif /* LWIP_IPV6 */
-  IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t)); }
+  IPAddress(esp_ip4_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t));
+#if LWIP_IPV6
+    ip_addr_.type = IPADDR_TYPE_V4;
+#endif
+  }
   IPAddress(esp_ip_addr_t *other_ip) {
 #if LWIP_IPV6
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));
@@ -118,10 +123,10 @@ struct IPAddress {
   operator arduino_ns::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
 #endif
 
-  bool is_set() { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
-  bool is_ip4() { return IP_IS_V4(&ip_addr_); }
-  bool is_ip6() { return IP_IS_V6(&ip_addr_); }
-  bool is_multicast() { return ip_addr_ismulticast(&ip_addr_); }
+  bool is_set() const { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
+  bool is_ip4() const { return IP_IS_V4(&ip_addr_); }
+  bool is_ip6() const { return IP_IS_V6(&ip_addr_); }
+  bool is_multicast() const { return ip_addr_ismulticast(&ip_addr_); }
   std::string str() const { return str_lower_case(ipaddr_ntoa(&ip_addr_)); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }

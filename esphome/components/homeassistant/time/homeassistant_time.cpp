@@ -7,10 +7,8 @@ namespace homeassistant {
 static const char *const TAG = "homeassistant.time";
 
 void HomeassistantTime::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Home Assistant Time:\n"
-                "  Timezone: '%s'",
-                this->timezone_.c_str());
+  ESP_LOGCONFIG(TAG, "Home Assistant Time");
+  RealTimeClock::dump_config();
 }
 
 float HomeassistantTime::get_setup_priority() const { return setup_priority::DATA; }

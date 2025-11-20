@@ -17,10 +17,12 @@ from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_DEBUG_SCHEDULER,
     CONF_DEVICES,
+    CONF_ENVIRONMENT_VARIABLES,
     CONF_ESPHOME,
     CONF_FRIENDLY_NAME,
     CONF_ID,
     CONF_INCLUDES,
+    CONF_INCLUDES_C,
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
     CONF_NAME,
@@ -39,7 +41,12 @@ from esphome.const import (
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    KEY_CONTROLLER_REGISTRY_COUNT,
+    CoroPriority,
+    coroutine_with_priority,
+)
 from esphome.helpers import (
     copy_file_if_changed,
     fnv1a_32bit_hash,
@@ -136,21 +143,21 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
-def valid_include(value):
+def valid_include(value: str) -> str:
     # Look for "<...>" includes
     if value.startswith("<") and value.endswith(">"):
         return value
     try:
-        return cv.directory(value)
+        return str(cv.directory(value))
     except cv.Invalid:
         pass
-    value = cv.file_(value)
-    _, ext = os.path.splitext(value)
+    path = cv.file_(value)
+    ext = path.suffix
     if ext not in VALID_INCLUDE_EXTS:
         raise cv.Invalid(
             f"Include has invalid file extension {ext} - valid extensions are {', '.join(VALID_INCLUDE_EXTS)}"
         )
-    return value
+    return str(path)
 
 
 def valid_project_name(value: str):
@@ -200,13 +207,18 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
-            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
+            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(cv.string, cv.Length(max=120)),
             cv.Optional(CONF_AREA): validate_area_config,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
                     cv.string_strict: cv.Any([cv.string], cv.string),
+                }
+            ),
+            cv.Optional(CONF_ENVIRONMENT_VARIABLES, default={}): cv.Schema(
+                {
+                    cv.string_strict: cv.string,
                 }
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
@@ -227,6 +239,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
+            cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
             cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
@@ -302,6 +315,17 @@ def _list_target_platforms():
     return target_platforms
 
 
+def _sort_includes_by_type(includes: list[str]) -> tuple[list[str], list[str]]:
+    system_includes = []
+    other_includes = []
+    for include in includes:
+        if include.startswith("<") and include.endswith(">"):
+            system_includes.append(include)
+        else:
+            other_includes.append(include)
+    return system_includes, other_includes
+
+
 def preload_core_config(config, result) -> str:
     with cv.prepend_path(CONF_ESPHOME):
         conf = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
@@ -311,9 +335,9 @@ def preload_core_config(config, result) -> str:
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        build_path = get_str_env("ESPHOME_BUILD_PATH", "build")
-        conf[CONF_BUILD_PATH] = os.path.join(build_path, CORE.name)
-    CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
+        build_path = Path(get_str_env("ESPHOME_BUILD_PATH", "build"))
+        conf[CONF_BUILD_PATH] = str(build_path / CORE.name)
+    CORE.build_path = CORE.data_dir / conf[CONF_BUILD_PATH]
 
     target_platforms = []
 
@@ -339,15 +363,22 @@ def preload_core_config(config, result) -> str:
     return target_platforms[0]
 
 
-def include_file(path, basename):
-    parts = basename.split(os.path.sep)
+def include_file(path: Path, basename: Path, is_c_header: bool = False):
+    parts = basename.parts
     dst = CORE.relative_src_path(*parts)
     copy_file_if_changed(path, dst)
 
-    _, ext = os.path.splitext(path)
+    ext = path.suffix
     if ext in [".h", ".hpp", ".tcc"]:
         # Header, add include statement
-        cg.add_global(cg.RawStatement(f'#include "{basename}"'))
+        if is_c_header:
+            # Wrap in extern "C" block for C headers
+            cg.add_global(
+                cg.RawStatement(f'extern "C" {{\n  #include "{basename}"\n}}')
+            )
+        else:
+            # Regular include
+            cg.add_global(cg.RawStatement(f'#include "{basename}"'))
 
 
 ARDUINO_GLUE_CODE = """\
@@ -377,28 +408,34 @@ async def add_arduino_global_workaround():
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def add_includes(includes):
+async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
-        if os.path.isdir(path):
+        if path.is_dir():
             # Directory, copy tree
             for p in walk_files(path):
-                basename = os.path.relpath(p, os.path.dirname(path))
-                include_file(p, basename)
+                basename = p.relative_to(path.parent)
+                include_file(p, basename, is_c_header)
         else:
             # Copy file
-            basename = os.path.basename(path)
-            include_file(path, basename)
+            basename = Path(path.name)
+            include_file(path, basename, is_c_header)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options):
     # Add includes at the very end, so that they override everything
     for key, val in pio_options.items():
-        if key == "build_flags" and not isinstance(val, list):
+        if key in ["build_flags", "lib_ignore"] and not isinstance(val, list):
             val = [val]
         cg.add_platformio_option(key, val)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_environment_variables(env_vars: dict[str, str]) -> None:
+    # Set environment variables for the build process
+    os.environ.update(env_vars)
 
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
@@ -442,6 +479,15 @@ async def _add_platform_defines() -> None:
             cg.add_define(f"USE_{platform_name.upper()}")
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_controller_registry_define() -> None:
+    # Generate StaticVector size for ControllerRegistry
+    controller_count = CORE.data.get(KEY_CONTROLLER_REGISTRY_COUNT, 0)
+    if controller_count > 0:
+        cg.add_define("USE_CONTROLLER_REGISTRY")
+        cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
@@ -463,6 +509,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
     CORE.add_job(_add_platform_defines)
+    CORE.add_job(_add_controller_registry_define)
 
     CORE.add_job(_add_automations, config)
 
@@ -494,19 +541,25 @@ async def to_code(config: ConfigType) -> None:
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
-        # Get the <...> includes
-        system_includes = []
-        other_includes = []
-        for include in config[CONF_INCLUDES]:
-            if include.startswith("<") and include.endswith(">"):
-                system_includes.append(include)
-            else:
-                other_includes.append(include)
+        system_includes, other_includes = _sort_includes_by_type(config[CONF_INCLUDES])
         # <...> includes should be at the start
         for include in system_includes:
             cg.add_global(cg.RawStatement(f"#include {include}"), prepend=True)
         # Other includes should be at the end
-        CORE.add_job(add_includes, other_includes)
+        CORE.add_job(add_includes, other_includes, False)
+
+    if config[CONF_INCLUDES_C]:
+        system_includes, other_includes = _sort_includes_by_type(
+            config[CONF_INCLUDES_C]
+        )
+        # <...> includes should be at the start
+        for include in system_includes:
+            cg.add_global(
+                cg.RawStatement(f'extern "C" {{\n  #include {include}\n}}'),
+                prepend=True,
+            )
+        # Other includes should be at the end
+        CORE.add_job(add_includes, other_includes, True)
 
     if project_conf := config.get(CONF_PROJECT):
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
@@ -521,6 +574,9 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
+
+    if config[CONF_ENVIRONMENT_VARIABLES]:
+        CORE.add_job(_add_environment_variables, config[CONF_ENVIRONMENT_VARIABLES])
 
     # Process areas
     all_areas: list[dict[str, str | core.ID]] = []

@@ -5,11 +5,11 @@
 #include <zephyr/drivers/hwinfo.h>
 #include <hal/nrf_power.h>
 #include <cstdint>
+#include <zephyr/storage/flash_map.h>
 
 #define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
@@ -25,8 +25,35 @@ static void show_reset_reason(std::string &reset_reason, bool set, const char *r
   reset_reason += reason;
 }
 
-inline uint32_t read_mem_u32(uintptr_t addr) {
+static inline uint32_t read_mem_u32(uintptr_t addr) {
   return *reinterpret_cast<volatile uint32_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+}
+
+static inline uint8_t read_mem_u8(uintptr_t addr) {
+  return *reinterpret_cast<volatile uint8_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+}
+
+// defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
+constexpr uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
+constexpr uintptr_t MBR_SIZE = 0x1000;
+constexpr uintptr_t SOFTDEVICE_INFO_STRUCT_OFFSET = 0x2000;
+constexpr uintptr_t SD_ID_OFFSET = SOFTDEVICE_INFO_STRUCT_OFFSET + 0x10;
+constexpr uintptr_t SD_VERSION_OFFSET = SOFTDEVICE_INFO_STRUCT_OFFSET + 0x14;
+
+static inline bool is_sd_present() {
+  return read_mem_u32(SOFTDEVICE_INFO_STRUCT_OFFSET + MBR_SIZE + 4) == SD_MAGIC_NUMBER;
+}
+static inline uint32_t sd_id_get() {
+  if (read_mem_u8(MBR_SIZE + SOFTDEVICE_INFO_STRUCT_OFFSET) > (SD_ID_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) {
+    return read_mem_u32(MBR_SIZE + SD_ID_OFFSET);
+  }
+  return 0;
+}
+static inline uint32_t sd_version_get() {
+  if (read_mem_u8(MBR_SIZE + SOFTDEVICE_INFO_STRUCT_OFFSET) > (SD_VERSION_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) {
+    return read_mem_u32(MBR_SIZE + SD_VERSION_OFFSET);
+  }
+  return 0;
 }
 
 std::string DebugComponent::get_reset_reason_() {
@@ -59,6 +86,37 @@ std::string DebugComponent::get_reset_reason_() {
 }
 
 uint32_t DebugComponent::get_free_heap_() { return INT_MAX; }
+
+static void fa_cb(const struct flash_area *fa, void *user_data) {
+#if CONFIG_FLASH_MAP_LABELS
+  const char *fa_label = flash_area_label(fa);
+
+  if (fa_label == nullptr) {
+    fa_label = "-";
+  }
+  ESP_LOGCONFIG(TAG, "%2d   0x%0*" PRIxPTR "   %-26s  %-24.24s  0x%-10x 0x%-12x", (int) fa->fa_id,
+                sizeof(uintptr_t) * 2, (uintptr_t) fa->fa_dev, fa->fa_dev->name, fa_label, (uint32_t) fa->fa_off,
+                fa->fa_size);
+#else
+  ESP_LOGCONFIG(TAG, "%2d   0x%0*" PRIxPTR "   %-26s  0x%-10x 0x%-12x", (int) fa->fa_id, sizeof(uintptr_t) * 2,
+                (uintptr_t) fa->fa_dev, fa->fa_dev->name, (uint32_t) fa->fa_off, fa->fa_size);
+#endif
+}
+
+void DebugComponent::log_partition_info_() {
+#if CONFIG_FLASH_MAP_LABELS
+  ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
+                     "| Label                   | Offset     | Size");
+  ESP_LOGCONFIG(TAG, "--------------------------------------------"
+                     "-----------------------------------------------");
+#else
+  ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
+                     "| Offset     | Size");
+  ESP_LOGCONFIG(TAG, "-----------------------------------------"
+                     "------------------------------");
+#endif
+  flash_area_foreach(fa_cb, nullptr);
+}
 
 void DebugComponent::get_device_info_(std::string &device_info) {
   std::string supply = "Main supply status: ";
@@ -254,14 +312,18 @@ void DebugComponent::get_device_info_(std::string &device_info) {
            NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE));
   ESP_LOGD(TAG, "RAM: %ukB, Flash: %ukB, production test: %sdone", NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH,
            (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
+  bool n_reset_enabled = NRF_UICR->PSELRESET[0] == NRF_UICR->PSELRESET[1] &&
+                         (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
+                                                                                      << UICR_PSELRESET_CONNECT_Pos;
   ESP_LOGD(
       TAG, "GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
       YESNO((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos)),
-      YESNO(((NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) !=
-             (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos)) ||
-            ((NRF_UICR->PSELRESET[1] & UICR_PSELRESET_CONNECT_Msk) !=
-             (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos))));
-
+      YESNO(n_reset_enabled));
+  if (n_reset_enabled) {
+    uint8_t port = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PORT_Msk) >> UICR_PSELRESET_PORT_Pos;
+    uint8_t pin = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PIN_Msk) >> UICR_PSELRESET_PIN_Pos;
+    ESP_LOGD(TAG, "nRESET port P%u.%02u", port, pin);
+  }
 #ifdef USE_BOOTLOADER_MCUBOOT
   ESP_LOGD(TAG, "bootloader: mcuboot");
 #else
@@ -271,11 +333,46 @@ void DebugComponent::get_device_info_(std::string &device_info) {
            NRF_UICR->NRFFW[0]);
   ESP_LOGD(TAG, "MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
            NRF_UICR->NRFFW[1]);
+  if (is_sd_present()) {
+    uint32_t const sd_id = sd_id_get();
+    uint32_t const sd_version = sd_version_get();
+
+    uint32_t ver[3];
+    ver[0] = sd_version / 1000000;
+    ver[1] = (sd_version - ver[0] * 1000000) / 1000;
+    ver[2] = (sd_version - ver[0] * 1000000 - ver[1] * 1000);
+
+    ESP_LOGD(TAG, "SoftDevice: S%u %u.%u.%u", sd_id, ver[0], ver[1], ver[2]);
+#ifdef USE_SOFTDEVICE_ID
+#ifdef USE_SOFTDEVICE_VERSION
+    if (USE_SOFTDEVICE_ID != sd_id || USE_SOFTDEVICE_VERSION != ver[0]) {
+      ESP_LOGE(TAG, "Built for SoftDevice S%u %u.x.y. It may crash due to mismatch of bootloader version.",
+               USE_SOFTDEVICE_ID, USE_SOFTDEVICE_VERSION);
+    }
+#else
+    if (USE_SOFTDEVICE_ID != sd_id) {
+      ESP_LOGE(TAG, "Built for SoftDevice S%u. It may crash due to mismatch of bootloader version.", USE_SOFTDEVICE_ID);
+    }
 #endif
+#endif
+  }
+#endif
+  auto uicr = [](volatile uint32_t *data, uint8_t size) {
+    std::string res;
+    char buf[sizeof(uint32_t) * 2 + 1];
+    for (size_t i = 0; i < size; i++) {
+      if (i > 0) {
+        res += ' ';
+      }
+      res += format_hex_pretty<uint32_t>(data[i], '\0', false);
+    }
+    return res;
+  };
+  ESP_LOGD(TAG, "NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
+  ESP_LOGD(TAG, "NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
 }
 
 void DebugComponent::update_platform_() {}
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

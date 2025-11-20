@@ -1,0 +1,13 @@
+# Common I2C configuration for ESP32 IDF tests
+# Provides a shared I2C bus that all components can use
+# Components will auto-use this bus if they don't specify i2c_id
+
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    scan: true

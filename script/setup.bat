@@ -19,8 +19,6 @@ pip3 install -e ".[dev,test]" --config-settings editable_mode=compat
 
 pre-commit install
 
-python script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
-
 echo .
 echo .
 echo Virtual environment created. Run 'venv/Scripts/activate' to use it.

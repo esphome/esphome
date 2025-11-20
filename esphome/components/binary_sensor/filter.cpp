@@ -1,11 +1,8 @@
 #include "filter.h"
 
 #include "binary_sensor.h"
-#include <utility>
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 static const char *const TAG = "sensor.filter";
 
@@ -68,7 +65,7 @@ float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARD
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
-AutorepeatFilter::AutorepeatFilter(std::vector<AutorepeatFilterTiming> timings) : timings_(std::move(timings)) {}
+AutorepeatFilter::AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) : timings_(timings) {}
 
 optional<bool> AutorepeatFilter::new_value(bool value) {
   if (value) {
@@ -133,6 +130,4 @@ optional<bool> SettleFilter::new_value(bool value) {
 
 float SettleFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace binary_sensor
-
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

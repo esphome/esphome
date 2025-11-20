@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import logging
 import math
 import os
+from pathlib import Path
 import re
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,7 @@ from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
@@ -39,10 +41,15 @@ from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
+    from esphome.address_cache import AddressCache
+
     from ..cpp_generator import MockObj, MockObjClass, Statement
     from ..types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
+
+# Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
+KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
 
 
 class EsphomeError(Exception):
@@ -381,7 +388,7 @@ class DocumentLocation:
 
     @classmethod
     def from_mark(cls, mark):
-        return cls(mark.name, mark.line, mark.column)
+        return cls(str(mark.name), mark.line, mark.column)
 
     def __str__(self):
         return f"{self.document} {self.line}:{self.column}"
@@ -526,6 +533,8 @@ class EsphomeCore:
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
+        # True if running in testing mode (disables validation checks for grouped testing)
+        self.testing_mode = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
@@ -536,9 +545,9 @@ class EsphomeCore:
         # The first key to this dict should always be the integration name
         self.data = {}
         # The relative path to the configuration YAML
-        self.config_path: str | None = None
+        self.config_path: Path | None = None
         # The relative path to where all build files are stored
-        self.build_path: str | None = None
+        self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
         # The pending tasks in the task queue (mostly for C++ generation)
@@ -583,6 +592,8 @@ class EsphomeCore:
         self.id_classes = {}
         # The current component being processed during validation
         self.current_component: str | None = None
+        # Address cache for DNS and mDNS lookups from command line arguments
+        self.address_cache: AddressCache | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -610,6 +621,7 @@ class EsphomeCore:
         self.platform_counts = defaultdict(int)
         self.unique_ids = {}
         self.current_component = None
+        self.address_cache = None
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -627,11 +639,12 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if CONF_WIFI in self.config:
-            return self.config[CONF_WIFI][CONF_USE_ADDRESS]
+        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+            if network_type in self.config:
+                return self.config[network_type][CONF_USE_ADDRESS]
 
-        if CONF_ETHERNET in self.config:
-            return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
+        if CONF_OPENTHREAD in self.config:
+            return f"{self.name}.local"
 
         return None
 
@@ -659,43 +672,46 @@ class EsphomeCore:
         return None
 
     @property
-    def config_dir(self):
-        return os.path.abspath(os.path.dirname(self.config_path))
+    def config_dir(self) -> Path:
+        if self.config_path.is_dir():
+            return self.config_path.absolute()
+        return self.config_path.absolute().parent
 
     @property
-    def data_dir(self):
+    def data_dir(self) -> Path:
         if is_ha_addon():
-            return os.path.join("/data")
+            return Path("/data")
         if "ESPHOME_DATA_DIR" in os.environ:
-            return get_str_env("ESPHOME_DATA_DIR", None)
+            return Path(get_str_env("ESPHOME_DATA_DIR", None))
         return self.relative_config_path(".esphome")
 
     @property
-    def config_filename(self):
-        return os.path.basename(self.config_path)
+    def config_filename(self) -> str:
+        return self.config_path.name
 
-    def relative_config_path(self, *path):
-        path_ = os.path.expanduser(os.path.join(*path))
-        return os.path.join(self.config_dir, path_)
+    def relative_config_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.config_dir / path_
 
-    def relative_internal_path(self, *path: str) -> str:
-        return os.path.join(self.data_dir, *path)
+    def relative_internal_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.data_dir / path_
 
-    def relative_build_path(self, *path):
-        path_ = os.path.expanduser(os.path.join(*path))
-        return os.path.join(self.build_path, path_)
+    def relative_build_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.build_path / path_
 
-    def relative_src_path(self, *path):
+    def relative_src_path(self, *path: str | Path) -> Path:
         return self.relative_build_path("src", *path)
 
-    def relative_pioenvs_path(self, *path):
+    def relative_pioenvs_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".pioenvs", *path)
 
-    def relative_piolibdeps_path(self, *path):
+    def relative_piolibdeps_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
-    def firmware_bin(self):
+    def firmware_bin(self) -> Path:
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
@@ -896,6 +912,11 @@ class EsphomeCore:
         :param var: The variable (component) being registered (currently unused but kept for future use)
         """
         self.platform_counts[platform_name] += 1
+
+    def register_controller(self) -> None:
+        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
+        controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
+        self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
 
     @property
     def cpp_main_section(self):

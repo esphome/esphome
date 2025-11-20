@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
 #include <esp_http_server.h>
@@ -8,7 +8,6 @@
 #include <functional>
 #include <list>
 #include <map>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,18 +21,14 @@ class ListEntitiesIterator;
 #endif
 namespace web_server_idf {
 
-#define F(string_literal) (string_literal)
-#define PGM_P const char *
-#define strncpy_P strncpy
-
-using String = std::string;
-
 class AsyncWebParameter {
  public:
-  AsyncWebParameter(std::string value) : value_(std::move(value)) {}
+  AsyncWebParameter(std::string name, std::string value) : name_(std::move(name)), value_(std::move(value)) {}
+  const std::string &name() const { return this->name_; }
   const std::string &value() const { return this->value_; }
 
  protected:
+  std::string name_;
   std::string value_;
 };
 
@@ -174,7 +169,11 @@ class AsyncWebServerRequest {
  protected:
   httpd_req_t *req_;
   AsyncWebServerResponse *rsp_{};
-  std::map<std::string, AsyncWebParameter *> params_;
+  // Use vector instead of map/unordered_map: most requests have 0-3 params, so linear search
+  // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
+  // duplicate storage. Only successful lookups are cached to prevent cache pollution when
+  // handlers check for optional parameters that don't exist.
+  std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
   AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
@@ -200,12 +199,17 @@ class AsyncWebServer {
     return *handler;
   }
 
+  void set_lru_purge_enable(bool enable);
+  httpd_handle_t get_server() { return this->server_; }
+
  protected:
   uint16_t port_{};
   httpd_handle_t server_{};
+  bool lru_purge_enable_{false};
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
+  static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
 #ifdef USE_WEBSERVER_OTA
   esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
 #endif
@@ -283,6 +287,8 @@ class AsyncEventSourceResponse {
   std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
   std::string event_buffer_{""};
   size_t event_bytes_sent_;
+  uint16_t consecutive_send_failures_{0};
+  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
@@ -313,7 +319,10 @@ class AsyncEventSource : public AsyncWebHandler {
 
  protected:
   std::string url_;
-  std::set<AsyncEventSourceResponse *> sessions_;
+  // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
+  // Linear search is faster than red-black tree overhead for this small dataset.
+  // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
+  std::vector<AsyncEventSourceResponse *> sessions_;
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
 };
@@ -341,4 +350,4 @@ class DefaultHeaders {
 
 using namespace esphome::web_server_idf;  // NOLINT(google-global-names-in-headers)
 
-#endif  // !defined(USE_ESP_IDF)
+#endif  // !defined(USE_ESP32)

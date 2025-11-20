@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "uart_component_esp_idf.h"
 #include <cinttypes>
@@ -6,6 +6,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/gpio.h"
+#include "driver/gpio.h"
+#include "soc/gpio_num.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -88,24 +91,74 @@ void IDFUARTComponent::setup() {
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
   this->lock_ = xSemaphoreCreateMutex();
 
+#if (SOC_UART_LP_NUM >= 1)
+  size_t fifo_len = ((this->uart_num_ < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN);
+#else
+  size_t fifo_len = SOC_UART_FIFO_LEN;
+#endif
+  if (this->rx_buffer_size_ <= fifo_len) {
+    ESP_LOGW(TAG, "rx_buffer_size is too small, must be greater than %zu", fifo_len);
+    this->rx_buffer_size_ = fifo_len * 2;
+  }
+
   xSemaphoreTake(this->lock_, portMAX_DELAY);
 
-  uart_config_t uart_config = this->get_config_();
-  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  this->load_settings(false);
+
+  xSemaphoreGive(this->lock_);
+}
+
+void IDFUARTComponent::load_settings(bool dump_config) {
+  esp_err_t err;
+
+  if (uart_is_driver_installed(this->uart_num_)) {
+    err = uart_driver_delete(this->uart_num_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
+      this->mark_failed();
+      return;
+    }
+  }
+  err = uart_driver_install(this->uart_num_,        // UART number
+                            this->rx_buffer_size_,  // RX ring buffer size
+                            0,   // TX ring buffer size. If zero, driver will not use a TX buffer and TX function will
+                                 // block task until all data has been sent out
+                            20,  // event queue size/depth
+                            &this->uart_event_queue_,  // event queue
+                            0                          // Flags used to allocate the interrupt
+  );
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
+  auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
+    if (!pin) {
+      return;
+    }
+    const auto mask = gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN;
+    if ((pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
+      pin->setup();
+    }
+  };
+
+  setup_pin_if_needed(this->rx_pin_);
+  if (this->rx_pin_ != this->tx_pin_) {
+    setup_pin_if_needed(this->tx_pin_);
+  }
+
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
-  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_TXD_INV;
-  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted())
+  }
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_RXD_INV;
+  }
 
   err = uart_set_line_inverse(this->uart_num_, invert);
   if (err != ESP_OK) {
@@ -114,47 +167,60 @@ void IDFUARTComponent::setup() {
     return;
   }
 
-  err = uart_set_pin(this->uart_num_, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+  err = uart_set_pin(this->uart_num_, tx, rx, flow_control, UART_PIN_NO_CHANGE);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_pin failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
-  err = uart_driver_install(this->uart_num_, /* UART RX ring buffer size. */ this->rx_buffer_size_,
-                            /* UART TX ring buffer size. If set to zero, driver will not use TX buffer, TX function will
-                               block task until all data have been sent out.*/
-                            0,
-                            /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
-                            /* Flags used to allocate the interrupt. */ 0);
+  err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
-  xSemaphoreGive(this->lock_);
-}
+  err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
 
-void IDFUARTComponent::load_settings(bool dump_config) {
+  auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
+  err = uart_set_mode(this->uart_num_, mode);  // per docs, must be called only after uart_driver_install()
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
   uart_config_t uart_config = this->get_config_();
-  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
-  } else if (dump_config) {
-    ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
+  }
+
+  if (dump_config) {
+    ESP_LOGCONFIG(TAG, "Reloaded UART %u", this->uart_num_);
     this->dump_config();
   }
 }
 
 void IDFUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
-  LOG_PIN("  TX Pin: ", tx_pin_);
-  LOG_PIN("  RX Pin: ", rx_pin_);
+  LOG_PIN("  TX Pin: ", this->tx_pin_);
+  LOG_PIN("  RX Pin: ", this->rx_pin_);
+  LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
   if (this->rx_pin_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
+    ESP_LOGCONFIG(TAG,
+                  "  RX Buffer Size: %u\n"
+                  "  RX Full Threshold: %u\n"
+                  "  RX Timeout: %u",
+                  this->rx_buffer_size_, this->rx_full_threshold_, this->rx_timeout_);
   }
   ESP_LOGCONFIG(TAG,
                 "  Baud Rate: %" PRIu32 " baud\n"
@@ -165,10 +231,36 @@ void IDFUARTComponent::dump_config() {
   this->check_logger_conflict();
 }
 
+void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
+  if (this->is_ready()) {
+    esp_err_t err = uart_set_rx_full_threshold(this->uart_num_, rx_full_threshold);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
+      return;
+    }
+  }
+  this->rx_full_threshold_ = rx_full_threshold;
+}
+
+void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
+  if (this->is_ready()) {
+    esp_err_t err = uart_set_rx_timeout(this->uart_num_, rx_timeout);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
+      return;
+    }
+  }
+  this->rx_timeout_ = rx_timeout;
+}
+
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   xSemaphoreTake(this->lock_, portMAX_DELAY);
-  uart_write_bytes(this->uart_num_, data, len);
+  int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
   xSemaphoreGive(this->lock_);
+  if (write_len != (int32_t) len) {
+    ESP_LOGW(TAG, "uart_write_bytes failed: %d != %zu", write_len, len);
+    this->mark_failed();
+  }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
@@ -197,6 +289,7 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
 
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   size_t length_to_read = len;
+  int32_t read_len = 0;
   if (!this->check_read_timeout_(len))
     return false;
   xSemaphoreTake(this->lock_, portMAX_DELAY);
@@ -207,25 +300,31 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
     this->has_peek_ = false;
   }
   if (length_to_read > 0)
-    uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
+    read_len = uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
   xSemaphoreGive(this->lock_);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
 #endif
-  return true;
+  return read_len == (int32_t) length_to_read;
 }
 
 int IDFUARTComponent::available() {
-  size_t available;
+  size_t available = 0;
+  esp_err_t err;
 
   xSemaphoreTake(this->lock_, portMAX_DELAY);
-  uart_get_buffered_data_len(this->uart_num_, &available);
-  if (this->has_peek_)
-    available++;
+  err = uart_get_buffered_data_len(this->uart_num_, &available);
   xSemaphoreGive(this->lock_);
 
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_get_buffered_data_len failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+  }
+  if (this->has_peek_) {
+    available++;
+  }
   return available;
 }
 

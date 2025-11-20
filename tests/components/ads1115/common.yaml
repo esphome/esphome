@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_ads1115
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 ads1115:
+  i2c_id: i2c_bus
   address: 0x48
 
 sensor:
