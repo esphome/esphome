@@ -169,8 +169,8 @@ bool Image::get_binary_pixel_(int x, int y) const {
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * this->bpp_ / 8;
-  Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
-                      progmem_read_byte(this->data_start_ + pos + 2), 0xFF);
+  Color color = Color(progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 1),
+                      progmem_read_byte(this->data_start_ + pos + 0), 0xFF);
 
   switch (this->transparency_) {
     case TRANSPARENCY_CHROMA_KEY:
