@@ -154,8 +154,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 
   // For retries, check if there's a cancelled timeout first
   if (is_retry && name_cstr != nullptr && type == SchedulerItem::TIMEOUT &&
-      (has_cancelled_timeout_in_container_(this->items_, component, name_cstr, /* match_retry= */ true) ||
-       has_cancelled_timeout_in_container_(this->to_add_, component, name_cstr, /* match_retry= */ true))) {
+      (has_cancelled_timeout_in_container_locked_(this->items_, component, name_cstr, /* match_retry= */ true) ||
+       has_cancelled_timeout_in_container_locked_(this->to_add_, component, name_cstr, /* match_retry= */ true))) {
     // Skip scheduling - the retry was cancelled
 #ifdef ESPHOME_DEBUG_SCHEDULER
     ESP_LOGD(TAG, "Skipping retry '%s' - found cancelled item", name_cstr);
@@ -556,7 +556,8 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
 #ifndef ESPHOME_THREAD_SINGLE
   // Mark items in defer queue as cancelled (they'll be skipped when processed)
   if (type == SchedulerItem::TIMEOUT) {
-    total_cancelled += this->mark_matching_items_removed_(this->defer_queue_, component, name_cstr, type, match_retry);
+    total_cancelled +=
+        this->mark_matching_items_removed_locked_(this->defer_queue_, component, name_cstr, type, match_retry);
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
@@ -565,19 +566,20 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   // (removing the last element doesn't break heap structure)
   if (!this->items_.empty()) {
     auto &last_item = this->items_.back();
-    if (this->matches_item_(last_item, component, name_cstr, type, match_retry)) {
+    if (this->matches_item_locked_(last_item, component, name_cstr, type, match_retry)) {
       this->recycle_item_(std::move(this->items_.back()));
       this->items_.pop_back();
       total_cancelled++;
     }
     // For other items in heap, we can only mark for removal (can't remove from middle of heap)
-    size_t heap_cancelled = this->mark_matching_items_removed_(this->items_, component, name_cstr, type, match_retry);
+    size_t heap_cancelled =
+        this->mark_matching_items_removed_locked_(this->items_, component, name_cstr, type, match_retry);
     total_cancelled += heap_cancelled;
     this->to_remove_ += heap_cancelled;  // Track removals for heap items
   }
 
   // Cancel items in to_add_
-  total_cancelled += this->mark_matching_items_removed_(this->to_add_, component, name_cstr, type, match_retry);
+  total_cancelled += this->mark_matching_items_removed_locked_(this->to_add_, component, name_cstr, type, match_retry);
 
   return total_cancelled > 0;
 }

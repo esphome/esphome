@@ -4,8 +4,7 @@
 #include "light_state.h"
 #include "addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
@@ -216,5 +215,4 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
   }
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
