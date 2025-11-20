@@ -16,7 +16,7 @@ from .const import (
     CONF_AREA2_MIN,
     CONF_AREA3_MAX,
     CONF_AREA3_MIN,
-    CONF_LIGHT_THRESHOLD,
+    CONF_LIGHT_THRESHOLD_1,
 )
 
 MinDetectRangeNumber = dfrobot_c4002_ns.class_("MinDetectRangeNumber", number.Number)
@@ -109,7 +109,7 @@ async def to_code(config):
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_max_range_number(n))
     # 光照阈值
-    if light_threshold_config := config.get(CONF_LIGHT_THRESHOLD):
+    if light_threshold_config := config.get(CONF_LIGHT_THRESHOLD_1):
         light_threshold = await number.new_number(
             light_threshold_config, min_value=0, max_value=60, step=0.1
         )
