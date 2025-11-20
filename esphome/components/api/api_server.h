@@ -155,10 +155,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
     const char *entity_id_;  // Pointer to flash (internal) or heap (external)
-    const char *attribute_;  // Pointer to flash or nullptr
+    const char *attribute_;  // Pointer to flash or nullptr (nullptr means no attribute)
     std::function<void(std::string)> callback_;
     bool once_;
-    bool has_attribute_;
 
     // Storage for external components using std::string API (custom_api_device.h)
     // These are only allocated when using the std::string overload

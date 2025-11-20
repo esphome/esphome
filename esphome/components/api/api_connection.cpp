@@ -1541,8 +1541,8 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   for (auto &it : this->parent_->get_state_subs()) {
     // Compare entity_id and attribute with message fields
     bool entity_match = (strcmp(it.entity_id_, msg.entity_id.c_str()) == 0);
-    bool attribute_match =
-        it.has_attribute_ ? (strcmp(it.attribute_, msg.attribute.c_str()) == 0) : msg.attribute.empty();
+    bool attribute_match = (it.attribute_ != nullptr && strcmp(it.attribute_, msg.attribute.c_str()) == 0) ||
+                           (it.attribute_ == nullptr && msg.attribute.empty());
 
     if (entity_match && attribute_match) {
       it.callback_(msg.state);
@@ -1885,7 +1885,7 @@ void APIConnection::process_state_subscriptions_() {
   resp.set_entity_id(StringRef(it.entity_id_));
 
   // Avoid string copy by using the const char* pointer if it exists
-  resp.set_attribute(it.has_attribute_ ? StringRef(it.attribute_) : StringRef(""));
+  resp.set_attribute(it.attribute_ != nullptr ? StringRef(it.attribute_) : StringRef(""));
 
   resp.once = it.once_;
   if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {
