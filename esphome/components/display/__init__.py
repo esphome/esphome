@@ -45,6 +45,8 @@ DisplayPageShowNextAction = display_ns.class_(
 DisplayPageShowPrevAction = display_ns.class_(
     "DisplayPageShowPrevAction", automation.Action
 )
+DisplaySleepAction = display_ns.class_("DisplaySleepAction", automation.Action)
+DisplayWakeupAction = display_ns.class_("DisplayWakeupAction", automation.Action)
 DisplayIsDisplayingPageCondition = display_ns.class_(
     "DisplayIsDisplayingPageCondition", automation.Condition
 )
@@ -122,6 +124,12 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     }
 )
 FULL_DISPLAY_SCHEMA.add_extra(_validate_test_card)
+
+DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(CONF_ID): cv.use_id(Display),
+    }
+)
 
 
 async def setup_display_core_(var, config):
@@ -314,6 +322,21 @@ async def display_page_show_next_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def display_page_show_previous_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "display.sleep",
+    DisplaySleepAction,
+    DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA,
+)
+@automation.register_action(
+    "display.wakeup",
+    DisplayWakeupAction,
+    DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA,
+)
+async def display_sleep_wakeup_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
