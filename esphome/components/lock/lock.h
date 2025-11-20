@@ -7,8 +7,7 @@
 #include "esphome/core/preferences.h"
 #include <initializer_list>
 
-namespace esphome {
-namespace lock {
+namespace esphome::lock {
 
 class Lock;
 
@@ -177,5 +176,4 @@ class Lock : public EntityBase {
   ESPPreferenceObject rtc_;
 };
 
-}  // namespace lock
-}  // namespace esphome
+}  // namespace esphome::lock

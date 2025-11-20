@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "select.h"
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 class SelectStateTrigger : public Trigger<std::string, size_t> {
  public:
@@ -63,5 +62,4 @@ template<typename... Ts> class SelectOperationAction : public Action<Ts...> {
   Select *select_;
 };
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select
