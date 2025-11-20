@@ -66,7 +66,7 @@ static void dump_field(std::string &out, const char *field_name, float value, in
 static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%llu", value);
+  snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 
@@ -2053,7 +2053,7 @@ void ListEntitiesEventResponse::dump_to(std::string &out) const {
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "device_class", this->device_class_ref_);
-  for (const auto &it : this->event_types) {
+  for (const auto &it : *this->event_types) {
     dump_field(out, "event_types", it, 4);
   }
 #ifdef USE_DEVICES

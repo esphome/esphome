@@ -50,21 +50,13 @@ class BedJetClimate : public climate::Climate, public BedJetClient, public Polli
         // Climate doesn't have a "TURBO" mode, but we can use the BOOST preset instead.
         climate::CLIMATE_PRESET_BOOST,
     });
+    // String literals are stored in rodata and valid for program lifetime
     traits.set_supported_custom_presets({
-        // We could fetch biodata from bedjet and set these names that way.
-        // But then we have to invert the lookup in order to send the right preset.
-        // For now, we can leave them as M1-3 to match the remote buttons.
-        // EXT HT added to match remote button.
-        "EXT HT",
+        this->heating_mode_ == HEAT_MODE_EXTENDED ? "LTD HT" : "EXT HT",
         "M1",
         "M2",
         "M3",
     });
-    if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
-      traits.add_supported_custom_preset("LTD HT");
-    } else {
-      traits.add_supported_custom_preset("EXT HT");
-    }
     traits.set_visual_min_temperature(19.0);
     traits.set_visual_max_temperature(43.0);
     traits.set_visual_temperature_step(1.0);
