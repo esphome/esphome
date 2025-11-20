@@ -3,8 +3,13 @@
 
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#ifdef USE_ESP_IDF
+#include "esp_task_wdt.h"
+#endif
 
 static const char *const TAG = "image_decoder.jpeg";
 
@@ -22,9 +27,13 @@ static int draw_callback(JPEGDRAW *jpeg) {
 
   // Some very big images take too long to decode, so feed the watchdog on each callback
   // to avoid crashing if the executing task has a watchdog enabled.
+#ifdef USE_ESP_IDF
   if (esp_task_wdt_status(nullptr) == ESP_OK) {
+#endif
     App.feed_wdt();
+#ifdef USE_ESP_IDF
   }
+#endif
   size_t position = 0;
   size_t height = static_cast<size_t>(jpeg->iHeight);
   size_t width = static_cast<size_t>(jpeg->iWidth);
