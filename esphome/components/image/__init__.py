@@ -88,6 +88,7 @@ class ImageEncoder:
         self.index = 0
         self.invert_alpha = invert_alpha
         self.path = ""
+        self.big_endian = True
 
     def convert(self, image, path):
         """
@@ -114,6 +115,9 @@ class ImageEncoder:
         Called at the end of the image.
         :return:
         """
+
+    def set_big_endian(self, big_endian: bool) -> None:
+        self.big_endian = big_endian
 
     @classmethod
     def is_endian(cls) -> bool:
@@ -217,9 +221,6 @@ class ImageRGB565(ImageEncoder):
         )
         self.alpha = [0] * width * height
         self.big_endian = True
-
-    def set_big_endian(self, big_endian: bool) -> None:
-        self.big_endian = big_endian
 
     def convert(self, image, path):
         return image.convert("RGBA")

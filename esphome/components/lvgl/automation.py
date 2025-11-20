@@ -79,7 +79,7 @@ async def layers_to_code(lv_component, config):
             await set_obj_properties(top_w, top_conf)
             await add_widgets(top_w, top_conf)
     if bottom_conf := config.get(CONF_BOTTOM_LAYER):
-        bottom_layer = lv_expr.display_get_layer_bottom(lv_component.var.get_disp())
+        bottom_layer = lv_expr.display_get_layer_bottom(lv_component.get_disp())
         with LocalVariable("bottom_layer", lv_obj_t, bottom_layer) as bottom_layer_obj:
             bottom_w = Widget(bottom_layer_obj, layer_spec, bottom_conf)
             await set_obj_properties(bottom_w, bottom_conf)
@@ -231,7 +231,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
         )
         config[CONF_BOTTOM_LAYER] = bottom
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
-        await layers_to_code(w, config)
+        await layers_to_code(w.var, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)
     return var
