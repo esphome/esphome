@@ -889,6 +889,20 @@ message ExecuteServiceRequest {
 
   fixed32 key = 1;
   repeated ExecuteServiceArgument args = 2 [(fixed_vector) = true];
+  uint32 call_id = 3 [(field_ifdef) = "USE_API_SERVICE_RESPONSES"];
+}
+
+// Message sent by ESPHome to Home Assistant with service execution response data
+message ExecuteServiceResponse {
+  option (id) = 131;
+  option (source) = SOURCE_SERVER;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_SERVICE_RESPONSES";
+
+  uint32 call_id = 1; // Matches the call_id from ExecuteServiceRequest
+  bool success = 2; // Whether the service execution succeeded
+  string error_message = 3; // Error message if success = false
+  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_SERVICE_RESPONSE_JSON"];
 }
 
 // ==================== CAMERA ====================

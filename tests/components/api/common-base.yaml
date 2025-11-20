@@ -177,6 +177,47 @@ api:
             else:
               - logger.log: "Skipped loops"
         - logger.log: "After combined test"
+    # Test api.respond action - simple success response
+    - action: test_respond_simple
+      then:
+        - api.respond:
+            success: true
+    # Test api.respond action - with error message
+    - action: test_respond_error
+      variables:
+        error_msg: string
+      then:
+        - api.respond:
+            success: false
+            error_message: !lambda 'return error_msg;'
+    # Test api.respond action - with JSON data
+    - action: test_respond_with_data
+      variables:
+        sensor_name: string
+        value: float
+      then:
+        - api.respond:
+            data: |-
+              root["sensor"] = sensor_name;
+              root["value"] = value;
+              root["unit"] = "°C";
+    # Test api.respond action - conditional response
+    - action: test_respond_conditional
+      variables:
+        do_succeed: bool
+      then:
+        - if:
+            condition:
+              lambda: 'return do_succeed;'
+            then:
+              - api.respond:
+                  success: true
+                  data: |-
+                    root["status"] = "ok";
+            else:
+              - api.respond:
+                  success: false
+                  error_message: "Operation failed"
 
 event:
   - platform: template

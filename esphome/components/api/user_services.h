@@ -6,6 +6,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "api_pb2.h"
+#include "api_server.h"
+#ifdef USE_API_SERVICE_RESPONSE_JSON
+#include "esphome/components/json/json_util.h"
+#endif
 
 #ifdef USE_API_SERVICES
 namespace esphome::api {
@@ -120,6 +124,60 @@ template<typename... Ts> class UserServiceTrigger : public UserServiceBase<Ts...
  protected:
   void execute(Ts... x) override { this->trigger(x...); }  // NOLINT
 };
+
+#ifdef USE_API_SERVICE_RESPONSES
+template<typename... Ts> class APIRespondAction : public Action<Ts...> {
+ public:
+  explicit APIRespondAction(APIServer *parent) : parent_(parent) {}
+
+  template<typename V> void set_success(V success) { this->success_ = success; }
+  template<typename V> void set_error_message(V error) { this->error_message_ = error; }
+
+#ifdef USE_API_SERVICE_RESPONSE_JSON
+  void set_data(std::function<void(Ts..., JsonObject)> func) {
+    this->json_builder_ = std::move(func);
+    this->has_data_ = true;
+  }
+#endif
+
+  void play(Ts... x) override {
+    if (!this->parent_->has_current_service_call()) {
+      ESP_LOGW("api", "api.respond called outside of service execution context");
+      return;
+    }
+
+    bool success = this->success_.value(x...);
+    std::string error_message = this->error_message_.value(x...);
+
+#ifdef USE_API_SERVICE_RESPONSE_JSON
+    if (this->has_data_) {
+      // Build JSON response
+      std::string json_str;
+      {
+        JsonDocument doc;
+        JsonObject root = doc.to<JsonObject>();
+        this->json_builder_(x..., root);
+        json::serialize_json(root, json_str);
+      }
+      this->parent_->send_service_response(success, error_message, reinterpret_cast<const uint8_t *>(json_str.data()),
+                                           json_str.size());
+    } else
+#endif
+    {
+      this->parent_->send_service_response(success, error_message);
+    }
+  }
+
+ protected:
+  APIServer *parent_;
+  TemplatableValue<bool, Ts...> success_{true};
+  TemplatableValue<std::string, Ts...> error_message_{""};
+#ifdef USE_API_SERVICE_RESPONSE_JSON
+  std::function<void(Ts..., JsonObject)> json_builder_;
+  bool has_data_{false};
+#endif
+};
+#endif  // USE_API_SERVICE_RESPONSES
 
 }  // namespace esphome::api
 #endif  // USE_API_SERVICES

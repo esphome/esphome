@@ -132,6 +132,25 @@ class APIServer : public Component, public Controller {
   // Only compile push_back method when custom_services: true (external components)
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
+#ifdef USE_API_SERVICE_RESPONSES
+  // Service response handling - set context before triggering service, clear after
+  void set_current_service_call(uint32_t call_id, APIConnection *conn) {
+    this->current_service_call_id_ = call_id;
+    this->current_service_connection_ = conn;
+  }
+  void clear_current_service_call() {
+    this->current_service_call_id_ = 0;
+    this->current_service_connection_ = nullptr;
+  }
+  uint32_t get_current_service_call_id() const { return this->current_service_call_id_; }
+  bool has_current_service_call() const { return this->current_service_call_id_ != 0; }
+  // Send response for current service call
+  void send_service_response(bool success, const std::string &error_message);
+#ifdef USE_API_SERVICE_RESPONSE_JSON
+  void send_service_response(bool success, const std::string &error_message, const uint8_t *response_data,
+                             size_t response_data_len);
+#endif  // USE_API_SERVICE_RESPONSE_JSON
+#endif  // USE_API_SERVICE_RESPONSES
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
@@ -208,6 +227,11 @@ class APIServer : public Component, public Controller {
 #endif
 #ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
+#ifdef USE_API_SERVICE_RESPONSES
+  // Current service call context for sending responses
+  uint32_t current_service_call_id_{0};
+  APIConnection *current_service_connection_{nullptr};
+#endif  // USE_API_SERVICE_RESPONSES
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   struct PendingActionResponse {

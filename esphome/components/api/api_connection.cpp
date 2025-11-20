@@ -1544,6 +1544,12 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
 #ifdef USE_API_SERVICES
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
+#ifdef USE_API_SERVICE_RESPONSES
+  // Set the call context before executing so responses can be sent
+  if (msg.call_id != 0) {
+    this->parent_->set_current_service_call(msg.call_id, this);
+  }
+#endif
   for (auto *service : this->parent_->get_user_services()) {
     if (service->execute_service(msg)) {
       found = true;
@@ -1552,7 +1558,32 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   if (!found) {
     ESP_LOGV(TAG, "Could not find service");
   }
+#ifdef USE_API_SERVICE_RESPONSES
+  // Clear call context after execution (if not already cleared by sending a response)
+  this->parent_->clear_current_service_call();
+#endif
 }
+#ifdef USE_API_SERVICE_RESPONSES
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message) {
+  ExecuteServiceResponse resp;
+  resp.call_id = call_id;
+  resp.success = success;
+  resp.error_message = error_message;
+  this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
+}
+#ifdef USE_API_SERVICE_RESPONSE_JSON
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+                                                  const uint8_t *response_data, size_t response_data_len) {
+  ExecuteServiceResponse resp;
+  resp.call_id = call_id;
+  resp.success = success;
+  resp.error_message = error_message;
+  resp.response_data = response_data;
+  resp.response_data_len = response_data_len;
+  this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
+}
+#endif  // USE_API_SERVICE_RESPONSE_JSON
+#endif  // USE_API_SERVICE_RESPONSES
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES

@@ -63,6 +63,7 @@ HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
 APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
+APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 
 UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
@@ -534,6 +535,49 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     cg.add(var.init_data(1))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
     cg.add(var.add_data("tag_id", templ))
+    return var
+
+
+CONF_SUCCESS = "success"
+CONF_ERROR_MESSAGE = "error_message"
+
+API_RESPOND_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(APIServer),
+        cv.Optional(CONF_SUCCESS, default=True): cv.templatable(cv.boolean),
+        cv.Optional(CONF_ERROR_MESSAGE, default=""): cv.templatable(cv.string),
+        cv.Optional(CONF_DATA): cv.lambda_,
+    }
+)
+
+
+@automation.register_action(
+    "api.respond",
+    APIRespondAction,
+    API_RESPOND_ACTION_SCHEMA,
+)
+async def api_respond_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_SERVICE_RESPONSES")
+    serv = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, serv)
+
+    templ = await cg.templatable(config[CONF_SUCCESS], args, bool)
+    cg.add(var.set_success(templ))
+
+    templ = await cg.templatable(config[CONF_ERROR_MESSAGE], args, cg.std_string)
+    cg.add(var.set_error_message(templ))
+
+    if CONF_DATA in config:
+        cg.add_define("USE_API_SERVICE_RESPONSE_JSON")
+        # Track for AUTO_LOAD to include json component
+        CORE.data.setdefault(DOMAIN, {})[CONF_CAPTURE_RESPONSE] = True
+        lambda_ = await cg.process_lambda(
+            config[CONF_DATA],
+            args + [(cg.JsonObject, "root")],
+            return_type=cg.void,
+        )
+        cg.add(var.set_data(lambda_))
+
     return var
 
 

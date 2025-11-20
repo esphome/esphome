@@ -430,6 +430,30 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 
+#ifdef USE_API_SERVICE_RESPONSES
+void APIServer::send_service_response(bool success, const std::string &error_message) {
+  if (this->current_service_connection_ == nullptr || this->current_service_call_id_ == 0) {
+    ESP_LOGW(TAG, "Cannot send service response: no active service call");
+    return;
+  }
+  this->current_service_connection_->send_execute_service_response(this->current_service_call_id_, success,
+                                                                   error_message);
+  this->clear_current_service_call();
+}
+#ifdef USE_API_SERVICE_RESPONSE_JSON
+void APIServer::send_service_response(bool success, const std::string &error_message, const uint8_t *response_data,
+                                      size_t response_data_len) {
+  if (this->current_service_connection_ == nullptr || this->current_service_call_id_ == 0) {
+    ESP_LOGW(TAG, "Cannot send service response: no active service call");
+    return;
+  }
+  this->current_service_connection_->send_execute_service_response(this->current_service_call_id_, success,
+                                                                   error_message, response_data, response_data_len);
+  this->clear_current_service_call();
+}
+#endif  // USE_API_SERVICE_RESPONSE_JSON
+#endif  // USE_API_SERVICE_RESPONSES
+
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {

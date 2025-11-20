@@ -94,7 +94,8 @@ static void dump_field(std::string &out, const char *field_name, const char *val
   out.append("\n");
 }
 
-template<typename T> static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
+template<typename T>
+static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
   out.append("\n");
@@ -445,8 +446,7 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerFormatPurpose>(enu
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-template<>
-const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
+template<> const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT";
@@ -495,8 +495,7 @@ template<> const char *proto_enum_to_string<enums::BluetoothScannerMode>(enums::
   }
 }
 #endif
-template<>
-const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
+template<> const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_SUBSCRIBE_NONE:
       return "VOICE_ASSISTANT_SUBSCRIBE_NONE";
@@ -599,8 +598,7 @@ template<> const char *proto_enum_to_string<enums::AlarmControlPanelState>(enums
       return "UNKNOWN";
   }
 }
-template<>
-const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
+template<> const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
   switch (value) {
     case enums::ALARM_CONTROL_PANEL_DISARM:
       return "ALARM_CONTROL_PANEL_DISARM";
@@ -675,6 +673,7 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
   }
 }
 #endif
+
 
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
@@ -1095,7 +1094,7 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
 void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyRequest");
   out.append("  key: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->key.data()), this->key.size()));
+  out.append(format_hex_pretty(reinterpret_cast<const uint8_t*>(this->key.data()), this->key.size()));
   out.append("\n");
 }
 void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
@@ -1221,6 +1220,22 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#ifdef USE_API_SERVICE_RESPONSES
+  dump_field(out, "call_id", this->call_id);
+#endif
+}
+#endif
+#ifdef USE_API_SERVICE_RESPONSES
+void ExecuteServiceResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ExecuteServiceResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message_ref_);
+#ifdef USE_API_SERVICE_RESPONSE_JSON
+  out.append("  response_data: ");
+  out.append(format_hex_pretty(this->response_data, this->response_data_len));
+  out.append("\n");
+#endif
 }
 #endif
 #ifdef USE_CAMERA
@@ -1823,10 +1838,10 @@ void VoiceAssistantAudio::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAudio");
   out.append("  data: ");
   if (this->data_ptr_ != nullptr) {
-    out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
-  } else {
-    out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size()));
-  }
+      out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
+    } else {
+      out.append(format_hex_pretty(reinterpret_cast<const uint8_t*>(this->data.data()), this->data.size()));
+    }
   out.append("\n");
   dump_field(out, "end", this->end);
 }
