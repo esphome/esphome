@@ -1,8 +1,9 @@
 #pragma once
 #include <tuple>
 #include <format>
-#include "coap_client_component.h"
+#include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
+#include "coap_client_component.h"
 
 namespace esphome::coap_client {
 
@@ -129,7 +130,7 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
     return this->success_trigger_;
   }
   const std::shared_ptr<CoapResponseStatistics> response_stats = std::make_shared<CoapResponseStatistics>();
-  const std::shared_ptr<CoapResponseStatistics> get_response_stats() { return response_stats; }
+  std::shared_ptr<CoapResponseStatistics> get_response_stats() { return response_stats; }
 
   bool response_finished{false};
 
@@ -145,7 +146,7 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
 
  protected:
   std::string response_payload_;
-  CoapMethod get_method_(std::string method) {
+  CoapMethod get_method_(std::string const &method) {
     if (method == "GET") {
       return CoapMethod::GET;
     } else if (method == "POST") {
@@ -164,7 +165,7 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
     return CoapMethod::EMPTY;
   }
 
-  CoapMediaType get_media_type_(std::string media_type) {
+  CoapMediaType get_media_type_(std::string const &media_type) {
     if (media_type == "TEXT_PLAIN") {
       return CoapMediaType::TEXT_PLAIN;
     } else if (media_type == "APPLICATION_JSON") {

@@ -6,7 +6,7 @@
 #include <string>
 #include <map>
 #include <mutex>
-#include "coap3/coap.h"
+#include <coap3/coap.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "esphome/core/component.h"
@@ -59,7 +59,7 @@ struct CoapClientRequestData {
 
   void set_pdu_token(const uint8_t *data, size_t size) { this->pdu_token = coap_new_bin_const(data, size); }
 
-  void set_pdu_token(coap_bin_const_t *pdu_token) {
+  void set_pdu_token(coap_bin_const_t *const pdu_token) {
     if (pdu_token) {
       this->pdu_token = coap_new_bin_const(pdu_token->s, pdu_token->length);
     }
