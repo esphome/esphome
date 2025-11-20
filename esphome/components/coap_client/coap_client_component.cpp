@@ -15,7 +15,7 @@
 
 namespace esphome::coap_client {
 
-static const char *TAG = "coap_client";
+static const char *const TAG = "coap_client";
 
 // CoapClientComponent
 CoapClientComponent *global_coap_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -110,7 +110,7 @@ bool CoapClientComponent::teardown() {
     }
   }
   uint8_t cnt = 100;
-  while (this->tx_requests_.size() > 0 && cnt > 0) {
+  while (!this->tx_requests_.empty() && cnt > 0) {
     delay(pdMS_TO_TICKS(this->request_timeout_));
     cnt--;
   }
@@ -146,7 +146,7 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
   coap_pdu_code_t rcvd_code = coap_pdu_get_code(received);
   uint16_t rcode = (((rcvd_code >> 5) & 0x07) * 100) + (rcvd_code & 0x1F);
   coap_bin_const_t pdu_token = coap_pdu_get_token(received);
-  ESP_LOGV(TAG, "Response pdu_token %d", coap_decode_var_bytes8(pdu_token.s, pdu_token.length));
+  ESP_LOGV(TAG, "Response pdu_token %llu", coap_decode_var_bytes8(pdu_token.s, pdu_token.length));
   size_t tx_i = 0;
   bool is_found = false;
   for (const auto &ptr : this->tx_requests_) {
@@ -200,8 +200,8 @@ void CoapClientComponent::get(std::string uri,
                               void *callback_context, uint32_t response_timeout) {
   CoapClientRequestData tx_request = {
       .method = CoapMethod::GET,
-      .uri = uri,
-      .callback = callback,
+      .uri = std::move(uri),
+      .callback = std::move(callback),
       .callback_context = callback_context,
       .response_timeout = response_timeout,
   };
@@ -216,11 +216,11 @@ void CoapClientComponent::post(std::string uri,
                                uint32_t response_timeout) {
   CoapClientRequestData tx_request = {
       .method = CoapMethod::POST,
-      .uri = uri,
-      .callback = callback,
+      .uri = std::move(uri),
+      .callback = std::move(callback),
       .callback_context = callback_context,
       .media_type = media_type,
-      .payload = payload,
+      .payload = std::move(payload),
       .response_timeout = response_timeout,
   };
   this->process_request(tx_request);
@@ -228,12 +228,12 @@ void CoapClientComponent::post(std::string uri,
 
 void CoapClientComponent::process_request(CoapClientRequestData &tx_request) {
   ESP_LOGD(TAG, "%s %s", coap_method_to_string(tx_request.method), tx_request.uri.c_str());
-  if (tx_request.payload.length() > 0) {
+  if (!tx_request.payload.empty()) {
     ESP_LOGD(TAG, "payload media_type %s, payload starts with %.*s", coap_media_type_to_string(tx_request.media_type),
              std::min(10, (int) tx_request.payload.length()), tx_request.payload.c_str());
   }
   uint32_t dtime = micros();
-  std::string name = tx_request.name.length() > 0 ? tx_request.name : std::format("{}", dtime);
+  std::string name = !tx_request.payload.empty() ? tx_request.name : std::format("{}", dtime);
   std::unique_ptr<CoapClientRequestData> utx_request_ptr = std::make_unique<CoapClientRequestData>();
   ESP_LOGV(TAG, "Name:'%s' oname:'%s', time:'%s'", name.c_str(), tx_request.name.c_str(),
            (std::format("{}", dtime)).c_str());
@@ -259,9 +259,9 @@ void CoapClientComponent::process_request(CoapClientRequestData &tx_request) {
   }
 }
 
-void CoapClientComponent::remove(std::string name) {
+void CoapClientComponent::remove(std::string const &name) {
   for (const auto &ptr : this->tx_requests_) {
-    if (ptr->observe && (name.length() == 0 || ptr->name == name)) {
+    if (ptr->observe && (name.empty() || ptr->name == name)) {
       ESP_LOGD(TAG, "Queue Request to terminate observation of Request: %s", ptr->name.c_str());
       ptr->observe = false;
       xQueueSend(this->request_queue_, (void *) &ptr->create_timestamp, pdMS_TO_TICKS(1000));
@@ -376,7 +376,7 @@ void CoapClientComponent::main_() {
         // Create CoAP token
         if (tx_request->pdu_token)  // observe, so session exists libcoap
         {
-          ESP_LOGV(TAG, "Use pdu_token %d from %s",
+          ESP_LOGV(TAG, "Use pdu_token %llu from %s",
                    coap_decode_var_bytes8(tx_request->pdu_token->s, tx_request->pdu_token->length),
                    tx_request->name.c_str());
           if (!coap_add_token(request, tx_request->pdu_token->length, tx_request->pdu_token->s)) {
@@ -384,7 +384,7 @@ void CoapClientComponent::main_() {
           }
         } else {
           coap_session_new_token(session, &token_length, token);
-          ESP_LOGV(TAG, "New pdu_token %d for %s", coap_decode_var_bytes8(token, token_length),
+          ESP_LOGV(TAG, "New pdu_token %llu for %s", coap_decode_var_bytes8(token, token_length),
                    tx_request->name.c_str());
           if (!coap_add_token(request, token_length, token)) {
             ESP_LOGE(TAG, "Unable to add token to request");
@@ -408,7 +408,7 @@ void CoapClientComponent::main_() {
                           buf);
         }
         // Payload
-        if (tx_request->payload.length() > 0) {
+        if (!tx_request->payload.empty()) {
           u_char buf[4];
           coap_insert_optlist(&opt_list,
                               coap_new_optlist(COAP_OPTION_CONTENT_FORMAT,
@@ -435,7 +435,7 @@ void CoapClientComponent::main_() {
           ESP_LOGE(TAG, "CoAP I/O error! Exiting Inner Loop.");
           break;
         }
-        if (result >= wait_ms) {
+        if ((uint32_t) result >= wait_ms) {
           ESP_LOGV(TAG, "No Processing Occurred Exiting Inner Loop");
           break;
         } else {
@@ -453,7 +453,7 @@ void CoapClientComponent::main_() {
 }
 
 void CoapClientComponent::housekeeping_() {
-  if (this->tx_requests_.size() > 0) {
+  if (!tx_requests_.empty()) {
     // clean up to prevent leak
     CoapClientRequestData *tx_request = nullptr;
     size_t tx_i = 0;
