@@ -435,11 +435,7 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
                                         std::function<void(std::string)> f, bool once) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id_ = entity_id,
-      .attribute_ = attribute,
-      .callback_ = std::move(f),
-      .once_ = once,
-      .has_attribute_ = (attribute != nullptr),
+      .entity_id_ = entity_id, .attribute_ = attribute, .callback_ = std::move(f), .once_ = once,
       // entity_id_copy_ and attribute_copy_ remain nullptr (no heap allocation)
   });
 }
@@ -455,10 +451,8 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
   if (attribute.has_value()) {
     sub.attribute_copy_ = std::make_unique<std::string>(std::move(attribute.value()));
     sub.attribute_ = sub.attribute_copy_->c_str();
-    sub.has_attribute_ = true;
   } else {
     sub.attribute_ = nullptr;
-    sub.has_attribute_ = false;
   }
 
   sub.callback_ = std::move(f);
