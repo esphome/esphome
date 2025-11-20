@@ -11,7 +11,6 @@ static const char *const TAGA = "coap_client_auto";
 
 class CoapResponseStatistics {
  public:
-  std::string request_name;
   size_t content_length;
   uint16_t status_code;
   uint32_t duration_ms;
@@ -74,7 +73,6 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
     this->max_resp_buffer_size = this->max_response_buffer_size_.value(x...);
     this->capture_resp = this->capture_response_.value(x...);
     this->response_payload_ = "";
-    this->response_has_error = false;
     this->response_finished = false;
     resp_stats->start_ms = esphome::millis();
     this->captured_args = std::make_tuple(x...);
@@ -83,25 +81,20 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
 
   void trigger_this() {
     auto resp_stats = get_response_stats();
+    auto request_name = this->request_name;
     auto captured_args = this->captured_args;
 
-    if (this->response_has_error) {
-      std::apply([this, &resp_stats](
-                     Ts... captured_args_inner) { this->error_trigger_->trigger(resp_stats, captured_args_inner...); },
-                 captured_args);
-    } else {
-      // response_payload will be "" if capture_response = false;
-      std::string response_payload = this->response_payload_;
-      if (capture_resp) {
-        ESP_LOGV(TAGA, "Payload: %s", response_payload.c_str());
-      }
-      std::apply(
-          [this, &resp_stats, &response_payload](Ts... captured_args_inner) {
-            this->success_trigger_->trigger(resp_stats, response_payload, captured_args_inner...);
-          },
-          captured_args);
+    // response_payload will be "" if capture_response = false;
+    std::string response_payload = this->response_payload_;
+    if (capture_resp) {
+      ESP_LOGV(TAGA, "Payload: %s", response_payload.c_str());
     }
-  }  // play
+    std::apply(
+        [this, &resp_stats, &request_name, &response_payload](Ts... captured_args_inner) {
+          this->success_trigger_->trigger(resp_stats, request_name, response_payload, captured_args_inner...);
+        },
+        captured_args);
+  }
 
   static void callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset, size_t total,
                        void *context) {
@@ -112,8 +105,6 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
 
     if (len == 0 && offset == 0 && total == 0 && (response_code < 200 || response_code > 299)) {
       // Error
-      obj->response_has_error = true;
-      resp_stats->request_name = obj->request_name;
       resp_stats->content_length = 0;
       resp_stats->status_code = response_code;
       resp_stats->duration_ms = esphome::millis() - resp_stats->start_ms;
@@ -130,7 +121,6 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
       }
     }
     if (total > 0 && len + offset == total) {
-      resp_stats->request_name = obj->request_name;
       resp_stats->content_length = total;
       resp_stats->status_code = response_code;
       resp_stats->duration_ms = esphome::millis() - obj->response_stats->start_ms;
@@ -143,16 +133,13 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
 
   void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
 
-  Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, Ts...> *get_success_trigger() const {
+  Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, std::string &, Ts...> *get_success_trigger() const {
     return this->success_trigger_;
   }
-  Trigger<std::shared_ptr<CoapResponseStatistics>, Ts...> *get_error_trigger() const { return this->error_trigger_; }
-
   const std::shared_ptr<CoapResponseStatistics> response_stats = std::make_shared<CoapResponseStatistics>();
   const std::shared_ptr<CoapResponseStatistics> get_response_stats() { return response_stats; }
 
   bool response_finished{false};
-  bool response_has_error{false};
 
   size_t max_resp_buffer_size{1000};
   std::string request_name{};
@@ -221,11 +208,8 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
 
-  Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, Ts...> *success_trigger_ =
-      new Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, Ts...>();
-
-  Trigger<std::shared_ptr<CoapResponseStatistics>, Ts...> *error_trigger_ =
-      new Trigger<std::shared_ptr<CoapResponseStatistics>, Ts...>();
+  Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, std::string &, Ts...> *success_trigger_ =
+      new Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, std::string &, Ts...>();
 };
 
 template<typename... Ts> class CoapClientRemoveAction : public Action<Ts...> {

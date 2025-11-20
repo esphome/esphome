@@ -244,7 +244,7 @@ void CoapClientComponent::process_request(CoapClientRequestData &tx_request) {
   uint32_t dtime = micros();
   std::string name = tx_request.name.length() > 0 ? tx_request.name : std::format("{}", dtime);
   std::unique_ptr<CoapClientRequestData> utx_request_ptr = std::make_unique<CoapClientRequestData>();
-  ESP_LOGD(TAG, "Name:'%s' oname:'%s', time:'%s'", name.c_str(), tx_request.name.c_str(),
+  ESP_LOGV(TAG, "Name:'%s' oname:'%s', time:'%s'", name.c_str(), tx_request.name.c_str(),
            (std::format("{}", dtime)).c_str());
   utx_request_ptr->name = name;
   utx_request_ptr->create_timestamp = dtime;

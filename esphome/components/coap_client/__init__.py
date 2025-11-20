@@ -4,19 +4,19 @@ from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CAPTURE_RESPONSE,
+    CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_ID,
     CONF_METHOD,
-    CONF_ON_ERROR,
     CONF_ON_RESPONSE,
+    CONF_PAYLOAD,
     CONF_URL,
 )
 from esphome.core import Lambda
 
 from .const import (
     CONF_ACK_TIMEOUT,
-    CONF_CA_PEM,
-    CONF_CLIENT_CRT,
-    CONF_CLIENT_KEY,
     CONF_JSON,
     CONF_MAX_BLOCK_SIZE,
     CONF_MAX_RESPONSE_BUFFER_SIZE,
@@ -24,7 +24,6 @@ from .const import (
     CONF_MEDIA_TYPE,
     CONF_OBSERVE,
     CONF_OSCORE_CONF,
-    CONF_PAYLOAD,
     CONF_PSK_IDENTITY,
     CONF_PSK_KEY,
     CONF_REQUEST_NAME,
@@ -70,9 +69,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_OSCORE_CONF): cv.string,
         cv.Optional(CONF_PSK_IDENTITY): cv.string,
         cv.Optional(CONF_PSK_KEY): cv.string,
-        cv.Optional(CONF_CA_PEM): cv.string,
-        cv.Optional(CONF_CLIENT_CRT): cv.string,
-        cv.Optional(CONF_CLIENT_KEY): cv.string,
+        cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.string,
+        cv.Optional(CONF_CLIENT_CERTIFICATE): cv.string,
+        cv.Optional(CONF_CLIENT_CERTIFICATE_KEY): cv.string,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -99,26 +98,26 @@ async def to_code(config):
         cg.add(var.set_psk_identity(psk_identity))
     if (psk_key := config.get(CONF_PSK_KEY)) is not None:
         cg.add(var.set_psk_key(psk_key))
-    if (ca_pem := config.get(CONF_CA_PEM)) is not None:
+    if (ca_pem := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
         add_idf_sdkconfig_option("CONFIG_COAP_MBEDTLS_PKI", True)
         cg.add(var.set_psk_key(ca_pem))
-    if (client_crt := config.get(CONF_CLIENT_CRT)) is not None:
+    if (client_crt := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
         cg.add(var.set_client_crt(client_crt))
-    if (client_key := config.get(CONF_CLIENT_KEY)) is not None:
+    if (client_key := config.get(CONF_CLIENT_CERTIFICATE_KEY)) is not None:
         cg.add(var.set_client_key(client_key))
 
 
-CONF_MEDIA_TYPES = [
-    "TEXT_PLAIN",
-    "APPLICATION_JSON",
-    "APPLICATION_LINK_FORMAT",
-    "APPLICATION_XML",
-    "APPLICATION_OCTET_STREAM",
-    "APPLICATION_RDF_XML",
-    "APPLICATION_EXI",
-    "APPLICATION_CBOR",
-    "APPLICATION_CWT",
-]
+CONF_MEDIA_TYPES = {
+    "text/plain": "TEXT_PLAIN",
+    "application/json": "APPLICATION_JSON",
+    "application/link_format": "APPLICATION_LINK_FORMAT",
+    "application/xml": "APPLICATION_XML",
+    "application/octet_stream": "APPLICATION_OCTET_STREAM",
+    "application/rdf_xml": "APPLICATION_RDF_XML",
+    "application/exi": "APPLICATION_EXI",
+    "application/cbor": "APPLICATION_CBOR",
+    "application/cwt": "APPLICATION_CWT",
+}
 
 COAP_CLIENT_ACTION_SCHEMA = cv.Schema(
     {
@@ -132,7 +131,6 @@ COAP_CLIENT_ACTION_SCHEMA = cv.Schema(
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_OBSERVE, default="False"): cv.boolean,
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
     }
 )
 COAP_CLIENT_GET_ACTION_SCHEMA = automation.maybe_conf(
@@ -149,7 +147,7 @@ COAP_CLIENT_POST_ACTION_SCHEMA = automation.maybe_conf(
         {
             cv.Optional(CONF_METHOD, default="POST"): cv.one_of("POST", upper=True),
             cv.Optional(CONF_MEDIA_TYPE, default="TEXT_PLAIN"): cv.one_of(
-                CONF_MEDIA_TYPES, upper=True
+                CONF_MEDIA_TYPES.keys(), lower=True
             ),
             cv.Exclusive(CONF_PAYLOAD, "payload"): cv.templatable(cv.string),
             cv.Exclusive(CONF_JSON, "payload"): cv.Any(
@@ -167,7 +165,7 @@ COAP_CLIENT_SEND_ACTION_SCHEMA = automation.maybe_conf(
                 "GET", "POST", "PUT", "DELETE", "PATCH", upper=True
             ),
             cv.Optional(CONF_MEDIA_TYPE, default="TEXT_PLAIN"): cv.one_of(
-                CONF_MEDIA_TYPES, upper=True
+                CONF_MEDIA_TYPES.keys(), lower=True
             ),
             cv.Exclusive(CONF_PAYLOAD, "payload"): cv.templatable(cv.string),
             cv.Exclusive(CONF_JSON, "payload"): cv.Any(
@@ -206,7 +204,8 @@ async def coap_client_action_to_code(config, action_id, template_arg, args):
         if CONF_JSON in config:
             cg.add(var.set_media_type("APPLICATION_JSON"))
         else:
-            cg.add(var.set_media_type(media_type))
+            media_type_code = CONF_MEDIA_TYPES[media_type]
+            cg.add(var.set_media_type(media_type_code))
     if CONF_PAYLOAD in config:
         template_ = await cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
         cg.add(var.set_payload(template_))
@@ -234,20 +233,11 @@ async def coap_client_action_to_code(config, action_id, template_arg, args):
             var.get_success_trigger(),
             [
                 (cg.std_shared_ptr.template(CoapResponseStatistics), "response"),
+                (cg.std_string_ref, "request_name"),
                 (cg.std_string_ref, "payload"),
                 *args,
             ],
             response_conf,
-        )
-
-    if error_conf := config.get(CONF_ON_ERROR):
-        await automation.build_automation(
-            var.get_error_trigger(),
-            [
-                (cg.std_shared_ptr.template(CoapResponseStatistics), "response"),
-                *args,
-            ],
-            error_conf,
         )
 
     return var
