@@ -337,7 +337,7 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
     return;
 
   /// Plot border
-  if (this->border_) {
+  if (legend_->border_) {
     int w = legend_->width_;
     int h = legend_->height_;
     buff->horizontal_line(x_offset, y_offset, w, color);

@@ -2,8 +2,7 @@
 #include "number.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 
 static const char *const TAG = "number";
 
@@ -125,5 +124,4 @@ void NumberCall::perform() {
   this->parent_->control(target_value);
 }
 
-}  // namespace number
-}  // namespace esphome
+}  // namespace esphome::number
