@@ -6,12 +6,12 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
-// Todo: Provide an Action to cancel a subcription
+#include "coap_client_component.h"
+#ifdef USE_ESP32
 #include "esphome/core/defines.h"
 #ifdef USE_COAP_CLIENT
 #include <format>
 #include "esphome/core/log.h"
-#include "coap_client_component.h"
 
 namespace esphome::coap_client {
 
@@ -489,4 +489,5 @@ coap_session_t *CoapClientComponent::get_session_(coap_context_t *ctx, coap_addr
 }
 
 }  // namespace esphome::coap_client
+#endif
 #endif

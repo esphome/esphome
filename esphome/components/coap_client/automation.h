@@ -1,9 +1,10 @@
 #pragma once
+#include "coap_client_component.h"
+#ifdef USE_ESP32
 #include <tuple>
 #include <format>
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
-#include "coap_client_component.h"
 
 namespace esphome::coap_client {
 
@@ -217,3 +218,4 @@ template<typename... Ts> class CoapClientRemoveAction : public Action<Ts...> {
 };
 
 }  // namespace esphome::coap_client
+#endif

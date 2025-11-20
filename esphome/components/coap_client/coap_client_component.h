@@ -1,5 +1,7 @@
 #pragma once
+#ifdef USE_ESP32
 #include "esphome/core/application.h"
+#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #ifdef USE_COAP_CLIENT
 #include <netdb.h>
@@ -9,7 +11,6 @@
 #include <coap3/coap.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
-#include "esphome/core/component.h"
 
 namespace esphome::coap_client {
 
@@ -154,4 +155,5 @@ class CoapClientComponent : public Component {
 extern CoapClientComponent *global_coap_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::coap_client
+#endif
 #endif

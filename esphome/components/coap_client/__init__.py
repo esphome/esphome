@@ -52,19 +52,22 @@ CoapClientRemoveAction = coap_client_component_ns.class_(
     "CoapClientRemoveAction", automation.Action
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(CoapClientComponent),
-        cv.Optional(CONF_MAX_BLOCK_SIZE, default="512B"): cv.validate_bytes,
-        cv.Optional(
-            CONF_REQUEST_TIMEOUT, default="2sec"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_ACK_TIMEOUT, default="2sec"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_MAX_RETRANSMIT, default=4): cv.uint8_t,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(CoapClientComponent),
+            cv.Optional(CONF_MAX_BLOCK_SIZE, default="512B"): cv.validate_bytes,
+            cv.Optional(
+                CONF_REQUEST_TIMEOUT, default="2sec"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_ACK_TIMEOUT, default="2sec"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_MAX_RETRANSMIT, default=4): cv.uint8_t,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on_esp32,
+)
 
 
 async def to_code(config):
