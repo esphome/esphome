@@ -146,8 +146,8 @@ COAP_CLIENT_POST_ACTION_SCHEMA = automation.maybe_conf(
     COAP_CLIENT_ACTION_SCHEMA.extend(
         {
             cv.Optional(CONF_METHOD, default="POST"): cv.one_of("POST", upper=True),
-            cv.Optional(CONF_MEDIA_TYPE, default="TEXT_PLAIN"): cv.one_of(
-                CONF_MEDIA_TYPES.keys(), lower=True
+            cv.Optional(CONF_MEDIA_TYPE, default="text/plain"): cv.one_of(
+                *CONF_MEDIA_TYPES.keys(), lower=True
             ),
             cv.Exclusive(CONF_PAYLOAD, "payload"): cv.templatable(cv.string),
             cv.Exclusive(CONF_JSON, "payload"): cv.Any(
@@ -164,8 +164,8 @@ COAP_CLIENT_SEND_ACTION_SCHEMA = automation.maybe_conf(
             cv.Required(CONF_METHOD): cv.one_of(
                 "GET", "POST", "PUT", "DELETE", "PATCH", upper=True
             ),
-            cv.Optional(CONF_MEDIA_TYPE, default="TEXT_PLAIN"): cv.one_of(
-                CONF_MEDIA_TYPES.keys(), lower=True
+            cv.Optional(CONF_MEDIA_TYPE, default="text/plain"): cv.one_of(
+                *CONF_MEDIA_TYPES, lower=True
             ),
             cv.Exclusive(CONF_PAYLOAD, "payload"): cv.templatable(cv.string),
             cv.Exclusive(CONF_JSON, "payload"): cv.Any(
