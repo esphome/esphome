@@ -35,38 +35,39 @@ class C4002Listener {
   virtual void on_target_state(bool presence){};
 };
 
-#define TIME_OUT 0x64             ///< time out
-#define C4002_FRAME_HEADER1 0xFA  ///< frame header1
-#define C4002_FRAME_HEADER2 0xF5  ///< frame header2
-#define C4002_FRAME_HEADER3 0xAA  ///< frame header3
-#define C4002_FRAME_HEADER4 0xA5  ///< frame header4
+static const uint8_t TIME_OUT = 0x64;  ///< time out
 
-#define FRAME_TYPE_WRITE_REQUSET 0x00  ///< write request frame type
-#define FRAME_TYPE_READ_REQUSET 0x01   ///< read request frame type
-#define FRAME_TYPE_WRITE_RESPOND 0x02  ///< write respond frame type
-#define FRAME_TYPE_READ_RESPOND 0x03   ///< read respond frame type
-#define FRAME_TYPE_NOTIFICATION 0x04   ///< notification frame type
-#define FRAME_ERROR 0xFF               ///< error frame type
+static const uint8_t C4002_FRAME_HEADER1 = 0xFA;  ///< frame header1
+static const uint8_t C4002_FRAME_HEADER2 = 0xF5;  ///< frame header2
+static const uint8_t C4002_FRAME_HEADER3 = 0xAA;  ///< frame header3
+static const uint8_t C4002_FRAME_HEADER4 = 0xA5;  ///< frame header4
 
-#define CMD_SET_LED_MODE 0xA1                 ///< set led mode
-#define CMD_CONFIG_OUT_MODE 0xA0              ///< set output mode
-#define CMD_ENVIRNMENT_CALIBRATION 0x60       ///< environment calibration
-#define CMD_RESTART 0x00                      ///< restart command
-#define CMD_SET_DETECT_RANGE 0x86             ///< set detect sensitivity
-#define CMD_FACTORY_RESET 0x80                ///< factory reset command
-#define CMD_SET_REPORT_PERIOD 0x83            ///< set report period
-#define CMD_SET_LIGHT_THRESHOLD 0x88          ///< set light threshold
-#define CMD_SET_DISTANCE_DOOR 0x62            ///< set distance door
-#define CMD_GET_VERSION 0x82                  ///< get version command
-#define CMD_GET_AND_SET_RESOLUTION_MODE 0x66  ///< get resolution mode command
-#define CMD_SET_DISTANCE_DOOR_THRESHOLD 0x63  ///< set distance door threshold
-#define CMD_SET_BAUDRATE 0x21                 ///< set baudrate command
+static const uint8_t FRAME_TYPE_WRITE_REQUSET = 0x00;
+static const uint8_t FRAME_TYPE_READ_REQUSET = 0x01;
+static const uint8_t FRAME_TYPE_WRITE_RESPOND = 0x02;
+static const uint8_t FRAME_TYPE_READ_RESPOND = 0x03;
+static const uint8_t FRAME_TYPE_NOTIFICATION = 0x04;
+static const uint8_t FRAME_ERROR = 0xFF;
 
-#define NOTE_RESULT_CMD 0x60                  ///< detection result notification command
-#define NOTE_ENVIRNMENT_CALIBRATION_CMD 0x03  ///< environment calibration notification command
+static const uint8_t CMD_SET_LED_MODE = 0xA1;
+static const uint8_t CMD_CONFIG_OUT_MODE = 0xA0;
+static const uint8_t CMD_ENVIRNMENT_CALIBRATION = 0x60;
+static const uint8_t CMD_RESTART = 0x00;
+static const uint8_t CMD_SET_DETECT_RANGE = 0x86;
+static const uint8_t CMD_FACTORY_RESET = 0x80;
+static const uint8_t CMD_SET_REPORT_PERIOD = 0x83;
+static const uint8_t CMD_SET_LIGHT_THRESHOLD = 0x88;
+static const uint8_t CMD_SET_DISTANCE_DOOR = 0x62;
+static const uint8_t CMD_GET_VERSION = 0x82;
+static const uint8_t CMD_GET_AND_SET_RESOLUTION_MODE = 0x66;
+static const uint8_t CMD_SET_DISTANCE_DOOR_THRESHOLD = 0x63;
+static const uint8_t CMD_SET_BAUDRATE = 0x21;
 
-#define SOFTWARE_VERSION 0x01  ///< get software version
-#define HARDWARE_VERSION 0x00  ///< get hardware version
+static const uint8_t NOTE_RESULT_CMD = 0x60;
+static const uint8_t NOTE_ENVIRNMENT_CALIBRATION_CMD = 0x03;
+
+static const uint8_t SOFTWARE_VERSION = 0x01;
+static const uint8_t HARDWARE_VERSION = 0x00;
 
 /**
  * @enum ResolutionMode
