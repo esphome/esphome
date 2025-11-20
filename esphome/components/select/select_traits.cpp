@@ -1,7 +1,6 @@
 #include "select_traits.h"
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 void SelectTraits::set_options(const std::initializer_list<const char *> &options) { this->options_ = options; }
 
@@ -14,5 +13,4 @@ void SelectTraits::set_options(const FixedVector<const char *> &options) {
 
 const FixedVector<const char *> &SelectTraits::get_options() const { return this->options_; }
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select
