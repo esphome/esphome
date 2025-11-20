@@ -57,6 +57,9 @@ void QspiDbi::update() {
   this->y_high_ = 0;
 }
 
+void QspiDbi::sleep() { this->write_command_(SLEEP_IN); }
+void QspiDbi::wakeup() { this->write_command_(SLEEP_OUT); }
+
 void QspiDbi::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;

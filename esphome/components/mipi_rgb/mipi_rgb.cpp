@@ -47,6 +47,18 @@ void MipiRgbSpi::setup() {
   this->write_init_sequence_();
   this->common_setup_();
 }
+
+void MipiRgbSpi::sleep() {
+  this->write_command_(SLEEP_IN);
+  delay(10);
+}
+
+void MipiRgbSpi::wakeup() {
+  this->write_command_(SLEEP_OUT);
+  this->write_command_(DISPLAY_ON);
+  delay(10);
+}
+
 void MipiRgbSpi::write_command_(uint8_t value) {
   this->enable();
   if (this->dc_pin_ == nullptr) {
@@ -108,7 +120,6 @@ void MipiRgbSpi::write_init_sequence_() {
         delay(10);
     }
   }
-  // this->spi_teardown();  // SPI not needed after this
   this->init_sequence_.clear();
   delay(10);
 }

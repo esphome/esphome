@@ -316,6 +316,12 @@ class BaseFont {
 
 class Display : public PollingComponent {
  public:
+  /// Put the display to sleep to save power.
+  virtual void sleep();
+
+  /// Wake the display up from sleep.
+  virtual void wakeup();
+
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
   /// Clear the entire screen by filling it with OFF pixels.
@@ -842,6 +848,26 @@ template<typename... Ts> class DisplayPageShowPrevAction final : public Action<T
   void play(const Ts &...x) override { this->buffer_->show_prev_page(); }
 
   Display *buffer_;
+};
+
+template<typename... Ts> class DisplaySleepAction : public Action<Ts...> {
+ public:
+  explicit DisplaySleepAction(Display *buffer) : display_(buffer) {}
+
+  void play(const Ts &...x) override { this->display_->sleep(); }
+
+ protected:
+  Display *display_;
+};
+
+template<typename... Ts> class DisplayWakeupAction : public Action<Ts...> {
+ public:
+  explicit DisplayWakeupAction(Display *buffer) : display_(buffer) {}
+
+  void play(const Ts &...x) override { this->display_->wakeup(); }
+
+ protected:
+  Display *display_;
 };
 
 template<typename... Ts> class DisplayIsDisplayingPageCondition final : public Condition<Ts...> {
