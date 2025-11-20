@@ -74,6 +74,9 @@ async def to_code(config):
     cg.add_define("USE_COAP_CLIENT")
     add_idf_component(name="espressif/coap", ref="4.3.5~3")
     add_idf_sdkconfig_option("CONFIG_COAP_CLIENT_SUPPORT", True)
+    add_idf_sdkconfig_option("CONFIG_COAP_TCP_SUPPORT", False)
+    add_idf_sdkconfig_option("CONFIG_COAP_MBEDTLS_PSK", False)
+    add_idf_sdkconfig_option("CONFIG_COAP_ASYNC_SUPPORT", False)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if (max_block_size := config.get(CONF_MAX_BLOCK_SIZE)) is not None:
