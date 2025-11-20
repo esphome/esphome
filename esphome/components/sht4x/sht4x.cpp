@@ -13,7 +13,7 @@ void SHT4XComponent::start_heater_() {
 
   ESP_LOGD(TAG, "Heater turning on");
   if (this->write(cmd, 1) != i2c::ERROR_OK) {
-    this->status_set_error("Failed to turn on heater");
+    this->status_set_error(LOG_STR("Failed to turn on heater"));
   }
 }
 

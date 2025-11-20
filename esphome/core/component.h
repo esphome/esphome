@@ -216,7 +216,10 @@ class Component {
   void status_set_warning(const char *message = nullptr);
   void status_set_warning(const LogString *message);
 
+  // Remove before 2026.12.0
+  ESPDEPRECATED("Use status_set_error(LOG_STR(\"message\")) instead. Removed in 2026.12.0", "2025.6.0")
   void status_set_error(const char *message = nullptr);
+  void status_set_error(const LogString *message);
 
   void status_clear_warning();
 
