@@ -24,6 +24,8 @@ class ST7701S(DriverChip):
         sdir = 0
         if transform.get(CONF_MIRROR_X):
             sdir |= 0x04
+            # XFLIP doesn't do anything in the ST7701S,
+            # it's set in the madctl byte just so it can be reported at runtime by logconfig
             madctl |= MADCTL_XFLIP
         sequence.append((SDIR_CMD, sdir))
         return madctl
