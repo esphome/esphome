@@ -21,8 +21,10 @@ static int draw_callback(JPEGDRAW *jpeg) {
   ImageDecoder *decoder = (ImageDecoder *) jpeg->pUser;
 
   // Some very big images take too long to decode, so feed the watchdog on each callback
-  // to avoid crashing.
-  App.feed_wdt();
+  // to avoid crashing if the executing task has a watchdog enabled.
+  if (esp_task_wdt_status(nullptr) == ESP_OK) {
+    App.feed_wdt();
+  }
   size_t position = 0;
   size_t height = static_cast<size_t>(jpeg->iHeight);
   size_t width = static_cast<size_t>(jpeg->iWidth);
