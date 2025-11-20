@@ -166,6 +166,11 @@ class LvConstant(LValidator):
             self.prefix, *(self.choices + choices), typename=self.typename
         )
 
+    def __getattr__(self, item):
+        if item.upper() not in self.choices:
+            raise AttributeError(f"{item} not one of {self.choices}")
+        return self.mapper(item)
+
 
 # Parts
 CONF_MAIN = "main"
@@ -282,10 +287,12 @@ PARTS = (
     CONF_KNOB,
     CONF_SELECTED,
     CONF_ITEMS,
-    CONF_TICKS,
+    # CONF_TICKS,
     CONF_CURSOR,
     CONF_TEXTAREA_PLACEHOLDER,
 )
+
+LV_PART = LvConstant("LV_PART_", *(p.upper() for p in PARTS))
 
 KEYBOARD_MODES = LvConstant(
     "LV_KEYBOARD_MODE_",

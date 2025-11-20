@@ -18,8 +18,9 @@ const void *Font::get_glyph_bitmap(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw
   auto *const fe = (Font *) font->dsc;
 
   const auto *gd = fe->get_glyph_data_(dsc->gid.index);
-  if (gd == nullptr)
+  if (gd == nullptr) {
     return nullptr;
+  }
 
   const uint8_t *bitmap_in = gd->data;
   uint8_t *bitmap_out_tmp = draw_buf->data;
@@ -103,6 +104,7 @@ bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uin
   dsc->box_w = gd->width;
   dsc->box_h = gd->height;
   dsc->is_placeholder = 0;
+  dsc->format = (lv_font_glyph_format_t) fe->get_bpp();
   dsc->gid.index = unicode_letter;
   return true;
 }

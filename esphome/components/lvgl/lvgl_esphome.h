@@ -79,17 +79,11 @@ inline void lv_obj_set_style_bg_img_src(lv_obj_t *obj, esphome::image::Image *im
 }
 #ifdef USE_LVGL_CANVAS
 inline void lv_canvas_draw_img(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, image::Image *image,
-                               lv_draw_img_dsc_t *dsc) {
+                               lv_draw_image_dsc_t *dsc) {
   lv_canvas_draw_img(canvas, x, y, image->get_lv_img_dsc(), dsc);
 }
 #endif
 
-#ifdef USE_LVGL_METER
-inline lv_meter_indicator_t *lv_meter_add_needle_img(lv_obj_t *obj, lv_meter_scale_t *scale, esphome::image::Image *src,
-                                                     lv_coord_t pivot_x, lv_coord_t pivot_y) {
-  return lv_meter_add_needle_img(obj, scale, src->get_lv_img_dsc(), pivot_x, pivot_y);
-}
-#endif  // USE_LVGL_METER
 #endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ANIMIMG
 inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images) {

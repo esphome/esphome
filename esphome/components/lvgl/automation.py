@@ -225,9 +225,9 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
             {k.removeprefix("disp_"): v for k, v in config.items() if k in DISP_PROPS}
         )
         LOGGER.warning(
-            "The properties ' + "
-            ","
-            ".join(DISP_PROPS) +' are deprecated, use 'bottom_layer' instead."
+            "The properties '"
+            + "','".join(DISP_PROPS)
+            + "' are deprecated, use 'bottom_layer' instead."
         )
         config[CONF_BOTTOM_LAYER] = bottom
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:

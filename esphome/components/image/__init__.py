@@ -270,11 +270,11 @@ class ImageRGB(ImageEncoder):
                 r = 0
                 g = 1
                 b = 0
-        self.data[self.index] = r
+        self.data[self.index] = b
         self.index += 1
         self.data[self.index] = g
         self.index += 1
-        self.data[self.index] = b
+        self.data[self.index] = r
         self.index += 1
         if self.transparency == CONF_ALPHA_CHANNEL:
             if self.invert_alpha:
