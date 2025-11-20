@@ -32,15 +32,6 @@ Area2MaxRangeNumber = dfrobot_c4002_ns.class_("Area2MaxRangeNumber", number.Numb
 Area3MinRangeNumber = dfrobot_c4002_ns.class_("Area3MinRangeNumber", number.Number)
 Area3MaxRangeNumber = dfrobot_c4002_ns.class_("Area3MaxRangeNumber", number.Number)
 
-# CONF_LIGHT_THRESHOLD = "light_threshold"
-CONF_AREA1_MIN = "area1_min"
-CONF_AREA1_MAX = "area1_max"
-CONF_AREA2_MIN = "area2_min"
-CONF_AREA2_MAX = "area2_max"
-CONF_AREA3_MIN = "area3_min"
-CONF_AREA3_MAX = "area3_max"
-
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_C4002_ID): cv.use_id(C4002Component),
