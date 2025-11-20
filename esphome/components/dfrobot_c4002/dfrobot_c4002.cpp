@@ -55,14 +55,10 @@ void C4002Component::loop() {
  * After parsing, update exist_, speed_, distance_ members.
  */
 void C4002Component::get_data() {
-  /** 1.获取数据帧 **/
-  /** 2.解析数据 **/
-  /** 3.保存数据在类内变量中 **/
   ExistTgt exit_taget_data = get_exist_target_info();
   MoveTgt move_taget_data = get_move_target_info();
   TargetState target_state = get_target_state();
 
-  /** 4.判断数据是否有效，如果有效，发布数据到home assistant上通过回调 **/
   for (auto &listener : this->listeners_) {
     if (listener != nullptr) {
       listener->on_movement_distance(move_taget_data.distance);
@@ -86,6 +82,7 @@ void C4002Component::get_data() {
 void C4002Component::update_config_param() {
   ESP_LOGD(TAG, "update config param test!");
 
+  //** driver init **/
   while (!begin()) {
     delay(1000);
     ESP_LOGD(TAG, "C4002 begin failed");
@@ -94,7 +91,7 @@ void C4002Component::update_config_param() {
 
   setup_number();
 
-  /* 其他参数初始化 */
+  //** read config param **//
   float current_light_threshold = get_light_threshold();
 
   if (min_range_number_ != nullptr) {
@@ -136,6 +133,7 @@ void C4002Component::update_config_param() {
     out_led_switch_->publish_state((bool) LED_OFF);
   }
 
+  //** config report period **//
   if (set_report_period(10)) {
     ESP_LOGD(TAG, "set report period success");
   } else {
@@ -143,6 +141,11 @@ void C4002Component::update_config_param() {
   }
 }
 
+/**
+ * get_out_mode
+ * Get the output mode of the device.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::get_out_mode() {
   uint8_t send_date[10];
   uint16_t data_len = 4;
@@ -161,6 +164,11 @@ bool C4002Component::get_out_mode() {
   }
 }
 
+/**
+ * set_out_mode
+ * Set the output mode of the device.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::set_out_mode(OutMode out_mode) {
   uint8_t send_date[10];
   uint16_t data_len = 0;
@@ -181,6 +189,11 @@ bool C4002Component::set_out_mode(OutMode out_mode) {
   }
 }
 
+/**
+ * set_light_threshold
+ * Set the light threshold of the device.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::set_light_threshold(float threshold) {
   uint8_t send_date[10];
   uint16_t data_len = 0;
@@ -198,6 +211,11 @@ bool C4002Component::set_light_threshold(float threshold) {
   return (SUCCEED == rec_pack.resPonCode);
 }
 
+/**
+ * factory_reset
+ * Reset the device to factory default settings.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::factory_reset() {
   uint8_t send_date[10];
   uint16_t data_len = 5;
@@ -213,6 +231,11 @@ bool C4002Component::factory_reset() {
   return (SUCCEED == rec_pack.resPonCode);
 }
 
+/**
+ * set_resolution_mode
+ * Set the resolution mode of the device.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::set_resolution_mode(ResolutionMode mode) {
   uint8_t send_date[10];
   uint16_t data_len = 5;
@@ -232,6 +255,11 @@ bool C4002Component::set_resolution_mode(ResolutionMode mode) {
   }
 }
 
+/**
+ * enable_distance_door
+ * Enable the distance door.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::enable_distance_door(DistanceDoorType door_type, const uint8_t *door_data) {
   uint8_t send_date[40];
   uint16_t data_len = 0;
@@ -258,6 +286,11 @@ bool C4002Component::enable_distance_door(DistanceDoorType door_type, const uint
   return (SUCCEED == rec_pack.resPonCode);
 }
 
+/**
+ * set_detect_range
+ * Set the detection range of the device.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::set_detect_range(uint16_t closest, uint16_t farthest)  // 0-1200cm
 {
   uint8_t send_date[10];
@@ -286,6 +319,10 @@ bool C4002Component::set_detect_range(uint16_t closest, uint16_t farthest)  // 0
   return (SUCCEED == rec_pack.resPonCode);
 }
 
+/**
+ * start_env_calibration
+ * Start the environment calibration.
+ */
 void C4002Component::start_env_calibration(uint16_t delay_time, uint16_t cont_time) {
   uint8_t send_date[10];
   uint16_t data_len = 0;
@@ -304,6 +341,11 @@ void C4002Component::start_env_calibration(uint16_t delay_time, uint16_t cont_ti
   recv_pack();
 }
 
+/**
+ * set_run_led
+ * Set the state of the run LED.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::set_run_led(LedMode run_led) {
   uint8_t send_date[10];
   uint16_t data_len = 0;
@@ -321,6 +363,11 @@ bool C4002Component::set_run_led(LedMode run_led) {
   return (SUCCEED == rec_pack.resPonCode);
 }
 
+/**
+ * set_out_led
+ * Set the state of the output LED.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::set_out_led(LedMode out_led) {
   uint8_t send_date[10];
   uint16_t data_len = 0;
@@ -338,12 +385,32 @@ bool C4002Component::set_out_led(LedMode out_led) {
   return (SUCCEED == rec_pack.resPonCode);
 }
 
+/**
+ * get_target_state
+ * Get the state of the target.
+ * Returns the state of the target.
+ */
 TargetState C4002Component::get_target_state() { return (TargetState) detect_result_.targetStatus; }
 
+/**
+ * get_light
+ * Get the light threshold of the device.
+ * Returns the light threshold in Lux.
+ */
 float C4002Component::get_light() { return ((float) detect_result_.light * 0.1); }
 
+/**
+ * get_exit_dist_index
+ * Get the index of the exit distance.
+ * Returns the index of the exit distance.
+ */
 uint32_t C4002Component::get_exist_dist_index() { return detect_result_.existDistIndex; }
 
+/**
+ * get_exist_target_info
+ * Get the information of the existing target.
+ * Returns a ExistTgt struct with the information.
+ */
 ExistTgt C4002Component::get_exist_target_info() {
   ExistTgt info;
   info.distance = ((float) detect_result_.existTargetDist * 0.01);
@@ -351,6 +418,11 @@ ExistTgt C4002Component::get_exist_target_info() {
   return info;
 }
 
+/**
+ * get_move_target_info
+ * Get the information of the moving target.
+ * Returns a MoveTgt struct with the information.
+ */
 MoveTgt C4002Component::get_move_target_info() {
   MoveTgt info;
   info.distance = ((float) detect_result_.moveTargetDist * 0.01);
@@ -381,6 +453,11 @@ bool C4002Component::begin() {
   return ret;
 }
 
+/**
+ * enable_distance_door
+ * Enable or disable a distance door.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::enable_all_distance_door(uint8_t *door_data) {
   bool ret = false;
   ret = enable_distance_door(MOVE_DIST_DOOR, door_data);
@@ -519,10 +596,9 @@ RecvPack C4002Component::recv_pack() {
   RecvPack recv_dat;
   memset(&recv_dat, 0, sizeof(recv_dat));
 
-  // 使用 std::vector 替代 malloc
-  std::vector<uint8_t> pdata(60, 0);  // 创建大小为60的vector，初始化为0
+  std::vector<uint8_t> pdata(60, 0);
 
-  size_t recv_len = uart_read_raw(pdata.data(), 8, 20);  // 使用 .data() 获取原始指针
+  size_t recv_len = uart_read_raw(pdata.data(), 8, 20);
 
   if (recv_len == 8 && pdata[0] == C4002_FRAME_HEADER1 && pdata[1] == C4002_FRAME_HEADER2 &&
       pdata[2] == C4002_FRAME_HEADER3 && pdata[3] == C4002_FRAME_HEADER4) {
@@ -532,7 +608,7 @@ RecvPack C4002Component::recv_pack() {
 
     if (recv_len == (pack_len - 8)) {
       recv_dat.packType = pdata[7];
-      if (check_sum(pdata.data(), pack_len)) {  // 使用 .data() 获取原始指针
+      if (check_sum(pdata.data(), pack_len)) {
         uint16_t data_len = (pdata[11] << 8) | pdata[10];
 
         memcpy(&recv_dat, &pdata[8], data_len);
@@ -559,8 +635,6 @@ RecvPack C4002Component::recv_pack() {
   } else {
     recv_dat.resPonCode = AUTHENTICATION_ERR;
   }
-
-  // 不需要手动释放，vector 会自动管理内存
   return recv_dat;
 }
 
@@ -643,6 +717,11 @@ size_t C4002Component::uart_read_raw(uint8_t *buf, size_t bufsize, uint32_t time
   return idx;
 }
 
+/**
+ * set_resolution_mode
+ * Set the resolution mode of the device.
+ * Returns true if successful, false otherwise.
+ */
 bool C4002Component::get_detect_range() {
   uint8_t send_date[10];
   uint16_t data_len = 0;
@@ -665,10 +744,22 @@ bool C4002Component::get_detect_range() {
   }
 }
 
+/**
+ * set_area_range
+ * Set the area range of the device.
+ */
 void C4002Component::set_area_range(RangValue range_value, float range) { current_area_[range_value] = range - 1; }
 
+/**
+ * get_area_range
+ * Get the area range of the device.
+ */
 float C4002Component::get_area_range(RangValue range_value) { return current_area_[range_value] + 1; }
 
+/**
+ * joint_enable_door
+ * Enable the door according to the current area range.
+ */
 bool C4002Component::joint_enable_door() {
   for (auto &element : enable_door_) {
     element = 0;
@@ -681,7 +772,6 @@ bool C4002Component::joint_enable_door() {
     if (start > end) {
       std::swap(start, end);
     }
-
     if (start < 0)
       start = 0;
     if (end < 0)
@@ -690,13 +780,11 @@ bool C4002Component::joint_enable_door() {
       start = 10;
     if (end > 10)
       end = 10;
-
-    // 关键在这里：<=，表示闭区间 [start, end]
+    // key: door index, value: 1 enable, 0 disable,[0,10]
     for (int door = start; door <= end && door < 11; ++door) {
       this->enable_door_[door] = 1;
     }
   };
-
   apply_range(AREA1_DOOR_MIN, AREA1_DOOR_MAX);  // 第 1 个区域
   apply_range(AREA2_DOOR_MIN, AREA2_DOOR_MAX);  // 第 2 个区域
   apply_range(AREA3_DOOR_MIN, AREA3_DOOR_MAX);  // 第 3 个区域
@@ -704,6 +792,10 @@ bool C4002Component::joint_enable_door() {
   return enable_all_distance_door(enable_door_);
 }
 
+/**
+ * setup_number
+ * Set the detect range of the device.
+ */
 void C4002Component::setup_number() {
   bool ret;
   ret = get_detect_range();
@@ -714,6 +806,10 @@ void C4002Component::setup_number() {
   }
 }
 
+/**
+ * get_light_threshold
+ * Get the light threshold of the device.
+ */
 float C4002Component::get_light_threshold() {
   float threshold = 0.0;
   uint8_t send_date[10];
@@ -735,7 +831,7 @@ float C4002Component::get_light_threshold() {
 }
 
 #ifdef USE_NUMBER
-
+/* config min detect range */
 bool C4002Component::set_min_range(float range) {
   uint16_t closest = (uint16_t) (range * 100);
   uint16_t farthest = (uint16_t) (this->max_detect_range_ * 100);
@@ -746,7 +842,7 @@ bool C4002Component::set_min_range(float range) {
     return true;
   }
 }
-
+/* config max detect range */
 bool C4002Component::set_max_range(float range) {
   uint16_t closest = (uint16_t) (this->min_detect_range_ * 100);
   uint16_t farthest = (uint16_t) (range * 100);

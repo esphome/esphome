@@ -125,7 +125,7 @@ enum TargetState { NO_BODY = 0, EXIST = 1, MOVE = 2, TARGET_ERROR = 255 };
 enum LedMode { LED_OFF = 0x00, LED_ON = 0x01, LED_KEEP = 0xFF };
 
 /**
- * @enum NoteType
+ * @enum NoteTypes
  * @brief The type of the notification message
  */
 enum NoteType {
@@ -212,6 +212,10 @@ struct ReturnResult {
 
 using RetResult = ReturnResult;
 
+/**
+ * @enum RangValue
+ * @brief The range value of the door
+ */
 enum RangValue {
   AREA1_DOOR_MIN = 0,
   AREA1_DOOR_MAX = 1,
@@ -223,7 +227,6 @@ enum RangValue {
 
 /**
  * @brief Main component for the DFRobot C4002 device.
- *
  * This class handles UART communication, parsing, and publishing to
  * Home Assistant via child components (sensors, binary sensors, numbers, switches).
  */
@@ -233,65 +236,61 @@ class C4002Component : public Component, public uart::UARTDevice {
 
   /** Lifecycle hooks */
   void setup() override;
-  void loop() override;  // 循环中处理数据
+  void loop() override;
 
   /** UART helpers */
   void uart_clear_buffer();
 
   /** Debug / configuration helpers */
   void print_config();
+  void setup_number();
 
+  /** param getters and setters **/
   void update_config_param();
   void get_data();
 
+  //** register listener **//
   void register_listener(C4002Listener *listener) { this->listeners_.push_back(listener); }
 
+  //** / init device **//
+  bool begin();
+
+  //** param setters **//
   bool factory_reset();
   bool set_light_threshold(float threshold);
   bool set_resolution_mode(ResolutionMode mode);
-
   bool enable_distance_door(DistanceDoorType door_type, const uint8_t *door_data);
   bool enable_all_distance_door(uint8_t *door_data);
-
   bool set_detect_range(uint16_t closest, uint16_t farthest);
   void start_env_calibration(uint16_t delay_time, uint16_t cont_time);
   bool set_run_led(LedMode run_led);
-
-  //#if 0
-  //************************************/
   bool set_out_led(LedMode out_led);
   bool set_out_mode(OutMode out_mode);
+  bool set_report_period(uint8_t period);
+  bool joint_enable_door();
 
-  //#endif
-
-  //数据获取类
+  // ** param getters ** //
   TargetState get_target_state();
   float get_light();
   uint32_t get_exist_dist_index();
   ExistTgt get_exist_target_info();
   MoveTgt get_move_target_info();
-
-  bool begin();
   bool get_resolution_mode();
-  //#if 0
-  //*****************************************/
   bool get_out_mode();
   bool get_detect_range();
-
-  //#endif
-
   RetResult get_note_info_loop();
-  bool set_report_period(uint8_t period);
+  float get_light_threshold();
 
+  // ** data getters ** //
   void send_pack(void *pdata, uint16_t len, uint8_t msg_type);
   RecvPck recv_pack();
   bool check_sum(const uint8_t *pdata, uint8_t len);
   uint16_t get_check_sum(const uint8_t *pdata, uint16_t len);
-
   size_t uart_read_raw(uint8_t *buf, size_t bufsize, uint32_t timeout_ms = 200);
   void uart_write_data(uint8_t *datas, size_t len);
 
 #ifdef USE_SWITCH
+  //** USE_SWITCH **//
   void set_run_led_switch(switch_::Switch *sw) { this->run_led_switch_ = sw; };
   void set_out_led_switch(switch_::Switch *sw) { this->out_led_switch_ = sw; };
   void set_factory_reset_switch(switch_::Switch *sw) { this->factory_reset_switch_ = sw; };
@@ -300,24 +299,13 @@ class C4002Component : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_SELECT
+  //** USE_SELECT **//
   void set_operating_mode_select(select::Select *selector) { this->operating_selector_ = selector; };
   uint8_t get_out_mode_select() { return (uint8_t) this->out_mode_; };
 #endif
 
-  void setup_number();
-  float get_light_threshold();
-  bool joint_enable_door();
-
 #ifdef USE_NUMBER
-  float get_min_detect_range_number() { return (float) this->min_detect_range_; };
-  float get_max_detect_range_number() { return (float) this->max_detect_range_; };
-
-  bool set_min_range(float range);
-  bool set_max_range(float range);
-
-  float get_area_range(RangValue range_value);
-  void set_area_range(RangValue range_value, float range);
-
+  //** USE_NUMBER **//
   void set_min_range_number(number::Number *number) { this->min_range_number_ = number; }
   void set_max_range_number(number::Number *number) { this->max_range_number_ = number; }
   void set_light_threshold_number(number::Number *number) { this->light_threshold_number_ = number; }
@@ -328,30 +316,49 @@ class C4002Component : public Component, public uart::UARTDevice {
   void set_area3_min_range_number(number::Number *number) { this->area3_min_range_number_ = number; }
   void set_area3_max_range_number(number::Number *number) { this->area3_max_range_number_ = number; }
 
+  //** number getters **//
+  float get_min_detect_range_number() { return (float) this->min_detect_range_; };
+  float get_max_detect_range_number() { return (float) this->max_detect_range_; };
+
+  //** detect range **//
+  bool set_min_range(float range);
+  bool set_max_range(float range);
+
+  //** area range **//
+  float get_area_range(RangValue range_value);
+  void set_area_range(RangValue range_value, float range);
 #endif
 
  protected:
+  //**all data param **//
   DetectRet detect_result_;
+
+  //** resolution mode **//
   ResolutionMode resolution_mode_ = RESOLUTION_80CM;
 
+  //** distance door **//
   OutMode out_mode_;
 
+  //** detect range **//
   float min_detect_range_ = 0;
   float max_detect_range_ = 11;
 
+  //** area range **//
   float current_detection_range_min_ = 0;
   float current_detection_range_max_ = 11;
-
   float current_area_[6] = {0, 10, 0, 10, 0, 10};
   uint8_t enable_door_[11] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
+  //** light threshold **//
   uint16_t light_threshold_;
 
 #ifdef USE_SELECT
+  // ** USE_SELECT **//
   select::Select *operating_selector_{nullptr};
 #endif
 
 #ifdef USE_SWITCH
+  // ** USE_SWITCH **//
   switch_::Switch *run_led_switch_{nullptr};
   switch_::Switch *out_led_switch_{nullptr};
   switch_::Switch *factory_reset_switch_{nullptr};
@@ -359,6 +366,7 @@ class C4002Component : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_NUMBER
+  // ** USE_NUMBER **//
   number::Number *min_range_number_{nullptr};
   number::Number *max_range_number_{nullptr};
   number::Number *light_threshold_number_{nullptr};
@@ -368,7 +376,6 @@ class C4002Component : public Component, public uart::UARTDevice {
   number::Number *area2_max_range_number_{nullptr};
   number::Number *area3_min_range_number_{nullptr};
   number::Number *area3_max_range_number_{nullptr};
-
 #endif
 
   std::vector<C4002Listener *> listeners_{};
@@ -376,5 +383,3 @@ class C4002Component : public Component, public uart::UARTDevice {
 
 }  // namespace dfrobot_c4002
 }  // namespace esphome
-
-//开关和模式的默认读取与更新
