@@ -2,12 +2,11 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, time
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_DURATION, CONF_ID
 
 DEPENDENCIES = ["i2c"]
 
 I2C_ADDR = 0x51
-CONF_TIMER_VALUE = "timer_value"
 
 bm8563_ns = cg.esphome_ns.namespace("bm8563")
 BM8563 = bm8563_ns.class_("BM8563", time.RealTimeClock, i2c.I2CDevice)
@@ -47,16 +46,14 @@ async def bm8563_write_time_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(BM8563),
-            cv.Required(CONF_TIMER_VALUE): cv.templatable(
-                cv.positive_time_period_seconds
-            ),
+            cv.Required(CONF_DURATION): cv.templatable(cv.positive_time_period_seconds),
         }
     ),
 )
 async def bm8563_start_timer_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_TIMER_VALUE], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_DURATION], args, cg.uint32)
     cg.add(var.set_duration(template_))
     return var
 

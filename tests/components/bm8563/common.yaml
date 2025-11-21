@@ -3,7 +3,7 @@ esphome:
     - bm8563.read_time
     - bm8563.write_time
     - bm8563.start_timer:
-        timer_value: 300s
+        duration: 300s
 
 time:
   - platform: bm8563
