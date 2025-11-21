@@ -6,16 +6,14 @@ from esphome.const import CONF_ID
 
 DEPENDENCIES = ["i2c"]
 
-CONF_I2C_ADDR = 0x51
+I2C_ADDR = 0x51
 CONF_TIMER_VALUE = "timer_value"
 
-bm8563 = cg.esphome_ns.namespace("bm8563")
-BM8563 = bm8563.class_("BM8563", time.RealTimeClock, i2c.I2CDevice)
-WriteAction = bm8563.class_("WriteAction", automation.Action)
-ReadAction = bm8563.class_("ReadAction", automation.Action)
-TimerAction = bm8563.class_("TimerAction", automation.Action)
-
-CODEOWNERS = ["@abmantis"]
+bm8563_ns = cg.esphome_ns.namespace("bm8563")
+BM8563 = bm8563_ns.class_("BM8563", time.RealTimeClock, i2c.I2CDevice)
+WriteAction = bm8563_ns.class_("WriteAction", automation.Action)
+ReadAction = bm8563_ns.class_("ReadAction", automation.Action)
+TimerAction = bm8563_ns.class_("TimerAction", automation.Action)
 
 CONFIG_SCHEMA = (
     time.TIME_SCHEMA.extend(
@@ -24,14 +22,14 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(i2c.i2c_device_schema(CONF_I2C_ADDR))
+    .extend(i2c.i2c_device_schema(I2C_ADDR))
 )
 
 
 @automation.register_action(
     "bm8563.write_time",
     WriteAction,
-    cv.Schema(
+    automation.maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(BM8563),
         }
