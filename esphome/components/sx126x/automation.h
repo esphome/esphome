@@ -14,28 +14,34 @@ template<typename... Ts> class RunImageCalAction : public Action<Ts...>, public 
 
 template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<SX126x> {
  public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
-    this->static_ = false;
+  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->data_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
   }
 
-  void set_data_static(const std::vector<uint8_t> &data) {
-    this->data_static_ = data;
-    this->static_ = true;
+  void set_data_static(const uint8_t *data, size_t len) {
+    this->data_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
 
   void play(const Ts &...x) override {
-    if (this->static_) {
-      this->parent_->transmit_packet(this->data_static_);
+    std::vector<uint8_t> data;
+    if (this->len_ >= 0) {
+      // Static mode: copy from flash to vector
+      data.assign(this->data_.data, this->data_.data + this->len_);
     } else {
-      this->parent_->transmit_packet(this->data_func_(x...));
+      // Template mode: call function
+      data = this->data_.func(x...);
     }
+    this->parent_->transmit_packet(data);
   }
 
  protected:
-  bool static_{false};
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
+  union Data {
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
+  } data_;
 };
 
 template<typename... Ts> class SetModeTxAction : public Action<Ts...>, public Parented<SX126x> {

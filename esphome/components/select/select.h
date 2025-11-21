@@ -6,8 +6,7 @@
 #include "select_call.h"
 #include "select_traits.h"
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 #define LOG_SELECT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -35,7 +34,7 @@ class Select : public EntityBase {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   /// @deprecated Use current_option() instead. This member will be removed in ESPHome 2026.5.0.
-  __attribute__((deprecated("Use current_option() instead of .state. Will be removed in 2026.5.0")))
+  ESPDEPRECATED("Use current_option() instead of .state. Will be removed in 2026.5.0", "2025.11.0")
   std::string state{};
 
   Select() = default;
@@ -114,5 +113,4 @@ class Select : public EntityBase {
   CallbackManager<void(std::string, size_t)> state_callback_;
 };
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select

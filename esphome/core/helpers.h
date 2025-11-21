@@ -111,6 +111,23 @@ template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); 
 /// @name Container utilities
 ///@{
 
+/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory)
+/// Avoids copying data from flash to RAM by keeping a pointer to the flash data.
+/// Similar to std::span but with minimal overhead for embedded systems.
+
+template<typename T> class ConstVector {
+ public:
+  constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+
+  const constexpr T &operator[](size_t i) const { return data_[i]; }
+  constexpr size_t size() const { return size_; }
+  constexpr bool empty() const { return size_ == 0; }
+
+ protected:
+  const T *data_;
+  size_t size_;
+};
+
 /// Minimal static vector - saves memory by avoiding std::vector overhead
 template<typename T, size_t N> class StaticVector {
  public:
@@ -1035,6 +1052,11 @@ std::string get_mac_address_pretty();
 /// Assumes buffer length is 13 (12 digits for hexadecimal representation followed by null terminator).
 void get_mac_address_into_buffer(std::span<char, 13> buf);
 
+/// Get the device MAC address into the given buffer, in colon-separated uppercase hex notation.
+/// Buffer must be exactly 18 bytes (17 for "XX:XX:XX:XX:XX:XX" + null terminator).
+/// Returns pointer to the buffer for convenience.
+const char *get_mac_address_pretty_into_buffer(std::span<char, 18> buf);
+
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
@@ -1174,12 +1196,18 @@ template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
  * Functions to constrain the range of arithmetic values.
  */
 
-template<std::totally_ordered T> T clamp_at_least(T value, T min) {
+template<typename T, typename U>
+concept comparable_with = requires(T a, U b) {
+  { a > b } -> std::convertible_to<bool>;
+  { a < b } -> std::convertible_to<bool>;
+};
+
+template<std::totally_ordered T, comparable_with<T> U> T clamp_at_least(T value, U min) {
   if (value < min)
     return min;
   return value;
 }
-template<std::totally_ordered T> T clamp_at_most(T value, T max) {
+template<std::totally_ordered T, comparable_with<T> U> T clamp_at_most(T value, U max) {
   if (value > max)
     return max;
   return value;

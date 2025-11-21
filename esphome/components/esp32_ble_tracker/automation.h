@@ -10,7 +10,7 @@ namespace esphome::esp32_ble_tracker {
 class ESPBTAdvertiseTrigger : public Trigger<const ESPBTDevice &>, public ESPBTDeviceListener {
  public:
   explicit ESPBTAdvertiseTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
-  void set_addresses(const std::vector<uint64_t> &addresses) { this->address_vec_ = addresses; }
+  void set_addresses(std::initializer_list<uint64_t> addresses) { this->address_vec_ = addresses; }
 
   bool parse_device(const ESPBTDevice &device) override {
     uint64_t u64_addr = device.address_uint64();

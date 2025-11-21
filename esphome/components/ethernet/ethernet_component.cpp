@@ -381,7 +381,10 @@ void EthernetComponent::dump_config() {
       break;
   }
 
-  ESP_LOGCONFIG(TAG, "Ethernet:");
+  ESP_LOGCONFIG(TAG,
+                "Ethernet:\n"
+                "  Connected: %s",
+                YESNO(this->is_connected()));
   this->dump_connect_params_();
 #ifdef USE_ETHERNET_SPI
   ESP_LOGCONFIG(TAG,
@@ -417,8 +420,6 @@ void EthernetComponent::dump_config() {
 }
 
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
-
-bool EthernetComponent::can_proceed() { return this->is_connected(); }
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;

@@ -177,7 +177,7 @@ class APIConnection final : public APIServerConnection {
 #endif
 
 #ifdef USE_EVENT
-  void send_event(event::Event *event, const std::string &event_type);
+  void send_event(event::Event *event, const char *event_type);
 #endif
 
 #ifdef USE_UPDATE
@@ -450,7 +450,7 @@ class APIConnection final : public APIServerConnection {
                                                     bool is_single);
 #endif
 #ifdef USE_EVENT
-  static uint16_t try_send_event_response(event::Event *event, const std::string &event_type, APIConnection *conn,
+  static uint16_t try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                           uint32_t remaining_size, bool is_single);
   static uint16_t try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
 #endif
@@ -508,10 +508,8 @@ class APIConnection final : public APIServerConnection {
     // Constructor for function pointer
     MessageCreator(MessageCreatorPtr ptr) { data_.function_ptr = ptr; }
 
-    // Constructor for string state capture
-    explicit MessageCreator(const std::string &str_value) { data_.string_ptr = new std::string(str_value); }
-
-    // No destructor - cleanup must be called explicitly with message_type
+    // Constructor for const char * (Event types - no allocation needed)
+    explicit MessageCreator(const char *str_value) { data_.const_char_ptr = str_value; }
 
     // Delete copy operations - MessageCreator should only be moved
     MessageCreator(const MessageCreator &other) = delete;
@@ -523,8 +521,6 @@ class APIConnection final : public APIServerConnection {
     // Move assignment
     MessageCreator &operator=(MessageCreator &&other) noexcept {
       if (this != &other) {
-        // IMPORTANT: Caller must ensure cleanup() was called if this contains a string!
-        // In our usage, this happens in add_item() deduplication and vector::erase()
         data_ = other.data_;
         other.data_.function_ptr = nullptr;
       }
@@ -535,20 +531,10 @@ class APIConnection final : public APIServerConnection {
     uint16_t operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single,
                         uint8_t message_type) const;
 
-    // Manual cleanup method - must be called before destruction for string types
-    void cleanup(uint8_t message_type) {
-#ifdef USE_EVENT
-      if (message_type == EventResponse::MESSAGE_TYPE && data_.string_ptr != nullptr) {
-        delete data_.string_ptr;
-        data_.string_ptr = nullptr;
-      }
-#endif
-    }
-
    private:
     union Data {
       MessageCreatorPtr function_ptr;
-      std::string *string_ptr;
+      const char *const_char_ptr;
     } data_;  // 4 bytes on 32-bit, 8 bytes on 64-bit - same as before
   };
 
@@ -568,23 +554,9 @@ class APIConnection final : public APIServerConnection {
     std::vector<BatchItem> items;
     uint32_t batch_start_time{0};
 
-   private:
-    // Helper to cleanup items from the beginning
-    void cleanup_items_(size_t count) {
-      for (size_t i = 0; i < count; i++) {
-        items[i].creator.cleanup(items[i].message_type);
-      }
-    }
-
-   public:
     DeferredBatch() {
       // Pre-allocate capacity for typical batch sizes to avoid reallocation
       items.reserve(8);
-    }
-
-    ~DeferredBatch() {
-      // Ensure cleanup of any remaining items
-      clear();
     }
 
     // Add item to the batch
@@ -592,18 +564,14 @@ class APIConnection final : public APIServerConnection {
     // Add item to the front of the batch (for high priority messages like ping)
     void add_item_front(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size);
 
-    // Clear all items with proper cleanup
+    // Clear all items
     void clear() {
-      cleanup_items_(items.size());
       items.clear();
       batch_start_time = 0;
     }
 
-    // Remove processed items from the front with proper cleanup
-    void remove_front(size_t count) {
-      cleanup_items_(count);
-      items.erase(items.begin(), items.begin() + count);
-    }
+    // Remove processed items from the front
+    void remove_front(size_t count) { items.erase(items.begin(), items.begin() + count); }
 
     bool empty() const { return items.empty(); }
     size_t size() const { return items.size(); }
@@ -682,21 +650,30 @@ class APIConnection final : public APIServerConnection {
   }
 #endif
 
+  // Helper to check if a message type should bypass batching
+  // Returns true if:
+  // 1. It's an UpdateStateResponse (always send immediately to handle cases where
+  //    the main loop is blocked, e.g., during OTA updates)
+  // 2. It's an EventResponse (events are edge-triggered - every occurrence matters)
+  // 3. OR: User has opted into immediate sending (should_try_send_immediately = true
+  //    AND batch_delay = 0)
+  inline bool should_send_immediately_(uint8_t message_type) const {
+    return (
+#ifdef USE_UPDATE
+        message_type == UpdateStateResponse::MESSAGE_TYPE ||
+#endif
+#ifdef USE_EVENT
+        message_type == EventResponse::MESSAGE_TYPE ||
+#endif
+        (this->flags_.should_try_send_immediately && this->get_batch_delay_ms_() == 0));
+  }
+
   // Helper method to send a message either immediately or via batching
+  // Tries immediate send if should_send_immediately_() returns true and buffer has space
+  // Falls back to batching if immediate send fails or isn't applicable
   bool send_message_smart_(EntityBase *entity, MessageCreatorPtr creator, uint8_t message_type,
                            uint8_t estimated_size) {
-    // Try to send immediately if:
-    // 1. It's an UpdateStateResponse (always send immediately to handle cases where
-    //    the main loop is blocked, e.g., during OTA updates)
-    // 2. OR: We should try to send immediately (should_try_send_immediately = true)
-    //        AND Batch delay is 0 (user has opted in to immediate sending)
-    // 3. AND: Buffer has space available
-    if ((
-#ifdef USE_UPDATE
-            message_type == UpdateStateResponse::MESSAGE_TYPE ||
-#endif
-            (this->flags_.should_try_send_immediately && this->get_batch_delay_ms_() == 0)) &&
-        this->helper_->can_write_without_blocking()) {
+    if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
       // Now actually encode and send
       if (creator(entity, this, MAX_BATCH_PACKET_SIZE, true) &&
           this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
@@ -712,6 +689,27 @@ class APIConnection final : public APIServerConnection {
 
     // Fall back to scheduled batching
     return this->schedule_message_(entity, creator, message_type, estimated_size);
+  }
+
+  // Overload for MessageCreator (used by events which need to capture event_type)
+  bool send_message_smart_(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size) {
+    // Try to send immediately if message type should bypass batching and buffer has space
+    if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
+      // Now actually encode and send
+      if (creator(entity, this, MAX_BATCH_PACKET_SIZE, true, message_type) &&
+          this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+        // Log the message in verbose mode
+        this->log_proto_message_(entity, creator, message_type);
+#endif
+        return true;
+      }
+
+      // If immediate send failed, fall through to batching
+    }
+
+    // Fall back to scheduled batching
+    return this->schedule_message_(entity, std::move(creator), message_type, estimated_size);
   }
 
   // Helper function to schedule a deferred message with known message type

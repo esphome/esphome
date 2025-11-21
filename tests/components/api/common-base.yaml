@@ -178,6 +178,14 @@ api:
               - logger.log: "Skipped loops"
         - logger.log: "After combined test"
 
+event:
+  - platform: template
+    name: Test Event
+    id: test_event
+    event_types:
+      - single_click
+      - double_click
+
 globals:
   - id: api_continuation_test_counter
     type: int

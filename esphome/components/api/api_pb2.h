@@ -2788,7 +2788,7 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
 #endif
   StringRef device_class_ref_{};
   void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
-  std::vector<std::string> event_types{};
+  const FixedVector<const char *> *event_types{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

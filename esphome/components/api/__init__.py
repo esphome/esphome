@@ -227,6 +227,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32=8,  # More RAM, can buffer more
                 rp2040=5,  # Limited RAM
                 bk72xx=8,  # Moderate RAM
+                nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
@@ -243,6 +244,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Track controller registration for StaticVector sizing
+    CORE.register_controller()
 
     cg.add(var.set_port(config[CONF_PORT]))
     if config[CONF_PASSWORD]:

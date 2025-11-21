@@ -39,7 +39,7 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import coroutine
+from esphome.core import ID, coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry, SimpleRegistry
 
@@ -2104,7 +2104,9 @@ async def abbwelcome_action(var, config, args):
             )
             cg.add(var.set_data_template(template_))
         else:
-            cg.add(var.set_data_static(data_))
+            arr_id = ID(f"{var.base}_data", is_declaration=True, type=cg.uint8)
+            arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data_))
+            cg.add(var.set_data_static(arr, len(data_)))
 
 
 # Mirage

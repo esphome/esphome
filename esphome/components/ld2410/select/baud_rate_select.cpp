@@ -1,12 +1,10 @@
 #include "baud_rate_select.h"
 
-namespace esphome {
-namespace ld2410 {
+namespace esphome::ld2410 {
 
 void BaudRateSelect::control(size_t index) {
   this->publish_state(index);
   this->parent_->set_baud_rate(this->option_at(index));
 }
 
-}  // namespace ld2410
-}  // namespace esphome
+}  // namespace esphome::ld2410

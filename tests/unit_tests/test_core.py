@@ -670,3 +670,51 @@ class TestEsphomeCore:
             os.environ.pop("ESPHOME_IS_HA_ADDON", None)
             os.environ.pop("ESPHOME_DATA_DIR", None)
             assert target.data_dir == Path(expected_default)
+
+    def test_web_port__none(self, target):
+        """Test web_port returns None when web_server is not configured."""
+        target.config = {}
+        assert target.web_port is None
+
+    def test_web_port__explicit_web_server_default_port(self, target):
+        """Test web_port returns 80 when web_server is explicitly configured without port."""
+        target.config = {const.CONF_WEB_SERVER: {}}
+        assert target.web_port == 80
+
+    def test_web_port__explicit_web_server_custom_port(self, target):
+        """Test web_port returns custom port when web_server is configured with port."""
+        target.config = {const.CONF_WEB_SERVER: {const.CONF_PORT: 8080}}
+        assert target.web_port == 8080
+
+    def test_web_port__ota_web_server_platform_only(self, target):
+        """
+        Test web_port returns None when ota.web_server platform is explicitly configured.
+
+        This is a critical test for Dashboard Issue #766:
+        https://github.com/esphome/dashboard/issues/766
+
+        When ota: platform: web_server is explicitly configured (or auto-loaded by captive_portal):
+        - "web_server" appears in loaded_integrations (platform name added to integrations)
+        - "ota/web_server" appears in loaded_platforms
+        - But CONF_WEB_SERVER is NOT in config (only the platform is loaded, not the component)
+        - web_port MUST return None (no web UI available)
+        - Dashboard should NOT show VISIT button
+
+        This test ensures web_port only checks CONF_WEB_SERVER in config, not loaded_integrations.
+        """
+        # Simulate config with ota.web_server platform but no web_server component
+        # This happens when:
+        # 1. User explicitly configures: ota: - platform: web_server
+        # 2. OR captive_portal auto-loads ota.web_server
+        target.config = {
+            const.CONF_OTA: [
+                {
+                    "platform": "web_server",
+                    # OTA web_server platform config would be here
+                }
+            ],
+            # Note: CONF_WEB_SERVER is NOT in config - only the OTA platform
+        }
+        # Even though "web_server" is in loaded_integrations due to the platform,
+        # web_port must return None because the full web_server component is not configured
+        assert target.web_port is None
