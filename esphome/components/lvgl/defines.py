@@ -47,6 +47,10 @@ def literal(arg) -> MockObj:
     return arg
 
 
+def addr(arg) -> MockObj:
+    return MockObj(f"&{arg}")
+
+
 def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):

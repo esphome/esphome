@@ -14,6 +14,7 @@ CONF_POINTS = "points"
 CONF_POINT_LIST_ID = "point_list_id"
 
 lv_point_t = cg.global_ns.struct("lv_point_t")
+lv_point_precise_t = cg.global_ns.struct("lv_point_precise_t")
 
 
 LINE_SCHEMA = {

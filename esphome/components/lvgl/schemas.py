@@ -185,6 +185,8 @@ STYLE_PROPS = {
     "pad_right": lvalid.padding,
     "pad_top": lvalid.padding,
     "shadow_color": lvalid.lv_color,
+    "shadow_offset_x": lvalid.lv_int,
+    "shadow_offset_y": lvalid.lv_int,
     "shadow_ofs_x": lvalid.lv_int,
     "shadow_ofs_y": lvalid.lv_int,
     "shadow_opa": lvalid.opacity,
@@ -223,6 +225,10 @@ STYLE_PROPS = {
 STYLE_REMAP = {
     "transform_angle": "transform_rotation",
     "transform_zoom": "transform_scale",
+    "zoom": "scale",
+    "angle": "rotation",
+    "shadow_ofs_x": "shadow_offset_x",
+    "shadow_ofs_y": "shadow_offset_y",
 }
 
 # Log use of deprecated properties here

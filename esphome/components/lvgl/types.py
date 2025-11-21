@@ -4,7 +4,6 @@ from esphome import automation, codegen as cg
 from esphome.automation import register_action
 from esphome.config_validation import Schema
 from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_TEXT, CONF_VALUE
-from esphome.core import EsphomeError
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.cpp_types import esphome_ns
 
@@ -156,7 +155,7 @@ class WidgetType:
 
         if not is_mock:
             if self.name in WIDGET_TYPES:
-                raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
+                raise Exception(f"Duplicate definition of widget type '{self.name}'")
             WIDGET_TYPES[self.name] = self
 
             # Register the update action automatically, adding widget-specific properties
