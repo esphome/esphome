@@ -270,9 +270,6 @@ void CoapClientComponent::main_() {
           ESP_LOGE(TAG, "Error coap_split_uri %s", tx_request->uri.c_str());
           continue;
         }
-        ESP_LOGV(TAG, "Scheme: %d\n", "Host: %.*s (length %zu)\n", "Port: %u\n", "Path: %.*s (length %zu)", uri.scheme,
-                 (int) uri.host.length, uri.host.s, uri.host.length, uri.port, (int) uri.path.length, uri.path.s,
-                 uri.path.length);
 
         // Get info_list (addr is destination, proto(col) is UDP, DTLS, TCP, TLS)
         info_list = coap_resolve_address_info(&uri.host, uri.port, uri.port, uri.port, uri.port, 0, 1 << uri.scheme,
