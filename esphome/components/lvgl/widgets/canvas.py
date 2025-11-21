@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
+from esphome.cpp_types import FixedVector
 
 from ..automation import action_to_code
 from ..defines import (
@@ -244,7 +245,7 @@ def _draw_line(layer, dsc, points):
     # LVGL 9.4: Use lv_draw_line for each line segment
     with (
         LocalVariable(
-            "points", cg.std_vector.template(lv_point_precise_t), points, modifier=""
+            "points", FixedVector.template(lv_point_precise_t), points, modifier=""
         ) as points_var,
         LocalVariable("i", "uint32_t", literal("0"), modifier="") as i,
     ):
