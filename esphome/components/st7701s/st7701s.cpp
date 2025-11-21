@@ -49,20 +49,6 @@ void ST7701S::loop() {
   if (this->handle_ != nullptr)
     esp_lcd_rgb_panel_restart(this->handle_);
 }
-void ST7701S::sleep() {
-  this->spi_setup();
-  this->write_command_(SLEEP_IN);
-  this->spi_teardown();
-  delay(10);
-}
-
-void ST7701S::wakeup() {
-  this->spi_setup();
-  this->write_command_(SLEEP_OUT);
-  this->write_command_(DISPLAY_ON);
-  this->spi_teardown();
-  delay(10);
-}
 
 void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
