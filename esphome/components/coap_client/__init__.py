@@ -28,9 +28,9 @@ from .const import (
 
 def validate_url(value):
     value = cv.url(value)
-    if value.startswith("coap") or value.startswith("coaps"):
+    if value.startswith("coap://"):
         return value
-    raise cv.Invalid("URL must start with 'coap[s][+tcp|+ws]'")
+    raise cv.Invalid("URL must start with 'coap://'")
 
 
 CODEOWNERS = ["@rwrozelle"]
