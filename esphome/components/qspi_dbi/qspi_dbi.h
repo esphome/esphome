@@ -15,7 +15,6 @@ namespace esphome::qspi_dbi {
 
 constexpr static const char *const TAG = "display.qspi_dbi";
 static const uint8_t SW_RESET_CMD = 0x01;
-static const uint8_t SLEEP_IN = 0x10;
 static const uint8_t SLEEP_OUT = 0x11;
 static const uint8_t NORON = 0x13;
 static const uint8_t INVERT_OFF = 0x20;
@@ -61,8 +60,6 @@ class QspiDbi final : public display::DisplayBuffer,
   void set_model(const char *model) { this->model_ = model; }
   void update() override;
   void setup() override;
-  void sleep() override;
-  void wakeup() override;
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
 

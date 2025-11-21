@@ -16,7 +16,6 @@ namespace esphome::st7701s {
 
 constexpr static const char *const TAG = "display.st7701s";
 const uint8_t SW_RESET_CMD = 0x01;
-const uint8_t SLEEP_IN = 0x10;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;
 const uint8_t MADCTL_CMD = 0x36;
@@ -34,8 +33,6 @@ class ST7701S final : public display::Display,
   void update() override { this->do_update_(); }
   void setup() override;
   void loop() override;
-  void sleep() override;
-  void wakeup() override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
