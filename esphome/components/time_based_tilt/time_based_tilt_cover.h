@@ -34,6 +34,8 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
   void set_actuator_activation_close_time(uint32_t activation_time) {
     this->actuator_activation_close_time_ = activation_time;
   }
+  void set_close_sets_tilt(bool value) { this->close_sets_tilt_ = value; }
+  void set_open_sets_tilt(bool value) { this->open_sets_tilt_ = value; }
   cover::CoverOperation compute_direction(float target, float current) {
     if (target == current) {
       return cover::COVER_OPERATION_IDLE;
@@ -85,6 +87,8 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
   State fsm_state_{STATE_IDLE};
   cover::CoverOperation interlocked_direction_{cover::COVER_OPERATION_IDLE};
   uint32_t interlocked_time_{0};
+  bool close_sets_tilt_{false};
+  bool open_sets_tilt_{false};
 };
 
 }  // namespace time_based_tilt

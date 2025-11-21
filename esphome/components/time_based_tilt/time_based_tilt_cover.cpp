@@ -24,6 +24,8 @@ void TimeBasedTiltCover::dump_config() {
   ESP_LOGCONFIG(TAG, "  Recalibration open time: %.3fs", this->recalibration_open_time_ / 1e3f);
   ESP_LOGCONFIG(TAG, "  Actuator activation close time: %.3fs", this->actuator_activation_close_time_ / 1e3f);
   ESP_LOGCONFIG(TAG, "  Actuator activation open time: %.3fs", this->actuator_activation_open_time_ / 1e3f);
+  ESP_LOGCONFIG(TAG, "  Close sets tilt: %s", this->close_sets_tilt_ ? "YES" : "NO");
+  ESP_LOGCONFIG(TAG, "  Open sets tilt: %s", this->open_sets_tilt_ ? "YES" : "NO");
   ESP_LOGCONFIG(TAG, "  Current position: %.4f", this->position);
   ESP_LOGCONFIG(TAG, "  Current tilt: %.4f", this->tilt);
 }
@@ -275,16 +277,21 @@ void TimeBasedTiltCover::control(const CoverCall &call) {
   }
 
   if (call.get_position().has_value() || call.get_tilt().has_value()) {
-    if (call.get_position().has_value()) {
-      this->target_position_ = *call.get_position();
-    } else {
-      this->target_position_ = TARGET_NONE;
-    }
-
     if (call.get_tilt().has_value()) {
       this->target_tilt_ = *call.get_tilt();
     } else {
       this->target_tilt_ = TARGET_NONE;
+    }
+
+    if (call.get_position().has_value()) {
+      this->target_position_ = *call.get_position();
+      if (this->target_position_ == COVER_CLOSED && this->close_sets_tilt_ && this->target_tilt_ == TARGET_NONE) {
+        this->target_tilt_ = COVER_CLOSED;
+      } else if (this->target_position_ == COVER_OPEN && this->open_sets_tilt_ && this->target_tilt_ == TARGET_NONE) {
+        this->target_tilt_ = COVER_OPEN;
+      }
+    } else {
+      this->target_position_ = TARGET_NONE;
     }
 
     if (this->fsm_state_ == STATE_MOVING) {

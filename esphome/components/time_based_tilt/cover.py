@@ -27,6 +27,8 @@ CONF_ACTUATOR_ACTIVATION_OPEN_TIME = "actuator_activation_open_time"
 CONF_ACTUATOR_ACTIVATION_CLOSE_TIME = "actuator_activation_close_time"
 CONF_INERTIA_OPEN_TIME = "inertia_open_time"
 CONF_INERTIA_CLOSE_TIME = "inertia_close_time"
+CONF_CLOSE_SETS_TILT = "close_sets_tilt"
+CONF_OPEN_SETS_TILT = "open_sets_tilt"
 
 CONFIG_SCHEMA = (
     cover.cover_schema(TimeBasedTiltCover)
@@ -66,6 +68,8 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_ACTUATOR_ACTIVATION_CLOSE_TIME, default="0ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_CLOSE_SETS_TILT, default=False): cv.boolean,
+            cv.Optional(CONF_OPEN_SETS_TILT, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -108,3 +112,5 @@ async def to_code(config):
             config[CONF_ACTUATOR_ACTIVATION_CLOSE_TIME]
         )
     )
+    cg.add(var.set_close_sets_tilt(config[CONF_CLOSE_SETS_TILT]))
+    cg.add(var.set_open_sets_tilt(config[CONF_OPEN_SETS_TILT]))
