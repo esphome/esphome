@@ -7,7 +7,6 @@ BYTE_ORDER_LITTLE = "little_endian"
 BYTE_ORDER_BIG = "big_endian"
 
 CONF_COLOR_DEPTH = "color_depth"
-CONF_DIGITS = "digits"
 CONF_DRAW_ROUNDING = "draw_rounding"
 CONF_ENABLED = "enabled"
 CONF_IGNORE_NOT_FOUND = "ignore_not_found"

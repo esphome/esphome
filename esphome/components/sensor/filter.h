@@ -506,9 +506,9 @@ class RoundMultipleFilter : public Filter {
   float multiple_;
 };
 
-class RoundSigfigFilter : public Filter {
+class RoundSignificantDigitsFilter : public Filter {
  public:
-  explicit RoundSigfigFilter(uint8_t digits);
+  explicit RoundSignificantDigitsFilter(uint8_t digits);
   optional<float> new_value(float value) override;
 
  protected:

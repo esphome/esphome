@@ -4,7 +4,6 @@ import math
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
-from esphome.components.const import CONF_DIGITS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -285,7 +284,7 @@ SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
-RoundSigfigFilter = sensor_ns.class_("RoundSigfigFilter", Filter)
+RoundSignificantDigitsFilter = sensor_ns.class_("RoundSignificantDigitsFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -863,19 +862,14 @@ async def round_multiple_filter_to_code(config, filter_id):
 
 
 @FILTER_REGISTRY.register(
-    "round_to_sigfig",
-    RoundSigfigFilter,
-    cv.maybe_simple_value(
-        {
-            cv.Required(CONF_DIGITS): cv.positive_not_null_int,
-        },
-        key=CONF_DIGITS,
-    ),
+    "round_to_significant_digits",
+    RoundSignificantDigitsFilter,
+    cv.positive_not_null_int,
 )
-async def round_sigfig_filter_to_code(config, filter_id):
+async def round_significant_digits_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id,
-        config[CONF_DIGITS],
+        config,
     )
 
 
