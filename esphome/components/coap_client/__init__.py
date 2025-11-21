@@ -33,7 +33,6 @@ def validate_url(value):
     raise cv.Invalid("URL must start with 'coap[s][+tcp|+ws]'")
 
 
-CONF_COAP_CLIENT_ID = "coap_client_id"
 CODEOWNERS = ["@rwrozelle"]
 
 DEPENDENCIES = ["network"]
