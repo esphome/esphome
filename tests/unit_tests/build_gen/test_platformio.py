@@ -172,7 +172,7 @@ def test_write_ini_no_change_when_content_same(
     # write_file_if_changed should be called with the same content
     mock_write_file_if_changed.assert_called_once()
     call_args = mock_write_file_if_changed.call_args[0]
-    assert call_args[0] == str(ini_file)
+    assert call_args[0] == ini_file
     assert content in call_args[1]
 
 

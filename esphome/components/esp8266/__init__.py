@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -190,7 +190,9 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    cg.add_platformio_option(
+        "extra_scripts", ["pre:testing_mode.py", "post:post_build.py"]
+    )
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -230,6 +232,12 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
+    # In testing mode, fake larger memory to allow linking grouped component tests
+    # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
+    # we pretend it has much larger memory to test that components compile together
+    if CORE.testing_mode:
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -259,9 +267,14 @@ async def to_code(config):
 
 # Called by writer.py
 def copy_files():
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
+    dir = Path(__file__).parent
+    post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
+    )
+    testing_mode_file = dir / "testing_mode.py.script"
+    copy_file_if_changed(
+        testing_mode_file,
+        CORE.relative_build_path("testing_mode.py"),
     )

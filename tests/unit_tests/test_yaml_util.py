@@ -67,18 +67,18 @@ def test_parsing_with_custom_loader(fixture_path):
     """
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
-    loader_calls = []
+    loader_calls: list[Path] = []
 
-    def custom_loader(fname):
+    def custom_loader(fname: Path):
         loader_calls.append(fname)
 
-    with open(yaml_file, encoding="utf-8") as f_handle:
+    with yaml_file.open(encoding="utf-8") as f_handle:
         yaml_util.parse_yaml(yaml_file, f_handle, custom_loader)
 
     assert len(loader_calls) == 3
-    assert loader_calls[0].endswith("includes/included.yaml")
-    assert loader_calls[1].endswith("includes/list.yaml")
-    assert loader_calls[2].endswith("includes/scalar.yaml")
+    assert loader_calls[0].parts[-2:] == ("includes", "included.yaml")
+    assert loader_calls[1].parts[-2:] == ("includes", "list.yaml")
+    assert loader_calls[2].parts[-2:] == ("includes", "scalar.yaml")
 
 
 def test_construct_secret_simple(fixture_path: Path) -> None:
@@ -110,7 +110,7 @@ wifi:
     secrets_yaml.write_text("some_other_secret: value")
 
     with pytest.raises(EsphomeError, match="Secret 'nonexistent_secret' not defined"):
-        yaml_util.load_yaml(str(test_yaml))
+        yaml_util.load_yaml(test_yaml)
 
 
 def test_construct_secret_no_secrets_file(tmp_path: Path) -> None:
@@ -124,10 +124,10 @@ wifi:
 
     # Mock CORE.config_path to avoid NoneType error
     with (
-        patch.object(core.CORE, "config_path", str(tmp_path / "main.yaml")),
+        patch.object(core.CORE, "config_path", tmp_path / "main.yaml"),
         pytest.raises(EsphomeError, match="secrets.yaml"),
     ):
-        yaml_util.load_yaml(str(test_yaml))
+        yaml_util.load_yaml(test_yaml)
 
 
 def test_construct_secret_fallback_to_main_config_dir(
@@ -149,8 +149,8 @@ wifi:
     main_secrets.write_text("test_secret: main_secret_value")
 
     # Mock CORE.config_path to point to main directory
-    with patch.object(core.CORE, "config_path", str(tmp_path / "main.yaml")):
-        actual = yaml_util.load_yaml(str(test_yaml))
+    with patch.object(core.CORE, "config_path", tmp_path / "main.yaml"):
+        actual = yaml_util.load_yaml(test_yaml)
         assert actual["wifi"]["password"] == "main_secret_value"
 
 
@@ -167,7 +167,7 @@ def test_construct_include_dir_named(fixture_path: Path, tmp_path: Path) -> None
 sensor: !include_dir_named named_dir
 """)
 
-    actual = yaml_util.load_yaml(str(test_yaml))
+    actual = yaml_util.load_yaml(test_yaml)
     actual_sensor = actual["sensor"]
 
     # Check that files were loaded with their names as keys
@@ -202,7 +202,7 @@ def test_construct_include_dir_named_empty_dir(tmp_path: Path) -> None:
 sensor: !include_dir_named empty_dir
 """)
 
-    actual = yaml_util.load_yaml(str(test_yaml))
+    actual = yaml_util.load_yaml(test_yaml)
 
     # Should return empty OrderedDict
     assert isinstance(actual["sensor"], OrderedDict)
@@ -234,7 +234,7 @@ def test_construct_include_dir_named_with_dots(tmp_path: Path) -> None:
 test: !include_dir_named test_dir
 """)
 
-    actual = yaml_util.load_yaml(str(test_yaml))
+    actual = yaml_util.load_yaml(test_yaml)
 
     # Should only include visible file
     assert "visible" in actual["test"]
@@ -258,7 +258,7 @@ def test_find_files_recursive(fixture_path: Path, tmp_path: Path) -> None:
 all_sensors: !include_dir_named named_dir
 """)
 
-    actual = yaml_util.load_yaml(str(test_yaml))
+    actual = yaml_util.load_yaml(test_yaml)
 
     # Should find sensor1.yaml, sensor2.yaml, and subdir/sensor3.yaml (all flattened)
     assert len(actual["all_sensors"]) == 3

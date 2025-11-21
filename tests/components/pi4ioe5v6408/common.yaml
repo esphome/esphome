@@ -1,9 +1,5 @@
-i2c:
-  id: i2c_pi4ioe5v6408
-  sda: ${i2c_sda}
-  scl: ${i2c_scl}
-
 pi4ioe5v6408:
+  i2c_id: i2c_bus
   id: pi4ioe1
   address: 0x44
 

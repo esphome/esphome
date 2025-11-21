@@ -28,7 +28,7 @@ const int DEFAULT_BLANK_TIME = 1000;
 
 static const char *const TAG = "wled_light_effect";
 
-WLEDLightEffect::WLEDLightEffect(const std::string &name) : AddressableLightEffect(name) {}
+WLEDLightEffect::WLEDLightEffect(const char *name) : AddressableLightEffect(name) {}
 
 void WLEDLightEffect::start() {
   AddressableLightEffect::start();

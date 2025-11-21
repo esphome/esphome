@@ -276,7 +276,7 @@ template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransm
   TEMPLATABLE_VALUE(uint32_t, send_wait)
 
  protected:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->transmitter_->transmit();
     this->encode(call.get_data(), x...);
     call.set_send_times(this->send_times_.value_or(x..., 1));
