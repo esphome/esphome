@@ -103,21 +103,9 @@ class CoapClientComponent : public Component {
       this->max_block_size_ = block_size;
     }
   }
-  void set_request_timeout(uint32_t timeout) {
-    if (timeout > COAP_RESOURCE_CHECK_TIME * 1000) {
-      this->request_timeout_ = timeout;
-    }
-  }
-  void set_ack_timeout(uint32_t timeout) {
-    if (timeout > 2000) {
-      this->ack_timeout_ = timeout;
-    }
-  }
-  void set_max_retransmit(uint8_t max) {
-    if (max >= 0) {
-      this->max_retransmit_ = max;
-    }
-  }
+  void set_request_timeout(uint32_t timeout) { this->request_timeout_ = timeout; }
+  void set_ack_timeout(uint32_t timeout) { this->ack_timeout_ = timeout; }
+  void set_max_retransmit(uint8_t max) { this->max_retransmit_ = max; }
 
  protected:
   void housekeeping_();
@@ -138,7 +126,6 @@ class CoapClientComponent : public Component {
   uint32_t request_timeout_{COAP_RESOURCE_CHECK_TIME * 1000};
   uint32_t ack_timeout_{2000};
   uint8_t max_retransmit_{4};
-  uint32_t request_observe_timeout_{128000};
 };
 
 extern CoapClientComponent *global_coap_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
