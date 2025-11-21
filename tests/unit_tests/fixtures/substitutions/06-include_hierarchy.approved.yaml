@@ -1,0 +1,21 @@
+substitutions:
+  a: 10
+  b: 20
+  x: 79
+test_list:
+  - level1:
+      c: 10
+      d: 20
+      level2:
+        - level2:
+            e: 20
+            f: 40
+            level3:
+              - level3:
+                  g: 100
+                  h: 200
+                  i: ${undefined_variable}
+                  x: 79
+  - a: 10
+    b: 20
+    x: 79

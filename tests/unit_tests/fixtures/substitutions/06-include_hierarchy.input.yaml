@@ -1,0 +1,14 @@
+substitutions:
+  a: 10
+  b: 20
+  x: 79
+
+test_list:
+  - !include
+    file: level1_package.yaml
+    vars:
+      c: ${a}
+      d: ${b}
+  - a: ${a}
+    b: ${b}
+    x: ${x}

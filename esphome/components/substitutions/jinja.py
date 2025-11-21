@@ -1,4 +1,5 @@
 from ast import literal_eval
+from collections import ChainMap
 from collections.abc import Iterator
 from itertools import chain, islice
 import logging
@@ -67,13 +68,13 @@ class JinjaStr(str):
 
     Undefined = object()
 
-    def __new__(cls, value: str, upvalues=None):
+    def __new__(cls, value: str, upvalues: dict[str, Any] = None):
         if isinstance(value, JinjaStr):
             base = str(value)
             merged = {**value.upvalues, **(upvalues or {})}
         else:
             base = value
-            merged = dict(upvalues or {})
+            merged = upvalues or {}
         obj = super().__new__(cls, base)
         obj.upvalues = merged
         obj.result = JinjaStr.Undefined
@@ -112,7 +113,12 @@ class TrackerContext(jinja.runtime.Context):
             raise UndefinedError(f"'{key}' is undefined")
         if isinstance(val, JinjaStr):
             self.environment.context_trace[key] = val
-            val, _ = self.environment.expand(val)
+            val, err = self.environment.expand(
+                JinjaStr(str(val), ChainMap(val.upvalues, self.parent))
+            )
+            if isinstance(err, UndefinedError) and self.environment.ignore_missing:
+                # delay evaluation of this expression
+                raise err
         self.environment.context_trace[key] = val
         return val
 

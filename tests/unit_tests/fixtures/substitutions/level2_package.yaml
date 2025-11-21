@@ -1,0 +1,9 @@
+level2:
+  e: ${e}
+  f: ${f}
+  level3:
+    - !include
+      file: level3_package.yaml
+      vars:
+        g: ${e*5}
+        h: ${f*5}

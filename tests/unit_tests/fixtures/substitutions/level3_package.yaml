@@ -1,0 +1,5 @@
+level3:
+  g: ${g}
+  h: ${h}
+  i: ${undefined_variable}  # Does not exist, should be output as-is
+  x: ${x}  # Inherited from top-level substitutions
