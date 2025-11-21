@@ -32,7 +32,7 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
-from .automation import focused_widgets, layers_to_code, refreshed_widgets
+from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
 from .defines import add_define
 from .encoders import (
     ENCODERS_CONFIG,
@@ -303,6 +303,7 @@ async def to_code(configs):
             await add_widgets(lv_scr_act, config)
             await add_pages(lv_component, config)
             await layers_to_code(lv_component, config)
+            await lvgl_update(lv_component, config)
             await msgboxes_to_code(lv_component, config)
             # await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.

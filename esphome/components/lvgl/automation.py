@@ -10,6 +10,7 @@ from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
+    CONF_BG_OPA,
     CONF_BOTTOM_LAYER,
     CONF_EDITING,
     CONF_FREEZE,
@@ -23,7 +24,7 @@ from .defines import (
     PARTS,
     StaticCastExpression,
 )
-from .lv_validation import lv_bool, lv_milliseconds
+from .lv_validation import lv_bool, lv_milliseconds, opacity_consts
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
@@ -84,6 +85,26 @@ async def layers_to_code(lv_component, config):
             bottom_w = Widget(bottom_layer_obj, layer_spec, bottom_conf)
             await set_obj_properties(bottom_w, bottom_conf)
             await add_widgets(bottom_w, bottom_conf)
+
+
+async def lvgl_update(lv_component, config):
+    bottom = {k.removeprefix("disp_"): v for k, v in config.items() if k in DISP_PROPS}
+    if not bottom:
+        return
+    plural = len(bottom) != 1
+    LOGGER.warning(
+        "The propert"
+        + ("ies " if plural else "y ")
+        + "'"
+        + "','".join(bottom)
+        + "'"
+        + (" are " if plural else " is ")
+        + "deprecated, use 'bottom_layer' instead."
+    )
+    # Preserve default opacity from 8.x
+    if CONF_BG_OPA not in bottom:
+        bottom[CONF_BG_OPA] = opacity_consts.COVER
+    await layers_to_code(lv_component, {CONF_BOTTOM_LAYER: bottom})
 
 
 async def action_to_code(
@@ -209,7 +230,6 @@ DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
     .extend(DISP_BG_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.use_id(LvglComponent),
             cv.Optional(CONF_TOP_LAYER): part_schema(layer_spec.parts),
             cv.Optional(CONF_BOTTOM_LAYER): part_schema(layer_spec.parts),
         }
@@ -218,20 +238,8 @@ DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
 async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config, CONF_LVGL_ID)
     w = widgets[0]
-    if any(x in config for x in DISP_PROPS):
-        config = config.copy()
-        bottom = config.get(CONF_BOTTOM_LAYER, {})
-        bottom.update(
-            {k.removeprefix("disp_"): v for k, v in config.items() if k in DISP_PROPS}
-        )
-        LOGGER.warning(
-            "The properties '"
-            + "','".join(DISP_PROPS)
-            + "' are deprecated, use 'bottom_layer' instead."
-        )
-        config[CONF_BOTTOM_LAYER] = bottom
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
-        await layers_to_code(w.var, config)
+        await lvgl_update(w.var, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)
     return var
