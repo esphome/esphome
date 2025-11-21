@@ -54,11 +54,10 @@ class ImgType(WidgetType):
             (CONF_MAIN,),
             IMG_SCHEMA,
             IMG_MODIFY_SCHEMA,
-            lv_name="img",
         )
 
     def get_uses(self):
-        return "img", CONF_LABEL
+        return CONF_IMAGE, CONF_LABEL
 
     async def to_code(self, w: Widget, config):
         if src := config.get(CONF_SRC):

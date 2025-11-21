@@ -46,14 +46,14 @@ CONFIG = """
             on_boot:
                 lvgl.widget.refresh: hello_world_title_
             hidden: !lambda |-
-                return lv_obj_get_width(lv_scr_act()) < 400;
+                return lv_obj_get_width(lv_screen_active()) < 400;
         - checkbox:
             text: Checkbox
             id: hello_world_checkbox_
             on_boot:
                 lvgl.widget.refresh: hello_world_checkbox_
             hidden: !lambda |-
-                return lv_obj_get_width(lv_scr_act()) < 240;
+                return lv_obj_get_width(lv_screen_active()) < 240;
             on_click:
               lvgl.label.update:
                 id: hello_world_label_
@@ -86,7 +86,7 @@ CONFIG = """
                 height: 100
                 width: 100
                 spin_time: 2s
-                arc_length: 60deg
+                arc_length: 200
                 widgets:
                     - label:
                         id: hello_world_label_
@@ -97,7 +97,7 @@ CONFIG = """
                 outline_width: 0
                 border_width: 0
                 hidden: !lambda |-
-                    return lv_obj_get_width(lv_scr_act()) < 300 && lv_obj_get_height(lv_scr_act()) < 400;
+                    return lv_obj_get_width(lv_screen_active()) < 300 && lv_obj_get_height(lv_screen_active()) < 400;
                 widgets:
                 - label:
                     text_font: montserrat_14

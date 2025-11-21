@@ -781,6 +781,7 @@ async def write_image(config, all_frames=False):
 
 
 async def to_code(config):
+    cg.add_define("USE_IMAGE")
     # By now the config should be a simple list.
     for entry in config:
         prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)

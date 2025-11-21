@@ -61,7 +61,7 @@ from .types import (
 from .widgets import (
     Widget,
     add_widgets,
-    get_scr_act,
+    get_screen_active,
     get_widgets,
     set_obj_properties,
     wait_for_widgets,
@@ -207,7 +207,7 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     if CONF_LVGL_ID in config:
         lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-        widgets = [get_scr_act(lv_comp)]
+        widgets = [get_screen_active(lv_comp)]
     else:
         widgets = await get_widgets(config)
 

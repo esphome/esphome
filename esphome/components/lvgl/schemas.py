@@ -206,6 +206,7 @@ STYLE_PROPS = {
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
     "transform_rotation": lvalid.lv_angle,
+    "transform_scale": lvalid.zoom,
     "transform_zoom": lvalid.zoom,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
@@ -221,6 +222,7 @@ STYLE_PROPS = {
 
 STYLE_REMAP = {
     "transform_angle": "transform_rotation",
+    "transform_zoom": "transform_scale",
 }
 
 # Log use of deprecated properties here

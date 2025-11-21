@@ -4,7 +4,7 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif  // USE_BINARY_SENSOR
-#ifdef USE_LVGL_IMAGE
+#ifdef USE_IMAGE
 #include "esphome/components/image/image.h"
 #endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ROTARY_ENCODER
@@ -27,10 +27,10 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_LVGL_FONT
+#ifdef USE_FONT
 #include "esphome/components/font/font.h"
 #endif  // USE_LVGL_FONT
-#ifdef USE_LVGL_TOUCHSCREEN
+#ifdef USE_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
 #endif  // USE_LVGL_TOUCHSCREEN
 
@@ -59,7 +59,7 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
 #endif  // LV_COLOR_DEPTH
 
-#ifdef USE_LVGL_FONT
+#ifdef USE_FONT
 inline void lv_obj_set_style_text_font(lv_obj_t *obj, const font::Font *font, lv_style_selector_t part) {
   lv_obj_set_style_text_font(obj, font->get_lv_font(), part);
 }
@@ -67,35 +67,28 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
   lv_style_set_text_font(style, font->get_lv_font());
 }
 #endif
-#ifdef USE_LVGL_IMAGE
+#ifdef USE_IMAGE
 // Shortcut / overload, so that the source of an image can easily be updated
 // from within a lambda.
-inline void lv_img_set_src(lv_obj_t *obj, esphome::image::Image *image) {
-  lv_img_set_src(obj, image->get_lv_img_dsc());
+inline void lv_image_set_src(lv_obj_t *obj, esphome::image::Image *image) {
+  lv_image_set_src(obj, image->get_lv_image_dsc());
 }
 
-inline void lv_obj_set_style_bg_img_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
-  lv_obj_set_style_bg_img_src(obj, image->get_lv_img_dsc(), selector);
+inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
+  lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
 }
-#ifdef USE_LVGL_CANVAS
-inline void lv_canvas_draw_img(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, image::Image *image,
-                               lv_draw_image_dsc_t *dsc) {
-  lv_canvas_draw_img(canvas, x, y, image->get_lv_img_dsc(), dsc);
-}
-#endif
-
 #endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ANIMIMG
 inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images) {
-  auto *dsc = static_cast<std::vector<lv_img_dsc_t *> *>(lv_obj_get_user_data(img));
+  auto *dsc = static_cast<std::vector<lv_image_dsc_t *> *>(lv_obj_get_user_data(img));
   if (dsc == nullptr) {
     // object will be lazily allocated but never freed.
-    dsc = new std::vector<lv_img_dsc_t *>(images.size());  // NOLINT
+    dsc = new std::vector<lv_image_dsc_t *>(images.size());  // NOLINT
     lv_obj_set_user_data(img, dsc);
   }
   dsc->clear();
   for (auto &image : images) {
-    dsc->push_back(image->get_lv_img_dsc());
+    dsc->push_back(image->get_lv_image_dsc());
   }
   lv_animimg_set_src(img, (const void **) dsc->data(), dsc->size());
 }
@@ -166,7 +159,7 @@ class LvglComponent : public PollingComponent {
   static void render_start_cb(lv_event_t *event);
   void dump_config() override;
   lv_disp_t *get_disp() { return this->disp_; }
-  lv_obj_t *get_scr_act() { return lv_disp_get_scr_act(this->disp_); }
+  lv_obj_t *get_screen_active() { return lv_display_get_screen_active(this->disp_); }
   // Pause or resume the display.
   // @param paused If true, pause the display. If false, resume the display.
   // @param show_snow If true, show the snow effect when paused.
@@ -242,7 +235,7 @@ class LvglComponent : public PollingComponent {
   Trigger<> *resume_callback_{};
   Trigger<> *draw_start_callback_{};
   Trigger<> *draw_end_callback_{};
-  lv_color_t *rotate_buf_{};
+  void *rotate_buf_{};
 };
 
 class IdleTrigger : public Trigger<> {

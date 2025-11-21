@@ -64,7 +64,7 @@ from .widgets import (
     LvScrActType,
     Widget,
     add_widgets,
-    get_scr_act,
+    get_screen_active,
     set_obj_properties,
     styles_used,
 )
@@ -290,7 +290,7 @@ async def to_code(configs):
         await cg.register_component(lv_component, config)
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
-        lv_scr_act = get_scr_act(lv_component)
+        lv_scr_act = get_screen_active(lv_component)
         async with LvContext():
             cg.add(lv_component.set_big_endian(config[CONF_BYTE_ORDER] == "big_endian"))
             await touchscreens_to_code(lv_component, config)
@@ -335,7 +335,7 @@ async def to_code(configs):
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
         cg.add_define(f"USE_LVGL_{comp.upper()}")
-    if {"transform_angle", "transform_zoom"} & styles_used:
+    if {"transform_angle", "transform_scale"} & styles_used:
         add_define("LV_COLOR_SCREEN_TRANSP", "1")
     for use in helpers.lv_uses:
         add_define(f"LV_USE_{use.upper()}")

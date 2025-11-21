@@ -115,9 +115,9 @@ void LvglComponent::dump_config() {
 void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
   this->show_snow_ = show_snow;
-  if (!paused && lv_scr_act() != nullptr) {
+  if (!paused && lv_screen_active() != nullptr) {
     lv_disp_trig_activity(this->disp_);  // resets the inactivity time
-    lv_obj_invalidate(lv_scr_act());
+    lv_obj_invalidate(lv_screen_active());
   }
   if (paused && this->pause_callback_ != nullptr)
     this->pause_callback_->trigger();
@@ -127,6 +127,7 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
 
 void LvglComponent::esphome_lvgl_init() {
   lv_init();
+  lv_tick_set_cb([] { return millis(); });
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
   lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
@@ -505,7 +506,6 @@ void LvglComponent::setup() {
     esp_log_printf_(log_level_map[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
 #endif
-  lv_tick_set_cb([] { return millis(); });
   // Rotation will be handled by our drawing function, so reset the display rotation.
   for (auto *disp : this->displays_)
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
@@ -525,7 +525,7 @@ void LvglComponent::loop() {
     if (this->show_snow_)
       this->write_random_();
   } else {
-    lv_timer_handler_run_in_period(5);
+    lv_timer_handler();
   }
 }
 
@@ -605,3 +605,10 @@ void *lv_realloc_core(void *ptr, size_t size) {
   return heap_caps_realloc(ptr, size, cap_bits);
 }
 #endif
+
+EXTERNC void logd(const char *fmt, ...) {
+  va_list arg;
+  va_start(arg, fmt);
+  esphome::esp_log_vprintf_(ESPHOME_LOG_LEVEL_DEBUG, "lvgl", __LINE__, fmt, arg);
+  va_end(arg);
+}
