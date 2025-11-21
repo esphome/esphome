@@ -37,7 +37,7 @@ struct ComponentErrorMessage {
   const Component *component;
   const char *message;
   // Track if message is flash pointer (needs LOG_STR_ARG) or RAM pointer
-  // Remove before 2026.12.0 when deprecated const char* API is removed
+  // Remove before 2026.6.0 when deprecated const char* API is removed
   bool is_flash_ptr;
 };
 
@@ -54,7 +54,7 @@ std::unique_ptr<std::vector<ComponentErrorMessage>> component_error_messages;
 std::unique_ptr<std::vector<ComponentPriorityOverride>> setup_priority_overrides;
 
 // Helper to store error messages - reduces duplication between deprecated and new API
-// Remove before 2026.12.0 when deprecated const char* API is removed
+// Remove before 2026.6.0 when deprecated const char* API is removed
 void store_component_error_message(const Component *component, const char *message, bool is_flash_ptr) {
   // Lazy allocate the error messages vector if needed
   if (!component_error_messages) {
