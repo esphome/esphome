@@ -13,7 +13,7 @@ class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
 
   void write_time();
   void read_time();
-  void start_timer(uint32_t timer_s);
+  void start_timer(uint32_t duration_s);
 
  private:
   void get_time_(ESPTime &time);

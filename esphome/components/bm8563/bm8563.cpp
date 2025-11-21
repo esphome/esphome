@@ -33,9 +33,9 @@ void BM8563::dump_config() {
   }
 }
 
-void BM8563::start_timer(uint32_t timer_s) {
+void BM8563::start_timer(uint32_t duration_s) {
   this->clear_irq_();
-  this->set_timer_irq_(timer_s);
+  this->set_timer_irq_(duration_s);
 }
 
 void BM8563::write_time() {
