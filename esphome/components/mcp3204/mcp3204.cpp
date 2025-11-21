@@ -29,7 +29,7 @@ float MCP3204::read_data(uint8_t pin, bool differential) {
   b1 = this->transfer_byte(0x00);
   this->disable();
 
-  uint16_t digital_value = (b0 << 4) | (b1 >> 4);
+  uint16_t digital_value = encode_uint16(b0, b1) >> 4;
   return float(digital_value) / 4096.000 * this->reference_voltage_;  // in V
 }
 
