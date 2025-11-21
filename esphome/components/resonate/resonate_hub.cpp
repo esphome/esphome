@@ -127,6 +127,7 @@ void ResonateHub::loop() {
   EventBits_t event_bits = xEventGroupGetBits(this->event_group_);
 
   if (event_bits & EventGroupBits::COMMAND_START) {
+    xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_STOP);
     if (this->decode_task_handle_ == nullptr) {
       ESP_LOGD(TAG, "Trying to start decode task");
       if (this->decode_task_stack_buffer_ == nullptr) {
