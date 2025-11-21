@@ -20,7 +20,7 @@ static const char *const TAG = "coap_client";
 // CoapClientComponent
 CoapClientComponent *global_coap_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-const char *coap_method_to_string(CoapMethod method) {
+const char *coap_method_to_string(CoapMethod const &method) {
   switch (method) {
     case EMPTY:
       return "EMPTY";
@@ -43,7 +43,7 @@ const char *coap_method_to_string(CoapMethod method) {
   }
 }
 
-const char *coap_media_type_to_string(CoapMediaType media_type) {
+const char *coap_media_type_to_string(CoapMediaType const &media_type) {
   switch (media_type) {
     case TEXT_PLAIN:
       return "TEXT_PLAIN";
@@ -104,7 +104,7 @@ bool CoapClientComponent::teardown() {
   for (const auto &ptr : this->tx_requests_) {
     // Stop response or never response
     if (ptr->observe && ptr->observing) {
-      ESP_LOGD(TAG, "Queue Request to terminate observation of Request: %s", ptr->name.c_str());
+      ESP_LOGD(TAG, "Queue Request to remove observation of Request: %s", ptr->name.c_str());
       ptr->observe = false;
       xQueueSend(this->request_queue_, (void *) &ptr->create_timestamp, pdMS_TO_TICKS(1000));
     }
@@ -156,26 +156,22 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
     }
     tx_i++;
   }
-  CoapClientRequestData &tx_request = *this->tx_requests_[tx_i];
   if (!is_found) {
     // Silent fail
     ESP_LOGVV(TAG, "Unable to find CoAP Client Request");
     return COAP_RESPONSE_OK;
   }
+  CoapClientRequestData &tx_request = *this->tx_requests_[tx_i];
   ESP_LOGV(TAG, "CoAP Client Request: %s", tx_request.name.c_str());
   tx_request.response_timestamp = micros();
-
+  if (tx_request.observe && !tx_request.observing) {
+    tx_request.observing = true;
+  }
   if (COAP_RESPONSE_CLASS(rcvd_code) == 2) {
-    if (tx_request.observe && !tx_request.observing) {
-      tx_request.observing = true;
-    }
     if (coap_get_data_large(received, &data_len, &data, &offset, &total)) {
       tx_request.callback(rcode, data, data_len, offset, total, tx_request.callback_context);
-      if (data_len + offset == total) {
-        if (!tx_request.observe) {
-          this->tx_requests_.erase(this->tx_requests_.begin() + tx_i);
-        }
-        this->inner_coap_loop_ = false;
+      if (data_len + offset == total && !tx_request.observe) {
+        this->tx_requests_.erase(this->tx_requests_.begin() + tx_i);
       }
     }
   } else {
@@ -188,74 +184,21 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
     if (!tx_request.observe) {
       this->tx_requests_.erase(this->tx_requests_.begin() + tx_i);
     }
-    this->inner_coap_loop_ = false;
   }
+  this->inner_coap_loop_ = false;
   return COAP_RESPONSE_OK;
 }
 
-void CoapClientComponent::get(std::string uri,
-                              std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
-                                                 size_t offset, size_t total, void *context)>
-                                  callback,
-                              void *callback_context, uint32_t response_timeout) {
-  CoapClientRequestData tx_request = {
-      .method = CoapMethod::GET,
-      .uri = std::move(uri),
-      .callback = std::move(callback),
-      .callback_context = callback_context,
-      .response_timeout = response_timeout,
-  };
-  this->process_request(tx_request);
-}
-
-void CoapClientComponent::post(std::string uri,
-                               std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
-                                                  size_t offset, size_t total, void *context)>
-                                   callback,
-                               void *callback_context, std::string payload, CoapMediaType media_type,
-                               uint32_t response_timeout) {
-  CoapClientRequestData tx_request = {
-      .method = CoapMethod::POST,
-      .uri = std::move(uri),
-      .callback = std::move(callback),
-      .callback_context = callback_context,
-      .media_type = media_type,
-      .payload = std::move(payload),
-      .response_timeout = response_timeout,
-  };
-  this->process_request(tx_request);
-}
-
-void CoapClientComponent::process_request(CoapClientRequestData &tx_request) {
-  ESP_LOGD(TAG, "%s %s", coap_method_to_string(tx_request.method), tx_request.uri.c_str());
-  if (!tx_request.payload.empty()) {
-    ESP_LOGD(TAG, "payload media_type %s, payload starts with %.*s", coap_media_type_to_string(tx_request.media_type),
-             std::min(10, (int) tx_request.payload.length()), tx_request.payload.c_str());
-  }
+void CoapClientComponent::process_request(std::unique_ptr<CoapClientRequestData> tx_request) {
+  ESP_LOGD(TAG, "%s %s", coap_method_to_string(tx_request->method), tx_request->uri.c_str());
   uint32_t dtime = micros();
-  std::string name = !tx_request.payload.empty() ? tx_request.name : std::format("{}", dtime);
-  std::unique_ptr<CoapClientRequestData> utx_request_ptr = std::make_unique<CoapClientRequestData>();
-  ESP_LOGV(TAG, "Name:'%s' oname:'%s', time:'%s'", name.c_str(), tx_request.name.c_str(),
-           (std::format("{}", dtime)).c_str());
-  utx_request_ptr->name = name;
-  utx_request_ptr->create_timestamp = dtime;
-  utx_request_ptr->response_timestamp = dtime;
-  utx_request_ptr->observe = tx_request.observe;
-  utx_request_ptr->observing = tx_request.observing;
-  utx_request_ptr->qblock = tx_request.qblock;
-  utx_request_ptr->method = tx_request.method;
-  utx_request_ptr->uri = tx_request.uri;
-  utx_request_ptr->callback = tx_request.callback;
-  utx_request_ptr->callback_context = tx_request.callback_context;
-  utx_request_ptr->media_type = tx_request.media_type;
-  utx_request_ptr->payload = tx_request.payload;
-  utx_request_ptr->response_timeout = tx_request.response_timeout;
+  tx_request->name = !tx_request->name.empty() ? tx_request->name : std::format("{}", dtime);
+  tx_request->create_timestamp = dtime;
+  tx_request->response_timestamp = dtime;
   std::lock_guard<std::mutex> lock(this->mutex_lock_);
-  this->tx_requests_.push_back(std::move(utx_request_ptr));
-  BaseType_t sent_status;
-  sent_status = xQueueSend(this->request_queue_, (void *) &dtime, pdMS_TO_TICKS(1000));
-  if (sent_status != pdPASS) {
-    ESP_LOGE(TAG, "Failed to send the request_data to the queue %d", sent_status);
+  this->tx_requests_.push_back(std::move(tx_request));
+  if (xQueueSend(this->request_queue_, (void *) &dtime, pdMS_TO_TICKS(1000)) != pdPASS) {
+    ESP_LOGE(TAG, "Failed to send the request_data to the queue");
   }
 }
 
@@ -306,11 +249,10 @@ void CoapClientComponent::main_() {
 
     // ESP_LOGV(TAG, "Begin coap main loop");
     for (; this->main_coap_loop_; cleanup(opt_list)) {
-      ESP_LOGV(TAG, "Top of main loop");
       tx_request = nullptr;
       this->inner_coap_loop_ = true;
       receive_status = xQueueReceive(this->request_queue_, &dtime, 0);
-      ESP_LOGV(TAG, "recieve_status: %d num: %d", receive_status, uxQueueMessagesWaiting(this->request_queue_));
+      ESP_LOGV(TAG, "recieve_status: %d", receive_status);
       // Request recieved from Queue
       if (receive_status == pdPASS) {
         std::lock_guard<std::mutex> lock(this->mutex_lock_);
@@ -323,16 +265,14 @@ void CoapClientComponent::main_() {
           ESP_LOGE(TAG, "unable to find queued request");
           continue;
         }
-        ESP_LOGV(TAG, "Timestamp %d %s", dtime, tx_request->name.c_str());
         // Parse uri
         if (coap_split_uri((const uint8_t *) tx_request->uri.c_str(), tx_request->uri.length(), &uri) == -1) {
           ESP_LOGE(TAG, "Error coap_split_uri %s", tx_request->uri.c_str());
           continue;
         }
-        ESP_LOGV(TAG, "  Scheme: %d", uri.scheme);
-        ESP_LOGV(TAG, "  Host: %.*s (length %zu)", (int) uri.host.length, uri.host.s, uri.host.length);
-        ESP_LOGV(TAG, "  Port: %u", uri.port);  // Use %u for uint16_t
-        ESP_LOGV(TAG, "  Path: %.*s (length %zu)\n", (int) uri.path.length, uri.path.s, uri.path.length);
+        ESP_LOGV(TAG, "Scheme: %d\n", "Host: %.*s (length %zu)\n", "Port: %u", "Path: %.*s (length %zu)\n", uri.scheme,
+                 (int) uri.host.length, uri.host.s, uri.host.length, uri.port, (int) uri.path.length, uri.path.s,
+                 uri.path.length);
 
         // Get info_list (addr is destination, proto(col) is UDP, DTLS, TCP, TLS)
         info_list = coap_resolve_address_info(&uri.host, uri.port, uri.port, uri.port, uri.port, 0, 1 << uri.scheme,
@@ -394,14 +334,16 @@ void CoapClientComponent::main_() {
 
         // Observe
         if (tx_request->observe && !tx_request->observing) {
+          ESP_LOGD(TAG, "Request start observing %s", tx_request->name.c_str());
           u_char buf[4];
           coap_add_option(
               request, COAP_OPTION_OBSERVE,
               coap_encode_var_safe(buf, sizeof(buf), COAP_OBSERVE_ESTABLISH),  // COAP_OBSERVE_ESTABLISH is 0
               buf);
         }
-        // Unobserve
+        // Cancel observe
         if (!tx_request->observe && tx_request->observing) {
+          ESP_LOGD(TAG, "Request stop observing %s", tx_request->name.c_str());
           u_char buf[4];
           coap_add_option(request, COAP_OPTION_OBSERVE,
                           coap_encode_var_safe(buf, sizeof(buf), COAP_OBSERVE_CANCEL),  // COAP_OBSERVE_ESTABLISH is 1

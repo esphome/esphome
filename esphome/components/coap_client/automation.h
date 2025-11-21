@@ -55,17 +55,17 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
     if (this->request_name.length() == 0) {
       this->request_name = std::format("{}", esphome::micros());
     }
-    CoapClientRequestData tx_request = {
-        .name = this->request_name,
-        .method = this->get_method_(this->method_.value(x...)),
-        .uri = this->url_.value(x...),
-        .callback = CoapClientSendAction::callback,
-        .callback_context = this,
-        .media_type = this->get_media_type_(this->media_type_.value(x...)),
-        .payload = payload,
-        .response_timeout = this->response_timeout_.value(x...),
-        .observe = this->observe_.value(x...),
-    };
+
+    std::unique_ptr<CoapClientRequestData> tx_request = std::make_unique<CoapClientRequestData>();
+    tx_request->name = this->request_name;
+    tx_request->method = this->get_method_(this->method_.value(x...));
+    tx_request->uri = this->url_.value(x...);
+    tx_request->callback = CoapClientSendAction::callback;
+    tx_request->callback_context = this;
+    tx_request->media_type = this->get_media_type_(this->media_type_.value(x...));
+    tx_request->payload = payload;
+    tx_request->response_timeout = this->response_timeout_.value(x...);
+    tx_request->observe = this->observe_.value(x...);
 
     auto resp_stats = get_response_stats();
     resp_stats->clean();
@@ -75,7 +75,7 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
     this->response_finished = false;
     resp_stats->start_ms = esphome::millis();
     this->captured_args = std::make_tuple(x...);
-    this->parent_->process_request(tx_request);
+    this->parent_->process_request(std::move(tx_request));
   }
 
   void trigger_this() {

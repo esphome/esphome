@@ -36,7 +36,7 @@ def validate_url(value):
 CODEOWNERS = ["@rwrozelle"]
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["json", "watchdog"]
+AUTO_LOAD = ["json"]
 
 coap_client_component_ns = cg.esphome_ns.namespace("coap_client")
 CoapClientComponent = coap_client_component_ns.class_(

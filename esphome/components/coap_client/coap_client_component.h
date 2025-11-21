@@ -24,7 +24,7 @@ enum CoapMethod : uint8_t {
   PATCH = COAP_REQUEST_CODE_PATCH,
   IPATCH = COAP_REQUEST_CODE_IPATCH,
 };
-const char *coap_method_to_string(CoapMethod method);
+const char *coap_method_to_string(CoapMethod const &method);
 
 enum CoapMediaType : uint8_t {
   TEXT_PLAIN = COAP_MEDIATYPE_TEXT_PLAIN,
@@ -37,7 +37,7 @@ enum CoapMediaType : uint8_t {
   APPLICATION_CBOR = COAP_MEDIATYPE_APPLICATION_CBOR,
   APPLICATION_CWT = COAP_MEDIATYPE_APPLICATION_CWT,
 };
-const char *coap_media_type_to_string(CoapMediaType media_type);
+const char *coap_media_type_to_string(CoapMediaType const &media_type);
 
 struct CoapClientRequestData {
   std::string name{};
@@ -91,18 +91,7 @@ class CoapClientComponent : public Component {
   bool teardown() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  void get(std::string uri,
-           std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
-                              size_t total, void *context)>
-               callback,
-           void *callback_context, uint32_t response_timeout = 4000);
-  void post(std::string uri,
-            std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len, size_t offset,
-                               size_t total, void *context)>
-                callback,
-            void *callback_context, std::string payload, CoapMediaType media_type = CoapMediaType::TEXT_PLAIN,
-            uint32_t response_timeout = 4000);
-  void process_request(CoapClientRequestData &tx_request);
+  void process_request(std::unique_ptr<CoapClientRequestData> tx_request);
   void remove(const std::string &name);
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                           coap_mid_t mid);
