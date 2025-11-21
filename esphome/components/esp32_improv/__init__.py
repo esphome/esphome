@@ -20,6 +20,10 @@ CONF_ON_STOP = "on_stop"
 CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
 
+# Default WiFi timeout - aligned with WiFi component ap_timeout
+# Allows sufficient time to try all BSSIDs before starting provisioning mode
+DEFAULT_WIFI_TIMEOUT = "90s"
+
 
 improv_ns = cg.esphome_ns.namespace("improv")
 Error = improv_ns.enum("Error")
@@ -59,7 +63,7 @@ CONFIG_SCHEMA = (
                 CONF_AUTHORIZED_DURATION, default="1min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(
-                CONF_WIFI_TIMEOUT, default="1min"
+                CONF_WIFI_TIMEOUT, default=DEFAULT_WIFI_TIMEOUT
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ON_PROVISIONED): automation.validate_automation(
                 {
