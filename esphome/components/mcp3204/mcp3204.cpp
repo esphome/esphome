@@ -16,15 +16,12 @@ void MCP3204::dump_config() {
   ESP_LOGCONFIG(TAG, "  Reference Voltage: %.2fV", this->reference_voltage_);
 }
 
-float MCP3204::read_data(uint8_t channel, bool differential) {
-  uint8_t command, sgldiff;
-  uint8_t b0, b1, b2;
+float MCP3204::read_data(uint8_t pin, bool differential) {
+  uint8_t command, b0, b1, b2;
 
-  sgldiff = differential ? 0 : 1;
-
-  command = ((0x01 << 7) |              // start bit
-             (sgldiff << 6) |           // single or differential
-             ((channel & 0x07) << 3));  // channel number
+  command = (1 << 7) |                       // start bit
+            ((differential ? 0 : 1) << 6) |  // single or differential bit
+            ((pin & 0x07) << 3);             // pin
 
   this->enable();
   b0 = this->transfer_byte(command);
