@@ -25,6 +25,7 @@ int main() { return 0;}
     Path(zephyr_dir / "prj.conf").write_text(
         """
 CONFIG_NEWLIB_LIBC=y
+CONFIG_BT=y
 CONFIG_ADC=y
 """,
         encoding="utf-8",

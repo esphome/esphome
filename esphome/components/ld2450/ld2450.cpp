@@ -13,12 +13,9 @@
 #include <cmath>
 #include <numbers>
 
-namespace esphome {
-namespace ld2450 {
+namespace esphome::ld2450 {
 
 static const char *const TAG = "ld2450";
-static const char *const UNKNOWN_MAC = "unknown";
-static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -192,15 +189,15 @@ void LD2450Component::setup() {
 }
 
 void LD2450Component::dump_config() {
-  std::string mac_str =
-      mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
-  std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
-                                    this->version_[4], this->version_[3], this->version_[2]);
+  char mac_s[18];
+  char version_s[20];
+  const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
+  ld24xx::format_version_str(this->version_, version_s);
   ESP_LOGCONFIG(TAG,
                 "LD2450:\n"
                 "  Firmware version: %s\n"
                 "  MAC address: %s",
-                version.c_str(), mac_str.c_str());
+                version_s, mac_str);
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
   LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
@@ -380,7 +377,7 @@ void LD2450Component::read_all_info() {
   this->set_config_mode_(false);
 #ifdef USE_SELECT
   const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
-  if (this->baud_rate_select_ != nullptr && this->baud_rate_select_->state != baud_rate) {
+  if (this->baud_rate_select_ != nullptr && strcmp(this->baud_rate_select_->current_option(), baud_rate.c_str()) != 0) {
     this->baud_rate_select_->publish_state(baud_rate);
   }
   this->publish_zone_type();
@@ -635,19 +632,19 @@ bool LD2450Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->state.c_str());
+        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->current_option());
       }
 #endif
       break;
 
     case CMD_QUERY_VERSION: {
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
-      std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
-                                        this->version_[4], this->version_[3], this->version_[2]);
-      ESP_LOGV(TAG, "Firmware version: %s", version.c_str());
+      char version_s[20];
+      ld24xx::format_version_str(this->version_, version_s);
+      ESP_LOGV(TAG, "Firmware version: %s", version_s);
 #ifdef USE_TEXT_SENSOR
       if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(version);
+        this->version_text_sensor_->publish_state(version_s);
       }
 #endif
       break;
@@ -663,9 +660,9 @@ bool LD2450Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      std::string mac_str =
-          mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
-      ESP_LOGV(TAG, "MAC address: %s", mac_str.c_str());
+      char mac_s[18];
+      const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
+      ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
       if (this->mac_text_sensor_ != nullptr) {
         this->mac_text_sensor_->publish_state(mac_str);
@@ -716,7 +713,7 @@ bool LD2450Component::handle_ack_data_() {
       this->publish_zone_type();
 #ifdef USE_SELECT
       if (this->zone_type_select_ != nullptr) {
-        ESP_LOGV(TAG, "Change zone type to: %s", this->zone_type_select_->state.c_str());
+        ESP_LOGV(TAG, "Change zone type to: %s", this->zone_type_select_->current_option());
       }
 #endif
       if (this->buffer_data_[10] == 0x00) {
@@ -790,7 +787,7 @@ void LD2450Component::set_bluetooth(bool enable) {
 }
 
 // Set Baud rate
-void LD2450Component::set_baud_rate(const std::string &state) {
+void LD2450Component::set_baud_rate(const char *state) {
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
@@ -798,8 +795,8 @@ void LD2450Component::set_baud_rate(const std::string &state) {
 }
 
 // Set Zone Type - one of: Disabled, Detection, Filter
-void LD2450Component::set_zone_type(const std::string &state) {
-  ESP_LOGV(TAG, "Set zone type: %s", state.c_str());
+void LD2450Component::set_zone_type(const char *state) {
+  ESP_LOGV(TAG, "Set zone type: %s", state);
   uint8_t zone_type = find_uint8(ZONE_TYPE_BY_STR, state);
   this->zone_type_ = zone_type;
   this->send_set_zone_command_();
@@ -941,5 +938,4 @@ float LD2450Component::restore_from_flash_() {
 }
 #endif
 
-}  // namespace ld2450
-}  // namespace esphome
+}  // namespace esphome::ld2450

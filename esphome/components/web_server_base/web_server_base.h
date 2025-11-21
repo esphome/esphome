@@ -7,11 +7,31 @@
 
 #include "esphome/core/component.h"
 
-#ifdef USE_ARDUINO
-#include <ESPAsyncWebServer.h>
-#elif USE_ESP_IDF
+// Platform-agnostic macros for web server components
+// On ESP32 (both Arduino and IDF): Use plain strings (no PROGMEM)
+// On ESP8266: Use Arduino's F() macro for PROGMEM strings
+#ifdef USE_ESP32
+#define ESPHOME_F(string_literal) (string_literal)
+#define ESPHOME_PGM_P const char *
+#define ESPHOME_strncpy_P strncpy
+#else
+// ESP8266 uses Arduino macros
+#define ESPHOME_F(string_literal) F(string_literal)
+#define ESPHOME_PGM_P PGM_P
+#define ESPHOME_strncpy_P strncpy_P
+#endif
+
+#if USE_ESP32
 #include "esphome/core/hal.h"
 #include "esphome/components/web_server_idf/web_server_idf.h"
+#else
+#include <ESPAsyncWebServer.h>
+#endif
+
+#if USE_ESP32
+using PlatformString = std::string;
+#elif USE_ARDUINO
+using PlatformString = String;
 #endif
 
 namespace esphome {
@@ -28,8 +48,8 @@ class MiddlewareHandler : public AsyncWebHandler {
 
   bool canHandle(AsyncWebServerRequest *request) const override { return next_->canHandle(request); }
   void handleRequest(AsyncWebServerRequest *request) override { next_->handleRequest(request); }
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override {
+  void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
+                    size_t len, bool final) override {
     next_->handleUpload(request, filename, index, data, len, final);
   }
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
@@ -65,8 +85,8 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
       return;
     MiddlewareHandler::handleRequest(request);
   }
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override {
+  void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
+                    size_t len, bool final) override {
     if (!check_auth(request))
       return;
     MiddlewareHandler::handleUpload(request, filename, index, data, len, final);

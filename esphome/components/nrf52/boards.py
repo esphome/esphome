@@ -11,10 +11,18 @@ from .const import (
 BOARDS_ZEPHYR = {
     "adafruit_itsybitsy_nrf52840": {
         KEY_BOOTLOADER: [
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_ADAFRUIT,
+            BOOTLOADER_ADAFRUIT_NRF52_SD132,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+        ]
+    },
+    "xiao_ble": {
+        KEY_BOOTLOADER: [
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
             BOOTLOADER_ADAFRUIT,
             BOOTLOADER_ADAFRUIT_NRF52_SD132,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
         ]
     },
 }

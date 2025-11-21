@@ -1,3 +1,5 @@
+from logging import getLogger
+import math
 import re
 
 from esphome import automation, pins
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_DIRECTION,
     CONF_DUMMY_RECEIVER,
     CONF_DUMMY_RECEIVER_ID,
+    CONF_FLOW_CONTROL_PIN,
     CONF_ID,
     CONF_INVERT,
     CONF_LAMBDA,
@@ -29,9 +32,11 @@ from esphome.const import (
     PLATFORM_HOST,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
+
+_LOGGER = getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 uart_ns = cg.esphome_ns.namespace("uart")
@@ -128,6 +133,21 @@ def validate_host_config(config):
     return config
 
 
+def validate_rx_buffer_size(config):
+    if CORE.is_esp32:
+        # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
+        # rx_buffer_size must be greater than the hardware FIFO length
+        min_buffer_size = 128
+        if config[CONF_RX_BUFFER_SIZE] <= min_buffer_size:
+            _LOGGER.warning(
+                "UART rx_buffer_size (%d bytes) is too small and must be greater than the hardware "
+                "FIFO size (%d bytes). The buffer size will be automatically adjusted at runtime.",
+                config[CONF_RX_BUFFER_SIZE],
+                min_buffer_size,
+            )
+    return config
+
+
 def _uart_declare_type(value):
     if CORE.is_esp8266:
         return cv.declare_id(ESP8266UartComponent)(value)
@@ -152,6 +172,8 @@ UART_PARITY_OPTIONS = {
 CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
 CONF_PARITY = "parity"
+CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
+CONF_RX_TIMEOUT = "rx_timeout"
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
@@ -219,8 +241,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
+            cv.Optional(CONF_FLOW_CONTROL_PIN): cv.All(
+                cv.only_on_esp32, pins.internal_gpio_output_pin_schema
+            ),
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
+            cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
+            ),
+            cv.SplitDefault(CONF_RX_TIMEOUT, esp32=2): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=92)
+            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
@@ -234,6 +265,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
     validate_host_config,
+    validate_rx_buffer_size,
 )
 
 
@@ -275,9 +307,27 @@ async def to_code(config):
     if CONF_RX_PIN in config:
         rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
         cg.add(var.set_rx_pin(rx_pin))
+    if CONF_FLOW_CONTROL_PIN in config:
+        flow_control_pin = await cg.gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
+        cg.add(var.set_flow_control_pin(flow_control_pin))
     if CONF_PORT in config:
         cg.add(var.set_name(config[CONF_PORT]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
+    if CORE.is_esp32:
+        if CONF_RX_FULL_THRESHOLD not in config:
+            # Calculate rx_full_threshold to be 10ms
+            bytelength = config[CONF_DATA_BITS] + config[CONF_STOP_BITS] + 1
+            if config[CONF_PARITY] != "NONE":
+                bytelength += 1
+            config[CONF_RX_FULL_THRESHOLD] = max(
+                1,
+                min(
+                    120,
+                    math.floor((config[CONF_BAUD_RATE] / (bytelength * 1000 / 10)) - 1),
+                ),
+            )
+        cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
+        cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
@@ -316,7 +366,7 @@ def final_validate_device_schema(
 
     def validate_pin(opt, device):
         def validator(value):
-            if opt in device:
+            if opt in device and not CORE.testing_mode:
                 raise cv.Invalid(
                     f"The uart {opt} is used both by {name} and {device[opt]}, "
                     f"but can only be used by one. Please create a new uart bus for {name}."
@@ -415,7 +465,10 @@ async def uart_write_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        cg.add(var.set_data_static(data))
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
     return var
 
 

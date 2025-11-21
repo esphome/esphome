@@ -17,6 +17,10 @@ namespace api {
 class APIConnection;
 }  // namespace api
 
+namespace web_server {
+struct UrlMatch;
+}  // namespace web_server
+
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -57,6 +61,9 @@ class EntityBase {
   }
 
   // Get/set this entity's icon
+  ESPDEPRECATED(
+      "Use get_icon_ref() instead for better performance (avoids string copy). Will be removed in ESPHome 2026.5.0",
+      "2025.11.0")
   std::string get_icon() const;
   void set_icon(const char *icon);
   StringRef get_icon_ref() const {
@@ -116,14 +123,12 @@ class EntityBase {
 
  protected:
   friend class api::APIConnection;
+  friend struct web_server::UrlMatch;
 
   // Get object_id as StringRef when it's static (for API usage)
   // Returns empty StringRef if object_id is dynamic (needs allocation)
   StringRef get_object_id_ref_for_api_() const;
 
-  /// The hash_base() function has been deprecated. It is kept in this
-  /// class for now, to prevent external components from not compiling.
-  virtual uint32_t hash_base() { return 0L; }
   void calc_object_id_();
 
   /// Check if the object_id is dynamic (changes with MAC suffix)
@@ -153,6 +158,9 @@ class EntityBase {
 class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
  public:
   /// Get the device class, using the manual override if set.
+  ESPDEPRECATED("Use get_device_class_ref() instead for better performance (avoids string copy). Will be removed in "
+                "ESPHome 2026.5.0",
+                "2025.11.0")
   std::string get_device_class();
   /// Manually set the device class.
   void set_device_class(const char *device_class);
@@ -169,6 +177,9 @@ class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
 class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
  public:
   /// Get the unit of measurement, using the manual override if set.
+  ESPDEPRECATED("Use get_unit_of_measurement_ref() instead for better performance (avoids string copy). Will be "
+                "removed in ESPHome 2026.5.0",
+                "2025.11.0")
   std::string get_unit_of_measurement();
   /// Manually set the unit of measurement.
   void set_unit_of_measurement(const char *unit_of_measurement);

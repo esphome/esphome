@@ -46,6 +46,7 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
+    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_GREEN,
     CONF_HSYNC_PIN,
@@ -117,16 +118,16 @@ def data_pin_set(length):
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
-    if transforms := model.transforms:
-        transform = cv.Schema({cv.Required(x): cv.boolean for x in transforms})
-        for x in (CONF_SWAP_XY, CONF_MIRROR_X, CONF_MIRROR_Y):
-            if x not in transforms:
-                transform = transform.extend(
-                    {cv.Optional(x): cv.invalid(f"{x} not supported by this model")}
-                )
-    else:
-        transform = cv.invalid("This model does not support transforms")
-
+    transform = cv.Any(
+        cv.Schema(
+            {
+                cv.Required(CONF_MIRROR_X): cv.boolean,
+                cv.Required(CONF_MIRROR_Y): cv.boolean,
+                **model.swap_xy_schema(),
+            }
+        ),
+        cv.one_of(CONF_DISABLED, lower=True),
+    )
     # RPI model does not use an init sequence, indicates with empty list
     if model.initsequence is None:
         # Custom model requires an init sequence
@@ -135,12 +136,16 @@ def model_schema(config):
     else:
         iseqconf = cv.Optional(CONF_INIT_SEQUENCE)
         uses_spi = CONF_INIT_SEQUENCE in config or len(model.initsequence) != 0
-    swap_xy = config.get(CONF_TRANSFORM, {}).get(CONF_SWAP_XY, False)
-
-    # Dimensions are optional if the model has a default width and the swap_xy transform is not overridden
-    cv_dimensions = (
-        cv.Optional if model.get_default(CONF_WIDTH) and not swap_xy else cv.Required
+    # Dimensions are optional if the model has a default width and the x-y transform is not overridden
+    transform_config = config.get(CONF_TRANSFORM, {})
+    is_swapped = (
+        isinstance(transform_config, dict)
+        and transform_config.get(CONF_SWAP_XY, False) is True
     )
+    cv_dimensions = (
+        cv.Optional if model.get_default(CONF_WIDTH) and not is_swapped else cv.Required
+    )
+
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_18BIT, "16", "18")
     schema = display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -157,7 +162,7 @@ def model_schema(config):
             model.option(CONF_PIXEL_MODE, PIXEL_MODE_16BIT): cv.one_of(
                 *pixel_modes, lower=True
             ),
-            model.option(CONF_TRANSFORM, cv.UNDEFINED): transform,
+            cv.Optional(CONF_TRANSFORM): transform,
             cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
             model.option(CONF_INVERT_COLORS, False): cv.boolean,
             model.option(CONF_USE_AXIS_FLIPS, True): cv.boolean,
@@ -270,7 +275,6 @@ async def to_code(config):
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
     cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
-    index = 0
     dpins = []
     if CONF_RED in config[CONF_DATA_PINS]:
         red_pins = config[CONF_DATA_PINS][CONF_RED]
