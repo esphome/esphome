@@ -19,9 +19,9 @@ void MCP3204::dump_config() {
 float MCP3204::read_data(uint8_t pin, bool differential) {
   uint8_t command, b0, b1, b2;
 
-  command = (1 << 7) |                       // start bit
-            ((differential ? 0 : 1) << 6) |  // single or differential bit
-            ((pin & 0x07) << 3);             // pin
+  command = (1 << 6) |                       // start bit
+            ((differential ? 0 : 1) << 5) |  // single or differential bit
+            ((pin & 0x07) << 2);             // pin
 
   this->enable();
   b0 = this->transfer_byte(command);
@@ -29,7 +29,7 @@ float MCP3204::read_data(uint8_t pin, bool differential) {
   b2 = this->transfer_byte(0x00);
   this->disable();
 
-  uint16_t digital_value = 0xFFF & ((b0 & 0x01) << 11 | (b1 & 0xFF) << 3 | (b2 & 0xE0) >> 5);
+  uint16_t digital_value = (b1 << 4) | (b2 >> 4);
   return float(digital_value) / 4096.000 * this->reference_voltage_;  // in V
 }
 
