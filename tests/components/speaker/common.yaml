@@ -1,18 +1,52 @@
+number:
+  - platform: template
+    name: "Speaker Number"
+    id: my_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
 esphome:
   on_boot:
     then:
       - speaker.mute_on:
+          id: speaker_id
       - speaker.mute_off:
+          id: speaker_id
       - if:
-          condition: speaker.is_stopped
+          condition:
+            speaker.is_stopped:
+              id: speaker_id
           then:
-            - speaker.play: [0, 1, 2, 3]
-      - speaker.volume_set: 0.9
+            - speaker.play:
+                id: speaker_id
+                data: [0, 1, 2, 3]
+      - speaker.volume_set:
+          id: speaker_id
+          volume: 0.9
       - if:
-          condition: speaker.is_playing
+          condition:
+            speaker.is_playing:
+              id: speaker_id
           then:
             - speaker.finish:
+                id: speaker_id
       - speaker.stop:
+          id: speaker_id
+
+button:
+  - platform: template
+    name: "Speaker Button"
+    on_press:
+      then:
+        - speaker.play:
+            id: speaker_id
+            data: [0x10, 0x20, 0x30, 0x40]
+        - speaker.play:
+            id: speaker_id
+            data: !lambda |-
+              return {0x01, 0x02, (uint8_t)id(my_number).state};
 
 i2s_audio:
   i2s_lrclk_pin: ${i2s_bclk_pin}

@@ -493,6 +493,7 @@ class LvFont(LValidator):
                 return LV_FONTS
             if is_lv_font(value):
                 return lv_builtin_font(value)
+            add_lv_use("font")
             fontval = cv.use_id(Font)(value)
             esphome_fonts_used.add(fontval)
             return requires_component("font")(fontval)
@@ -502,7 +503,9 @@ class LvFont(LValidator):
     async def process(self, value, args=()):
         if is_lv_font(value):
             return literal(f"&lv_font_{value}")
-        return literal(f"{value}_engine->get_lv_font()")
+        if isinstance(value, str):
+            return literal(f"{value}")
+        return await super().process(value, args)
 
 
 lv_font = LvFont()

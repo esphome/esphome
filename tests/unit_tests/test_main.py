@@ -1166,6 +1166,56 @@ def test_upload_program_ota_with_mqtt_resolution(
     )
 
 
+def test_upload_program_ota_with_mqtt_empty_broker(
+    mock_mqtt_get_ip: Mock,
+    mock_is_ip_address: Mock,
+    mock_run_ota: Mock,
+    tmp_path: Path,
+    caplog: CaptureFixture,
+) -> None:
+    """Test upload_program with OTA when MQTT broker is empty (issue #11653)."""
+    setup_core(address="192.168.1.50", platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_is_ip_address.return_value = True
+    mock_mqtt_get_ip.side_effect = EsphomeError(
+        "Cannot discover IP via MQTT as the broker is not configured"
+    )
+    mock_run_ota.return_value = (0, "192.168.1.50")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ],
+        CONF_MQTT: {
+            CONF_BROKER: "",
+        },
+        CONF_MDNS: {
+            CONF_DISABLED: True,
+        },
+    }
+    args = MockArgs(username="user", password="pass", client_id="client")
+    devices = ["MQTTIP", "192.168.1.50"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.50"
+    # Verify MQTT was attempted but failed gracefully
+    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    # Verify we fell back to the IP address
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.50"], 3232, None, expected_firmware
+    )
+    # Verify warning was logged
+    assert "MQTT IP discovery failed" in caplog.text
+
+
 @patch("esphome.__main__.importlib.import_module")
 def test_upload_program_platform_specific_handler(
     mock_import: Mock,

@@ -76,7 +76,7 @@ lvgl:
       line_width: 8
       line_rounded: true
     - id: date_style
-      text_font: roboto10
+      text_font: !lambda return id(roboto10);
       align: center
       text_color: !lambda return color_id2;
       bg_opa: cover
@@ -267,7 +267,7 @@ lvgl:
               snprintf(buf, sizeof(buf), "Setup: %d", 42);
               return std::string(buf);
             align: top_mid
-            text_font: space16
+            text_font: !lambda return id(space16);
         - label:
             id: chip_info_label
             # Test complex setup lambda (real-world pattern)
@@ -478,19 +478,19 @@ lvgl:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: time_id
+                    time: sntp_time
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: !lambda return id(time_id).now();
+                    time: !lambda return id(sntp_time).now();
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
                     time: !lambda |-
                         ESP_LOGD("label", "multi-line lambda");
-                        return id(time_id).now();
+                        return id(sntp_time).now();
             on_value:
               logger.log:
                 format: "state now %d"
@@ -700,6 +700,12 @@ lvgl:
             width: 100%
             height: 10%
             align: top_mid
+            on_value:
+              - lvgl.spinbox.update:
+                  id: spinbox_id
+                  value: !lambda |-
+                      static float yyy = 83.0;
+                      return yyy + .8;
         - button:
             styles: spin_button
             id: spin_up

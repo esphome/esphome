@@ -129,9 +129,6 @@ class EntityBase {
   // Returns empty StringRef if object_id is dynamic (needs allocation)
   StringRef get_object_id_ref_for_api_() const;
 
-  /// The hash_base() function has been deprecated. It is kept in this
-  /// class for now, to prevent external components from not compiling.
-  virtual uint32_t hash_base() { return 0L; }
   void calc_object_id_();
 
   /// Check if the object_id is dynamic (changes with MAC suffix)

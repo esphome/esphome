@@ -172,8 +172,7 @@ This document provides essential context for AI models interacting with this pro
 
     *   **C++ Class Pattern:**
         ```cpp
-        namespace esphome {
-        namespace my_component {
+        namespace esphome::my_component {
 
         class MyComponent : public Component {
          public:
@@ -189,8 +188,7 @@ This document provides essential context for AI models interacting with this pro
           int param_{0};
         };
 
-        }  // namespace my_component
-        }  // namespace esphome
+        }  // namespace esphome::my_component
         ```
 
     *   **Common Component Examples:**

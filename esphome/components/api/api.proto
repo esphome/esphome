@@ -2147,7 +2147,7 @@ message ListEntitiesEventResponse {
   EntityCategory entity_category = 7;
   string device_class = 8;
 
-  repeated string event_types = 9;
+  repeated string event_types = 9 [(container_pointer_no_template) = "FixedVector<const char *>"];
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
 }
 message EventResponse {

@@ -2877,8 +2877,8 @@ void ListEntitiesEventResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->disabled_by_default);
   buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
   buffer.encode_string(8, this->device_class_ref_);
-  for (auto &it : this->event_types) {
-    buffer.encode_string(9, it, true);
+  for (const char *it : *this->event_types) {
+    buffer.encode_string(9, it, strlen(it), true);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
@@ -2894,9 +2894,9 @@ void ListEntitiesEventResponse::calculate_size(ProtoSize &size) const {
   size.add_bool(1, this->disabled_by_default);
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
   size.add_length(1, this->device_class_ref_.size());
-  if (!this->event_types.empty()) {
-    for (const auto &it : this->event_types) {
-      size.add_length_force(1, it.size());
+  if (!this->event_types->empty()) {
+    for (const char *it : *this->event_types) {
+      size.add_length_force(1, strlen(it));
     }
   }
 #ifdef USE_DEVICES

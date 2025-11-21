@@ -1,12 +1,17 @@
+import logging
+
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
-from esphome.components.network import ip_address_literal
+from esphome.components.network import (
+    has_high_performance_networking,
+    ip_address_literal,
+)
+from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
-from esphome.config_validation import only_with_esp_idf
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
@@ -42,6 +47,7 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    Platform,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
@@ -49,14 +55,25 @@ import esphome.final_validate as fv
 
 from . import wpa2_eap
 
+_LOGGER = logging.getLogger(__name__)
+
 AUTO_LOAD = ["network"]
+
+_LOGGER = logging.getLogger(__name__)
 
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
+CONF_MIN_AUTH_MODE = "min_auth_mode"
 
 # Maximum number of WiFi networks that can be configured
 # Limited to 127 because selected_sta_index_ is int8_t in C++
 MAX_WIFI_NETWORKS = 127
+
+# Default AP timeout - allows sufficient time to try all BSSIDs during initial connection
+# After AP starts, WiFi scanning is skipped to avoid disrupting the AP, so we only
+# get best-effort connection attempts. Longer timeout ensures we exhaust all options
+# before falling back to AP mode. Aligned with improv wifi_timeout default.
+DEFAULT_AP_TIMEOUT = "90s"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -70,6 +87,14 @@ WIFI_POWER_SAVE_MODES = {
     "LIGHT": WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
     "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
 }
+
+WifiMinAuthMode = wifi_ns.enum("WifiMinAuthMode")
+WIFI_MIN_AUTH_MODES = {
+    "WPA": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA,
+    "WPA2": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA2,
+    "WPA3": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA3,
+}
+VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
@@ -158,7 +183,7 @@ CONF_AP_TIMEOUT = "ap_timeout"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
-            CONF_AP_TIMEOUT, default="1min"
+            CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
     }
 )
@@ -174,7 +199,7 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(CONF_BSSID): cv.mac_address,
         cv.Optional(CONF_HIDDEN): cv.boolean,
-        cv.Optional(CONF_PRIORITY, default=0.0): cv.float_,
+        cv.Optional(CONF_PRIORITY, default=0): cv.int_range(min=-128, max=127),
         cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
     }
 )
@@ -185,6 +210,27 @@ def validate_variant(_):
         variant = get_esp32_variant()
         if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
             raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
+
+
+def _apply_min_auth_mode_default(config):
+    """Apply platform-specific default for min_auth_mode and warn ESP8266 users."""
+    # Only apply defaults for platforms that support min_auth_mode
+    if CONF_MIN_AUTH_MODE not in config and (CORE.is_esp8266 or CORE.is_esp32):
+        if CORE.is_esp8266:
+            _LOGGER.warning(
+                "The minimum WiFi authentication mode (wifi -> min_auth_mode) is not set. "
+                "This controls the weakest encryption your device will accept when connecting to WiFi. "
+                "Currently defaults to WPA (less secure), but will change to WPA2 (more secure) in 2026.6.0. "
+                "WPA uses TKIP encryption which has known security vulnerabilities and should be avoided. "
+                "WPA2 uses AES encryption which is significantly more secure. "
+                "To silence this warning, explicitly set min_auth_mode under 'wifi:'. "
+                "If your router supports WPA2 or WPA3, set 'min_auth_mode: WPA2'. "
+                "If your router only supports WPA, set 'min_auth_mode: WPA'."
+            )
+            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA")
+        elif CORE.is_esp32:
+            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
+    return config
 
 
 def final_validate(config):
@@ -287,6 +333,10 @@ CONFIG_SCHEMA = cv.All(
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+            cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
+                VALIDATE_WIFI_MIN_AUTH_MODE,
+                cv.only_on([Platform.ESP32, Platform.ESP8266]),
+            ),
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
@@ -307,10 +357,11 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_USE_PSRAM): cv.All(
-                only_with_esp_idf, cv.requires_component("psram"), cv.boolean
+                cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
             ),
         }
     ),
+    _apply_min_auth_mode_default,
     _validate,
 )
 
@@ -385,6 +436,8 @@ async def to_code(config):
 
     # Track if any network uses Enterprise authentication
     has_eap = False
+    # Track if any network uses manual IP
+    has_manual_ip = False
 
     # Initialize FixedVector with the count of networks
     networks = config.get(CONF_NETWORKS, [])
@@ -398,11 +451,15 @@ async def to_code(config):
         for network in networks:
             if CONF_EAP in network:
                 has_eap = True
+            if network.get(CONF_MANUAL_IP) or config.get(CONF_MANUAL_IP):
+                has_manual_ip = True
             cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
         ip_config = conf.get(CONF_MANUAL_IP)
+        if ip_config:
+            has_manual_ip = True
         cg.with_local_variable(
             conf[CONF_ID],
             WiFiAP(),
@@ -418,15 +475,24 @@ async def to_code(config):
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
 
+    # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
+    if has_manual_ip:
+        cg.add_define("USE_WIFI_MANUAL_IP")
+
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
+    if CONF_MIN_AUTH_MODE in config:
+        cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
     if config[CONF_FAST_CONNECT]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
-    cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
+    # passive_scan defaults to false in C++ - only set if true
+    if config[CONF_PASSIVE_SCAN]:
+        cg.add(var.set_passive_scan(True))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
-
-    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
+    # enable_on_boot defaults to true in C++ - only set if false
+    if not config[CONF_ENABLE_ON_BOOT]:
+        cg.add(var.set_enable_on_boot(False))
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
@@ -444,6 +510,56 @@ async def to_code(config):
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
+
+    # Apply high performance WiFi settings if high performance networking is enabled
+    if CORE.is_esp32 and CORE.using_esp_idf and has_high_performance_networking():
+        # Check if PSRAM is guaranteed (set by psram component during final validation)
+        psram_guaranteed = psram_is_guaranteed()
+
+        # Always allocate WiFi buffers in PSRAM if available
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
+
+        if psram_guaranteed:
+            _LOGGER.info(
+                "Applying high-performance WiFi settings (PSRAM guaranteed): 512 RX buffers, 32 TX buffers"
+            )
+            # PSRAM is guaranteed - use aggressive settings
+            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true in networking component
+            # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
+
+            # Large dynamic RX buffers (requires PSRAM)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 512)
+
+            # Static TX buffers for better performance
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_TX_BUFFER", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BUFFER_TYPE", 0)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM", 32)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM", 8)
+
+            # AMPDU settings optimized for PSRAM
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 16)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
+        else:
+            _LOGGER.info(
+                "Applying optimized WiFi settings: 64 RX buffers, 64 TX buffers"
+            )
+            # PSRAM not guaranteed - use more conservative, but still optimized settings
+            # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
+
+            # Standard buffer counts
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 64)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM", 64)
+
+            # Standard AMPDU settings
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
+
     cg.add_define("USE_WIFI")
 
     # must register before OTA safe mode check

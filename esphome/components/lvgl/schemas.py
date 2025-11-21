@@ -411,6 +411,10 @@ def any_widget_schema(extras=None):
     Dynamically generate schemas for all possible LVGL widgets. This is what implements the ability to have a list of any kind of
     widget under the widgets: key.
 
+    This uses lazy evaluation - the schema is built when called during validation,
+    not at import time. This allows external components to register widgets
+    before schema validation begins.
+
     :param extras: Additional schema to be applied to each generated one
     :return: A validator for the Widgets key
     """
