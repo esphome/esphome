@@ -235,5 +235,5 @@ def do_substitution_pass(
     config.move_to_end(CONF_SUBSTITUTIONS, False)
 
     # Create a Jinja environment that will consider substitutions in scope:
-    jinja = Jinja(substitutions)
+    jinja = Jinja(substitutions, ignore_missing)
     _substitute_item(substitutions, config, [], jinja, ignore_missing)

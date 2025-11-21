@@ -9,6 +9,7 @@ from typing import Any
 
 import jinja2 as jinja
 from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
+from jinja2.runtime import missing as Missing
 
 from esphome.yaml_util import ESPLiteralValue
 
@@ -106,6 +107,9 @@ class JinjaError(Exception):
 class TrackerContext(jinja.runtime.Context):
     def resolve_or_missing(self, key):
         val = super().resolve_or_missing(key)
+        if val is Missing and self.environment.ignore_missing:
+            # delay evaluation of this expression
+            raise UndefinedError(f"'{key}' is undefined")
         if isinstance(val, JinjaStr):
             self.environment.context_trace[key] = val
             val, _ = self.environment.expand(val)
@@ -168,7 +172,7 @@ class Jinja(jinja.Environment):
     code_generator_class = NativeCodeGenerator
     concat = staticmethod(_concat_nodes_override)
 
-    def __init__(self, context_vars: dict):
+    def __init__(self, context_vars: dict, ignore_missing=False):
         super().__init__(
             trim_blocks=True,
             lstrip_blocks=True,
@@ -180,6 +184,7 @@ class Jinja(jinja.Environment):
             variable_end_string="}",
             undefined=jinja.StrictUndefined,
         )
+        self.ignore_missing = ignore_missing
         self.context_class = TrackerContext
         self.add_extension("jinja2.ext.do")
         self.context_trace = {}
