@@ -96,7 +96,7 @@ async def lvgl_update(lv_component, config):
         "The propert"
         + ("ies " if plural else "y ")
         + "'"
-        + "','".join(bottom)
+        + "','".join(k for k in config if k in DISP_PROPS)
         + "'"
         + (" are " if plural else " is ")
         + "deprecated, use 'bottom_layer' instead."
