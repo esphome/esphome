@@ -9,12 +9,17 @@ params:
 
 {{< anchor "espnow-packet-transport" >}}
 
-The [Packet Transport Component](#packet-transport) platform allows ESPHome nodes to directly communicate with each over a communication channel. The ESP-NOW implementation of the platform uses ESP-NOW as a communication medium. See the [Packet Transport Component](#packet-transport) and {{< docref "/components/espnow" >}} for more information.
+The [Packet Transport Component](#packet-transport) platform allows ESPHome nodes to directly communicate with each
+over a communication channel. The ESP-NOW implementation of the platform uses ESP-NOW as a communication medium.
+See the [Packet Transport Component](#packet-transport) and {{< docref "/components/espnow" >}} for more information.
 
-ESP-NOW provides low-latency, low-power wireless communication between ESP32 devices without requiring a Wi-Fi connection. This makes it ideal for battery-powered sensors or applications where Wi-Fi overhead would impact performance.
+ESP-NOW provides low-latency, low-power wireless communication between ESP32 devices without requiring a Wi-Fi
+connection. This makes it ideal for battery-powered sensors or applications where Wi-Fi overhead would impact
+performance.
 
 > **Note:**  
-> ESP-NOW communication occurs independently of Wi-Fi. Devices can communicate via ESP-NOW even when Wi-Fi is disabled, making it suitable for power-sensitive applications.
+> ESP-NOW communication occurs independently of Wi-Fi. Devices can communicate via ESP-NOW even when Wi-Fi is
+> disabled, making it suitable for power-sensitive applications.
 
 ## Example Configuration
 
@@ -44,7 +49,7 @@ sensor:
 - **espnow_id** (**Required**, [ID](#config-id)): The esp-now ID to use for transport.
 - **peer_address** (*Optional*, MAC Address): MAC address to send packets to. This can be either a specific
   peer address for point-to-point communication, or the broadcast address. Default FF:FF:FF:FF:FF:FF
-- All other options from the [Packet Transport Component](#packet-transport)
+- All other options from the [Packet Transport Component](/components/packet_transport)
 
 > **Note:**  
 > Peers must be registered with the {{< docref "/components/espnow" >}} component before
@@ -64,10 +69,12 @@ packet_transport:
       - sensor_id
 ```
 
-All devices with the broadcast address (`FF:FF:FF:FF:FF:FF`) registered as a peer will receive the packets. This is useful for hub-and-spoke topologies where multiple devices monitor a single sensor source.
+All devices with the broadcast address (`FF:FF:FF:FF:FF:FF`) registered as a peer will receive the packets.
+This is useful for hub-and-spoke topologies where multiple devices monitor a single sensor source.
 
 > **Warning:**  
-> Using broadcast mode increases ESP-NOW traffic on the radio channel, which may impact performance of other ESP-NOW devices in range. Use specific peer addresses whenever possible to minimize interference.
+> Using broadcast mode increases ESP-NOW traffic on the radio channel, which may impact performance of other
+> ESP-NOW devices in range. Use specific peer addresses whenever possible to minimize interference.
 
 ### Unicast Mode
 
@@ -79,7 +86,8 @@ packet_transport:
       - sensor_id
 ```
 
-Only the specified peer receives the packets. This is more efficient for point-to-point communication and reduces radio channel congestion for neighboring ESP-NOW devices.
+Only the specified peer receives the packets. This is more efficient for point-to-point communication and reduces
+radio channel congestion for neighboring ESP-NOW devices.
 
 ## Simple Example
 
@@ -90,11 +98,11 @@ This example shows two devices exchanging sensor data over ESP-NOW with encrypti
 ```yaml
 espnow:
   peers:
-    - mac_address: "AA:BB:CC:DD:EE:01"  # Device 2
+    - "AA:BB:CC:DD:EE:01"  # Consumer mac address
 
 packet_transport:
   - platform: espnow
-    peer_address: "AA:BB:CC:DD:EE:01"  # Send to Device 2
+    peer_address: "AA:BB:CC:DD:EE:01"  # Consumer mac address
     encryption: "MySecretKey123"
     sensors:
       - outdoor_temp
@@ -111,13 +119,13 @@ sensor:
 ```yaml
 espnow:
   peers:
-    - mac_address: "AA:BB:CC:DD:EE:00"  # Device 1
+    - "AA:BB:CC:DD:EE:00"  # Provider mac address
 
 packet_transport:
   - platform: espnow
     encryption: "MySecretKey123"
     providers:
-      - name: temp-sensor
+      - name: temp-sensor  # Provider device name
 
 sensor:
   - platform: packet_transport
@@ -136,7 +144,9 @@ This example shows a central hub receiving sensor data from multiple remote devi
 ```yaml
 espnow:
   peers:
-    - mac_address: "FF:FF:FF:FF:FF:FF"
+    - "AA:BB:CC:DD:EE:01"  # room-sensor-1 mac address
+    - "AA:BB:CC:DD:EE:02"  # room-sensor-2 mac address
+    - "AA:BB:CC:DD:EE:03"  # outdoor-sensor mac address
 
 packet_transport:
   - platform: espnow
@@ -167,12 +177,9 @@ sensor:
 
 ```yaml
 espnow:
-  peers:
-    - mac_address: "FF:FF:FF:FF:FF:FF"
 
 packet_transport:
   - platform: espnow
-    peer_address: "FF:FF:FF:FF:FF:FF"
     encryption: "HubSecret123"
     sensors:
       - temperature
@@ -185,7 +192,7 @@ sensor:
 
 ## See Also
 
-- [Packet Transport Component](#packet-transport)
+- [Packet Transport Component](/components/packet_transport)
 - {{< docref "/components/espnow" >}}
 - {{< docref "/components/binary_sensor/packet_transport" >}}
 - {{< docref "/components/sensor/packet_transport" >}}

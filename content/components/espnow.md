@@ -7,9 +7,11 @@ params:
     image: esp-now.svg
 ---
 
-This component allows ESPHome to communicate with esp32 devices in a simple and unrestricted way.
+The ESPNow component allows ESPHome to communicate with esp32 devices in a simple and unrestricted way.
 It enables the option to interact with other esp32 devices over the Espressif's ESP-NOW protocol, see
-[documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html)
+[documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html).
+It can be used with the [Packet Transport Component](/components/packet_transport) to broadcast
+sensor data, see [ESP-NOW Packet Transport Platform](/components/packet_transport/espnow).
 
 > [!NOTE]
 > Broadcasting data is not recommended, this will also reach devices not controlled by you that use the esp-now protocol.
@@ -213,3 +215,4 @@ automatically add any peer that data is sent to.
 ## See Also
 
 - {{< apiref "espnow/espnow.h" "espnow/espnow.h" >}}
+- {{< docref "/components/packet_transport/espnow" >}}
