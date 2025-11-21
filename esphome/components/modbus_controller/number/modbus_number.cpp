@@ -68,7 +68,8 @@ void ModbusNumber::control(float value) {
     // publish new value
     write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
                                                       const std::vector<uint8_t> &data) {
-      this->publish_state(value);  // TODO: Do we really need to publish here again?
+      // Republish in case there was a read command in queue before this write
+      this->publish_state(value);
     };
   }
   this->parent_->queue_command(write_cmd);

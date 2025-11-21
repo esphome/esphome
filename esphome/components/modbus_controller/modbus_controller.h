@@ -96,8 +96,19 @@ struct RegisterRange {
 
 class ModbusCommandItem : public modbus::ModbusClientDevice {
  public:
-  ModbusCommandItem(ModbusController *controller = nullptr);
-  ModbusController *controller{nullptr};
+  /// For compatibility, a constructor for an empty command with no controller connection.
+  ModbusCommandItem() = default;
+  // constructor creates a read command from a range
+  ModbusCommandItem(ModbusController &controller, modbus::ModbusClient *parent, uint8_t address,
+                    RegisterRange &&range = {})
+      : modbus::ModbusClientDevice(parent, address),
+        controller(&controller),
+        sensors(std::move(range.sensors)),
+        register_address(range.start_address),
+        register_count(range.register_count),
+        register_type(range.register_type),
+        function_code(modbus_register_read_function(range.register_type)),
+        skip_updates(range.skip_updates){};
   SensorSet sensors;  // all sensors of this range
   /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
@@ -195,7 +206,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
 
-  bool is_equal(const ModbusCommandItem &other);
+ protected:
+  ModbusController *controller{nullptr};
 };
 
 /** Modbus controller class.
@@ -211,7 +223,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   void dump_config() override;
   void setup() override;
   void update() override;
-  void set_online(bool online, const ModbusCommandItem &command_item);
+  void set_online(bool online, int function_code, int register_address);
   void increment_non_response_count();
 
   /// Registers a sensor with the controller. Called by esphomes code generator
@@ -232,15 +244,24 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
   /// Check if the command should be retried based on the max_retries parameter
   bool can_send() { return this->cmd_non_responses_ <= this->max_cmd_retries_; };
+  /// Factory method to create a command item for a register range (or default)
+  ModbusCommandItem create_command(RegisterRange &&range = {}) {
+    ModbusCommandItem cmd(*this, this->parent_, this->address_, std::move(range));
+    return cmd;
+  };
 
   // Queue a one-shot command (will not be polled)
   void queue_command(const ModbusCommandItem &command);
   void unqueue_command(const ModbusCommandItem *command);
 
  protected:
-  friend ModbusCommandItem;
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
+  /// create a command from a range and add it to the polling queue
+  void create_polling_command(RegisterRange &&range = {}) {
+    ModbusCommandItem cmd(*this, this->parent_, this->address_, std::move(range));
+    this->polling_command_items_.push_back(std::move(cmd));
+  };
   /// submit the read command for the address range to the send queue
   void update_range_(ModbusCommandItem &cmd);
   /// dump the parsed sensormap for diagnostics
