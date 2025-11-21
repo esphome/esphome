@@ -21,8 +21,7 @@
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
@@ -41,8 +40,6 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
 void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
-  this->hostname_ = App.get_name();
-
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
@@ -141,8 +138,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 
 #ifdef USE_DASHBOARD_IMPORT
     MDNS_STATIC_CONST_CHAR(TXT_PACKAGE_IMPORT_URL, "package_import_url");
-    txt_records.push_back(
-        {MDNS_STR(TXT_PACKAGE_IMPORT_URL), MDNS_STR(dashboard_import::get_package_import_url().c_str())});
+    txt_records.push_back({MDNS_STR(TXT_PACKAGE_IMPORT_URL), MDNS_STR(dashboard_import::get_package_import_url())});
 #endif
   }
 #endif  // USE_API
@@ -196,7 +192,7 @@ void MDNSComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "mDNS:\n"
                 "  Hostname: %s",
-                this->hostname_.c_str());
+                App.get_name().c_str());
 #ifdef USE_MDNS_STORE_SERVICES
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
@@ -209,6 +205,5 @@ void MDNSComponent::dump_config() {
 #endif
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 #endif
