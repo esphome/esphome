@@ -49,13 +49,17 @@ void MipiRgbSpi::setup() {
 }
 
 void MipiRgbSpi::sleep() {
+  this->spi_setup();
   this->write_command_(SLEEP_IN);
+  this->spi_teardown();
   delay(10);
 }
 
 void MipiRgbSpi::wakeup() {
+  this->spi_setup();
   this->write_command_(SLEEP_OUT);
   this->write_command_(DISPLAY_ON);
+  this->spi_teardown();
   delay(10);
 }
 
@@ -120,6 +124,7 @@ void MipiRgbSpi::write_init_sequence_() {
         delay(10);
     }
   }
+  this->spi_teardown();  // SPI not needed after this
   this->init_sequence_.clear();
   delay(10);
 }
