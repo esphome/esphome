@@ -30,11 +30,10 @@ void TemplateNumber::update() {
   if (!this->f_.has_value())
     return;
 
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  this->publish_state(*val);
+  auto val = this->f_();
+  if (val.has_value()) {
+    this->publish_state(*val);
+  }
 }
 
 void TemplateNumber::control(float value) {

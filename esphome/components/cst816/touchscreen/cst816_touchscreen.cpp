@@ -19,8 +19,8 @@ void CST816Touchscreen::continue_setup_() {
       case CST816T_CHIP_ID:
         break;
       default:
-        this->mark_failed();
         this->status_set_error(str_sprintf("Unknown chip ID 0x%02X", this->chip_id_).c_str());
+        this->mark_failed();
         return;
     }
     this->write_byte(REG_IRQ_CTL, IRQ_EN_MOTION);

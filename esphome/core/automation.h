@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include <concepts>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -27,11 +29,20 @@ template<typename T, typename... X> class TemplatableValue {
  public:
   TemplatableValue() : type_(NONE) {}
 
-  template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0> TemplatableValue(F value) : type_(VALUE) {
+  template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
     new (&this->value_) T(std::move(value));
   }
 
-  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0> TemplatableValue(F f) : type_(LAMBDA) {
+  // For stateless lambdas (convertible to function pointer): use function pointer
+  template<typename F>
+  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, T (*)(X...)>
+      : type_(STATELESS_LAMBDA) {
+    this->stateless_f_ = f;  // Implicit conversion to function pointer
+  }
+
+  // For stateful lambdas (not convertible to function pointer): use std::function
+  template<typename F>
+  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) : type_(LAMBDA) {
     this->f_ = new std::function<T(X...)>(std::move(f));
   }
 
@@ -41,6 +52,8 @@ template<typename T, typename... X> class TemplatableValue {
       new (&this->value_) T(other.value_);
     } else if (type_ == LAMBDA) {
       this->f_ = new std::function<T(X...)>(*other.f_);
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
     }
   }
 
@@ -51,6 +64,8 @@ template<typename T, typename... X> class TemplatableValue {
     } else if (type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
     }
     other.type_ = NONE;
   }
@@ -78,16 +93,23 @@ template<typename T, typename... X> class TemplatableValue {
     } else if (type_ == LAMBDA) {
       delete this->f_;
     }
+    // STATELESS_LAMBDA/NONE: no cleanup needed (function pointer or empty, not heap-allocated)
   }
 
   bool has_value() { return this->type_ != NONE; }
 
   T value(X... x) {
-    if (this->type_ == LAMBDA) {
-      return (*this->f_)(x...);
+    switch (this->type_) {
+      case STATELESS_LAMBDA:
+        return this->stateless_f_(x...);  // Direct function pointer call
+      case LAMBDA:
+        return (*this->f_)(x...);  // std::function call
+      case VALUE:
+        return this->value_;
+      case NONE:
+      default:
+        return T{};
     }
-    // return value also when none
-    return this->type_ == VALUE ? this->value_ : T{};
   }
 
   optional<T> optional_value(X... x) {
@@ -109,11 +131,13 @@ template<typename T, typename... X> class TemplatableValue {
     NONE,
     VALUE,
     LAMBDA,
+    STATELESS_LAMBDA,
   } type_;
 
   union {
     T value_;
     std::function<T(X...)> *f_;
+    T (*stateless_f_)(X...);
   };
 };
 
@@ -124,7 +148,7 @@ template<typename T, typename... X> class TemplatableValue {
 template<typename... Ts> class Condition {
  public:
   /// Check whether this condition passes. This condition check must be instant, and not cause any delays.
-  virtual bool check(Ts... x) = 0;
+  virtual bool check(const Ts &...x) = 0;
 
   /// Call check with a tuple of values as parameter.
   bool check_tuple(const std::tuple<Ts...> &tuple) {
@@ -142,7 +166,7 @@ template<typename... Ts> class Automation;
 template<typename... Ts> class Trigger {
  public:
   /// Inform the parent automation that the event has triggered.
-  void trigger(Ts... x) {
+  void trigger(const Ts &...x) {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
@@ -170,7 +194,7 @@ template<typename... Ts> class ActionList;
 
 template<typename... Ts> class Action {
  public:
-  virtual void play_complex(Ts... x) {
+  virtual void play_complex(const Ts &...x) {
     this->num_running_++;
     this->play(x...);
     this->play_next_(x...);
@@ -196,9 +220,10 @@ template<typename... Ts> class Action {
 
  protected:
   friend ActionList<Ts...>;
+  template<typename... Us> friend class ContinuationAction;
 
-  virtual void play(Ts... x) = 0;
-  void play_next_(Ts... x) {
+  virtual void play(const Ts &...x) = 0;
+  void play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
       if (this->next_ != nullptr) {
@@ -243,12 +268,12 @@ template<typename... Ts> class ActionList {
     }
     this->actions_end_ = action;
   }
-  void add_actions(const std::vector<Action<Ts...> *> &actions) {
+  void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     for (auto *action : actions) {
       this->add_action(action);
     }
   }
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->play_complex(x...);
   }
@@ -286,11 +311,11 @@ template<typename... Ts> class Automation {
   explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
-  void add_actions(const std::vector<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
+  void add_actions(const std::initializer_list<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
   void stop() { this->actions_.stop(); }
 
-  void trigger(Ts... x) { this->actions_.play(x...); }
+  void trigger(const Ts &...x) { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
 

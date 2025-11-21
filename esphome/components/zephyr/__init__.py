@@ -1,4 +1,5 @@
 from pathlib import Path
+import textwrap
 from typing import TypedDict
 
 import esphome.codegen as cg
@@ -90,7 +91,7 @@ def zephyr_add_prj_conf(
 
 
 def zephyr_add_overlay(content):
-    zephyr_data()[KEY_OVERLAY] += content
+    zephyr_data()[KEY_OVERLAY] += textwrap.dedent(content)
 
 
 def add_extra_build_file(filename: str, path: Path) -> bool:
@@ -222,18 +223,28 @@ def copy_files():
     ] in ["xiao_ble"]:
         fake_board_manifest = """
 {
-"frameworks": [
-    "zephyr"
-],
-"name": "esphome nrf52",
-"upload": {
-    "maximum_ram_size": 248832,
-    "maximum_size": 815104
-},
-"url": "https://esphome.io/",
-"vendor": "esphome"
+    "frameworks": [
+        "zephyr"
+    ],
+    "name": "esphome nrf52",
+    "upload": {
+        "maximum_ram_size": 248832,
+        "maximum_size": 815104,
+        "speed": 115200
+    },
+    "url": "https://esphome.io/",
+    "vendor": "esphome",
+    "build": {
+        "bsp": {
+            "name": "adafruit"
+        },
+        "softdevice": {
+            "sd_fwid": "0x00B6"
+        }
+    }
 }
 """
+
         write_file_if_changed(
             CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
             fake_board_manifest,
