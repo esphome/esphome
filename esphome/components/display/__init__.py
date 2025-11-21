@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from esphome import automation, core
-from esphome.automation import maybe_simple_id
+from esphome.automation import LambdaAction, StatelessLambdaAction, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components.const import (
     BYTE_ORDER_BIG,
@@ -26,7 +26,7 @@ from esphome.const import (
     CONF_WIDTH,
     SCHEDULER_DONT_RUN,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.final_validate import full_config
 
 DOMAIN = "display"
@@ -45,8 +45,6 @@ DisplayPageShowNextAction = display_ns.class_(
 DisplayPageShowPrevAction = display_ns.class_(
     "DisplayPageShowPrevAction", automation.Action
 )
-DisplaySleepAction = display_ns.class_("DisplaySleepAction", automation.Action)
-DisplayWakeupAction = display_ns.class_("DisplayWakeupAction", automation.Action)
 DisplayIsDisplayingPageCondition = display_ns.class_(
     "DisplayIsDisplayingPageCondition", automation.Condition
 )
@@ -328,17 +326,32 @@ async def display_page_show_previous_to_code(config, action_id, template_arg, ar
 
 @automation.register_action(
     "display.sleep",
-    DisplaySleepAction,
+    LambdaAction,
     DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA,
+    synchronous=True,
 )
+async def display_sleep_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    text = str(cg.statement(paren.sleep()))
+    lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
+
+
 @automation.register_action(
     "display.wakeup",
-    DisplayWakeupAction,
+    LambdaAction,
     DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def display_sleep_wakeup_to_code(config, action_id, template_arg, args):
+async def display_wakeup_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    text = str(cg.statement(paren.wakeup()))
+    lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
 
 
 @automation.register_condition(
