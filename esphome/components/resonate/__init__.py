@@ -2,7 +2,7 @@
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import esp32
+from esphome.components import esp32, network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -18,7 +18,6 @@ CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 
 CONF_ON_SERVER_SETTINGS = "on_server_settings"
-CONF_OPTIMIZE_WIFI = "optimize_wifi"
 
 
 CONF_KALMAN_PROCESS_ERROR = "kalman_process_error"
@@ -40,11 +39,21 @@ PublishClientSettingsAction = resonate_ns.class_(
     cg.Parented.template(ResonateHub),
 )
 
+
+def _request_high_performance_networking(config):
+    """Request high performance networking for resonate streaming.
+
+    Also enables wake_loop_threadsafe support for fast defer() callbacks
+    from background threads (WebSocket handler, image decoder).
+    """
+    network.require_high_performance_networking()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ResonateHub),
-            cv.Optional(CONF_OPTIMIZE_WIFI, default=True): cv.boolean,
             cv.SplitDefault(CONF_TASK_STACK_IN_PSRAM, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
@@ -55,6 +64,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.only_on([PLATFORM_ESP32]),
     cv.only_with_esp_idf,  # TODO: Is this necessary? I'm adding esp-libopus as an IDF component
+    _request_high_performance_networking,
 )
 
 
@@ -70,36 +80,11 @@ async def to_code(config):
             ref="main",
         )
 
-    if CORE.using_esp_idf and config[CONF_OPTIMIZE_WIFI]:
-        esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_WND_SCALE", True)
+    # High performance networking is automatically configured via network.require_high_performance_networking()
+    # called in CONFIG_SCHEMA validation. WiFi and lwip settings are applied by the wifi and network components.
 
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 512)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_TX_BUFFER", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BUFFER_TYPE", 0)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM", 32)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM", 8)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 16)
-
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_MAX_ACTIVE_TCP", 16)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_MAX_LISTENING_TCP", 16)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 512)
-
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MAXRTX", 12)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MSS", 1436)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MSL", 60000)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_OVERSIZE_MSS", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_QUEUE_OOSEQ", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 512)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RCV_SCALE", 3)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SYNMAXRTX", 6)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 512000)
-
+    # Enable WebSocket support for the resonate HTTP server
+    if CORE.using_esp_idf:
         esp32.add_idf_sdkconfig_option("CONFIG_HTTPD_WS_SUPPORT", True)
 
     var = cg.new_Pvariable(config[CONF_ID])
