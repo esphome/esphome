@@ -2,8 +2,8 @@
 
 #include <type_traits>
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
@@ -16,8 +16,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace zigbee {
+namespace esphome::zigbee {
 
 class ZigBeeAttribute : public Component {
  public:
@@ -106,8 +105,7 @@ template<typename T> void ZigBeeAttribute::connect(binary_sensor::BinarySensor *
 }
 #endif
 
-}  // namespace zigbee
-}  // namespace esphome
+}  // namespace esphome::zigbee
 
 #endif
 #endif

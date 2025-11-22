@@ -11,16 +11,16 @@
 #include "esp_zigbee_core.h"
 #include "zboss_api.h"
 #include "ha/esp_zigbee_ha_standard.h"
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "zigbee_helpers.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace zigbee {
+namespace esphome::zigbee {
 
 static const char *const TAG = "zigbee";
 
@@ -150,8 +150,7 @@ void ZigBeeComponent::add_attr_(ZigBeeAttribute *attr, uint8_t endpoint_id, uint
   this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;
 }
 
-}  // namespace zigbee
-}  // namespace esphome
+}  // namespace esphome::zigbee
 
 #endif
 #endif

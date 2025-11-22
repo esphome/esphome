@@ -4,8 +4,7 @@
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 
-namespace esphome {
-namespace zigbee {
+namespace esphome::zigbee {
 
 void ZigBeeAttribute::set_attr_() {
   if (!this->zb_->is_connected()) {
@@ -93,8 +92,7 @@ void ZigBeeAttribute::loop() {
   }
 }
 
-}  // namespace zigbee
-}  // namespace esphome
+}  // namespace esphome::zigbee
 
 #endif
 #endif

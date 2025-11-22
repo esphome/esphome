@@ -14,8 +14,7 @@
 #include "esp_coexist.h"
 #endif
 
-namespace esphome {
-namespace zigbee {
+namespace esphome::zigbee {
 
 ZigBeeComponent *zigbeeC;
 
@@ -365,8 +364,7 @@ void ZigBeeComponent::dump_config() {
   }
 }
 
-}  // namespace zigbee
-}  // namespace esphome
+}  // namespace esphome::zigbee
 
 #endif
 #endif
