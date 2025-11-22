@@ -43,8 +43,7 @@ async def test_wait_until_fifo_ordering(
             return
 
         if mo := queuing_pattern.search(line):
-            iteration = int(mo.group(1))
-            # print(f"Queued: {iteration}")
+            # print(f"Queued: {mo.group(1)}")
 
         elif mo := completed_pattern.search(line):
             iteration = int(mo.group(1))
