@@ -50,6 +50,8 @@ struct CoapClientRequestData {
   CoapMediaType media_type = CoapMediaType::TEXT_PLAIN;
   std::string payload{};
   uint32_t response_timeout{4000};
+  bool keep{false};
+  bool sent{false};
   bool observe{false};
   bool qblock{false};
   uint32_t create_timestamp{};
@@ -58,7 +60,7 @@ struct CoapClientRequestData {
   coap_session_t *session{nullptr};
   coap_bin_const_t *pdu_token{nullptr};
 
-  void set_pdu_token(const uint8_t *data, size_t size) { this->pdu_token = coap_new_bin_const(data, size); }
+  void set_pdu_token(const uint8_t *data, size_t &size) { this->pdu_token = coap_new_bin_const(data, size); }
 
   void set_pdu_token(const coap_bin_const_t *pdu_token) {
     if (pdu_token) {
@@ -74,8 +76,8 @@ struct CoapClientRequestData {
   }
 
   void release_session() {
-    coap_session_release(session);
-    session = nullptr;
+    coap_session_release(this->session);
+    this->session = nullptr;
   }
 
   ~CoapClientRequestData() {
@@ -91,18 +93,16 @@ class CoapClientComponent : public Component {
   bool teardown() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  void process_request(std::unique_ptr<CoapClientRequestData> tx_request);
-  void remove(const std::string &name);
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                           coap_mid_t mid);
   coap_response_t process_response(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                    coap_mid_t mid);
-
-  void set_max_block_size(size_t block_size) {
-    if (block_size > 16) {
-      this->max_block_size_ = block_size;
-    }
-  }
+  bool process_request(std::unique_ptr<CoapClientRequestData> tx_request);
+  bool stop_request(std::string const &name, bool keep);
+  bool resume_request(std::string const &name);
+  bool remove_request(std::string const &name);
+  void set_max_block_size(size_t block_size) { this->max_block_size_ = block_size; }
+  void set_uri_path_buffer_size(uint8_t max) { this->uri_path_buffer_size_ = max; }
   void set_request_timeout(uint32_t timeout) { this->request_timeout_ = timeout; }
   void set_ack_timeout(uint32_t timeout) { this->ack_timeout_ = timeout; }
   void set_max_retransmit(uint8_t max) { this->max_retransmit_ = max; }
