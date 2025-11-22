@@ -59,7 +59,7 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
 #endif  // LV_COLOR_DEPTH
 
-#ifdef USE_FONT
+#if defined(USE_FONT) && defined(USE_LVGL_FONT)
 inline void lv_obj_set_style_text_font(lv_obj_t *obj, const font::Font *font, lv_style_selector_t part) {
   lv_obj_set_style_text_font(obj, font->get_lv_font(), part);
 }
