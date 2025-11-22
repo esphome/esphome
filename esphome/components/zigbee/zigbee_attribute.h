@@ -18,9 +18,9 @@
 
 namespace esphome::zigbee {
 
-class ZigBeeAttribute : public Component {
+class ZigbeeAttribute : public Component {
  public:
-  ZigBeeAttribute(ZigBeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
+  ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                   uint8_t attr_type, float scale, uint8_t max_size)
       : zb_(parent),
         endpoint_id_(endpoint_id),
@@ -52,7 +52,7 @@ class ZigBeeAttribute : public Component {
   void set_attr_();
   void report_();
   void report_(bool has_lock);
-  ZigBeeComponent *zb_;
+  ZigbeeComponent *zb_;
   uint8_t endpoint_id_;
   uint16_t cluster_id_;
   uint8_t role_;
@@ -67,12 +67,12 @@ class ZigBeeAttribute : public Component {
   bool force_report_{false};
 };
 
-template<typename T> void ZigBeeAttribute::add_attr(uint8_t attr_access, T value) {
+template<typename T> void ZigbeeAttribute::add_attr(uint8_t attr_access, T value) {
   this->zb_->add_attr(this, this->endpoint_id_, this->cluster_id_, this->role_, this->attr_id_, this->attr_type_,
                       attr_access, this->max_size_, std::move(value));
 }
 
-template<typename T> void ZigBeeAttribute::set_attr(const T &value) {
+template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
   if constexpr (std::is_convertible<T, const char *>::value) {
     auto zcl_str = get_zcl_string(value, this->max_size_);
 
@@ -100,7 +100,7 @@ template<typename T> void ZigBeeAttribute::set_attr(const T &value) {
 }
 
 #ifdef USE_BINARY_SENSOR
-template<typename T> void ZigBeeAttribute::connect(binary_sensor::BinarySensor *sensor) {
+template<typename T> void ZigbeeAttribute::connect(binary_sensor::BinarySensor *sensor) {
   sensor->add_on_state_callback([this](bool value) { this->set_attr((T) (this->scale_ * value)); });
 }
 #endif

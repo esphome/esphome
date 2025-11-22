@@ -6,7 +6,7 @@
 
 namespace esphome::zigbee {
 
-void ZigBeeAttribute::set_attr_() {
+void ZigbeeAttribute::set_attr_() {
   if (!this->zb_->is_connected()) {
     return;
   }
@@ -26,9 +26,9 @@ void ZigBeeAttribute::set_attr_() {
   }
 }
 
-void ZigBeeAttribute::report_() { this->report_(false); }
+void ZigbeeAttribute::report_() { this->report_(false); }
 
-void ZigBeeAttribute::report_(bool has_lock) {
+void ZigbeeAttribute::report_(bool has_lock) {
   if (!this->zb_->is_connected()) {
     return;
   }
@@ -52,7 +52,7 @@ void ZigBeeAttribute::report_(bool has_lock) {
   }
 }
 
-void ZigBeeAttribute::set_report(bool force) {
+void ZigbeeAttribute::set_report(bool force) {
   esp_zb_zcl_reporting_info_t reporting_info = {
       .direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_SRV,
       .ep = this->endpoint_id_,
@@ -73,12 +73,12 @@ void ZigBeeAttribute::set_report(bool force) {
   this->force_report_ = force;
 }
 
-void ZigBeeAttribute::report() {
+void ZigbeeAttribute::report() {
   this->report_requested_ = true;
   this->enable_loop();
 }
 
-void ZigBeeAttribute::loop() {
+void ZigbeeAttribute::loop() {
   if (this->set_attr_requested_) {
     this->set_attr_();
   }

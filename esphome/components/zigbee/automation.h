@@ -9,7 +9,7 @@
 
 namespace esphome::zigbee {
 
-template<typename... Ts> class ResetZigbeeAction : public Action<Ts...>, public Parented<ZigBeeComponent> {
+template<typename... Ts> class FactoryResetAction : public Action<Ts...>, public Parented<ZigbeeComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->reset(); }
 };

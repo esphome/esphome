@@ -63,10 +63,10 @@ static const uint8_t MAX_CHILDREN = 10;
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = false);
 
-class ZigBeeAttribute;
+class ZigbeeAttribute;
 class ZigbeeTime;
 
-class ZigBeeComponent : public Component {
+class ZigbeeComponent : public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -76,10 +76,10 @@ class ZigBeeComponent : public Component {
   void create_default_cluster(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id);
 
   template<typename T>
-  void add_attr(ZigBeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
+  void add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                 uint8_t attr_type, uint8_t attr_access, uint8_t max_size, T value);
 
-  void set_report(ZigBeeAttribute *attribute, esp_zb_zcl_reporting_info_t reporting_info);
+  void set_report(ZigbeeAttribute *attribute, esp_zb_zcl_reporting_info_t reporting_info);
   void handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute);
   void search_bindings();
   static void binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx);
@@ -96,7 +96,7 @@ class ZigBeeComponent : public Component {
   bool connected_ = false;
   bool started_ = false;
 
-  std::deque<std::tuple<ZigBeeAttribute *, esp_zb_zcl_reporting_info_t>> reporting_list;
+  std::deque<std::tuple<ZigbeeAttribute *, esp_zb_zcl_reporting_info_t>> reporting_list;
   struct {
     std::string model;
     std::string manufacturer;
@@ -111,12 +111,12 @@ class ZigBeeComponent : public Component {
  protected:
   esp_zb_attribute_list_t *create_basic_cluster_();
   template<typename T>
-  void add_attr_(ZigBeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
+  void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                  uint8_t attr_type, uint8_t attr_access, T *value_p);
   std::map<uint8_t, esp_zb_ha_standard_devices_t> endpoint_list_;
   std::map<uint8_t, esp_zb_cluster_list_t *> cluster_list_;
   std::map<std::tuple<uint8_t, uint16_t, uint8_t>, esp_zb_attribute_list_t *> attribute_list_;
-  std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigBeeAttribute *> attributes_;
+  std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   esp_zb_ep_list_t *esp_zb_ep_list_ = esp_zb_ep_list_create();
 };
 
@@ -124,7 +124,7 @@ extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
 extern "C" void zb_set_ed_node_descriptor(bool power_src, bool rx_on_when_idle, bool alloc_addr);
 
 template<typename T>
-void ZigBeeComponent::add_attr(ZigBeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
+void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
                                uint16_t attr_id, uint8_t attr_type, uint8_t attr_access, uint8_t max_size, T value) {
   // The size byte of the zcl_str must be set to the maximum value,
   // even though the initial string may be shorter.
@@ -142,7 +142,7 @@ void ZigBeeComponent::add_attr(ZigBeeAttribute *attr, uint8_t endpoint_id, uint1
 }
 
 template<typename T>
-void ZigBeeComponent::add_attr_(ZigBeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
+void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
                                 uint16_t attr_id, uint8_t attr_type, uint8_t attr_access, T *value_p) {
   esp_zb_attribute_list_t *attr_list = this->attribute_list_[{endpoint_id, cluster_id, role}];
   esp_err_t ret =

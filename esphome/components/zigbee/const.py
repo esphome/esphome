@@ -2,11 +2,11 @@ from esphome import automation
 import esphome.codegen as cg
 
 zigbee_ns = cg.esphome_ns.namespace("zigbee")
-ZigBeeComponent = zigbee_ns.class_("ZigBeeComponent", cg.Component)
-ZigBeeAttribute = zigbee_ns.class_("ZigBeeAttribute", cg.Component)
+ZigbeeComponent = zigbee_ns.class_("ZigbeeComponent", cg.Component)
+ZigbeeAttribute = zigbee_ns.class_("ZigbeeAttribute", cg.Component)
 
-ResetZigbeeAction = zigbee_ns.class_(
-    "ResetZigbeeAction", automation.Action, cg.Parented.template(ZigBeeComponent)
+FactoryResetAction = zigbee_ns.class_(
+    "FactoryResetAction", automation.Action, cg.Parented.template(ZigbeeComponent)
 )
 
 report = zigbee_ns.enum("ZigbeeReportT")

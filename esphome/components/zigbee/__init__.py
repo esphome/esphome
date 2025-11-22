@@ -39,9 +39,9 @@ from .const import (
     DEVICE_TYPE,
     REPORT,
     ROLE,
-    ResetZigbeeAction,
-    ZigBeeAttribute,
-    ZigBeeComponent,
+    FactoryResetAction,
+    ZigbeeAttribute,
+    ZigbeeComponent,
 )
 from .zigbee_const import ATTR_ACCESS, ATTR_TYPE, CLUSTER_ID, CLUSTER_ROLE, DEVICE_ID
 from .zigbee_ep import create_ep, ep_configs
@@ -172,7 +172,7 @@ def validate_binary_sensor(config):
                     attr[CONF_VALUE] = str(name)
                     attr[CONF_MAX_LENGTH] = len(str(name))
                 validate_attributes(attr)
-                attr[CONF_ID] = cv.declare_id(ZigBeeAttribute)(None)
+                attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
                 if "zb_attr_ids" not in config:
                     config["zb_attr_ids"] = []
                 config["zb_attr_ids"].append(attr[CONF_ID])
@@ -180,7 +180,7 @@ def validate_binary_sensor(config):
     return config
 
 
-ZIGBEE_COMPONENT_SCHEMA = {
+BINARY_SENSOR_SCHEMA = {
     cv.Optional(CONF_REPORT): cv.All(
         cv.requires_component("zigbee"),
         cv.enum(REPORT, lower=True),
@@ -190,7 +190,7 @@ ZIGBEE_COMPONENT_SCHEMA = {
 
 def _require_vfs_select(config):
     """Register VFS select requirement during config validation."""
-    # ZigBee uses esp_vfs_eventfd which requires VFS select support
+    # Zigbee uses esp_vfs_eventfd which requires VFS select support
     require_vfs_select()
     return config
 
@@ -198,7 +198,7 @@ def _require_vfs_select(config):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(ZigBeeComponent),
+            cv.GenerateID(): cv.declare_id(ZigbeeComponent),
             cv.Optional(CONF_NAME): cv.string,
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
         }
@@ -299,14 +299,14 @@ async def to_code(config):
 
 ZIGBEE_ACTION_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.use_id(ZigBeeComponent),
+        cv.GenerateID(): cv.use_id(ZigbeeComponent),
     }
 )
 
 
 @automation.register_action(
     "zigbee.factory_reset",
-    ResetZigbeeAction,
+    FactoryResetAction,
     automation.maybe_simple_id(ZIGBEE_ACTION_SCHEMA),
 )
 async def reset_zigbee_to_code(config, action_id, template_arg, args):

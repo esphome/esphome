@@ -3,9 +3,8 @@ from logging import getLogger
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
+from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_ON_STATE_CHANGE
-from esphome.components.zigbee import ZIGBEE_COMPONENT_SCHEMA, validate_binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -440,7 +439,7 @@ def validate_publish_initial_state(value):
 _BINARY_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(ZIGBEE_COMPONENT_SCHEMA)
+    .extend(zigbee.BINARY_SENSOR_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BinarySensor),
@@ -522,7 +521,7 @@ _BINARY_SENSOR_SCHEMA = (
 
 
 _BINARY_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("binary_sensor"))
-_BINARY_SENSOR_SCHEMA.add_extra(validate_binary_sensor)
+_BINARY_SENSOR_SCHEMA.add_extra(zigbee.validate_binary_sensor)
 
 
 def binary_sensor_schema(

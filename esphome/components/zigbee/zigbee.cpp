@@ -16,7 +16,7 @@
 
 namespace esphome::zigbee {
 
-ZigBeeComponent *zigbeeC;
+ZigbeeComponent *zigbeeC;
 
 device_params_t coord;
 
@@ -37,11 +37,11 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask) {
   }
 }
 
-void ZigBeeComponent::set_report(ZigBeeAttribute *attribute, esp_zb_zcl_reporting_info_t reporting_info) {
+void ZigbeeComponent::set_report(ZigbeeAttribute *attribute, esp_zb_zcl_reporting_info_t reporting_info) {
   this->reporting_list.push_back(std::make_tuple(attribute, reporting_info));
 }
 
-void ZigBeeComponent::report() {
+void ZigbeeComponent::report() {
   for (const auto &[attribute, _] : zigbeeC->reporting_list) {
     attribute->report();
   }
@@ -118,7 +118,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
 }
 
 // Recall bounded devices from the binding table after reboot
-void ZigBeeComponent::binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx) {
+void ZigbeeComponent::binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx) {
   bool done = true;
   esp_zb_zdo_mgmt_bind_param_t *req = (esp_zb_zdo_mgmt_bind_param_t *) user_ctx;
   esp_zb_zdp_status_t zdo_status = (esp_zb_zdp_status_t) table_info->status;
@@ -167,7 +167,7 @@ void ZigBeeComponent::binding_table_cb(const esp_zb_zdo_binding_table_info_t *ta
   }
 }
 
-void ZigBeeComponent::search_bindings() {
+void ZigbeeComponent::search_bindings() {
   esp_zb_zdo_mgmt_bind_param_t *mb_req = (esp_zb_zdo_mgmt_bind_param_t *) malloc(sizeof(esp_zb_zdo_mgmt_bind_param_t));
   mb_req->dst_addr = esp_zb_get_short_address();
   mb_req->start_index = 0;
@@ -203,7 +203,7 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
   return ret;
 }
 
-void ZigBeeComponent::handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute) {
+void ZigbeeComponent::handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute) {
   if (this->attributes_.find({info.dst_endpoint, info.cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, attribute.id}) !=
       this->attributes_.end()) {
     this->attributes_[{info.dst_endpoint, info.cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, attribute.id}]->on_value(
@@ -211,12 +211,12 @@ void ZigBeeComponent::handle_attribute(esp_zb_device_cb_common_info_t info, esp_
   }
 }
 
-void ZigBeeComponent::create_default_cluster(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id) {
+void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id) {
   this->cluster_list_[endpoint_id] = esphome_zb_default_clusters_create(device_id);
   this->endpoint_list_[endpoint_id] = device_id;
 }
 
-void ZigBeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role) {
+void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role) {
   esp_zb_attribute_list_t *attr_list;
   switch (cluster_id) {
     case 0:
@@ -228,7 +228,7 @@ void ZigBeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint
   this->attribute_list_[{endpoint_id, cluster_id, role}] = attr_list;
 }
 
-void ZigBeeComponent::set_basic_cluster(std::string model, std::string manufacturer, std::string date) {
+void ZigbeeComponent::set_basic_cluster(std::string model, std::string manufacturer, std::string date) {
   this->basic_cluster_data_ = {
       .model = model,
       .manufacturer = manufacturer,
@@ -236,7 +236,7 @@ void ZigBeeComponent::set_basic_cluster(std::string model, std::string manufactu
   };
 }
 
-esp_zb_attribute_list_t *ZigBeeComponent::create_basic_cluster_() {
+esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
   // ------------------------------ Cluster BASIC ------------------------------
   esp_zb_basic_cluster_cfg_t basic_cluster_cfg = {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
@@ -256,7 +256,7 @@ esp_zb_attribute_list_t *ZigBeeComponent::create_basic_cluster_() {
   return attr_list;
 }
 
-esp_err_t ZigBeeComponent::create_endpoint(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id) {
+esp_err_t ZigbeeComponent::create_endpoint(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id) {
   esp_zb_cluster_list_t *esp_zb_cluster_list = this->cluster_list_[endpoint_id];
   // ------------------------------ Create endpoint list ------------------------------
   esp_zb_endpoint_config_t endpoint_config = {.endpoint = endpoint_id,
@@ -275,7 +275,7 @@ static void esp_zb_task_(void *pvParameters) {
   esp_zb_stack_main_loop();
 }
 
-void ZigBeeComponent::setup() {
+void ZigbeeComponent::setup() {
   zigbeeC = this;
   esp_zb_platform_config_t config = {
       .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
@@ -357,8 +357,8 @@ void ZigBeeComponent::setup() {
   xTaskCreate(esp_zb_task_, "Zigbee_main", 4096, NULL, 24, NULL);
 }
 
-void ZigBeeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "ZigBee:");
+void ZigbeeComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Zigbee:");
   for (auto const &[key, val] : this->endpoint_list_) {
     ESP_LOGCONFIG(TAG, "Endpoint: %u, %d", key, val);
   }
