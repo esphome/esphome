@@ -7,6 +7,7 @@
 
 #include "esphome/components/esp32_ble_server/ble_characteristic.h"
 #include "esphome/components/esp32_ble_server/ble_server.h"
+#include "esphome/components/improv_base/improv_base.h"
 #include "esphome/components/wifi/wifi_component.h"
 
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
@@ -32,7 +33,7 @@ namespace esp32_improv {
 
 using namespace esp32_ble_server;
 
-class ESP32ImprovComponent : public Component {
+class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
  public:
   ESP32ImprovComponent();
   void dump_config() override;
@@ -44,6 +45,7 @@ class ESP32ImprovComponent : public Component {
   void start();
   void stop();
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
+  bool should_start() const { return this->should_start_; }
 
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
   void add_on_state_callback(std::function<void(improv::State, improv::Error)> &&callback) {
@@ -108,7 +110,7 @@ class ESP32ImprovComponent : public Component {
   void set_state_(improv::State state, bool update_advertising = true);
   void set_error_(improv::Error error);
   improv::State get_initial_state_() const;
-  void send_response_(std::vector<uint8_t> &response);
+  void send_response_(std::vector<uint8_t> &&response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   void check_wifi_connection_();

@@ -158,7 +158,7 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",unit=\""));
-    stream->print(obj->get_unit_of_measurement().c_str());
+    stream->print(obj->get_unit_of_measurement_ref().c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(value_accuracy_to_string(obj->state, obj->get_accuracy_decimals()).c_str());
     stream->print(ESPHOME_F("\n"));

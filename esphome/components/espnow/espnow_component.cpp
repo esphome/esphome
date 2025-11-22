@@ -4,6 +4,7 @@
 
 #include "espnow_err.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
@@ -97,6 +98,11 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
   // Push the packet to the queue
   global_esp_now->receive_packet_queue_.push(packet);
   // Push always because we're the only producer and the pool ensures we never exceed queue size
+
+  // Wake main loop immediately to process ESP-NOW send event instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 
 void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
@@ -114,6 +120,11 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
   // Push the packet to the queue
   global_esp_now->receive_packet_queue_.push(packet);
   // Push always because we're the only producer and the pool ensures we never exceed queue size
+
+  // Wake main loop immediately to process ESP-NOW receive event instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }

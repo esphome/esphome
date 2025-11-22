@@ -213,17 +213,14 @@ class LvScrActType(WidgetType):
     """
 
     def __init__(self):
-        super().__init__("lv_scr_act()", lv_obj_t, ())
+        super().__init__("lv_scr_act()", lv_obj_t, (), is_mock=True)
 
     async def to_code(self, w, config: dict):
         return []
 
 
-lv_scr_act_spec = LvScrActType()
-
-
 def get_scr_act(lv_comp: MockObj) -> Widget:
-    return Widget.create(None, lv_comp.get_scr_act(), lv_scr_act_spec, {})
+    return Widget.create(None, lv_comp.get_scr_act(), LvScrActType(), {})
 
 
 def get_widget_generator(wid):
@@ -339,7 +336,10 @@ async def set_obj_properties(w: Widget, config):
         if layout_type == TYPE_FLEX:
             lv_obj.set_flex_flow(w.obj, literal(layout[CONF_FLEX_FLOW]))
             main = literal(layout[CONF_FLEX_ALIGN_MAIN])
-            cross = literal(layout[CONF_FLEX_ALIGN_CROSS])
+            cross = layout[CONF_FLEX_ALIGN_CROSS]
+            if cross == "LV_FLEX_ALIGN_STRETCH":
+                cross = "LV_FLEX_ALIGN_CENTER"
+            cross = literal(cross)
             track = literal(layout[CONF_FLEX_ALIGN_TRACK])
             lv_obj.set_flex_align(w.obj, main, cross, track)
     parts = collect_parts(config)
@@ -446,9 +446,11 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     if spec.is_compound():
         var = cg.new_Pvariable(wid)
         lv_add(var.set_obj(creator))
+        spec.on_create(var.obj, w_cnfig)
     else:
         var = lv_Pvariable(lv_obj_t, wid)
         lv_assign(var, creator)
+        spec.on_create(var, w_cnfig)
 
     w = Widget.create(wid, var, spec, w_cnfig)
     if theme := theme_widget_map.get(w_type):

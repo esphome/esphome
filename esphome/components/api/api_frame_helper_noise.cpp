@@ -434,8 +434,7 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
     return APIError::OK;
   }
 
-  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
-  uint8_t *buffer_data = raw_buffer->data();  // Cache buffer pointer
+  uint8_t *buffer_data = buffer.get_buffer()->data();
 
   this->reusable_iovs_.clear();
   this->reusable_iovs_.reserve(packets.size());

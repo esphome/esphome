@@ -44,11 +44,75 @@ class Filter {
   Sensor *parent_{nullptr};
 };
 
+/** Base class for filters that use a sliding window of values.
+ *
+ * Uses a ring buffer to efficiently maintain a fixed-size sliding window without
+ * reallocations or pop_front() overhead. Eliminates deque fragmentation issues.
+ */
+class SlidingWindowFilter : public Filter {
+ public:
+  SlidingWindowFilter(size_t window_size, size_t send_every, size_t send_first_at);
+
+  optional<float> new_value(float value) final;
+
+ protected:
+  /// Called by new_value() to compute the filtered result from the current window
+  virtual float compute_result() = 0;
+
+  /// Access the sliding window values (ring buffer implementation)
+  /// Use: for (size_t i = 0; i < window_count_; i++) { float val = window_[i]; }
+  FixedVector<float> window_;
+  size_t window_head_{0};   ///< Index where next value will be written
+  size_t window_count_{0};  ///< Number of valid values in window (0 to window_size_)
+  size_t window_size_;      ///< Maximum window size
+  size_t send_every_;       ///< Send result every N values
+  size_t send_at_;          ///< Counter for send_every
+};
+
+/** Base class for Min/Max filters.
+ *
+ * Provides a templated helper to find extremum values efficiently.
+ */
+class MinMaxFilter : public SlidingWindowFilter {
+ public:
+  using SlidingWindowFilter::SlidingWindowFilter;
+
+ protected:
+  /// Helper to find min or max value in window, skipping NaN values
+  /// Usage: find_extremum_<std::less<float>>() for min, find_extremum_<std::greater<float>>() for max
+  template<typename Compare> float find_extremum_() {
+    float result = NAN;
+    Compare comp;
+    for (size_t i = 0; i < this->window_count_; i++) {
+      float v = this->window_[i];
+      if (!std::isnan(v)) {
+        result = std::isnan(result) ? v : (comp(v, result) ? v : result);
+      }
+    }
+    return result;
+  }
+};
+
+/** Base class for filters that need a sorted window (Median, Quantile).
+ *
+ * Extends SlidingWindowFilter to provide a helper that filters out NaN values.
+ * Derived classes use std::nth_element for efficient partial sorting.
+ */
+class SortedWindowFilter : public SlidingWindowFilter {
+ public:
+  using SlidingWindowFilter::SlidingWindowFilter;
+
+ protected:
+  /// Helper to get non-NaN values from the window (not sorted - caller will use nth_element)
+  /// Returns empty FixedVector if all values are NaN
+  FixedVector<float> get_window_values_();
+};
+
 /** Simple quantile filter.
  *
- * Takes the quantile of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the quantile of the last <window_size> values and pushes it out every <send_every>.
  */
-class QuantileFilter : public Filter {
+class QuantileFilter : public SortedWindowFilter {
  public:
   /** Construct a QuantileFilter.
    *
@@ -61,25 +125,18 @@ class QuantileFilter : public Filter {
    */
   explicit QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile);
 
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
-  void set_quantile(float quantile);
+  void set_quantile(float quantile) { this->quantile_ = quantile; }
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
   float quantile_;
 };
 
 /** Simple median filter.
  *
- * Takes the median of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the median of the last <window_size> values and pushes it out every <send_every>.
  */
-class MedianFilter : public Filter {
+class MedianFilter : public SortedWindowFilter {
  public:
   /** Construct a MedianFilter.
    *
@@ -89,18 +146,10 @@ class MedianFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MedianFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using SortedWindowFilter::SortedWindowFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
 };
 
 /** Simple skip filter.
@@ -123,9 +172,9 @@ class SkipInitialFilter : public Filter {
 
 /** Simple min filter.
  *
- * Takes the min of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the min of the last <window_size> values and pushes it out every <send_every>.
  */
-class MinFilter : public Filter {
+class MinFilter : public MinMaxFilter {
  public:
   /** Construct a MinFilter.
    *
@@ -135,25 +184,17 @@ class MinFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MinFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using MinMaxFilter::MinMaxFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
 };
 
 /** Simple max filter.
  *
- * Takes the max of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the max of the last <window_size> values and pushes it out every <send_every>.
  */
-class MaxFilter : public Filter {
+class MaxFilter : public MinMaxFilter {
  public:
   /** Construct a MaxFilter.
    *
@@ -163,18 +204,10 @@ class MaxFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MaxFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using MinMaxFilter::MinMaxFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
 };
 
 /** Simple sliding window moving average filter.
@@ -182,7 +215,7 @@ class MaxFilter : public Filter {
  * Essentially just takes takes the average of the last window_size values and pushes them out
  * every send_every.
  */
-class SlidingWindowMovingAverageFilter : public Filter {
+class SlidingWindowMovingAverageFilter : public SlidingWindowFilter {
  public:
   /** Construct a SlidingWindowMovingAverageFilter.
    *
@@ -192,18 +225,10 @@ class SlidingWindowMovingAverageFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using SlidingWindowFilter::SlidingWindowFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
 };
 
 /** Simple exponential moving average filter.
@@ -271,6 +296,21 @@ class LambdaFilter : public Filter {
   lambda_filter_t lambda_filter_;
 };
 
+/** Optimized lambda filter for stateless lambdas (no capture).
+ *
+ * Uses function pointer instead of std::function to reduce memory overhead.
+ * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
+ */
+class StatelessLambdaFilter : public Filter {
+ public:
+  explicit StatelessLambdaFilter(optional<float> (*lambda_filter)(float)) : lambda_filter_(lambda_filter) {}
+
+  optional<float> new_value(float value) override { return this->lambda_filter_(value); }
+
+ protected:
+  optional<float> (*lambda_filter_)(float);
+};
+
 /// A simple filter that adds `offset` to each value it receives.
 class OffsetFilter : public Filter {
  public:
@@ -292,15 +332,28 @@ class MultiplyFilter : public Filter {
   TemplatableValue<float> multiplier_;
 };
 
+/** Base class for filters that compare sensor values against a list of configured values.
+ *
+ * This base class provides common functionality for filters that need to check if a sensor
+ * value matches any value in a configured list, with proper handling of NaN values and
+ * accuracy-based rounding for comparisons.
+ */
+class ValueListFilter : public Filter {
+ protected:
+  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values);
+
+  /// Check if sensor value matches any configured value (with accuracy rounding)
+  bool value_matches_any_(float sensor_value);
+
+  FixedVector<TemplatableValue<float>> values_;
+};
+
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
-class FilterOutValueFilter : public Filter {
+class FilterOutValueFilter : public ValueListFilter {
  public:
-  explicit FilterOutValueFilter(std::vector<TemplatableValue<float>> values_to_filter_out);
+  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out);
 
   optional<float> new_value(float value) override;
-
- protected:
-  std::vector<TemplatableValue<float>> values_to_filter_out_;
 };
 
 class ThrottleFilter : public Filter {
@@ -315,17 +368,16 @@ class ThrottleFilter : public Filter {
 };
 
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
-class ThrottleWithPriorityFilter : public Filter {
+class ThrottleWithPriorityFilter : public ValueListFilter {
  public:
   explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::vector<TemplatableValue<float>> prioritized_values);
+                                      std::initializer_list<TemplatableValue<float>> prioritized_values);
 
   optional<float> new_value(float value) override;
 
  protected:
   uint32_t last_input_{0};
   uint32_t min_time_between_inputs_;
-  std::vector<TemplatableValue<float>> prioritized_values_;
 };
 
 class TimeoutFilter : public Filter, public Component {
@@ -359,15 +411,16 @@ class HeartbeatFilter : public Filter, public Component {
   explicit HeartbeatFilter(uint32_t time_period);
 
   void setup() override;
-
   optional<float> new_value(float value) override;
-
   float get_setup_priority() const override;
+
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
  protected:
   uint32_t time_period_;
   float last_input_;
   bool has_value_{false};
+  bool optimistic_{false};
 };
 
 class DeltaFilter : public Filter {
@@ -385,7 +438,7 @@ class DeltaFilter : public Filter {
 
 class OrFilter : public Filter {
  public:
-  explicit OrFilter(std::vector<Filter *> filters);
+  explicit OrFilter(std::initializer_list<Filter *> filters);
 
   void initialize(Sensor *parent, Filter *next) override;
 
@@ -401,28 +454,27 @@ class OrFilter : public Filter {
     OrFilter *or_parent_;
   };
 
-  std::vector<Filter *> filters_;
+  FixedVector<Filter *> filters_;
   PhiNode phi_;
   bool has_value_{false};
 };
 
 class CalibrateLinearFilter : public Filter {
  public:
-  CalibrateLinearFilter(std::vector<std::array<float, 3>> linear_functions)
-      : linear_functions_(std::move(linear_functions)) {}
+  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions);
   optional<float> new_value(float value) override;
 
  protected:
-  std::vector<std::array<float, 3>> linear_functions_;
+  FixedVector<std::array<float, 3>> linear_functions_;
 };
 
 class CalibratePolynomialFilter : public Filter {
  public:
-  CalibratePolynomialFilter(std::vector<float> coefficients) : coefficients_(std::move(coefficients)) {}
+  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients);
   optional<float> new_value(float value) override;
 
  protected:
-  std::vector<float> coefficients_;
+  FixedVector<float> coefficients_;
 };
 
 class ClampFilter : public Filter {
@@ -474,6 +526,82 @@ class ToNTCTemperatureFilter : public Filter {
   double a_;
   double b_;
   double c_;
+};
+
+/** Base class for streaming filters (batch windows where window_size == send_every).
+ *
+ * When window_size equals send_every, we don't need a sliding window.
+ * This base class handles the common batching logic.
+ */
+class StreamingFilter : public Filter {
+ public:
+  StreamingFilter(size_t window_size, size_t send_first_at);
+
+  optional<float> new_value(float value) final;
+
+ protected:
+  /// Called by new_value() to process each value in the batch
+  virtual void process_value(float value) = 0;
+
+  /// Called by new_value() to compute the result after collecting window_size values
+  virtual float compute_batch_result() = 0;
+
+  /// Called by new_value() to reset internal state after sending a result
+  virtual void reset_batch() = 0;
+
+  size_t window_size_;
+  size_t count_{0};
+  size_t send_first_at_;
+  bool first_send_{true};
+};
+
+/** Streaming min filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only the minimum value.
+ */
+class StreamingMinFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float current_min_{NAN};
+};
+
+/** Streaming max filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only the maximum value.
+ */
+class StreamingMaxFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float current_max_{NAN};
+};
+
+/** Streaming moving average filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only sum and count.
+ */
+class StreamingMovingAverageFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float sum_{0.0f};
+  size_t valid_count_{0};
 };
 
 }  // namespace sensor
