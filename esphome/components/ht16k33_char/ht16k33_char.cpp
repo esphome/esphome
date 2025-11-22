@@ -66,7 +66,7 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
-  //uint8_t i;
+  // uint8_t i;
   uint16_t current_buffer_location;
 
   // ESP_LOGD("dbg", "message: %s", this->message_buffer_.c_str());    //TODO: Remove this when everything works.
@@ -91,12 +91,10 @@ void HT16k33CharComponent::update() {
     if ((this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) ||
         (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START) ||
         (this->scroll_state_ == HT16K33_SCROLL_STATE_STOPPED)) {
-
       this->last_scroll_ = App.get_loop_component_start_time();
       current_buffer_location = this->update_display();
 
-      if ((this->fist_char_location_ == 0) &&
-          (current_buffer_location >= this->message_buffer_.length()) &&
+      if ((this->fist_char_location_ == 0) && (current_buffer_location >= this->message_buffer_.length()) &&
           (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START)) {
         // We reached the end of the char buffer before we reached the end of the display.
         this->scroll_state_ = HT16K33_SCROLL_STATE_STOPPED;

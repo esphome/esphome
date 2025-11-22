@@ -21,12 +21,12 @@ static const uint8_t HT16K33_MODE_STANDBY = 0x00;
 static const uint8_t HT16K33_MODE_NORMAL = 0x01;
 
 // Return codes from handle_special_char_()
-static const uint8_t SPECIAL_CHAR_NOT_FOUND = 0x00;       // Not a special char.
-static const uint8_t SPECIAL_CHAR_FOUND = 0x01;           // Special char found and handled
-static const uint8_t SPECIAL_CHAR_FOUND_ADVANCE = 0x02;   // Special char found and handled, advance display if the
-                                                            // special char was in the first position of the first display.
-//static const uint8_t SPECIAL_CHAR_FOUND_NO_ADVANCE = 0x03;  // Special char found and handled, advance display if the
-                                                            // special char was in the first position of the first display.
+static const uint8_t SPECIAL_CHAR_NOT_FOUND = 0x00;      // Not a special char.
+static const uint8_t SPECIAL_CHAR_FOUND = 0x01;          // Special char found and handled
+static const uint8_t SPECIAL_CHAR_FOUND_ADVANCE = 0x02;  // Special char found and handled, advance display if the
+                                                         // special char was in the first position of the first display.
+// static const uint8_t SPECIAL_CHAR_FOUND_NO_ADVANCE = 0x03;  // Special char found and handled, advance display if the
+//  special char was in the first position of the first display.
 
 class HT16k33CharComponent;
 
