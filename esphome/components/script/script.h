@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <tuple>
+#include <forward_list>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -214,7 +215,7 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
 
   template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
 
-  void play(Ts... x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
+  void play(const Ts &...x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
 
  protected:
   // NOTE:
@@ -248,7 +249,7 @@ template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> 
  public:
   ScriptStopAction(C *script) : script_(script) {}
 
-  void play(Ts... x) override { this->script_->stop(); }
+  void play(const Ts &...x) override { this->script_->stop(); }
 
  protected:
   C *script_;
@@ -258,24 +259,40 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  public:
   explicit IsRunningCondition(C *parent) : parent_(parent) {}
 
-  bool check(Ts... x) override { return this->parent_->is_running(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running(); }
 
  protected:
   C *parent_;
 };
 
+/** Wait for a script to finish before continuing.
+ *
+ * Uses queue-based storage to safely handle concurrent executions.
+ * While concurrent execution from the same trigger is uncommon, it's possible
+ * (e.g., rapid button presses, high-frequency sensor updates), so we use
+ * queue-based storage for correctness.
+ */
 template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
  public:
   ScriptWaitAction(C *script) : script_(script) {}
 
-  void play_complex(Ts... x) override {
+  void setup() override {
+    // Start with loop disabled - only enable when there's work to do
+    this->disable_loop();
+  }
+
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     // Check if we can continue immediately.
     if (!this->script_->is_running()) {
       this->play_next_(x...);
       return;
     }
-    this->var_ = std::make_tuple(x...);
+
+    // Store parameters for later execution
+    this->param_queue_.emplace_front(x...);
+    // Enable loop now that we have work to do
+    this->enable_loop();
     this->loop();
   }
 
@@ -286,15 +303,30 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     if (this->script_->is_running())
       return;
 
-    this->play_next_tuple_(this->var_);
+    while (!this->param_queue_.empty()) {
+      auto &params = this->param_queue_.front();
+      this->play_next_tuple_(params, typename gens<sizeof...(Ts)>::type());
+      this->param_queue_.pop_front();
+    }
+    // Queue is now empty - disable loop until next play_complex
+    this->disable_loop();
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
+  }
+
+  void stop() override {
+    this->param_queue_.clear();
+    this->disable_loop();
   }
 
  protected:
+  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+    this->play_next_(std::get<S>(tuple)...);
+  }
+
   C *script_;
-  std::tuple<Ts...> var_{};
+  std::forward_list<std::tuple<Ts...>> param_queue_;
 };
 
 }  // namespace script

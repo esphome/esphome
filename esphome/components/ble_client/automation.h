@@ -106,22 +106,30 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   void set_char_uuid32(uint32_t uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
 
-  void set_value_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->value_template_ = std::move(func);
-    has_simple_value_ = false;
+  void set_value_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->value_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
   }
 
-  void set_value_simple(const std::vector<uint8_t> &value) {
-    this->value_simple_ = value;
-    has_simple_value_ = true;
+  // Store pointer to static data in flash (no RAM copy)
+  void set_value_simple(const uint8_t *data, size_t len) {
+    this->value_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
 
-  void play(Ts... x) override {}
+  void play(const Ts &...x) override {}
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     this->var_ = std::make_tuple(x...);
-    auto value = this->has_simple_value_ ? this->value_simple_ : this->value_template_(x...);
+    std::vector<uint8_t> value;
+    if (this->len_ >= 0) {
+      // Static mode: copy from flash to vector
+      value.assign(this->value_.data, this->value_.data + this->len_);
+    } else {
+      // Template mode: call function
+      value = this->value_.func(x...);
+    }
     // on write failure, continue the automation chain rather than stopping so that e.g. disconnect can work.
     if (!write(value))
       this->play_next_(x...);
@@ -195,9 +203,11 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
 
  private:
   BLEClient *ble_client_;
-  bool has_simple_value_ = true;
-  std::vector<uint8_t> value_simple_;
-  std::function<std::vector<uint8_t>(Ts...)> value_template_{};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
+  union Value {
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
+  } value_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
   std::tuple<Ts...> var_{};
@@ -210,12 +220,12 @@ template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...
  public:
   BLEClientPasskeyReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     uint32_t passkey;
     if (has_simple_value_) {
-      passkey = this->value_simple_;
+      passkey = this->value_.simple;
     } else {
-      passkey = this->value_template_(x...);
+      passkey = this->value_.template_func(x...);
     }
     if (passkey > 999999)
       return;
@@ -224,59 +234,63 @@ template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...
     esp_ble_passkey_reply(remote_bda, true, passkey);
   }
 
-  void set_value_template(std::function<uint32_t(Ts...)> func) {
-    this->value_template_ = std::move(func);
-    has_simple_value_ = false;
+  void set_value_template(uint32_t (*func)(Ts...)) {
+    this->value_.template_func = func;
+    this->has_simple_value_ = false;
   }
 
   void set_value_simple(const uint32_t &value) {
-    this->value_simple_ = value;
-    has_simple_value_ = true;
+    this->value_.simple = value;
+    this->has_simple_value_ = true;
   }
 
  private:
   BLEClient *parent_{nullptr};
   bool has_simple_value_ = true;
-  uint32_t value_simple_{0};
-  std::function<uint32_t(Ts...)> value_template_{};
+  union {
+    uint32_t simple;
+    uint32_t (*template_func)(Ts...);
+  } value_{.simple = 0};
 };
 
 template<typename... Ts> class BLEClientNumericComparisonReplyAction : public Action<Ts...> {
  public:
   BLEClientNumericComparisonReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     esp_bd_addr_t remote_bda;
     memcpy(remote_bda, parent_->get_remote_bda(), sizeof(esp_bd_addr_t));
     if (has_simple_value_) {
-      esp_ble_confirm_reply(remote_bda, this->value_simple_);
+      esp_ble_confirm_reply(remote_bda, this->value_.simple);
     } else {
-      esp_ble_confirm_reply(remote_bda, this->value_template_(x...));
+      esp_ble_confirm_reply(remote_bda, this->value_.template_func(x...));
     }
   }
 
-  void set_value_template(std::function<bool(Ts...)> func) {
-    this->value_template_ = std::move(func);
-    has_simple_value_ = false;
+  void set_value_template(bool (*func)(Ts...)) {
+    this->value_.template_func = func;
+    this->has_simple_value_ = false;
   }
 
   void set_value_simple(const bool &value) {
-    this->value_simple_ = value;
-    has_simple_value_ = true;
+    this->value_.simple = value;
+    this->has_simple_value_ = true;
   }
 
  private:
   BLEClient *parent_{nullptr};
   bool has_simple_value_ = true;
-  bool value_simple_{false};
-  std::function<bool(Ts...)> value_template_{};
+  union {
+    bool simple;
+    bool (*template_func)(Ts...);
+  } value_{.simple = false};
 };
 
 template<typename... Ts> class BLEClientRemoveBondAction : public Action<Ts...> {
  public:
   BLEClientRemoveBondAction(BLEClient *ble_client) { parent_ = ble_client; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     esp_bd_addr_t remote_bda;
     memcpy(remote_bda, parent_->get_remote_bda(), sizeof(esp_bd_addr_t));
     esp_ble_remove_bond_device(remote_bda);
@@ -311,9 +325,9 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
   }
 
   // not used since we override play_complex_
-  void play(Ts... x) override {}
+  void play(const Ts &...x) override {}
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     // it makes no sense to have multiple instances of this running at the same time.
     // this would occur only if the same automation was re-triggered while still
     // running. So just cancel the second chain if this is detected.
@@ -356,9 +370,9 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
   }
 
   // not used since we override play_complex_
-  void play(Ts... x) override {}
+  void play(const Ts &...x) override {}
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     if (this->node_state == espbt::ClientState::IDLE) {
       this->play_next_(x...);

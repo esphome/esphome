@@ -14,7 +14,7 @@ template<typename... Ts> class PlayOnDeviceMediaAction : public Action<Ts...>, p
   TEMPLATABLE_VALUE(audio::AudioFile *, audio_file)
   TEMPLATABLE_VALUE(bool, announcement)
   TEMPLATABLE_VALUE(bool, enqueue)
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->play_file(this->audio_file_.value(x...), this->announcement_.value(x...),
                              this->enqueue_.value(x...));
   }

@@ -62,6 +62,21 @@ class LambdaFilter : public Filter {
   lambda_filter_t lambda_filter_;
 };
 
+/** Optimized lambda filter for stateless lambdas (no capture).
+ *
+ * Uses function pointer instead of std::function to reduce memory overhead.
+ * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
+ */
+class StatelessLambdaFilter : public Filter {
+ public:
+  explicit StatelessLambdaFilter(optional<std::string> (*lambda_filter)(std::string)) : lambda_filter_(lambda_filter) {}
+
+  optional<std::string> new_value(std::string value) override { return this->lambda_filter_(value); }
+
+ protected:
+  optional<std::string> (*lambda_filter_)(std::string);
+};
+
 /// A simple filter that converts all text to uppercase
 class ToUpperFilter : public Filter {
  public:
