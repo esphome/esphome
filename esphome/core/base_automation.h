@@ -195,11 +195,9 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
           /* is_static_string= */ true, "delay", this->delay_.value(), [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     } else {
-      // For delays with arguments, use lambda with value capture to preserve argument values
+      // For delays with arguments, use std::bind to preserve argument values
       // Arguments must be copied because original references may be invalid after delay
-      // After PR #11704 changed signatures to const ref, std::bind would capture by reference!
-      // Lambda capture with ...args = x creates copies, not references (fixes #12043, #12044)
-      auto f = [this, ... args = x]() { this->play_next_(args...); };
+      auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
       App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
                                       /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
                                       /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);

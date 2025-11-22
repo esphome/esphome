@@ -115,8 +115,3 @@ async def test_script_delay_with_params(
         assert son_delaying == expected_delays, (
             "Delays not triggered for iterations >= 5"
         )
-
-        print(f"✓ All {len(expected_iterations)} iterations completed successfully")
-        print(f"✓ Delays triggered for iterations {sorted(expected_delays)}")
-        print("✓ No zombie scripts detected")
-        print("✓ script.wait returned correctly for all iterations")
