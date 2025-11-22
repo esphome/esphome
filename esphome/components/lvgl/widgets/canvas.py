@@ -65,8 +65,10 @@ CONF_BUFFER_ID = "buffer_id"
 CONF_MAX_WIDTH = "max_width"
 CONF_TRANSPARENT = "transparent"
 CONF_RADIUS = "radius"
+CONF_DRAW_BUF_ID = "draw_buf_id"
 
 lv_canvas_t = LvType("lv_canvas_t")
+lv_draw_buf_t = LvType("lv_draw_buf_t")
 
 
 class CanvasType(WidgetType):
@@ -80,8 +82,10 @@ class CanvasType(WidgetType):
                     cv.Required(CONF_WIDTH): size,
                     cv.Required(CONF_HEIGHT): size,
                     cv.Optional(CONF_TRANSPARENT, default=False): cv.boolean,
+                    cv.GenerateID(CONF_DRAW_BUF_ID): cv.declare_id(lv_draw_buf_t),
                 }
             ),
+            modify_schema={},
         )
 
     def get_uses(self):
@@ -94,26 +98,24 @@ class CanvasType(WidgetType):
         # RGB565 is 16-bit (2 bytes per pixel), ARGB8888 is 32-bit (4 bytes per pixel)
         if config[CONF_TRANSPARENT]:
             color_format = "LV_COLOR_FORMAT_ARGB8888"
-            bits_per_pixel = 32
         else:
-            color_format = "LV_COLOR_FORMAT_RGB565"
-            bits_per_pixel = 16
+            color_format = "LV_COLOR_FORMAT_NATIVE"
 
         # LVGL 9.4: LV_CANVAS_BUF_SIZE(width, height, bits_per_pixel, stride)
         # stride is 0 for default (width * bytes_per_pixel)
-        buf_size = literal(
-            f"LV_CANVAS_BUF_SIZE({width}, {height}, {bits_per_pixel}, 0)"
+        draw_buf = cg.new_Pvariable(config[CONF_DRAW_BUF_ID])
+        buf_size = literal(f"LV_DRAW_BUF_SIZE({width}, {height}, {color_format})")
+        lv.draw_buf_init(
+            draw_buf,
+            width,
+            height,
+            literal(color_format),
+            0,
+            lv_expr.malloc_core(buf_size),
+            literal(buf_size),
         )
-        with LocalVariable("buf", cg.void, lv_expr.malloc_core(buf_size)) as buf:
-            cg.global_ns.memset(buf, 0, buf_size)
-            lv.append(cg.RawExpression(f"memset({buf}, 0, {buf_size});"))
-            lv.canvas_set_buffer(
-                w.obj,
-                buf,
-                width,
-                height,
-                literal(color_format),
-            )
+        lv.draw_buf_set_flag(draw_buf, literal("LV_IMAGE_FLAGS_MODIFIABLE"))
+        lv.canvas_set_draw_buf(w.obj, draw_buf)
 
 
 CanvasType()
@@ -195,8 +197,8 @@ async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg
 
     async def action_func(w: Widget):
         # LVGL 9.4: Create a layer for drawing on canvas
-        with LocalVariable("layer", "lv_layer_t") as layer:
-            lv.canvas_init_layer(w.obj, layer)
+        with LocalVariable("layer", "lv_layer_t", modifier="") as layer:
+            lv.canvas_init_layer(w.obj, addr(layer))
             with LocalVariable("dsc", f"lv_draw_{dsc_type}_dsc_t", modifier="") as dsc:
                 lv.call(f"draw_{dsc_type}_dsc_init", addr(dsc))
                 if CONF_OPA in config:
@@ -207,8 +209,8 @@ async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg
                         value = await validator.process(config[prop])
                         mapped_prop = remap_property(prop)
                         lv_assign(getattr(dsc, mapped_prop), value)
-                await do_draw(layer, x, y, dsc)
-            lv.canvas_finish_layer(w.obj, layer)
+                await do_draw(addr(layer), x, y, dsc)
+            lv.canvas_finish_layer(w.obj, addr(layer))
 
     return await action_to_code(
         widget, action_func, action_id, template_arg, args, config
