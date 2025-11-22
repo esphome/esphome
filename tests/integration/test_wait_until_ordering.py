@@ -49,7 +49,6 @@ async def test_wait_until_fifo_ordering(
         elif mo := completed_pattern.search(line):
             iteration = int(mo.group(1))
             completed_order.append(iteration)
-            # print(f"Completed: {iteration}, order so far: {completed_order}")
 
             # Test completes when all 5 have completed
             if len(completed_order) == 5:
