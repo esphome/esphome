@@ -25,8 +25,7 @@ namespace i2c {
 class I2CDevice;
 }
 
-namespace vl53l1x {
-namespace driver {
+namespace vl53l1x::driver {
 
 const uint8_t VL53L1X_IMPLEMENTATION_VER_MAJOR = 3;
 const uint8_t VL53L1X_IMPLEMENTATION_VER_MINOR = 5;
@@ -215,6 +214,5 @@ VL53L1X_ERROR set_sigma_threshold(i2c::I2CDevice *dev, uint16_t sigma);
  */
 VL53L1X_ERROR start_temperature_update(i2c::I2CDevice *dev);
 
-}  // namespace driver
-}  // namespace vl53l1x
+}  // namespace vl53l1x::driver
 }  // namespace esphome

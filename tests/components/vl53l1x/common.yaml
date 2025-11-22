@@ -1,11 +1,7 @@
-i2c:
-  - id: i2c_vl53l1x
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-    frequency: 400khz  # The sensor expects a 400khz i2c bus.
-
 sensor:
   - platform: vl53l1x
+    i2c_id: i2c_bus
+
     name: "Interrupt Mode"
 
     # Conditionally required: Must be set when multiple VL53L1X Sensors
@@ -74,6 +70,8 @@ sensor:
     sigma_threshold: 15 # Default: 15
 
   - platform: vl53l1x
+    i2c_id: i2c_bus
+
     name: "Polling Mode"
 
     # Conditionally required: Must be set when multiple VL53L1X Sensors

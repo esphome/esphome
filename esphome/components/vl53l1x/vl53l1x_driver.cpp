@@ -16,16 +16,14 @@
  * https://www.st.com/SLA0103
  *****************************************************************************/
 
-#include "driver.h"
+#include "vl53l1x_driver.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/helpers.h"
 #include <cstring>
 
-namespace esphome {
-namespace vl53l1x {
-namespace driver {
+namespace esphome::vl53l1x::driver {
 
 const uint8_t VL51L1X_DEFAULT_CONFIGURATION[] = {
     0x00, /* 0x2d : set bit 2 and 5 to 1 for fast plus mode (1MHz I2C), else don't touch */
@@ -577,6 +575,4 @@ VL53L1X_ERROR start_temperature_update(i2c::I2CDevice *dev) {
   return status;
 }
 
-}  // namespace driver
-}  // namespace vl53l1x
-}  // namespace esphome
+}  // namespace esphome::vl53l1x::driver

@@ -1,5 +1,5 @@
 #include "vl53l1x_sensor.h"
-#include "driver.h"
+#include "vl53l1x_driver.h"
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/log.h"
@@ -7,8 +7,7 @@
 #include <map>
 #include <cassert>
 
-namespace esphome {
-namespace vl53l1x {
+namespace esphome::vl53l1x {
 
 using driver::VL53L1X_ERROR;
 
@@ -438,6 +437,4 @@ bool VL53L1xSensor::apply_signal_threshold_() {
   return true;
 }
 
-}  // namespace vl53l1x
-
-}  // namespace esphome
+}  // namespace esphome::vl53l1x

@@ -7,11 +7,7 @@
 
 #include <list>
 
-namespace esphome {
-namespace i2c {
-class I2CBus;
-}
-namespace vl53l1x {
+namespace esphome::vl53l1x {
 
 enum DistanceMode : uint8_t { SHORT = 0, LONG = 2 };
 enum InterruptWhenMode : uint8_t {
@@ -102,5 +98,4 @@ class VL53L1xSensor : public sensor::Sensor, public Component, public i2c::I2CDe
   static bool pin_setup_complete;
 };
 
-}  // namespace vl53l1x
-}  // namespace esphome
+}  // namespace esphome::vl53l1x
