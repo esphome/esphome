@@ -5,8 +5,7 @@
 #include <cmath>
 #include <cstdio>
 
-namespace esphome {
-namespace cc1101 {
+namespace esphome::cc1101 {
 
 // CC1101 Design Note DN013
 
@@ -176,5 +175,4 @@ static const PowerTableItem PA_TABLE_915[] = {
     {0x12, 13},  // 12 -28.6 -55.9 -58.6 -58.5 -57.7 -54.7 12.1
     {0x03, 12},  // 3 -29.8 -56.9 -58.5 -58.4 -57.7 -54.7 12.0
 };
-}  // namespace cc1101
-}  // namespace esphome
+}  // namespace esphome::cc1101

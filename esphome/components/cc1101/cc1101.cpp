@@ -6,8 +6,7 @@
 #include <cmath>
 #include <cstdio>
 
-namespace esphome {
-namespace cc1101 {
+namespace esphome::cc1101 {
 
 static const char *const TAG = "cc1101";
 
@@ -608,5 +607,4 @@ void CC1101Component::set_hyst_level(HystLevel value) {
   this->write_(Register::AGCCTRL0);
 }
 
-}  // namespace cc1101
-}  // namespace esphome
+}  // namespace esphome::cc1101

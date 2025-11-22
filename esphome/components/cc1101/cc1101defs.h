@@ -2,8 +2,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace cc1101 {
+namespace esphome::cc1101 {
 
 static constexpr float XTAL_FREQUENCY = 26000;
 static constexpr float OUTPUT_POWER_MIN = -30;
@@ -677,5 +676,4 @@ struct __attribute__((packed)) CC1101State {
   uint8_t REG_3F;
 };
 
-}  // namespace cc1101
-}  // namespace esphome
+}  // namespace esphome::cc1101

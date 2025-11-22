@@ -5,8 +5,7 @@ ns = cg.esphome_ns.namespace("cc1101")
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
 
 CODEOWNERS = ["@lygris @gabest11"]
-DEPENDENCIES = ["spi", "button", "remote_receiver"]
-AUTO_LOAD = ["remote_base", "remote_transmitter", "binary_sensor"]
+DEPENDENCIES = ["spi"]
 MULTI_CONF = True
 
 CONF_OUTPUT_POWER = "output_power"

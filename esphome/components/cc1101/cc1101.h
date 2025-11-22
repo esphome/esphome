@@ -4,12 +4,10 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
-#include "esphome/components/remote_base/rc_switch_protocol.h"
 #include "cc1101defs.h"
 #include <string>
 
-namespace esphome {
-namespace cc1101 {
+namespace esphome::cc1101 {
 
 class CC1101Component : public Component,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -116,5 +114,4 @@ class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {  
   void play(Ts... x) override { this->parent_->set_idle(); }
 };
 
-}  // namespace cc1101
-}  // namespace esphome
+}  // namespace esphome::cc1101

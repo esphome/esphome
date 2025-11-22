@@ -1,7 +1,7 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import remote_base, spi
+from esphome.components import spi
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_FREQUENCY, CONF_ID, CONF_WAIT_TIME
 
@@ -47,8 +47,6 @@ from .const import (
     WAIT_TIME,
     CC1101Component,
 )
-
-AUTO_LOAD = ["remote_base"]
 
 ns = cg.esphome_ns.namespace("cc1101")
 
@@ -135,15 +133,3 @@ async def cc1101_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
-
-
-CC1101_TRANSMIT_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID("cc1101_id"): cv.use_id(CC1101Component),
-        }
-    )
-    .extend(remote_base.REMOTE_TRANSMITTABLE_SCHEMA)
-    .extend(remote_base.RC_SWITCH_RAW_SCHEMA)
-    .extend(remote_base.RC_SWITCH_TRANSMITTER)
-)
