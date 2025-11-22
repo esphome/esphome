@@ -6,8 +6,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cover {
+namespace esphome::cover {
 
 static const char *const TAG = "cover";
 
@@ -212,5 +211,4 @@ void CoverRestoreState::apply(Cover *cover) {
   cover->publish_state();
 }
 
-}  // namespace cover
-}  // namespace esphome
+}  // namespace esphome::cover

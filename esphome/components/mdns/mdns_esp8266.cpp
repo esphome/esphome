@@ -9,8 +9,7 @@
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 void MDNSComponent::setup() {
 #ifdef USE_MDNS_STORE_SERVICES
@@ -52,7 +51,6 @@ void MDNSComponent::on_shutdown() {
   delay(10);
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif

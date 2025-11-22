@@ -178,7 +178,6 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   TEMPLATABLE_VALUE(uint32_t, delay)
 
   void play_complex(const Ts &...x) override {
-    auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
 
     // If num_running_ > 1, we have multiple instances running in parallel
@@ -187,9 +186,22 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
     // Users should set max_runs on parallel scripts to limit concurrent executions.
     // Issue #10264: This is a workaround for parallel script delays interfering with each other.
-    App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
-                                    /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
-                                    /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+
+    // Optimization: For no-argument delays (most common case), use direct lambda
+    // instead of std::bind to avoid bind overhead (~16 bytes heap + faster execution)
+    if constexpr (sizeof...(Ts) == 0) {
+      App.scheduler.set_timer_common_(
+          this, Scheduler::SchedulerItem::TIMEOUT,
+          /* is_static_string= */ true, "delay", this->delay_.value(), [this]() { this->play_next_(); },
+          /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+    } else {
+      // For delays with arguments, use std::bind to preserve argument values
+      // Arguments must be copied because original references may be invalid after delay
+      auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
+      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
+                                      /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
+                                      /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+    }
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
