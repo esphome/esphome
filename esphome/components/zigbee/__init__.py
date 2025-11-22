@@ -37,6 +37,8 @@ from .const import (
     CONF_ROUTER,
     CONF_SCALE,
     DEVICE_TYPE,
+    KEY_BS_EP,
+    KEY_ZIGBEE,
     REPORT,
     ROLE,
     FactoryResetAction,
@@ -147,8 +149,6 @@ def final_validate(config):
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
-binary_sensor_ep = []
-
 
 def validate_binary_sensor(config):
     if "zigbee" not in CORE.loaded_integrations:
@@ -176,6 +176,8 @@ def validate_binary_sensor(config):
                 if "zb_attr_ids" not in config:
                     config["zb_attr_ids"] = []
                 config["zb_attr_ids"].append(attr[CONF_ID])
+        zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
+        binary_sensor_ep: list[dict] = zb_data.setdefault(KEY_BS_EP, [])
         binary_sensor_ep.append(ep)
     return config
 
@@ -267,6 +269,8 @@ async def to_code(config):
         cg.add_define("CONFIG_WIFI_COEX")
 
     # create endpoints
+    zb_data = CORE.data.get(KEY_ZIGBEE, {})
+    binary_sensor_ep: list[dict] = zb_data.get(KEY_BS_EP, [])
     ep_list = create_ep(binary_sensor_ep)
 
     # setup zigbee components

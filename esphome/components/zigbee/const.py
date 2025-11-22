@@ -28,3 +28,6 @@ CONF_ACCESS = "access"
 CONF_SCALE = "scale"
 CONF_ATTRIBUTE_ID = "attribute_id"
 CONF_ROUTER = "router"
+
+KEY_ZIGBEE = "zigbee"
+KEY_BS_EP = "binary_sensor_ep"
