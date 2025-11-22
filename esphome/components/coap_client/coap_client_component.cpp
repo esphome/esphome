@@ -113,8 +113,7 @@ bool CoapClientComponent::teardown() {
     }
   }
   // make sure we really send
-  for (uint8_t cnt; cnt > 0; cnt = 100) {
-    bool sent = false;
+  for (uint8_t cnt = 0; cnt < 100; cnt++) {
     for (const auto &ptr : this->tx_requests_) {
       if (!ptr->sent) {
         delay(pdMS_TO_TICKS(this->request_timeout_));
