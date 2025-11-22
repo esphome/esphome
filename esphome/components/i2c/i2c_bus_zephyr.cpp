@@ -120,13 +120,18 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
   return ERROR_OK;
 }
 
-void ZephyrI2CBus::set_frequency(uint32_t frequency) {
+ErrorCode ZephyrI2CBus::set_frequency(uint32_t frequency) {
+  if (this->frequency_ == frequency) {
+    return ERROR_OK;
+  }
+  this->frequency_ = frequency;
   this->dev_config_ &= ~I2C_SPEED_MASK;
   if (frequency >= 400000) {
     this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_FAST);
   } else {
     this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_STANDARD);
   }
+  return ERROR_OK;
 }
 
 }  // namespace esphome::i2c
