@@ -121,7 +121,7 @@ def update_storage_json() -> None:
             )
         else:
             _LOGGER.info("Core config or version changed, cleaning build files...")
-        clean_build()
+        clean_build(clear_pio_cache=False)
     elif storage_should_update_cmake_cache(old, new):
         _LOGGER.info("Integrations changed, cleaning cmake cache...")
         clean_cmake_cache()
@@ -301,7 +301,7 @@ def clean_cmake_cache():
             pioenvs_cmake_path.unlink()
 
 
-def clean_build():
+def clean_build(clear_pio_cache: bool = True):
     import shutil
 
     # Allow skipping cache cleaning for integration tests
@@ -321,6 +321,9 @@ def clean_build():
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
         dependencies_lock.unlink()
+
+    if not clear_pio_cache:
+        return
 
     # Clean PlatformIO cache to resolve CMake compiler detection issues
     # This helps when toolchain paths change or get corrupted

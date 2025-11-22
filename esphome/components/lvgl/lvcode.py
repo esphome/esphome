@@ -164,6 +164,9 @@ class LambdaContext(CodeContext):
             code_text.append(text)
         return code_text
 
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
+        return self.parameters
+
     async def __aenter__(self):
         await super().__aenter__()
         add_line_marks(self.where)
@@ -178,9 +181,8 @@ class LvContext(LambdaContext):
 
     added_lambda_count = 0
 
-    def __init__(self, args=None):
-        self.args = args or LVGL_COMP_ARG
-        super().__init__(parameters=self.args)
+    def __init__(self):
+        super().__init__(parameters=LVGL_COMP_ARG)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await super().__aexit__(exc_type, exc_val, exc_tb)
@@ -188,6 +190,11 @@ class LvContext(LambdaContext):
     def add(self, expression: Expression | Statement):
         cg.add(expression)
         return expression
+
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
+        # When generating automations, we don't want the `lv_component` parameter to be passed
+        # to the lambda.
+        return []
 
     def __call__(self, *args):
         return self.add(*args)
@@ -292,6 +299,7 @@ class LvExpr(MockLv):
 
 # Top level mock for generic lv_ calls to be recorded
 lv = MockLv("lv_")
+LV = MockLv("LV_")
 # Just generate an expression
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
@@ -320,7 +328,7 @@ def lv_assign(target, expression):
     lv_add(AssignmentExpression("", "", target, expression))
 
 
-def lv_Pvariable(type, name):
+def lv_Pvariable(type, name) -> MockObj:
     """
     Create but do not initialise a pointer variable
     :param type: Type of the variable target
@@ -336,7 +344,7 @@ def lv_Pvariable(type, name):
     return var
 
 
-def lv_variable(type, name):
+def lv_variable(type, name) -> MockObj:
     """
     Create but do not initialise a variable
     :param type: Type of the variable target

@@ -127,40 +127,39 @@ SYMBOL_PATTERNS = {
         "tryget_socket_unconn",
         "cs_create_ctrl_sock",
         "netbuf_alloc",
+        "tcp_",  # TCP protocol functions
+        "udp_",  # UDP protocol functions
+        "lwip_",  # LwIP stack functions
+        "eagle_lwip",  # ESP-specific LwIP functions
+        "new_linkoutput",  # Link output function
+        "acd_",  # Address Conflict Detection (ACD)
+        "eth_",  # Ethernet functions
+        "mac_enable_bb",  # MAC baseband enable
+        "reassemble_and_dispatch",  # Packet reassembly
     ],
+    # dhcp must come before libc to avoid "dhcp_select" matching "select" pattern
+    "dhcp": ["dhcp", "handle_dhcp"],
     "ipv6_stack": ["nd6_", "ip6_", "mld6_", "icmp6_", "icmp6_input"],
-    "wifi_stack": [
-        "ieee80211",
-        "hostap",
-        "sta_",
-        "ap_",
-        "scan_",
-        "wifi_",
-        "wpa_",
-        "wps_",
-        "esp_wifi",
-        "cnx_",
-        "wpa3_",
-        "sae_",
-        "wDev_",
-        "ic_",
-        "mac_",
-        "esf_buf",
-        "gWpaSm",
-        "sm_WPA",
-        "eapol_",
-        "owe_",
-        "wifiLowLevelInit",
-        "s_do_mapping",
-        "gScanStruct",
-        "ppSearchTxframe",
-        "ppMapWaitTxq",
-        "ppFillAMPDUBar",
-        "ppCheckTxConnTrafficIdle",
-        "ppCalTkipMic",
+    # Order matters! More specific categories must come before general ones.
+    # mdns must come before bluetooth to avoid "_mdns_disable_pcb" matching "ble_" pattern
+    "mdns_lib": ["mdns"],
+    # memory_mgmt must come before wifi_stack to catch mmu_hal_* symbols
+    "memory_mgmt": [
+        "mem_",
+        "memory_",
+        "tlsf_",
+        "memp_",
+        "pbuf_",
+        "pbuf_alloc",
+        "pbuf_copy_partial_pbuf",
+        "esp_mmu_map",
+        "mmu_hal_",
+        "s_do_mapping",  # Memory mapping function, not WiFi
+        "hash_map_",  # Hash map data structure
+        "umm_assimilate",  # UMM malloc assimilation
     ],
-    "bluetooth": ["bt_", "ble_", "l2c_", "gatt_", "gap_", "hci_", "BT_init"],
-    "wifi_bt_coex": ["coex"],
+    # Bluetooth categories must come BEFORE wifi_stack to avoid misclassification
+    # Many BLE symbols contain patterns like "ble_" that would otherwise match wifi patterns
     "bluetooth_rom": ["r_ble", "r_lld", "r_llc", "r_llm"],
     "bluedroid_bt": [
         "bluedroid",
@@ -207,6 +206,61 @@ SYMBOL_PATTERNS = {
         "copy_extra_byte_in_db",
         "parse_read_local_supported_commands_response",
     ],
+    "bluetooth": [
+        "bt_",
+        "_ble_",  # More specific than "ble_" to avoid matching "able_", "enable_", "disable_"
+        "l2c_",
+        "l2ble_",  # L2CAP for BLE
+        "gatt_",
+        "gap_",
+        "hci_",
+        "btsnd_hcic_",  # Bluetooth HCI command send functions
+        "BT_init",
+        "BT_tx_",  # Bluetooth transmit functions
+        "esp_ble_",  # Catch esp_ble_* functions
+    ],
+    "bluetooth_ll": [
+        "llm_",  # Link layer manager
+        "llc_",  # Link layer control
+        "lld_",  # Link layer driver
+        "ld_acl_",  # Link layer ACL (Asynchronous Connection-Oriented)
+        "llcp_",  # Link layer control protocol
+        "lmp_",  # Link manager protocol
+    ],
+    "wifi_bt_coex": ["coex"],
+    "wifi_stack": [
+        "ieee80211",
+        "hostap",
+        "sta_",
+        "wifi_ap_",  # More specific than "ap_" to avoid matching "cap_", "map_"
+        "wifi_scan_",  # More specific than "scan_" to avoid matching "_scan_" in other contexts
+        "wifi_",
+        "wpa_",
+        "wps_",
+        "esp_wifi",
+        "cnx_",
+        "wpa3_",
+        "sae_",
+        "wDev_",
+        "ic_mac_",  # More specific than "mac_" to avoid matching emac_
+        "esf_buf",
+        "gWpaSm",
+        "sm_WPA",
+        "eapol_",
+        "owe_",
+        "wifiLowLevelInit",
+        # Removed "s_do_mapping" - this is memory management, not WiFi
+        "gScanStruct",
+        "ppSearchTxframe",
+        "ppMapWaitTxq",
+        "ppFillAMPDUBar",
+        "ppCheckTxConnTrafficIdle",
+        "ppCalTkipMic",
+        "phy_force_wifi",
+        "phy_unforce_wifi",
+        "write_wifi_chan",
+        "wifi_track_pll",
+    ],
     "crypto_math": [
         "ecp_",
         "bignum_",
@@ -231,13 +285,36 @@ SYMBOL_PATTERNS = {
         "p_256_init_curve",
         "shift_sub_rows",
         "rshift",
+        "rijndaelEncrypt",  # AES Rijndael encryption
+    ],
+    # System and Arduino core functions must come before libc
+    "esp_system": [
+        "system_",  # ESP system functions
+        "postmortem_",  # Postmortem reporting
+    ],
+    "arduino_core": [
+        "pinMode",
+        "resetPins",
+        "millis",
+        "micros",
+        "delay(",  # More specific - Arduino delay function with parenthesis
+        "delayMicroseconds",
+        "digitalWrite",
+        "digitalRead",
+    ],
+    "sntp": ["sntp_", "sntp_recv"],
+    "scheduler": [
+        "run_scheduled_",
+        "compute_scheduled_",
+        "event_TaskQueue",
     ],
     "hw_crypto": ["esp_aes", "esp_sha", "esp_rsa", "esp_bignum", "esp_mpi"],
     "libc": [
         "printf",
         "scanf",
         "malloc",
-        "free",
+        "_free",  # More specific than "free" to match _free, __free_r, etc. but not arbitrary "free" substring
+        "umm_free",  # UMM malloc free function
         "memcpy",
         "memset",
         "strcpy",
@@ -259,7 +336,7 @@ SYMBOL_PATTERNS = {
         "_setenv_r",
         "_tzset_unlocked_r",
         "__tzcalc_limits",
-        "select",
+        "_select",  # More specific than "select" to avoid matching "dhcp_select", etc.
         "scalbnf",
         "strtof",
         "strtof_l",
@@ -316,8 +393,24 @@ SYMBOL_PATTERNS = {
         "CSWTCH$",
         "dst$",
         "sulp",
+        "_strtol_l",  # String to long with locale
+        "__cvt",  # Convert
+        "__utoa",  # Unsigned to ASCII
+        "__global_locale",  # Global locale
+        "_ctype_",  # Character type
+        "impure_data",  # Impure data
     ],
-    "string_ops": ["strcmp", "strncmp", "strchr", "strstr", "strtok", "strdup"],
+    "string_ops": [
+        "strcmp",
+        "strncmp",
+        "strchr",
+        "strstr",
+        "strtok",
+        "strdup",
+        "strncasecmp_P",  # String compare (case insensitive, from program memory)
+        "strnlen_P",  # String length (from program memory)
+        "strncat_P",  # String concatenate (from program memory)
+    ],
     "memory_alloc": ["malloc", "calloc", "realloc", "free", "_sbrk"],
     "file_io": [
         "fread",
@@ -338,10 +431,26 @@ SYMBOL_PATTERNS = {
         "vsscanf",
     ],
     "cpp_anonymous": ["_GLOBAL__N_", "n$"],
-    "cpp_runtime": ["__cxx", "_ZN", "_ZL", "_ZSt", "__gxx_personality", "_Z16"],
-    "exception_handling": ["__cxa_", "_Unwind_", "__gcc_personality", "uw_frame_state"],
+    # Plain C patterns only - C++ symbols will be categorized via DEMANGLED_PATTERNS
+    "nvs": ["nvs_"],  # Plain C NVS functions
+    "ota": ["ota_", "OTA", "esp_ota", "app_desc"],
+    # cpp_runtime: Removed _ZN, _ZL to let DEMANGLED_PATTERNS categorize C++ symbols properly
+    # Only keep patterns that are truly runtime-specific and not categorizable by namespace
+    "cpp_runtime": ["__cxx", "_ZSt", "__gxx_personality", "_Z16"],
+    "exception_handling": [
+        "__cxa_",
+        "_Unwind_",
+        "__gcc_personality",
+        "uw_frame_state",
+        "search_object",  # Search for exception handling object
+        "get_cie_encoding",  # Get CIE encoding
+        "add_fdes",  # Add frame description entries
+        "fde_unencoded_compare",  # Compare FDEs
+        "fde_mixed_encoding_compare",  # Compare mixed encoding FDEs
+        "frame_downheap",  # Frame heap operations
+        "frame_heapsort",  # Frame heap sorting
+    ],
     "static_init": ["_GLOBAL__sub_I_"],
-    "mdns_lib": ["mdns"],
     "phy_radio": [
         "phy_",
         "rf_",
@@ -394,10 +503,47 @@ SYMBOL_PATTERNS = {
         "txcal_debuge_mode",
         "ant_wifitx_cfg",
         "reg_init_begin",
+        "tx_cap_init",  # TX capacitance init
+        "ram_set_txcap",  # RAM TX capacitance setting
+        "tx_atten_",  # TX attenuation
+        "txiq_",  # TX I/Q calibration
+        "ram_cal_",  # RAM calibration
+        "ram_rxiq_",  # RAM RX I/Q
+        "readvdd33",  # Read VDD33
+        "test_tout",  # Test timeout
+        "tsen_meas",  # Temperature sensor measurement
+        "bbpll_cal",  # Baseband PLL calibration
+        "set_cal_",  # Set calibration
+        "set_rfanagain_",  # Set RF analog gain
+        "set_txdc_",  # Set TX DC
+        "get_vdd33_",  # Get VDD33
+        "gen_rx_gain_table",  # Generate RX gain table
+        "ram_ana_inf_gating_en",  # RAM analog interface gating enable
+        "tx_cont_en",  # TX continuous enable
+        "tx_delay_cfg",  # TX delay configuration
+        "tx_gain_table_set",  # TX gain table set
+        "check_and_reset_hw_deadlock",  # Hardware deadlock check
+        "s_config",  # System/hardware config
+        "chan14_mic_cfg",  # Channel 14 MIC config
     ],
-    "wifi_phy_pp": ["pp_", "ppT", "ppR", "ppP", "ppInstall", "ppCalTxAMPDULength"],
+    "wifi_phy_pp": [
+        "pp_",
+        "ppT",
+        "ppR",
+        "ppP",
+        "ppInstall",
+        "ppCalTxAMPDULength",
+        "ppCheckTx",  # Packet processor TX check
+        "ppCal",  # Packet processor calibration
+        "HdlAllBuffedEb",  # Handle buffered EB
+    ],
     "wifi_lmac": ["lmac"],
-    "wifi_device": ["wdev", "wDev_"],
+    "wifi_device": [
+        "wdev",
+        "wDev_",
+        "ic_set_sta",  # Set station mode
+        "ic_set_vif",  # Set virtual interface
+    ],
     "power_mgmt": [
         "pm_",
         "sleep",
@@ -406,15 +552,7 @@ SYMBOL_PATTERNS = {
         "deep_sleep",
         "power_down",
         "g_pm",
-    ],
-    "memory_mgmt": [
-        "mem_",
-        "memory_",
-        "tlsf_",
-        "memp_",
-        "pbuf_",
-        "pbuf_alloc",
-        "pbuf_copy_partial_pbuf",
+        "pmc",  # Power Management Controller
     ],
     "hal_layer": ["hal_"],
     "clock_mgmt": [
@@ -439,7 +577,6 @@ SYMBOL_PATTERNS = {
     "error_handling": ["panic", "abort", "assert", "error_", "fault"],
     "authentication": ["auth"],
     "ppp_protocol": ["ppp", "ipcp_", "lcp_", "chap_", "LcpEchoCheck"],
-    "dhcp": ["dhcp", "handle_dhcp"],
     "ethernet_phy": [
         "emac_",
         "eth_phy_",
@@ -618,7 +755,15 @@ SYMBOL_PATTERNS = {
         "ampdu_dispatch_upto",
     ],
     "ieee802_11": ["ieee802_11_", "ieee802_11_parse_elems"],
-    "rate_control": ["rssi_margin", "rcGetSched", "get_rate_fcc_index"],
+    "rate_control": [
+        "rssi_margin",
+        "rcGetSched",
+        "get_rate_fcc_index",
+        "rcGetRate",  # Get rate
+        "rc_get_",  # Rate control getters
+        "rc_set_",  # Rate control setters
+        "rc_enable_",  # Rate control enable functions
+    ],
     "nan": ["nan_dp_", "nan_dp_post_tx", "nan_dp_delete_peer"],
     "channel_mgmt": ["chm_init", "chm_set_current_channel"],
     "trace": ["trc_init", "trc_onAmpduOp"],
@@ -799,31 +944,18 @@ SYMBOL_PATTERNS = {
         "supports_interlaced_inquiry_scan",
         "supports_reading_remote_extended_features",
     ],
-    "bluetooth_ll": [
-        "lld_pdu_",
-        "ld_acl_",
-        "lld_stop_ind_handler",
-        "lld_evt_winsize_change",
-        "config_lld_evt_funcs_reset",
-        "config_lld_funcs_reset",
-        "config_llm_funcs_reset",
-        "llm_set_long_adv_data",
-        "lld_retry_tx_prog",
-        "llc_link_sup_to_ind_handler",
-        "config_llc_funcs_reset",
-        "lld_evt_rxwin_compute",
-        "config_btdm_funcs_reset",
-        "config_ea_funcs_reset",
-        "llc_defalut_state_tab_reset",
-        "config_rwip_funcs_reset",
-        "ke_lmp_rx_flooding_detect",
-    ],
 }
 
 # Demangled patterns: patterns found in demangled C++ names
 DEMANGLED_PATTERNS = {
     "gpio_driver": ["GPIO"],
     "uart_driver": ["UART"],
+    # mdns_lib must come before network_stack to avoid "udp" matching "_udpReadBuffer" in MDNSResponder
+    "mdns_lib": [
+        "MDNSResponder",
+        "MDNSImplementation",
+        "MDNS",
+    ],
     "network_stack": [
         "lwip",
         "tcp",
@@ -836,6 +968,24 @@ DEMANGLED_PATTERNS = {
         "ethernet",
         "ppp",
         "slip",
+        "UdpContext",  # UDP context class
+        "DhcpServer",  # DHCP server class
+    ],
+    "arduino_core": [
+        "String::",  # Arduino String class
+        "Print::",  # Arduino Print class
+        "HardwareSerial::",  # Serial class
+        "IPAddress::",  # IP address class
+        "EspClass::",  # ESP class
+        "experimental::_SPI",  # Experimental SPI
+    ],
+    "ota": [
+        "UpdaterClass",
+        "Updater::",
+    ],
+    "wifi": [
+        "ESP8266WiFi",
+        "WiFi::",
     ],
     "wifi_stack": ["NetworkInterface"],
     "nimble_bt": [
@@ -854,7 +1004,6 @@ DEMANGLED_PATTERNS = {
     "rtti": ["__type_info", "__class_type_info"],
     "web_server_lib": ["AsyncWebServer", "AsyncWebHandler", "WebServer"],
     "async_tcp": ["AsyncClient", "AsyncServer"],
-    "mdns_lib": ["mdns"],
     "json_lib": [
         "ArduinoJson",
         "JsonDocument",

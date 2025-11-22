@@ -64,11 +64,11 @@ bool MQTTComponent::send_discovery_() {
   const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
 
   if (discovery_info.clean) {
-    ESP_LOGV(TAG, "'%s': Cleaning discovery", this->friendly_name().c_str());
+    ESP_LOGV(TAG, "'%s': Cleaning discovery", this->friendly_name_().c_str());
     return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, this->qos_, true);
   }
 
-  ESP_LOGV(TAG, "'%s': Sending discovery", this->friendly_name().c_str());
+  ESP_LOGV(TAG, "'%s': Sending discovery", this->friendly_name_().c_str());
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
@@ -85,12 +85,16 @@ bool MQTTComponent::send_discovery_() {
         }
 
         // Fields from EntityBase
-        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->friendly_name() : "";
+        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->friendly_name_() : "";
 
-        if (this->is_disabled_by_default())
+        if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
-        if (!this->get_icon().empty())
-          root[MQTT_ICON] = this->get_icon();
+        // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+        const auto icon_ref = this->get_icon_ref_();
+        if (!icon_ref.empty()) {
+          root[MQTT_ICON] = icon_ref;
+        }
+        // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
         const auto entity_category = this->get_entity()->get_entity_category();
         switch (entity_category) {
@@ -122,7 +126,7 @@ bool MQTTComponent::send_discovery_() {
         const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
-          sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name()));
+          sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name_()));
           friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
           root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
         } else {
@@ -184,7 +188,7 @@ bool MQTTComponent::is_discovery_enabled() const {
 }
 
 std::string MQTTComponent::get_default_object_id_() const {
-  return str_sanitize(str_snake_case(this->friendly_name()));
+  return str_sanitize(str_snake_case(this->friendly_name_()));
 }
 
 void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
@@ -268,9 +272,9 @@ void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden
-std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
-std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
-bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
+std::string MQTTComponent::friendly_name_() const { return this->get_entity()->get_name(); }
+StringRef MQTTComponent::get_icon_ref_() const { return this->get_entity()->get_icon_ref(); }
+bool MQTTComponent::is_disabled_by_default_() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() {
   if (this->has_custom_state_topic_) {
     // If the custom state_topic is null, return true as it is internal and should not publish

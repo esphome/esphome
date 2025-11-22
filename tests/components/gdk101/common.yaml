@@ -11,8 +11,6 @@ sensor:
       name: Radiation Dose @ 10 min
     status:
       name: Status
-    version:
-      name: FW Version
     measurement_duration:
       name: Measuring Time
 
@@ -21,3 +19,8 @@ binary_sensor:
     gdk101_id: my_gdk101
     vibrations:
       name: Vibrations
+
+text_sensor:
+  - platform: gdk101
+    version:
+      name: FW Version

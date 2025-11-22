@@ -966,11 +966,33 @@ def test_components(
     # Find all component tests
     all_tests = {}
     for pattern in component_patterns:
+        # Skip empty patterns (happens when components list is empty string)
+        if not pattern:
+            continue
         all_tests.update(find_component_tests(tests_dir, pattern, base_only))
 
+    # If no components found, build a reference configuration for baseline comparison
+    # Create a synthetic "empty" component test that will build just the base config
     if not all_tests:
         print(f"No components found matching: {component_patterns}")
-        return 1
+        print(
+            "Building reference configuration with no components for baseline comparison..."
+        )
+
+        # Create empty test files for each platform (or filtered platform)
+        reference_tests: list[Path] = []
+        for platform_name, base_file in platform_bases.items():
+            if platform_filter and not platform_name.startswith(platform_filter):
+                continue
+            # Create an empty test file named to match the platform
+            empty_test_file = build_dir / f"reference.{platform_name}.yaml"
+            empty_test_file.write_text(
+                "# Empty component test for baseline reference\n"
+            )
+            reference_tests.append(empty_test_file)
+
+        # Add to all_tests dict with component name "reference"
+        all_tests["reference"] = reference_tests
 
     print(f"Found {len(all_tests)} components to test")
 

@@ -207,14 +207,14 @@ def choose_upload_log_host(
                     if has_mqtt_logging():
                         resolved.append("MQTT")
 
-                    if has_api() and has_non_ip_address():
+                    if has_api() and has_non_ip_address() and has_resolvable_address():
                         resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
-                    if has_ota() and has_non_ip_address():
+                    if has_ota() and has_non_ip_address() and has_resolvable_address():
                         resolved.extend(_resolve_with_cache(CORE.address, purpose))
             else:
                 resolved.append(device)
@@ -318,7 +318,17 @@ def has_resolvable_address() -> bool:
     """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
     # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
     # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
-    return CORE.address is not None
+    if CORE.address is None:
+        return False
+
+    if has_ip_address():
+        return True
+
+    if has_mdns():
+        return True
+
+    # .local mDNS hostnames are only resolvable if mDNS is enabled
+    return not CORE.address.endswith(".local")
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):

@@ -296,6 +296,21 @@ class LambdaFilter : public Filter {
   lambda_filter_t lambda_filter_;
 };
 
+/** Optimized lambda filter for stateless lambdas (no capture).
+ *
+ * Uses function pointer instead of std::function to reduce memory overhead.
+ * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
+ */
+class StatelessLambdaFilter : public Filter {
+ public:
+  explicit StatelessLambdaFilter(optional<float> (*lambda_filter)(float)) : lambda_filter_(lambda_filter) {}
+
+  optional<float> new_value(float value) override { return this->lambda_filter_(value); }
+
+ protected:
+  optional<float> (*lambda_filter_)(float);
+};
+
 /// A simple filter that adds `offset` to each value it receives.
 class OffsetFilter : public Filter {
  public:
@@ -317,15 +332,28 @@ class MultiplyFilter : public Filter {
   TemplatableValue<float> multiplier_;
 };
 
+/** Base class for filters that compare sensor values against a list of configured values.
+ *
+ * This base class provides common functionality for filters that need to check if a sensor
+ * value matches any value in a configured list, with proper handling of NaN values and
+ * accuracy-based rounding for comparisons.
+ */
+class ValueListFilter : public Filter {
+ protected:
+  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values);
+
+  /// Check if sensor value matches any configured value (with accuracy rounding)
+  bool value_matches_any_(float sensor_value);
+
+  FixedVector<TemplatableValue<float>> values_;
+};
+
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
-class FilterOutValueFilter : public Filter {
+class FilterOutValueFilter : public ValueListFilter {
  public:
-  explicit FilterOutValueFilter(std::vector<TemplatableValue<float>> values_to_filter_out);
+  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out);
 
   optional<float> new_value(float value) override;
-
- protected:
-  std::vector<TemplatableValue<float>> values_to_filter_out_;
 };
 
 class ThrottleFilter : public Filter {
@@ -340,17 +368,16 @@ class ThrottleFilter : public Filter {
 };
 
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
-class ThrottleWithPriorityFilter : public Filter {
+class ThrottleWithPriorityFilter : public ValueListFilter {
  public:
   explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::vector<TemplatableValue<float>> prioritized_values);
+                                      std::initializer_list<TemplatableValue<float>> prioritized_values);
 
   optional<float> new_value(float value) override;
 
  protected:
   uint32_t last_input_{0};
   uint32_t min_time_between_inputs_;
-  std::vector<TemplatableValue<float>> prioritized_values_;
 };
 
 class TimeoutFilter : public Filter, public Component {
@@ -384,15 +411,16 @@ class HeartbeatFilter : public Filter, public Component {
   explicit HeartbeatFilter(uint32_t time_period);
 
   void setup() override;
-
   optional<float> new_value(float value) override;
-
   float get_setup_priority() const override;
+
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
  protected:
   uint32_t time_period_;
   float last_input_;
   bool has_value_{false};
+  bool optimistic_{false};
 };
 
 class DeltaFilter : public Filter {
@@ -410,7 +438,7 @@ class DeltaFilter : public Filter {
 
 class OrFilter : public Filter {
  public:
-  explicit OrFilter(std::vector<Filter *> filters);
+  explicit OrFilter(std::initializer_list<Filter *> filters);
 
   void initialize(Sensor *parent, Filter *next) override;
 
@@ -426,28 +454,27 @@ class OrFilter : public Filter {
     OrFilter *or_parent_;
   };
 
-  std::vector<Filter *> filters_;
+  FixedVector<Filter *> filters_;
   PhiNode phi_;
   bool has_value_{false};
 };
 
 class CalibrateLinearFilter : public Filter {
  public:
-  CalibrateLinearFilter(std::vector<std::array<float, 3>> linear_functions)
-      : linear_functions_(std::move(linear_functions)) {}
+  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions);
   optional<float> new_value(float value) override;
 
  protected:
-  std::vector<std::array<float, 3>> linear_functions_;
+  FixedVector<std::array<float, 3>> linear_functions_;
 };
 
 class CalibratePolynomialFilter : public Filter {
  public:
-  CalibratePolynomialFilter(std::vector<float> coefficients) : coefficients_(std::move(coefficients)) {}
+  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients);
   optional<float> new_value(float value) override;
 
  protected:
-  std::vector<float> coefficients_;
+  FixedVector<float> coefficients_;
 };
 
 class ClampFilter : public Filter {

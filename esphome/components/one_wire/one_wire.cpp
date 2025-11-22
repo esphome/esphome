@@ -18,10 +18,20 @@ bool OneWireDevice::send_command_(uint8_t cmd) {
   return true;
 }
 
-bool OneWireDevice::check_address_() {
+bool OneWireDevice::check_address_or_index_() {
   if (this->address_ != 0)
     return true;
   auto devices = this->bus_->get_devices();
+
+  if (this->index_ != INDEX_NOT_SET) {
+    if (this->index_ >= devices.size()) {
+      ESP_LOGE(TAG, "Index %d out of range, only %d devices found", this->index_, devices.size());
+      return false;
+    }
+    this->address_ = devices[this->index_];
+    return true;
+  }
+
   if (devices.empty()) {
     ESP_LOGE(TAG, "No devices, can't auto-select address");
     return false;
