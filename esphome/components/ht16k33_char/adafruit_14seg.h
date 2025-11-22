@@ -37,10 +37,8 @@ class Adafruit14Seg : public HT16k33CharComponent {
 
  protected:
   uint8_t digit_map_[4] = {1, 3, 5, 7};
-  // uint16_t send_to_display_(i2c::I2CDevice *display, uint16_t position) override;
   uint8_t handle_special_char(char char_to_find, uint8_t position) override;
-  void write_to_buffer(uint16_t char_to_write,
-                       uint8_t char_position) override;  // TODO: Do I need to say override here?
+  void write_to_buffer(uint16_t char_to_write, uint8_t char_position) override;
 };
 
 class Adafruit14SegFlip : public HT16k33CharComponent {
@@ -76,7 +74,6 @@ class Adafruit14SegFlip : public HT16k33CharComponent {
 
  protected:
   uint8_t digit_map_[4] = {7, 5, 3, 1};
-  // uint16_t send_to_display_(i2c::I2CDevice *display, uint16_t position) override;
   uint8_t handle_special_char(char char_to_find, uint8_t position) override;
   void write_to_buffer(uint16_t char_to_write, uint8_t char_position) override;
 };

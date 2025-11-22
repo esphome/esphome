@@ -31,15 +31,6 @@
 namespace esphome {
 namespace ht16k33_char {
 
-static const char *const TAG = "ht16k33_char";
-
-// Position is the position in the character buffer. position 0 is the begining of the buffer
-// Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
-// to this function).
-// uint16_t Adafruit7SegLarge::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
-//  return this->send_to_display_common_(display, position);
-//}
-
 void Adafruit7SegLarge::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
   this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
   this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
@@ -78,13 +69,6 @@ uint8_t Adafruit7SegLarge::handle_special_char(char char_to_find, uint8_t positi
   }
   return SPECIAL_CHAR_NOT_FOUND;
 }
-
-// Position is the position in the character buffer. position 0 is the begining of the buffer
-// Returns the index of the next character to display in the buffer (what we would give as `position` to the next call
-// to this function).
-// uint16_t Adafruit7SegLargeFlip::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
-//  return this->send_to_display_common_(display, position);
-//}
 
 void Adafruit7SegLargeFlip::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
   this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);

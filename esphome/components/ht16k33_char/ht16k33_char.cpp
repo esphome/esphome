@@ -66,7 +66,7 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
-  uint8_t i;
+  //uint8_t i;
   uint16_t current_buffer_location;  // TODO: Make this uint16?
 
   // ESP_LOGD("dbg", "message: %s", this->message_buffer_.c_str());    //TODO: Remove this when everything works.
@@ -248,7 +248,6 @@ uint8_t HT16k33CharComponent::update_display() {
 
   for (auto *display : this->displays_) {
     buffer_location = this->send_to_display_common_(display, buffer_location);
-    // buffer_location = this->send_to_display_(display, buffer_location);
   }
 
   return buffer_location;
@@ -413,9 +412,6 @@ void HT16k33CharComponent::clear_buffer_() {
   for (unsigned char &i : this->buffer_) {
     i = 0x00;
   }
-  // for (uint8_t i = 0; i < sizeof(this->buffer_) / sizeof(this->buffer_[0]); i++) {
-  //  this->buffer_[i] = 0x00;
-  // }
 }
 
 /***********************************
@@ -479,11 +475,11 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
         digit_number++;
       } else {
         // The character we were looking for was not in the character map. Check if the character is a special
-        // character.
-        //  Special characters such as '.' and ':' have separate LEDs on the display. These characters are only valid at
-        //  certain locations in the display. A special character in an invalid location will be treated the same way as
-        //  an invalid character. In the case of an invalid character, that location in the display will be left blank.
-        //  only one special character will be evaulated per location on the display.
+        // character. Special characters such as '.' and ':' have separate LEDs on the display. These
+        // characters are only valid at certain locations in the display. A special character in an invalid
+        // location will be treated the same way as an invalid character. In the case of an invalid character,
+        // that location in the display will be left blank. only one special character will be evaulated per
+        // location on the display.
         if (!special_character_found) {
           switch (this->handle_special_char(char_to_find.at(0), digit_number)) {
             case SPECIAL_CHAR_FOUND:
