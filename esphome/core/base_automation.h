@@ -447,7 +447,8 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     auto timeout = this->timeout_value_.optional_value(x...);
     this->var_queue_.emplace_back(now, timeout, std::make_tuple(x...));
 
-    // Do immediate check with fresh timestamp
+    // Do immediate check with fresh timestamp - don't call loop() synchronously!
+    // Let the event loop call it to avoid reentrancy issues
     if (this->process_queue_(now)) {
       // Only enable loop if we still have pending items
       this->enable_loop();
