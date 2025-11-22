@@ -410,7 +410,7 @@ uint8_t HT16k33CharComponent::char_len_(char char_to_test) {
  *  It should be called before adding new data to the buffer.
  ************************************/
 void HT16k33CharComponent::clear_buffer_() {
-  for (unsigned char & i : this->buffer_) {
+  for (unsigned char &i : this->buffer_) {
     i = 0x00;
   }
   // for (uint8_t i = 0; i < sizeof(this->buffer_) / sizeof(this->buffer_[0]); i++) {
