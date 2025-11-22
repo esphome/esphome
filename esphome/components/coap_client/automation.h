@@ -206,12 +206,22 @@ template<typename... Ts> class CoapClientSendAction : public Action<Ts...> {
       new Trigger<std::shared_ptr<CoapResponseStatistics>, std::string &, std::string &, Ts...>();
 };
 
-template<typename... Ts> class CoapClientRemoveAction : public Action<Ts...> {
+template<typename... Ts> class CoapClientRequestAction : public Action<Ts...> {
  public:
-  CoapClientRemoveAction(CoapClientComponent *parent) : parent_(parent) {}
+  CoapClientRequestAction(CoapClientComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, request_name)
+  TEMPLATABLE_VALUE(std::string, method)
+  TEMPLATABLE_VALUE(bool, pause)
 
-  void play(Ts... x) override { this->parent_->remove(this->request_name_.value(x...)); }
+  void play(Ts... x) override {
+    if (this->method_.value(x...) == "STOP") {
+      this->parent_->stop_request(this->request_name_.value(x...), this->pause_.value(x...));
+    } else if (this->method_.value(x...) == "RESUME") {
+      this->parent_->resume_request(this->request_name_.value(x...));
+    } else if (this->method_.value(x...) == "REMOVE") {
+      this->parent_->remove_request(this->request_name_.value(x...));
+    }
+  }
 
  protected:
   CoapClientComponent *parent_;

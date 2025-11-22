@@ -20,6 +20,7 @@ from .const import (
     CONF_MAX_RETRANSMIT,
     CONF_MEDIA_TYPE,
     CONF_OBSERVE,
+    CONF_PAUSE,
     CONF_REQUEST_NAME,
     CONF_REQUEST_TIMEOUT,
     CONF_RESPONSE_TIMEOUT,
@@ -47,8 +48,8 @@ CoapResponseStatistics = coap_client_component_ns.class_("CoapResponseStatistics
 CoapClientSendAction = coap_client_component_ns.class_(
     "CoapClientSendAction", automation.Action
 )
-CoapClientRemoveAction = coap_client_component_ns.class_(
-    "CoapClientRemoveAction", automation.Action
+CoapClientRequestAction = coap_client_component_ns.class_(
+    "CoapClientRequestAction", automation.Action
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -100,7 +101,7 @@ CONF_MEDIA_TYPES = {
     "application/cwt": "APPLICATION_CWT",
 }
 
-COAP_CLIENT_ACTION_SCHEMA = cv.Schema(
+COAP_CLIENT_METHOD_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(CoapClientComponent),
         cv.Required(CONF_URL): cv.templatable(validate_url),
@@ -116,7 +117,7 @@ COAP_CLIENT_ACTION_SCHEMA = cv.Schema(
 )
 COAP_CLIENT_GET_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL,
-    COAP_CLIENT_ACTION_SCHEMA.extend(
+    COAP_CLIENT_METHOD_ACTION_SCHEMA.extend(
         {
             cv.Optional(CONF_METHOD, default="GET"): cv.one_of("GET", upper=True),
         }
@@ -124,7 +125,7 @@ COAP_CLIENT_GET_ACTION_SCHEMA = automation.maybe_conf(
 )
 COAP_CLIENT_POST_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL,
-    COAP_CLIENT_ACTION_SCHEMA.extend(
+    COAP_CLIENT_METHOD_ACTION_SCHEMA.extend(
         {
             cv.Optional(CONF_METHOD, default="POST"): cv.one_of("POST", upper=True),
             cv.Optional(CONF_MEDIA_TYPE, default="text/plain"): cv.one_of(
@@ -140,7 +141,7 @@ COAP_CLIENT_POST_ACTION_SCHEMA = automation.maybe_conf(
 )
 COAP_CLIENT_SEND_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL,
-    COAP_CLIENT_ACTION_SCHEMA.extend(
+    COAP_CLIENT_METHOD_ACTION_SCHEMA.extend(
         {
             cv.Required(CONF_METHOD): cv.one_of(
                 "GET", "POST", "PUT", "DELETE", "PATCH", upper=True
@@ -155,12 +156,6 @@ COAP_CLIENT_SEND_ACTION_SCHEMA = automation.maybe_conf(
             ),
         }
     ),
-)
-COAP_CLIENT_REMOVE_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(CoapClientComponent),
-        cv.Optional(CONF_REQUEST_NAME): cv.string,
-    }
 )
 
 
@@ -224,13 +219,54 @@ async def coap_client_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
-    "coap_client.remove", CoapClientRemoveAction, COAP_CLIENT_REMOVE_ACTION_SCHEMA
+COAP_CLIENT_REQUEST_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(CoapClientComponent),
+        cv.Required(CONF_REQUEST_NAME): cv.string,
+    }
 )
-async def coap_client_remove_action_to_code(config, action_id, template_arg, args):
+COAP_CLIENT_STOP_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_REQUEST_NAME,
+    COAP_CLIENT_REQUEST_ACTION_SCHEMA.extend(
+        {
+            cv.Optional(CONF_METHOD, default="STOP"): cv.one_of("STOP", upper=True),
+            cv.Optional(CONF_PAUSE, default=False): cv.boolean,
+        }
+    ),
+)
+COAP_CLIENT_RESUME_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_REQUEST_NAME,
+    COAP_CLIENT_REQUEST_ACTION_SCHEMA.extend(
+        {
+            cv.Optional(CONF_METHOD, default="RESUME"): cv.one_of("RESUME", upper=True),
+        }
+    ),
+)
+COAP_CLIENT_REMOVE_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_REQUEST_NAME,
+    COAP_CLIENT_REQUEST_ACTION_SCHEMA.extend(
+        {
+            cv.Optional(CONF_METHOD, default="REMOVE"): cv.one_of("REMOVE", upper=True),
+        }
+    ),
+)
+
+
+@automation.register_action(
+    "coap_client.stop", CoapClientRequestAction, COAP_CLIENT_STOP_ACTION_SCHEMA
+)
+@automation.register_action(
+    "coap_client.resume", CoapClientRequestAction, COAP_CLIENT_RESUME_ACTION_SCHEMA
+)
+@automation.register_action(
+    "coap_client.remove", CoapClientRequestAction, COAP_CLIENT_REMOVE_ACTION_SCHEMA
+)
+async def coap_client_request_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (name := config.get(CONF_REQUEST_NAME)) is not None:
-        cg.add(var.set_request_name(name))
+    cg.add(var.set_request_name(config.get(CONF_REQUEST_NAME)))
+    cg.add(var.set_method(config[CONF_METHOD]))
+    if pause := config.get(CONF_PAUSE):
+        cg.add(var.set_pause(pause))
 
     return var
