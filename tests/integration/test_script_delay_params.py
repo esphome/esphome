@@ -1,12 +1,16 @@
-"""Integration test for script delay with parameters (issues #12043, #12044).
+"""Integration test for script.wait FIFO ordering (issues #12043, #12044).
 
-This test reproduces the critical bug where DelayAction captured parameters by reference
-instead of by value after PR #11704 changed signatures to const ref.
+This test verifies that ScriptWaitAction processes queued items in FIFO order.
 
-The bug manifests as:
+PR #7972 introduced bugs in ScriptWaitAction:
+- Used emplace_front() causing LIFO ordering instead of FIFO
+- Called loop() synchronously causing reentrancy issues
+- Used while loop processing entire queue causing infinite loops
+
+These bugs manifested as:
 - Scripts becoming "zombies" (stuck in running state)
 - script.wait hanging forever
-- Dangling references causing undefined behavior
+- Incorrect execution order
 """
 
 from __future__ import annotations
@@ -25,10 +29,10 @@ async def test_script_delay_with_params(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test that delays with parameters properly capture values, not references.
+    """Test that script.wait processes queued items in FIFO order.
 
     This reproduces issues #12043 and #12044 where scripts would hang or become
-    zombies due to dangling references in DelayAction.
+    zombies due to LIFO ordering bugs in ScriptWaitAction from PR #7972.
     """
     test_complete = asyncio.Event()
 
