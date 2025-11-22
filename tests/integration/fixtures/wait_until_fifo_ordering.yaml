@@ -1,0 +1,89 @@
+esphome:
+  name: test-wait-until-ordering
+
+host:
+
+api:
+  actions:
+    - action: test_wait_until_fifo
+      then:
+        - logger.log: "=== TEST: wait_until should execute in FIFO order ==="
+        - globals.set:
+            id: gate_open
+            value: 'false'
+        - delay: 100ms  # Let system stabilize
+        # Start 5 scripts in parallel - each will queue a wait_until
+        - script.execute: waiter_0
+        - script.execute: waiter_1
+        - script.execute: waiter_2
+        - script.execute: waiter_3
+        - script.execute: waiter_4
+        # All 5 are now queued and waiting
+        # Open the gate - they should all complete in FIFO order (0,1,2,3,4)
+        - delay: 200ms
+        - logger.log: "Opening gate - all wait_until should complete now"
+        - globals.set:
+            id: gate_open
+            value: 'true'
+        # Give them time to complete
+        - delay: 500ms
+        - logger.log: "Test complete"
+
+script:
+  - id: waiter_0
+    mode: parallel
+    then:
+      - logger.log: "Queueing iteration 0"
+      - wait_until:
+          condition:
+            lambda: 'return id(gate_open);'
+          timeout: 5s
+      - logger.log: "Completed iteration 0"
+
+  - id: waiter_1
+    mode: parallel
+    then:
+      - logger.log: "Queueing iteration 1"
+      - wait_until:
+          condition:
+            lambda: 'return id(gate_open);'
+          timeout: 5s
+      - logger.log: "Completed iteration 1"
+
+  - id: waiter_2
+    mode: parallel
+    then:
+      - logger.log: "Queueing iteration 2"
+      - wait_until:
+          condition:
+            lambda: 'return id(gate_open);'
+          timeout: 5s
+      - logger.log: "Completed iteration 2"
+
+  - id: waiter_3
+    mode: parallel
+    then:
+      - logger.log: "Queueing iteration 3"
+      - wait_until:
+          condition:
+            lambda: 'return id(gate_open);'
+          timeout: 5s
+      - logger.log: "Completed iteration 3"
+
+  - id: waiter_4
+    mode: parallel
+    then:
+      - logger.log: "Queueing iteration 4"
+      - wait_until:
+          condition:
+            lambda: 'return id(gate_open);'
+          timeout: 5s
+      - logger.log: "Completed iteration 4"
+
+globals:
+  - id: gate_open
+    type: bool
+    initial_value: 'false'
+
+logger:
+  level: DEBUG

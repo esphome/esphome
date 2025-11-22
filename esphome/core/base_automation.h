@@ -9,8 +9,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <list>
 #include <vector>
-#include <forward_list>
 
 namespace esphome {
 
