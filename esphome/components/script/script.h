@@ -290,7 +290,9 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     }
 
     // Store parameters for later execution
-    this->param_queue_.emplace_front(x...);
+    // Must copy values explicitly because x... are const references (PR #11704)
+    // emplace_front with const refs would store references, causing dangling refs
+    this->param_queue_.emplace_front(std::tuple<Ts...>(x...));
     // Enable loop now that we have work to do
     this->enable_loop();
     this->loop();
