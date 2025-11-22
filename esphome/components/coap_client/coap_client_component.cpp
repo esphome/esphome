@@ -213,7 +213,7 @@ bool CoapClientComponent::process_request(std::unique_ptr<CoapClientRequestData>
   tx_request->response_timestamp = dtime;
   this->tx_requests_.push_back(std::move(tx_request));
   if (xQueueSend(this->request_queue_, (void *) &dtime, pdMS_TO_TICKS(1000)) != pdPASS) {
-    ESP_LOGE(TAG, "Failed to send the request %s to the queue", tx_request->name.c_str());
+    ESP_LOGE(TAG, "Failed to send the request to the queue");
     return false;
   }
   return true;
