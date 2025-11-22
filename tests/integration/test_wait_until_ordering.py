@@ -86,18 +86,7 @@ async def test_wait_until_fifo_ordering(
 
         # Verify FIFO order
         expected_order = [0, 1, 2, 3, 4]
-
-        if completed_order != expected_order:
-            # Check if it's LIFO (the bug)
-            lifo_order = [4, 3, 2, 1, 0]
-            if completed_order == lifo_order:
-                pytest.fail(
-                    f"LIFO order detected (BUG): {completed_order}. "
-                    f"This indicates emplace_front() is being used instead of emplace_back(). "
-                    f"Expected FIFO order: {expected_order}"
-                )
-            else:
-                pytest.fail(
-                    f"Unexpected order: {completed_order}. "
-                    f"Expected FIFO order: {expected_order}"
-                )
+        assert completed_order == expected_order, (
+            f"Unexpected order: {completed_order}. "
+            f"Expected FIFO order: {expected_order}"
+        )
