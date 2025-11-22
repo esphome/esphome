@@ -25,12 +25,12 @@ static const char *const TAG = "ht16k33_char";
 // Position is the index in the character buffer of the first digit to display. position 0 is the
 //  begining of the buffer Returns the index of the first character to display on the next display.
 //  (what we would give as `position` to the next call to this function).
-uint16_t Sparkfun14Seg::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
-  return this->send_to_display_common_(display, position);
-}
+//uint16_t Sparkfun14Seg::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
+//  return this->send_to_display_common_(display, position);
+//}
 
 // Write a character at position 'char_position' to the memory buffer.
-void Sparkfun14Seg::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
+void Sparkfun14Seg::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
   // char_position should be 0-3
   if ((char_position >= 0) && (char_position <= 3)) {
     for (uint8_t i = 0; i < 8; i++) {
@@ -41,7 +41,7 @@ void Sparkfun14Seg::write_to_buffer_(uint16_t char_to_write, uint8_t char_positi
   }
 }
 
-uint8_t Sparkfun14Seg::handle_special_char_(char char_to_find, uint8_t position) {
+uint8_t Sparkfun14Seg::handle_special_char(char char_to_find, uint8_t position) {
   if (position > 4) {
     // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
@@ -63,15 +63,15 @@ uint8_t Sparkfun14Seg::handle_special_char_(char char_to_find, uint8_t position)
 // Position is the position in the character buffer. position 0 is the begining of the buffer
 // Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
 // to this function).
-uint16_t Sparkfun14SegFlip::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
-  return this->send_to_display_common_(display, position);
-}
+//uint16_t Sparkfun14SegFlip::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
+//  return this->send_to_display_common_(display, position);
+//}
 
 // Write a character at position 'char_position' to the memory buffer.
 //  Note that for this flipped device, char_position is the logical position of the character.
 //  For example, char_position = 0 is the left most character on the display. char_position is
 //  converted in this function to correctly place the digits on the flipped display.
-void Sparkfun14SegFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
+void Sparkfun14SegFlip::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
   // char_position should be 0-3
   if ((char_position >= 0) && (char_position <= 3)) {
     uint8_t flipped_char_position = 3 - char_position;
@@ -84,7 +84,7 @@ void Sparkfun14SegFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_po
   }
 }
 
-uint8_t Sparkfun14SegFlip::handle_special_char_(char char_to_find, uint8_t position) {
+uint8_t Sparkfun14SegFlip::handle_special_char(char char_to_find, uint8_t position) {
   if (position > 4) {
     // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;

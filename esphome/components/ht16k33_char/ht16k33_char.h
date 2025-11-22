@@ -97,12 +97,12 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
 
   // This needs to have the stub or it won't work. This function is replaced by the device specific functions in
   // the subclasses.
-  virtual uint16_t send_to_display_(i2c::I2CDevice *display, uint16_t position) { return 0; };
-  virtual uint8_t handle_special_char_(char char_to_find, uint8_t position) { return 0; };
-  virtual void write_to_buffer_(uint16_t char_to_write, uint8_t char_position) { return; };
+  virtual uint16_t send_to_display(i2c::I2CDevice *display, uint16_t position) { return 0; };
+  virtual uint8_t handle_special_char(char char_to_find, uint8_t position) { return 0; };
+  virtual void write_to_buffer(uint16_t char_to_write, uint8_t char_position) { return; };
 
-  uint8_t get_next_char(uint16_t start_position, std::string *next_char);
-  void clear_buffer_(void);
+  uint8_t get_next_char_(uint16_t start_position, std::string *next_char);
+  void clear_buffer_();
   uint8_t char_len_(char char_to_test);
   uint16_t send_to_display_common_(i2c::I2CDevice *display, uint16_t position);
 

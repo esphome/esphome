@@ -184,7 +184,7 @@ void HT16k33CharComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HT16K33 Char:");
 
   // ESP_LOGCONFIG(TAG, "  Device Type: ");  //TODO: Do I add a string to be able to show the device type?
-  ESP_LOGCONFIG(TAG, "  Buffer Length: %d", this->char_buffer_max_size_);
+  ESP_LOGCONFIG(TAG, "  Max Buffer Length: %d", this->char_buffer_max_size_);
   ESP_LOGCONFIG(TAG, "  Brightness: %d", this->brightness_);
 
   // Scrolling stuff
@@ -247,7 +247,8 @@ uint8_t HT16k33CharComponent::update_display() {
   uint8_t buffer_location = this->fist_char_location_;
 
   for (auto *display : this->displays_) {
-    buffer_location = this->send_to_display_(display, buffer_location);
+    buffer_location = this->send_to_display_common_(display, buffer_location);
+    //buffer_location = this->send_to_display_(display, buffer_location);
   }
 
   return buffer_location;
@@ -355,7 +356,7 @@ void HT16k33CharComponent::display_standby(bool standby) {
  *
  * Returns the number of bytes it took to get the next character. (this will usually be 1, but not always.)
  ************************************/
-uint8_t HT16k33CharComponent::get_next_char(uint16_t start_position, std::string *next_char) {
+uint8_t HT16k33CharComponent::get_next_char_(uint16_t start_position, std::string *next_char) {
   char first_char = this->message_buffer_[start_position];
   uint8_t next_char_length = this->char_len_(first_char);
 
@@ -408,7 +409,7 @@ uint8_t HT16k33CharComponent::char_len_(char char_to_test) {
  *  This function clears the buffer that is directly sent to the devices.
  *  It should be called before adding new data to the buffer.
  ************************************/
-void HT16k33CharComponent::clear_buffer_(void) {
+void HT16k33CharComponent::clear_buffer_() {
   for (uint8_t i = 0; i < sizeof(this->buffer_) / sizeof(this->buffer_[0]); i++) {
     this->buffer_[i] = 0x00;
   }
@@ -416,7 +417,8 @@ void HT16k33CharComponent::clear_buffer_(void) {
 
 /***********************************
  * Write the message characters to the display send buffer and send to the display indicated. This function
- * works for all the devices that I have tested.
+ * works for all the devices that I have tested. This function relies on two device specific functions:
+ * handle_special_char() and write_to_buffer().
  *
  *  display: the display device to send the buffer to.
  *
@@ -448,14 +450,14 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
         char_buffer_location = 0;
       } else {
         // Blank the digits past the end of the display.
-        this->write_to_buffer_(0, digit_number);
+        this->write_to_buffer(0, digit_number);
         digit_number++;
       }
     }
 
     else {
       // The character to find is within the bounds of the buffer array.
-      char_length = this->get_next_char(char_buffer_location, &char_to_find);
+      char_length = this->get_next_char_(char_buffer_location, &char_to_find);
       if (char_length == 0) {
         // I don't think this is possible. If it is, display a blank character.
         char_to_find.resize(1);
@@ -468,24 +470,25 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
 
       auto it = this->char_map_.find(char_to_find);
       if (it != this->char_map_.end()) {
-        this->write_to_buffer_(it->second, digit_number);
+        //We found the character we want to write in the character map. Write that character code to the display buffer
+        this->write_to_buffer(it->second, digit_number);
         special_character_found = false;
         digit_number++;
       } else {
-        // Look for special characters. These characters are only valid at certain locations in the display. A special
-        // character in an invalid location will be treated the same way as an invalid character. In the case of an
-        // invalid character, that location in the display will be left blank. only one special character will be
-        // evaulated per location on the display.
+        //The character we were looking for was not in the character map. Check if the character is a special character.
+        // Special characters such as '.' and ':' have separate LEDs on the display. These characters are only valid at
+        // certain locations in the display. A special character in an invalid location will be treated the same way as
+        // an invalid character. In the case of an invalid character, that location in the display will be left blank.
+        // only one special character will be evaulated per location on the display.
         if (!special_character_found) {
-          switch (this->handle_special_char_(char_to_find.at(0), digit_number)) {
+          switch (this->handle_special_char(char_to_find.at(0), digit_number)) {
             case SPECIAL_CHAR_FOUND:
               special_character_found = true;
               continue;
             case SPECIAL_CHAR_FOUND_ADVANCE:
               // This case covers if we are scrolling the display and the first character in the first display is a
-              // special character.
-              //  In this instance, we want to skip over that character, or the scrolling will end up choppy.
-              //  To do that, we increment the first_char_location_ variable.
+              // special character. In this instance, we want to skip over that character, or the scrolling will end
+              // up choppy. To do this, we increment the first_char_location_ variable.
               special_character_found = true;
               if ((this->fist_char_location_ == (char_buffer_location - 1)) &&
                   (this->scroll_state_ != HT16K33_SCROLL_STATE_STATIC) &&
@@ -496,8 +499,8 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
           }
         }
 
-        // Character is not in the character map or a speical character, blank this digit.
-        this->write_to_buffer_(0, digit_number);
+        // The character we were looking for is not in the character map or a speical character, blank this digit.
+        this->write_to_buffer(0, digit_number);
         special_character_found = false;
         digit_number++;
       }
@@ -506,8 +509,8 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
 
   // We may be able to have special characters after the last digit, Handle that here.
   if (!(char_buffer_location >= this->message_buffer_.length())) {
-    this->get_next_char(char_buffer_location, &char_to_find);
-    if (this->handle_special_char_(char_to_find.at(0), digit_number) == SPECIAL_CHAR_FOUND) {
+    this->get_next_char_(char_buffer_location, &char_to_find);
+    if (this->handle_special_char(char_to_find.at(0), digit_number) == SPECIAL_CHAR_FOUND) {
       char_buffer_location++;
     }
   }
