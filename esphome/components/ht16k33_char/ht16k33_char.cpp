@@ -172,7 +172,7 @@ void HT16k33CharComponent::loop() {
         this->last_scroll_ = now;
         this->scroll_state_ = HT16K33_SCROLL_STATE_START;
         this->fist_char_location_ = 0;
-        current_buffer_location = this->update_display();
+        this->update_display();
       }
       break;
   }
@@ -410,9 +410,12 @@ uint8_t HT16k33CharComponent::char_len_(char char_to_test) {
  *  It should be called before adding new data to the buffer.
  ************************************/
 void HT16k33CharComponent::clear_buffer_() {
-  for (uint8_t i = 0; i < sizeof(this->buffer_) / sizeof(this->buffer_[0]); i++) {
-    this->buffer_[i] = 0x00;
+  for (unsigned char & i : this->buffer_) {
+    i = 0x00;
   }
+  // for (uint8_t i = 0; i < sizeof(this->buffer_) / sizeof(this->buffer_[0]); i++) {
+  //  this->buffer_[i] = 0x00;
+  // }
 }
 
 /***********************************
