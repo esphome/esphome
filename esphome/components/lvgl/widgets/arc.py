@@ -22,8 +22,8 @@ from ..defines import (
 )
 from ..lv_validation import get_start_value, lv_angle_degrees, lv_float, lv_int
 from ..lvcode import lv, lv_expr, lv_obj
-from ..types import LvNumber, NumberType
-from . import Widget
+from ..types import LvNumber
+from . import Widget, NumberType
 
 CONF_ARC = "arc"
 ARC_SCHEMA = cv.Schema(

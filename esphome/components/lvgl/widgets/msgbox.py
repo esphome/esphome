@@ -1,6 +1,5 @@
 from esphome import config_validation as cv
 from esphome.components.lvgl.schemas import TEXT_SCHEMA
-from esphome.components.lvgl.types import WidgetType
 from esphome.components.lvgl.widgets import add_widgets, widget_to_code
 from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
 from esphome.cpp_generator import MockObjClass
@@ -33,7 +32,7 @@ from ..lvcode import (
 )
 from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema
 from ..types import LV_EVENT, lv_obj_t
-from . import Widget, set_obj_properties
+from . import Widget, set_obj_properties, WidgetType
 from .button import button_spec, lv_button_t
 from .label import CONF_LABEL
 from .obj import obj_spec

@@ -5,7 +5,8 @@ from esphome.cpp_generator import MockObj
 from ..defines import CONF_CONTAINER, CONF_MAIN, CONF_OBJ, CONF_SCROLLBAR
 from ..lv_validation import size
 from ..lvcode import lv
-from ..types import WidgetType, lv_obj_t
+from ..types import lv_obj_t
+from . import WidgetType
 
 CONTAINER_SCHEMA = cv.Schema(
     {

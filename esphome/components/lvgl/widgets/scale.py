@@ -22,8 +22,8 @@ from ..lv_validation import lv_bool
 from ..lvcode import lv, lv_expr
 from ..schemas import STYLE_SCHEMA
 from ..styles import create_style, has_style_props
-from ..types import LvType, WidgetType, lv_style_t
-from . import Widget
+from ..types import LvType, lv_style_t
+from . import Widget, WidgetType
 
 lv_scale_t = LvType("lv_scale_t")
 lv_scale_section_t = LvType("lv_scale_section_t")

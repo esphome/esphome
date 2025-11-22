@@ -1,12 +1,16 @@
 import sys
 from typing import Any
 
+from esphome.automation import register_action
+from esphome.config_validation import Schema
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE
+
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import CONF_DEFAULT, CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
 from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, MockObjClass
 
 from ..defines import (
     CONF_FLEX_ALIGN_CROSS,
@@ -45,13 +49,136 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from ..schemas import ALL_STYLES, WIDGET_TYPES, remap_property
-from ..types import LV_STATE, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
+from ..types import LV_STATE, LvType, lv_coord_t, lv_obj_t, lv_obj_t_ptr, ObjUpdateAction, LvCompound
 
 EVENT_LAMB = "event_lamb__"
 
 theme_widget_map = {}
 styles_used = set()
+
+class WidgetType:
+    """
+    Describes a type of Widget, e.g. "bar" or "line"
+    """
+
+    def __init__(
+            self,
+            name: str,
+            w_type: LvType,
+            parts: tuple,
+            schema=None,
+            modify_schema=None,
+            lv_name=None,
+            is_mock: bool = False,
+    ):
+        """
+        :param name: The widget name, e.g. "bar"
+        :param w_type: The C type of the widget
+        :param parts: What parts this widget supports
+        :param schema: The config schema for defining a widget
+        :param modify_schema: A schema to update the widget, defaults to the same as the schema
+        :param lv_name: The name of the LVGL widget in the LVGL library, if different from the name
+        :param is_mock: Whether this widget is a mock widget, i.e. not a real LVGL widget
+        """
+        self.name = name
+        self.lv_name = lv_name or name
+        self.w_type = w_type
+        self.parts = parts
+        if not isinstance(schema, Schema):
+            schema = Schema(schema or {})
+        self.schema = schema
+        if modify_schema is None:
+            modify_schema = schema
+        if not isinstance(modify_schema, Schema):
+            modify_schema = Schema(modify_schema)
+        self.modify_schema = modify_schema
+        self.mock_obj = MockObj(f"lv_{self.lv_name}", "_")
+
+        # Local import to avoid circular import
+        from ..automation import update_to_code
+        from ..schemas import WIDGET_TYPES, base_update_schema
+
+        if not is_mock:
+            if self.name in WIDGET_TYPES:
+                raise Exception(f"Duplicate definition of widget type '{self.name}'")
+            WIDGET_TYPES[self.name] = self
+
+            # Register the update action automatically, adding widget-specific properties
+            register_action(
+                f"lvgl.{self.name}.update",
+                ObjUpdateAction,
+                base_update_schema(self, self.parts).extend(self.modify_schema),
+            )(update_to_code)
+
+    @property
+    def animated(self):
+        return False
+
+    @property
+    def required_component(self):
+        return None
+
+    def is_compound(self):
+        return self.w_type.inherits_from(LvCompound)
+
+    async def to_code(self, w, config: dict):
+        """
+        Generate code for a given widget
+        :param w: The widget
+        :param config: Its configuration
+        """
+
+    async def obj_creator(self, parent: MockObjClass, config: dict):
+        """
+        Create an instance of the widget type
+        :param parent: The parent to which it should be attached
+        :param config:  Its configuration
+        :return: Generated code as a single text line
+        """
+        return lv_expr.call(f"{self.lv_name}_create", parent)
+
+    def on_create(self, var: MockObj, config: dict):
+        """
+        Called from to_code when the widget is created, to set up any initial properties
+        :param var: The variable representing the widget
+        :param config: Its configuration
+        """
+
+    def get_uses(self):
+        """
+        Get a list of other widgets used by this one
+        :return:
+        """
+        return ()
+
+    def get_max(self, config: dict):
+        return sys.maxsize
+
+    def get_min(self, config: dict):
+        return -sys.maxsize
+
+    def get_step(self, config: dict):
+        return 1
+
+    def get_scale(self, config: dict):
+        return 1.0
+
+    def validate(self, value):
+        """
+        Provides an opportunity for custom validation for a given widget type
+        :param value:
+        :return:
+        """
+        return value
+
+    def final_validate(self, widget, update_config, widget_config, path):
+        """
+        Allow final validation for a given widget type update action
+        :param widget: A widget
+        :param update_config: The configuration for the update action
+        :param widget_config: The configuration for the widget itself
+        :param path: The path to the widget, for error reporting
+        """
 
 
 class Widget:
@@ -113,6 +240,7 @@ class Widget:
         return lv_obj.remove_flag(self.obj, literal(flag))
 
     async def set_property(self, prop, value, animated: bool = None, lv_name=None):
+        from ..schemas import ALL_STYLES
         """
         Set a property of the widget.
         :param prop:  The property name
@@ -275,6 +403,7 @@ async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
 
 
 def collect_props(config):
+    from ..schemas import ALL_STYLES
     """
     Collect all properties from a configuration
     :param config:
@@ -314,6 +443,7 @@ def collect_parts(config):
 
 
 async def set_obj_properties(w: Widget, config):
+    from ..schemas import ALL_STYLES, remap_property
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
     if layout := config.get(CONF_LAYOUT):
         layout_type: str = layout[CONF_TYPE]
@@ -438,6 +568,7 @@ async def add_widgets(parent: Widget, config: dict):
 
 
 async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent):
+    from ..schemas import WIDGET_TYPES
     """
     Converts a Widget definition to C code.
     :param w_cnfig: The widget configuration
@@ -478,3 +609,11 @@ async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent):
     await set_obj_properties(w, w_cnfig)
     await add_widgets(w, w_cnfig)
     await spec.to_code(w, w_cnfig)
+
+
+class NumberType(WidgetType):
+    def get_max(self, config: dict):
+        return int(config.get(CONF_MAX_VALUE, 100))
+
+    def get_min(self, config: dict):
+        return int(config.get(CONF_MIN_VALUE, 0))

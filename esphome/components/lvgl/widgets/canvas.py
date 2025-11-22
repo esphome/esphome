@@ -55,8 +55,8 @@ from ..lv_validation import (
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
-from ..types import LvType, ObjUpdateAction, WidgetType
-from . import Widget, get_widgets
+from ..types import LvType, ObjUpdateAction
+from . import Widget, get_widgets, WidgetType
 from .img import CONF_IMAGE
 from .line import lv_point_precise_t, process_coord
 

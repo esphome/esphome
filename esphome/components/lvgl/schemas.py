@@ -32,12 +32,12 @@ from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
     LVEncoderListener,
     LvType,
-    WidgetType,
     lv_group_t,
     lv_obj_t,
     lv_pseudo_button_t,
     lv_style_t,
 )
+from .widgets import WidgetType
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}

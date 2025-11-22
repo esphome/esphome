@@ -7,8 +7,8 @@ from ..helpers import add_lv_use
 from ..lv_validation import lv_text
 from ..lvcode import lv, lv_expr
 from ..schemas import TEXT_SCHEMA
-from ..types import LvBoolean, WidgetType
-from . import Widget
+from ..types import LvBoolean
+from . import Widget, WidgetType
 from .label import label_spec
 
 lv_button_t = LvBoolean("lv_btn_t")

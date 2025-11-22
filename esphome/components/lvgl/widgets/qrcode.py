@@ -7,8 +7,8 @@ from ..defines import CONF_MAIN
 from ..lv_validation import color, lv_color, lv_int, lv_text
 from ..lvcode import LocalVariable, lv
 from ..schemas import TEXT_SCHEMA
-from ..types import WidgetType, lv_obj_t
-from . import Widget
+from ..types import lv_obj_t
+from . import Widget, WidgetType
 
 CONF_QRCODE = "qrcode"
 CONF_DARK_COLOR = "dark_color"

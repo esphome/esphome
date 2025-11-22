@@ -52,7 +52,6 @@ from .types import (
     LvglAction,
     LvglCondition,
     ObjUpdateAction,
-    WidgetType,
     lv_group_t,
     lv_obj_base_t,
     lv_obj_t,
@@ -64,7 +63,7 @@ from .widgets import (
     get_screen_active,
     get_widgets,
     set_obj_properties,
-    wait_for_widgets,
+    wait_for_widgets, WidgetType,
 )
 
 # Record widgets that are used in a focused action here
