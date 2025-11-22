@@ -66,7 +66,7 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
-  //uint8_t i;
+  // uint8_t i;
   uint16_t current_buffer_location;  // TODO: Make this uint16?
 
   // ESP_LOGD("dbg", "message: %s", this->message_buffer_.c_str());    //TODO: Remove this when everything works.
