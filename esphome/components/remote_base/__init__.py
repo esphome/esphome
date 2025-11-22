@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_FAMILY,
     CONF_GROUP,
     CONF_ID,
+    CONF_INDEX,
     CONF_INVERTED,
     CONF_LEVEL,
     CONF_MAGNITUDE,
@@ -38,7 +39,7 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import coroutine
+from esphome.core import ID, coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry, SimpleRegistry
 
@@ -616,6 +617,49 @@ async def dooya_action(var, config, args):
     cg.add(var.set_check(template_))
 
 
+# Dyson
+DysonData, DysonBinarySensor, DysonTrigger, DysonAction, DysonDumper = declare_protocol(
+    "Dyson"
+)
+DYSON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.hex_uint16_t,
+        cv.Optional(CONF_INDEX, default=0xFF): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("dyson", DysonBinarySensor, DYSON_SCHEMA)
+def dyson_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DysonData,
+                ("code", config[CONF_CODE]),
+                ("index", config[CONF_INDEX]),
+            )
+        )
+    )
+
+
+@register_trigger("dyson", DysonTrigger, DysonData)
+def dyson_trigger(var, config):
+    pass
+
+
+@register_dumper("dyson", DysonDumper)
+def dyson_dumper(var, config):
+    pass
+
+
+@register_action("dyson", DysonAction, DYSON_SCHEMA)
+async def dyson_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint16)
+    cg.add(var.set_code(template_))
+    template_ = await cg.templatable(config[CONF_INDEX], args, cg.uint8)
+    cg.add(var.set_index(template_))
+
+
 # JVC
 JVCData, JVCBinarySensor, JVCTrigger, JVCAction, JVCDumper = declare_protocol("JVC")
 JVC_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
@@ -1054,6 +1098,52 @@ async def sony_action(var, config, args):
     cg.add(var.set_data(template_))
     template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
     cg.add(var.set_nbits(template_))
+
+
+# Symphony
+SymphonyData, SymphonyBinarySensor, SymphonyTrigger, SymphonyAction, SymphonyDumper = (
+    declare_protocol("Symphony")
+)
+SYMPHONY_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DATA): cv.hex_uint32_t,
+        cv.Required(CONF_NBITS): cv.int_range(min=1, max=32),
+        cv.Optional(CONF_COMMAND_REPEATS, default=2): cv.uint8_t,
+    }
+)
+
+
+@register_binary_sensor("symphony", SymphonyBinarySensor, SYMPHONY_SCHEMA)
+def symphony_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                SymphonyData,
+                ("data", config[CONF_DATA]),
+                ("nbits", config[CONF_NBITS]),
+            )
+        )
+    )
+
+
+@register_trigger("symphony", SymphonyTrigger, SymphonyData)
+def symphony_trigger(var, config):
+    pass
+
+
+@register_dumper("symphony", SymphonyDumper)
+def symphony_dumper(var, config):
+    pass
+
+
+@register_action("symphony", SymphonyAction, SYMPHONY_SCHEMA)
+async def symphony_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
+    cg.add(var.set_data(template_))
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    cg.add(var.set_nbits(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
+    cg.add(var.set_repeats(template_))
 
 
 # Raw
@@ -2014,7 +2104,9 @@ async def abbwelcome_action(var, config, args):
             )
             cg.add(var.set_data_template(template_))
         else:
-            cg.add(var.set_data_static(data_))
+            arr_id = ID(f"{var.base}_data", is_declaration=True, type=cg.uint8)
+            arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data_))
+            cg.add(var.set_data_static(arr, len(data_)))
 
 
 # Mirage

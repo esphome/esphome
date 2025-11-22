@@ -8,7 +8,6 @@
 #include <functional>
 #include <list>
 #include <map>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -200,12 +199,17 @@ class AsyncWebServer {
     return *handler;
   }
 
+  void set_lru_purge_enable(bool enable);
+  httpd_handle_t get_server() { return this->server_; }
+
  protected:
   uint16_t port_{};
   httpd_handle_t server_{};
+  bool lru_purge_enable_{false};
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
+  static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
 #ifdef USE_WEBSERVER_OTA
   esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
 #endif
@@ -315,7 +319,10 @@ class AsyncEventSource : public AsyncWebHandler {
 
  protected:
   std::string url_;
-  std::set<AsyncEventSourceResponse *> sessions_;
+  // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
+  // Linear search is faster than red-black tree overhead for this small dataset.
+  // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
+  std::vector<AsyncEventSourceResponse *> sessions_;
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
 };

@@ -51,8 +51,8 @@ void HomeassistantSwitch::write_state(bool state) {
     resp.set_service(SERVICE_OFF);
   }
 
-  resp.data.emplace_back();
-  auto &entity_id_kv = resp.data.back();
+  resp.data.init(1);
+  auto &entity_id_kv = resp.data.emplace_back();
   entity_id_kv.set_key(ENTITY_ID_KEY);
   entity_id_kv.value = this->entity_id_;
 
