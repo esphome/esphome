@@ -81,6 +81,8 @@ StopAction = cover_ns.class_("StopAction", automation.Action)
 ToggleAction = cover_ns.class_("ToggleAction", automation.Action)
 ControlAction = cover_ns.class_("ControlAction", automation.Action)
 CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
+
+# Conditions
 CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
 CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 
@@ -200,6 +202,29 @@ async def new_cover(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_cover(var, config)
     return var
+
+
+COVER_CONDITION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Cover),
+    }
+)
+
+
+@automation.register_condition(
+    "cover.is_open", CoverIsOpenCondition, COVER_CONDITION_SCHEMA
+)
+async def cover_is_open_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_condition(
+    "cover.is_closed", CoverIsClosedCondition, COVER_CONDITION_SCHEMA
+)
+async def cover_is_closed_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 COVER_ACTION_SCHEMA = maybe_simple_id(
