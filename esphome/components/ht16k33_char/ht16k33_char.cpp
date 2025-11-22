@@ -123,6 +123,8 @@ void HT16k33CharComponent::loop() {
 
   if (this->last_scroll_ > now) {
     // This will happen when the millis() function overflows. (approx every 50 days)
+    //  I don't know if App.get_loop_component_start_time() handles this, but if it doesnt,
+    //  this check should keep the code from misbehaving in this instance.
     this->last_scroll_ = now;
     return;
   }

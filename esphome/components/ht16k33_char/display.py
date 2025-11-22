@@ -83,6 +83,46 @@ def format_14seg_sparkfun_flip(input_code):
     )
 
 
+def validate_added_chars(value_to_validate):
+    # Check if the value is a dictionary
+    if not isinstance(value_to_validate, dict):
+        raise cv.Invalid("add_characters expects a dictionary")
+
+    for key, value in value_to_validate.items():
+        # Validate the keys: they need to be a single character string.
+        if not isinstance(key, str):
+            raise cv.Invalid("dictionary keys must be strings")
+        if len(key) > 1:
+            # It appears that python correctly determines the length of the
+            # string in characters instead of bytes. A string with a single
+            # multi-byte character still returns 1 from the len() function.
+            raise cv.Invalid("dictionary keys must be a single character")
+
+        # Validate the values: they need to be integers from 0-0xFFFF
+        if not isinstance(value, int):
+            raise cv.Invalid("dictionary values must be integers")
+        if (value < 0) or (value > 0xFFFF):
+            raise cv.Invalid("dictionary values must be between 0 and 0xFFFF")
+
+    return value_to_validate
+
+
+def validate_removed_chars(value_to_validate):
+    if not isinstance(value_to_validate, list):
+        # If the entry is not a list, make it into a list.
+        value_to_validate = [value_to_validate]
+    for list_item in value_to_validate:
+        if not isinstance(list_item, str):
+            raise cv.Invalid("List must contain single character strings only")
+        if len(list_item) > 1:
+            # It appears that python correctly determines the length of the
+            # string in characters instead of bytes. A string with a single
+            # multi-byte character still returns 1 from the len() function.
+            raise cv.Invalid("List must contain single character strings only")
+
+    return value_to_validate
+
+
 # A dictionary for supported device types:
 #  -The key is what the user would put in the YAML file to select this device.
 #  -The value is a dictionary that contains the keys:
@@ -146,8 +186,8 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SCROLL_DELAY, default="5s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ADD_CHARACTERS): cv.valid,
-            cv.Optional(CONF_REMOVE_CHARACTERS): cv.ensure_list(),
+            cv.Optional(CONF_ADD_CHARACTERS): validate_added_chars,
+            cv.Optional(CONF_REMOVE_CHARACTERS): validate_removed_chars,
         }
     )
     .extend(cv.polling_component_schema("10s"))
