@@ -244,7 +244,17 @@ def option_string(value):
     return value
 
 
-lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
+class LvColor(LValidator):
+    def __init__(self):
+        super().__init__(color, ty.lv_color_t, retmapper=color_retmapper)
+
+    def __getattr__(self, item):
+        if item in COLOR_NAMES:
+            return color_retmapper(COLOR_NAMES[item])
+        raise AttributeError(item)
+
+
+lv_color = LvColor()
 
 
 def pixels_or_percent_validator(value):
