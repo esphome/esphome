@@ -1,8 +1,9 @@
 substitutions:
-  scl_pin: GPIO16
-  sda_pin: GPIO17
   enable_pin: GPIO18
   interrupt_pin: GPIO19
   enable_pin2: GPIO20
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
 <<: !include common.yaml
