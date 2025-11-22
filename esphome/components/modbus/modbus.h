@@ -37,7 +37,7 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code,
                                            const std::vector<uint8_t> &data) = 0;
   void clear_rx_buffer_(const std::string &reason, bool warn = false, size_t bytes_to_clear = 0);
-  void send_frame_(const std::vector<uint8_t> &frame);
+  bool send_frame_(const std::vector<uint8_t> &frame);
   static std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload);
 
   uint32_t last_modbus_byte_{0};
@@ -74,6 +74,7 @@ class ModbusClient : public Modbus {
             uint16_t number_of_entities, uint8_t payload_len = 0, const uint8_t *payload = nullptr);
   void send_raw(ModbusClientDevice *device, const std::vector<uint8_t> &payload);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
+  void clear_tx_queue_for_device(ModbusClientDevice *device);
 
  protected:
   void parse_modbus_frames() override;
@@ -108,24 +109,29 @@ class ModbusServer : public Modbus {
 
 class ModbusClientDevice {
  public:
+  ModbusClientDevice() = default;
+  ModbusClientDevice(ModbusClient *parent, uint8_t address) : parent_(parent), address_(address) {}
+  virtual ~ModbusClientDevice() { this->clear_tx_queue_for_device(); }
   void set_parent(ModbusClient *parent) { parent_ = parent; }
   void set_address(uint8_t address) { address_ = address; }
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
+  virtual void on_modbus_not_sent() {}
   virtual void on_modbus_no_response() {}
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send(this, this->address_, function, start_address, number_of_entities, payload_len, payload);
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(this, payload); }
-  void clear_tx_queue(bool clear_sent = true) { this->parent_->clear_tx_queue_for_address(this->address_); }
+  inline void clear_tx_queue_for_address(bool clear_sent = true) {
+    this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
+  }
+  inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
   // If more than one device is connected block sending a new command before a response is received
   bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
 
  protected:
-  // friend ModbusClient;
-
   ModbusClient *parent_;
   uint8_t address_;
 };
@@ -135,6 +141,8 @@ class ModbusDevice : public ModbusClientDevice {};
 
 class ModbusServerDevice {
  public:
+  ModbusServerDevice() = default;
+  ModbusServerDevice(ModbusServer *parent, uint8_t address) : parent_(parent), address_(address) {}
   void set_parent(ModbusServer *parent) { parent_ = parent; }
   void set_address(uint8_t address) { address_ = address; }
   virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
