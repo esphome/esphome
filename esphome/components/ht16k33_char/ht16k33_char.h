@@ -21,14 +21,12 @@ static const uint8_t HT16K33_MODE_STANDBY = 0x00;
 static const uint8_t HT16K33_MODE_NORMAL = 0x01;
 
 // Return codes from handle_special_char_()
-static const uint8_t SPECIAL_CHAR_NOT_FOUND =
-    0x00;  // Not a special char, the code should show a blank digit at this location.
-static const uint8_t SPECIAL_CHAR_FOUND = 0x01;          // Special char found and handled
-static const uint8_t SPECIAL_CHAR_FOUND_ADVANCE = 0x02;  // Special char found and handled, advance display if the
-                                                         // special char was in the first position of the first display.
-static const uint8_t SPECIAL_CHAR_FOUND_NO_ADVANCE =
-    0x03;  // Special char found and handled, advance display if the special char was in the first position of the first
-           // display.
+static const uint8_t SPECIAL_CHAR_NOT_FOUND = 0x00;       // Not a special char.
+static const uint8_t SPECIAL_CHAR_FOUND = 0x01;           // Special char found and handled
+static const uint8_t SPECIAL_CHAR_FOUND_ADVANCE = 0x02;   // Special char found and handled, advance display if the
+                                                            // special char was in the first position of the first display.
+//static const uint8_t SPECIAL_CHAR_FOUND_NO_ADVANCE = 0x03;  // Special char found and handled, advance display if the
+                                                            // special char was in the first position of the first display.
 
 class HT16k33CharComponent;
 
@@ -36,7 +34,7 @@ class HT16k33CharComponent;
 // For 7 segment displays the 28 pin package could address up to 8 digits.
 // So an absolute maximum number of chars is 8*7=56.
 
-// TODO: Explain what this does...
+// defines a type `ht16k33_char_writer_t` that is a pointer to a function of the type defined.
 using ht16k33_char_writer_t = std::function<void(HT16k33CharComponent &)>;
 
 class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
@@ -95,9 +93,7 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
  protected:
   std::unordered_map<std::string, uint16_t> char_map_ = {{" ", 0b0000000000000000}};
 
-  // This needs to have the stub or it won't work. This function is replaced by the device specific functions in
-  // the subclasses.
-  // virtual uint16_t send_to_display(i2c::I2CDevice *display, uint16_t position) { return 0; };
+  // These two functions are overridden by device specific versions in the subclasses.
   virtual uint8_t handle_special_char(char char_to_find, uint8_t position) { return 0; };
   virtual void write_to_buffer(uint16_t char_to_write, uint8_t char_position){};
 
@@ -122,7 +118,7 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t brightness_{15};  // Brightness of the display from 0 (off) to 15 (brightest)
 
   std::string message_buffer_;  // This buffer holds the entire character message to display.
-  uint8_t buffer_[20];          // This buffer is used to send the raw bytes to the HT16k33 device. TODO: Make this 17?
+  uint8_t buffer_[20];          // This buffer is used to send the raw bytes to the HT16k33 device.
   uint16_t
       char_buffer_max_size_;  // This is the maximum allowable length of the char buffer. This should be set to some
                               //  reasonable number greater than the expected length of the strings that will be

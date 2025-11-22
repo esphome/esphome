@@ -9,13 +9,13 @@
 
 /* To add more device types:
  *    -Add to the HT16K33_DEVICE_TYPES enum in the display.py file
+ *    -If nessecary, add formatting functions to display.py that convert character codes from the
+ *     standard format to the correct format for the new device.
  *    -Add a new .h and .c file that defines a class derived from the `HT16k33CharComponent` class.
- *    -Implement a `uint8_t send_to_display(i2c::I2CDevice *display, uint8_t position)` function in that class.
- *        -display: the i2c device of the current display to use. The code will step through the
- *         defined displays and call the send_to_display() function for each one.
- *        -position: The position in the char buffer to start writing to the display. Starts at 0.
- *        -returns the position in the char buffer for the next character that should be displayed
- *         on the next display.
+ *     This class should:
+ *      -Add the character codes to char_map_ during class initialization.
+ *      -Implement a `uint8_t handle_special_char(char char_to_find, uint8_t position)` function.
+ *      -Implement a `void write_to_buffer(uint16_t char_to_write, uint8_t char_position)'
  */
 
 namespace esphome {
@@ -67,7 +67,7 @@ void HT16k33CharComponent::setup() {
 
 void HT16k33CharComponent::update() {
   //uint8_t i;
-  uint16_t current_buffer_location;  // TODO: Make this uint16?
+  uint16_t current_buffer_location;
 
   // ESP_LOGD("dbg", "message: %s", this->message_buffer_.c_str());    //TODO: Remove this when everything works.
 
@@ -90,19 +90,14 @@ void HT16k33CharComponent::update() {
     //     function to show the initial contents.
     if ((this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) ||
         (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START) ||
-        (this->scroll_state_ ==
-         HT16K33_SCROLL_STATE_STOPPED)) {  // TODO: Added a state_stopped. we probably don't need this. there is another
-                                           // variable that tells us if we are supposed to scroll
-
-      current_buffer_location = this->update_display();
+        (this->scroll_state_ == HT16K33_SCROLL_STATE_STOPPED)) {
 
       this->last_scroll_ = App.get_loop_component_start_time();
-      // TODO: I don't think I need the first char location test. It is required, but it should alwasy be the case wien
-      // doing these checks.
-      if ((this->fist_char_location_ == 0) && (current_buffer_location >= this->message_buffer_.length()) &&
-          (this->scroll_state_ ==
-           HT16K33_SCROLL_STATE_FIRST_START)) {  // TODO: Check this, not sure if it works with the new size stuff.
-                                                 // Also, does this need to be called here at all?
+      current_buffer_location = this->update_display();
+
+      if ((this->fist_char_location_ == 0) &&
+          (current_buffer_location >= this->message_buffer_.length()) &&
+          (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START)) {
         // We reached the end of the char buffer before we reached the end of the display.
         this->scroll_state_ = HT16K33_SCROLL_STATE_STOPPED;
       }
@@ -182,8 +177,6 @@ void HT16k33CharComponent::dump_config() {
   uint8_t i;
 
   ESP_LOGCONFIG(TAG, "HT16K33 Char:");
-
-  // ESP_LOGCONFIG(TAG, "  Device Type: ");  //TODO: Do I add a string to be able to show the device type?
   ESP_LOGCONFIG(TAG, "  Max Buffer Length: %d", this->char_buffer_max_size_);
   ESP_LOGCONFIG(TAG, "  Brightness: %d", this->brightness_);
 

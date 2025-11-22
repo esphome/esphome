@@ -33,6 +33,9 @@ HT16k33Char_BaseClassType = ht16k33_char_ns.class_(
 
 
 # Formatting functions. These functions convert the input character codes to the proper format for the various devices.
+#   These functions are implemented so that the `add_characters` config option takes a universal format. The format for
+#   the `add_characters` function matches the wiring of the Adafruit 7 and 14 segment devices. For the other devices
+#   these functions are used to flip the bits around in the provided character code to match the wiring of that device.
 def format_none(input_code):
     return input_code
 
@@ -127,21 +130,23 @@ def validate_removed_chars(value_to_validate):
 #  -The key is what the user would put in the YAML file to select this device.
 #  -The value is a dictionary that contains the keys:
 #     `CLASS_NAME`: The name of the class that implements the device.
-# TODO: normalize these names.
+#     `FORMAT_FUNCTION`: A python function defined in this file that converts
+#                        a digit code from the standard format to whatever
+#                        format the device expects.
 HT16K33_DEVICE_TYPES = {
-    "ADAFRUIT_7SEGMENT_1.2IN": {
+    "ADAFRUIT_7_SEG_1.2IN": {
         "CLASS_NAME": "Adafruit7SegLarge",
         "FORMAT_FUNCTION": format_none,
     },
-    "ADAFRUIT_7SEGMENT_1.2IN_FLIPPED": {
+    "ADAFRUIT_7_SEG_1.2IN_FLIPPED": {
         "CLASS_NAME": "Adafruit7SegLargeFlip",
         "FORMAT_FUNCTION": format_7seg_flip,
     },
-    "ADAFRUIT_7SEGMENT_.56IN": {
+    "ADAFRUIT_7_SEG_.56IN": {
         "CLASS_NAME": "Adafruit7Seg",
         "FORMAT_FUNCTION": format_none,
     },
-    "ADAFRUIT_7SEGMENT_.56IN_FLIPPED": {
+    "ADAFRUIT_7_SEG_.56IN_FLIPPED": {
         "CLASS_NAME": "Adafruit7SegFlip",
         "FORMAT_FUNCTION": format_7seg_flip,
     },
