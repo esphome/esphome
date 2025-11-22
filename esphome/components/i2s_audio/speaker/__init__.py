@@ -40,6 +40,7 @@ I2SAudioSpeaker = i2s_audio_ns.class_(
 
 CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
+CONF_SPDIF_MODE = "spdif_mode"
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 INTERNAL_DAC_OPTIONS = {
@@ -75,7 +76,17 @@ def _set_num_channels_from_config(config):
 
 
 def _set_stream_limits(config):
-    if config[CONF_I2S_MODE] == CONF_PRIMARY:
+    if config.get(CONF_SPDIF_MODE, False):
+        # SPDIF mode: fixed to 16-bit stereo at configured sample rate
+        audio.set_stream_limits(
+            min_bits_per_sample=16,
+            max_bits_per_sample=16,
+            min_channels=2,
+            max_channels=2,
+            min_sample_rate=config.get(CONF_SAMPLE_RATE),
+            max_sample_rate=config.get(CONF_SAMPLE_RATE),
+        )(config)
+    elif config[CONF_I2S_MODE] == CONF_PRIMARY:
         # Primary mode has modifiable stream settings
         audio.set_stream_limits(
             min_bits_per_sample=8,
@@ -148,6 +159,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_I2S_COMM_FMT, default="stand_i2s"): cv.one_of(
                         *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
+                    cv.Optional(CONF_SPDIF_MODE, default=False): cv.boolean,
                 }
             ),
         },
@@ -168,6 +180,20 @@ def _final_validate(config):
             raise cv.Invalid(
                 "I2S standard max format only implemented with legacy i2s driver."
             )
+        if config.get(CONF_SPDIF_MODE, False):
+            raise cv.Invalid("SPDIF mode is only compatible with legacy i2s driver")
+
+    if config.get(CONF_SPDIF_MODE, False):
+        # SPDIF mode specific validations
+        if config[CONF_SAMPLE_RATE] not in [44100, 48000]:
+            raise cv.Invalid(
+                "SPDIF mode only supports 44100 Hz or 48000 Hz sample rates"
+            )
+        if config[CONF_CHANNEL] != CONF_STEREO:
+            raise cv.Invalid("SPDIF mode only supports stereo channel configuration")
+        # bits_per_sample is converted to float by the schema
+        if config[CONF_BITS_PER_SAMPLE] != 16:
+            raise cv.Invalid("SPDIF mode only supports 16 bits per sample")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -183,7 +209,13 @@ async def to_code(config):
         cg.add(var.set_internal_dac_mode(config[CONF_MODE]))
     else:
         cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
-        if use_legacy():
+
+        # Enable SPDIF mode if requested
+        if config.get(CONF_SPDIF_MODE, False):
+            cg.add_define("USE_I2S_AUDIO_SPDIF_MODE")
+            cg.add(var.set_spdif_mode(True))
+        elif use_legacy():
+            # Standard I2S mode
             cg.add(
                 var.set_i2s_comm_fmt(I2C_COMM_FMT_OPTIONS[config[CONF_I2S_COMM_FMT]])
             )

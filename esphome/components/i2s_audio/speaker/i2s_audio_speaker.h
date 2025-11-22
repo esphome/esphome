@@ -16,8 +16,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/ring_buffer.h"
 
-namespace esphome {
-namespace i2s_audio {
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+#include "spdif_encoder.h"
+#endif
+
+namespace esphome::i2s_audio {
 
 class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Component {
  public:
@@ -38,6 +41,10 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 #else
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = (gpio_num_t) pin; }
   void set_i2s_comm_fmt(std::string mode) { this->i2s_comm_fmt_ = std::move(mode); }
+#endif
+
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+  void set_spdif_mode(bool enable) { this->spdif_mode_ = enable; }
 #endif
 
   void start() override;
@@ -135,9 +142,13 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   std::string i2s_comm_fmt_;
   i2s_chan_handle_t tx_handle_;
 #endif
+
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+  SPDIFEncoder *spdif_encoder_{nullptr};
+  bool spdif_mode_{false};
+#endif
 };
 
-}  // namespace i2s_audio
-}  // namespace esphome
+}  // namespace esphome::i2s_audio
 
 #endif  // USE_ESP32

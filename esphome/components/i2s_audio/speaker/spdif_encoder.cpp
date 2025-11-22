@@ -1,4 +1,4 @@
-#include "spdif.h"
+#include "spdif_encoder.h"
 
 #ifdef USE_ESP32
 
@@ -6,15 +6,21 @@
 #include "esphome/core/log.h"
 
 #include <esp_timer.h>
-namespace esphome {
-namespace spdif_audio {
 
-static const char *const TAG = "spdif";
+namespace esphome::i2s_audio {
 
-/*
- * 8bit PCM to 16bit BMC conversion table, LSb first, 1 end
- */
-static const uint16_t BMC_TABLE[256] = {
+static const char *const TAG = "i2s_audio.spdif_encoder";
+
+// BMC preamble
+static constexpr uint32_t BMC_B = 0x33173333;  // block start
+static constexpr uint32_t BMC_M = 0x331d3333;  // left ch
+static constexpr uint32_t BMC_W = 0x331b3333;  // right ch
+static constexpr uint32_t BMC_MW_DIF = (BMC_M ^ BMC_W);
+static constexpr uint8_t SYNC_OFFSET = 2;  // byte offset of SYNC
+static constexpr uint32_t SYNC_FLIP = ((BMC_B ^ BMC_M) >> (SYNC_OFFSET * 8));
+
+// 8-bit PCM to 16-bit BMC conversion table, LSb first, 1 end
+static constexpr uint16_t BMC_TABLE[256] = {
     0x3333, 0xb333, 0xd333, 0x5333, 0xcb33, 0x4b33, 0x2b33, 0xab33, 0xcd33, 0x4d33, 0x2d33, 0xad33, 0x3533, 0xb533,
     0xd533, 0x5533, 0xccb3, 0x4cb3, 0x2cb3, 0xacb3, 0x34b3, 0xb4b3, 0xd4b3, 0x54b3, 0x32b3, 0xb2b3, 0xd2b3, 0x52b3,
     0xcab3, 0x4ab3, 0x2ab3, 0xaab3, 0xccd3, 0x4cd3, 0x2cd3, 0xacd3, 0x34d3, 0xb4d3, 0xd4d3, 0x54d3, 0x32d3, 0xb2d3,
@@ -36,56 +42,48 @@ static const uint16_t BMC_TABLE[256] = {
     0x3555, 0xb555, 0xd555, 0x5555,
 };
 
-// BMC preamble
-static const uint32_t BMC_B = 0x33173333;  // block start
-static const uint32_t BMC_M = 0x331d3333;  // left ch
-static const uint32_t BMC_W = 0x331b3333;  // right ch
-static const uint32_t BMC_MW_DIF = (BMC_M ^ BMC_W);
-static const uint8_t SYNC_OFFSET = 2;  // byte offset of SYNC
-static const uint32_t SYNC_FLIP = ((BMC_B ^ BMC_M) >> (SYNC_OFFSET * 8));
-
 // initialize S/PDIF buffer
-void SPDIF::setup() {
+void SPDIFEncoder::setup() {
   uint32_t bmc_mw = BMC_W;
 
   for (uint32_t i = 0; i < SPDIF_BLOCK_SIZE_U32; i += 2) {
-    spdif_block_buf_[i] = bmc_mw ^= BMC_MW_DIF;
+    this->spdif_block_buf_[i] = bmc_mw ^= BMC_MW_DIF;
   }
-  ESP_LOGV(TAG, "SPDIF buffer initialized to %zu bytes", sizeof(spdif_block_buf_));
+  ESP_LOGV(TAG, "SPDIF buffer initialized to %zu bytes", sizeof(this->spdif_block_buf_));
 
-  spdif_block_ptr_ = spdif_block_buf_;
+  this->spdif_block_ptr_ = this->spdif_block_buf_;
 }
 
-esp_err_t SPDIF::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait) {
+esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait) {
   const uint8_t *p = reinterpret_cast<const uint8_t *>(src);
 
   while (p < (uint8_t *) src + size) {
     // convert PCM 16bit data to BMC 32bit pulse pattern (which is 64 i2s bits to emulate BMC)
     // We cast to int16_t to avoid sign extension issues when XOR-ing
-    *(spdif_block_ptr_ + 1) =
+    *(this->spdif_block_ptr_ + 1) =
         (uint32_t) (((static_cast<int16_t>(BMC_TABLE[*p]) << 16) ^ static_cast<int16_t>(BMC_TABLE[*(p + 1)])) << 1) >>
         1;
 
     p += 2;
-    spdif_block_ptr_ += 2;  // advance to next audio data
+    this->spdif_block_ptr_ += 2;  // advance to next audio data
 
-    if (spdif_block_ptr_ >= &spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
+    if (this->spdif_block_ptr_ >= &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
       // set block start preamble
-      ((uint8_t *) spdif_block_buf_)[SYNC_OFFSET] ^= SYNC_FLIP;
+      ((uint8_t *) this->spdif_block_buf_)[SYNC_OFFSET] ^= SYNC_FLIP;
 
-      esp_err_t err = block_complete_callback_(spdif_block_buf_, sizeof(spdif_block_buf_), ticks_to_wait);
+      esp_err_t err =
+          this->block_complete_callback_(this->spdif_block_buf_, sizeof(this->spdif_block_buf_), ticks_to_wait);
       if (err != ESP_OK) {
         return err;
       }
 
-      spdif_block_ptr_ = spdif_block_buf_;
+      this->spdif_block_ptr_ = this->spdif_block_buf_;
     }
   }
 
   return ESP_OK;
 }
 
-}  // namespace spdif_audio
-}  // namespace esphome
+}  // namespace esphome::i2s_audio
 
-#endif
+#endif  // USE_ESP32
