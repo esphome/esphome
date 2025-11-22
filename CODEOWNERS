@@ -435,8 +435,6 @@ esphome/components/sn74hc165/* @jesserockz
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/sound_level/* @kahrendt
-esphome/components/spdif_audio/* @johnboiles
-esphome/components/spdif_audio/speaker/* @johnboiles
 esphome/components/speaker/* @jesserockz @kahrendt
 esphome/components/speaker/media_player/* @kahrendt @synesthesiam
 esphome/components/spi/* @clydebarrow @esphome/core
