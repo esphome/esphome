@@ -1541,7 +1541,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   }
 }
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
   for (auto *service : this->parent_->get_user_services()) {
