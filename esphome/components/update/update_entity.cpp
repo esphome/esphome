@@ -1,5 +1,6 @@
 #include "update_entity.h"
-
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -30,8 +31,11 @@ void UpdateEntity::publish_state() {
     ESP_LOGD(TAG, "  Progress: %.0f%%", this->update_info_.progress);
   }
 
-  this->has_state_ = true;
+  this->set_has_state(true);
   this->state_callback_.call();
+#if defined(USE_UPDATE) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_update(this);
+#endif
 }
 
 }  // namespace update

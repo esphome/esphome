@@ -49,7 +49,6 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   /// HARDWARE_LATE setup priority
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_continuous_mode(bool continuous_mode) { continuous_mode_ = continuous_mode; }
 
   /// Helper method to request a measurement from a sensor.

@@ -23,13 +23,16 @@ size_t = global_ns.namespace("size_t")
 const_char_ptr = global_ns.namespace("const char *")
 NAN = global_ns.namespace("NAN")
 esphome_ns = global_ns  # using namespace esphome;
+FixedVector = esphome_ns.class_("FixedVector")
 App = esphome_ns.App
 EntityBase = esphome_ns.class_("EntityBase")
 Component = esphome_ns.class_("Component")
 ComponentPtr = Component.operator("ptr")
 PollingComponent = esphome_ns.class_("PollingComponent", Component)
 Application = esphome_ns.class_("Application")
-optional = esphome_ns.class_("optional")
+# Create optional with explicit namespace to avoid ambiguity with std::optional
+# The generated code will use esphome::optional instead of just optional
+optional = global_ns.namespace("esphome").class_("optional")
 arduino_json_ns = global_ns.namespace("ArduinoJson")
 JsonObject = arduino_json_ns.class_("JsonObject")
 JsonObjectConst = arduino_json_ns.class_("JsonObjectConst")

@@ -2,6 +2,7 @@ esp32_ble_server:
   id: ble_server
   manufacturer_data: [0x72, 0x4, 0x00, 0x23]
   manufacturer: ESPHome
+  appearance: 0x1
   model: Test
   on_connect:
     - lambda: |-

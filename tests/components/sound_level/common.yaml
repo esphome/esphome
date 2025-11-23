@@ -1,0 +1,26 @@
+i2s_audio:
+  i2s_lrclk_pin: ${i2s_bclk_pin}
+  i2s_bclk_pin: ${i2s_lrclk_pin}
+
+microphone:
+  - platform: i2s_audio
+    id: i2s_microphone
+    i2s_din_pin: ${i2s_dout_pin}
+    adc_type: external
+    bits_per_sample: 16bit
+
+sensor:
+  - platform: sound_level
+    microphone: i2s_microphone
+    measurement_duration: 2000ms
+    passive: false
+    peak:
+      name: "Peak Sound Level"
+      on_value_range:
+        - above: -1.0
+          then:
+            - sound_level.stop:
+            - delay: 5s
+            - sound_level.start:
+    rms:
+      name: "RMS Sound Level"

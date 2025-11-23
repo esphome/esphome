@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/display/display.h"
 
 #include <cinttypes>
 
@@ -29,7 +30,7 @@ enum UNIT {
   UNIT_DEG_E,     ///< show "°E"
 };
 
-using pvvx_writer_t = std::function<void(PVVXDisplay &)>;
+using pvvx_writer_t = display::DisplayWriter<PVVXDisplay>;
 
 class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
  public:
@@ -39,12 +40,11 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
 
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void update() override;
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
   /// Set validity period of the display information in seconds (1..65535)
   void set_validity_period(uint16_t validity_period) { this->validity_period_ = validity_period; }
@@ -114,6 +114,7 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
   void setcfgbit_(uint8_t bit, bool value);
   void send_to_setup_char_(uint8_t *blk, size_t size);
   void delayed_disconnect_();
+  void sync_time_and_display_();
 #ifdef USE_TIME
   void sync_time_();
   time::RealTimeClock *time_{nullptr};
@@ -126,7 +127,7 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
   esp32_ble_tracker::ESPBTUUID char_uuid_ =
       esp32_ble_tracker::ESPBTUUID::from_raw("00001f1f-0000-1000-8000-00805f9b34fb");
 
-  optional<pvvx_writer_t> writer_{};
+  pvvx_writer_t writer_{};
 };
 
 }  // namespace pvvx_mithermometer

@@ -181,7 +181,7 @@ void WaveshareEPaper2P13InV3::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_)
   LOG_PIN("  DC Pin: ", this->dc_pin_)
   LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void WaveshareEPaper2P13InV3::set_full_update_every(uint32_t full_update_every) {

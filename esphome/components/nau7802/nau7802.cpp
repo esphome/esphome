@@ -53,7 +53,6 @@ static const uint8_t DEVICE_REV = 0x1F;
 
 void NAU7802Sensor::setup() {
   i2c::I2CRegister pu_ctrl = this->reg(PU_CTRL_REG);
-  ESP_LOGCONFIG(TAG, "Setting up NAU7802 '%s'...", this->name_.c_str());
   uint8_t rev;
 
   if (this->read_register(DEVICE_REV | READ_BIT, &rev, 1)) {
@@ -120,8 +119,6 @@ void NAU7802Sensor::complete_setup_() {
   // PGA stabilizer cap on output
   i2c::I2CRegister pwr_reg = this->reg(POWER_REG);
   pwr_reg |= POWER_PGA_CAP_EN;
-
-  this->setup_complete_ = true;
 }
 
 void NAU7802Sensor::dump_config() {
@@ -129,12 +126,14 @@ void NAU7802Sensor::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with NAU7802 failed earlier, during setup");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
     return;
   }
   // Note these may differ from the values on the device if calbration has been run
-  ESP_LOGCONFIG(TAG, "  Offset Calibration: %s", to_string(this->offset_calibration_).c_str());
-  ESP_LOGCONFIG(TAG, "  Gain Calibration: %f", this->gain_calibration_);
+  ESP_LOGCONFIG(TAG,
+                "  Offset Calibration: %s\n"
+                "  Gain Calibration: %f",
+                to_string(this->offset_calibration_).c_str(), this->gain_calibration_);
 
   std::string voltage = "unknown";
   switch (this->ldo_) {
@@ -219,7 +218,7 @@ void NAU7802Sensor::dump_config() {
 
 void NAU7802Sensor::write_value_(uint8_t start_reg, size_t size, int32_t value) {
   uint8_t data[4];
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     data[i] = 0xFF & (value >> (size - 1 - i) * 8);
   }
   this->write_register(start_reg, data, size);
@@ -229,7 +228,7 @@ int32_t NAU7802Sensor::read_value_(uint8_t start_reg, size_t size) {
   uint8_t data[4];
   this->read_register(start_reg, data, size);
   int32_t result = 0;
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     result |= data[i] << (size - 1 - i) * 8;
   }
   // extend sign bit
@@ -316,8 +315,6 @@ void NAU7802Sensor::update() {
 }
 
 bool NAU7802Sensor::is_data_ready_() { return this->reg(PU_CTRL_REG).get() & PU_CTRL_CYCLE_READY; }
-
-bool NAU7802Sensor::can_proceed() { return this->setup_complete_; }
 
 }  // namespace nau7802
 }  // namespace esphome

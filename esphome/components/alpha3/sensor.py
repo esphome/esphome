@@ -1,20 +1,20 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, ble_client
 from esphome.const import (
-    CONF_ID,
     CONF_CURRENT,
     CONF_FLOW,
     CONF_HEAD,
+    CONF_ID,
     CONF_POWER,
     CONF_SPEED,
     CONF_VOLTAGE,
     UNIT_AMPERE,
+    UNIT_CUBIC_METER_PER_HOUR,
+    UNIT_METER,
+    UNIT_REVOLUTIONS_PER_MINUTE,
     UNIT_VOLT,
     UNIT_WATT,
-    UNIT_METER,
-    UNIT_CUBIC_METER_PER_HOUR,
-    UNIT_REVOLUTIONS_PER_MINUTE,
 )
 
 alpha3_ns = cg.esphome_ns.namespace("alpha3")

@@ -1,6 +1,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome {
 
@@ -11,47 +12,62 @@ const StringRef &EntityBase::get_name() const { return this->name_; }
 void EntityBase::set_name(const char *name) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
-    this->name_ = StringRef(App.get_friendly_name());
-    this->has_own_name_ = false;
+#ifdef USE_DEVICES
+    if (this->device_ != nullptr) {
+      this->name_ = StringRef(this->device_->get_name());
+    } else
+#endif
+    {
+      this->name_ = StringRef(App.get_friendly_name());
+    }
+    this->flags_.has_own_name = false;
   } else {
-    this->has_own_name_ = true;
+    this->flags_.has_own_name = true;
   }
 }
 
-// Entity Internal
-bool EntityBase::is_internal() const { return this->internal_; }
-void EntityBase::set_internal(bool internal) { this->internal_ = internal; }
-
-// Entity Disabled by Default
-bool EntityBase::is_disabled_by_default() const { return this->disabled_by_default_; }
-void EntityBase::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
-
 // Entity Icon
 std::string EntityBase::get_icon() const {
+#ifdef USE_ENTITY_ICON
   if (this->icon_c_str_ == nullptr) {
     return "";
   }
   return this->icon_c_str_;
+#else
+  return "";
+#endif
 }
-void EntityBase::set_icon(const char *icon) { this->icon_c_str_ = icon; }
+void EntityBase::set_icon(const char *icon) {
+#ifdef USE_ENTITY_ICON
+  this->icon_c_str_ = icon;
+#else
+  // No-op when USE_ENTITY_ICON is not defined
+#endif
+}
 
-// Entity Category
-EntityCategory EntityBase::get_entity_category() const { return this->entity_category_; }
-void EntityBase::set_entity_category(EntityCategory entity_category) { this->entity_category_ = entity_category; }
+// Check if the object_id is dynamic (changes with MAC suffix)
+bool EntityBase::is_object_id_dynamic_() const {
+  return !this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled();
+}
 
 // Entity Object ID
 std::string EntityBase::get_object_id() const {
   // Check if `App.get_friendly_name()` is constant or dynamic.
-  if (!this->has_own_name_ && App.is_name_add_mac_suffix_enabled()) {
+  if (this->is_object_id_dynamic_()) {
     // `App.get_friendly_name()` is dynamic.
     return str_sanitize(str_snake_case(App.get_friendly_name()));
-  } else {
-    // `App.get_friendly_name()` is constant.
-    if (this->object_id_c_str_ == nullptr) {
-      return "";
-    }
-    return this->object_id_c_str_;
   }
+  // `App.get_friendly_name()` is constant.
+  return this->object_id_c_str_ == nullptr ? "" : this->object_id_c_str_;
+}
+StringRef EntityBase::get_object_id_ref_for_api_() const {
+  static constexpr auto EMPTY_STRING = StringRef::from_lit("");
+  // Return empty for dynamic case (MAC suffix)
+  if (this->is_object_id_dynamic_()) {
+    return EMPTY_STRING;
+  }
+  // For static case, return the string or empty if null
+  return this->object_id_c_str_ == nullptr ? EMPTY_STRING : StringRef(this->object_id_c_str_);
 }
 void EntityBase::set_object_id(const char *object_id) {
   this->object_id_c_str_ = object_id;
@@ -60,17 +76,8 @@ void EntityBase::set_object_id(const char *object_id) {
 
 // Calculate Object ID Hash from Entity Name
 void EntityBase::calc_object_id_() {
-  // Check if `App.get_friendly_name()` is constant or dynamic.
-  if (!this->has_own_name_ && App.is_name_add_mac_suffix_enabled()) {
-    // `App.get_friendly_name()` is dynamic.
-    const auto object_id = str_sanitize(str_snake_case(App.get_friendly_name()));
-    // FNV-1 hash
-    this->object_id_hash_ = fnv1_hash(object_id);
-  } else {
-    // `App.get_friendly_name()` is constant.
-    // FNV-1 hash
-    this->object_id_hash_ = fnv1_hash(this->object_id_c_str_);
-  }
+  this->object_id_hash_ =
+      fnv1_hash(this->is_object_id_dynamic_() ? this->get_object_id().c_str() : this->object_id_c_str_);
 }
 
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }

@@ -1,17 +1,15 @@
+from esphome import automation, pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
-from esphome import automation
-
 from esphome.const import (
-    CONF_READ_PIN,
-    CONF_ID,
-    CONF_NAME,
-    CONF_WRITE_PIN,
-    CONF_REPEAT,
-    CONF_INVERTED,
-    CONF_PULSE_LENGTH,
     CONF_CODE,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_NAME,
+    CONF_PULSE_LENGTH,
+    CONF_READ_PIN,
+    CONF_REPEAT,
+    CONF_WRITE_PIN,
 )
 from esphome.cpp_helpers import gpio_pin_expression
 

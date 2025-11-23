@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
+
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
 RestartButton = mr24hpc1_ns.class_("RestartButton", button.Button)

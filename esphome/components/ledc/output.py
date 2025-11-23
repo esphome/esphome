@@ -1,12 +1,12 @@
-from esphome import pins, automation
+from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
-    CONF_PHASE_ANGLE,
     CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_PHASE_ANGLE,
     CONF_PIN,
 )
 

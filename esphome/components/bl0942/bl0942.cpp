@@ -51,7 +51,7 @@ void BL0942::loop() {
   if (!avail) {
     return;
   }
-  if (avail < sizeof(buffer)) {
+  if (static_cast<size_t>(avail) < sizeof(buffer)) {
     if (!this->rx_start_) {
       this->rx_start_ = millis();
     } else if (millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
@@ -148,8 +148,8 @@ void BL0942::setup() {
 
   this->write_reg_(BL0942_REG_USR_WRPROT, 0);
 
-  if (this->read_reg_(BL0942_REG_MODE) != mode)
-    this->status_set_warning("BL0942 setup failed!");
+  if (static_cast<uint32_t>(this->read_reg_(BL0942_REG_MODE)) != mode)
+    this->status_set_warning(LOG_STR("BL0942 setup failed!"));
 
   this->flush();
 }
@@ -196,14 +196,17 @@ void BL0942::received_package_(DataPacket *data) {
 }
 
 void BL0942::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
-  ESP_LOGCONFIG(TAG, "BL0942:");
-  ESP_LOGCONFIG(TAG, "  Reset: %s", TRUEFALSE(this->reset_));
-  ESP_LOGCONFIG(TAG, "  Address: %d", this->address_);
-  ESP_LOGCONFIG(TAG, "  Nominal line frequency: %d Hz", this->line_freq_);
-  ESP_LOGCONFIG(TAG, "  Current reference: %f", this->current_reference_);
-  ESP_LOGCONFIG(TAG, "  Energy reference: %f", this->energy_reference_);
-  ESP_LOGCONFIG(TAG, "  Power reference: %f", this->power_reference_);
-  ESP_LOGCONFIG(TAG, "  Voltage reference: %f", this->voltage_reference_);
+  ESP_LOGCONFIG(TAG,
+                "BL0942:\n"
+                "  Reset: %s\n"
+                "  Address: %d\n"
+                "  Nominal line frequency: %d Hz\n"
+                "  Current reference: %f\n"
+                "  Energy reference: %f\n"
+                "  Power reference: %f\n"
+                "  Voltage reference: %f",
+                TRUEFALSE(this->reset_), this->address_, this->line_freq_, this->current_reference_,
+                this->energy_reference_, this->power_reference_, this->voltage_reference_);
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);

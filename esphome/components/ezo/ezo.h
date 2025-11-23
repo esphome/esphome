@@ -38,7 +38,6 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void loop() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   // I2C
   void set_address(uint8_t address);

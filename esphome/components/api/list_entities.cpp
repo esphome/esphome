@@ -1,108 +1,93 @@
 #include "list_entities.h"
 #ifdef USE_API
 #include "api_connection.h"
+#include "api_pb2.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
+// Generate entity handler implementations using macros
 #ifdef USE_BINARY_SENSOR
-bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
-  return this->client_->send_binary_sensor_info(binary_sensor);
-}
+LIST_ENTITIES_HANDLER(binary_sensor, binary_sensor::BinarySensor, ListEntitiesBinarySensorResponse)
 #endif
 #ifdef USE_COVER
-bool ListEntitiesIterator::on_cover(cover::Cover *cover) { return this->client_->send_cover_info(cover); }
+LIST_ENTITIES_HANDLER(cover, cover::Cover, ListEntitiesCoverResponse)
 #endif
 #ifdef USE_FAN
-bool ListEntitiesIterator::on_fan(fan::Fan *fan) { return this->client_->send_fan_info(fan); }
+LIST_ENTITIES_HANDLER(fan, fan::Fan, ListEntitiesFanResponse)
 #endif
 #ifdef USE_LIGHT
-bool ListEntitiesIterator::on_light(light::LightState *light) { return this->client_->send_light_info(light); }
+LIST_ENTITIES_HANDLER(light, light::LightState, ListEntitiesLightResponse)
 #endif
 #ifdef USE_SENSOR
-bool ListEntitiesIterator::on_sensor(sensor::Sensor *sensor) { return this->client_->send_sensor_info(sensor); }
+LIST_ENTITIES_HANDLER(sensor, sensor::Sensor, ListEntitiesSensorResponse)
 #endif
 #ifdef USE_SWITCH
-bool ListEntitiesIterator::on_switch(switch_::Switch *a_switch) { return this->client_->send_switch_info(a_switch); }
+LIST_ENTITIES_HANDLER(switch, switch_::Switch, ListEntitiesSwitchResponse)
 #endif
 #ifdef USE_BUTTON
-bool ListEntitiesIterator::on_button(button::Button *button) { return this->client_->send_button_info(button); }
+LIST_ENTITIES_HANDLER(button, button::Button, ListEntitiesButtonResponse)
 #endif
 #ifdef USE_TEXT_SENSOR
-bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) {
-  return this->client_->send_text_sensor_info(text_sensor);
-}
+LIST_ENTITIES_HANDLER(text_sensor, text_sensor::TextSensor, ListEntitiesTextSensorResponse)
 #endif
 #ifdef USE_LOCK
-bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_info(a_lock); }
+LIST_ENTITIES_HANDLER(lock, lock::Lock, ListEntitiesLockResponse)
 #endif
 #ifdef USE_VALVE
-bool ListEntitiesIterator::on_valve(valve::Valve *valve) { return this->client_->send_valve_info(valve); }
+LIST_ENTITIES_HANDLER(valve, valve::Valve, ListEntitiesValveResponse)
 #endif
-
-bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
-ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
-bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
-  auto resp = service->encode_list_service_response();
-  return this->client_->send_list_entities_services_response(resp);
-}
-
-#ifdef USE_ESP32_CAMERA
-bool ListEntitiesIterator::on_camera(esp32_camera::ESP32Camera *camera) {
-  return this->client_->send_camera_info(camera);
-}
+#ifdef USE_CAMERA
+LIST_ENTITIES_HANDLER(camera, camera::Camera, ListEntitiesCameraResponse)
 #endif
-
 #ifdef USE_CLIMATE
-bool ListEntitiesIterator::on_climate(climate::Climate *climate) { return this->client_->send_climate_info(climate); }
+LIST_ENTITIES_HANDLER(climate, climate::Climate, ListEntitiesClimateResponse)
 #endif
-
 #ifdef USE_NUMBER
-bool ListEntitiesIterator::on_number(number::Number *number) { return this->client_->send_number_info(number); }
+LIST_ENTITIES_HANDLER(number, number::Number, ListEntitiesNumberResponse)
 #endif
-
 #ifdef USE_DATETIME_DATE
-bool ListEntitiesIterator::on_date(datetime::DateEntity *date) { return this->client_->send_date_info(date); }
+LIST_ENTITIES_HANDLER(date, datetime::DateEntity, ListEntitiesDateResponse)
 #endif
-
 #ifdef USE_DATETIME_TIME
-bool ListEntitiesIterator::on_time(datetime::TimeEntity *time) { return this->client_->send_time_info(time); }
+LIST_ENTITIES_HANDLER(time, datetime::TimeEntity, ListEntitiesTimeResponse)
 #endif
-
 #ifdef USE_DATETIME_DATETIME
-bool ListEntitiesIterator::on_datetime(datetime::DateTimeEntity *datetime) {
-  return this->client_->send_datetime_info(datetime);
-}
+LIST_ENTITIES_HANDLER(datetime, datetime::DateTimeEntity, ListEntitiesDateTimeResponse)
 #endif
-
 #ifdef USE_TEXT
-bool ListEntitiesIterator::on_text(text::Text *text) { return this->client_->send_text_info(text); }
+LIST_ENTITIES_HANDLER(text, text::Text, ListEntitiesTextResponse)
 #endif
-
 #ifdef USE_SELECT
-bool ListEntitiesIterator::on_select(select::Select *select) { return this->client_->send_select_info(select); }
+LIST_ENTITIES_HANDLER(select, select::Select, ListEntitiesSelectResponse)
 #endif
-
 #ifdef USE_MEDIA_PLAYER
-bool ListEntitiesIterator::on_media_player(media_player::MediaPlayer *media_player) {
-  return this->client_->send_media_player_info(media_player);
-}
+LIST_ENTITIES_HANDLER(media_player, media_player::MediaPlayer, ListEntitiesMediaPlayerResponse)
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
-  return this->client_->send_alarm_control_panel_info(a_alarm_control_panel);
-}
+LIST_ENTITIES_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPanel,
+                      ListEntitiesAlarmControlPanelResponse)
 #endif
 #ifdef USE_EVENT
-bool ListEntitiesIterator::on_event(event::Event *event) { return this->client_->send_event_info(event); }
+LIST_ENTITIES_HANDLER(event, event::Event, ListEntitiesEventResponse)
 #endif
 #ifdef USE_UPDATE
-bool ListEntitiesIterator::on_update(update::UpdateEntity *update) { return this->client_->send_update_info(update); }
+LIST_ENTITIES_HANDLER(update, update::UpdateEntity, ListEntitiesUpdateResponse)
 #endif
 
-}  // namespace api
-}  // namespace esphome
+// Special cases that don't follow the pattern
+bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
+
+ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
+
+#ifdef USE_API_SERVICES
+bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
+  auto resp = service->encode_list_service_response();
+  return this->client_->send_message(resp, ListEntitiesServicesResponse::MESSAGE_TYPE);
+}
+#endif
+
+}  // namespace esphome::api
 #endif

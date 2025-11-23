@@ -1,0 +1,21 @@
+esphome:
+  name: test_web_server_ota_multi
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+web_server:
+  port: 80
+
+http_request:
+  verify_ssl: false
+
+ota:
+  - platform: esphome
+    password: "test_password"
+  - platform: web_server
+  - platform: http_request

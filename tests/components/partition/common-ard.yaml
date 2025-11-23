@@ -5,7 +5,6 @@ light:
     chipset: ws2812
     num_leds: 256
     rgb_order: GRB
-    rmt_channel: 1
     pin: ${pin}
   - platform: partition
     name: Partition Light

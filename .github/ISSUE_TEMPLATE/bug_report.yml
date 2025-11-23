@@ -1,0 +1,92 @@
+name: Report an issue with ESPHome
+description: Report an issue with ESPHome.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue form is for reporting bugs only!
+
+        If you have a feature request or enhancement, please [request them here instead][fr].
+
+        [fr]: https://github.com/orgs/esphome/discussions
+  - type: textarea
+    validations:
+      required: true
+    id: problem
+    attributes:
+      label: The problem
+      description: >-
+        Describe the issue you are experiencing here to communicate to the
+        maintainers. Tell us what you were trying to do and what happened.
+
+        Provide a clear and concise description of what the problem is.
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Environment
+  - type: input
+    id: version
+    validations:
+      required: true
+    attributes:
+      label: Which version of ESPHome has the issue?
+      description: >
+        ESPHome version like 1.19, 2025.6.0 or 2025.XX.X-dev.
+  - type: dropdown
+    validations:
+      required: true
+    id: installation
+    attributes:
+      label: What type of installation are you using?
+      options:
+        - Home Assistant Add-on
+        - Docker
+        - pip
+  - type: dropdown
+    validations:
+      required: true
+    id: platform
+    attributes:
+      label: What platform are you using?
+      options:
+        - ESP8266
+        - ESP32
+        - RP2040
+        - BK72XX
+        - RTL87XX
+        - LN882X
+        - Host
+        - Other
+  - type: input
+    id: component_name
+    attributes:
+      label: Component causing the issue
+      description: >
+        The name of the component or platform. For example, api/i2c or ultrasonic.
+
+  - type: markdown
+    attributes:
+      value: |
+        # Details
+  - type: textarea
+    id: config
+    attributes:
+      label: YAML Config
+      description: |
+        Include a complete YAML configuration file demonstrating the problem here. Preferably post the *entire* file - don't make assumptions about what is unimportant. However, if it's a large or complicated config then you will need to reduce it to the smallest possible file *that still demonstrates the problem*. If you don't provide enough information to *easily* reproduce the problem, it's unlikely your bug report will get any attention. Logs do not belong here, attach them below.
+      render: yaml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything in the logs that might be useful for us?
+      description: For example, error message, or stack traces. Serial or USB logs are much more useful than WiFi logs.
+      render: txt
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional information
+      description: >
+        If you have any additional information for us, use the field below.
+        Please note, you can attach screenshots or screen recordings here, by
+        dragging and dropping files in the field below.

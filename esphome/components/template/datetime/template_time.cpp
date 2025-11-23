@@ -20,7 +20,7 @@ void TemplateTime::setup() {
   } else {
     datetime::TimeEntityRestoreState temp;
     this->pref_ =
-        global_preferences->make_preference<datetime::TimeEntityRestoreState>(194434060U ^ this->get_object_id_hash());
+        global_preferences->make_preference<datetime::TimeEntityRestoreState>(194434060U ^ this->get_preference_hash());
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;
@@ -40,14 +40,13 @@ void TemplateTime::update() {
   if (!this->f_.has_value())
     return;
 
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  this->hour_ = val->hour;
-  this->minute_ = val->minute;
-  this->second_ = val->second;
-  this->publish_state();
+  auto val = this->f_();
+  if (val.has_value()) {
+    this->hour_ = val->hour;
+    this->minute_ = val->minute;
+    this->second_ = val->second;
+    this->publish_state();
+  }
 }
 
 void TemplateTime::control(const datetime::TimeCall &call) {

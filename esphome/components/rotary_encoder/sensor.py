@@ -1,19 +1,19 @@
+from esphome import automation, pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome import pins, automation
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_RESOLUTION,
-    CONF_MIN_VALUE,
     CONF_MAX_VALUE,
-    UNIT_STEPS,
-    ICON_ROTATE_RIGHT,
-    CONF_VALUE,
+    CONF_MIN_VALUE,
     CONF_PIN_A,
     CONF_PIN_B,
-    CONF_TRIGGER_ID,
+    CONF_RESOLUTION,
     CONF_RESTORE_MODE,
+    CONF_TRIGGER_ID,
+    CONF_VALUE,
+    ICON_ROTATE_RIGHT,
+    UNIT_STEPS,
 )
 
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")

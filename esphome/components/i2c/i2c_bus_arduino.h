@@ -2,9 +2,9 @@
 
 #ifdef USE_ARDUINO
 
-#include "i2c_bus.h"
-#include "esphome/core/component.h"
 #include <Wire.h>
+#include "esphome/core/component.h"
+#include "i2c_bus.h"
 
 namespace esphome {
 namespace i2c {
@@ -15,12 +15,12 @@ enum RecoveryCode {
   RECOVERY_COMPLETED,
 };
 
-class ArduinoI2CBus : public I2CBus, public Component {
+class ArduinoI2CBus : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t cnt) override;
-  ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) override;
+  ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                        size_t read_count) override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   void set_scan(bool scan) { scan_ = scan; }
@@ -29,12 +29,15 @@ class ArduinoI2CBus : public I2CBus, public Component {
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
 
+  int get_port() const override { return this->port_; }
+
  private:
   void recover_();
   void set_pins_and_clock_();
   RecoveryCode recovery_result_;
 
  protected:
+  int8_t port_{-1};
   TwoWire *wire_;
   uint8_t sda_pin_;
   uint8_t scl_pin_;

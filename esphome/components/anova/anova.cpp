@@ -17,7 +17,11 @@ void Anova::setup() {
   this->current_request_ = 0;
 }
 
-void Anova::loop() {}
+void Anova::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE callbacks so loop isn't needed
+  this->disable_loop();
+}
 
 void Anova::control(const ClimateCall &call) {
   if (call.get_mode().has_value()) {

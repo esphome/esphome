@@ -1,0 +1,16 @@
+esp_ldo:
+  - id: ldo_id
+    channel: 3
+    voltage: 2.5V
+    adjustable: true
+  - id: ldo_4
+    channel: 4
+    voltage: 2.0V
+    setup_priority: 900
+
+esphome:
+  on_boot:
+    then:
+      - esp_ldo.voltage.adjust:
+          id: ldo_id
+          voltage: !lambda return 2.5;

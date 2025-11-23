@@ -1,0 +1,51 @@
+{%- from 'ci_memory_impact_macros.j2' import format_symbol -%}
+
+<details>
+<summary>🔍 Symbol-Level Changes (click to expand)</summary>
+
+{% if changed_symbols %}
+
+### Changed Symbols
+
+| Symbol | Target Size | PR Size | Change |
+|--------|-------------|---------|--------|
+{% for symbol, target_size, pr_size, delta in changed_symbols[:max_changed_rows] -%}
+| {{ format_symbol(symbol, symbol_max_length, symbol_truncate_length) }} | {{ target_size|format_bytes }} | {{ pr_size|format_bytes }} | {{ format_change(target_size, pr_size) }} |
+{% endfor -%}
+{% if changed_symbols|length > max_changed_rows -%}
+| ... | ... | ... | *({{ changed_symbols|length - max_changed_rows }} more changed symbols not shown)* |
+{% endif -%}
+
+{% endif %}
+{% if new_symbols %}
+
+### New Symbols (top {{ max_new_rows }})
+
+| Symbol | Size |
+|--------|------|
+{% for symbol, size in new_symbols[:max_new_rows] -%}
+| {{ format_symbol(symbol, symbol_max_length, symbol_truncate_length) }} | {{ size|format_bytes }} |
+{% endfor -%}
+{% if new_symbols|length > max_new_rows -%}
+{% set total_new_size = new_symbols|sum(attribute=1) -%}
+| *{{ new_symbols|length - max_new_rows }} more new symbols...* | *Total: {{ total_new_size|format_bytes }}* |
+{% endif -%}
+
+{% endif %}
+{% if removed_symbols %}
+
+### Removed Symbols (top {{ max_removed_rows }})
+
+| Symbol | Size |
+|--------|------|
+{% for symbol, size in removed_symbols[:max_removed_rows] -%}
+| {{ format_symbol(symbol, symbol_max_length, symbol_truncate_length) }} | {{ size|format_bytes }} |
+{% endfor -%}
+{% if removed_symbols|length > max_removed_rows -%}
+{% set total_removed_size = removed_symbols|sum(attribute=1) -%}
+| *{{ removed_symbols|length - max_removed_rows }} more removed symbols...* | *Total: {{ total_removed_size|format_bytes }}* |
+{% endif -%}
+
+{% endif %}
+
+</details>

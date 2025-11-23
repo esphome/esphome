@@ -11,12 +11,6 @@ esphome:
       - sim800l.send_ussd:
           ussd: test_ussd
 
-uart:
-  - id: uart_sim800l
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 sim800l:
   on_sms_received:
     - lambda: |-

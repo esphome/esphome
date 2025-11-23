@@ -36,14 +36,18 @@ void GraphicalDisplayMenu::setup() {
 }
 
 void GraphicalDisplayMenu::dump_config() {
-  ESP_LOGCONFIG(TAG, "Graphical Display Menu");
-  ESP_LOGCONFIG(TAG, "Has Display: %s", YESNO(this->display_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Popup Mode: %s", YESNO(this->display_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Advanced Drawing Mode: %s", YESNO(this->display_ == nullptr));
-  ESP_LOGCONFIG(TAG, "Has Font: %s", YESNO(this->font_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Mode: %s", this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick");
-  ESP_LOGCONFIG(TAG, "Active: %s", YESNO(this->active_));
-  ESP_LOGCONFIG(TAG, "Menu items:");
+  ESP_LOGCONFIG(TAG,
+                "Graphical Display Menu\n"
+                "Has Display: %s\n"
+                "Popup Mode: %s\n"
+                "Advanced Drawing Mode: %s\n"
+                "Has Font: %s\n"
+                "Mode: %s\n"
+                "Active: %s\n"
+                "Menu items:",
+                YESNO(this->display_ != nullptr), YESNO(this->display_ != nullptr), YESNO(this->display_ == nullptr),
+                YESNO(this->font_ != nullptr),
+                this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick", YESNO(this->active_));
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
     auto *item = this->displayed_item_->get_item(i);
     ESP_LOGCONFIG(TAG, "  %i: %s (Type: %s, Immediate Edit: %s)", i, item->get_text().c_str(),
@@ -112,7 +116,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   int number_items_fit_to_screen = 0;
   const int max_item_index = this->displayed_item_->items_size() - 1;
 
-  for (size_t i = 0; i <= max_item_index; i++) {
+  for (size_t i = 0; max_item_index >= 0 && i <= static_cast<size_t>(max_item_index); i++) {
     const auto *item = this->displayed_item_->get_item(i);
     const bool selected = i == this->cursor_index_;
     const display::Rect item_dimensions = this->measure_item(display, item, bounds, selected);
@@ -170,7 +174,8 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
 
   display->filled_rectangle(bounds->x, bounds->y, max_width, total_height, this->background_color_);
   auto y_offset = bounds->y;
-  for (size_t i = first_item_index; i <= last_item_index; i++) {
+  for (size_t i = static_cast<size_t>(first_item_index);
+       last_item_index >= 0 && i <= static_cast<size_t>(last_item_index); i++) {
     const auto *item = this->displayed_item_->get_item(i);
     const bool selected = i == this->cursor_index_;
     display::Rect dimensions = menu_dimensions[i];

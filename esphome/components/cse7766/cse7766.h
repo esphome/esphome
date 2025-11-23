@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
@@ -28,7 +29,10 @@ class CSE7766Component : public Component, public uart::UARTDevice {
  protected:
   bool check_byte_();
   void parse_data_();
-  uint32_t get_24_bit_uint_(uint8_t start_index);
+  uint32_t get_24_bit_uint_(uint8_t start_index) const {
+    return encode_uint24(this->raw_data_[start_index], this->raw_data_[start_index + 1],
+                         this->raw_data_[start_index + 2]);
+  }
 
   uint8_t raw_data_[24];
   uint8_t raw_data_index_{0};

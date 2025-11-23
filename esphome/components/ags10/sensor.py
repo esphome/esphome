@@ -1,21 +1,21 @@
-import esphome.codegen as cg
 from esphome import automation
-import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
     CONF_ID,
-    ICON_RADIATOR,
-    ICON_RESTART,
+    CONF_MODE,
+    CONF_TVOC,
+    CONF_VALUE,
+    CONF_VERSION,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_RADIATOR,
+    ICON_RESTART,
     STATE_CLASS_MEASUREMENT,
     UNIT_OHM,
     UNIT_PARTS_PER_BILLION,
-    CONF_ADDRESS,
-    CONF_TVOC,
-    CONF_VERSION,
-    CONF_MODE,
-    CONF_VALUE,
 )
 
 CONF_RESISTANCE = "resistance"

@@ -1,0 +1,23 @@
+esphome:
+  name: sched-simul-callbacks-test
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [scheduler_simultaneous_callbacks_component]
+
+host:
+
+logger:
+  level: INFO
+
+scheduler_simultaneous_callbacks_component:
+  id: simultaneous_callbacks
+
+api:
+  services:
+    - service: run_simultaneous_callbacks_test
+      then:
+        - lambda: |-
+            id(simultaneous_callbacks)->run_simultaneous_callbacks_test();

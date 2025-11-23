@@ -54,11 +54,10 @@ void PIDClimate::control(const climate::ClimateCall &call) {
 }
 climate::ClimateTraits PIDClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(true);
-  traits.set_supports_two_point_target_temperature(false);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_ACTION);
 
   if (this->humidity_sensor_ != nullptr)
-    traits.set_supports_current_humidity(true);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
 
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
   if (supports_cool_())
@@ -68,20 +67,22 @@ climate::ClimateTraits PIDClimate::traits() {
   if (supports_heat_() && supports_cool_())
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
 
-  traits.set_supports_action(true);
   return traits;
 }
 void PIDClimate::dump_config() {
   LOG_CLIMATE("", "PID Climate", this);
-  ESP_LOGCONFIG(TAG, "  Control Parameters:");
-  ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f, output samples: %d", controller_.kp_, controller_.ki_,
-                controller_.kd_, controller_.output_samples_);
+  ESP_LOGCONFIG(TAG,
+                "  Control Parameters:\n"
+                "    kp: %.5f, ki: %.5f, kd: %.5f, output samples: %d",
+                controller_.kp_, controller_.ki_, controller_.kd_, controller_.output_samples_);
 
   if (controller_.threshold_low_ == 0 && controller_.threshold_high_ == 0) {
     ESP_LOGCONFIG(TAG, "  Deadband disabled.");
   } else {
-    ESP_LOGCONFIG(TAG, "  Deadband Parameters:");
-    ESP_LOGCONFIG(TAG, "    threshold: %0.5f to %0.5f, multipliers(kp: %.5f, ki: %.5f, kd: %.5f), output samples: %d",
+    ESP_LOGCONFIG(TAG,
+                  "  Deadband Parameters:\n"
+                  "    threshold: %0.5f to %0.5f, multipliers(kp: %.5f, ki: %.5f, kd: %.5f), "
+                  "output samples: %d",
                   controller_.threshold_low_, controller_.threshold_high_, controller_.kp_multiplier_,
                   controller_.ki_multiplier_, controller_.kd_multiplier_, controller_.deadband_output_samples_);
   }

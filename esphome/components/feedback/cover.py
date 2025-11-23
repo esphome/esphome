@@ -1,18 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import binary_sensor, cover
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_CLOSE_ACTION,
     CONF_CLOSE_DURATION,
     CONF_CLOSE_ENDSTOP,
-    CONF_ID,
+    CONF_MAX_DURATION,
     CONF_OPEN_ACTION,
     CONF_OPEN_DURATION,
     CONF_OPEN_ENDSTOP,
     CONF_STOP_ACTION,
-    CONF_MAX_DURATION,
     CONF_UPDATE_INTERVAL,
 )
 
@@ -50,36 +49,43 @@ def validate_infer_endstop(config):
     return config
 
 
-CONFIG_FEEDBACK_COVER_BASE_SCHEMA = cover.COVER_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(FeedbackCover),
-        cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_OPEN_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_OPEN_ENDSTOP): cv.use_id(binary_sensor.BinarySensor),
-        cv.Optional(CONF_OPEN_SENSOR): cv.use_id(binary_sensor.BinarySensor),
-        cv.Optional(CONF_OPEN_OBSTACLE_SENSOR): cv.use_id(binary_sensor.BinarySensor),
-        cv.Required(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_CLOSE_ENDSTOP): cv.use_id(binary_sensor.BinarySensor),
-        cv.Optional(CONF_CLOSE_SENSOR): cv.use_id(binary_sensor.BinarySensor),
-        cv.Optional(CONF_CLOSE_OBSTACLE_SENSOR): cv.use_id(binary_sensor.BinarySensor),
-        cv.Optional(CONF_MAX_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_HAS_BUILT_IN_ENDSTOP, default=False): cv.boolean,
-        cv.Optional(CONF_ASSUMED_STATE): cv.boolean,
-        cv.Optional(
-            CONF_UPDATE_INTERVAL, "1000ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_INFER_ENDSTOP_FROM_MOVEMENT, False): cv.boolean,
-        cv.Optional(
-            CONF_DIRECTION_CHANGE_WAIT_TIME
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_ACCELERATION_WAIT_TIME, "0s"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
-    },
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_FEEDBACK_COVER_BASE_SCHEMA = (
+    cover.cover_schema(FeedbackCover)
+    .extend(
+        {
+            cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_OPEN_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_OPEN_ENDSTOP): cv.use_id(binary_sensor.BinarySensor),
+            cv.Optional(CONF_OPEN_SENSOR): cv.use_id(binary_sensor.BinarySensor),
+            cv.Optional(CONF_OPEN_OBSTACLE_SENSOR): cv.use_id(
+                binary_sensor.BinarySensor
+            ),
+            cv.Required(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_CLOSE_ENDSTOP): cv.use_id(binary_sensor.BinarySensor),
+            cv.Optional(CONF_CLOSE_SENSOR): cv.use_id(binary_sensor.BinarySensor),
+            cv.Optional(CONF_CLOSE_OBSTACLE_SENSOR): cv.use_id(
+                binary_sensor.BinarySensor
+            ),
+            cv.Optional(CONF_MAX_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_HAS_BUILT_IN_ENDSTOP, default=False): cv.boolean,
+            cv.Optional(CONF_ASSUMED_STATE): cv.boolean,
+            cv.Optional(
+                CONF_UPDATE_INTERVAL, "1000ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_INFER_ENDSTOP_FROM_MOVEMENT, False): cv.boolean,
+            cv.Optional(
+                CONF_DIRECTION_CHANGE_WAIT_TIME
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_ACCELERATION_WAIT_TIME, "0s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
+        },
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -90,9 +96,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await cover.new_cover(config)
     await cg.register_component(var, config)
-    await cover.register_cover(var, config)
 
     # STOP
     await automation.build_automation(

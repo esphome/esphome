@@ -1,3 +1,4 @@
+import logging
 import math
 
 from esphome import automation
@@ -9,6 +10,7 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_CALIBRATION,
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
@@ -26,10 +28,13 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_OPTIMISTIC,
+    CONF_PERIOD,
     CONF_QUANTILE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
+    CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
@@ -38,10 +43,13 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CONDUCTIVITY,
@@ -53,6 +61,7 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
     DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
@@ -67,6 +76,7 @@ from esphome.const import (
     DEVICE_CLASS_OZONE,
     DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM4,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_POWER,
@@ -74,12 +84,14 @@ from esphome.const import (
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SOUND_PRESSURE,
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE_DELTA,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
@@ -89,20 +101,24 @@ from esphome.const import (
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CONDUCTIVITY,
@@ -114,6 +130,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
     DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
@@ -130,17 +147,20 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
+    DEVICE_CLASS_PM4,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SOUND_PRESSURE,
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE_DELTA,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
@@ -150,9 +170,11 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 ]
 
+_LOGGER = logging.getLogger(__name__)
 sensor_ns = cg.esphome_ns.namespace("sensor")
 StateClasses = sensor_ns.enum("StateClass")
 STATE_CLASSES = {
@@ -231,21 +253,31 @@ MaxFilter = sensor_ns.class_("MaxFilter", Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_(
     "SlidingWindowMovingAverageFilter", Filter
 )
+StreamingMinFilter = sensor_ns.class_("StreamingMinFilter", Filter)
+StreamingMaxFilter = sensor_ns.class_("StreamingMaxFilter", Filter)
+StreamingMovingAverageFilter = sensor_ns.class_("StreamingMovingAverageFilter", Filter)
 ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
 ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Component)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
-FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", Filter)
+ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
+FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", ValueListFilter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
+ThrottleWithPriorityFilter = sensor_ns.class_(
+    "ThrottleWithPriorityFilter", ValueListFilter
+)
 TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
+ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
+ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
@@ -257,7 +289,7 @@ validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = (
+_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -302,22 +334,23 @@ SENSOR_SCHEMA = (
     )
 )
 
-_UNDEF = object()
+_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
 
 
 def sensor_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass = cv.UNDEFINED,
     *,
-    unit_of_measurement: str = _UNDEF,
-    icon: str = _UNDEF,
-    accuracy_decimals: int = _UNDEF,
-    device_class: str = _UNDEF,
-    state_class: str = _UNDEF,
-    entity_category: str = _UNDEF,
+    unit_of_measurement: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+    accuracy_decimals: int = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    state_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
-    if class_ is not _UNDEF:
+    if class_ is not cv.UNDEFINED:
         # Not optional.
         schema[cv.GenerateID()] = cv.declare_id(class_)
 
@@ -328,11 +361,12 @@ def sensor_schema(
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_STATE_CLASS, state_class, validate_state_class),
         (CONF_ENTITY_CATEGORY, entity_category, sensor_entity_category),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
-        if default is not _UNDEF:
+        if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return SENSOR_SCHEMA.extend(schema)
+    return _SENSOR_SCHEMA.extend(schema)
 
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
@@ -422,14 +456,21 @@ async def skip_initial_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
+@FILTER_REGISTRY.register("min", Filter, MIN_SCHEMA)
 async def min_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_WINDOW_SIZE],
-        config[CONF_SEND_EVERY],
-        config[CONF_SEND_FIRST_AT],
-    )
+    window_size: int = config[CONF_WINDOW_SIZE]
+    send_every: int = config[CONF_SEND_EVERY]
+    send_first_at: int = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    # Saves 99.98% memory for large windows (e.g., 20KB → 4 bytes for window_size=5000)
+    if window_size == send_every:
+        # Use streaming filter - O(1) memory instead of O(n)
+        rhs = StreamingMinFilter.new(window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs, StreamingMinFilter)
+    # Use sliding window filter - maintains ring buffer
+    rhs = MinFilter.new(window_size, send_every, send_first_at)
+    return cg.Pvariable(filter_id, rhs, MinFilter)
 
 
 MAX_SCHEMA = cv.All(
@@ -444,14 +485,18 @@ MAX_SCHEMA = cv.All(
 )
 
 
-@FILTER_REGISTRY.register("max", MaxFilter, MAX_SCHEMA)
+@FILTER_REGISTRY.register("max", Filter, MAX_SCHEMA)
 async def max_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_WINDOW_SIZE],
-        config[CONF_SEND_EVERY],
-        config[CONF_SEND_FIRST_AT],
-    )
+    window_size: int = config[CONF_WINDOW_SIZE]
+    send_every: int = config[CONF_SEND_EVERY]
+    send_first_at: int = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    if window_size == send_every:
+        rhs = StreamingMaxFilter.new(window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs, StreamingMaxFilter)
+    rhs = MaxFilter.new(window_size, send_every, send_first_at)
+    return cg.Pvariable(filter_id, rhs, MaxFilter)
 
 
 SLIDING_AVERAGE_SCHEMA = cv.All(
@@ -468,16 +513,20 @@ SLIDING_AVERAGE_SCHEMA = cv.All(
 
 @FILTER_REGISTRY.register(
     "sliding_window_moving_average",
-    SlidingWindowMovingAverageFilter,
+    Filter,
     SLIDING_AVERAGE_SCHEMA,
 )
 async def sliding_window_moving_average_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_WINDOW_SIZE],
-        config[CONF_SEND_EVERY],
-        config[CONF_SEND_FIRST_AT],
-    )
+    window_size: int = config[CONF_WINDOW_SIZE]
+    send_every: int = config[CONF_SEND_EVERY]
+    send_first_at: int = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    if window_size == send_every:
+        rhs = StreamingMovingAverageFilter.new(window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs, StreamingMovingAverageFilter)
+    rhs = SlidingWindowMovingAverageFilter.new(window_size, send_every, send_first_at)
+    return cg.Pvariable(filter_id, rhs, SlidingWindowMovingAverageFilter)
 
 
 EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
@@ -520,7 +569,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(float, "x")], return_type=cg.optional.template(float)
     )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 DELTA_SCHEMA = cv.Schema(
@@ -570,10 +619,52 @@ async def throttle_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
+THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default="nan"): cv.Any(
+            cv.templatable(cv.float_), [cv.templatable(cv.float_)]
+        ),
+    },
+    key=CONF_TIMEOUT,
+)
+
+
 @FILTER_REGISTRY.register(
-    "heartbeat", HeartbeatFilter, cv.positive_time_period_milliseconds
+    "throttle_with_priority",
+    ThrottleWithPriorityFilter,
+    THROTTLE_WITH_PRIORITY_SCHEMA,
+)
+async def throttle_with_priority_filter_to_code(config, filter_id):
+    if not isinstance(config[CONF_VALUE], list):
+        config[CONF_VALUE] = [config[CONF_VALUE]]
+    template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
+
+
+HEARTBEAT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PERIOD): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+    }
+)
+
+
+@FILTER_REGISTRY.register(
+    "heartbeat",
+    HeartbeatFilter,
+    cv.Any(
+        cv.positive_time_period_milliseconds,
+        HEARTBEAT_SCHEMA,
+    ),
 )
 async def heartbeat_filter_to_code(config, filter_id):
+    if isinstance(config, dict):
+        var = cg.new_Pvariable(filter_id, config[CONF_PERIOD])
+        await cg.register_component(var, {})
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+        return var
+
     var = cg.new_Pvariable(filter_id, config)
     await cg.register_component(var, {})
     return var
@@ -582,7 +673,9 @@ async def heartbeat_filter_to_code(config, filter_id):
 TIMEOUT_SCHEMA = cv.maybe_simple_value(
     {
         cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_VALUE, default="nan"): cv.templatable(cv.float_),
+        cv.Optional(CONF_VALUE, default="nan"): cv.Any(
+            "last", cv.templatable(cv.float_)
+        ),
     },
     key=CONF_TIMEOUT,
 )
@@ -590,8 +683,11 @@ TIMEOUT_SCHEMA = cv.maybe_simple_value(
 
 @FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
 async def timeout_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config[CONF_VALUE], [], float)
-    var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
+    if config[CONF_VALUE] == "last":
+        var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
+    else:
+        template_ = await cg.templatable(config[CONF_VALUE], [], float)
+        var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
     await cg.register_component(var, {})
     return var
 
@@ -768,7 +864,7 @@ async def build_filters(config):
 
 
 async def setup_sensor_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "sensor")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
@@ -778,7 +874,9 @@ async def setup_sensor_core_(var, config):
         cg.add(var.set_unit_of_measurement(unit_of_measurement))
     if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
         cg.add(var.set_accuracy_decimals(accuracy_decimals))
-    cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
+    # Only set force_update if True (default is False)
+    if config[CONF_FORCE_UPDATE]:
+        cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
@@ -804,7 +902,9 @@ async def setup_sensor_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-        if (expire_after := config.get(CONF_EXPIRE_AFTER, _UNDEF)) is not _UNDEF:
+        if (
+            expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED)
+        ) is not cv.UNDEFINED:
             if expire_after is None:
                 cg.add(mqtt_.disable_expire_after())
             else:
@@ -818,6 +918,7 @@ async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_sensor(var))
+    CORE.register_platform_component("sensor", var)
     await setup_sensor_core_(var, config)
 
 
@@ -850,6 +951,138 @@ async def sensor_in_range_to_code(config, condition_id, template_arg, args):
         cg.add(var.set_max(below))
 
     return var
+
+
+def validate_ntc_calibration_parameter(value):
+    if isinstance(value, dict):
+        return cv.Schema(
+            {
+                cv.Required(CONF_TEMPERATURE): cv.temperature,
+                cv.Required(CONF_VALUE): cv.resistance,
+            }
+        )(value)
+
+    value = cv.string(value)
+    parts = value.split("->")
+    if len(parts) != 2:
+        raise cv.Invalid("Calibration parameter must be of form 3000 -> 23°C")
+    resistance = cv.resistance(parts[0].strip())
+    temperature = cv.temperature(parts[1].strip())
+    return validate_ntc_calibration_parameter(
+        {
+            CONF_TEMPERATURE: temperature,
+            CONF_VALUE: resistance,
+        }
+    )
+
+
+CONF_A = "a"
+CONF_B = "b"
+CONF_C = "c"
+ZERO_POINT = 273.15
+
+
+def ntc_calc_steinhart_hart(value):
+    r1 = value[0][CONF_VALUE]
+    r2 = value[1][CONF_VALUE]
+    r3 = value[2][CONF_VALUE]
+    t1 = value[0][CONF_TEMPERATURE] + ZERO_POINT
+    t2 = value[1][CONF_TEMPERATURE] + ZERO_POINT
+    t3 = value[2][CONF_TEMPERATURE] + ZERO_POINT
+
+    l1 = math.log(r1)
+    l2 = math.log(r2)
+    l3 = math.log(r3)
+
+    y1 = 1 / t1
+    y2 = 1 / t2
+    y3 = 1 / t3
+
+    g2 = (y2 - y1) / (l2 - l1)
+    g3 = (y3 - y1) / (l3 - l1)
+
+    c = (g3 - g2) / (l3 - l2) * 1 / (l1 + l2 + l3)
+    b = g2 - c * (l1 * l1 + l1 * l2 + l2 * l2)
+    a = y1 - (b + l1 * l1 * c) * l1
+    return a, b, c
+
+
+def ntc_get_abc(value):
+    a = value[CONF_A]
+    b = value[CONF_B]
+    c = value[CONF_C]
+    return a, b, c
+
+
+def ntc_process_calibration(value):
+    if isinstance(value, dict):
+        value = cv.Schema(
+            {
+                cv.Required(CONF_A): cv.float_,
+                cv.Required(CONF_B): cv.float_,
+                cv.Required(CONF_C): cv.float_,
+            }
+        )(value)
+        a, b, c = ntc_get_abc(value)
+    elif isinstance(value, list):
+        if len(value) != 3:
+            raise cv.Invalid(
+                "Steinhart–Hart Calibration must consist of exactly three values"
+            )
+        value = cv.Schema([validate_ntc_calibration_parameter])(value)
+        a, b, c = ntc_calc_steinhart_hart(value)
+    else:
+        raise cv.Invalid(
+            f"Calibration parameter accepts either a list for steinhart-hart calibration, or mapping for b-constant calibration, not {type(value)}"
+        )
+    _LOGGER.info("Coefficient: a:%s, b:%s, c:%s", a, b, c)
+    return {
+        CONF_A: a,
+        CONF_B: b,
+        CONF_C: c,
+    }
+
+
+@FILTER_REGISTRY.register(
+    "to_ntc_resistance",
+    ToNTCResistanceFilter,
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_CALIBRATION): ntc_process_calibration,
+            }
+        ),
+    ),
+)
+async def calibrate_ntc_resistance_filter_to_code(config, filter_id):
+    calib = config[CONF_CALIBRATION]
+    return cg.new_Pvariable(
+        filter_id,
+        calib[CONF_A],
+        calib[CONF_B],
+        calib[CONF_C],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "to_ntc_temperature",
+    ToNTCTemperatureFilter,
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_CALIBRATION): ntc_process_calibration,
+            }
+        ),
+    ),
+)
+async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
+    calib = config[CONF_CALIBRATION]
+    return cg.new_Pvariable(
+        filter_id,
+        calib[CONF_A],
+        calib[CONF_B],
+        calib[CONF_C],
+    )
 
 
 def _mean(xs):
@@ -953,7 +1186,6 @@ def _lstsq(a, b):
     return _mat_dot(_mat_dot(x, a_t), b)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_SENSOR")
     cg.add_global(sensor_ns.using)

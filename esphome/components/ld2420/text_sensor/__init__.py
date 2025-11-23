@@ -1,13 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_CHIP,
-)
+from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC, ICON_CHIP
 
-from .. import ld2420_ns, LD2420Component, CONF_LD2420_ID
+from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
 LD2420TextSensor = ld2420_ns.class_(
     "LD2420TextSensor", text_sensor.TextSensor, cg.Component

@@ -46,10 +46,11 @@ class CAP1188Component : public Component, public i2c::I2CDevice {
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void loop() override;
 
  protected:
+  void finish_setup_();
+
   std::vector<CAP1188Channel *> channels_{};
   uint8_t touch_threshold_{0x20};
   uint8_t allow_multiple_touches_{0x80};

@@ -1,7 +1,10 @@
+from logging import getLogger
+
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+from esphome.components.const import CONF_ON_STATE_CHANGE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -56,9 +59,9 @@ from esphome.const import (
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -98,6 +101,7 @@ IS_PLATFORM_COMPONENT = True
 
 CONF_TIME_OFF = "time_off"
 CONF_TIME_ON = "time_on"
+CONF_TRIGGER_ON_INITIAL_STATE = "trigger_on_initial_state"
 
 DEFAULT_DELAY = "1s"
 DEFAULT_TIME_OFF = "100ms"
@@ -127,8 +131,16 @@ MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 StateTrigger = binary_sensor_ns.class_(
     "StateTrigger", automation.Trigger.template(bool)
 )
+StateChangeTrigger = binary_sensor_ns.class_(
+    "StateChangeTrigger",
+    automation.Trigger.template(cg.optional.template(bool), cg.optional.template(bool)),
+)
+
 BinarySensorPublishAction = binary_sensor_ns.class_(
     "BinarySensorPublishAction", automation.Action
+)
+BinarySensorInvalidateAction = binary_sensor_ns.class_(
+    "BinarySensorInvalidateAction", automation.Action
 )
 
 # Condition
@@ -136,13 +148,17 @@ BinarySensorCondition = binary_sensor_ns.class_("BinarySensorCondition", Conditi
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
+TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter, cg.Component)
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter, cg.Component)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Component)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter, cg.Component)
+
+_LOGGER = getLogger(__name__)
 
 FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
@@ -155,6 +171,19 @@ def register_filter(name, filter_type, schema):
 @register_filter("invert", InvertFilter, {})
 async def invert_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id)
+
+
+@register_filter(
+    "timeout",
+    TimeoutFilter,
+    cv.templatable(cv.positive_time_period_milliseconds),
+)
+async def timeout_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id)
+    await cg.register_component(var, {})
+    template_ = await cg.templatable(config, [], cg.uint32)
+    cg.add(var.set_timeout_value(template_))
+    return var
 
 
 @register_filter(
@@ -236,18 +265,31 @@ async def delayed_off_filter_to_code(config, filter_id):
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
-    timings = []
     if len(config) > 0:
-        for conf in config:
-            timings.append((conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON]))
-    else:
-        timings.append(
-            (
-                cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds,
-                cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
-                cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
+        timings = [
+            cg.StructInitializer(
+                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
+                ("delay", conf[CONF_DELAY]),
+                ("time_off", conf[CONF_TIME_OFF]),
+                ("time_on", conf[CONF_TIME_ON]),
             )
-        )
+            for conf in config
+        ]
+    else:
+        timings = [
+            cg.StructInitializer(
+                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
+                ("delay", cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds),
+                (
+                    "time_off",
+                    cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
+                ),
+                (
+                    "time_on",
+                    cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
+                ),
+            )
+        ]
     var = cg.new_Pvariable(filter_id, timings)
     await cg.register_component(var, {})
     return var
@@ -258,7 +300,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(bool, "x")], return_type=cg.optional.template(bool)
     )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 @register_filter(
@@ -386,7 +428,15 @@ def validate_click_timing(value):
     return value
 
 
-BINARY_SENSOR_SCHEMA = (
+def validate_publish_initial_state(value):
+    value = cv.boolean(value)
+    _LOGGER.warning(
+        "The 'publish_initial_state' option has been replaced by 'trigger_on_initial_state' and will be removed in a future release"
+    )
+    return value
+
+
+_BINARY_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -395,7 +445,12 @@ BINARY_SENSOR_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTBinarySensorComponent
             ),
-            cv.Optional(CONF_PUBLISH_INITIAL_STATE): cv.boolean,
+            cv.Exclusive(
+                CONF_PUBLISH_INITIAL_STATE, CONF_TRIGGER_ON_INITIAL_STATE
+            ): validate_publish_initial_state,
+            cv.Exclusive(
+                CONF_TRIGGER_ON_INITIAL_STATE, CONF_TRIGGER_ON_INITIAL_STATE
+            ): cv.boolean,
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation(
@@ -454,23 +509,30 @@ BINARY_SENSOR_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
                 }
             ),
+            cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateChangeTrigger),
+                }
+            ),
         }
     )
 )
 
-_UNDEF = object()
+
+_BINARY_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("binary_sensor"))
 
 
 def binary_sensor_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass = cv.UNDEFINED,
     *,
-    icon: str = _UNDEF,
-    entity_category: str = _UNDEF,
-    device_class: str = _UNDEF,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
-    if class_ is not _UNDEF:
+    if class_ is not cv.UNDEFINED:
         # Not cv.optional
         schema[cv.GenerateID()] = cv.declare_id(class_)
 
@@ -478,20 +540,23 @@ def binary_sensor_schema(
         (CONF_ICON, icon, cv.icon),
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
-        if default is not _UNDEF:
+        if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return BINARY_SENSOR_SCHEMA.extend(schema)
+    return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
 async def setup_binary_sensor_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "binary_sensor")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
-    if publish_initial_state := config.get(CONF_PUBLISH_INITIAL_STATE):
-        cg.add(var.set_publish_initial_state(publish_initial_state))
+    trigger = config.get(CONF_TRIGGER_ON_INITIAL_STATE, False) or config.get(
+        CONF_PUBLISH_INITIAL_STATE, False
+    )
+    cg.add(var.set_trigger_on_initial_state(trigger))
     if inverted := config.get(CONF_INVERTED):
         cg.add(var.set_inverted(inverted))
     if filters_config := config.get(CONF_FILTERS):
@@ -519,16 +584,15 @@ async def setup_binary_sensor_core_(var, config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_MULTI_CLICK, []):
-        timings = []
-        for tim in conf[CONF_TIMING]:
-            timings.append(
-                cg.StructInitializer(
-                    MultiClickTriggerEvent,
-                    ("state", tim[CONF_STATE]),
-                    ("min_length", tim[CONF_MIN_LENGTH]),
-                    ("max_length", tim.get(CONF_MAX_LENGTH, 4294967294)),
-                )
+        timings = [
+            cg.StructInitializer(
+                MultiClickTriggerEvent,
+                ("state", tim[CONF_STATE]),
+                ("min_length", tim[CONF_MIN_LENGTH]),
+                ("max_length", tim.get(CONF_MAX_LENGTH, 4294967294)),
             )
+            for tim in conf[CONF_TIMING]
+        ]
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
@@ -538,6 +602,17 @@ async def setup_binary_sensor_core_(var, config):
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(bool, "x")], conf)
+
+    for conf in config.get(CONF_ON_STATE_CHANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.optional.template(bool), "x_previous"),
+                (cg.optional.template(bool), "x"),
+            ],
+            conf,
+        )
 
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -551,6 +626,7 @@ async def register_binary_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_binary_sensor(var))
+    CORE.register_platform_component("binary_sensor", var)
     await setup_binary_sensor_core_(var, config)
 
 
@@ -583,7 +659,21 @@ async def binary_sensor_is_off_to_code(config, condition_id, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_BINARY_SENSOR")
     cg.add_global(binary_sensor_ns.using)
+
+
+@automation.register_action(
+    "binary_sensor.invalidate_state",
+    BinarySensorInvalidateAction,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(BinarySensor),
+        },
+        key=CONF_ID,
+    ),
+)
+async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
