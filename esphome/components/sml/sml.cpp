@@ -131,7 +131,8 @@ bool check_sml_data(const bytes &buffer) {
   return false;
 }
 
-uint8_t get_code(uint8_t byte) {
+    uint8_t
+    get_code(uint8_t byte) {
   switch (byte) {
     case 0x1b:
       return 1;
