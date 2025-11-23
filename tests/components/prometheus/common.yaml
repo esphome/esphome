@@ -117,7 +117,10 @@ output:
   - platform: template
     id: test_output
     type: float
-
+    write_action:
+      - lambda: |-
+          // no-op for CI/build tests
+          (void)state;
 select:
   - platform: template
     id: template_select1
