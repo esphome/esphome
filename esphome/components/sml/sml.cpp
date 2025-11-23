@@ -28,7 +28,7 @@ void Sml::loop() {
   int i = 0;
   while (available()) {
     const char c = read();
-    i++
+    i++;
 
     if (this->record_)
       this->sml_data_.emplace_back(c);
