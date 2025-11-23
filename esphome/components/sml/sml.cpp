@@ -108,8 +108,8 @@ void Sml::dump_config() { ESP_LOGCONFIG(TAG, "SML:"); }
 void Sml::register_sml_listener(SmlListener *listener) { sml_listeners_.emplace_back(listener); }
 
 bool check_sml_data(const bytes &buffer) {
-  if (buffer.size() < 2) {
-    ESP_LOGW(TAG, "Buffer size error in received SML data.");
+  if (buffer.size() < 12) {
+    ESP_LOGW(TAG, "Buffer size error in received SML data (%d bytes received).", buffer.size());
     return false;
   }
 
@@ -117,17 +117,17 @@ bool check_sml_data(const bytes &buffer) {
   uint16_t crc_calculated = crc16(buffer.data() + 8, buffer.size() - 10, 0x6e23, 0x8408, true, true);
   crc_calculated = (crc_calculated >> 8) | (crc_calculated << 8);
   if (crc_received == crc_calculated) {
-    ESP_LOGV(TAG, "Checksum verification successful with CRC16/X25.");
+    ESP_LOGV(TAG, "Checksum verification successful with CRC16/X25 (%d bytes).", buffer.size());
     return true;
   }
 
   crc_calculated = crc16(buffer.data() + 8, buffer.size() - 10, 0xed50, 0x8408);
   if (crc_received == crc_calculated) {
-    ESP_LOGV(TAG, "Checksum verification successful with CRC16/KERMIT.");
+    ESP_LOGV(TAG, "Checksum verification successful with CRC16/KERMIT (%d bytes).", buffer.size());
     return true;
   }
 
-  ESP_LOGW(TAG, "Checksum error in received SML data.");
+  ESP_LOGW(TAG, "Checksum error in received SML data (0x%02X, %d).", crc_received, buffer.size());
   return false;
 }
 
