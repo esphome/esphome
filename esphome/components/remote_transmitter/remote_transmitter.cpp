@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266)
+#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
 
 namespace esphome {
 namespace remote_transmitter {
@@ -88,7 +88,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->target_time_ = 0;
   this->transmit_trigger_->trigger();
   for (uint32_t i = 0; i < send_times; i++) {
+    #if !defined(USE_RP2040)
     InterruptLock lock;
+    #endif
     for (int32_t item : this->temp_.get_data()) {
       if (item > 0) {
         const auto length = uint32_t(item);
