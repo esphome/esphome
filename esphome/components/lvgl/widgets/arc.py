@@ -43,6 +43,8 @@ ARC_SCHEMA = cv.Schema(
 ARC_MODIFY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_MIN_VALUE): lv_int,
+        cv.Optional(CONF_MAX_VALUE): lv_int,
     }
 )
 
@@ -59,9 +61,16 @@ class ArcType(NumberType):
 
     async def to_code(self, w: Widget, config):
         if CONF_MIN_VALUE in config:
-            max_value = await lv_int.process(config[CONF_MAX_VALUE])
+            max_value = lv.arc_get_max_value(w.obj)
             min_value = await lv_int.process(config[CONF_MIN_VALUE])
             lv.arc_set_range(w.obj, min_value, max_value)
+
+        if CONF_MAX_VALUE in config:
+            max_value = await lv_int.process(config[CONF_MAX_VALUE])
+            min_value = lv.arc_get_min_value(w.obj)
+            lv.arc_set_range(w.obj, min_value, max_value)
+
+        if CONF_START_ANGLE in config:
             start = await lv_angle_degrees.process(config[CONF_START_ANGLE])
             end = await lv_angle_degrees.process(config[CONF_END_ANGLE])
             rotation = await lv_angle_degrees.process(config[CONF_ROTATION])
