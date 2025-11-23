@@ -34,8 +34,8 @@ void ModbusController::set_online(bool online, int function_code, int register_a
 
 // Queue incoming response
 void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
-  if (controller)
-    this->controller->set_online(true, (int) this->function_code, this->register_address);
+  if (this->controller_)
+    this->controller_->set_online(true, (int) this->function_code, this->register_address);
 
   if (this->on_data_func) {
     this->on_data_func(this->register_type, this->register_address, data);
@@ -52,33 +52,33 @@ void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
       sensor->parse_and_publish(data);
     }
   }
-  if (controller)
-    this->controller->unqueue_command(this);
+  if (this->controller_)
+    this->controller_->unqueue_command(this);
 }
 
 // Modbus error message is a legit response from the device. Consider the device online.
 void ModbusCommandItem::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
-  if (controller) {
-    this->controller->set_online(true, function_code, this->register_address);
-    this->controller->unqueue_command(this);
+  if (this->controller_) {
+    this->controller_->set_online(true, function_code, this->register_address);
+    this->controller_->unqueue_command(this);
   }
 }
 
 // Command not being sent doesn't tell us whether device is online or offline
 // So we just unqueue it.
 void ModbusCommandItem::on_modbus_not_sent() {
-  if (controller)
-    this->controller->unqueue_command(this);
+  if (this->controller_)
+    this->controller_->unqueue_command(this);
 }
 
 void ModbusCommandItem::on_modbus_no_response() {
-  if (controller) {
-    this->controller->increment_non_response_count();
-    if (this->controller->can_send()) {
+  if (this->controller_) {
+    this->controller_->increment_non_response_count();
+    if (this->controller_->can_send()) {
       this->send();
     } else {
-      this->controller->set_online(false, (int) this->function_code, this->register_address);
-      this->controller->unqueue_command(this);
+      this->controller_->set_online(false, (int) this->function_code, this->register_address);
+      this->controller_->unqueue_command(this);
     }
   }
 }
@@ -243,7 +243,7 @@ size_t ModbusController::create_register_ranges_() {
   }
 
   for (auto &r : register_ranges) {
-    this->create_polling_command(std::move(r));
+    this->create_polling_command_(std::move(r));
   }
 
   for (auto &sensor : this->sensorset_) {

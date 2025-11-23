@@ -102,13 +102,13 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   ModbusCommandItem(ModbusController &controller, modbus::ModbusClient *parent, uint8_t address,
                     RegisterRange &&range = {})
       : modbus::ModbusClientDevice(parent, address),
-        controller(&controller),
         sensors(std::move(range.sensors)),
         register_address(range.start_address),
         register_count(range.register_count),
-        register_type(range.register_type),
+        skip_updates(range.skip_updates),
         function_code(modbus_register_read_function(range.register_type)),
-        skip_updates(range.skip_updates){};
+        register_type(range.register_type),
+        controller_(&controller){};
   SensorSet sensors;  // all sensors of this range
   /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
@@ -207,7 +207,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
           &&handler = nullptr);
 
  protected:
-  ModbusController *controller{nullptr};
+  ModbusController *controller_{nullptr};
 };
 
 /** Modbus controller class.
@@ -258,7 +258,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
   /// create a command from a range and add it to the polling queue
-  void create_polling_command(RegisterRange &&range = {}) {
+  void create_polling_command_(RegisterRange &&range = {}) {
     ModbusCommandItem cmd(*this, this->parent_, this->address_, std::move(range));
     this->polling_command_items_.push_back(std::move(cmd));
   };
