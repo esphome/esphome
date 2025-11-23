@@ -84,6 +84,25 @@ cover:
       }
       return COVER_CLOSED;
 
+light:
+  - platform: binary
+    name: "Binary Light"
+    output: test_output
+  - platform: monochromatic
+    name: "Brightness Light"
+    output: test_output
+  - platform: rgb
+    name: "RGB Light"
+    red: test_output_r
+    green: test_output_g
+    blue: test_output_b
+  - platform: rgbw
+    name: "RGBW Light"
+    red: test_output_r
+    green: test_output_g
+    blue: test_output_b
+    white: test_output_w
+
 lock:
   - platform: template
     id: template_lock1
@@ -93,6 +112,11 @@ lock:
       }
       return LOCK_STATE_UNLOCKED;
     optimistic: true
+
+output:
+  - platform: template
+    id: test_output
+    type: float
 
 select:
   - platform: template
