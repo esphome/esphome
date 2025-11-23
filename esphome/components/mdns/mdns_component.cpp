@@ -21,8 +21,7 @@
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
@@ -135,8 +134,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 
 #ifdef USE_DASHBOARD_IMPORT
     MDNS_STATIC_CONST_CHAR(TXT_PACKAGE_IMPORT_URL, "package_import_url");
-    txt_records.push_back(
-        {MDNS_STR(TXT_PACKAGE_IMPORT_URL), MDNS_STR(dashboard_import::get_package_import_url().c_str())});
+    txt_records.push_back({MDNS_STR(TXT_PACKAGE_IMPORT_URL), MDNS_STR(dashboard_import::get_package_import_url())});
 #endif
   }
 #endif  // USE_API
@@ -190,6 +188,5 @@ void MDNSComponent::dump_config() {
 #endif
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 #endif
