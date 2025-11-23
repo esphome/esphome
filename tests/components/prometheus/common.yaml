@@ -93,15 +93,15 @@ light:
     output: test_output
   - platform: rgb
     name: "RGB Light"
-    red: test_output_r
-    green: test_output_g
-    blue: test_output_b
+    red: test_output
+    green: test_output
+    blue: test_output
   - platform: rgbw
     name: "RGBW Light"
-    red: test_output_r
-    green: test_output_g
-    blue: test_output_b
-    white: test_output_w
+    red: test_output
+    green: test_output
+    blue: test_output
+    white: test_output
 
 lock:
   - platform: template
