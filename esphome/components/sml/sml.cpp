@@ -19,7 +19,7 @@ char Sml::check_start_end_bytes_(uint8_t byte) {
 
   if (this->incoming_mask_ == START_MASK)
     return START_BYTES_DETECTED;
-  if ((this->incoming_mask_ >> 6) == END_MASK)
+  if ((this->incoming_mask_ & 0x3FF) == END_MASK)
     return END_BYTES_DETECTED;
   return 0;
 }
@@ -33,6 +33,7 @@ void Sml::loop() {
 
     switch (this->check_start_end_bytes_(c)) {
       case START_BYTES_DETECTED: {
+        ESP_LOGW(TAG, "Start detected.");
         this->record_ = true;
         this->sml_data_.clear();
         // add start sequence (for callbacks)
