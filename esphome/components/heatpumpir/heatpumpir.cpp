@@ -181,6 +181,9 @@ void HeatpumpIRClimate::transmit_state() {
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_HEAT;
       break;
+    // treat HEAT_COOL as hardware AUTO / auto changeover
+    // see https://github.com/esphome/esphome/issues/11161
+    case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_AUTO:
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_AUTO;
