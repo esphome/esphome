@@ -13,14 +13,16 @@ static const char *const TAG = "captive_portal";
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
   stream->addHeader(ESPHOME_F("cache-control"), ESPHOME_F("public, max-age=0, must-revalidate"));
+  char mac_s[18];
+  const char *mac_str = get_mac_address_pretty_into_buffer(mac_s);
 #ifdef USE_ESP8266
   stream->print(ESPHOME_F("{\"mac\":\""));
-  stream->print(get_mac_address_pretty().c_str());
+  stream->print(mac_str);
   stream->print(ESPHOME_F("\",\"name\":\""));
   stream->print(App.get_name().c_str());
   stream->print(ESPHOME_F("\",\"aps\":[{}"));
 #else
-  stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", get_mac_address_pretty().c_str(), App.get_name().c_str());
+  stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
   for (auto &scan : wifi::global_wifi_component->get_scan_result()) {

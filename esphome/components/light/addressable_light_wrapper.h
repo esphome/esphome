@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class AddressableLightWrapper : public light::AddressableLight {
  public:
@@ -123,5 +122,4 @@ class AddressableLightWrapper : public light::AddressableLight {
   ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

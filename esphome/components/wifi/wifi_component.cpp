@@ -341,10 +341,11 @@ void WiFiComponent::setup() {
 }
 
 void WiFiComponent::start() {
+  char mac_s[18];
   ESP_LOGCONFIG(TAG,
                 "Starting\n"
                 "  Local MAC: %s",
-                get_mac_address_pretty().c_str());
+                get_mac_address_pretty_into_buffer(mac_s));
   this->last_connected_ = millis();
 
   uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
@@ -826,7 +827,8 @@ void WiFiComponent::print_connect_params_() {
   char bssid_s[18];
   format_mac_addr_upper(bssid.data(), bssid_s);
 
-  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
+  char mac_s[18];
+  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty_into_buffer(mac_s));
   if (this->is_disabled()) {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
