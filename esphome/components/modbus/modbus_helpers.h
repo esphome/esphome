@@ -153,37 +153,49 @@ inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_t
   switch (reg_type) {
     case ModbusRegisterType::COIL:
       return ModbusFunctionCode::READ_COILS;
-      break;
     case ModbusRegisterType::DISCRETE_INPUT:
       return ModbusFunctionCode::READ_DISCRETE_INPUTS;
-      break;
     case ModbusRegisterType::HOLDING:
       return ModbusFunctionCode::READ_HOLDING_REGISTERS;
-      break;
     case ModbusRegisterType::READ:
       return ModbusFunctionCode::READ_INPUT_REGISTERS;
-      break;
     default:
       return ModbusFunctionCode::CUSTOM;
-      break;
   }
 }
 
-inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
+inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type, bool multiple = false) {
   switch (reg_type) {
     case ModbusRegisterType::COIL:
-      return ModbusFunctionCode::WRITE_SINGLE_COIL;
-      break;
-    case ModbusRegisterType::DISCRETE_INPUT:
-      return ModbusFunctionCode::CUSTOM;
-      break;
+      return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_COILS : ModbusFunctionCode::WRITE_SINGLE_COIL;
     case ModbusRegisterType::HOLDING:
-      return ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
-      break;
+      return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS : ModbusFunctionCode::WRITE_SINGLE_REGISTER;
+    // These register types can't be written (per spec)
     case ModbusRegisterType::READ:
+    case ModbusRegisterType::DISCRETE_INPUT:
     default:
       return ModbusFunctionCode::CUSTOM;
-      break;
+  }
+}
+
+inline ModbusRegisterType modbus_register_type(ModbusFunctionCode function_code) {
+  switch (function_code) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+      return ModbusRegisterType::COIL;
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+      return ModbusRegisterType::DISCRETE_INPUT;
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+      return ModbusRegisterType::HOLDING;
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      return ModbusRegisterType::READ;
+    case ModbusFunctionCode::CUSTOM:
+    default:
+      return ModbusRegisterType::CUSTOM;
   }
 }
 
