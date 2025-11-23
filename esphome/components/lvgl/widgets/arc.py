@@ -20,7 +20,13 @@ from ..defines import (
     CONF_START_ANGLE,
     literal,
 )
-from ..lv_validation import get_start_value, lv_angle_degrees, lv_float, lv_int
+from ..lv_validation import (
+    get_start_value,
+    lv_angle_degrees,
+    lv_float,
+    lv_int,
+    lv_positive_int,
+)
 from ..lvcode import lv, lv_expr, lv_obj
 from ..types import LvNumber, NumberType
 from . import Widget
@@ -36,7 +42,7 @@ ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_ROTATION, default=0.0): lv_angle_degrees,
         cv.Optional(CONF_ADJUSTABLE, default=False): bool,
         cv.Optional(CONF_MODE, default="NORMAL"): ARC_MODES.one_of,
-        cv.Optional(CONF_CHANGE_RATE, default=720): cv.uint16_t,
+        cv.Optional(CONF_CHANGE_RATE, default=720): lv_positive_int,
     }
 )
 
@@ -45,6 +51,11 @@ ARC_MODIFY_SCHEMA = cv.Schema(
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_MIN_VALUE): lv_int,
         cv.Optional(CONF_MAX_VALUE): lv_int,
+        cv.Optional(CONF_START_ANGLE): lv_angle_degrees,
+        cv.Optional(CONF_END_ANGLE): lv_angle_degrees,
+        cv.Optional(CONF_ROTATION): lv_angle_degrees,
+        cv.Optional(CONF_MODE): ARC_MODES.one_of,
+        cv.Optional(CONF_CHANGE_RATE): lv_positive_int,
     }
 )
 
@@ -72,12 +83,22 @@ class ArcType(NumberType):
 
         if CONF_START_ANGLE in config:
             start = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+            lv.arc_set_bg_start_angle(w.obj, start)
+
+        if CONF_END_ANGLE in config:
             end = await lv_angle_degrees.process(config[CONF_END_ANGLE])
+            lv.arc_set_bg_end_angle(w.obj, end)
+
+        if CONF_ROTATION in config:
             rotation = await lv_angle_degrees.process(config[CONF_ROTATION])
-            lv.arc_set_bg_angles(w.obj, start, end)
             lv.arc_set_rotation(w.obj, rotation)
+
+        if CONF_MODE in config:
             lv.arc_set_mode(w.obj, literal(config[CONF_MODE]))
-            lv.arc_set_change_rate(w.obj, config[CONF_CHANGE_RATE])
+
+        if CONF_CHANGE_RATE in config:
+            change_rate = await lv_positive_int.process(config[CONF_CHANGE_RATE])
+            lv.arc_set_change_rate(w.obj, change_rate)
 
         if CONF_ADJUSTABLE in config:
             if not config[CONF_ADJUSTABLE]:
