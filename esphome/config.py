@@ -355,6 +355,8 @@ def _get_item_id(item: Any) -> str | Extend | Remove | None:
     if isinstance(item_id, Extend):
         # Remove instances of Extend so they don't overwrite the original item when merging:
         del item[CONF_ID]
+    if not isinstance(item_id, (str, Extend, Remove)):
+        return None
     return item_id
 
 
