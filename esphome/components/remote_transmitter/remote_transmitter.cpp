@@ -88,9 +88,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->target_time_ = 0;
   this->transmit_trigger_->trigger();
   for (uint32_t i = 0; i < send_times; i++) {
-    #if !defined(USE_RP2040)
+#if !defined(USE_RP2040)
     InterruptLock lock;
-    #endif
+#endif
     for (int32_t item : this->temp_.get_data()) {
       if (item > 0) {
         const auto length = uint32_t(item);
