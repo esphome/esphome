@@ -41,7 +41,7 @@ static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, ui
   decoder->draw(x, y, w, h, color);
 
   // Feed watchdog periodically to avoid triggering during long decode operations.
-  // Feed every 1000 pixels to balance efficiency and responsiveness.
+  // Feed every 1024 pixels to balance efficiency and responsiveness.
   uint32_t pixels = w * h;
   decoder->add_pixels(pixels);
   if ((decoder->get_pixels_decoded() % 1024) < pixels) {
