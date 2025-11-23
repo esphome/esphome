@@ -111,14 +111,6 @@ ClimateAction action_from_string(const std::string &s) {
   }
 }
 
-template<typename T> std::set<T> optset(Select *s, std::function<T(const std::string &)> func) {
-  std::set<T> opts;
-  for (const auto &opt : s->traits.get_options()) {
-    opts.insert(func(opt));
-  }
-  return opts;
-}
-
 void TemplateClimate::setup() {
   this->current_temperature_->add_on_state_callback([this](float x) {
     this->current_temperature = x;
@@ -132,38 +124,46 @@ void TemplateClimate::setup() {
   });
   this->current_temperature = this->target_temperature_->state;
 
-  this->traits_.set_supported_modes(optset<ClimateMode>(this->mode_, mode_from_string));
+  for (const auto &opt : this->mode_->traits.get_options()) {
+    this->traits_.add_supported_mode(mode_from_string(opt));
+  }
   this->mode_->add_on_state_callback([this](const std::string &x, size_t i) {
     this->mode = mode_from_string(x);
     this->publish_state();
   });
-  this->mode = mode_from_string(this->mode_->state);
+  this->mode = mode_from_string(this->mode_->current_option());
 
   if (this->fan_mode_ != nullptr) {
-    this->traits_.set_supported_fan_modes(optset<ClimateFanMode>(this->fan_mode_, fan_mode_from_string));
+    for (const auto &opt : this->fan_mode_->traits.get_options()) {
+      this->traits_.add_supported_fan_mode(fan_mode_from_string(opt));
+    }
     this->fan_mode_->add_on_state_callback([this](const std::string &x, size_t i) {
       this->fan_mode = fan_mode_from_string(x);
       this->publish_state();
     });
-    this->fan_mode = fan_mode_from_string(this->fan_mode_->state);
+    this->fan_mode = fan_mode_from_string(this->fan_mode_->current_option());
   }
 
   if (this->swing_mode_ != nullptr) {
-    this->traits_.set_supported_swing_modes(optset<ClimateSwingMode>(this->swing_mode_, swing_mode_from_string));
+    for (const auto &opt : this->swing_mode_->traits.get_options()) {
+      this->traits_.add_supported_swing_mode(swing_mode_from_string(opt));
+    }
     this->swing_mode_->add_on_state_callback([this](const std::string &x, size_t i) {
       this->swing_mode = swing_mode_from_string(x);
       this->publish_state();
     });
-    this->swing_mode = swing_mode_from_string(this->swing_mode_->state);
+    this->swing_mode = swing_mode_from_string(this->swing_mode_->current_option());
   }
 
   if (this->preset_ != nullptr) {
-    this->traits_.set_supported_presets(optset<ClimatePreset>(this->preset_, preset_from_string));
+    for (const auto &opt : this->preset_->traits.get_options()) {
+      this->traits_.add_supported_preset(preset_from_string(opt));
+    }
     this->preset_->add_on_state_callback([this](const std::string &x, size_t i) {
       this->preset = preset_from_string(x);
       this->publish_state();
     });
-    this->preset = preset_from_string(this->preset_->state);
+    this->preset = preset_from_string(this->preset_->current_option());
   }
 
   if (this->action_ != nullptr) {

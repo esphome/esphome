@@ -28,7 +28,7 @@ class TemplateClimate : public Climate, public Component {
 
   void set_current_temperature(Sensor *sensor) {
     this->current_temperature_ = sensor;
-    this->traits_.set_supports_current_temperature(true);
+    this->traits_.add_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
 
   void set_target_temperature(Number *num) { this->target_temperature_ = num; }
@@ -43,7 +43,7 @@ class TemplateClimate : public Climate, public Component {
 
   void set_action(TextSensor *s) {
     this->action_ = s;
-    this->traits_.set_supports_action(true);
+    this->traits_.add_feature_flags(CLIMATE_SUPPORTS_ACTION);
   }
 
  protected:
