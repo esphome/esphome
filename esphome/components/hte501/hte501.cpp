@@ -9,9 +9,8 @@ static const char *const TAG = "hte501";
 
 void HTE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
-  this->write(address, 2, false);
   uint8_t identification[9];
-  this->read(identification, 9);
+  this->write_read(address, sizeof address, identification, sizeof identification);
   if (identification[8] != crc8(identification, 8, 0xFF, 0x31, true)) {
     this->error_code_ = CRC_CHECK_FAILED;
     this->mark_failed();
@@ -42,7 +41,7 @@ void HTE501Component::dump_config() {
 float HTE501Component::get_setup_priority() const { return setup_priority::DATA; }
 void HTE501Component::update() {
   uint8_t address_1[] = {0x2C, 0x1B};
-  this->write(address_1, 2, true);
+  this->write(address_1, 2);
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);

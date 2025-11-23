@@ -62,9 +62,11 @@ async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
         time_ = datetime.now()
         message: bytes = msg.message
         text = message.decode("utf8", "backslashreplace")
-        for parsed_msg in parse_log_message(
-            text, f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}]"
-        ):
+        nanoseconds = time_.microsecond // 1000
+        timestamp = (
+            f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
+        )
+        for parsed_msg in parse_log_message(text, timestamp):
             print(parsed_msg.replace("\033", "\\033") if dashboard else parsed_msg)
 
     stop = await async_run(cli, on_log, name=name)

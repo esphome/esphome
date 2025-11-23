@@ -2,4 +2,7 @@ substitutions:
   i2c_sda: GPIO21
   i2c_scl: GPIO22
 
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
 <<: !include common.yaml

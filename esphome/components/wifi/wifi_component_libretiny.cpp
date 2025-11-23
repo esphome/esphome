@@ -68,7 +68,7 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
   return true;
 }
 bool WiFiComponent::wifi_apply_power_save_() { return WiFi.setSleep(this->power_save_ != WIFI_POWER_SAVE_NONE); }
-bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -112,9 +112,15 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     WiFi.disconnect();
   }
 
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
   }
+#else
+  if (!this->wifi_sta_ip_config_({})) {
+    return false;
+  }
+#endif
 
   this->wifi_apply_hostname_();
 
@@ -293,8 +299,10 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       } else {
-        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-                 format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+        char bssid_s[18];
+        format_mac_addr_upper(it.bssid, bssid_s);
+        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf, bssid_s,
+                 get_disconnect_reason_str(it.reason));
       }
 
       uint8_t reason = it.reason;
@@ -411,7 +419,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  this->scan_result_.reserve(static_cast<unsigned int>(num));
+  this->scan_result_.init(static_cast<unsigned int>(num));
   for (int i = 0; i < num; i++) {
     String ssid = WiFi.SSID(i);
     wifi_auth_mode_t authmode = WiFi.encryptionType(i);
@@ -419,16 +427,16 @@ void WiFiComponent::wifi_scan_done_callback_() {
     uint8_t *bssid = WiFi.BSSID(i);
     int32_t channel = WiFi.channel(i);
 
-    WiFiScanResult scan({bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}, std::string(ssid.c_str()),
-                        channel, rssi, authmode != WIFI_AUTH_OPEN, ssid.length() == 0);
-    this->scan_result_.push_back(scan);
+    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]},
+                                    std::string(ssid.c_str()), channel, rssi, authmode != WIFI_AUTH_OPEN,
+                                    ssid.length() == 0);
   }
   WiFi.scanDelete();
   this->scan_done_ = true;
 }
 
 #ifdef USE_WIFI_AP
-bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;
@@ -445,10 +453,17 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
 
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
     ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
     return false;
   }
+#else
+  if (!this->wifi_ap_ip_config_({})) {
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
+    return false;
+  }
+#endif
 
   yield();
 
@@ -471,7 +486,7 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
-int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
+int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }

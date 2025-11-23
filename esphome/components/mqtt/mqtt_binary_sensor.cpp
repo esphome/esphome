@@ -30,9 +30,12 @@ MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor
 }
 
 void MQTTBinarySensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  if (!this->binary_sensor_->get_device_class().empty())
-    root[MQTT_DEVICE_CLASS] = this->binary_sensor_->get_device_class();
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  const auto device_class = this->binary_sensor_->get_device_class_ref();
+  if (!device_class.empty()) {
+    root[MQTT_DEVICE_CLASS] = device_class;
+  }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   if (this->binary_sensor_->is_status_binary_sensor())
     root[MQTT_PAYLOAD_ON] = mqtt::global_mqtt_client->get_availability().payload_available;
   if (this->binary_sensor_->is_status_binary_sensor())

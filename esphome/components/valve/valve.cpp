@@ -1,5 +1,8 @@
 #include "valve.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include <strings.h>
 
 namespace esphome {
 namespace valve {
@@ -146,6 +149,9 @@ void Valve::publish_state(bool save) {
   ESP_LOGD(TAG, "  Current Operation: %s", valve_operation_to_str(this->current_operation));
 
   this->state_callback_.call();
+#if defined(USE_VALVE) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_valve_update(this);
+#endif
 
   if (save) {
     ValveRestoreState restore{};
@@ -155,7 +161,7 @@ void Valve::publish_state(bool save) {
   }
 }
 optional<ValveRestoreState> Valve::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<ValveRestoreState>(this->get_object_id_hash());
+  this->rtc_ = global_preferences->make_preference<ValveRestoreState>(this->get_preference_hash());
   ValveRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};

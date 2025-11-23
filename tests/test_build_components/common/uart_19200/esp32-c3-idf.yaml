@@ -1,0 +1,12 @@
+# Common UART configuration for ESP32-C3 IDF tests - 19200 baud
+# For components that require UART baud rate 19200 (bl0906)
+
+substitutions:
+  tx_pin: GPIO20
+  rx_pin: GPIO21
+
+uart:
+  - id: uart_bus
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 19200

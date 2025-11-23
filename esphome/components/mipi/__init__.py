@@ -2,7 +2,7 @@
 # Various configuration constants for MIPI displays
 # Various utility functions for MIPI DBI configuration
 
-from typing import Any
+from typing import Any, Self
 
 from esphome.components.const import CONF_COLOR_DEPTH
 from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
+    CONF_DISABLED,
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
@@ -217,12 +218,33 @@ def map_sequence(value):
     return tuple(value)
 
 
+def flatten_sequence(sequence: tuple | list):
+    """
+    Flatten an init sequence into a single list of bytes.
+    :param sequence:  The list of tuples
+    :return: a list of bytes
+    """
+    return sum(
+        tuple(
+            (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
+            for x in sequence
+        ),
+        (),
+    )
+
+
 def delay(ms):
     return DELAY_FLAG, ms
 
 
 class DriverChip:
-    models = {}
+    """
+    A class representing a MIPI DBI driver chip model.
+    The parameters supplied as defaults will be used to provide default values for the display configuration.
+    Setting swap_xy to cv.UNDEFINED will indicate that the model does not support swapping X and Y axes.
+    """
+
+    models: dict[str, Self] = {}
 
     def __init__(
         self,
@@ -232,7 +254,7 @@ class DriverChip:
     ):
         name = name.upper()
         self.name = name
-        self.initsequence = initsequence or defaults.get("init_sequence")
+        self.initsequence = initsequence
         self.defaults = defaults
         DriverChip.models[name] = self
 
@@ -246,6 +268,17 @@ class DriverChip:
         return models
 
     def extend(self, name, **kwargs) -> "DriverChip":
+        """
+        Extend the current model with additional parameters or a modified init sequence.
+        Parameters supplied here will override the defaults of the current model.
+        if the initsequence is not provided, the current model's initsequence will be used.
+        If add_init_sequence is provided, it will be appended to the current initsequence.
+        :param name:
+        :param kwargs:
+        :return:
+        """
+        initsequence = list(kwargs.pop("initsequence", self.initsequence))
+        initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
         if (
             CONF_WIDTH in defaults
@@ -260,10 +293,21 @@ class DriverChip:
         ):
             defaults[CONF_NATIVE_HEIGHT] = defaults[CONF_HEIGHT]
         defaults.update(kwargs)
-        return DriverChip(name, initsequence=self.initsequence, **defaults)
+        return self.__class__(name, initsequence=tuple(initsequence), **defaults)
 
     def get_default(self, key, fallback: Any = False) -> Any:
         return self.defaults.get(key, fallback)
+
+    @property
+    def transforms(self) -> set[str]:
+        """
+        Return the available transforms for this model.
+        """
+        if self.get_default("no_transform", False):
+            return set()
+        if self.get_default(CONF_SWAP_XY) != cv.UNDEFINED:
+            return {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
+        return {CONF_MIRROR_X, CONF_MIRROR_Y}
 
     def option(self, name, fallback=False) -> cv.Optional:
         return cv.Optional(name, default=self.get_default(name, fallback))
@@ -271,12 +315,19 @@ class DriverChip:
     def rotation_as_transform(self, config) -> bool:
         """
         Check if a rotation can be implemented in hardware using the MADCTL register.
-        A rotation of 180 is always possible, 90 and 270 are possible if the model supports swapping X and Y.
+        A rotation of 180 is always possible if x and y mirroring are supported, 90 and 270 are possible if the model supports swapping X and Y.
         """
+        if config.get(CONF_TRANSFORM) == CONF_DISABLED:
+            return False
+        transforms = self.transforms
         rotation = config.get(CONF_ROTATION, 0)
-        return rotation and (
-            self.get_default(CONF_SWAP_XY) != cv.UNDEFINED or rotation == 180
-        )
+        if rotation == 0 or not transforms:
+            return False
+        if rotation == 180:
+            return CONF_MIRROR_X in transforms and CONF_MIRROR_Y in transforms
+        if rotation == 90:
+            return CONF_SWAP_XY in transforms and CONF_MIRROR_X in transforms
+        return CONF_SWAP_XY in transforms and CONF_MIRROR_Y in transforms
 
     def get_dimensions(self, config) -> tuple[int, int, int, int]:
         if CONF_DIMENSIONS in config:
@@ -301,16 +352,16 @@ class DriverChip:
 
         # if mirroring axes and there are offsets, also mirror the offsets to cater for situations where
         # the offset is asymmetric
-        if transform[CONF_MIRROR_X]:
+        if transform.get(CONF_MIRROR_X):
             native_width = self.get_default(CONF_NATIVE_WIDTH, width + offset_width * 2)
             offset_width = native_width - width - offset_width
-        if transform[CONF_MIRROR_Y]:
+        if transform.get(CONF_MIRROR_Y):
             native_height = self.get_default(
                 CONF_NATIVE_HEIGHT, height + offset_height * 2
             )
             offset_height = native_height - height - offset_height
-        # Swap default dimensions if swap_xy is set
-        if transform[CONF_SWAP_XY] is True:
+        # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
+        if transform.get(CONF_SWAP_XY) is True:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
         return width, height, offset_width, offset_height
@@ -320,12 +371,19 @@ class DriverChip:
         transform = config.get(
             CONF_TRANSFORM,
             {
-                CONF_MIRROR_X: self.get_default(CONF_MIRROR_X, False),
-                CONF_MIRROR_Y: self.get_default(CONF_MIRROR_Y, False),
-                CONF_SWAP_XY: self.get_default(CONF_SWAP_XY, False),
+                CONF_MIRROR_X: self.get_default(CONF_MIRROR_X),
+                CONF_MIRROR_Y: self.get_default(CONF_MIRROR_Y),
+                CONF_SWAP_XY: self.get_default(CONF_SWAP_XY),
             },
         )
-
+        if not isinstance(transform, dict):
+            # Presumably disabled
+            return {
+                CONF_MIRROR_X: False,
+                CONF_MIRROR_Y: False,
+                CONF_SWAP_XY: False,
+                CONF_TRANSFORM: False,
+            }
         # Can we use the MADCTL register to set the rotation?
         if can_transform and CONF_TRANSFORM not in config:
             rotation = config[CONF_ROTATION]
@@ -340,6 +398,40 @@ class DriverChip:
                 transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
             transform[CONF_TRANSFORM] = True
         return transform
+
+    def swap_xy_schema(self):
+        uses_swap = self.get_default(CONF_SWAP_XY, None) != cv.UNDEFINED
+
+        def validator(value):
+            if value:
+                raise cv.Invalid("Axis swapping not supported by this model")
+            return cv.boolean(value)
+
+        if uses_swap:
+            return {cv.Required(CONF_SWAP_XY): cv.boolean}
+        return {cv.Optional(CONF_SWAP_XY, default=False): validator}
+
+    def add_madctl(self, sequence: list, config: dict):
+        # Add the MADCTL command to the sequence based on the configuration.
+        use_flip = config.get(CONF_USE_AXIS_FLIPS)
+        madctl = 0
+        transform = self.get_transform(config)
+        if transform[CONF_MIRROR_X]:
+            madctl |= MADCTL_XFLIP if use_flip else MADCTL_MX
+        if transform[CONF_MIRROR_Y]:
+            madctl |= MADCTL_YFLIP if use_flip else MADCTL_MY
+        if transform.get(CONF_SWAP_XY) is True:  # Exclude Undefined
+            madctl |= MADCTL_MV
+        if config[CONF_COLOR_ORDER] == MODE_BGR:
+            madctl |= MADCTL_BGR
+        sequence.append((MADCTL, madctl))
+        return madctl
+
+    def skip_command(self, command: str):
+        """
+        Allow suppressing a standard command in the init sequence.
+        """
+        return self.get_default(f"no_{command.lower()}", False)
 
     def get_sequence(self, config) -> tuple[tuple[int, ...], int]:
         """
@@ -363,39 +455,23 @@ class DriverChip:
             pixel_mode = PIXEL_MODES[pixel_mode]
         sequence.append((PIXFMT, pixel_mode))
 
-        # Does the chip use the flipping bits for mirroring rather than the reverse order bits?
-        use_flip = config.get(CONF_USE_AXIS_FLIPS)
-        madctl = 0
-        transform = self.get_transform(config)
         if self.rotation_as_transform(config):
             LOGGER.info("Using hardware transform to implement rotation")
-        if transform.get(CONF_MIRROR_X):
-            madctl |= MADCTL_XFLIP if use_flip else MADCTL_MX
-        if transform.get(CONF_MIRROR_Y):
-            madctl |= MADCTL_YFLIP if use_flip else MADCTL_MY
-        if transform.get(CONF_SWAP_XY) is True:  # Exclude Undefined
-            madctl |= MADCTL_MV
-        if config[CONF_COLOR_ORDER] == MODE_BGR:
-            madctl |= MADCTL_BGR
-        sequence.append((MADCTL, madctl))
+        madctl = self.add_madctl(sequence, config)
         if config[CONF_INVERT_COLORS]:
             sequence.append((INVON,))
         else:
             sequence.append((INVOFF,))
         if brightness := config.get(CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS)):
             sequence.append((BRIGHTNESS, brightness))
-        sequence.append((SLPOUT,))
+        # Add a SLPOUT command if required.
+        if not self.skip_command("SLPOUT"):
+            sequence.append((SLPOUT,))
         sequence.append((DISPON,))
 
         # Flatten the sequence into a list of bytes, with the length of each command
         # or the delay flag inserted where needed
-        return sum(
-            tuple(
-                (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
-                for x in sequence
-            ),
-            (),
-        ), madctl
+        return flatten_sequence(sequence), madctl
 
 
 def requires_buffer(config) -> bool:

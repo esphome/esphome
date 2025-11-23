@@ -20,7 +20,7 @@ static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL); \
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL)); \
     return; \
   }
 
@@ -34,8 +34,8 @@ void GT911Touchscreen::setup() {
       this->interrupt_pin_->digital_write(false);
     }
     delay(2);
-    this->reset_pin_->digital_write(true);  // wait 50ms after reset
-    this->set_timeout(50, [this] { this->setup_internal_(); });
+    this->reset_pin_->digital_write(true);  // wait at least T3+T4 ms as per the datasheet
+    this->set_timeout(5 + 50 + 1, [this] { this->setup_internal_(); });
     return;
   }
   this->setup_internal_();

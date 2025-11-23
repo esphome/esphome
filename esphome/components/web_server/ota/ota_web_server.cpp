@@ -17,6 +17,12 @@
 #endif
 #endif  // USE_ARDUINO
 
+#if USE_ESP32
+using PlatformString = std::string;
+#elif USE_ARDUINO
+using PlatformString = String;
+#endif
+
 namespace esphome {
 namespace web_server {
 
@@ -26,8 +32,8 @@ class OTARequestHandler : public AsyncWebHandler {
  public:
   OTARequestHandler(WebServerOTAComponent *parent) : parent_(parent) {}
   void handleRequest(AsyncWebServerRequest *request) override;
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override;
+  void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
+                    size_t len, bool final) override;
   bool canHandle(AsyncWebServerRequest *request) const override {
     // Check if this is an OTA update request
     bool is_ota_request = request->url() == "/update" && request->method() == HTTP_POST;
@@ -100,7 +106,7 @@ void OTARequestHandler::ota_init_(const char *filename) {
   this->ota_success_ = false;
 }
 
-void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index,
+void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index,
                                      uint8_t *data, size_t len, bool final) {
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_OK;
 
@@ -198,9 +204,20 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
 void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response;
   // Use the ota_success_ flag to determine the actual result
+#ifdef USE_ESP8266
+  static const char UPDATE_SUCCESS[] PROGMEM = "Update Successful!";
+  static const char UPDATE_FAILED[] PROGMEM = "Update Failed!";
+  static const char TEXT_PLAIN[] PROGMEM = "text/plain";
+  static const char CONNECTION_STR[] PROGMEM = "Connection";
+  static const char CLOSE_STR[] PROGMEM = "close";
+  const char *msg = this->ota_success_ ? UPDATE_SUCCESS : UPDATE_FAILED;
+  response = request->beginResponse_P(200, TEXT_PLAIN, msg);
+  response->addHeader(CONNECTION_STR, CLOSE_STR);
+#else
   const char *msg = this->ota_success_ ? "Update Successful!" : "Update Failed!";
   response = request->beginResponse(200, "text/plain", msg);
   response->addHeader("Connection", "close");
+#endif
   request->send(response);
 }
 

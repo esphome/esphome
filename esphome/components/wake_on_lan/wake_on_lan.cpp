@@ -67,19 +67,19 @@ void WakeOnLanButton::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
   if (this->broadcast_socket_ == nullptr) {
-    this->mark_failed();
     this->status_set_error("Could not create socket");
+    this->mark_failed();
     return;
   }
   int enable = 1;
   auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
-    this->status_set_warning("Socket unable to set reuseaddr");
+    this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
     // we can still continue
   }
   err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
   if (err != 0) {
-    this->status_set_warning("Socket unable to set broadcast");
+    this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
   }
 #endif
 }

@@ -51,9 +51,19 @@ void Logger::pre_setup() {
 
 void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
 
-const char *const UART_SELECTIONS[] = {"DEFAULT", "UART0", "UART1", "UART2"};
-
-const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
+const LogString *Logger::get_uart_selection_() {
+  switch (this->uart_) {
+    case UART_SELECTION_DEFAULT:
+      return LOG_STR("DEFAULT");
+    case UART_SELECTION_UART0:
+      return LOG_STR("UART0");
+    case UART_SELECTION_UART1:
+      return LOG_STR("UART1");
+    case UART_SELECTION_UART2:
+    default:
+      return LOG_STR("UART2");
+  }
+}
 
 }  // namespace esphome::logger
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from io import StringIO
 import json
-import os
+from pathlib import Path
 from typing import Any
 
 from esphome.config import Config, _format_vol_invalid, validate_config
@@ -67,24 +67,24 @@ def _read_file_content_from_json_on_stdin() -> str:
     return data["content"]
 
 
-def _print_file_read_event(path: str) -> None:
+def _print_file_read_event(path: Path) -> None:
     """Print a file read event."""
     print(
         json.dumps(
             {
                 "type": "read_file",
-                "path": path,
+                "path": str(path),
             }
         )
     )
 
 
-def _request_and_get_stream_on_stdin(fname: str) -> StringIO:
+def _request_and_get_stream_on_stdin(fname: Path) -> StringIO:
     _print_file_read_event(fname)
     return StringIO(_read_file_content_from_json_on_stdin())
 
 
-def _vscode_loader(fname: str) -> dict[str, Any]:
+def _vscode_loader(fname: Path) -> dict[str, Any]:
     raw_yaml_stream = _request_and_get_stream_on_stdin(fname)
     # it is required to set the name on StringIO so document on start_mark
     # is set properly. Otherwise it is initialized with "<file>"
@@ -92,7 +92,7 @@ def _vscode_loader(fname: str) -> dict[str, Any]:
     return parse_yaml(fname, raw_yaml_stream, _vscode_loader)
 
 
-def _ace_loader(fname: str) -> dict[str, Any]:
+def _ace_loader(fname: Path) -> dict[str, Any]:
     raw_yaml_stream = _request_and_get_stream_on_stdin(fname)
     return parse_yaml(fname, raw_yaml_stream)
 
@@ -120,10 +120,10 @@ def read_config(args):
             return
         CORE.vscode = True
         if args.ace:  # Running from ESPHome Compiler dashboard, not vscode
-            CORE.config_path = os.path.join(args.configuration, data["file"])
+            CORE.config_path = Path(args.configuration) / data["file"]
             loader = _ace_loader
         else:
-            CORE.config_path = data["file"]
+            CORE.config_path = Path(data["file"])
             loader = _vscode_loader
 
         file_name = CORE.config_path
