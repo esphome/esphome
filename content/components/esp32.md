@@ -22,7 +22,7 @@ esp32:
   This must match the hardware in use, or it will fail to flash.
 
 - **board** (*Optional*, string): The PlatformIO board ID that should be used. Choose the appropriate board from
-  [this list](https://registry.platformio.org/platforms/platformio/espressif32/boards?version=5.3.0) (the icon next
+  [this list](https://registry.platformio.org/platforms/platformio/espressif32/boards) (the icon next
   to the name can be used to copy the board ID). *This only affects pin aliases and some internal settings*;
   This setting is no longer recommended, `variant` should be used instead.
 
