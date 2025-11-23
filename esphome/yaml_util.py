@@ -31,7 +31,7 @@ from esphome.core import (
     MACAddress,
     TimePeriod,
 )
-from esphome.helpers import add_class_to_obj
+from esphome.helpers import add_class_to_obj, add_context
 from esphome.util import OrderedDict, filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -282,9 +282,7 @@ class ESPHomeLoaderMixin:
         return val
 
     @_add_data_ref
-    def construct_include(
-        self, node: yaml.Node
-    ) -> dict[str, Any] | OrderedDict[str, Any]:
+    def construct_include(self, node: yaml.Node) -> Any:
         from esphome.const import CONF_VARS
 
         def extract_file_vars(node):
@@ -301,9 +299,7 @@ class ESPHomeLoaderMixin:
             file, vars = node.value, None
 
         result = self.yaml_loader(self._rel_path(file))
-        if not vars:
-            vars = {}
-        return substitute_vars(result, vars)
+        return add_context(result, vars)
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
@@ -450,39 +446,6 @@ def parse_yaml(
         return _load_yaml_internal_with_type(
             ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
         )
-
-
-def substitute_vars(config, vars):
-    from esphome.components import substitutions
-    from esphome.const import CONF_DEFAULTS, CONF_SUBSTITUTIONS
-
-    org_subs = None
-    result = config
-    if not isinstance(config, dict):
-        # when the included yaml contains a list or a scalar
-        # wrap it into an OrderedDict because do_substitution_pass expects it
-        result = OrderedDict([("yaml", config)])
-    elif CONF_SUBSTITUTIONS in result:
-        org_subs = result.pop(CONF_SUBSTITUTIONS)
-
-    defaults = {}
-    if CONF_DEFAULTS in result:
-        defaults = result.pop(CONF_DEFAULTS)
-
-    result[CONF_SUBSTITUTIONS] = vars
-    for k, v in defaults.items():
-        if k not in result[CONF_SUBSTITUTIONS]:
-            result[CONF_SUBSTITUTIONS][k] = v
-
-    # Ignore missing vars that refer to the top level substitutions
-    substitutions.do_substitution_pass(result, None, ignore_missing=True)
-    result.pop(CONF_SUBSTITUTIONS)
-
-    if not isinstance(config, dict):
-        result = result["yaml"]  # unwrap the result
-    elif org_subs:
-        result[CONF_SUBSTITUTIONS] = org_subs
-    return result
 
 
 def _load_yaml_internal_with_type(

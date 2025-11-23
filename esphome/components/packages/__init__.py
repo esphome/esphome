@@ -22,6 +22,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import EsphomeError
+from esphome.helpers import add_context
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
         for idx, file in enumerate(files):
             filename = file[CONF_PATH]
             yaml_file: Path = repo_dir / filename
-            vars = file.get(CONF_VARS, {})
+            vars = file.get(CONF_VARS)
 
             if not yaml_file.is_file():
                 raise cv.Invalid(
@@ -207,7 +208,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
                         raise cv.Invalid(
                             f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
                         )
-                new_yaml = yaml_util.substitute_vars(new_yaml, vars)
+                new_yaml = add_context(new_yaml, vars)
                 packages[f"{filename}{idx}"] = new_yaml
             except EsphomeError as e:
                 raise cv.Invalid(

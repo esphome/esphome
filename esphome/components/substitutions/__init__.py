@@ -1,3 +1,4 @@
+from collections import ChainMap
 import logging
 from re import Match
 from typing import Any
@@ -6,12 +7,16 @@ from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.helpers import ConfigContext
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
 
-from .jinja import Jinja, JinjaError, JinjaStr, has_jinja
+from .jinja import Jinja, JinjaError, UndefinedError, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
+
+ContextVars = ChainMap[str, Any]
+jinja = Jinja()
 
 
 def validate_substitution_key(value):
@@ -63,22 +68,20 @@ def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBa
 
 
 def _expand_jinja(
-    value: str | JinjaStr,
-    orig_value: str | JinjaStr,
+    value: str,
+    orig_value: str,
     path,
-    jinja: Jinja,
-    ignore_missing: bool,
+    context_vars: ChainMap,
+    strict_undefined: bool,
 ) -> Any:
     if has_jinja(value):
-        # If the original value passed in to this function is a JinjaStr, it means it contains an unresolved
-        # Jinja expression from a previous pass.
-        if isinstance(orig_value, JinjaStr):
-            # Rebuild the JinjaStr in case it was lost while replacing substitutions.
-            value = JinjaStr(value, orig_value.upvalues)
         try:
             # Invoke the jinja engine to evaluate the expression.
-            value, err = jinja.expand(value)
-            if err is not None and not ignore_missing and "password" not in path:
+            value, err = jinja.expand(value, context_vars, strict_undefined)
+        except UndefinedError as err:
+            if strict_undefined:
+                raise err
+            if "password" not in path:
                 _LOGGER.warning(
                     "Found '%s' (see %s) which looks like an expression,"
                     " but could not resolve all the variables: %s",
@@ -86,6 +89,7 @@ def _expand_jinja(
                     "->".join(str(x) for x in path),
                     err.message,
                 )
+            return value
         except JinjaError as err:
             raise cv.Invalid(
                 f"{err.error_name()} Error evaluating jinja expression '{value}': {str(err.parent())}."
@@ -103,7 +107,7 @@ def _expand_jinja(
 
 
 def _expand_substitutions(
-    substitutions: dict, value: str, path, jinja: Jinja, ignore_missing: bool
+    value: str, path, context_vars: ContextVars, strict_undefined: bool
 ) -> Any:
     if "$" not in value:
         return value
@@ -115,15 +119,19 @@ def _expand_substitutions(
         m: Match[str] = cv.VARIABLE_PROG.search(value, i)
         if not m:
             # No more variable substitutions found. See if the remainder looks like a jinja template
-            value = _expand_jinja(value, orig_value, path, jinja, ignore_missing)
+            value = _expand_jinja(
+                value, orig_value, path, context_vars, strict_undefined
+            )
             break
 
         i, j = m.span(0)
         name: str = m.group(1)
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
-        if name not in substitutions:
-            if not ignore_missing and "password" not in path:
+        if name not in context_vars:
+            if strict_undefined:
+                raise UndefinedError(f"'{name}' is undefined")
+            if "password" not in path:
                 _LOGGER.warning(
                     "Found '%s' (see %s) which looks like a substitution, but '%s' was "
                     "not declared",
@@ -134,7 +142,7 @@ def _expand_substitutions(
             i = j
             continue
 
-        sub: Any = substitutions[name]
+        sub: Any = context_vars[name]
 
         if i == 0 and j == len(value):
             # The variable spans the whole expression, e.g., "${varName}". Return its resolved value directly
@@ -158,31 +166,28 @@ def _expand_substitutions(
 
 
 def _substitute_item(
-    substitutions: dict,
-    item: Any,
-    path: list[int | str],
-    jinja: Jinja,
-    ignore_missing: bool,
+    item: Any, path: list[int | str], context_vars: ContextVars, strict_undefined: bool
 ) -> Any | None:
     if isinstance(item, ESPLiteralValue):
         return None  # do not substitute inside literal blocks
+    if isinstance(item, ConfigContext):
+        context_vars = _push_context(context_vars, item.vars)
+    result = None
     if isinstance(item, list):
         for i, it in enumerate(item):
-            sub = _substitute_item(substitutions, it, path + [i], jinja, ignore_missing)
+            sub = _substitute_item(it, path + [i], context_vars, strict_undefined)
             if sub is not None:
                 item[i] = sub
     elif isinstance(item, dict):
         replace_keys = []
         for k, v in item.items():
             if path or k != CONF_SUBSTITUTIONS:
-                sub = _substitute_item(
-                    substitutions, k, path + [k], jinja, ignore_missing
-                )
+                sub = _substitute_item(k, path + [k], context_vars, strict_undefined)
                 if sub is not None:
                     replace_keys.append((k, sub))
-            sub = _substitute_item(substitutions, v, path + [k], jinja, ignore_missing)
-            if sub is not None:
-                item[k] = sub
+                sub = _substitute_item(v, path + [k], context_vars, strict_undefined)
+                if sub is not None:
+                    item[k] = sub
         for old, new in replace_keys:
             if str(new) == str(old):
                 item[new] = item[old]
@@ -190,24 +195,40 @@ def _substitute_item(
                 item[new] = merge_config(item.get(old), item.get(new))
                 del item[old]
     elif isinstance(item, str):
-        sub = _expand_substitutions(substitutions, item, path, jinja, ignore_missing)
-        if isinstance(sub, JinjaStr) or sub != item:
-            return sub
-    elif isinstance(item, (core.Lambda, Extend, Remove)):
-        sub = _expand_substitutions(
-            substitutions, item.value, path, jinja, ignore_missing
-        )
+        sub = _expand_substitutions(item, path, context_vars, strict_undefined)
+        if sub != item:
+            result = sub
+    elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
+        sub = _expand_substitutions(item.value, path, context_vars, strict_undefined)
         if sub != item:
             item.value = sub
-    return None
+
+    return result
+
+
+def _push_context(context_vars: ContextVars, vars: dict[str, Any]) -> ContextVars:
+    unresolved_vars = vars.copy()
+    vars.clear()
+    context_vars = context_vars.new_child(vars)
+    while unresolved_vars:
+        new_unresolved_vars = {}
+        for k, value in unresolved_vars.items():
+            try:
+                result = _substitute_item(value, [], context_vars, True)
+            except UndefinedError:
+                new_unresolved_vars[k] = value
+                continue
+            vars[k] = value if result is None else result
+        if len(unresolved_vars) == len(new_unresolved_vars):
+            vars.update(new_unresolved_vars)
+            break
+        unresolved_vars = new_unresolved_vars
+    return context_vars
 
 
 def do_substitution_pass(
-    config: dict, command_line_substitutions: dict, ignore_missing: bool = False
+    config: dict, command_line_substitutions: dict | None = None
 ) -> None:
-    if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
-        return
-
     # Merge substitutions in config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = merge_dicts_ordered(
@@ -230,10 +251,9 @@ def do_substitution_pass(
             substitutions[new] = substitutions[old]
             del substitutions[old]
 
-    config[CONF_SUBSTITUTIONS] = substitutions
-    # Move substitutions to the first place to replace substitutions in them correctly
-    config.move_to_end(CONF_SUBSTITUTIONS, False)
-
-    # Create a Jinja environment that will consider substitutions in scope:
-    jinja = Jinja(substitutions)
-    _substitute_item(substitutions, config, [], jinja, ignore_missing)
+    context_vars: ContextVars = ChainMap()
+    if CONF_SUBSTITUTIONS in config:
+        config[CONF_SUBSTITUTIONS] = substitutions
+        config.move_to_end(CONF_SUBSTITUTIONS, last=False)
+    context_vars = _push_context(context_vars, substitutions)
+    _substitute_item(config, [], context_vars, False)
