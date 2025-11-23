@@ -63,7 +63,7 @@ void Sml::loop() {
     };
   }
   if (i > 0)
-    ESP_LOGV(TAG, "Processed %d bytes in SML loop.", i);
+    ESP_LOGW(TAG, "Processed %d bytes in SML loop.", i);
 }
 
 void Sml::add_on_data_callback(std::function<void(std::vector<uint8_t>, bool)> &&callback) {
