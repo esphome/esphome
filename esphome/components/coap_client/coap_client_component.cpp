@@ -10,7 +10,6 @@
 #ifdef USE_ESP32
 #include "esphome/core/defines.h"
 #ifdef USE_COAP_CLIENT
-#include <format>
 #include "esphome/core/log.h"
 
 namespace esphome::coap_client {
@@ -157,7 +156,7 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
   size_t tx_i = 0;
   bool is_found = false;
   for (const auto &ptr : this->tx_requests_) {
-    if (coap_binary_equal(&pdu_token, ptr->pdu_token)) {
+    if (ptr->pdu_token && coap_binary_equal(&pdu_token, ptr->pdu_token)) {
       is_found = true;
       break;
     }
@@ -199,15 +198,32 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
 bool CoapClientComponent::process_request(std::unique_ptr<CoapClientRequestData> tx_request) {
   std::lock_guard<std::mutex> lock(this->mutex_lock_);
   for (const auto &ptr : this->tx_requests_) {
-    if (ptr->name == tx_request->name) {
-      ESP_LOGE(TAG, "Request %s already in use", ptr->name.c_str());
-      return false;
+    // Reuse, specifically get to reuse session
+    if (!ptr->observe && ptr->name == tx_request->name) {
+      ptr->method = tx_request->method;
+      ptr->uri = tx_request->uri;
+      ptr->callback = tx_request->callback;
+      ptr->callback_context = ptr->callback_context;
+      ptr->media_type = tx_request->media_type;
+      ptr->payload = tx_request->payload;
+      ptr->response_timeout = tx_request->response_timeout;
+      ptr->observe = tx_request->observe;
+      uint32_t dtime = micros();
+      ptr->create_timestamp = dtime;
+      ptr->response_timestamp = dtime;
+      ptr->observing = false;
+      ptr->delete_pdu_token();
+      if (xQueueSend(this->request_queue_, (void *) &dtime, pdMS_TO_TICKS(1000)) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to send the request to the queue");
+        return false;
+      }
+      return true;
     }
   }
   ESP_LOGD(TAG, "%s %s", coap_method_to_string(tx_request->method), tx_request->uri.c_str());
   uint32_t dtime = micros();
   tx_request->keep = !tx_request->name.empty();
-  tx_request->name = !tx_request->name.empty() ? tx_request->name : std::format("{}", dtime);
+  tx_request->name = !tx_request->name.empty() ? tx_request->name : std::to_string(dtime);
   tx_request->create_timestamp = dtime;
   tx_request->response_timestamp = dtime;
   this->tx_requests_.push_back(std::move(tx_request));
@@ -344,6 +360,7 @@ void CoapClientComponent::main_() {
         }
         // Create CoAP Session
         if (tx_request->session) {
+          ESP_LOGD(TAG, "Reusing session from %s", tx_request->name.c_str());
           session = tx_request->session;
         } else {
           session = this->get_session_(ctx, &dst_addr, &uri, proto);
