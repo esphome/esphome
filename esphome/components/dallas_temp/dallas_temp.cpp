@@ -70,7 +70,7 @@ bool DallasTemperatureSensor::read_scratch_pad_() {
 }
 
 void DallasTemperatureSensor::setup() {
-  if (!this->check_address_())
+  if (!this->check_address_or_index_())
     return;
   if (!this->read_scratch_pad_())
     return;

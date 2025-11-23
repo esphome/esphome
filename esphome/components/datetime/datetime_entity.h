@@ -124,7 +124,7 @@ template<typename... Ts> class DateTimeSetAction : public Action<Ts...>, public 
  public:
   TEMPLATABLE_VALUE(ESPTime, datetime)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
 
     if (this->datetime_.has_value()) {

@@ -3,6 +3,8 @@ esphome:
     then:
       - uart.write: 'Hello World'
       - uart.write: [0x00, 0x20, 0x42]
+      - uart.write: !lambda |-
+          return {0xAA, 0xBB, 0xCC};
 
 uart:
   - id: uart_uart
@@ -19,3 +21,57 @@ uart:
 
 packet_transport:
   - platform: uart
+
+switch:
+  # Test uart switch with single state (array)
+  - platform: uart
+    name: "UART Switch Single Array"
+    uart_id: uart_uart
+    data: [0x01, 0x02, 0x03]
+  # Test uart switch with single state (string)
+  - platform: uart
+    name: "UART Switch Single String"
+    uart_id: uart_uart
+    data: "ON"
+  # Test uart switch with turn_on/turn_off (arrays)
+  - platform: uart
+    name: "UART Switch Dual Array"
+    uart_id: uart_uart
+    data:
+      turn_on: [0xA0, 0xA1, 0xA2]
+      turn_off: [0xB0, 0xB1, 0xB2]
+  # Test uart switch with turn_on/turn_off (strings)
+  - platform: uart
+    name: "UART Switch Dual String"
+    uart_id: uart_uart
+    data:
+      turn_on: "TURN_ON"
+      turn_off: "TURN_OFF"
+
+number:
+  - platform: template
+    name: "Test Number"
+    id: test_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
+button:
+  # Test uart button with array data
+  - platform: uart
+    name: "UART Button Array"
+    uart_id: uart_uart
+    data: [0xFF, 0xEE, 0xDD]
+  # Test uart button with string data
+  - platform: uart
+    name: "UART Button String"
+    uart_id: uart_uart
+    data: "BUTTON_PRESS"
+  # Test uart button with lambda (function pointer)
+  - platform: template
+    name: "UART Lambda Test"
+    on_press:
+      - uart.write: !lambda |-
+          std::string cmd = "VALUE=" + str_sprintf("%.0f", id(test_number).state) + "\r\n";
+          return std::vector<uint8_t>(cmd.begin(), cmd.end());

@@ -71,10 +71,12 @@ SERVICE_ARG_NATIVE_TYPES = {
     "int": cg.int32,
     "float": float,
     "string": cg.std_string,
-    "bool[]": cg.std_vector.template(bool),
-    "int[]": cg.std_vector.template(cg.int32),
-    "float[]": cg.std_vector.template(float),
-    "string[]": cg.std_vector.template(cg.std_string),
+    "bool[]": cg.FixedVector.template(bool).operator("const").operator("ref"),
+    "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
+    "float[]": cg.FixedVector.template(float).operator("const").operator("ref"),
+    "string[]": cg.FixedVector.template(cg.std_string)
+    .operator("const")
+    .operator("ref"),
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
@@ -225,6 +227,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32=8,  # More RAM, can buffer more
                 rp2040=5,  # Limited RAM
                 bk72xx=8,  # Moderate RAM
+                nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
@@ -242,6 +245,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    # Track controller registration for StaticVector sizing
+    CORE.register_controller()
+
     cg.add(var.set_port(config[CONF_PORT]))
     if config[CONF_PASSWORD]:
         cg.add_define("USE_API_PASSWORD")
@@ -258,6 +264,10 @@ async def to_code(config):
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
         cg.add_define("USE_API_SERVICES")
 
+    # Set USE_API_CUSTOM_SERVICES if external components need dynamic service registration
+    if config[CONF_CUSTOM_SERVICES]:
+        cg.add_define("USE_API_CUSTOM_SERVICES")
+
     if config[CONF_HOMEASSISTANT_SERVICES]:
         cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
 
@@ -265,6 +275,8 @@ async def to_code(config):
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
+        # Collect all triggers first, then register all at once with initializer_list
+        triggers: list[cg.Pvariable] = []
         for conf in actions:
             template_args = []
             func_args = []
@@ -278,8 +290,10 @@ async def to_code(config):
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
             )
-            cg.add(var.register_user_service(trigger))
+            triggers.append(trigger)
             await automation.build_automation(trigger, func_args, conf)
+        # Register all services at once - single allocation, no reallocations
+        cg.add(var.initialize_user_services(triggers))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")

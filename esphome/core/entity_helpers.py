@@ -105,7 +105,9 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         config[CONF_NAME],
         platform,
     )
-    add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+    # Only set disabled_by_default if True (default is False)
+    if config[CONF_DISABLED_BY_DEFAULT]:
+        add(var.set_disabled_by_default(True))
     if CONF_INTERNAL in config:
         add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:

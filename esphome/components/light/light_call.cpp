@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -52,8 +51,10 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
   }
 
 static const LogString *color_mode_to_human(ColorMode color_mode) {
-  if (color_mode == ColorMode::UNKNOWN)
-    return LOG_STR("Unknown");
+  if (color_mode == ColorMode::ON_OFF)
+    return LOG_STR("On/Off");
+  if (color_mode == ColorMode::BRIGHTNESS)
+    return LOG_STR("Brightness");
   if (color_mode == ColorMode::WHITE)
     return LOG_STR("White");
   if (color_mode == ColorMode::COLOR_TEMPERATURE)
@@ -68,7 +69,7 @@ static const LogString *color_mode_to_human(ColorMode color_mode) {
     return LOG_STR("RGB + cold/warm white");
   if (color_mode == ColorMode::RGB_COLOR_TEMPERATURE)
     return LOG_STR("RGB + color temperature");
-  return LOG_STR("");
+  return LOG_STR("Unknown");
 }
 
 // Helper to log percentage values
@@ -156,7 +157,7 @@ void LightCall::perform() {
     if (this->effect_ == 0u) {
       effect_s = "None";
     } else {
-      effect_s = this->parent_->effects_[this->effect_ - 1]->get_name().c_str();
+      effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }
 
     if (publish) {
@@ -406,7 +407,7 @@ void LightCall::transform_parameters_() {
   }
 }
 ColorMode LightCall::compute_color_mode_() {
-  const auto &supported_modes = this->parent_->get_traits().get_supported_color_modes();
+  auto supported_modes = this->parent_->get_traits().get_supported_color_modes();
   int supported_count = supported_modes.size();
 
   // Some lights don't support any color modes (e.g. monochromatic light), leave it at unknown.
@@ -437,7 +438,7 @@ ColorMode LightCall::compute_color_mode_() {
 
   // Use the preferred suitable mode.
   if (intersection != 0) {
-    ColorMode mode = ColorModeMask::first_mode_from_mask(intersection);
+    ColorMode mode = ColorModeMask::first_value_from_mask(intersection);
     ESP_LOGI(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
@@ -511,7 +512,7 @@ LightCall &LightCall::set_effect(const std::string &effect) {
   for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
     LightEffect *e = this->parent_->effects_[i];
 
-    if (strcasecmp(effect.c_str(), e->get_name().c_str()) == 0) {
+    if (strcasecmp(effect.c_str(), e->get_name()) == 0) {
       this->set_effect(i + 1);
       found = true;
       break;
@@ -645,5 +646,4 @@ LightCall &LightCall::set_rgbw(float red, float green, float blue, float white) 
   return *this;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.packages import do_packages_pass
+from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
@@ -92,6 +92,50 @@ def test_package_invalid_dict(basic_esphome, basic_wifi):
 
     with pytest.raises(cv.Invalid):
         packages_pass(config)
+
+
+@pytest.mark.parametrize(
+    "package",
+    [
+        {"package1": "github://esphome/non-existant-repo/file1.yml@main"},
+        {"package2": "github://esphome/non-existant-repo/file1.yml"},
+        {"package3": "github://esphome/non-existant-repo/other-folder/file1.yml"},
+        [
+            "github://esphome/non-existant-repo/file1.yml@main",
+            "github://esphome/non-existant-repo/file1.yml",
+            "github://esphome/non-existant-repo/other-folder/file1.yml",
+        ],
+    ],
+)
+def test_package_shorthand(package):
+    CONFIG_SCHEMA(package)
+
+
+@pytest.mark.parametrize(
+    "package",
+    [
+        # not github
+        {"package1": "someplace://esphome/non-existant-repo/file1.yml@main"},
+        # missing repo
+        {"package2": "github://esphome/file1.yml"},
+        # missing file
+        {"package3": "github://esphome/non-existant-repo/@main"},
+        {"a": "invalid string, not shorthand"},
+        "some string",
+        3,
+        False,
+        {"a": 8},
+        ["someplace://esphome/non-existant-repo/file1.yml@main"],
+        ["github://esphome/file1.yml"],
+        ["github://esphome/non-existant-repo/@main"],
+        ["some string"],
+        [True],
+        [3],
+    ],
+)
+def test_package_invalid(package):
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA(package)
 
 
 def test_package_include(basic_wifi, basic_esphome):

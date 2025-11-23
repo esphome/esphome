@@ -10,6 +10,8 @@
 namespace esphome {
 namespace wifi_info {
 
+static constexpr size_t MAX_STATE_LENGTH = 255;
+
 class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
   void setup() override;
@@ -33,6 +35,7 @@ class DNSAddressWifiInfo : public Component, public text_sensor::TextSensor {
 class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
   void setup() override;
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
@@ -59,7 +62,10 @@ class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {
 
 class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
  public:
-  void setup() override { this->publish_state(get_mac_address_pretty()); }
+  void setup() override {
+    char mac_s[18];
+    this->publish_state(get_mac_address_pretty_into_buffer(mac_s));
+  }
   void dump_config() override;
 };
 
