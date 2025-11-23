@@ -130,7 +130,6 @@ bool check_sml_data(const bytes &buffer) {
   ESP_LOGW(TAG, "Checksum error in received SML data (0x%02X, %d).", crc_received, buffer.size());
   return false;
 }
-XXX
 
 uint8_t get_code(uint8_t byte) {
   switch (byte) {
