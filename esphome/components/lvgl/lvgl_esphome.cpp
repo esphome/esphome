@@ -128,6 +128,11 @@ void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t ti
     return;
   this->current_page_ = index;
   lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
+
+  for (lv_obj_t *obj : this->top_level_objs_) {
+    lv_group_add_obj(this->pages_[this->current_page_]->def_group, obj);
+  }
+
   for (lv_indev_t *indev : this->inputs_) {
     lv_indev_set_group(indev, this->pages_[this->current_page_]->def_group);
   }
@@ -464,6 +469,14 @@ void LvglComponent::setup() {
   // Rotation will be handled by our drawing function, so reset the display rotation.
   for (auto *display : this->displays_)
     display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
+
+  lv_group_t *def_group = lv_group_get_default();
+  lv_obj_t **i;
+  for (i = static_cast<lv_obj_t **>(_lv_ll_get_head(&def_group->obj_ll)); i != NULL;
+       i = static_cast<lv_obj_t **>(_lv_ll_get_next(&def_group->obj_ll, i))) {
+    this->top_level_objs_.push_back(*i);
+  }
+
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
   ESP_LOGCONFIG(TAG, "LVGL Setup complete");

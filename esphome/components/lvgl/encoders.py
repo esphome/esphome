@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID, CONF_SENSOR
 
 from .defines import (
+    CONF_AUTO_PAGE_INPUT,
     CONF_ENCODERS,
     CONF_ENTER_BUTTON,
     CONF_INITIAL_FOCUS,
@@ -66,7 +67,8 @@ async def encoders_to_code(var, config, default_group):
         else:
             group = default_group
             lv.indev_set_group(indev, group)
-            lv_add(var.add_input(indev))
+            if config[CONF_AUTO_PAGE_INPUT]:
+                lv_add(var.add_input(indev))
 
 
 async def initial_focus_to_code(config):

@@ -6,6 +6,7 @@ from esphome.cpp_generator import MockObj, TemplateArguments
 
 from ..defines import (
     CONF_ANIMATION,
+    CONF_AUTO_PAGE_INPUT,
     CONF_DEFAULT_GROUP,
     CONF_LVGL_ID,
     CONF_PAGE,
@@ -165,12 +166,17 @@ async def page_show_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def add_pages(lv_component, config):
+async def add_pages(lv_component, config, lvgl_default_group):
     lv_add(lv_component.set_page_wrap(config[CONF_PAGE_WRAP]))
     for pconf in config.get(CONF_PAGES, ()):
         id = pconf[CONF_ID]
         skip = pconf[CONF_SKIP]
-        default_group = cg.Pvariable(pconf[CONF_DEFAULT_GROUP], lv_expr.group_create())
+        if config[CONF_AUTO_PAGE_INPUT]:
+            default_group = cg.Pvariable(
+                pconf[CONF_DEFAULT_GROUP], lv_expr.group_create()
+            )
+        else:
+            default_group = lvgl_default_group
         cg.add(lv.group_set_default(default_group))
         var = cg.new_Pvariable(id, skip, default_group)
         page = Widget.create(id, var, page_spec, pconf)

@@ -42,7 +42,7 @@ from .schemas import (
     grid_alignments,
     obj_schema,
 )
-from .styles import add_top_layer, styles_to_code, theme_to_code
+from .styles import TOP_LAYER_SCHEMA, add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -326,8 +326,8 @@ async def to_code(configs):
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
-            await add_pages(lv_component, config)
-            await add_top_layer(lv_component, config)
+            await add_pages(lv_component, config, default_group)
+            await add_top_layer(lv_component, config, default_group)
             await msgboxes_to_code(lv_component, config)
             await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
@@ -391,6 +391,7 @@ LVGL_SCHEMA = cv.All(
         cv.polling_component_schema("1s")
         .extend(
             {
+                cv.Optional(df.CONF_AUTO_PAGE_INPUT, default=True): lv_bool,
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
                 cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(16),
@@ -444,7 +445,7 @@ LVGL_SCHEMA = cv.All(
                 ),
                 cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
                 cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-                cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
+                cv.Optional(df.CONF_TOP_LAYER): TOP_LAYER_SCHEMA,
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,

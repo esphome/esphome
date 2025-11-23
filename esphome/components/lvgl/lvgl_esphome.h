@@ -110,7 +110,7 @@ class LvPageType : public Parented<LvglComponent> {
   lv_obj_t *obj{};
   size_t index{};
   bool skip;
-  lv_group_t *def_group{};
+  lv_group_t *def_group;
 };
 
 using LvLambdaType = std::function<void(lv_obj_t *)>;
@@ -233,6 +233,8 @@ class LvglComponent : public PollingComponent {
   lv_color_t *rotate_buf_{};
 
   std::vector<lv_indev_t *> inputs_{};
+  lv_group_t *def_group;
+  std::vector<lv_obj_t *> top_level_objs_{};
 };
 
 class IdleTrigger : public Trigger<> {
