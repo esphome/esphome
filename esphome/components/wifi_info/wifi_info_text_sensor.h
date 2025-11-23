@@ -10,8 +10,6 @@
 namespace esphome {
 namespace wifi_info {
 
-static constexpr size_t MAX_STATE_LENGTH = 255;
-
 class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
   void setup() override;
