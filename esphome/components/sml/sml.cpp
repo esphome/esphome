@@ -30,8 +30,7 @@ void Sml::loop() {
     const char c = read();
     i++
 
-    if (this->record_)
-      this->sml_data_.emplace_back(c);
+        if (this->record_) this->sml_data_.emplace_back(c);
 
     switch (this->check_start_end_bytes_(c)) {
       case START_BYTES_DETECTED: {
