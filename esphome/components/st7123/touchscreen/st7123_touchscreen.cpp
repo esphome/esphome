@@ -50,9 +50,6 @@ void ST7123Touchscreen::setup() {
 void ST7123Touchscreen::setup_internal_() {
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
-  }
-
-  if (this->interrupt_pin_ != nullptr) {
     this->attach_interrupt_(this->interrupt_pin_,
                             gpio::INTERRUPT_RISING_EDGE);  // INTERRUPT_RISING_EDGE / INTERRUPT_FALLING_EDGE?
   }
