@@ -306,7 +306,7 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   float brightness, r, g, b, w;
   color.as_brightness(&brightness);
   color.as_rgbw(&r, &g, &b, &w);
-  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::BRIGHTNESS) > 0) {
+  if (obj->get_traits().supports_color_capability(light::ColorCapability::BRIGHTNESS)) {
     stream->print(ESPHOME_F("esphome_light_color{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
@@ -318,7 +318,7 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
     stream->print(brightness);
     stream->print(ESPHOME_F("\n"));
   }
-  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB) > 0) {
+  if (obj->get_traits().supports_color_capability(light::ColorCapability::RGB)) {
     stream->print(ESPHOME_F("esphome_light_color{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
@@ -350,7 +350,7 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
     stream->print(b);
     stream->print(ESPHOME_F("\n"));
   }
-  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_WHITE) > 0) {
+  if (obj->get_traits().supports_color_capability(light::ColorCapability::WHITE)) {
     stream->print(ESPHOME_F("esphome_light_color{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
