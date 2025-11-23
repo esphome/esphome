@@ -25,15 +25,17 @@ char Sml::check_start_end_bytes_(uint8_t byte) {
 }
 
 void Sml::loop() {
+  int i = 0;
   while (available()) {
     const char c = read();
+    i++
 
     if (this->record_)
       this->sml_data_.emplace_back(c);
 
     switch (this->check_start_end_bytes_(c)) {
       case START_BYTES_DETECTED: {
-        ESP_LOGW(TAG, "Start detected.");
+        ESP_LOGW(TAG, "Start detected (%d Bytes are thrown away).", this->sml_data_.size());
         this->record_ = true;
         this->sml_data_.clear();
         // add start sequence (for callbacks)
@@ -60,6 +62,8 @@ void Sml::loop() {
       };
     };
   }
+  if (i > 0)
+    ESP_LOGV(TAG, "Processed %d bytes in SML loop.", i);
 }
 
 void Sml::add_on_data_callback(std::function<void(std::vector<uint8_t>, bool)> &&callback) {
