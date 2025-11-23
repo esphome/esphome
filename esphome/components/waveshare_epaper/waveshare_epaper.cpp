@@ -177,14 +177,14 @@ void WaveshareEPaper::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void WaveshareEPaper7C::setup() {
-  this->init_internal_7c_(this->get_buffer_length_());
+void WaveshareEPaperUpTo8Color::setup() {
+  this->init_color_map_();
+  this->init_internal_(this->get_buffer_length_());
   this->setup_pins_();
   this->spi_setup();
-  this->reset_();
   this->initialize();
 }
-void WaveshareEPaper7C::init_internal_7c_(uint32_t buffer_length) {
+void WaveshareEPaperUpTo8Color::init_internal_(uint32_t buffer_length) {
   RAMAllocator<uint8_t> allocator;
   uint32_t small_buffer_length = buffer_length / NUM_BUFFERS;
 
@@ -199,41 +199,8 @@ void WaveshareEPaper7C::init_internal_7c_(uint32_t buffer_length) {
       return;
     }
   }
-  this->clear();
 }
-uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
-  uint8_t hex_code;
-  if (color.red > 127) {
-    if (color.green > 170) {
-      if (color.blue > 127) {
-        hex_code = 0x1;  // White
-      } else {
-        hex_code = 0x5;  // Yellow
-      }
-    } else if (color.green > 85) {
-      hex_code = 0x6;  // Orange
-    } else {
-      hex_code = 0x4;  // Red (or Magenta)
-    }
-  } else {
-    if (color.green > 127) {
-      if (color.blue > 127) {
-        hex_code = 0x3;  // Cyan -> Blue
-      } else {
-        hex_code = 0x2;  // Green
-      }
-    } else {
-      if (color.blue > 127) {
-        hex_code = 0x3;  // Blue
-      } else {
-        hex_code = 0x0;  // Black
-      }
-    }
-  }
-
-  return hex_code;
-}
-void WaveshareEPaper7C::fill(Color color) {
+void WaveshareEPaperUpTo8Color::fill(Color color) {
   uint8_t pixel_color;
   if (color.is_on()) {
     pixel_color = this->color_to_hex(color);
@@ -258,7 +225,7 @@ void WaveshareEPaper7C::fill(Color color) {
     }
   }
 }
-void WaveshareEPaper7C::send_buffers_() {
+void WaveshareEPaperUpTo8Color::send_buffers_() {
   if (this->buffers_[0] == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
     return;
@@ -274,31 +241,53 @@ void WaveshareEPaper7C::send_buffers_() {
       // |aaabbbaa|abbbaaab|bbaaabbb|
       // | byte 1 | byte 2 | byte 3 |
       byte_to_send = ((triplet >> 17).to_ulong() & 0b01110000) | ((triplet >> 18).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
+      this->write_byte(byte_to_send);
 
       byte_to_send = ((triplet >> 11).to_ulong() & 0b01110000) | ((triplet >> 12).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
+      this->write_byte(byte_to_send);
 
       byte_to_send = ((triplet >> 5).to_ulong() & 0b01110000) | ((triplet >> 6).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
+      this->write_byte(byte_to_send);
 
       byte_to_send = ((triplet << 1).to_ulong() & 0b01110000) | ((triplet << 0).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
+      this->write_byte(byte_to_send);
     }
     App.feed_wdt();
   }
 }
-void WaveshareEPaper7C::reset_() {
+void WaveshareEPaperUpTo8Color::reset_() {
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->digital_write(true);
     delay(20);
     this->reset_pin_->digital_write(false);
-    delay(1);
+    delay(2);
     this->reset_pin_->digital_write(true);
     delay(20);
+  } else {
+    ESP_LOGW(TAG, "Reset pin not defined!");
   }
 }
-
+void WaveshareEPaper7C::init_color_map_() {
+  this->color_map_ = {{0x0, Color::BLACK},      {0x1, Color::WHITE},     {0x2, Color(0, 255, 0)},
+                      {0x3, Color(0, 0, 255)},  {0x4, Color(255, 0, 0)}, {0x5, Color(255, 255, 0)},
+                      {0x6, Color(255, 165, 0)}};
+}
+void WaveshareEPaper6C::init_color_map_() {
+  this->color_map_ = {{0x0, Color::BLACK},     {0x1, Color::WHITE},     {0x2, Color(255, 255, 0)},
+                      {0x3, Color(255, 0, 0)}, {0x5, Color(0, 0, 255)}, {0x6, Color(0, 255, 0)}};
+}
+uint8_t WaveshareEPaperUpTo8Color::color_to_hex(Color color) {
+  float min_distance = std::numeric_limits<float>::max();
+  uint8_t best_hex_code = 0x0;
+  for (const auto &[hexCode, refColor] : this->color_map_) {
+    auto euclidian_distance = color.euclidean_distance(refColor);
+    if (euclidian_distance < min_distance) {
+      min_distance = euclidian_distance;
+      best_hex_code = hexCode;
+    }
+  }
+  return best_hex_code;
+}
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
@@ -319,9 +308,9 @@ uint32_t WaveshareEPaper::get_buffer_length_() {
 uint32_t WaveshareEPaperBWR::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 4u;
 }  // black and red buffer
-uint32_t WaveshareEPaper7C::get_buffer_length_() {
+uint32_t WaveshareEPaperUpTo8Color::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 8u * 3u;
-}  // 7 colors buffer, 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
+}  // 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
 
 void WaveshareEPaperBWR::fill(Color color) {
   this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color);
@@ -348,7 +337,7 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
     this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
   }
 }
-void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT WaveshareEPaperUpTo8Color::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
@@ -3566,6 +3555,174 @@ void WaveshareEPaper7P5In::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// Waveshare 7.3E ========================================================
+namespace cmddata_7P3InE {
+// WaveshareEPaper7P3InE commands
+// https://www.waveshare.com/wiki/7.3inch_e-Paper_Module_(E)
+
+// CMDH Panel Setting
+static const uint8_t CMD_CMDH[] = {0xAA, 0x49, 0x55, 0x20, 0x08, 0x09, 0x18};
+static const uint8_t CMD_CMDH2[] = {0x01, 0x3F, 0x00, 0x32, 0x2A, 0x0E, 0x2A};
+static const uint8_t CMD_CMDH3[] = {0x00, 0x5F, 0x69};
+static const uint8_t CMD_CMDH4[] = {0x03, 0x00, 0x54, 0x00, 0x44};
+static const uint8_t CMD_CMDH5[] = {0x05, 0x40, 0x1F, 0x1F, 0x2C};
+static const uint8_t CMD_CMDH6[] = {0x06, 0x6F, 0x1F, 0x1F, 0x22};
+static const uint8_t CMD_CMDH7[] = {0x08, 0x6F, 0x1F, 0x1F, 0x22};
+
+// IPC Image Process Command
+static const uint8_t CMD_IPC[] = {0x13, 0x00, 0x04};
+static const uint8_t CMD_IPC2[] = {0x30, 0x3C};
+
+// TSE Temperature Sensor Enable
+static const uint8_t CMD_TSE[] = {0x41, 0x00};
+static const uint8_t CMD_TSE2[] = {0x50, 0x3F};
+static const uint8_t CMD_TSE3[] = {0x60, 0x02, 0x00};
+static const uint8_t CMD_TSE4[] = {0x61, 0x03, 0x20, 0x01, 0xE0};
+static const uint8_t CMD_TSE5[] = {0x82, 0x1E};
+static const uint8_t CMD_TSE6[] = {0x84, 0x00};
+
+// AGID Auto Gate Voltage Control
+static const uint8_t CMD_AGID[] = {0x86, 0x00};
+static const uint8_t CMD_AGID2[] = {0xE3, 0x2F};
+
+// CCSET
+static const uint8_t CMD_CCSET[] = {0xE0, 0x00};
+
+// TSSET
+static const uint8_t CMD_TSSET[] = {0xE6, 0x00};
+
+// Power On
+static const uint8_t CMD_PWR_ON[] = {0x04};
+
+// Display Refresh
+static const uint8_t CMD_DRF[] = {0x12, 0x00};
+
+// Power Off
+static const uint8_t CMD_PWR_OFF[] = {0x02, 0x00};
+
+// Transmit Data Start
+static const uint8_t CMD_DTM1[] = {0x10};
+
+// Deep Sleep
+static const uint8_t CMD_DSLP[] = {0x07, 0xA5};
+}  // namespace cmddata_7P3InE
+
+void WaveshareEPaper7P3InE::initialize() {
+  if (this->buffers_[0] == nullptr) {
+    ESP_LOGE(TAG, "Buffer unavailable!");
+    return;
+  }
+
+  this->reset_();
+  delay(20);
+  this->wait_until_idle_();
+
+  using namespace cmddata_7P3InE;
+
+  ESP_LOGD(TAG, "Initializing display");
+  this->cmd_data(CMD_CMDH, sizeof(CMD_CMDH));
+  this->cmd_data(CMD_CMDH2, sizeof(CMD_CMDH2));
+  this->cmd_data(CMD_CMDH3, sizeof(CMD_CMDH3));
+  this->cmd_data(CMD_CMDH4, sizeof(CMD_CMDH4));
+  this->cmd_data(CMD_CMDH5, sizeof(CMD_CMDH5));
+  this->cmd_data(CMD_CMDH6, sizeof(CMD_CMDH6));
+  this->cmd_data(CMD_CMDH7, sizeof(CMD_CMDH7));
+
+  this->cmd_data(CMD_IPC, sizeof(CMD_IPC));
+  this->cmd_data(CMD_IPC2, sizeof(CMD_IPC2));
+
+  this->cmd_data(CMD_TSE, sizeof(CMD_TSE));
+  this->cmd_data(CMD_TSE2, sizeof(CMD_TSE2));
+  this->cmd_data(CMD_TSE3, sizeof(CMD_TSE3));
+  this->cmd_data(CMD_TSE4, sizeof(CMD_TSE4));
+  this->cmd_data(CMD_TSE5, sizeof(CMD_TSE5));
+  this->cmd_data(CMD_TSE6, sizeof(CMD_TSE6));
+
+  this->cmd_data(CMD_AGID, sizeof(CMD_AGID));
+  this->cmd_data(CMD_AGID2, sizeof(CMD_AGID2));
+
+  this->cmd_data(CMD_CCSET, sizeof(CMD_CCSET));
+  this->cmd_data(CMD_TSSET, sizeof(CMD_TSSET));
+
+  ESP_LOGI(TAG, "Display initialized successfully");
+}
+
+void HOT WaveshareEPaper7P3InE::refresh_display_() {
+  using namespace cmddata_7P3InE;
+
+  this->cmd_data(CMD_PWR_ON, sizeof(CMD_PWR_ON));
+  delay(20);
+  this->wait_until_idle_();
+
+  // Display Refresh (DRF)
+  this->cmd_data(CMD_DRF, sizeof(CMD_DRF));
+  delay(20);
+  this->wait_until_idle_();
+
+  this->cmd_data(CMD_PWR_OFF, sizeof(CMD_PWR_OFF));
+  this->wait_until_idle_();
+}
+
+void HOT WaveshareEPaper7P3InE::display() {
+  this->initialize();
+
+  using namespace cmddata_7P3InE;
+
+  // Display Start Transmission 1 (DTM1)
+  this->cmd_data(CMD_DTM1, sizeof(CMD_DTM1));
+  this->start_data_();
+  this->send_buffers_();
+  this->end_data_();
+
+  this->refresh_display_();
+
+  this->deep_sleep();
+}
+
+void WaveshareEPaper7P3InE::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.3in E (Spectra 6)");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+int WaveshareEPaper7P3InE::get_width_internal() { return 800; }
+int WaveshareEPaper7P3InE::get_height_internal() { return 480; }
+uint32_t WaveshareEPaper7P3InE::idle_timeout_() { return 20000; }
+
+void WaveshareEPaper7P3InE::deep_sleep() {
+  using namespace cmddata_7P3InE;
+  this->cmd_data(CMD_DSLP, sizeof(CMD_DSLP));
+  delay(10);
+  this->reset_pin_->digital_write(false);
+}
+
+bool WaveshareEPaper7P3InE::wait_until_idle_() {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+
+  const uint32_t start = millis();
+  while (true) {
+    bool isBusy = this->busy_pin_->digital_read();
+    if (!isBusy) {
+      break;
+    }
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGE(TAG, "Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(10);
+  }
+
+  delay(200);  // NOLINT
+  return true;
+}
+
 // Waveshare 5.65F ========================================================
 
 namespace cmddata_5P65InF {
@@ -3681,7 +3838,9 @@ void HOT WaveshareEPaper5P65InF::display() {
   ESP_LOGI(TAG, "Sending data to the display");
   this->cmd_data(R61_CMD_TRES, sizeof(R61_CMD_TRES));
   this->cmd_data(R10_CMD_DTM1, sizeof(R10_CMD_DTM1));
+  this->start_data_();
   this->send_buffers_();
+  this->end_data_();
 
   // COMMAND POWER ON
   ESP_LOGI(TAG, "Power on the display");
@@ -3845,7 +4004,9 @@ void HOT WaveshareEPaper7P3InF::display() {
   // COMMAND DATA START TRANSMISSION
   ESP_LOGI(TAG, "Sending data to the display");
   this->command(0x10);
+  this->start_data_();
   this->send_buffers_();
+  this->end_data_();
 
   // COMMAND POWER ON
   ESP_LOGI(TAG, "Power on the display");

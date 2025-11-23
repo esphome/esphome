@@ -189,6 +189,14 @@ struct Color {
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
 
+  inline float euclidean_distance(const Color &other) const {
+    int dr = static_cast<int>(this->r) - static_cast<int>(other.r);
+    int dg = static_cast<int>(this->g) - static_cast<int>(other.g);
+    int db = static_cast<int>(this->b) - static_cast<int>(other.b);
+    int dw = static_cast<int>(this->w) - static_cast<int>(other.w);
+    return sqrtf(float(dr * dr + dg * dg + db * db + dw * dw));
+  }
+
   static const Color BLACK;
   static const Color WHITE;
 };

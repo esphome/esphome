@@ -565,6 +565,25 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
+  # 7.3 inch displays
+  - platform: waveshare_epaper
+    id: epd_7_30_spectra6
+    model: 7.30in-spectra6
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
   # 7.5 inch displays
   - platform: waveshare_epaper
     id: epd_7_50

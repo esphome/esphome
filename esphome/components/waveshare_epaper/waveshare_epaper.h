@@ -83,9 +83,10 @@ class WaveshareEPaperBWR : public WaveshareEPaperBase {
   uint32_t get_buffer_length_() override;
 };
 
-class WaveshareEPaper7C : public WaveshareEPaperBase {
+class WaveshareEPaperUpTo8Color : public WaveshareEPaperBase {
  public:
-  uint8_t color_to_hex(Color color);
+  virtual uint8_t color_to_hex(Color color);
+
   void fill(Color color) override;
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
@@ -95,12 +96,25 @@ class WaveshareEPaper7C : public WaveshareEPaperBase {
   uint32_t get_buffer_length_() override;
   void setup() override;
 
-  void init_internal_7c_(uint32_t buffer_length);
+  void init_internal_(uint32_t buffer_length);
   void send_buffers_();
   void reset_();
+  virtual void init_color_map_() = 0;
 
-  static const int NUM_BUFFERS = 10;
+  static const int NUM_BUFFERS = 20;
   uint8_t *buffers_[NUM_BUFFERS];
+
+  std::map<uint8_t, Color> color_map_;
+};
+
+class WaveshareEPaper7C : public WaveshareEPaperUpTo8Color {
+ protected:
+  virtual void init_color_map_() override;
+};
+
+class WaveshareEPaper6C : public WaveshareEPaperUpTo8Color {
+ protected:
+  virtual void init_color_map_() override;
 };
 
 enum WaveshareEPaperTypeAModel {
@@ -718,6 +732,30 @@ class GDEY0583T81 : public WaveshareEPaper {
   bool power_is_on_{false};
   bool is_deep_sleep_{false};
   uint8_t *old_buffer_{nullptr};
+};
+
+class WaveshareEPaper7P3InE : public WaveshareEPaper6C {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+
+  void deep_sleep() override;
+
+  bool wait_until_idle_();
+
+  void refresh_display_();
+
+  bool deep_sleep_between_updates_{true};
 };
 
 class WaveshareEPaper5P65InF : public WaveshareEPaper7C {
