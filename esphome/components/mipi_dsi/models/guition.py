@@ -62,6 +62,7 @@ DriverChip(
     lane_bit_rate="500Mbps",
     swap_xy=cv.UNDEFINED,
     color_order="RGB",
+    reset_pin=5,
     initsequence=[
         (0xFF, 0x77, 0x01, 0x00, 0x00, 0x13),
         (0xEF, 0x08),
