@@ -21,6 +21,7 @@ from esphome.cpp_generator import (  # noqa: F401
     Statement,
     StructInitializer,
     TemplateArguments,
+    TypedArrayInitializer,
     add,
     add_build_flag,
     add_build_unflag,

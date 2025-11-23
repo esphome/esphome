@@ -158,6 +158,18 @@ class ArrayInitializer(Expression):
         return cpp
 
 
+class TypedArrayInitializer(ArrayInitializer):
+    __slots__ = ("type",)
+
+    def __init__(self, type_: str, *args: Any, multiline: bool = False):
+        super().__init__(*args, multiline=multiline)
+        self.type = type_
+
+    def __str__(self):
+        base_str = super().__str__()
+        return f"{self.type}{base_str}"
+
+
 class ParameterExpression(Expression):
     __slots__ = ("type", "id")
 

@@ -14,6 +14,26 @@ esphome:
             - script.is_running: my_script
           then:
             - logger.log: my_script is running
+      - script.execute:
+          id: my_script_with_array_params
+          bools_param: [true, false, true]
+          numbers_param: [3, 2, 1]
+          strings_param: ["one", "two", "three"]
+      - script.wait: my_script_with_array_params
+      - script.execute:
+          id: my_script_with_array_params
+          bools_param:
+            - true
+            - false
+            - true
+          numbers_param:
+            - 3
+            - 2
+            - 1
+          strings_param:
+            - "one"
+            - "two"
+            - "three"
 
 script:
   - id: my_script
@@ -53,3 +73,14 @@ script:
           count: 5
           then:
             - logger.log: looping!
+  - id: my_script_with_array_params
+    mode: single
+    parameters:
+      bools_param: bool[]
+      numbers_param: int[]
+      strings_param: string[]
+    then:
+      - repeat:
+          count: !lambda 'return bools_param.size();'
+          then:
+            - lambda: 'ESP_LOGD("main", "Hello World! %d %d %s", bools_param[iteration], numbers_param[iteration], strings_param[iteration].c_str());'

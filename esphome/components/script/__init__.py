@@ -170,6 +170,18 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 return cg.RawExpression(str(value).lower())
             return cg.RawExpression(str(value))
 
+        def list_converter(value):
+            if not isinstance(value, list):
+                return converter(value)
+
+            item_type = type[len("std::vector<") : -1]
+            item_converter = convert(item_type)
+            return cg.TypedArrayInitializer(
+                type, *[item_converter(item) for item in value]
+            )
+
+        if type.startswith("std::vector<") and type.endswith(">"):
+            return list_converter
         return converter
 
     async def get_ordered_args(config, script_params):
