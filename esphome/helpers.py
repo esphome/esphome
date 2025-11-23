@@ -9,10 +9,10 @@ import platform
 import re
 import shutil
 import tempfile
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from esphome.const import CONF_DEFAULTS, __version__ as ESPHOME_VERSION
+from esphome.const import __version__ as ESPHOME_VERSION
 
 if TYPE_CHECKING:
     from esphome.address_cache import AddressCache
@@ -557,26 +557,3 @@ def docs_url(path: str) -> str:
 
     path = path.removeprefix("/")
     return docs_format.format(path=path)
-
-
-class ConfigContext:
-    @property
-    def vars(self) -> dict[str, Any]:
-        return self._context_vars
-
-    def set_context(self, vars: dict[str, Any]) -> None:
-        # pylint: disable=attribute-defined-outside-init
-        self._context_vars = vars
-
-
-def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
-    if isinstance(value, dict) and CONF_DEFAULTS in value:
-        context_vars = {
-            **value.pop(CONF_DEFAULTS),
-            **(context_vars or {}),
-        }
-
-    if context_vars and isinstance(value, (dict, list, str)):
-        value = add_class_to_obj(value, ConfigContext)
-        value.set_context(context_vars)
-    return value

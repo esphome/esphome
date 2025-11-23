@@ -7,8 +7,12 @@ from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
-from esphome.helpers import ConfigContext
-from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
+from esphome.yaml_util import (
+    ConfigContext,
+    ESPHomeDataBase,
+    ESPLiteralValue,
+    make_data_base,
+)
 
 from .jinja import Jinja, JinjaError, UndefinedError, has_jinja
 

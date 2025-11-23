@@ -16,6 +16,8 @@ import yaml
 from yaml import SafeLoader as PurePythonLoader
 import yaml.constructor
 
+from esphome.const import CONF_DEFAULTS
+
 try:
     from yaml import CSafeLoader as FastestAvailableSafeLoader
 except ImportError:
@@ -31,7 +33,7 @@ from esphome.core import (
     MACAddress,
     TimePeriod,
 )
-from esphome.helpers import add_class_to_obj, add_context
+from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,6 +87,29 @@ def make_data_base(
     except TypeError:
         # Adding class failed, ignore error
         return value
+
+
+class ConfigContext:
+    @property
+    def vars(self) -> dict[str, Any]:
+        return self._context_vars
+
+    def set_context(self, vars: dict[str, Any]) -> None:
+        # pylint: disable=attribute-defined-outside-init
+        self._context_vars = vars
+
+
+def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
+    if isinstance(value, dict) and CONF_DEFAULTS in value:
+        context_vars = {
+            **value.pop(CONF_DEFAULTS),
+            **(context_vars or {}),
+        }
+
+    if context_vars and isinstance(value, (dict, list, str)):
+        value = add_class_to_obj(value, ConfigContext)
+        value.set_context(context_vars)
+    return value
 
 
 def _add_data_ref(fn):
