@@ -256,7 +256,9 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-  std::string name;
+  const char *device_name;
+  std::string name_with_suffix;
+
   if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
@@ -264,23 +266,26 @@ bool ESP32BLE::ble_setup_() {
       char mac_addr[13];
       get_mac_address_into_buffer(mac_addr);
       const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      name = make_name_with_suffix(this->name_, strlen(this->name_), '-', mac_suffix_ptr, mac_address_suffix_len);
+      name_with_suffix =
+          make_name_with_suffix(this->name_, strlen(this->name_), '-', mac_suffix_ptr, mac_address_suffix_len);
+      device_name = name_with_suffix.c_str();
     } else {
-      name = this->name_;
+      device_name = this->name_;
     }
   } else {
-    name = App.get_name();
-    if (name.length() > 20) {
+    name_with_suffix = App.get_name();
+    if (name_with_suffix.length() > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
         // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
-        name.erase(13, name.length() - 20);
+        name_with_suffix.erase(13, name_with_suffix.length() - 20);
       } else {
-        name.resize(20);
+        name_with_suffix.resize(20);
       }
     }
+    device_name = name_with_suffix.c_str();
   }
 
-  err = esp_ble_gap_set_device_name(name.c_str());
+  err = esp_ble_gap_set_device_name(device_name);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
     return false;
