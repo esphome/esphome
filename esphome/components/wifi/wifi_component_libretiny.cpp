@@ -15,8 +15,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_lt";
 
@@ -497,8 +496,6 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {}
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif  // USE_LIBRETINY
 #endif
