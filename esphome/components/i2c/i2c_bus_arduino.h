@@ -1,6 +1,8 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+// Arduino I2C implementation for non-ESP32 platforms
+// ESP32 uses ESP-IDF I2C driver for all frameworks (see i2c_bus_esp_idf.h)
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include <Wire.h>
 #include "esphome/core/component.h"
@@ -29,15 +31,12 @@ class ArduinoI2CBus : public InternalI2CBus, public Component {
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
 
-  int get_port() const override { return this->port_; }
-
  private:
   void recover_();
   void set_pins_and_clock_();
   RecoveryCode recovery_result_;
 
  protected:
-  int8_t port_{-1};
   TwoWire *wire_;
   uint8_t sda_pin_;
   uint8_t scl_pin_;
@@ -49,4 +48,4 @@ class ArduinoI2CBus : public InternalI2CBus, public Component {
 }  // namespace i2c
 }  // namespace esphome
 
-#endif  // USE_ARDUINO
+#endif  // defined(USE_ARDUINO) && !defined(USE_ESP32)
