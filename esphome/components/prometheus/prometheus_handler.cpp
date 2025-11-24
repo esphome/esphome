@@ -366,24 +366,19 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   if (!obj->get_effects().empty()) {
     // Effect
     std::string effect = obj->get_effect_name();
+    // Print common labels once
+    stream->print(ESPHOME_F("esphome_light_effect_active{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\",effect=\""));
+    // Only vary based on effect
     if (effect == "None") {
-      stream->print(ESPHOME_F("esphome_light_effect_active{id=\""));
-      stream->print(relabel_id_(obj).c_str());
-      add_area_label_(stream, area);
-      add_node_label_(stream, node);
-      add_friendly_name_label_(stream, friendly_name);
-      stream->print(ESPHOME_F("\",name=\""));
-      stream->print(relabel_name_(obj).c_str());
-      stream->print(ESPHOME_F("\",effect=\"None\"} 0\n"));
+      stream->print(ESPHOME_F("None\"} 0\n"));
     } else {
-      stream->print(ESPHOME_F("esphome_light_effect_active{id=\""));
-      stream->print(relabel_id_(obj).c_str());
-      add_area_label_(stream, area);
-      add_node_label_(stream, node);
-      add_friendly_name_label_(stream, friendly_name);
-      stream->print(ESPHOME_F("\",name=\""));
-      stream->print(relabel_name_(obj).c_str());
-      stream->print(ESPHOME_F("\",effect=\""));
       stream->print(effect.c_str());
       stream->print(ESPHOME_F("\"} 1\n"));
     }
