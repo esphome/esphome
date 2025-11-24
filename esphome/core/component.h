@@ -161,7 +161,10 @@ class Component {
   // Remove before 2026.6.0
   ESPDEPRECATED("Use mark_failed(LOG_STR(message)) instead. Will stop working in 2026.6.0", "2025.12.0")
   void mark_failed(const char *message) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     this->status_set_error(message);
+#pragma GCC diagnostic pop
     this->mark_failed();
   }
 
