@@ -603,10 +603,6 @@ const char *get_auth_mode_str(uint8_t mode) {
   }
 }
 
-std::string format_ip4_addr(const esp_ip4_addr_t &ip) { return str_snprintf(IPSTR, 15, IP2STR(&ip)); }
-#if LWIP_IPV6
-std::string format_ip6_addr(const esp_ip6_addr_t &ip) { return str_snprintf(IPV6STR, 39, IPV62STR(ip)); }
-#endif /* LWIP_IPV6 */
 const char *get_disconnect_reason_str(uint8_t reason) {
   switch (reason) {
     case WIFI_REASON_AUTH_EXPIRE:
@@ -761,14 +757,13 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if USE_NETWORK_IPV6
     esp_netif_create_ip6_linklocal(s_sta_netif);
 #endif /* USE_NETWORK_IPV6 */
-    ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
-             format_ip4_addr(it.ip_info.gw).c_str());
+    ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
-    ESP_LOGV(TAG, "IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
+    ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
     this->num_ipv6_addresses_++;
 #endif /* USE_NETWORK_IPV6 */
 
@@ -832,7 +827,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_AP_STAIPASSIGNED) {
     const auto &it = data->data.ip_ap_staipassigned;
-    ESP_LOGV(TAG, "AP client assigned IP %s", format_ip4_addr(it.ip).c_str());
+    ESP_LOGV(TAG, "AP client assigned IP " IPSTR, IP2STR(&it.ip));
   }
 }
 
