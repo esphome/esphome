@@ -109,6 +109,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [alva (@alva-seal)](https://github.com/alva-seal)
 - [Amaery (@Amaery)](https://github.com/Amaery)
 - [Andreas Mandel (@amandel)](https://github.com/amandel)
+- [Aman kumar (@amankrokx)](https://github.com/amankrokx)
 - [Andrew McFague (@amcfague)](https://github.com/amcfague)
 - [Amish Vishwakarma (@amishv)](https://github.com/amishv)
 - [Amit Keret (@amitkeret)](https://github.com/amitkeret)
@@ -1077,6 +1078,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Jaakko Paju (@jpaju)](https://github.com/jpaju)
 - [Javier Peletier (@jpeletier)](https://github.com/jpeletier)
 - [Jan Rieger (@jrieger)](https://github.com/jrieger)
+- [Joseph Spiros (@jspiros)](https://github.com/jspiros)
 - [jsuanet (@jsuanet)](https://github.com/jsuanet)
 - [James Szalay (@jtszalay)](https://github.com/jtszalay)
 - [Juan Antonio Aldea (@JuantAldea)](https://github.com/JuantAldea)
@@ -2273,4 +2275,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated November 19, 2025.*
+*This page was last updated November 24, 2025.*
