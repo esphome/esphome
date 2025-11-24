@@ -69,17 +69,32 @@ class MDNSComponent : public Component {
 #endif
 
  protected:
-  /// Common setup logic called by all platform-specific setup() implementations
-  void on_setup_(char *mac_address_buf) {
+  /// Helper to set up services and MAC buffers, then call platform-specific registration
+  using PlatformRegisterFn = void (*)(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &);
+
+  void setup_buffers_and_register_(PlatformRegisterFn platform_register) {
 #ifdef USE_MDNS_STORE_SERVICES
-#ifdef USE_API
-    // Copy to member buffer for storage
-    std::memcpy(this->mac_address_, mac_address_buf, MAC_ADDRESS_BUFFER_SIZE);
-    this->compile_records_(this->services_, this->mac_address_);
+    auto &services = this->services_;
 #else
-    this->compile_records_(this->services_, mac_address_buf);
+    StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_storage;
+    auto &services = services_storage;
 #endif
+
+#ifdef USE_API
+#ifdef USE_MDNS_STORE_SERVICES
+    get_mac_address_into_buffer(this->mac_address_);
+    char *mac_ptr = this->mac_address_;
+#else
+    char mac_address[MAC_ADDRESS_BUFFER_SIZE];
+    get_mac_address_into_buffer(mac_address);
+    char *mac_ptr = mac_address;
 #endif
+#else
+    char *mac_ptr = nullptr;
+#endif
+
+    this->compile_records_(services, mac_ptr);
+    platform_register(this, services);
   }
 
 #ifdef USE_MDNS_DYNAMIC_TXT
