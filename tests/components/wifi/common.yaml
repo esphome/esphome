@@ -10,6 +10,10 @@ esphome:
             - logger.log: "Connected to WiFi!"
           on_error:
             - logger.log: "Failed to connect to WiFi!"
+      - if:
+          condition: wifi.ap_active
+          then:
+            - logger.log: "WiFi AP is active!"
 
 wifi:
   networks:

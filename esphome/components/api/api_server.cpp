@@ -227,8 +227,8 @@ void APIServer::dump_config() {
                 "  Max connections: %u",
                 network::get_use_address(), this->port_, this->listen_backlog_, this->max_connections_);
 #ifdef USE_API_NOISE
-  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
-  if (!this->noise_ctx_->has_psk()) {
+  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_.has_psk()));
+  if (!this->noise_ctx_.has_psk()) {
     ESP_LOGCONFIG(TAG, "  Supports encryption: YES");
   }
 #else
@@ -493,7 +493,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   ESP_LOGW(TAG, "Key set in YAML");
   return false;
 #else
-  auto &old_psk = this->noise_ctx_->get_psk();
+  auto &old_psk = this->noise_ctx_.get_psk();
   if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
     ESP_LOGW(TAG, "New PSK matches old");
     return true;
@@ -528,7 +528,18 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected() const { return !this->clients_.empty(); }
+bool APIServer::is_connected(bool state_subscription_only) const {
+  if (!state_subscription_only) {
+    return !this->clients_.empty();
+  }
+
+  for (const auto &client : this->clients_) {
+    if (client->flags_.state_subscription) {
+      return true;
+    }
+  }
+  return false;
+}
 
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;

@@ -31,3 +31,9 @@ lvgl:
             id: object5
             x: 10
             y: 11
+        - obj:
+            id:
+              - Invalid ID
+        - obj:
+            id:
+              invalid: id
