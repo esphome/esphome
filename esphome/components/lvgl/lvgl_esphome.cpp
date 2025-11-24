@@ -466,7 +466,7 @@ void LvglComponent::setup() {
     buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   }
   if (buffer == nullptr) {
-    this->status_set_error("Memory allocation failure");
+    this->status_set_error(LOG_STR("Memory allocation failure"));
     this->mark_failed();
     return;
   }
@@ -479,7 +479,7 @@ void LvglComponent::setup() {
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
-      this->status_set_error("Memory allocation failure");
+      this->status_set_error(LOG_STR("Memory allocation failure"));
       this->mark_failed();
       return;
     }

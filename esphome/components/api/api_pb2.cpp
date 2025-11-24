@@ -995,7 +995,7 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name_ref_);
   buffer.encode_uint32(2, static_cast<uint32_t>(this->type));

@@ -39,6 +39,15 @@ sensor:
       return 0.0;
     update_interval: 60s
 
+text:
+  - platform: template
+    name: "Template text"
+    optimistic: true
+    min_length: 0
+    max_length: 100
+    mode: text
+    initial_value: "Hello World"
+
 text_sensor:
   - platform: version
     name: "ESPHome Version"
@@ -51,6 +60,25 @@ text_sensor:
       }
       return {"Goodbye (cruel) World"};
     update_interval: 60s
+
+event:
+  - platform: template
+    name: "Template Event"
+    id: template_event1
+    event_types:
+      - "custom_event_1"
+      - "custom_event_2"
+
+button:
+  - platform: template
+    name: "Template Event Button"
+    on_press:
+      - logger.log: "Template Event Button pressed"
+      - lambda: |-
+          ESP_LOGD("template_event_button", "Template Event Button pressed");
+      - event.trigger:
+          id: template_event1
+          event_type: custom_event_1
 
 binary_sensor:
   - platform: template
