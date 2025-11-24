@@ -97,6 +97,7 @@ WIFI_MIN_AUTH_MODES = {
 VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
+WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
@@ -590,6 +591,11 @@ async def wifi_enabled_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
 
 
+@automation.register_condition("wifi.ap_active", WiFiAPActiveCondition, cv.Schema({}))
+async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
 @automation.register_action("wifi.enable", WiFiEnableAction, cv.Schema({}))
 async def wifi_enable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
@@ -601,6 +607,7 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
+RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
 
 
 def request_wifi_scan_results():
@@ -613,13 +620,28 @@ def request_wifi_scan_results():
     CORE.data[KEEP_SCAN_RESULTS_KEY] = True
 
 
+def enable_runtime_power_save_control():
+    """Enable runtime WiFi power save control.
+
+    Components that need to dynamically switch WiFi power saving on/off for latency
+    performance (e.g., audio streaming, large data transfers) should call this
+    function during their code generation. This enables the request_high_performance()
+    and release_high_performance() APIs.
+
+    Only supported on ESP32.
+    """
+    CORE.data[RUNTIME_POWER_SAVE_KEY] = True
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
-    """Final code generation step to configure scan result retention."""
+    """Final code generation step to configure optional WiFi features."""
     if CORE.data.get(KEEP_SCAN_RESULTS_KEY, False):
         cg.add(
             cg.RawExpression("wifi::global_wifi_component->set_keep_scan_results(true)")
         )
+    if CORE.data.get(RUNTIME_POWER_SAVE_KEY, False):
+        cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
 
 
 @automation.register_action(
