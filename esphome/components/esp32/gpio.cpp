@@ -94,6 +94,7 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
     isr_service_installed = true;
   }
   gpio_isr_handler_add(this->get_pin_num(), func, arg);
+  gpio_intr_enable(this->get_pin_num());
 }
 
 std::string ESP32InternalGPIOPin::dump_summary() const {
