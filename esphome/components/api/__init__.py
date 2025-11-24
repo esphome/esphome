@@ -260,9 +260,9 @@ async def to_code(config):
         cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
-    # Set USE_API_SERVICES if any services are enabled
+    # Set USE_API_USER_DEFINED_ACTIONS if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
-        cg.add_define("USE_API_SERVICES")
+        cg.add_define("USE_API_USER_DEFINED_ACTIONS")
 
     # Set USE_API_CUSTOM_SERVICES if external components need dynamic service registration
     if config[CONF_CUSTOM_SERVICES]:
