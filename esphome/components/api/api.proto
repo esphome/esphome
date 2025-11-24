@@ -855,21 +855,21 @@ enum ServiceArgType {
   SERVICE_ARG_TYPE_STRING_ARRAY = 7;
 }
 message ListEntitiesServicesArgument {
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   string name = 1;
   ServiceArgType type = 2;
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   string name = 1;
   fixed32 key = 2;
   repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
 }
 message ExecuteServiceArgument {
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   bool bool_ = 1;
   int32 legacy_int = 2;
   float float_ = 3;
@@ -885,7 +885,7 @@ message ExecuteServiceRequest {
   option (id) = 42;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   fixed32 key = 1;
   repeated ExecuteServiceArgument args = 2 [(fixed_vector) = true];

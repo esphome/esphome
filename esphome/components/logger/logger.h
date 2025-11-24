@@ -71,6 +71,17 @@ static constexpr uint16_t MAX_HEADER_SIZE = 128;
 // "0x" + 2 hex digits per byte + '\0'
 static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
+// Platform-specific: does write_msg_ add its own newline?
+// false: Caller must add newline to buffer before calling write_msg_ (ESP32, ESP8266)
+//        Allows single write call with newline included for efficiency
+// true:  write_msg_ adds newline itself via puts()/println() (other platforms)
+//        Newline should NOT be added to buffer
+#if defined(USE_ESP32) || defined(USE_ESP8266)
+static constexpr bool WRITE_MSG_ADDS_NEWLINE = false;
+#else
+static constexpr bool WRITE_MSG_ADDS_NEWLINE = true;
+#endif
+
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
  *
@@ -173,7 +184,7 @@ class Logger : public Component {
 
  protected:
   void process_messages_();
-  void write_msg_(const char *msg);
+  void write_msg_(const char *msg, size_t len);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
   // It's the caller's responsibility to initialize buffer_at (typically to 0)
@@ -200,6 +211,35 @@ class Logger : public Component {
     }
   }
 
+  // Helper to add newline to buffer for platforms that need it
+  // Modifies buffer_at to include the newline
+  inline void HOT add_newline_to_buffer_if_needed_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
+    if constexpr (!WRITE_MSG_ADDS_NEWLINE) {
+      // Add newline - don't need to maintain null termination
+      // write_msg_ now always receives explicit length, so we can safely overwrite the null terminator
+      // This is safe because:
+      // 1. Callbacks already received the message (before we add newline)
+      // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
+      if (*buffer_at < buffer_size) {
+        buffer[(*buffer_at)++] = '\n';
+      } else if (buffer_size > 0) {
+        // Buffer was full - replace last char with newline to ensure it's visible
+        buffer[buffer_size - 1] = '\n';
+        *buffer_at = buffer_size;
+      }
+    }
+  }
+
+  // Helper to write tx_buffer_ to console if logging is enabled
+  // INTERNAL USE ONLY - offset > 0 requires length parameter to be non-null
+  inline void HOT write_tx_buffer_to_console_(uint16_t offset = 0, uint16_t *length = nullptr) {
+    if (this->baud_rate_ > 0) {
+      uint16_t *len_ptr = length ? length : &this->tx_buffer_at_;
+      this->add_newline_to_buffer_if_needed_(this->tx_buffer_ + offset, len_ptr, this->tx_buffer_size_ - offset);
+      this->write_msg_(this->tx_buffer_ + offset, *len_ptr);
+    }
+  }
+
   // Helper to format and send a log message to both console and callbacks
   inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
                                                   va_list args) {
@@ -208,10 +248,11 @@ class Logger : public Component {
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, this->tx_buffer_, &this->tx_buffer_at_,
                                                 this->tx_buffer_size_);
 
-    if (this->baud_rate_ > 0) {
-      this->write_msg_(this->tx_buffer_);  // If logging is enabled, write to console
-    }
+    // Callbacks get message WITHOUT newline (for API/MQTT/syslog)
     this->log_callback_.call(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+
+    // Console gets message WITH newline (if platform needs it)
+    this->write_tx_buffer_to_console_();
   }
 
   // Write the body of the log message to the buffer
@@ -425,7 +466,9 @@ class Logger : public Component {
     }
 
     // Update buffer_at with the formatted length (handle truncation)
-    uint16_t formatted_len = (ret >= remaining) ? remaining : ret;
+    // When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
+    // When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
+    uint16_t formatted_len = (ret >= remaining) ? (remaining - 1) : ret;
     *buffer_at += formatted_len;
 
     // Remove all trailing newlines right after formatting
