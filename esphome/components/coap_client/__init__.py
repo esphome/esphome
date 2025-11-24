@@ -52,6 +52,8 @@ CoapClientRequestAction = coap_client_component_ns.class_(
     "CoapClientRequestAction", automation.Action
 )
 
+CONF_COAP_CLIENT_ID = "coap_client_id"
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
