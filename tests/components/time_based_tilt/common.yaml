@@ -1,5 +1,5 @@
 cover:
-  - platform: time_based-tilt
+  - platform: time_based_tilt
     name: Time Based Cover with Tilt
     id: time_based_tilt_cover_1
     stop_action:
@@ -19,8 +19,10 @@ cover:
     recalibration_open_time: 35123ms
     actuator_activation_open_time: 100ms
     actuator_activation_close_time: 100ms
+    close_sets_tilt: true
+    open_sets_tilt: false
     assumed_state: false
-  - platform: time_based-tilt
+  - platform: time_based_tilt
     name: Time Based Cover w/o Tilt
     id: time_based_tilt_cover_2
     stop_action:
