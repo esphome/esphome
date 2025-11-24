@@ -43,7 +43,7 @@ from .schemas import (
     container_schema,
     obj_schema,
 )
-from .styles import TOP_LAYER_SCHEMA, add_top_layer, styles_to_code, theme_to_code
+from .styles import add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import add_on_boot_triggers, generate_triggers
 from .types import IdleTrigger, PlainTrigger, lv_font_t, lv_group_t, lv_style_t, lvgl_ns
@@ -267,6 +267,7 @@ async def to_code(configs):
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
         default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
+        cg.add(lv_component.set_def_group(default_group))
         cg.add(lv.group_set_default(default_group))
 
         lv_scr_act = get_scr_act(lv_component)
@@ -279,9 +280,9 @@ async def to_code(configs):
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
-            await add_pages(lv_component, config, default_group)
-            await add_top_layer(lv_component, config, default_group)
+            await add_top_layer(lv_component, config)
             await msgboxes_to_code(lv_component, config)
+            await add_pages(lv_component, config, default_group)
             await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
     Widget.widgets_completed = True
@@ -396,7 +397,7 @@ LVGL_SCHEMA = cv.All(
                 },
                 cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
                 cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-                cv.Optional(df.CONF_TOP_LAYER): TOP_LAYER_SCHEMA,
+                cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,

@@ -189,6 +189,7 @@ class LvglComponent : public PollingComponent {
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3);
   void add_input(lv_indev_t *input);
+  void set_def_group(lv_group_t *group);
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
@@ -243,7 +244,7 @@ class LvglComponent : public PollingComponent {
   lv_color_t *rotate_buf_{};
 
   std::vector<lv_indev_t *> inputs_{};
-  lv_group_t *def_group;
+  lv_group_t *def_group_;
   std::vector<lv_obj_t *> top_level_objs_{};
 };
 

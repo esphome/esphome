@@ -139,6 +139,7 @@ void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_ev
   add_event_cb(obj, callback, event3);
 }
 void LvglComponent::add_input(lv_indev_t *input) { this->inputs_.push_back(input); }
+void LvglComponent::set_def_group(lv_group_t *group) { this->def_group_ = group; }
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
   page->set_parent(this);
@@ -513,7 +514,7 @@ void LvglComponent::setup() {
   for (auto *disp : this->displays_)
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
 
-  lv_group_t *def_group = lv_group_get_default();
+  lv_group_t *def_group = this->def_group_;
   lv_obj_t **i;
   for (i = static_cast<lv_obj_t **>(_lv_ll_get_head(&def_group->obj_ll)); i != NULL;
        i = static_cast<lv_obj_t **>(_lv_ll_get_next(&def_group->obj_ll, i))) {

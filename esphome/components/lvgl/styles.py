@@ -4,10 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 
-from . import df
 from .defines import (
-    CONF_AUTO_PAGE_INPUT,
-    CONF_DEFAULT_GROUP,
     CONF_STYLE_DEFINITIONS,
     CONF_THEME,
     CONF_TOP_LAYER,
@@ -15,9 +12,9 @@ from .defines import (
     literal,
 )
 from .helpers import add_lv_use
-from .lvcode import LambdaContext, LocalVariable, lv, lv_expr
-from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, STYLE_REMAP, container_schema
-from .types import ObjUpdateAction, lv_group_t, lv_obj_t, lv_style_t
+from .lvcode import LambdaContext, LocalVariable, lv
+from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, STYLE_REMAP
+from .types import ObjUpdateAction, lv_obj_t, lv_style_t
 from .widgets import (
     Widget,
     add_widgets,
@@ -27,24 +24,6 @@ from .widgets import (
     wait_for_widgets,
 )
 from .widgets.obj import obj_spec
-
-TOP_LAYER_SCHEMA = container_schema(
-    obj_spec,
-    cv.Schema(
-        {
-            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
-        }
-    ),
-)
-
-TOP_LAYER_SCHEMA = container_schema(
-    obj_spec,
-    cv.Schema(
-        {
-            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
-        }
-    ),
-)
 
 
 async def style_set(svar, style):
@@ -109,17 +88,9 @@ async def theme_to_code(config):
             theme_widget_map[w_name] = styles
 
 
-async def add_top_layer(lv_component, config, lvgl_default_group):
+async def add_top_layer(lv_component, config):
     top_layer = lv.disp_get_layer_top(lv_component.get_disp())
     if top_conf := config.get(CONF_TOP_LAYER):
-        if config[CONF_AUTO_PAGE_INPUT]:
-            default_group = cg.Pvariable(
-                top_conf[CONF_DEFAULT_GROUP], lv_expr.group_create()
-            )
-        else:
-            default_group = lvgl_default_group
-        cg.add(lv.group_set_default(default_group))
-
         with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
             top_w = Widget(top_layer_obj, obj_spec, top_conf)
             await set_obj_properties(top_w, top_conf)

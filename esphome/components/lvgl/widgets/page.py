@@ -177,7 +177,7 @@ async def add_pages(lv_component, config, lvgl_default_group):
             )
         else:
             default_group = lvgl_default_group
-        cg.add(lv.group_set_default(default_group))
+        lv.group_set_default(default_group)
         var = cg.new_Pvariable(id, skip, default_group)
         page = Widget.create(id, var, page_spec, pconf)
         lv_add(lv_component.add_page(var))
