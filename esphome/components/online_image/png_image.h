@@ -25,7 +25,7 @@ class PngDecoder : public ImageDecoder {
   int prepare(size_t download_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
-  void add_pixels(uint32_t count) { this->pixels_decoded_ += count; }
+  void increment_pixels_decoded(uint32_t count) { this->pixels_decoded_ += count; }
   uint32_t get_pixels_decoded() const { return this->pixels_decoded_; }
 
  protected:
