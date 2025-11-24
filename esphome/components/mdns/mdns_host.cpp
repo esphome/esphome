@@ -9,14 +9,15 @@
 namespace esphome::mdns {
 
 void MDNSComponent::setup() {
+#ifdef USE_MDNS_STORE_SERVICES
 #ifdef USE_API
-  char mac_address[MAC_ADDRESS_BUFFER_SIZE];
-  get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE>(mac_address));
+  get_mac_address_into_buffer(this->mac_address_);
+  char *mac_ptr = this->mac_address_;
 #else
-  char *mac_address = nullptr;
+  char *mac_ptr = nullptr;
 #endif
-
-  this->on_setup_(mac_address);
+  this->compile_records_(this->services_, mac_ptr);
+#endif
   // Host platform doesn't have actual mDNS implementation
 }
 

@@ -11,27 +11,11 @@ namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
-void MDNSComponent::setup() {
-#ifdef USE_API
-  char mac_address[MAC_ADDRESS_BUFFER_SIZE];
-  get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE>(mac_address));
-#else
-  char *mac_address = nullptr;
-#endif
-
-  this->on_setup_(mac_address);
-
-#ifdef USE_MDNS_STORE_SERVICES
-  const auto &services = this->services_;
-#else
-  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
-  this->compile_records_(services, mac_address);
-#endif
-
+static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Init failed: %s", esp_err_to_name(err));
-    this->mark_failed();
+    comp->mark_failed();
     return;
   }
 
@@ -57,6 +41,8 @@ void MDNSComponent::setup() {
     }
   }
 }
+
+void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp32); }
 
 void MDNSComponent::on_shutdown() {
   mdns_free();
