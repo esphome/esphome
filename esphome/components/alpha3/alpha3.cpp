@@ -58,7 +58,7 @@ void Alpha3::handle_geni_response_(const uint8_t *response, uint16_t length) {
   if (this->response_offset_ >= this->response_length_) {
     ESP_LOGD(TAG, "[%s] GENI response begin", this->parent_->address_str());
     if (length < GENI_RESPONSE_HEADER_LENGTH) {
-      ESP_LOGW(TAG, "[%s] response to short", this->parent_->address_str());
+      ESP_LOGW(TAG, "[%s] response too short", this->parent_->address_str());
       return;
     }
     if (response[0] != 36 || response[2] != 248 || response[3] != 231 || response[4] != 10) {
