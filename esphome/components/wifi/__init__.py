@@ -69,6 +69,12 @@ CONF_MIN_AUTH_MODE = "min_auth_mode"
 # Limited to 127 because selected_sta_index_ is int8_t in C++
 MAX_WIFI_NETWORKS = 127
 
+# Default AP timeout - allows sufficient time to try all BSSIDs during initial connection
+# After AP starts, WiFi scanning is skipped to avoid disrupting the AP, so we only
+# get best-effort connection attempts. Longer timeout ensures we exhaust all options
+# before falling back to AP mode. Aligned with improv wifi_timeout default.
+DEFAULT_AP_TIMEOUT = "90s"
+
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
 ManualIP = wifi_ns.struct("ManualIP")
@@ -177,7 +183,7 @@ CONF_AP_TIMEOUT = "ap_timeout"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
-            CONF_AP_TIMEOUT, default="1min"
+            CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
     }
 )
@@ -479,11 +485,14 @@ async def to_code(config):
         cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
     if config[CONF_FAST_CONNECT]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
-    cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
+    # passive_scan defaults to false in C++ - only set if true
+    if config[CONF_PASSIVE_SCAN]:
+        cg.add(var.set_passive_scan(True))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
-
-    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
+    # enable_on_boot defaults to true in C++ - only set if false
+    if not config[CONF_ENABLE_ON_BOOT]:
+        cg.add(var.set_enable_on_boot(False))
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)

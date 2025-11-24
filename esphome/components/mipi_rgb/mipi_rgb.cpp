@@ -350,6 +350,7 @@ void MipiRgb::dump_config() {
                 "\n  Width: %u"
                 "\n  Height: %u"
                 "\n  Rotation: %d degrees"
+                "\n  PCLK Inverted: %s"
                 "\n  HSync Pulse Width: %u"
                 "\n  HSync Back Porch: %u"
                 "\n  HSync Front Porch: %u"
@@ -357,18 +358,18 @@ void MipiRgb::dump_config() {
                 "\n  VSync Back Porch: %u"
                 "\n  VSync Front Porch: %u"
                 "\n  Invert Colors: %s"
-                "\n  Pixel Clock: %dMHz"
+                "\n  Pixel Clock: %uMHz"
                 "\n  Reset Pin: %s"
                 "\n  DE Pin: %s"
                 "\n  PCLK Pin: %s"
                 "\n  HSYNC Pin: %s"
                 "\n  VSYNC Pin: %s",
-                this->model_, this->width_, this->height_, this->rotation_, this->hsync_pulse_width_,
-                this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_, this->vsync_back_porch_,
-                this->vsync_front_porch_, YESNO(this->invert_colors_), this->pclk_frequency_ / 1000000,
-                get_pin_name(this->reset_pin_).c_str(), get_pin_name(this->de_pin_).c_str(),
-                get_pin_name(this->pclk_pin_).c_str(), get_pin_name(this->hsync_pin_).c_str(),
-                get_pin_name(this->vsync_pin_).c_str());
+                this->model_, this->width_, this->height_, this->rotation_, YESNO(this->pclk_inverted_),
+                this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
+                this->vsync_back_porch_, this->vsync_front_porch_, YESNO(this->invert_colors_),
+                (unsigned) (this->pclk_frequency_ / 1000000), get_pin_name(this->reset_pin_).c_str(),
+                get_pin_name(this->de_pin_).c_str(), get_pin_name(this->pclk_pin_).c_str(),
+                get_pin_name(this->hsync_pin_).c_str(), get_pin_name(this->vsync_pin_).c_str());
 
   if (this->madctl_ & MADCTL_BGR) {
     this->dump_pins_(8, 13, "Blue", 0);

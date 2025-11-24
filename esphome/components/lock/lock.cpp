@@ -3,8 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lock {
+namespace esphome::lock {
 
 static const char *const TAG = "lock";
 
@@ -108,5 +107,4 @@ LockCall &LockCall::set_state(const std::string &state) {
 }
 const optional<LockState> &LockCall::get_state() const { return this->state_; }
 
-}  // namespace lock
-}  // namespace esphome
+}  // namespace esphome::lock
