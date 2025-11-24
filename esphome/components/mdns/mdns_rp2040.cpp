@@ -12,7 +12,7 @@
 namespace esphome::mdns {
 
 void MDNSComponent::setup() {
-  this->on_setup();
+  this->on_setup_();
 
 #ifdef USE_MDNS_STORE_SERVICES
   const auto &services = this->services_;
