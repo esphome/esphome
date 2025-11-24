@@ -111,7 +111,7 @@ class WebServerBase : public Component {
       this->initialized_++;
       return;
     }
-    this->server_ = std::make_shared<AsyncWebServer>(this->port_);
+    this->server_ = std::make_unique<AsyncWebServer>(this->port_);
     // All content is controlled and created by user - so allowing all origins is fine here.
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     this->server_->begin();
@@ -127,7 +127,7 @@ class WebServerBase : public Component {
       this->server_ = nullptr;
     }
   }
-  std::shared_ptr<AsyncWebServer> get_server() const { return server_; }
+  AsyncWebServer *get_server() const { return this->server_.get(); }
   float get_setup_priority() const override;
 
 #ifdef USE_WEBSERVER_AUTH
@@ -143,7 +143,7 @@ class WebServerBase : public Component {
  protected:
   int initialized_{0};
   uint16_t port_{80};
-  std::shared_ptr<AsyncWebServer> server_{nullptr};
+  std::unique_ptr<AsyncWebServer> server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;

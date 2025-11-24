@@ -87,10 +87,45 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
 }
 }  // namespace
 
+void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
+  // CRITICAL: Shut down receive BEFORE closing to prevent lwIP race conditions
+  //
+  // The race condition occurs because close() initiates lwIP teardown while
+  // the TCP/IP thread can still receive packets, causing assertions when
+  // recv_tcp() sees partially-torn-down state.
+  //
+  // By shutting down receive first, we tell lwIP to stop accepting new data BEFORE
+  // the teardown begins, eliminating the race window. We only shutdown RD (not RDWR)
+  // to allow the FIN packet to be sent cleanly during close().
+  //
+  // Note: This function may be called with an already-closed socket if the network
+  // stack closed it. In that case, shutdown() will fail but close() is safe to call.
+  //
+  // See: https://github.com/esphome/esphome-webserver/issues/163
+
+  // Attempt shutdown - ignore errors as socket may already be closed
+  shutdown(sockfd, SHUT_RD);
+
+  // Always close - safe even if socket is already closed by network stack
+  close(sockfd);
+}
+
 void AsyncWebServer::end() {
   if (this->server_) {
     httpd_stop(this->server_);
     this->server_ = nullptr;
+  }
+}
+
+void AsyncWebServer::set_lru_purge_enable(bool enable) {
+  if (this->lru_purge_enable_ == enable) {
+    return;  // No change needed
+  }
+  this->lru_purge_enable_ = enable;
+  // If server is already running, restart it with new config
+  if (this->server_) {
+    this->end();
+    this->begin();
   }
 }
 
@@ -101,6 +136,10 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
+  // Enable LRU purging if requested (e.g., by captive portal to handle probe bursts)
+  config.lru_purge_enable = this->lru_purge_enable_;
+  // Use custom close function that shuts down before closing to prevent lwIP race conditions
+  config.close_fn = AsyncWebServer::safe_close_with_shutdown;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
@@ -242,6 +281,7 @@ void AsyncWebServerRequest::send(int code, const char *content_type, const char 
 void AsyncWebServerRequest::redirect(const std::string &url) {
   httpd_resp_set_status(*this, "302 Found");
   httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
 
@@ -489,10 +529,12 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
-  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", rsp->fd_.load());
-  // Mark as dead by setting fd to 0 - will be cleaned up in the main loop
-  rsp->fd_.store(0);
+  int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
+  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
+  // Mark as dead - will be cleaned up in the main loop
   // Note: We don't delete or remove from set here to avoid race conditions
+  // httpd will call our custom close_fn (safe_close_with_shutdown) which handles
+  // shutdown() before close() to prevent lwIP race conditions
 }
 
 // helper for allowing only unique entries in the queue

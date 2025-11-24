@@ -359,8 +359,8 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse(200, "");
   response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
   response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
-  std::string mac = get_mac_address_pretty();
-  response->addHeader(HEADER_PNA_ID, mac.c_str());
+  char mac_s[18];
+  response->addHeader(HEADER_PNA_ID, get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
 #endif

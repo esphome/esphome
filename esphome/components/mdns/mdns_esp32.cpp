@@ -7,8 +7,7 @@
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
@@ -56,7 +55,6 @@ void MDNSComponent::on_shutdown() {
   delay(40);  // Allow the mdns packets announcing service removal to be sent
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif  // USE_ESP32
