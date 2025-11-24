@@ -58,11 +58,9 @@ def _bus_declare_type(value):
 
 def validate_config(config):
     if CORE.is_esp32:
-        # ESP32 uses ESP-IDF I2C driver for both frameworks
-        # Arduino 3.2.0+ is based on ESP-IDF 5.4.1+ which has the new i2c_master driver
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2),
-            esp32_arduino=cv.Version(3, 2, 0),
+            esp32_arduino=cv.Version(3, 2, 1),
         )(config)
     return config
 
