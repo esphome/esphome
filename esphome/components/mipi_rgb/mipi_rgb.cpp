@@ -73,7 +73,7 @@ void MipiRgbSpi::write_init_sequence_() {
   auto &vec = this->init_sequence_;
   while (index != vec.size()) {
     if (vec.size() - index < 2) {
-      this->mark_failed("Malformed init sequence");
+      this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
     uint8_t cmd = vec[index++];
@@ -84,7 +84,7 @@ void MipiRgbSpi::write_init_sequence_() {
     } else {
       uint8_t num_args = x & 0x7F;
       if (vec.size() - index < num_args) {
-        this->mark_failed("Malformed init sequence");
+        this->mark_failed(LOG_STR("Malformed init sequence"));
         return;
       }
       if (cmd == SLEEP_OUT) {
@@ -164,8 +164,8 @@ void MipiRgb::common_setup_() {
   if (err == ESP_OK)
     err = esp_lcd_panel_init(this->handle_);
   if (err != ESP_OK) {
-    auto msg = str_sprintf("lcd setup failed: %s", esp_err_to_name(err));
-    this->mark_failed(msg.c_str());
+    ESP_LOGE(TAG, "lcd setup failed: %s", esp_err_to_name(err));
+    this->mark_failed(LOG_STR("lcd setup failed"));
   }
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
 }
@@ -249,7 +249,7 @@ bool MipiRgb::check_buffer_() {
   RAMAllocator<uint16_t> allocator;
   this->buffer_ = allocator.allocate(this->height_ * this->width_);
   if (this->buffer_ == nullptr) {
-    this->mark_failed("Could not allocate buffer for display!");
+    this->mark_failed(LOG_STR("Could not allocate buffer for display!"));
     return false;
   }
   return true;
