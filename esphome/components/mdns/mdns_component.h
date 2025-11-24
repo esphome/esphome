@@ -70,14 +70,15 @@ class MDNSComponent : public Component {
 
  protected:
   /// Common setup logic called by all platform-specific setup() implementations
-  void on_setup_() {
-#ifdef USE_API
-    // Populate MAC address buffer once during setup
-    get_mac_address_into_buffer(std::span<char, 13>(this->mac_address_));
-#endif
-
+  void on_setup_(char *mac_address_buf) {
 #ifdef USE_MDNS_STORE_SERVICES
-    this->compile_records_(this->services_);
+#ifdef USE_API
+    // Copy to member buffer for storage
+    std::memcpy(this->mac_address_, mac_address_buf, MAC_ADDRESS_BUFFER_SIZE);
+    this->compile_records_(this->services_, this->mac_address_);
+#else
+    this->compile_records_(this->services_, mac_address_buf);
+#endif
 #endif
   }
 
@@ -88,14 +89,14 @@ class MDNSComponent : public Component {
   StaticVector<std::string, MDNS_DYNAMIC_TXT_COUNT> dynamic_txt_values_;
 #endif
 
-#ifdef USE_API
-  /// Fixed buffer for MAC address (populated once in setup())
-  char mac_address_[13];  // 12 hex chars + null terminator
+#if defined(USE_API) && defined(USE_MDNS_STORE_SERVICES)
+  /// Fixed buffer for MAC address (only needed when services are stored)
+  char mac_address_[MAC_ADDRESS_BUFFER_SIZE];
 #endif
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
 #endif
-  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services);
+  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf);
 };
 
 }  // namespace esphome::mdns

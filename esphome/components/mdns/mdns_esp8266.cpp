@@ -12,13 +12,20 @@
 namespace esphome::mdns {
 
 void MDNSComponent::setup() {
-  this->on_setup_();
+#ifdef USE_API
+  char mac_address[MAC_ADDRESS_BUFFER_SIZE];
+  get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE>(mac_address));
+#else
+  char *mac_address = nullptr;
+#endif
+
+  this->on_setup_(mac_address);
 
 #ifdef USE_MDNS_STORE_SERVICES
   const auto &services = this->services_;
 #else
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
-  this->compile_records_(services);
+  this->compile_records_(services, mac_address);
 #endif
 
   MDNS.begin(App.get_name().c_str());
