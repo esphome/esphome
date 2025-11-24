@@ -87,7 +87,7 @@ void AbsoluteHumidityComponent::loop() {
       break;
     default:
       this->publish_state(NAN);
-      this->status_set_error("Invalid saturation vapor pressure equation selection!");
+      this->status_set_error(LOG_STR("Invalid saturation vapor pressure equation selection!"));
       return;
   }
   ESP_LOGD(TAG, "Saturation vapor pressure %f kPa", es);
