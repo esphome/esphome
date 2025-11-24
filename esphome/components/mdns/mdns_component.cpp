@@ -86,7 +86,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
       txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
-    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(this->add_dynamic_txt_value(get_mac_address()))});
+    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(this->mac_address_)});
 
 #ifdef USE_ESP8266
     MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");

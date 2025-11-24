@@ -60,18 +60,38 @@ class MDNSComponent : public Component {
 
   void on_shutdown() override;
 
+#ifdef USE_MDNS_DYNAMIC_TXT
   /// Add a dynamic TXT value and return pointer to it for use in MDNSTXTRecord
   const char *add_dynamic_txt_value(const std::string &value) {
     this->dynamic_txt_values_.push_back(value);
     return this->dynamic_txt_values_[this->dynamic_txt_values_.size() - 1].c_str();
   }
+#endif
 
-  /// Storage for runtime-generated TXT values (MAC address, user lambdas)
+ protected:
+  /// Common setup logic called by all platform-specific setup() implementations
+  void on_setup() {
+#ifdef USE_API
+    // Populate MAC address buffer once during setup
+    get_mac_address_into_buffer(std::span<char, 13>(this->mac_address_));
+#endif
+
+#ifdef USE_MDNS_STORE_SERVICES
+    this->compile_records_(this->services_);
+#endif
+  }
+
+#ifdef USE_MDNS_DYNAMIC_TXT
+  /// Storage for runtime-generated TXT values from user lambdas
   /// Pre-sized at compile time via MDNS_DYNAMIC_TXT_COUNT to avoid heap allocations.
   /// Static/compile-time values (version, board, etc.) are stored directly in flash and don't use this.
   StaticVector<std::string, MDNS_DYNAMIC_TXT_COUNT> dynamic_txt_values_;
+#endif
 
- protected:
+#ifdef USE_API
+  /// Fixed buffer for MAC address (populated once in setup())
+  char mac_address_[13];  // 12 hex chars + null terminator
+#endif
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
 #endif

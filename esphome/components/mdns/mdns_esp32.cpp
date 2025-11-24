@@ -12,8 +12,9 @@ namespace esphome::mdns {
 static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
+  this->on_setup();
+
 #ifdef USE_MDNS_STORE_SERVICES
-  this->compile_records_(this->services_);
   const auto &services = this->services_;
 #else
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
