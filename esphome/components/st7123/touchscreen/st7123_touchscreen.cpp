@@ -11,22 +11,25 @@ static const char *const TAG = "st7123.touchscreen";
 // Registers
 static const uint16_t REG_GET_TOUCH_INFO = 0x0010;
 static const uint16_t REG_GET_TOUCH = 0x0014;
+static const uint16_t REG_GET_KEYS = 0x0013;
 static const uint8_t MAX_TOUCHES = 10;
+static const uint8_t MAX_BUTTONS = 6;
 
 struct touch_data_t {
   uint8_t x_h : 6;
   uint8_t reserved_6 : 1;
   uint8_t valid : 1;
   uint8_t x_l;
-  uint8_t y_h;
+  uint8_t y_h : 6;
+  uint8_t reserved_6_7 : 2;
   uint8_t y_l;
   uint8_t area;
   uint8_t intensity;
-  uint8_t reserved_49_55;
+  uint8_t reserved;
 };
 
 struct adv_info_t {
-  uint8_t reserved_0_1 : 2;
+  uint8_t reserved : 2;
   uint8_t with_prox : 1;
   uint8_t with_coord : 1;
   uint8_t prox_status : 3;
@@ -79,7 +82,20 @@ void ST7123Touchscreen::update_touches() {
           uint16_t ypos = encode_uint16(touch_data[i].y_h, touch_data[i].y_l);
           uint16_t id = touch_data[i].area;
           this->add_raw_touch_position_(id, xpos, ypos);
+          ESP_LOGD(TAG, "touch id:%d X=%d Y=%d", id, xpos, ypos);
         }
+      }
+    }
+  }
+
+  uint8_t keys;
+  err = this->read_register16(REG_GET_KEYS, &keys, 1);
+  if (err == i2c::ERROR_OK) {
+    if (keys != this->button_state_) {
+      this->button_state_ = keys;
+      for (size_t i = 0; i != MAX_BUTTONS; i++) {
+        for (auto *listener : this->button_listeners_)
+          listener->update_button(i, (keys & (1 << i)) != 0);
       }
     }
   }
