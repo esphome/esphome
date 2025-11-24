@@ -1,8 +1,8 @@
 #pragma once
-#include "esphome/core/defines.h"
 
 // Common Arduino mDNS registration for RP2040 and LibreTiny
-#if defined(USE_MDNS) && (defined(USE_RP2040) || defined(USE_LIBRETINY))
+// NOTE: The platform's mDNS header (e.g., <mDNS.h> or <ESP8266mDNS.h>) must be
+// included BEFORE this header to make the MDNS global available.
 
 #include "esphome/core/application.h"
 #include "mdns_component.h"
@@ -38,5 +38,3 @@ inline void register_arduino_mdns(MDNSComponent *, StaticVector<MDNSService, MDN
 }
 
 }  // namespace esphome::mdns
-
-#endif
