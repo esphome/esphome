@@ -70,7 +70,7 @@ class MDNSComponent : public Component {
 
  protected:
   /// Common setup logic called by all platform-specific setup() implementations
-  void on_setup() {
+  void on_setup_() {
 #ifdef USE_API
     // Populate MAC address buffer once during setup
     get_mac_address_into_buffer(std::span<char, 13>(this->mac_address_));
