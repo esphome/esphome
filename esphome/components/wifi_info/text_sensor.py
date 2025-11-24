@@ -61,6 +61,15 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+# Keys that require WiFi callbacks
+_NETWORK_INFO_KEYS = {
+    CONF_SSID,
+    CONF_BSSID,
+    CONF_IP_ADDRESS,
+    CONF_DNS_ADDRESS,
+    CONF_SCAN_RESULTS,
+}
+
 
 async def setup_conf(config, key):
     if key in config:
@@ -71,16 +80,7 @@ async def setup_conf(config, key):
 
 async def to_code(config):
     # Request WiFi callbacks for any sensor that needs them
-    if any(
-        key in config
-        for key in (
-            CONF_SSID,
-            CONF_BSSID,
-            CONF_IP_ADDRESS,
-            CONF_DNS_ADDRESS,
-            CONF_SCAN_RESULTS,
-        )
-    ):
+    if _NETWORK_INFO_KEYS & config.keys():
         wifi.request_wifi_callbacks()
 
     await setup_conf(config, CONF_SSID)
