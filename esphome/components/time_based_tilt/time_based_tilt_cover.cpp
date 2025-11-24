@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace time_based_tilt {
+namespace esphome::time_based_tilt {
 
 static const char *const TAG = "time_based_tilt.cover";
 
@@ -354,5 +353,4 @@ void TimeBasedTiltCover::control(const CoverCall &call) {
   }
 }
 
-}  // namespace time_based_tilt
-}  // namespace esphome
+}  // namespace esphome::time_based_tilt

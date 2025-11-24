@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace time_based_tilt {
+namespace esphome::time_based_tilt {
 
 class TimeBasedTiltCover : public cover::Cover, public Component {
  public:
@@ -91,5 +90,4 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
   bool open_sets_tilt_{false};
 };
 
-}  // namespace time_based_tilt
-}  // namespace esphome
+}  // namespace esphome::time_based_tilt
