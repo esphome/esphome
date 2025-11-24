@@ -1,5 +1,3 @@
-// Arduino I2C implementation for non-ESP32 platforms
-// ESP32 uses ESP-IDF I2C driver for all frameworks (see i2c_bus_esp_idf.cpp)
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include "i2c_bus_arduino.h"
