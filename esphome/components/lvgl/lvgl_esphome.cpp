@@ -514,11 +514,9 @@ void LvglComponent::setup() {
   for (auto *disp : this->displays_)
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
 
-  lv_group_t *def_group = this->def_group_;
-  lv_obj_t **i;
-  for (i = static_cast<lv_obj_t **>(_lv_ll_get_head(&def_group->obj_ll)); i != NULL;
-       i = static_cast<lv_obj_t **>(_lv_ll_get_next(&def_group->obj_ll, i))) {
-    this->top_level_objs_.push_back(*i);
+  for (lv_obj_t **obj = static_cast<lv_obj_t **>(_lv_ll_get_head(&this->def_group_->obj_ll)); obj != NULL;
+       obj = static_cast<lv_obj_t **>(_lv_ll_get_next(&this->def_group_->obj_ll, obj))) {
+    this->top_level_objs_.push_back(*obj);
   }
 
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
