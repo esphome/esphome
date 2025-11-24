@@ -9,8 +9,7 @@
 
 #include <mDNS.h>
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 void MDNSComponent::setup() {
 #ifdef USE_MDNS_STORE_SERVICES
@@ -46,7 +45,6 @@ void MDNSComponent::setup() {
 
 void MDNSComponent::on_shutdown() {}
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif

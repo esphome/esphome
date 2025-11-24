@@ -9,8 +9,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 struct MultiClickTriggerEvent {
   bool state;
@@ -172,5 +171,4 @@ template<typename... Ts> class BinarySensorInvalidateAction : public Action<Ts..
   BinarySensor *sensor_;
 };
 
-}  // namespace binary_sensor
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

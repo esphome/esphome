@@ -10,7 +10,7 @@ namespace jsn_sr04t {
 static const char *const TAG = "jsn_sr04t.sensor";
 
 void Jsnsr04tComponent::update() {
-  this->write_byte(0x55);
+  this->write_byte((this->model_ == AJ_SR04M) ? 0x01 : 0x55);
   ESP_LOGV(TAG, "Request read out from sensor");
 }
 
@@ -31,19 +31,10 @@ void Jsnsr04tComponent::loop() {
 }
 
 void Jsnsr04tComponent::check_buffer_() {
-  uint8_t checksum = 0;
-  switch (this->model_) {
-    case JSN_SR04T:
-      checksum = this->buffer_[0] + this->buffer_[1] + this->buffer_[2];
-      break;
-    case AJ_SR04M:
-      checksum = this->buffer_[1] + this->buffer_[2];
-      break;
-  }
-
+  uint8_t checksum = this->buffer_[0] + this->buffer_[1] + this->buffer_[2];
   if (this->buffer_[3] == checksum) {
     uint16_t distance = encode_uint16(this->buffer_[1], this->buffer_[2]);
-    if (distance > 250) {
+    if (distance > ((this->model_ == AJ_SR04M) ? 200 : 250)) {
       float meters = distance / 1000.0f;
       ESP_LOGV(TAG, "Distance from sensor: %umm, %.3fm", distance, meters);
       this->publish_state(meters);

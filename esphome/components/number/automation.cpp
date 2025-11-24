@@ -1,8 +1,7 @@
 #include "automation.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 
 static const char *const TAG = "number.automation";
 
@@ -52,5 +51,4 @@ void ValueRangeTrigger::on_state_(float state) {
   this->rtc_.save(&in_range);
 }
 
-}  // namespace number
-}  // namespace esphome
+}  // namespace esphome::number

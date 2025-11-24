@@ -12,7 +12,7 @@
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
 
@@ -124,7 +124,7 @@ class APIServer : public Component, public Controller {
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   void initialize_user_services(std::initializer_list<UserServiceDescriptor *> services) {
     this->user_services_.assign(services);
   }
@@ -166,7 +166,7 @@ class APIServer : public Component, public Controller {
                                 std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 #endif
 
@@ -206,7 +206,7 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
