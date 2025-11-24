@@ -3,7 +3,7 @@
 
 namespace esphome::logger {
 
-void HOT Logger::write_msg_(const char *msg) {
+void HOT Logger::write_msg_(const char *msg, size_t) {
   time_t rawtime;
   struct tm *timeinfo;
   char buffer[80];

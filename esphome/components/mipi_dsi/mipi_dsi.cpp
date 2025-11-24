@@ -11,6 +11,12 @@ static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel
   xSemaphoreGiveFromISR(sem, &need_yield);
   return (need_yield == pdTRUE);
 }
+
+void MIPI_DSI::smark_failed(const char *message, esp_err_t err) {
+  ESP_LOGE(TAG, "%s: %s", message, esp_err_to_name(err));
+  this->mark_failed(message);
+}
+
 void MIPI_DSI::setup() {
   ESP_LOGCONFIG(TAG, "Running Setup");
 

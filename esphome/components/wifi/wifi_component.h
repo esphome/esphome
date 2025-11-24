@@ -308,6 +308,7 @@ class WiFiComponent : public Component {
 
   bool has_sta() const;
   bool has_ap() const;
+  bool is_ap_active() const;
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
@@ -555,6 +556,11 @@ template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> 
 template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
  public:
   bool check(const Ts &...x) override { return !global_wifi_component->is_disabled(); }
+};
+
+template<typename... Ts> class WiFiAPActiveCondition : public Condition<Ts...> {
+ public:
+  bool check(const Ts &...x) override { return global_wifi_component->is_ap_active(); }
 };
 
 template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
