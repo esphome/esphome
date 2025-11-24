@@ -70,6 +70,19 @@ async def setup_conf(config, key):
 
 
 async def to_code(config):
+    # Request WiFi callbacks for any sensor that needs them
+    if any(
+        key in config
+        for key in (
+            CONF_SSID,
+            CONF_BSSID,
+            CONF_IP_ADDRESS,
+            CONF_DNS_ADDRESS,
+            CONF_SCAN_RESULTS,
+        )
+    ):
+        wifi.request_wifi_callbacks()
+
     await setup_conf(config, CONF_SSID)
     await setup_conf(config, CONF_BSSID)
     await setup_conf(config, CONF_MAC_ADDRESS)

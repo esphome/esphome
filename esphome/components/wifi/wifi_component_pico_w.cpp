@@ -225,7 +225,9 @@ void WiFiComponent::wifi_loop_() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     ESP_LOGV(TAG, "Scan done");
+#ifdef USE_WIFI_CALLBACKS
     this->wifi_scan_state_callback_.call(this->scan_result_);
+#endif
   }
 
   // Poll for connection state changes
@@ -239,13 +241,17 @@ void WiFiComponent::wifi_loop_() {
     // Just connected
     s_sta_was_connected = true;
     ESP_LOGV(TAG, "Connected");
+#ifdef USE_WIFI_CALLBACKS
     this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
+#endif
   } else if (!is_connected && s_sta_was_connected) {
     // Just disconnected
     s_sta_was_connected = false;
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
+#ifdef USE_WIFI_CALLBACKS
     this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#endif
   }
 
   // Detect IP address changes (only when connected)
@@ -261,7 +267,9 @@ void WiFiComponent::wifi_loop_() {
       // Just got IP address
       s_sta_had_ip = true;
       ESP_LOGV(TAG, "Got IP address");
+#ifdef USE_WIFI_CALLBACKS
       this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#endif
     }
   }
 }

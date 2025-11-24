@@ -513,8 +513,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_address_pretty(it.bssid).c_str(),
                it.channel);
       s_sta_connected = true;
+#ifdef USE_WIFI_CALLBACKS
       global_wifi_component->wifi_connect_state_callback_.call(global_wifi_component->wifi_ssid(),
                                                                global_wifi_component->wifi_bssid());
+#endif
       break;
     }
     case EVENT_STAMODE_DISCONNECTED: {
@@ -534,7 +536,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
+#ifdef USE_WIFI_CALLBACKS
       global_wifi_component->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#endif
       break;
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
@@ -557,9 +561,11 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(), format_ip_addr(it.gw).c_str(),
                format_ip_addr(it.mask).c_str());
       s_sta_got_ip = true;
+#ifdef USE_WIFI_CALLBACKS
       global_wifi_component->ip_state_callback_.call(global_wifi_component->wifi_sta_ip_addresses(),
                                                      global_wifi_component->get_dns_address(0),
                                                      global_wifi_component->get_dns_address(1));
+#endif
       break;
     }
     case EVENT_STAMODE_DHCP_TIMEOUT: {
@@ -734,7 +740,9 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
         it->is_hidden != 0);
   }
   this->scan_done_ = true;
+#ifdef USE_WIFI_CALLBACKS
   global_wifi_component->wifi_scan_state_callback_.call(global_wifi_component->scan_result_);
+#endif
 }
 
 #ifdef USE_WIFI_AP

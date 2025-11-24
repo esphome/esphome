@@ -369,6 +369,7 @@ class WiFiComponent : public Component {
 
   int32_t get_wifi_channel();
 
+#ifdef USE_WIFI_CALLBACKS
   /// Add a callback that will be called on configuration changes (IP change, SSID change, etc.)
   /// @param callback The callback to be called; template arguments are:
   /// - IP addresses
@@ -387,6 +388,7 @@ class WiFiComponent : public Component {
   void add_on_wifi_connect_state_callback(std::function<void(std::string, wifi::bssid_t)> &&callback) {
     this->wifi_connect_state_callback_.add(std::move(callback));
   }
+#endif  // USE_WIFI_CALLBACKS
 
 #ifdef USE_WIFI_RUNTIME_POWER_SAVE
   /** Request high-performance mode (no power saving) for improved WiFi latency.
@@ -544,9 +546,11 @@ class WiFiComponent : public Component {
   WiFiAP ap_;
 #endif
   optional<float> output_power_;
+#ifdef USE_WIFI_CALLBACKS
   CallbackManager<void(network::IPAddresses, network::IPAddress, network::IPAddress)> ip_state_callback_;
   CallbackManager<void(wifi_scan_vector_t<WiFiScanResult> &)> wifi_scan_state_callback_;
   CallbackManager<void(std::string, wifi::bssid_t)> wifi_connect_state_callback_;
+#endif  // USE_WIFI_CALLBACKS
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
