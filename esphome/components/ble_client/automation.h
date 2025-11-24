@@ -198,7 +198,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
         esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
-                   ble_client_->address_str().c_str());
+                   ble_client_->address_str());
         break;
       }
       default:
