@@ -1,0 +1,6 @@
+# tested with Seeed Studio XIAO ESP32C3
+substitutions:
+  uart_pin: GPIO2
+  cec_pin: GPIO10
+
+<<: !include common_with_uart.yaml

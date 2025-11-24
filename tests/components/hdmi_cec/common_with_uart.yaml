@@ -1,26 +1,3 @@
-wifi:
-  ssid: MyHomeNetwork
-  password: VerySafePassword
-
-# Enable Home Assistant API: Show/test hdmi_cec service
-api:
-  services:
-    - service: hdmi_cec_send
-      variables:
-        cec_source: int
-        cec_destination: int
-        cec_data: int[]
-      then:
-        - hdmi_cec.send:
-            source: !lambda "return static_cast<uint8_t>(cec_source);"
-            destination: !lambda "return static_cast<uint8_t>(cec_destination);"
-            data: !lambda |-
-              std::vector<uint8_t> charVector;
-              for (int i : cec_data) {
-                charVector.push_back(static_cast<uint8_t>(i));
-              }
-              return charVector;
-
 uart:
   id: cec_uart
   tx_pin: ${uart_pin}  # has diode to cec pin, with kathode here on uart
