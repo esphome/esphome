@@ -21,7 +21,7 @@ void UDPComponent::setup() {
   if (this->should_broadcast_) {
     this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->broadcast_socket_ == nullptr) {
-      this->status_set_error("Could not create socket");
+      this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
       return;
     }
@@ -41,14 +41,14 @@ void UDPComponent::setup() {
   if (this->should_listen_) {
     this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->listen_socket_ == nullptr) {
-      this->status_set_error("Could not create socket");
+      this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
       return;
     }
     auto err = this->listen_socket_->setblocking(false);
     if (err < 0) {
       ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
-      this->status_set_error("Unable to set nonblocking");
+      this->status_set_error(LOG_STR("Unable to set nonblocking"));
       this->mark_failed();
       return;
     }
@@ -73,7 +73,7 @@ void UDPComponent::setup() {
       err = this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq));
       if (err < 0) {
         ESP_LOGE(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
-        this->status_set_error("Failed to set IP_ADD_MEMBERSHIP");
+        this->status_set_error(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
         this->mark_failed();
         return;
       }
@@ -82,7 +82,7 @@ void UDPComponent::setup() {
     err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
     if (err != 0) {
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-      this->status_set_error("Unable to bind socket");
+      this->status_set_error(LOG_STR("Unable to bind socket"));
       this->mark_failed();
       return;
     }

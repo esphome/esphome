@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
@@ -157,7 +158,14 @@ class Component {
    */
   virtual void mark_failed();
 
+  // Remove before 2026.6.0
+  ESPDEPRECATED("Use mark_failed(LOG_STR(message)) instead. Will stop working in 2026.6.0", "2025.12.0")
   void mark_failed(const char *message) {
+    this->status_set_error(message);
+    this->mark_failed();
+  }
+
+  void mark_failed(const LogString *message) {
     this->status_set_error(message);
     this->mark_failed();
   }
@@ -216,7 +224,10 @@ class Component {
   void status_set_warning(const char *message = nullptr);
   void status_set_warning(const LogString *message);
 
+  // Remove before 2026.6.0
+  ESPDEPRECATED("Use status_set_error(LOG_STR(message)) instead. Will stop working in 2026.6.0", "2025.12.0")
   void status_set_error(const char *message = nullptr);
+  void status_set_error(const LogString *message);
 
   void status_clear_warning();
 
