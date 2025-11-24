@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "cover.h"
 
-namespace esphome {
-namespace cover {
+namespace esphome::cover {
 
 template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
@@ -131,5 +130,4 @@ class CoverClosedTrigger : public Trigger<> {
   }
 };
 
-}  // namespace cover
-}  // namespace esphome
+}  // namespace esphome::cover

@@ -738,6 +738,37 @@ def test_write_cpp_with_duplicate_markers(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_all_with_yaml_file(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all with a .yaml file uses parent directory."""
+    # Create config directory with yaml file
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    yaml_file = config_dir / "test.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(yaml_file)])
+
+    # Verify .esphome directory still exists but contents cleaned
+    assert build_dir.exists()
+    assert not (build_dir / "dummy.txt").exists()
+
+    # Verify logging mentions the build dir
+    assert "Cleaning" in caplog.text
+    assert str(build_dir) in caplog.text
+
+
+@patch("esphome.writer.CORE")
 def test_clean_all(
     mock_core: MagicMock,
     tmp_path: Path,
