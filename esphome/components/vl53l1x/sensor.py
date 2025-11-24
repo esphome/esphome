@@ -36,11 +36,12 @@ CONF_H = "h"
 CONF_SIGNAL_THRESHOLD = "signal_threshold"
 CONF_SIGMA_THRESHOLD = "sigma_threshold"
 
-DISTANCE_MODE_ENUM = vl53l1x_ns.enum("DistanceMode")
-INTERRUPT_WHEN_MODE = vl53l1x_ns.enum("InterruptWhenMode")
+DistanceMode = vl53l1x_ns.enum("DistanceMode")
+InterruptWhenMode = vl53l1x_ns.enum("InterruptWhenMode")
+
 DISTANCE_MODE = {
-    "short": DISTANCE_MODE_ENUM.SHORT,
-    "long": DISTANCE_MODE_ENUM.LONG,
+    "short": DistanceMode.SHORT,
+    "long": DistanceMode.LONG,
 }
 
 TIMING_BUDGET = {
@@ -54,24 +55,22 @@ TIMING_BUDGET = {
 }
 
 INTERRUPT_WHEN = {
-    "below_min": INTERRUPT_WHEN_MODE.BELOW_MIN,
-    "above_max": INTERRUPT_WHEN_MODE.ABOVE_MAX,
-    "outside_window": INTERRUPT_WHEN_MODE.OUTSIDE_WINDOW,
-    "inside_window": INTERRUPT_WHEN_MODE.INSIDE_WINDOW,
+    "below_min": InterruptWhenMode.BELOW_MIN,
+    "above_max": InterruptWhenMode.ABOVE_MAX,
+    "outside_window": InterruptWhenMode.OUTSIDE_WINDOW,
+    "inside_window": InterruptWhenMode.INSIDE_WINDOW,
 }
 
 
 def check_keys(obj):
     if obj[CONF_ADDRESS] != 0x29 and CONF_ENABLE_PIN not in obj:
-        msg = "Address other then 0x29 requires enable_pin definition to allow sensor\r"
-        msg += (
-            "re-addressing. Also if you have more then one VL53L1x device on the same\r"
-        )
-        msg += "i2c bus, then all VL53 devices must have enable_pin defined."
+        msg = "Address other then 0x29 requires enable_pin definition to allow sensor "
+        msg += "re-addressing. Also if you have more then one VL53L1x device on the "
+        msg += "same i2c bus, then all VL53 devices must have enable_pin defined."
         raise cv.Invalid(msg)
 
     if obj[CONF_DISTANCE_MODE] == "long" and obj[CONF_TIMING_BUDGET] == "15ms":
-        msg = "When 'distance_mode' = long) the sensor requires a timing budget of at least 20ms"
+        msg = "When 'distance_mode' = long, the sensor requires a timing budget of at least 20ms"
         raise cv.Invalid(msg)
 
     if cv.time_period(obj[CONF_UPDATE_INTERVAL]) < cv.time_period(
