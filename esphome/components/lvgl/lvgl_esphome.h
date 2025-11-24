@@ -38,8 +38,7 @@
 #include "esphome/components/key_provider/key_provider.h"
 #endif  // USE_LVGL_BUTTONMATRIX
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
 #if LV_COLOR_DEPTH == 16
 using lv_color_data = uint16_t;
@@ -51,6 +50,8 @@ using lv_color_data = uint32_t;
 extern lv_event_code_t lv_api_event;     // NOLINT
 extern lv_event_code_t lv_update_event;  // NOLINT
 extern std::string lv_event_code_name_for(lv_event_t *event);
+
+void lv_scale_draw_event_cb(lv_event_t *e, lv_color_t color_start, lv_color_t color_end);
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -402,5 +403,4 @@ class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
   void set_obj(lv_obj_t *lv_obj) override;
 };
 #endif  // USE_LVGL_KEYBOARD
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

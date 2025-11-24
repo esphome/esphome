@@ -234,6 +234,7 @@ def color_retmapper(value):
         else:
             r, g, b, _ = from_rgbw(cval)
         return literal(f"lv_color_make({r}, {g}, {b})")
+    print(value, type(value))
     assert False
 
 

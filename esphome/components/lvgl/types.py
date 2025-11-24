@@ -64,6 +64,7 @@ lv_obj_t = LvType("lv_obj_t")
 lv_page_t = LvType("LvPageType", parents=(LvCompound,))
 lv_img_t = LvType("lv_img_t")
 lv_gradient_t = LvType("lv_grad_dsc_t")
+lv_event_t = LvType("lv_event_t")
 
 LV_EVENT = MockObj(base="LV_EVENT_", op="")
 LV_STATE = MockObj(base="LV_STATE_", op="")

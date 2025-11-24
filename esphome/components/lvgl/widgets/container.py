@@ -33,7 +33,7 @@ class ContainerType(WidgetType):
         )
         self.styles = {}
 
-    def on_create(self, var: MockObj, config: dict):
+    async def on_create(self, var: MockObj, config: dict):
         lv.obj_remove_style_all(var)
 
 

@@ -15,7 +15,9 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.cpp_generator import MockObj
+from esphome.cpp_types import nullptr
 
+from .. import set_obj_properties
 from ..automation import action_to_code
 from ..defines import (
     CONF_END_VALUE,
@@ -28,32 +30,34 @@ from ..defines import (
     CONF_START_VALUE,
     CONF_TICKS,
     LV_PART,
-    literal, LV_SCALE_MODE,
+    LV_SCALE_MODE,
+    literal,
 )
 from ..helpers import lvgl_components_required
 from ..lv_validation import (
     get_end_value,
     get_start_value,
-    lv_angle,
     lv_angle_degrees,
     lv_bool,
     lv_color,
     lv_float,
     lv_image,
     lv_int,
+    lv_pct,
     opacity,
+    opacity_consts,
     pixels,
     requires_component,
-    size, lv_pct,
+    size,
 )
-from ..lvcode import LocalVariable, lv, lv_expr, lv_obj
-from ..styles import create_style
-from ..types import ObjUpdateAction, lv_obj_t
+from ..lvcode import LambdaContext, LocalVariable, lv, lv_expr, lv_obj
+from ..styles import LVStyle, style_set
+from ..types import LV_EVENT, ObjUpdateAction, lv_event_t, lv_obj_t
 from . import Widget, WidgetType, get_widgets
 from .arc import CONF_ARC
 from .img import CONF_IMAGE
 from .line import CONF_LINE
-from .scale import lv_scale_section_t, section_spec, lv_scale_t
+from .scale import lv_scale_section_t, scale_spec, section_spec
 
 CONF_ANGLE_RANGE = "angle_range"
 CONF_COLOR_END = "color_end"
@@ -185,6 +189,22 @@ SCALE_SCHEMA = cv.Schema(
 
 METER_SCHEMA = {cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA)}
 
+LIGHT_STYLE = LVStyle(
+    "lv_meter_light",
+    {
+        "bg_opa": "LV_OPA_COVER",
+        "bg_color": 0xEEEEEE,
+        "line_width": 1,
+        "line_color": 0xEEEEEE,
+        "arc_width": 2,
+        "arc_color": 0xEEEEEE,
+        "pad_all": 10,
+        "border_width": 2,
+        "border_color": 0xEEEEEE,
+        "radius": "LV_RADIUS_CIRCLE",
+    },
+)
+
 
 class MeterType(WidgetType):
     def __init__(self):
@@ -198,30 +218,22 @@ class MeterType(WidgetType):
             lv_name="obj",
         )
 
-    def on_create(self, var: MockObj, config: dict):
+    async def on_create(self, var: MockObj, config: dict):
         # Remove theme styling from outer container
         lv.obj_remove_style_all(var)
+        lv.obj_add_style(var, await LIGHT_STYLE.get_var(), LV_PART.MAIN)
 
-    def validate(self, value):
-        value = value.copy()
-        if indicator_style := value.get(CONF_INDICATOR):
-            # value[CONF_INDICATORS] = indicator_style
-            del value[CONF_INDICATOR]
-        if ticks := value.get(CONF_TICKS):
-            value[CONF_INDICATOR] = ticks
-            del value[CONF_TICKS]
-        return value
-
-    async def to_code(self, w: Widget, config):
+    async def create_to_code(self, config: dict, parent: MockObj):
         """For a meter object using scale widget, create and set parameters"""
 
         lvgl_components_required.add("scale")  # Use scale component
+        outer_config = config.copy()
+        indicator_config = {CONF_INDICATOR: outer_config.pop(CONF_TICKS, {})}
+        w = await super().create_to_code(outer_config, parent)
         var = w.obj
 
         # LVGL 9.4 scale widget setup
-        # Set to round mode for meter-like appearance
-        # Background style will be applied
-        lv_obj.set_style_radius(var, literal("LV_RADIUS_CIRCLE"), 0)
+        # Background style will be applied.
         # Add a pivot
         with LocalVariable("pivot", lv_obj_t, lv_expr.obj_create(var)) as pivot:
             lv.obj_remove_style_all(pivot)
@@ -233,13 +245,22 @@ class MeterType(WidgetType):
             lv_obj.set_style_height(pivot, 15, 0)
 
         for scale_conf in config.get(CONF_SCALES, ()):
-            print(scale_conf)
-            with LocalVariable("scale", lv_obj_t, lv_expr.scale_create(var)) as scale_var:
+            with LocalVariable(
+                "scale", lv_obj_t, lv_expr.scale_create(var)
+            ) as scale_var:
                 lv_obj.set_style_height(scale_var, lv_pct(100), LV_PART.MAIN)
                 lv_obj.set_style_width(scale_var, lv_pct(100), LV_PART.MAIN)
-                lv_obj.set_style_align(scale_var, literal("LV_ALIGN_CENTER"), LV_PART.MAIN)
-                lv_obj.set_style_bg_opa(scale_var, literal("LV_OPA_TRANSP"), LV_PART.MAIN)
+                lv_obj.set_style_align(
+                    scale_var, literal("LV_ALIGN_CENTER"), LV_PART.MAIN
+                )
+                lv_obj.set_style_bg_opa(
+                    scale_var, literal("LV_OPA_TRANSP"), LV_PART.MAIN
+                )
                 lv_obj.set_style_radius(scale_var, literal("LV_RADIUS_CIRCLE"), 0)
+                await set_obj_properties(
+                    Widget(scale_var, scale_spec), indicator_config
+                )
+
                 lv.scale_set_mode(scale_var, LV_SCALE_MODE.ROUND_INNER)
                 # Set the scale range
                 lv.scale_set_range(
@@ -250,7 +271,8 @@ class MeterType(WidgetType):
 
                 # Set angle range
                 lv.scale_set_angle_range(
-                    scale_var, await lv_angle_degrees.process(scale_conf[CONF_ANGLE_RANGE])
+                    scale_var,
+                    await lv_angle_degrees.process(scale_conf[CONF_ANGLE_RANGE]),
                 )
 
                 # Set rotation if specified
@@ -270,9 +292,15 @@ class MeterType(WidgetType):
                         scale_var, await size.process(ticks[CONF_WIDTH]), LV_PART.ITEMS
                     )
                     lv_obj.set_style_line_color(
-                        scale_var, await lv_color.process(ticks[CONF_COLOR]), LV_PART.ITEMS
+                        scale_var,
+                        await lv_color.process(ticks[CONF_COLOR]),
+                        LV_PART.ITEMS,
                     )
 
+                    # Hide the scale line
+                    lv.obj_set_style_arc_opa(
+                        scale_var, opacity_consts.TRANSP, LV_PART.MAIN
+                    )
                     if CONF_MAJOR in ticks:
                         major = ticks[CONF_MAJOR]
                         # Set major tick frequency
@@ -283,10 +311,14 @@ class MeterType(WidgetType):
 
                         # Set major tick styling
                         lv_obj.set_style_length(
-                            scale_var, await size.process(major[CONF_LENGTH]), LV_PART.INDICATOR
+                            scale_var,
+                            await size.process(major[CONF_LENGTH]),
+                            LV_PART.INDICATOR,
                         )
                         lv_obj.set_style_line_width(
-                            scale_var, await size.process(major[CONF_WIDTH]), LV_PART.INDICATOR
+                            scale_var,
+                            await size.process(major[CONF_WIDTH]),
+                            LV_PART.INDICATOR,
                         )
                         lv_obj.set_style_line_color(
                             scale_var,
@@ -300,6 +332,8 @@ class MeterType(WidgetType):
                             await size.process(major[CONF_LABEL_GAP]),
                             LV_PART.INDICATOR,
                         )
+                    else:
+                        lv.scale_set_major_tick_every(scale_var, 0)
 
                 # Handle indicators as sections
                 for indicator in scale_conf.get(CONF_INDICATORS, ()):
@@ -307,47 +341,44 @@ class MeterType(WidgetType):
                     iid = v[CONF_ID]
 
                     # Create a section for this indicator
-                    section_var = cg.Pvariable(iid, lv_expr.scale_add_section(w.obj))
+                    section_var = cg.Pvariable(
+                        iid, lv_expr.scale_add_section(scale_var)
+                    )
 
                     # Enable getting the meter to which this belongs.
                     section_widget = Widget.create(iid, var, section_spec, v)
                     section_widget.obj = section_var
 
                     # Set section range based on indicator values
-                    start_value = await get_start_value(v) or scale_conf[CONF_RANGE_FROM]
+                    start_value = (
+                        await get_start_value(v) or scale_conf[CONF_RANGE_FROM]
+                    )
                     end_value = await get_end_value(v) or scale_conf[CONF_RANGE_TO]
 
                     lv.scale_section_set_range(section_var, start_value, end_value)
 
                     # Create and apply styles based on indicator type
-                    style_var = await create_style(f"{iid}_style_")
-                    if t == CONF_LINE:
-                        # For line indicators, style the main line
-                        lv.style_set_line_color(
-                            style_var, await lv_color.process(v[CONF_COLOR])
-                        )
-                        lv.style_set_line_width(
-                            style_var, await size.process(v[CONF_WIDTH])
-                        )
-                        lv.scale_section_set_style(section_var, LV_PART.MAIN, style_var)
-
-                    elif t == CONF_ARC:
-                        # For arc indicators, style the main arc
-                        lv.style_set_arc_color(
-                            style_var, await lv_color.process(v[CONF_COLOR])
-                        )
-                        lv.style_set_arc_width(style_var, await size.process(v[CONF_WIDTH]))
-                        lv.scale_section_set_style(section_var, LV_PART.MAIN, style_var)
-
-                    elif t == CONF_TICK_STYLE:
+                    style_var = await LVStyle.get_style(iid.id).get_var()
+                    await style_set(style_var, v)
+                    if t == CONF_TICK_STYLE:
                         color_start = await lv_color.process(v[CONF_COLOR_START])
-                        # Note: LVGL 9.4 scale doesn't support gradient colors on ticks
-                        # Use start color for now
-                        lv.style_set_line_color(style_var, color_start)
-                        lv.style_set_line_width(
-                            style_var, await size.process(v[CONF_WIDTH])
-                        )
-                        lv.scale_section_set_style(section_var, LV_PART.ITEMS, style_var)
+                        color_end = await lv_color.process(v[CONF_COLOR_END])
+                        if color_start and color_end:
+                            async with LambdaContext(
+                                [(lv_event_t.operator("ptr"), "e")]
+                            ) as lambda_:
+                                lv.scale_draw_event_cb(
+                                    literal("e"), color_start, color_end
+                                )
+                            lv_obj.add_event_cb(
+                                scale_var,
+                                await lambda_.get_lambda(),
+                                LV_EVENT.DRAW_TASK_ADDED,
+                                nullptr,
+                            )
+                            lv.obj_add_flag(
+                                scale_var, literal("LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS")
+                            )
 
                     # Note: Image indicators (needles) are not directly supported by scale widget
                     # They would need to be implemented as separate image objects positioned over the scale
@@ -355,6 +386,7 @@ class MeterType(WidgetType):
                         # This would require creating a separate image widget and positioning it
                         # For now, we'll skip this or could implement as overlay
                         pass
+                    lv.scale_section_set_style(section_var, LV_PART.ITEMS, style_var)
 
 
 meter_spec = MeterType()
@@ -401,9 +433,9 @@ async def set_indicator_values(scale, section, config):
 
     # Note: Opacity for sections would need to be handled through style properties
     # This is more complex in LVGL 9.4 scale sections
-    if (opa := config.get(CONF_OPA)) is not None:
-        # Would need to create/update section style with opacity
-        # For now, we'll skip this as it requires more complex style management
-        pass
+    # if (opa := config.get(CONF_OPA)) is not None:
+    # Would need to create/update section style with opacity
+    # For now, we'll skip this as it requires more complex style management
+    #    pass
 
     lv_obj.invalidate(scale)

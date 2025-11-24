@@ -30,7 +30,7 @@ class ButtonType(WidgetType):
     def get_uses(self):
         return ("btn",)
 
-    def on_create(self, var: MockObj, config: dict):
+    async def on_create(self, var: MockObj, config: dict):
         if CONF_TEXT in config:
             lv.label_create(var)
         return var

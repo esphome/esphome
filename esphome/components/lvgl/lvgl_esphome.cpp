@@ -112,6 +112,7 @@ void LvglComponent::dump_config() {
                 "  Draw rounding: %d",
                 this->width_, this->height_, 100 / this->buffer_frac_, this->rotation, (int) this->draw_rounding);
 }
+
 void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
   this->show_snow_ = show_snow;
@@ -131,32 +132,38 @@ void LvglComponent::esphome_lvgl_init() {
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
   lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
+
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
   lv_obj_add_event_cb(obj, callback, event, nullptr);
 }
+
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2) {
   add_event_cb(obj, callback, event1);
   add_event_cb(obj, callback, event2);
 }
+
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2, lv_event_code_t event3) {
   add_event_cb(obj, callback, event1);
   add_event_cb(obj, callback, event2);
   add_event_cb(obj, callback, event3);
 }
+
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
   page->set_parent(this);
   lv_disp_set_default(this->disp_);
   page->setup(this->pages_.size() - 1);
 }
+
 void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time) {
   if (index >= this->pages_.size())
     return;
   this->current_page_ = index;
   lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
 }
+
 void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;
@@ -165,6 +172,7 @@ void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
   this->show_page(this->current_page_, anim, time);
 }
+
 void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
     return;
@@ -173,8 +181,10 @@ void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
   } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
   this->show_page(this->current_page_, anim, time);
 }
+
 size_t LvglComponent::get_current_page() const { return this->current_page_; }
 bool LvPageType::is_showing() const { return this->parent_->get_current_page() == this->index; }
+
 void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   auto width = lv_area_get_width(area);
   auto height = lv_area_get_height(area);
@@ -237,6 +247,7 @@ void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uin
   }
   lv_disp_flush_ready(disp_drv);
 }
+
 IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout) : timeout_(std::move(timeout)) {
   parent->add_on_idle_callback([this](uint32_t idle_time) {
     if (!this->is_idle_ && idle_time > this->timeout_.value()) {
@@ -520,6 +531,7 @@ void LvglComponent::update() {
   }
   this->idle_callbacks_.call(lv_disp_get_inactive_time(this->disp_));
 }
+
 void LvglComponent::loop() {
   if (this->paused_) {
     if (this->show_snow_)
@@ -540,12 +552,30 @@ void lv_animimg_stop(lv_obj_t *obj) {
 void LvglComponent::static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
   reinterpret_cast<LvglComponent *>(lv_display_get_user_data(disp_drv))->flush_cb_(disp_drv, area, color_p);
 }
+
+/**
+ *
+ * @param e Function to apply colors to ticks based on position
+ * @param color_start The color to apply to the first tick
+ * @param color_end  The color to apply to the last tick
+ */
+void lv_scale_draw_event_cb(lv_event_t *e, lv_color_t color_start, lv_color_t color_end) {
+  auto *scale = static_cast<lv_obj_t *>(lv_event_get_target(e));
+  lv_draw_task_t *task = lv_event_get_draw_task(e);
+
+  if (lv_draw_task_get_type(task) == LV_DRAW_TASK_TYPE_LINE) {
+    auto *line_dsc = static_cast<lv_draw_line_dsc_t *>(lv_draw_task_get_draw_dsc(task));
+    auto ratio = (line_dsc->base.id1 * 255) / (lv_scale_get_total_tick_count(scale) - 1);
+    line_dsc->color = lv_color_mix(color_end, color_start, ratio);
+  }
+}
 }  // namespace lvgl
 }  // namespace esphome
 
 lv_result_t lv_mem_test_core() { return LV_RESULT_OK; }
 
 void lv_mem_init() {}
+
 void lv_mem_deinit() {}
 
 #if defined(USE_HOST) || defined(USE_RP2040) || defined(USE_ESP8266)

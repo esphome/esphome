@@ -1,16 +1,21 @@
 import sys
 from typing import Any
 
-from esphome.automation import register_action
-from esphome.config_validation import Schema
-from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE
-
 from esphome import codegen as cg, config_validation as cv
-from esphome.config_validation import Invalid
-from esphome.const import CONF_DEFAULT, CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
+from esphome.automation import register_action
+from esphome.config_validation import Invalid, Schema
+from esphome.const import (
+    CONF_DEFAULT,
+    CONF_GROUP,
+    CONF_ID,
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_STATE,
+    CONF_TYPE,
+)
 from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import MockObj
 
 from ..defines import (
     CONF_FLEX_ALIGN_CROSS,
@@ -49,12 +54,21 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from ..types import LV_STATE, LvType, lv_coord_t, lv_obj_t, lv_obj_t_ptr, ObjUpdateAction, LvCompound
+from ..types import (
+    LV_STATE,
+    LvCompound,
+    LvType,
+    ObjUpdateAction,
+    lv_coord_t,
+    lv_obj_t,
+    lv_obj_t_ptr,
+)
 
 EVENT_LAMB = "event_lamb__"
 
 theme_widget_map = {}
 styles_used = set()
+
 
 class WidgetType:
     """
@@ -62,14 +76,14 @@ class WidgetType:
     """
 
     def __init__(
-            self,
-            name: str,
-            w_type: LvType,
-            parts: tuple,
-            schema=None,
-            modify_schema=None,
-            lv_name=None,
-            is_mock: bool = False,
+        self,
+        name: str,
+        w_type: LvType,
+        parts: tuple,
+        schema=None,
+        modify_schema=None,
+        lv_name=None,
+        is_mock: bool = False,
     ):
         """
         :param name: The widget name, e.g. "bar"
@@ -121,14 +135,52 @@ class WidgetType:
     def is_compound(self):
         return self.w_type.inherits_from(LvCompound)
 
-    async def to_code(self, w, config: dict):
+    async def create_to_code(self, config: dict, parent: MockObj) -> "Widget":
         """
-        Generate code for a given widget
-        :param w: The widget
-        :param config: Its configuration
+        Generate code for a widget creation.
+        :param config: The configuration for the widget
+        :param parent: The parent to which it should be attached
+        """
+        creator = await self.obj_creator(parent, config)
+        add_lv_use(self.name)
+        add_lv_use(*self.get_uses())
+        wid = config[CONF_ID]
+        add_line_marks(wid)
+        if self.is_compound():
+            var = cg.new_Pvariable(wid)
+            lv_add(var.set_obj(creator))
+            await self.on_create(var.obj, config)
+        else:
+            var = lv_Pvariable(lv_obj_t, wid)
+            lv_assign(var, creator)
+            await self.on_create(var, config)
+
+        w = Widget.create(wid, var, self, config)
+        if theme := theme_widget_map.get(str(self.w_type)):
+            for part, states in theme.items():
+                part = "LV_PART_" + part.upper()
+                for state, style in states.items():
+                    state = "LV_STATE_" + state.upper()
+                    if state == "LV_STATE_DEFAULT":
+                        lv_state = literal(part)
+                    elif part == "LV_PART_MAIN":
+                        lv_state = literal(state)
+                    else:
+                        lv_state = join_enums((state, part))
+                    lv.obj_add_style(w.obj, style, lv_state)
+        await set_obj_properties(w, config)
+        await add_widgets(w, config)
+        await self.to_code(w, config)
+        return w
+
+    async def to_code(self, w: "Widget", config: dict):
+        """
+        Update a widget, also called when creating
+        :param config:
+        :return:
         """
 
-    async def obj_creator(self, parent: MockObjClass, config: dict):
+    async def obj_creator(self, parent: MockObj, config: dict):
         """
         Create an instance of the widget type
         :param parent: The parent to which it should be attached
@@ -137,7 +189,7 @@ class WidgetType:
         """
         return lv_expr.call(f"{self.lv_name}_create", parent)
 
-    def on_create(self, var: MockObj, config: dict):
+    async def on_create(self, var: MockObj, config: dict):
         """
         Called from to_code when the widget is created, to set up any initial properties
         :param var: The variable representing the widget
@@ -241,6 +293,7 @@ class Widget:
 
     async def set_property(self, prop, value, animated: bool = None, lv_name=None):
         from ..schemas import ALL_STYLES
+
         """
         Set a property of the widget.
         :param prop:  The property name
@@ -352,7 +405,7 @@ class LvScrActType(WidgetType):
         super().__init__("lv_screen_active()", lv_obj_t, (), is_mock=True)
 
     async def to_code(self, w, config: dict):
-        return []
+        pass
 
 
 def get_screen_active(lv_comp: MockObj) -> Widget:
@@ -404,6 +457,7 @@ async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
 
 def collect_props(config):
     from ..schemas import ALL_STYLES
+
     """
     Collect all properties from a configuration
     :param config:
@@ -444,6 +498,7 @@ def collect_parts(config):
 
 async def set_obj_properties(w: Widget, config):
     from ..schemas import ALL_STYLES, remap_property
+
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
     if layout := config.get(CONF_LAYOUT):
         layout_type: str = layout[CONF_TYPE]
@@ -569,6 +624,7 @@ async def add_widgets(parent: Widget, config: dict):
 
 async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent):
     from ..schemas import WIDGET_TYPES
+
     """
     Converts a Widget definition to C code.
     :param w_cnfig: The widget configuration
@@ -579,36 +635,7 @@ async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent):
     spec: WidgetType = (
         w_type if isinstance(w_type, WidgetType) else WIDGET_TYPES[w_type]
     )
-    creator = await spec.obj_creator(parent, w_cnfig)
-    add_lv_use(spec.name)
-    add_lv_use(*spec.get_uses())
-    wid = w_cnfig[CONF_ID]
-    add_line_marks(wid)
-    if spec.is_compound():
-        var = cg.new_Pvariable(wid)
-        lv_add(var.set_obj(creator))
-        spec.on_create(var.obj, w_cnfig)
-    else:
-        var = lv_Pvariable(lv_obj_t, wid)
-        lv_assign(var, creator)
-        spec.on_create(var, w_cnfig)
-
-    w = Widget.create(wid, var, spec, w_cnfig)
-    if theme := theme_widget_map.get(w_type):
-        for part, states in theme.items():
-            part = "LV_PART_" + part.upper()
-            for state, style in states.items():
-                state = "LV_STATE_" + state.upper()
-                if state == "LV_STATE_DEFAULT":
-                    lv_state = literal(part)
-                elif part == "LV_PART_MAIN":
-                    lv_state = literal(state)
-                else:
-                    lv_state = join_enums((state, part))
-                lv.obj_add_style(w.obj, style, lv_state)
-    await set_obj_properties(w, w_cnfig)
-    await add_widgets(w, w_cnfig)
-    await spec.to_code(w, w_cnfig)
+    await spec.create_to_code(w_cnfig, parent)
 
 
 class NumberType(WidgetType):
