@@ -206,7 +206,7 @@ void VoiceAssistant::loop() {
     case State::START_MICROPHONE: {
       ESP_LOGD(TAG, "Starting Microphone");
       if (!this->allocate_buffers_()) {
-        this->status_set_error("Failed to allocate buffers");
+        this->status_set_error(LOG_STR("Failed to allocate buffers"));
         return;
       }
       if (this->status_has_error()) {
