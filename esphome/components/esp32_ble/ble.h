@@ -192,12 +192,11 @@ class ESP32BLE : public Component {
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
   esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_event_pool_;
 
-  const char *name_{nullptr};
-
   // 4-byte aligned members
 #ifdef USE_ESP32_BLE_ADVERTISING
   BLEAdvertising *advertising_{};  // 4 bytes (pointer)
 #endif
+  const char *name_{nullptr};                 // 4 bytes (pointer to string literal in flash)
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
   uint32_t advertising_cycle_time_{};         // 4 bytes
 
