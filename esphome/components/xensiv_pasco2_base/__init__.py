@@ -32,7 +32,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_SENSOR_RATE, default="10s"): cv.All(
+        cv.Optional(CONF_SENSOR_RATE, default="60s"): cv.All(
             cv.positive_time_period_seconds,
             cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=4095)),
         ),
