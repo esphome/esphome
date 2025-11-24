@@ -330,6 +330,19 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   this->wifi_pre_setup_();
+
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  // Create semaphore for high-performance mode requests
+  // Start at 0, increment on request, decrement on release
+  this->high_performance_semaphore_ = xSemaphoreCreateCounting(UINT32_MAX, 0);
+  if (this->high_performance_semaphore_ == nullptr) {
+    ESP_LOGE(TAG, "Failed semaphore");
+  }
+
+  // Store the configured power save mode as baseline
+  this->configured_power_save_ = this->power_save_;
+#endif
+
   if (this->enable_on_boot_) {
     this->start();
   } else {
@@ -371,6 +384,19 @@ void WiFiComponent::start() {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+    // Synchronize power_save_ with semaphore state before applying
+    if (this->high_performance_semaphore_ != nullptr) {
+      UBaseType_t semaphore_count = uxSemaphoreGetCount(this->high_performance_semaphore_);
+      if (semaphore_count > 0) {
+        this->power_save_ = WIFI_POWER_SAVE_NONE;
+        this->is_high_performance_mode_ = true;
+      } else {
+        this->power_save_ = this->configured_power_save_;
+        this->is_high_performance_mode_ = false;
+      }
+    }
+#endif
     if (!this->wifi_apply_power_save_()) {
       ESP_LOGV(TAG, "Setting Power Save Option failed");
     }
@@ -525,11 +551,37 @@ void WiFiComponent::loop() {
       }
     }
   }
+
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  // Check if power save mode needs to be updated based on high-performance requests
+  if (this->high_performance_semaphore_ != nullptr) {
+    // Semaphore count directly represents active requests (starts at 0, increments on request)
+    UBaseType_t semaphore_count = uxSemaphoreGetCount(this->high_performance_semaphore_);
+
+    if (semaphore_count > 0 && !this->is_high_performance_mode_) {
+      // Transition to high-performance mode (no power save)
+      ESP_LOGV(TAG, "Switching to high-performance mode (%" PRIu32 " active %s)", (uint32_t) semaphore_count,
+               semaphore_count == 1 ? "request" : "requests");
+      this->power_save_ = WIFI_POWER_SAVE_NONE;
+      if (this->wifi_apply_power_save_()) {
+        this->is_high_performance_mode_ = true;
+      }
+    } else if (semaphore_count == 0 && this->is_high_performance_mode_) {
+      // Restore to configured power save mode
+      ESP_LOGV(TAG, "Restoring power save mode to configured setting");
+      this->power_save_ = this->configured_power_save_;
+      if (this->wifi_apply_power_save_()) {
+        this->is_high_performance_mode_ = false;
+      }
+    }
+  }
+#endif
 }
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
+bool WiFiComponent::is_ap_active() const { return this->state_ == WIFI_COMPONENT_STATE_AP; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 #ifdef USE_WIFI_11KV_SUPPORT
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
@@ -1566,7 +1618,12 @@ bool WiFiComponent::is_connected() {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
          this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }
-void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
+void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
+  this->power_save_ = power_save;
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  this->configured_power_save_ = power_save;
+#endif
+}
 
 void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
@@ -1584,6 +1641,38 @@ bool WiFiComponent::is_esp32_improv_active_() {
   return false;
 #endif
 }
+
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+bool WiFiComponent::request_high_performance() {
+  // Already configured for high performance - request satisfied
+  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+    return true;
+  }
+
+  // Semaphore initialization failed
+  if (this->high_performance_semaphore_ == nullptr) {
+    return false;
+  }
+
+  // Give the semaphore (non-blocking). This increments the count.
+  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+}
+
+bool WiFiComponent::release_high_performance() {
+  // Already configured for high performance - nothing to release
+  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+    return true;
+  }
+
+  // Semaphore initialization failed
+  if (this->high_performance_semaphore_ == nullptr) {
+    return false;
+  }
+
+  // Take the semaphore (non-blocking). This decrements the count.
+  return xSemaphoreTake(this->high_performance_semaphore_, 0) == pdTRUE;
+}
+#endif  // USE_ESP32 && USE_WIFI_RUNTIME_POWER_SAVE
 
 #ifdef USE_WIFI_FAST_CONNECT
 bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
