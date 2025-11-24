@@ -238,13 +238,16 @@ std::string str_sprintf(const char *fmt, ...) {
 // Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
 static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 
-std::string make_name_with_suffix(const char *name, char sep, const char *suffix_ptr, size_t suffix_len) {
+std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
+                                  size_t suffix_len) {
   char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
-  size_t name_len = strlen(name);
   size_t total_len = name_len + 1 + suffix_len;
 
   // Silently truncate if needed: prioritize keeping the full suffix
   if (total_len >= MAX_NAME_WITH_SUFFIX_SIZE) {
+    // NOTE: This calculation could underflow if suffix_len >= MAX_NAME_WITH_SUFFIX_SIZE - 2,
+    // but this is safe because this helper is only called with small suffixes:
+    // MAC suffixes (6-12 bytes), ".local" (5 bytes), etc.
     name_len = MAX_NAME_WITH_SUFFIX_SIZE - suffix_len - 2;  // -2 for separator and null terminator
     total_len = name_len + 1 + suffix_len;
   }
@@ -257,7 +260,7 @@ std::string make_name_with_suffix(const char *name, char sep, const char *suffix
 }
 
 std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
-  return make_name_with_suffix(name.c_str(), sep, suffix_ptr, suffix_len);
+  return make_name_with_suffix(name.c_str(), name.size(), sep, suffix_ptr, suffix_len);
 }
 
 // Parsing & formatting

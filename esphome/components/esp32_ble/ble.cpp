@@ -264,7 +264,7 @@ bool ESP32BLE::ble_setup_() {
       char mac_addr[13];
       get_mac_address_into_buffer(mac_addr);
       const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      name = make_name_with_suffix(this->name_, '-', mac_suffix_ptr, mac_address_suffix_len);
+      name = make_name_with_suffix(this->name_, strlen(this->name_), '-', mac_suffix_ptr, mac_address_suffix_len);
     } else {
       name = this->name_;
     }
