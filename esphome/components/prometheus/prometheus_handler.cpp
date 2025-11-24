@@ -129,8 +129,9 @@ void PrometheusHandler::add_friendly_name_label_(AsyncResponseStream *stream, st
   }
 }
 
-void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, const char *metric_name, EntityBase *obj,
-                                             std::string &area, std::string &node, std::string &friendly_name) {
+void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name,
+                                             EntityBase *obj, std::string &area, std::string &node,
+                                             std::string &friendly_name) {
   stream->print(metric_name);
   stream->print(ESPHOME_F("{id=\""));
   stream->print(relabel_id_(obj).c_str());
