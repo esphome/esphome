@@ -27,7 +27,7 @@ void SHT4XComponent::read_serial_numer_() {
     this->serial_number_ = 0;
     return;
   }
-  this->serial_number_ = (uint32_t(buffer[0]) << 16) | (uint64_t(buffer[1]));
+  this->serial_number_ = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]));
   ESP_LOGD(TAG, "Serial number: %" PRIu32, this->serial_number_);
 }
 
