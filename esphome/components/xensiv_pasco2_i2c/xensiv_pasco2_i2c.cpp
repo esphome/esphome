@@ -7,7 +7,7 @@ static const char *const TAG = "xensiv_pasco2_i2c.component";
 
 void XensivPasCO2I2CComponent::dump_config() {
   LOG_I2C_DEVICE(this);
-  XensivPasCO2I2CComponent::dump_config();
+  XensivPasCO2::dump_config();
 }
 
 bool XensivPasCO2I2CComponent::read_byte(uint8_t reg, uint8_t *data) { return I2CDevice::read_byte(reg, data); }

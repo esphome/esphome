@@ -20,10 +20,12 @@ class XensivPasCO2 : public Component {
   void set_sensor_rate_value(int16_t rate) { sensor_rate_ = rate; }
   void set_operation_mode(bool mode) { continuous_operation_mode_ = mode; }
   void set_pressure_compensation(uint16_t pressure_ref);
+  void set_pressure_compensation_source(sensor::Sensor *sensor) { pressure_compensation_source_ = sensor; }
   bool measure_now();
 
  protected:
   sensor::Sensor *co2_sensor_{nullptr};
+  sensor::Sensor *pressure_compensation_source_{nullptr};
   float co2_ppm_{0.0f};
   uint16_t version_{2};
   uint16_t pressure_ref_{0};              // Pressure reference in Pa (0 = use default from sensor)

@@ -11,7 +11,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
 )
 
-CODEOWNERS = ["@michal-gora"]
+CODEOWNERS = ["@michal-gora", "@ederjc", "@jaenrig-ifx"]
 
 CONF_INTERRUPT_PIN = "interrupt_pin"
 CONF_SENSOR_RATE = "sensor_rate"
