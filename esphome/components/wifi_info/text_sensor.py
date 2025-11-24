@@ -80,7 +80,7 @@ async def setup_conf(config, key):
 
 async def to_code(config):
     # Request WiFi callbacks for any sensor that needs them
-    if _NETWORK_INFO_KEYS & config.keys():
+    if _NETWORK_INFO_KEYS.intersection(config):
         wifi.request_wifi_callbacks()
 
     await setup_conf(config, CONF_SSID)
