@@ -49,8 +49,7 @@ extern "C" {
 #include <WiFi.h>
 #endif
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 /// Sentinel value for RSSI when WiFi is not connected
 static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
@@ -569,6 +568,5 @@ class WiFiComponent : public Component {
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace wifi
-}  // namespace esphome
+}  // namespace esphome::wifi
 #endif

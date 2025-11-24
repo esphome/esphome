@@ -41,8 +41,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp32";
 
@@ -1098,8 +1097,6 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   return network::IPAddress(dns_ip);
 }
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif  // USE_ESP32
 #endif

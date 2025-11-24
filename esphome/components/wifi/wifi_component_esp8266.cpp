@@ -38,8 +38,7 @@ extern "C" {
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp8266";
 
@@ -892,8 +891,6 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t 
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {(const ip_addr_t *) WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {}
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif
 #endif

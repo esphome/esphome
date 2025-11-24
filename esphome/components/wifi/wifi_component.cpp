@@ -37,8 +37,7 @@
 #include "esphome/components/esp32_improv/esp32_improv_component.h"
 #endif
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
 
@@ -1724,6 +1723,5 @@ bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->
 
 WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace wifi
-}  // namespace esphome
+}  // namespace esphome::wifi
 #endif

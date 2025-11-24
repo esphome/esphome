@@ -14,8 +14,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_pico_w";
 
@@ -269,8 +268,6 @@ void WiFiComponent::wifi_loop_() {
 
 void WiFiComponent::wifi_pre_setup_() {}
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif
 #endif

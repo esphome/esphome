@@ -4,8 +4,7 @@
 #ifdef USE_WIFI
 #include "wifi_component.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
  public:
@@ -108,6 +107,5 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
   Trigger<> *error_trigger_{new Trigger<>()};
 };
 
-}  // namespace wifi
-}  // namespace esphome
+}  // namespace esphome::wifi
 #endif
