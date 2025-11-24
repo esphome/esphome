@@ -530,6 +530,7 @@ void WiFiComponent::loop() {
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
+bool WiFiComponent::is_ap_active() const { return this->state_ == WIFI_COMPONENT_STATE_AP; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 #ifdef USE_WIFI_11KV_SUPPORT
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }

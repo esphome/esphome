@@ -97,6 +97,7 @@ WIFI_MIN_AUTH_MODES = {
 VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
+WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
@@ -587,6 +588,11 @@ async def wifi_connected_to_code(config, condition_id, template_arg, args):
 
 @automation.register_condition("wifi.enabled", WiFiEnabledCondition, cv.Schema({}))
 async def wifi_enabled_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_condition("wifi.ap_active", WiFiAPActiveCondition, cv.Schema({}))
+async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
 
 
