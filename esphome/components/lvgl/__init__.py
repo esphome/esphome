@@ -282,7 +282,7 @@ async def to_code(configs):
             await add_widgets(lv_scr_act, config)
             await add_top_layer(lv_component, config)
             await msgboxes_to_code(lv_component, config)
-            await add_pages(lv_component, config, default_group)
+            await add_pages(lv_component, config)
             await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
     Widget.widgets_completed = True
@@ -356,7 +356,6 @@ LVGL_SCHEMA = cv.All(
         cv.polling_component_schema("1s")
         .extend(
             {
-                cv.Optional(df.CONF_AUTO_PAGE_INPUT, default=True): lv_bool,
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
                 cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
