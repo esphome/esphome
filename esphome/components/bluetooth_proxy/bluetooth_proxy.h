@@ -134,6 +134,8 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
     const uint8_t *mac = esp_bt_dev_get_address();
     if (mac != nullptr) {
       format_mac_addr_upper(mac, output.data());
+    } else {
+        output[0] = '\0';
     }
   }
 
