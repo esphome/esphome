@@ -2,8 +2,7 @@
 #ifdef USE_WIFI
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace wifi_info {
+namespace esphome::wifi_info {
 
 static const char *const TAG = "wifi_info";
 
@@ -114,6 +113,5 @@ void BSSIDWiFiInfo::state_callback_(wifi::bssid_t bssid) {
 
 void MacAddressWifiInfo::dump_config() { LOG_TEXT_SENSOR("", "MAC Address", this); }
 
-}  // namespace wifi_info
-}  // namespace esphome
+}  // namespace esphome::wifi_info
 #endif

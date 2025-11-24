@@ -7,8 +7,7 @@
 #ifdef USE_WIFI
 #include <array>
 
-namespace esphome {
-namespace wifi_info {
+namespace esphome::wifi_info {
 
 class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
@@ -67,6 +66,5 @@ class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
   void dump_config() override;
 };
 
-}  // namespace wifi_info
-}  // namespace esphome
+}  // namespace esphome::wifi_info
 #endif
