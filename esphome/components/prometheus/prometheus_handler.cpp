@@ -362,7 +362,7 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
     stream->print(w);
     stream->print(ESPHOME_F("\n"));
   }
-  // No effects, so we can skip this
+  // Skip effect metrics if light has no effects
   if (!obj->get_effects().empty()) {
     // Effect
     std::string effect = obj->get_effect_name();
