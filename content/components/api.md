@@ -385,13 +385,19 @@ api:
     - logger.log: "API client disconnected!"
 ```
 
+## Conditions
+
 {{< anchor "api-connected_condition" >}}
 
-## `api.connected` Condition
+### `api.connected` Condition
 
-This [Condition](/automations/actions#all-conditions) checks if at least one client is connected to the ESPHome
-native API. Please note client not only includes Home Assistant, but also ESPHome's OTA log output
-if logs are shown remotely.
+This [Condition](/automations/actions#all-conditions) checks if at least one client is connected to the ESPHome native API.
+
+#### Configuration variables
+
+- **state_subscription_only** (*Optional*, boolean): If enabled, only counts clients that have subscribed to entity state updates. This filters out logger-only connections (such as `esphome logs` command), which can cause false positives when waiting for Home Assistant. Defaults to `false`.
+
+**Check if any client is connected:**
 
 ```yaml
 on_...:
@@ -399,10 +405,30 @@ on_...:
     condition:
       api.connected:
     then:
-      - logger.log: API is connected!
+      - logger.log: Client is connected to API!
 ```
 
 The lambda equivalent for this is `id(api_id).is_connected()`.
+
+**Check if a client subscribed to entity states is connected (typically Home Assistant):**
+
+```yaml
+on_boot:
+  - wait_until:
+      condition:
+        api.connected:
+          state_subscription_only: true
+  - logger.log: Home Assistant is connected!
+  - homeassistant.event:
+      event: esphome.device_booted
+```
+
+The lambda equivalent for this is `id(api_id).is_connected(true)`.
+
+**Use Cases:**
+
+- Use `state_subscription_only: false` (default) to detect any API connection
+- Use `state_subscription_only: true` when you need to ensure Home Assistant (or other connections that subscribe to states) is connected before sending events or calling services, preventing errors from logger-only connections
 
 {{< anchor "api-device-actions" >}}
 
