@@ -343,7 +343,13 @@ def clean_build(clear_pio_cache: bool = True):
 def clean_all(configuration: list[str]):
     import shutil
 
-    data_dirs = [Path(dir) / ".esphome" for dir in configuration]
+    data_dirs = []
+    for config in configuration:
+        item = Path(config)
+        if item.is_file() and item.suffix in (".yaml", ".yml"):
+            data_dirs.append(item.parent / ".esphome")
+        else:
+            data_dirs.append(item / ".esphome")
     if is_ha_addon():
         data_dirs.append(Path("/data"))
     if "ESPHOME_DATA_DIR" in os.environ:

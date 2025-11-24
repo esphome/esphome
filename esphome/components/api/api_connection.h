@@ -221,7 +221,7 @@ class APIConnection final : public APIServerConnection {
 #ifdef USE_API_HOMEASSISTANT_STATES
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   void execute_service(const ExecuteServiceRequest &msg) override;
 #endif
 #ifdef USE_API_NOISE

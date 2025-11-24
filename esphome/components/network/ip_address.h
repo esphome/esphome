@@ -81,7 +81,12 @@ struct IPAddress {
     ip_addr_.type = IPADDR_TYPE_V6;
   }
 #endif /* LWIP_IPV6 */
-  IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t)); }
+  IPAddress(esp_ip4_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t));
+#if LWIP_IPV6
+    ip_addr_.type = IPADDR_TYPE_V4;
+#endif
+  }
   IPAddress(esp_ip_addr_t *other_ip) {
 #if LWIP_IPV6
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));

@@ -21,8 +21,7 @@
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
@@ -189,6 +188,5 @@ void MDNSComponent::dump_config() {
 #endif
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 #endif
