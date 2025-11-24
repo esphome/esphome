@@ -87,7 +87,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
 
-    // MAC address: passed as parameter from setup(), lives in caller's stack frame
+    // MAC address: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
     txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)});
 
 #ifdef USE_ESP8266

@@ -71,13 +71,14 @@ class MDNSComponent : public Component {
  protected:
   /// Common setup logic called by all platform-specific setup() implementations
   void on_setup_(char *mac_address_buf) {
-#if defined(USE_API) && defined(USE_MDNS_STORE_SERVICES)
-    // Populate MAC address buffer once during setup (only needed if storing services)
-    get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE>(this->mac_address_));
-#endif
-
 #ifdef USE_MDNS_STORE_SERVICES
+#ifdef USE_API
+    // Copy to member buffer for storage
+    std::memcpy(this->mac_address_, mac_address_buf, MAC_ADDRESS_BUFFER_SIZE);
     this->compile_records_(this->services_, this->mac_address_);
+#else
+    this->compile_records_(this->services_, mac_address_buf);
+#endif
 #endif
   }
 
