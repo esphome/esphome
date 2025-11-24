@@ -29,6 +29,8 @@ class ArduinoI2CBus : public InternalI2CBus, public Component {
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
 
+  int get_port() const override { return 0; }
+
  private:
   void recover_();
   void set_pins_and_clock_();
