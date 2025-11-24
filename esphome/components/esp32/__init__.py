@@ -884,6 +884,12 @@ async def to_code(config):
     )
 
     add_extra_script(
+        "pre",
+        "pre_build.py",
+        Path(__file__).parent / "pre_build.py.script",
+    )
+
+    add_extra_script(
         "post",
         "post_build.py",
         Path(__file__).parent / "post_build.py.script",

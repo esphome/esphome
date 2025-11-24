@@ -1451,8 +1451,11 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_AREAS
   resp.set_suggested_area(StringRef(App.get_area()));
 #endif
-  // mac_address must store temporary string - will be valid during send_message call
-  std::string mac_address = get_mac_address_pretty();
+  // Stack buffer for MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
+  char mac_address[18];
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  format_mac_addr_upper(mac, mac_address);
   resp.set_mac_address(StringRef(mac_address));
 
   resp.set_esphome_version(ESPHOME_VERSION_REF);
@@ -1493,8 +1496,9 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
-  // bt_mac must store temporary string - will be valid during send_message call
-  std::string bluetooth_mac = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty();
+  // Stack buffer for Bluetooth MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
+  char bluetooth_mac[18];
+  bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
   resp.set_bluetooth_mac_address(StringRef(bluetooth_mac));
 #endif
 #ifdef USE_VOICE_ASSISTANT

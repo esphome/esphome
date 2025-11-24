@@ -150,7 +150,7 @@ class APIServer : public Component, public Controller {
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
 
-  bool is_connected() const;
+  bool is_connected(bool state_subscription_only = false) const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
@@ -236,8 +236,11 @@ class APIServer : public Component, public Controller {
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
+  TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
-  bool check(const Ts &...x) override { return global_api_server->is_connected(); }
+  bool check(const Ts &...x) override {
+    return global_api_server->is_connected(this->state_subscription_only_.value(x...));
+  }
 };
 
 }  // namespace esphome::api

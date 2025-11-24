@@ -528,7 +528,18 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected() const { return !this->clients_.empty(); }
+bool APIServer::is_connected(bool state_subscription_only) const {
+  if (!state_subscription_only) {
+    return !this->clients_.empty();
+  }
+
+  for (const auto &client : this->clients_) {
+    if (client->flags_.state_subscription) {
+      return true;
+    }
+  }
+  return false;
+}
 
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;
