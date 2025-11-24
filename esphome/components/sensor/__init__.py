@@ -182,6 +182,7 @@ STATE_CLASSES = {
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
     "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
     "total": StateClasses.STATE_CLASS_TOTAL,
+    "measurement_angle": StateClasses.STATE_CLASS_MEASUREMENT_ANGLE,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
