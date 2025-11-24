@@ -59,8 +59,7 @@ def _bus_declare_type(value):
 def validate_config(config):
     if CORE.is_esp32:
         return cv.require_framework_version(
-            esp_idf=cv.Version(5, 4, 2),
-            esp32_arduino=cv.Version(3, 2, 1),
+            esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
         )(config)
     return config
 
