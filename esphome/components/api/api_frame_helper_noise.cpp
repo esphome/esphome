@@ -239,12 +239,13 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
+    constexpr size_t mac_len = 13;  // 12 hex chars + null terminator
     const std::string &name = App.get_name();
-    const std::string &mac = get_mac_address();
+    char mac[mac_len];
+    get_mac_address_into_buffer(mac);
 
     // Calculate positions and sizes
     size_t name_len = name.size() + 1;  // including null terminator
-    size_t mac_len = mac.size() + 1;    // including null terminator
     size_t name_offset = 1;
     size_t mac_offset = name_offset + name_len;
     size_t total_size = 1 + name_len + mac_len;
@@ -257,7 +258,7 @@ APIError APINoiseFrameHelper::state_action_() {
     // node name, terminated by null byte
     std::memcpy(msg.get() + name_offset, name.c_str(), name_len);
     // node mac, terminated by null byte
-    std::memcpy(msg.get() + mac_offset, mac.c_str(), mac_len);
+    std::memcpy(msg.get() + mac_offset, mac, mac_len);
 
     aerr = write_frame_(msg.get(), total_size);
     if (aerr != APIError::OK)
