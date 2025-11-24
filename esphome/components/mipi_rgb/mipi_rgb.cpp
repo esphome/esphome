@@ -164,8 +164,8 @@ void MipiRgb::common_setup_() {
   if (err == ESP_OK)
     err = esp_lcd_panel_init(this->handle_);
   if (err != ESP_OK) {
-    auto msg = str_sprintf("lcd setup failed: %s", esp_err_to_name(err));
-    this->mark_failed(msg.c_str());
+    ESP_LOGE(TAG, "lcd setup failed: %s", esp_err_to_name(err));
+    this->mark_failed("lcd setup failed");
   }
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
 }

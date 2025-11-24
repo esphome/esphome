@@ -63,7 +63,7 @@ enum LogLevel : uint32_t {
   LOG_LEVEL_VERBOSE = 6,
   LOG_LEVEL_VERY_VERBOSE = 7,
 };
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_BOOL = 0,
   SERVICE_ARG_TYPE_INT = 1,
@@ -1239,7 +1239,7 @@ class GetTimeResponse final : public ProtoDecodableMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 class ListEntitiesServicesArgument final : public ProtoMessage {
  public:
   StringRef name_ref_{};
