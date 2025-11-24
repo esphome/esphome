@@ -129,6 +129,18 @@ void PrometheusHandler::add_friendly_name_label_(AsyncResponseStream *stream, st
   }
 }
 
+void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, const char *metric_name, EntityBase *obj,
+                                             std::string &area, std::string &node, std::string &friendly_name) {
+  stream->print(metric_name);
+  stream->print(ESPHOME_F("{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(ESPHOME_F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+}
+
 // Type-specific implementation
 #ifdef USE_SENSOR
 void PrometheusHandler::sensor_type_(AsyncResponseStream *stream) {
@@ -291,13 +303,7 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   if (obj->is_internal() && !this->include_internal_)
     return;
   // State
-  stream->print(ESPHOME_F("esphome_light_state{id=\""));
-  stream->print(relabel_id_(obj).c_str());
-  add_area_label_(stream, area);
-  add_node_label_(stream, node);
-  add_friendly_name_label_(stream, friendly_name);
-  stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
+  print_metric_labels_(stream, ESPHOME_F("esphome_light_state"), obj, area, node, friendly_name);
   stream->print(ESPHOME_F("\"} "));
   stream->print(obj->remote_values.is_on());
   stream->print(ESPHOME_F("\n"));
@@ -307,57 +313,27 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   color.as_brightness(&brightness);
   color.as_rgbw(&r, &g, &b, &w);
   if (obj->get_traits().supports_color_capability(light::ColorCapability::BRIGHTNESS)) {
-    stream->print(ESPHOME_F("esphome_light_color{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
+    print_metric_labels_(stream, ESPHOME_F("esphome_light_color"), obj, area, node, friendly_name);
     stream->print(ESPHOME_F("\",channel=\"brightness\"} "));
     stream->print(brightness);
     stream->print(ESPHOME_F("\n"));
   }
   if (obj->get_traits().supports_color_capability(light::ColorCapability::RGB)) {
-    stream->print(ESPHOME_F("esphome_light_color{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
+    print_metric_labels_(stream, ESPHOME_F("esphome_light_color"), obj, area, node, friendly_name);
     stream->print(ESPHOME_F("\",channel=\"r\"} "));
     stream->print(r);
     stream->print(ESPHOME_F("\n"));
-    stream->print(ESPHOME_F("esphome_light_color{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
+    print_metric_labels_(stream, ESPHOME_F("esphome_light_color"), obj, area, node, friendly_name);
     stream->print(ESPHOME_F("\",channel=\"g\"} "));
     stream->print(g);
     stream->print(ESPHOME_F("\n"));
-    stream->print(ESPHOME_F("esphome_light_color{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
+    print_metric_labels_(stream, ESPHOME_F("esphome_light_color"), obj, area, node, friendly_name);
     stream->print(ESPHOME_F("\",channel=\"b\"} "));
     stream->print(b);
     stream->print(ESPHOME_F("\n"));
   }
   if (obj->get_traits().supports_color_capability(light::ColorCapability::WHITE)) {
-    stream->print(ESPHOME_F("esphome_light_color{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
+    print_metric_labels_(stream, ESPHOME_F("esphome_light_color"), obj, area, node, friendly_name);
     stream->print(ESPHOME_F("\",channel=\"w\"} "));
     stream->print(w);
     stream->print(ESPHOME_F("\n"));
@@ -366,14 +342,7 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   if (!obj->get_effects().empty()) {
     // Effect
     std::string effect = obj->get_effect_name();
-    // Print common labels once
-    stream->print(ESPHOME_F("esphome_light_effect_active{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
+    print_metric_labels_(stream, ESPHOME_F("esphome_light_effect_active"), obj, area, node, friendly_name);
     stream->print(ESPHOME_F("\",effect=\""));
     // Only vary based on effect
     if (effect == "None") {
