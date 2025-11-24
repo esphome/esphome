@@ -528,7 +528,7 @@ APIError APINoiseFrameHelper::init_handshake_() {
   if (aerr != APIError::OK)
     return aerr;
 
-  const auto &psk = ctx_->get_psk();
+  const auto &psk = this->ctx_.get_psk();
   err = noise_handshakestate_set_pre_shared_key(handshake_, psk.data(), psk.size());
   aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_set_pre_shared_key"),
                              APIError::HANDSHAKESTATE_SETUP_FAILED);
