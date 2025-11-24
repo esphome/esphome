@@ -123,6 +123,22 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
                  std::string &friendly_name);
 #endif
 
+#ifdef USE_EVENT
+  /// Return the type for prometheus
+  void event_type_(AsyncResponseStream *stream);
+  /// Return the event values state as prometheus data point
+  void event_row_(AsyncResponseStream *stream, event::Event *obj, std::string &area, std::string &node,
+                  std::string &friendly_name);
+#endif
+
+#ifdef USE_TEXT
+  /// Return the type for prometheus
+  void text_type_(AsyncResponseStream *stream);
+  /// Return the text values state as prometheus data point
+  void text_row_(AsyncResponseStream *stream, text::Text *obj, std::string &area, std::string &node,
+                 std::string &friendly_name);
+#endif
+
 #ifdef USE_TEXT_SENSOR
   /// Return the type for prometheus
   void text_sensor_type_(AsyncResponseStream *stream);

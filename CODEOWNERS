@@ -72,6 +72,7 @@ esphome/components/bl0942/* @dbuezas @dwmw2
 esphome/components/ble_client/* @buxtronix @clydebarrow
 esphome/components/ble_nus/* @tomaszduda23
 esphome/components/bluetooth_proxy/* @bdraco @jesserockz
+esphome/components/bm8563/* @abmantis
 esphome/components/bme280_base/* @esphome/core
 esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
@@ -202,6 +203,7 @@ esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
 esphome/components/hbridge/switch/* @dwmw2
+esphome/components/hc8/* @omartijn
 esphome/components/hdc2010/* @optimusprimespace @ssieb
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
@@ -460,6 +462,7 @@ esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
 esphome/components/statsd/* @Links2004
+esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/sun_gtil2/* @Mat931
@@ -481,6 +484,7 @@ esphome/components/template/datetime/* @rfdarter
 esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
+esphome/components/thermopro_ble/* @sittner
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @esphome/core
 esphome/components/tinyusb/* @kbx81
