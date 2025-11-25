@@ -1,7 +1,11 @@
-from const import CONF_ROTATION
-
 import esphome.config_validation as cv
-from esphome.const import CONF_ANGLE, CONF_MODE, CONF_OFFSET_X, CONF_OFFSET_Y
+from esphome.const import (
+    CONF_ANGLE,
+    CONF_MODE,
+    CONF_OFFSET_X,
+    CONF_OFFSET_Y,
+    CONF_ROTATION,
+)
 
 from ..defines import (
     CONF_ANTIALIAS,

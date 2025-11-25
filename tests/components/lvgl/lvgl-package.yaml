@@ -1016,7 +1016,7 @@ lvgl:
                                 opa: 50%
                                 id: minute_hand
                                 color: 0xFF0000
-                                r_mod: !lambda return -1;
+                                r_mod: -1
                                 width: !lambda return 3;
                         -
                           angle_range: 330

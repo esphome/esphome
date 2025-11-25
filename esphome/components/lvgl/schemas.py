@@ -272,7 +272,7 @@ SET_STATE_SCHEMA = cv.Schema(
 )
 # Setting object flags
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
-FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
+FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
 
 def part_schema(parts):

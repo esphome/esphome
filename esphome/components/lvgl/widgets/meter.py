@@ -101,7 +101,7 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): size,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_R_MOD): cv.invalid("'r_mod' is removed: use 'length' instead"),
+        cv.Optional(CONF_R_MOD): cv.int_,
         cv.Optional(CONF_LENGTH, default="100%"): pixels_or_percent_validator,
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_OPA, default="COVER"): opacity,
@@ -405,6 +405,8 @@ class MeterType(WidgetType):
                         lv_obj.set_size(line, length, width)
                         lw.set_style(CONF_X, x)
                         lw.set_style(CONF_BG_OPA, await opacity.process(v[CONF_OPA]))
+                        if r_mode := v.get(CONF_R_MOD):
+                            lw.set_style("pad_right", -r_mode)
 
                     # Note: Image indicators (needles) are not directly supported by scale widget
                     # They would need to be implemented as separate image objects positioned over the scale
