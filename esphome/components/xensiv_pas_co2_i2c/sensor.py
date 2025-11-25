@@ -8,13 +8,13 @@ AUTO_LOAD = ["xensiv_pas_co2_base"]
 DEPENDENCIES = ["i2c"]
 
 xensiv_pas_co2_ns = cg.esphome_ns.namespace("xensiv_pas_co2_i2c")
-XENSIVPASCO2I2CComponent = xensiv_pas_co2_ns.class_(
-    "XensivPasCO2I2CComponent", cg.Component, i2c.I2CDevice
+XENSIVPASCO2I2C = xensiv_pas_co2_ns.class_(
+    "XensivPasCO2I2C", cg.Component, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
     i2c.i2c_device_schema(default_address=0x28)
-).extend({cv.GenerateID(): cv.declare_id(XENSIVPASCO2I2CComponent)})
+).extend({cv.GenerateID(): cv.declare_id(XENSIVPASCO2I2C)})
 
 
 async def to_code(config):
