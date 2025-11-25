@@ -226,16 +226,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     return {"packages": packages}
 
 
-def _process_package(package_config, config, skip_update: bool = False):
-    recursive_package = package_config
-    if CONF_URL in package_config:
-        package_config = _process_remote_package(package_config, skip_update)
-    if isinstance(package_config, dict):
-        recursive_package = do_packages_pass(package_config, skip_update)
-    return merge_config(recursive_package, config)
-
-
-def do_packages_pass(config: dict, skip_update: bool = False):
+def _walk_packages(config: dict, callback: callable) -> dict:
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
@@ -244,14 +235,33 @@ def do_packages_pass(config: dict, skip_update: bool = False):
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
                 with cv.prepend_path(package_name):
-                    config = _process_package(package_config, config, skip_update)
+                    package_config = callback(package_config)
+                    packages[package_name] = _walk_packages(package_config, callback)
         elif isinstance(packages, list):
-            for package_config in reversed(packages):
-                config = _process_package(package_config, config, skip_update)
+            for idx in reversed(range(len(packages))):
+                with cv.prepend_path(idx):
+                    package_config = callback(packages[idx])
+                    packages[idx] = _walk_packages(package_config, callback)
         else:
             raise cv.Invalid(
                 f"Packages must be a key to value mapping or list, got {type(packages)} instead"
             )
+    config[CONF_PACKAGES] = packages
+    return config
 
-        del config[CONF_PACKAGES]
+
+def do_packages_pass(config: dict, skip_update: bool = False):
+    if CONF_PACKAGES not in config:
+        return config
+
+    def process_package_callback(package_config):
+        nonlocal config
+        if CONF_URL in package_config:
+            package_config = _process_remote_package(package_config, skip_update)
+        config = merge_config(package_config, config)
+        return package_config
+
+    _walk_packages(config, process_package_callback)
+
+    del config[CONF_PACKAGES]
     return config
