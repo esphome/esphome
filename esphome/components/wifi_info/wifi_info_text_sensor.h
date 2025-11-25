@@ -16,7 +16,7 @@ class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
  protected:
-  void state_callback_(network::IPAddresses ips);
+  void state_callback_(const network::IPAddresses &ips);
   std::array<text_sensor::TextSensor *, 5> ip_sensors_;
 };
 
@@ -45,7 +45,7 @@ class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
   void dump_config() override;
 
  protected:
-  void state_callback_(std::string &ssid);
+  void state_callback_(const std::string &ssid);
 };
 
 class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {

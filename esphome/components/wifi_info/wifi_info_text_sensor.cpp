@@ -19,7 +19,7 @@ void IPAddressWiFiInfo::setup() {
 
 void IPAddressWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "IP Address", this); }
 
-void IPAddressWiFiInfo::state_callback_(network::IPAddresses ips) {
+void IPAddressWiFiInfo::state_callback_(const network::IPAddresses &ips) {
   this->publish_state(ips[0].str());
   uint8_t sensor = 0;
   for (auto &ip : ips) {
@@ -87,7 +87,7 @@ void SSIDWiFiInfo::setup() {
 
 void SSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "SSID", this); }
 
-void SSIDWiFiInfo::state_callback_(std::string &ssid) { this->publish_state(ssid); }
+void SSIDWiFiInfo::state_callback_(const std::string &ssid) { this->publish_state(ssid); }
 
 /****************
  * BSSIDWiFiInfo
