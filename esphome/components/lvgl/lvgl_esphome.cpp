@@ -5,10 +5,11 @@
 #include "lvgl_hal.h"
 #include "lvgl_esphome.h"
 
+#include "core/lv_obj_class_private.h"
+
 #include <numeric>
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 static const char *const TAG = "lvgl";
 
 static const size_t MIN_BUFFER_FRAC = 8;
@@ -569,8 +570,25 @@ void lv_scale_draw_event_cb(lv_event_t *e, lv_color_t color_start, lv_color_t co
     line_dsc->color = lv_color_mix(color_end, color_start, ratio);
   }
 }
-}  // namespace lvgl
-}  // namespace esphome
+
+static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
+  LV_TRACE_OBJ_CREATE("begin");
+  LV_UNUSED(class_p);
+}
+
+const lv_obj_class_t lv_container_class = {
+    .base_class = &lv_obj_class,
+    .constructor_cb = lv_container_constructor,
+    .name = "lv_container",
+};
+
+lv_obj_t *lv_container_create(lv_obj_t *parent) {
+  lv_obj_t *obj = lv_obj_class_create_obj(&lv_container_class, parent);
+  lv_obj_class_init_obj(obj);
+  return obj;
+}
+
+}  // namespace esphome::lvgl
 
 lv_result_t lv_mem_test_core() { return LV_RESULT_OK; }
 

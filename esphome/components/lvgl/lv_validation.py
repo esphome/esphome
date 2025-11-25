@@ -293,11 +293,11 @@ def padding_validator(value):
 padding = LValidator(padding_validator, int32, retmapper=literal)
 
 
-def zoom_validator(value):
+def scale_validator(value):
     return cv.float_range(0.1, 10.0)(value)
 
 
-zoom = LValidator(zoom_validator, uint32, retmapper=lambda x: int(x * 256))
+scale = LValidator(scale_validator, uint32, retmapper=lambda x: int(x * 256))
 
 
 def angle(value):

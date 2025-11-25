@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_VALUE,
     CONF_WIDTH,
+    CONF_X,
 )
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import nullptr
@@ -21,6 +22,9 @@ from .. import set_obj_properties
 from ..automation import action_to_code
 from ..defines import (
     CHILD_ALIGNMENTS,
+    CONF_ALIGN,
+    CONF_BG_OPA,
+    CONF_CONTAINER,
     CONF_END_VALUE,
     CONF_INDICATOR,
     CONF_MAIN,
@@ -54,10 +58,11 @@ from ..lv_validation import (
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_expr, lv_obj
 from ..styles import LVStyle, style_set
-from ..types import LV_EVENT, ObjUpdateAction, lv_event_t, lv_obj_t
+from ..types import LV_EVENT, ObjUpdateAction, lv_event_t, lv_img_t, lv_obj_t
 from . import Widget, WidgetType, get_widgets
 from .arc import CONF_ARC
-from .img import CONF_IMAGE
+from .container import container_spec
+from .img import CONF_IMAGE, img_spec
 from .line import CONF_LINE
 from .scale import lv_scale_section_t, scale_spec, section_spec
 
@@ -72,6 +77,8 @@ CONF_R_MOD = "r_mod"
 CONF_SCALES = "scales"
 CONF_STRIDE = "stride"
 CONF_TICK_STYLE = "tick_style"
+CONF_IMAGE_ID = "image_id"
+CONF_LINE_ID = "line_id"
 
 # LVGL 9.4 Migration: Use scale widget instead of removed meter widget
 #
@@ -83,10 +90,6 @@ CONF_TICK_STYLE = "tick_style"
 # - lv_meter_scale -> scale configuration (range, ticks, etc.)
 # - lv_meter_indicator -> lv_scale_section (colored ranges on the scale)
 #
-# Limitations in this emulation:
-# - Image needles are not directly supported (would need separate image widgets)
-# - Some advanced meter features may not be available
-# - Gradient colors on tick styles are simplified to single colors
 
 
 # For compatibility, keep meter types but map to scale
@@ -140,12 +143,14 @@ INDICATOR_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_LINE, CONF_INDICATORS): INDICATOR_LINE_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(lv_meter_indicator_t),
+                cv.GenerateID(CONF_LINE_ID): cv.declare_id(lv_obj_t),
             }
         ),
         cv.Exclusive(CONF_IMAGE, CONF_INDICATORS): cv.All(
             INDICATOR_IMG_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(lv_meter_indicator_t),
+                    cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_img_t),
                 }
             ),
             requires_component("image"),
@@ -218,12 +223,11 @@ class MeterType(WidgetType):
             # is migrated to indicator
             (CONF_MAIN, CONF_INDICATOR, CONF_TICKS, CONF_ITEMS),
             METER_SCHEMA,
-            lv_name="obj",
+            lv_name=CONF_CONTAINER,
         )
 
     async def on_create(self, var: MockObj, config: dict):
         # Remove theme styling from outer container
-        lv.obj_remove_style_all(var)
         lv.obj_add_style(var, await LIGHT_STYLE.get_var(), LV_PART.MAIN)
 
     async def create_to_code(self, config: dict, parent: MockObj):
@@ -238,8 +242,7 @@ class MeterType(WidgetType):
         # LVGL 9.4 scale widget setup
         # Background style will be applied.
         # Add a pivot
-        with LocalVariable("pivot", lv_obj_t, lv_expr.obj_create(var)) as pivot:
-            lv.obj_remove_style_all(pivot)
+        with LocalVariable("pivot", lv_obj_t, lv_expr.container_create(var)) as pivot:
             lv_obj.set_style_radius(pivot, literal("LV_RADIUS_CIRCLE"), LV_PART.MAIN)
             lv_obj.set_style_align(pivot, literal("LV_ALIGN_CENTER"), LV_PART.MAIN)
             lv_obj.set_style_bg_color(pivot, lv_color.black, LV_PART.MAIN)
@@ -386,39 +389,35 @@ class MeterType(WidgetType):
 
                     if t == CONF_LINE:
                         add_lv_use(CONF_LINE)
-                        with LocalVariable(
-                            "line", lv_obj_t, lv_expr.obj_create(scale_var)
-                        ) as line:
-                            lv_obj.remove_style_all(line)
-                            lv_obj.set_style_line_rounded(line, True, 0)
-                            lv_obj.set_style_bg_color(
-                                line,
-                                await lv_color.process(v[CONF_COLOR]),
-                                LV_PART.MAIN,
-                            )
-                            lv_obj.set_style_align(
-                                line, CHILD_ALIGNMENTS.CENTER, LV_PART.MAIN
-                            )
-                            width = await size.process(v[CONF_WIDTH])
-                            length = v[CONF_LENGTH]
-                            if isinstance(length, float):
-                                length = length * 0.5
-                            x = await pixels_or_percent.process(length / 2)
-                            length = await pixels_or_percent.process(length)
-                            lv_obj.set_style_height(line, width, LV_PART.MAIN)
-                            lv_obj.set_style_width(line, length, LV_PART.MAIN)
-                            lv_obj.set_style_x(line, x, LV_PART.MAIN)
-                            lv_obj.set_style_bg_opa(
-                                line, await opacity.process(v[CONF_OPA]), LV_PART.MAIN
-                            )
+                        line = cg.Pvariable(
+                            v[CONF_LINE_ID], lv_expr.container_create(scale_var)
+                        )
+                        lw = Widget(line, container_spec, v)
+                        lw.set_style("line_rounded", True)
+                        lw.set_style("bg_color", await lv_color.process(v[CONF_COLOR]))
+                        lw.set_style(CONF_ALIGN, CHILD_ALIGNMENTS.CENTER)
+                        width = await size.process(v[CONF_WIDTH])
+                        length = v[CONF_LENGTH]
+                        if isinstance(length, float):
+                            length = length * 0.5
+                        x = await pixels_or_percent.process(length / 2)
+                        length = await pixels_or_percent.process(length)
+                        lv_obj.set_size(line, length, width)
+                        lw.set_style(CONF_X, x)
+                        lw.set_style(CONF_BG_OPA, await opacity.process(v[CONF_OPA]))
 
                     # Note: Image indicators (needles) are not directly supported by scale widget
                     # They would need to be implemented as separate image objects positioned over the scale
                     if t == CONF_IMAGE:
-                        # This would require creating a separate image widget and positioning it
-                        # For now, we'll skip this or could implement as overlay
-                        pass
-                    lv.scale_section_set_style(section_var, LV_PART.ITEMS, style_var)
+                        add_lv_use(CONF_IMAGE)
+                        line = cg.Pvariable(
+                            v[CONF_IMAGE_ID], lv_expr.image_create(scale_var)
+                        )
+                        lw = Widget(line, img_spec, v)
+                        lw.set_style(CONF_ALIGN, CHILD_ALIGNMENTS.CENTER)
+                        width = await size.process(v[CONF_WIDTH])
+                        lw.set_style(CONF_X, x)
+                        lw.set_style(CONF_BG_OPA, await opacity.process(v[CONF_OPA]))
 
 
 meter_spec = MeterType()

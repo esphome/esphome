@@ -11,7 +11,7 @@ from ..types import LvBoolean
 from . import Widget, WidgetType
 from .label import label_spec
 
-lv_button_t = LvBoolean("lv_btn_t")
+lv_button_t = LvBoolean("lv_button_t")
 
 
 class ButtonType(WidgetType):

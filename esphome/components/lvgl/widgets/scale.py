@@ -14,6 +14,7 @@ from ..defines import (
     CONF_INDICATOR,
     CONF_MAIN,
     CONF_RADIUS,
+    CONF_SCALE,
     CONF_STYLE_ID,
     LV_SCALE_MODE,
     literal,
@@ -28,7 +29,6 @@ from . import Widget, WidgetType
 lv_scale_t = LvType("lv_scale_t")
 lv_scale_section_t = LvType("lv_scale_section_t")
 
-CONF_SCALE = "scale"
 CONF_DRAW_TICKS_ON_TOP = "draw_ticks_on_top"
 CONF_LABEL_SHOW = "label_show"
 CONF_TOTAL_TICK_COUNT = "total_tick_count"

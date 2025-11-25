@@ -156,7 +156,7 @@ class WidgetType:
             await self.on_create(var, config)
 
         w = Widget.create(wid, var, self, config)
-        if theme := theme_widget_map.get(str(self.w_type)):
+        if theme := theme_widget_map.get(self.w_type.name):
             for part, states in theme.items():
                 part = "LV_PART_" + part.upper()
                 for state, style in states.items():
@@ -258,8 +258,7 @@ class Widget:
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):
         w = Widget(var, wtype, config)
-        if name is not None:
-            widget_map[name] = w
+        widget_map[name] = w
         return w
 
     def add_state(self, state):
@@ -291,8 +290,10 @@ class Widget:
             flag = f"(lv_obj_flag_t)({flag})"
         return lv_obj.remove_flag(self.obj, literal(flag))
 
-    async def set_property(self, prop, value, animated: bool = None, lv_name=None):
-        from ..schemas import ALL_STYLES
+    async def set_property(
+        self, prop, value, animated: bool = None, lv_name=None, processor=None
+    ):
+        from ..schemas import ALL_STYLES, remap_property
 
         """
         Set a property of the widget.
@@ -303,16 +304,23 @@ class Widget:
         """
         if isinstance(value, dict):
             value = value.get(prop)
-            if isinstance(ALL_STYLES.get(prop), LValidator):
-                value = await ALL_STYLES[prop].process(value)
-            else:
-                value = literal(value)
-        if value is None:
+            if value is None:
+                return
+            if not processor and isinstance(ALL_STYLES.get(prop), LValidator):
+                processor = ALL_STYLES[prop]
+            if isinstance(processor, LValidator):
+                processor = processor.process
+            if processor:
+                value = await processor(value)
+        elif value is None:
             return
+        prop = remap_property(prop)
         if isinstance(value, TimePeriod):
             value = value.total_milliseconds
-        if isinstance(value, str):
+        elif isinstance(value, str):
             value = literal(value)
+        elif isinstance(value, ID):
+            value = MockObj(value)
         lv_name = lv_name or self.type.lv_name
         if animated is None or self.type.animated is not True:
             lv.call(f"{lv_name}_set_{prop}", self.obj, value)
@@ -328,10 +336,12 @@ class Widget:
         ltype = ltype or self.__type_base()
         return cg.RawExpression(f"lv_{ltype}_get_{prop}({self.obj})")
 
-    def set_style(self, prop, value, state):
+    def set_style(self, prop, value, state=LV_STATE.DEFAULT):
         if value is None:
             return
         styles_used.add(prop)
+        if isinstance(value, str):
+            value = literal(value)
         lv.call(f"obj_set_style_{prop}", self.obj, value, state)
 
     def __type_base(self):
@@ -409,7 +419,7 @@ class LvScrActType(WidgetType):
 
 
 def get_screen_active(lv_comp: MockObj) -> Widget:
-    return Widget.create(None, lv_comp.get_screen_active(), LvScrActType(), {})
+    return Widget(lv_comp.get_screen_active(), LvScrActType(), {})
 
 
 def get_widget_generator(wid):
@@ -505,27 +515,25 @@ async def set_obj_properties(w: Widget, config):
         add_lv_use(layout_type)
         lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
         if (pad_row := layout.get(CONF_PAD_ROW)) is not None:
-            w.set_style(CONF_PAD_ROW, pad_row, 0)
+            w.set_style(CONF_PAD_ROW, pad_row)
         if (pad_column := layout.get(CONF_PAD_COLUMN)) is not None:
-            w.set_style(CONF_PAD_COLUMN, pad_column, 0)
+            w.set_style(CONF_PAD_COLUMN, pad_column)
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
             rows = [str(x) for x in layout[CONF_GRID_ROWS]]
             rows = "{" + ",".join(rows) + ", LV_GRID_TEMPLATE_LAST}"
             row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=lv_coord_t)
             row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
-            w.set_style("grid_row_dsc_array", row_array, 0)
+            w.set_style("grid_row_dsc_array", row_array)
             columns = [str(x) for x in layout[CONF_GRID_COLUMNS]]
             columns = "{" + ",".join(columns) + ", LV_GRID_TEMPLATE_LAST}"
             column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=lv_coord_t)
             column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
-            w.set_style("grid_column_dsc_array", column_array, 0)
+            w.set_style("grid_column_dsc_array", column_array)
             w.set_style(
-                CONF_GRID_COLUMN_ALIGN, literal(layout.get(CONF_GRID_COLUMN_ALIGN)), 0
+                CONF_GRID_COLUMN_ALIGN, literal(layout.get(CONF_GRID_COLUMN_ALIGN))
             )
-            w.set_style(
-                CONF_GRID_ROW_ALIGN, literal(layout.get(CONF_GRID_ROW_ALIGN)), 0
-            )
+            w.set_style(CONF_GRID_ROW_ALIGN, literal(layout.get(CONF_GRID_ROW_ALIGN)))
         if layout_type == TYPE_FLEX:
             lv_obj.set_flex_flow(w.obj, literal(layout[CONF_FLEX_FLOW]))
             main = literal(layout[CONF_FLEX_ALIGN_MAIN])
@@ -553,8 +561,6 @@ async def set_obj_properties(w: Widget, config):
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
-                    if prop == "bg_grad":
-                        print(prop, type(ALL_STYLES[prop]))
                 prop_r = remap_property(prop)
                 w.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):

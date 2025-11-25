@@ -20,6 +20,10 @@ class LvType(cg.MockObjClass):
             return None
         return [arg[0] for arg in self.args]
 
+    @property
+    def name(self):
+        return self.base.removeprefix("lv_").removesuffix("_t")
+
 
 class LvNumber(LvType):
     def __init__(self, *args):
