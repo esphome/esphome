@@ -49,6 +49,11 @@ extern "C" {
 #include <WiFi.h>
 #endif
 
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -291,6 +296,7 @@ class WiFiComponent : public Component {
   void set_passive_scan(bool passive);
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
@@ -307,6 +313,7 @@ class WiFiComponent : public Component {
 
   bool has_sta() const;
   bool has_ap() const;
+  bool is_ap_active() const;
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
@@ -362,6 +369,37 @@ class WiFiComponent : public Component {
   Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
 
   int32_t get_wifi_channel();
+
+#ifdef USE_WIFI_RUNTIME_POWER_SAVE
+  /** Request high-performance mode (no power saving) for improved WiFi latency.
+   *
+   * Components that need maximum WiFi performance (e.g., audio streaming, large data transfers)
+   * can call this method to temporarily disable WiFi power saving. Multiple components can
+   * request high performance simultaneously using a counting semaphore.
+   *
+   * Power saving will be restored to the YAML-configured mode when all components have
+   * called release_high_performance().
+   *
+   * Note: Only supported on ESP32.
+   *
+   * @return true if request was satisfied (high-performance mode active or already configured),
+   *         false if operation failed (semaphore error)
+   */
+  bool request_high_performance();
+
+  /** Release a high-performance mode request.
+   *
+   * Should be called when a component no longer needs maximum WiFi latency.
+   * When all requests are released (semaphore count reaches zero), WiFi power saving
+   * is restored to the YAML-configured mode.
+   *
+   * Note: Only supported on ESP32.
+   *
+   * @return true if release was successful (or already in high-performance config),
+   *         false if operation failed (semaphore error)
+   */
+  bool release_high_performance();
+#endif  // USE_WIFI_RUNTIME_POWER_SAVE
 
  protected:
 #ifdef USE_WIFI_AP
@@ -423,6 +461,8 @@ class WiFiComponent : public Component {
     }
     return true;
   }
+
+  void connect_soon_();
 
   void wifi_loop_();
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
@@ -526,9 +566,17 @@ class WiFiComponent : public Component {
   bool btm_{false};
   bool rrm_{false};
 #endif
-  bool enable_on_boot_;
+  bool enable_on_boot_{true};
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
+  bool did_scan_this_cycle_{false};
+  bool skip_cooldown_next_cycle_{false};
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
+  bool is_high_performance_mode_{false};
+
+  SemaphoreHandle_t high_performance_semaphore_{nullptr};
+#endif
 
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
@@ -550,6 +598,11 @@ template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> 
 template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
  public:
   bool check(const Ts &...x) override { return !global_wifi_component->is_disabled(); }
+};
+
+template<typename... Ts> class WiFiAPActiveCondition : public Condition<Ts...> {
+ public:
+  bool check(const Ts &...x) override { return global_wifi_component->is_ap_active(); }
 };
 
 template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {

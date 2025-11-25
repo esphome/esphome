@@ -52,15 +52,7 @@ from .schemas import (
 from .styles import add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import add_on_boot_triggers, generate_triggers
-from .types import (
-    FontEngine,
-    IdleTrigger,
-    PlainTrigger,
-    lv_font_t,
-    lv_group_t,
-    lv_style_t,
-    lvgl_ns,
-)
+from .types import IdleTrigger, PlainTrigger, lv_font_t, lv_group_t, lv_style_t, lvgl_ns
 from .widgets import (
     LvScrActType,
     Widget,
@@ -244,7 +236,6 @@ async def to_code(configs):
     cg.add_global(lvgl_ns.using)
     for font in helpers.esphome_fonts_used:
         await cg.get_variable(font)
-        cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
     default_font = config_0[df.CONF_DEFAULT_FONT]
     if not lvalid.is_lv_font(default_font):
         add_define(
@@ -256,7 +247,8 @@ async def to_code(configs):
             type=lv_font_t.operator("ptr").operator("const"),
         )
         cg.new_variable(
-            globfont_id, MockObj(await lvalid.lv_font.process(default_font))
+            globfont_id,
+            MockObj(await lvalid.lv_font.process(default_font), "->").get_lv_font(),
         )
         add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
     else:
