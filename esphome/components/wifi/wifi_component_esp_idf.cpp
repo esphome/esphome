@@ -41,8 +41,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp32";
 
@@ -728,6 +727,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
              format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
     s_sta_connected = true;
+#ifdef USE_WIFI_CALLBACKS
+    this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const auto &it = data->data.sta_disconnected;
@@ -751,6 +753,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = false;
     s_sta_connecting = false;
     error_from_callback_ = true;
+#ifdef USE_WIFI_CALLBACKS
+    this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#endif
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
@@ -759,12 +764,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif /* USE_NETWORK_IPV6 */
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
+#ifdef USE_WIFI_CALLBACKS
+    this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#endif
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
     this->num_ipv6_addresses_++;
+#ifdef USE_WIFI_CALLBACKS
+    this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#endif
 #endif /* USE_NETWORK_IPV6 */
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
@@ -804,6 +815,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
                                 ssid.empty());
     }
+#ifdef USE_WIFI_CALLBACKS
+    this->wifi_scan_state_callback_.call(this->scan_result_);
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
     ESP_LOGV(TAG, "AP start");
@@ -1088,8 +1102,6 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   return network::IPAddress(dns_ip);
 }
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif  // USE_ESP32
 #endif
