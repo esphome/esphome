@@ -76,12 +76,12 @@ class ArcType(NumberType):
             min_value = await lv_int.process(config[CONF_MIN_VALUE])
             lv.arc_set_range(w.obj, min_value, max_value)
         elif CONF_MIN_VALUE in config:
-            max_value = lv_expr.arc_get_max_value(w.obj)
+            max_value = w.get_property(CONF_MAX_VALUE)
             min_value = await lv_int.process(config[CONF_MIN_VALUE])
             lv.arc_set_range(w.obj, min_value, max_value)
         elif CONF_MAX_VALUE in config:
             max_value = await lv_int.process(config[CONF_MAX_VALUE])
-            min_value = lv_expr.arc_get_min_value(w.obj)
+            min_value = w.get_property(CONF_MIN_VALUE)
             lv.arc_set_range(w.obj, min_value, max_value)
 
         await w.set_property(
@@ -94,7 +94,7 @@ class ArcType(NumberType):
         await w.set_property(
             CONF_ROTATION, await lv_angle_degrees.process(config.get(CONF_ROTATION))
         )
-        await w.set_property(CONF_MODE, literal(config.get(CONF_MODE)))
+        await w.set_property(CONF_MODE, config)
         await w.set_property(
             CONF_CHANGE_RATE,
             await lv_positive_int.process(config.get(CONF_CHANGE_RATE)),
