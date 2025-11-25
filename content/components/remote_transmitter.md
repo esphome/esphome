@@ -382,7 +382,7 @@ on_...:
 
 ### `remote_transmitter.transmit_dyson` **Action**
 
-This [action](#config-action) sends a Dyson cool AM07 infrared protocol code to a remote transmitter.
+This [action](/automations/actions#config-action) sends a Dyson cool AM07 infrared protocol code to a remote transmitter.
 
 ```yaml
 on_...:
@@ -957,7 +957,7 @@ on_...:
 
 ### `remote_transmitter.transmit_symphony` **Action**
 
-This [action](#config-action) sends a Symphony infrared remote code to a remote transmitter.
+This [action](/automations/actions#config-action) sends a Symphony infrared remote code to a remote transmitter.
 It transmits constant bit-time frames with a footer gap. Physical Symphony remotes typically
 send the same frame twice separated by a ~35 ms gap. Use `command_repeats` to control how
 many identical frames are sent; defaults to 2.

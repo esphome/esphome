@@ -61,24 +61,24 @@ sensor:
 
 - **temperature** (*Optional*): The information for the temperature sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor#config-sensor).
 
 - **external_temperature** (*Optional*): The information for the external/probe temperature sensor.
   Some models (TP972, TP970, TP96x) support dual temperature readings - one internal and one from an external probe.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor#config-sensor).
 
 - **humidity** (*Optional*): The information for the humidity sensor. Only available on TP3xx devices.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor#config-sensor).
 
 - **battery_level** (*Optional*): The information for the battery level sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor#config-sensor).
 
 - **signal_strength** (*Optional*): The information for the signal strength (RSSI) sensor.
 
-  - All options from [Sensor](#config-sensor).
+  - All options from [Sensor](/components/sensor#config-sensor).
 
 ## Setting Up Devices
 

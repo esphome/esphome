@@ -124,7 +124,7 @@ web_server:
 ```
 
 > [!IMPORTANT]
-> Always enable authentication when using the web server. See the [Security Best Practices](/guides/security_best_practices#web-server-authentication) guide for recommendations.
+> Always enable authentication when using the web server. See the [Security Best Practices](/guides/security_best_practices#2-web-server-authentication) guide for recommendations.
 
 Use version 1 user interface:
 

@@ -22,7 +22,7 @@ The properties below are common to all widgets.
 > [!NOTE]
 > By default, the `x` and `y` coordinates are measured from the *top left corner* of the parent's content area. [Important](/components/lvgl#lvgl-styling): content area starts *after the padding* thus if the parent has a non-zero padding value, position will be shifted with that. Percentage values are calculated from the parent's content area size.
 >
-> If specifying `align`, `x` and `y` can be used as an offset to the calculated position (can also be negative). They are ignored if [Layouts](/components/lvgl#lvgl-layouts) are used on the parent.
+> If specifying `align`, `x` and `y` can be used as an offset to the calculated position (can also be negative). They are ignored if [Layouts](/components/lvgl/layouts#lvgl-layouts) are used on the parent.
 
 - **height** (*Optional*): Height of the widget in pixels or a percentage, or `SIZE_CONTENT`.
 - **width** (*Optional*): Width of the widget in pixels or a percentage, or `SIZE_CONTENT`.
@@ -49,7 +49,7 @@ The properties below are common to all widgets.
 {{< img src="lvgl_align.png" alt="Image" class="align-center" >}}
 
 - **group** (*Optional*, string): The name of the group of widgets which will interact with a {{< docref "/components/sensor/rotary_encoder" >}}. In every group there is always one focused widget which receives the encoder actions. You need to associate an input device with a group. An input device can send key events to only one group but a group can receive data from more than one input device. If no group is specified for a widget or an encoder, an unnamed default group will be assigned, so in most cases where only one encoder is used it will not be necessary to explicitly specify a group.
-- **layout** (*Optional*): See [Layouts](/components/lvgl#lvgl-layouts) for details. Defaults to `NONE`.
+- **layout** (*Optional*): See [Layouts](/components/lvgl/layouts#lvgl-layouts) for details. Defaults to `NONE`.
 - **styles** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a *style definition* from the main component configuration to override the theme styles.
 - **theme** (*Optional*, list): A list of styles to apply to the widget and children. Same configuration option as at the main component.
 - **widgets** (*Optional*, list): A list of LVGL widgets to be drawn as children of this widget. Same configuration option as at the main component.
@@ -815,7 +815,7 @@ it is invisible. It has a default width and height of 100%.
 
 **Configuration variables:**
 
-- Style options from [Style properties](#lvgl-styling).
+- Style options from [Style properties](/components/lvgl#lvgl-styling).
 
 **Triggers:**
 
@@ -1047,7 +1047,7 @@ A label is the basic widget type that is used to display text.
 
 **Configuration variables:**
 
-- **long_mode** (*Optional*, list): By default, the width and height of the label is set to `SIZE_CONTENT`. Therefore, the size of the label is automatically expanded to the text size. Otherwise, if the `width` or `height` are explicitly set (or set by [Layouts](/components/lvgl#lvgl-layouts)), the lines wider than the label's width can be manipulated according to the long mode policies below. These policies can be applied if the height of the text is greater than the height of the label.
+- **long_mode** (*Optional*, list): By default, the width and height of the label is set to `SIZE_CONTENT`. Therefore, the size of the label is automatically expanded to the text size. Otherwise, if the `width` or `height` are explicitly set (or set by [Layouts](/components/lvgl/layouts#lvgl-layouts)), the lines wider than the label's width can be manipulated according to the long mode policies below. These policies can be applied if the height of the text is greater than the height of the label.
   - `WRAP`  : Wrap lines which are too long. If the height is `SIZE_CONTENT`, the label's height will be expanded, otherwise the text will be clipped (default).
   - `DOT`  : Replaces the last 3 characters from bottom right corner of the label with dots.
   - `SCROLL`  : If the text is wider than the label, scroll the text horizontally back and forth. If it's higher, scroll vertically. Text will scroll in only one direction; horizontal scrolling has higher precedence.
