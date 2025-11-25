@@ -24,7 +24,7 @@ void IPAddressWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "IP Address", this);
 void IPAddressWiFiInfo::state_callback_(const network::IPAddresses &ips) {
   this->publish_state(ips[0].str());
   uint8_t sensor = 0;
-  for (auto &ip : ips) {
+  for (const auto &ip : ips) {
     if (ip.is_set()) {
       if (this->ip_sensors_[sensor] != nullptr) {
         this->ip_sensors_[sensor]->publish_state(ip.str());
