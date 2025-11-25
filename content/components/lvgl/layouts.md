@@ -156,11 +156,15 @@ distribute the free space proportionally.
   them. If one of the items has a value of 2, that one would take up twice as much of the space as either one of the
   others.
 
+**Cell positioning:**
+
 Child widgets can be placed on the grid using the `grid_cell_row_pos` and `grid_cell_column_pos` configuration
 variables.
 If either is specified both must be specified. If neither is specified the widget will be placed in the first available
 position, in a row-major order.
 Row and column spans will be taken into account when reserving space.
+Two or more widgets may not be explicitly assigned the same row and column positions unless the option
+`multiple_widgets_per_cell` is set to `true`.
 
 #### Shorthand
 
@@ -181,9 +185,9 @@ columns, with all rows and columns of equal size. For example `layout: 2x3` is a
   pixels. Possible options below.
 - **pad_row** (*Optional*, int16): Set the padding between the rows, in pixels.
 - **pad_column** (*Optional*, int16): Set the padding between the columns, in pixels.
+- **multiple_widgets_per_cell** (*Optional*, bool): If true, multiple widgets can be placed in the same cell. Defaults to `false`.
 
-In a grid layout, *all the widgets placed on the grid* can have some additional configuration variables to help with
-placement:
+In a grid layout, all child widgets placed on the grid have additional configuration options available:
 
 - **grid_cell_row_pos** (*Optional*, int16): Position of the widget, in which row to appear (0 based count).
 - **grid_cell_column_pos** (*Optional*, int16): Position of the widget, in which column to appear (0 based count).
