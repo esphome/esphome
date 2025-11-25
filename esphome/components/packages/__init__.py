@@ -90,6 +90,12 @@ def validate_source_shorthand(value):
     return REMOTE_PACKAGE_SCHEMA(conf)
 
 
+def validate_has_jinja(value):
+    if not isinstance(value, str) or not has_jinja(value):
+        raise cv.Invalid("string does not contain Jinja syntax")
+    return value
+
+
 def deprecate_single_package(config):
     _LOGGER.warning(
         "Including a single package under `packages:` is deprecated. Use a list instead."
@@ -134,6 +140,7 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
 PACKAGE_SCHEMA = cv.Any(  # A package definition is either:
     validate_source_shorthand,  # A git URL shorthand string that expands to a remote package schema, or
     REMOTE_PACKAGE_SCHEMA,  # a valid remote package schema, or
+    validate_has_jinja,  # a Jinja string that may resolve to a package
     valid_package_contents,  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
     # which will have to be fully validated later as per each component's schema.
 )
@@ -231,8 +238,9 @@ def _walk_packages(config: dict, callback: callable) -> dict:
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
+    # The following line can be safely removed once single-package deprecation is effective
+    packages = CONFIG_SCHEMA(packages)
     with cv.prepend_path(CONF_PACKAGES):
-        packages = CONFIG_SCHEMA(packages)
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
                 with cv.prepend_path(package_name):
@@ -258,6 +266,9 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
 
     def process_package_callback(package_config):
         nonlocal substitutions
+        package_config = PACKAGE_SCHEMA(package_config)
+        if isinstance(package_config, str):
+            return package_config  # Jinja string, skip processing
         if CONF_URL in package_config:
             package_config = _process_remote_package(package_config, skip_update)
         substitutions = merge_config(
