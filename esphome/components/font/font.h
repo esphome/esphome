@@ -6,6 +6,9 @@
 #ifdef USE_DISPLAY
 #include "esphome/components/display/display.h"
 #endif
+#ifdef USE_LVGL_FONT
+#include <lvgl.h>
+#endif
 
 namespace esphome {
 namespace font {
@@ -14,9 +17,9 @@ class Font;
 
 class Glyph {
  public:
-  constexpr Glyph(const char *a_char, const uint8_t *data, int advance, int offset_x, int offset_y, int width,
+  constexpr Glyph(uint32_t code_point, const uint8_t *data, int advance, int offset_x, int offset_y, int width,
                   int height)
-      : a_char(a_char),
+      : code_point(code_point),
         data(data),
         advance(advance),
         offset_x(offset_x),
@@ -24,24 +27,15 @@ class Glyph {
         width(width),
         height(height) {}
 
-  const uint8_t *get_char() const { return reinterpret_cast<const uint8_t *>(this->a_char); }
+  bool is_less_or_equal(uint32_t other) const { return this->code_point <= other; }
 
-  bool compare_to(const uint8_t *str) const;
-
-  int match_length(const uint8_t *str) const;
-
-  void scan_area(int *x1, int *y1, int *width, int *height) const;
-
-  const char *a_char;
+  const uint32_t code_point;
   const uint8_t *data;
   int advance;
   int offset_x;
   int offset_y;
   int width;
   int height;
-
- protected:
-  friend Font;
 };
 
 class Font
@@ -64,7 +58,7 @@ class Font
   Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
        uint8_t bpp = 1);
 
-  int match_next_glyph(const uint8_t *str, int *match_length) const;
+  const Glyph *find_glyph(uint32_t codepoint) const;
 
 #ifdef USE_DISPLAY
   void print(int x_start, int y_start, display::Display *display, Color color, const char *text,
@@ -79,6 +73,9 @@ class Font
   inline int get_xheight() { return this->xheight_; }
   inline int get_capheight() { return this->capheight_; }
   inline int get_bpp() { return this->bpp_; }
+#ifdef USE_LVGL_FONT
+  const lv_font_t *get_lv_font() const { return &this->lv_font_; }
+#endif
 
   const ConstVector<Glyph> &get_glyphs() const { return glyphs_; }
 
@@ -91,6 +88,14 @@ class Font
   int xheight_;
   int capheight_;
   uint8_t bpp_;  // bits per pixel
+#ifdef USE_LVGL_FONT
+  lv_font_t lv_font_{};
+  static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter);
+  static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next);
+  const Glyph *get_glyph_data_(uint32_t unicode_letter);
+  uint32_t last_letter_{};
+  const Glyph *last_data_{};
+#endif
 };
 
 }  // namespace font

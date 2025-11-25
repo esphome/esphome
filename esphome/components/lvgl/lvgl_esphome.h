@@ -50,6 +50,14 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
 #endif  // LV_COLOR_DEPTH
 
+#ifdef USE_LVGL_FONT
+inline void lv_obj_set_style_text_font(lv_obj_t *obj, const font::Font *font, lv_style_selector_t part) {
+  lv_obj_set_style_text_font(obj, font->get_lv_font(), part);
+}
+inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
+  lv_style_set_text_font(style, font->get_lv_font());
+}
+#endif
 #ifdef USE_LVGL_IMAGE
 // Shortcut / overload, so that the source of an image can easily be updated
 // from within a lambda.
@@ -134,24 +142,6 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  protected:
   std::function<void(Ts...)> lamb_;
 };
-#ifdef USE_LVGL_FONT
-class FontEngine {
- public:
-  FontEngine(font::Font *esp_font);
-  const lv_font_t *get_lv_font();
-
-  const font::Glyph *get_glyph_data(uint32_t unicode_letter);
-  uint16_t baseline{};
-  uint16_t height{};
-  uint8_t bpp{};
-
- protected:
-  font::Font *font_{};
-  uint32_t last_letter_{};
-  const font::Glyph *last_data_{};
-  lv_font_t lv_font_{};
-};
-#endif  // USE_LVGL_FONT
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG

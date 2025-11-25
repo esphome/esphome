@@ -478,7 +478,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     RAMAllocator<BUFFERTYPE> allocator{};
     this->buffer_ = allocator.allocate(BUFFER_WIDTH * BUFFER_HEIGHT / FRACTION);
     if (this->buffer_ == nullptr) {
-      this->mark_failed("Buffer allocation failed");
+      this->mark_failed(LOG_STR("Buffer allocation failed"));
     }
   }
 
