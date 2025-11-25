@@ -18,7 +18,7 @@ void SHT4XComponent::start_heater_() {
   }
 }
 
-void SHT4XComponent::read_serial_numer_() {
+void SHT4XComponent::read_serial_number_() {
   ESP_LOGD(TAG, "Read serial number");
   uint16_t buffer[2];
 
@@ -28,7 +28,7 @@ void SHT4XComponent::read_serial_numer_() {
     return;
   }
   this->serial_number_ = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]));
-  ESP_LOGD(TAG, "Serial number: %" PRIu32, this->serial_number_);
+  ESP_LOGD(TAG, "Serial number: %08" PRIx32, this->serial_number_);
 }
 
 void SHT4XComponent::setup() {
@@ -38,7 +38,7 @@ void SHT4XComponent::setup() {
     return;
   }
 
-  this->read_serial_numer_();
+  this->read_serial_number_();
 
   if (std::isfinite(this->duty_cycle_) && this->duty_cycle_ > 0.0f) {
     uint32_t heater_interval = static_cast<uint32_t>(static_cast<uint16_t>(this->heater_time_) / this->duty_cycle_);
@@ -72,7 +72,7 @@ void SHT4XComponent::setup() {
 void SHT4XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SHT4x:\n"
-                "  Serial number: %" PRIu32 "\n",
+                "  Serial number: %08" PRIx32 "\n",
                 this->serial_number_);
 
   LOG_I2C_DEVICE(this);
