@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_REFRESH,
     CONF_SENSOR,
     CONF_SSID,
+    CONF_SUBSTITUTIONS,
     CONF_UPDATE_INTERVAL,
     CONF_URL,
     CONF_VARS,
@@ -796,4 +797,173 @@ def test_remote_packages_with_files_and_vars(
     }
 
     actual = packages_pass(config)
+    assert actual == expected
+
+
+def test_packages_merge_substitutions():
+    """
+    Tests that substitutions from packages in a complex package hierarchy
+    are extracted and merged into the top-level config.
+    """
+    config = {
+        CONF_SUBSTITUTIONS: {
+            "a": 1,
+            "b": 2,
+            "c": 3,
+        },
+        CONF_PACKAGES: {
+            "package1": {
+                "logger": {
+                    "level": "DEBUG",
+                },
+                CONF_PACKAGES: [
+                    {
+                        CONF_SUBSTITUTIONS: {
+                            "a": 10,
+                            "e": 5,
+                        },
+                        "sensor": [
+                            {"platform": "template", "id": "sensor1"},
+                        ],
+                    },
+                ],
+                "sensor": [
+                    {"platform": "template", "id": "sensor2"},
+                ],
+            },
+            "package2": {
+                "logger": {
+                    "level": "VERBOSE",
+                },
+            },
+            "package3": {
+                CONF_PACKAGES: [
+                    {
+                        CONF_PACKAGES: [
+                            {
+                                CONF_SUBSTITUTIONS: {
+                                    "b": 20,
+                                    "d": 4,
+                                },
+                                "sensor": [
+                                    {"platform": "template", "id": "sensor3"},
+                                ],
+                            },
+                        ],
+                        CONF_SUBSTITUTIONS: {
+                            "b": 20,
+                            "d": 6,
+                        },
+                        "sensor": [
+                            {"platform": "template", "id": "sensor4"},
+                        ],
+                    },
+                ],
+            },
+        },
+    }
+
+    expected = {
+        CONF_SUBSTITUTIONS: {"a": 1, "e": 5, "b": 2, "d": 6, "c": 3},
+        CONF_PACKAGES: {
+            "package1": {
+                "logger": {
+                    "level": "DEBUG",
+                },
+                CONF_PACKAGES: [
+                    {
+                        "sensor": [
+                            {"platform": "template", "id": "sensor1"},
+                        ],
+                    },
+                ],
+                "sensor": [
+                    {"platform": "template", "id": "sensor2"},
+                ],
+            },
+            "package2": {
+                "logger": {
+                    "level": "VERBOSE",
+                },
+            },
+            "package3": {
+                CONF_PACKAGES: [
+                    {
+                        CONF_PACKAGES: [
+                            {
+                                "sensor": [
+                                    {"platform": "template", "id": "sensor3"},
+                                ],
+                            },
+                        ],
+                        "sensor": [
+                            {"platform": "template", "id": "sensor4"},
+                        ],
+                    },
+                ],
+            },
+        },
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
+def test_package_merge():
+    """
+    Tests that all packages are merged into the top-level config.
+    """
+    config = {
+        CONF_SUBSTITUTIONS: {"a": 1, "e": 5, "b": 2, "d": 6, "c": 3},
+        CONF_PACKAGES: {
+            "package1": {
+                "logger": {
+                    "level": "DEBUG",
+                },
+                CONF_PACKAGES: [
+                    {
+                        "sensor": [
+                            {"platform": "template", "id": "sensor1"},
+                        ],
+                    },
+                ],
+                "sensor": [
+                    {"platform": "template", "id": "sensor2"},
+                ],
+            },
+            "package2": {
+                "logger": {
+                    "level": "VERBOSE",
+                },
+            },
+            "package3": {
+                CONF_PACKAGES: [
+                    {
+                        CONF_PACKAGES: [
+                            {
+                                "sensor": [
+                                    {"platform": "template", "id": "sensor3"},
+                                ],
+                            },
+                        ],
+                        "sensor": [
+                            {"platform": "template", "id": "sensor4"},
+                        ],
+                    },
+                ],
+            },
+        },
+    }
+    expected = {
+        "sensor": [
+            {"platform": "template", "id": "sensor1"},
+            {"platform": "template", "id": "sensor2"},
+            {"platform": "template", "id": "sensor3"},
+            {"platform": "template", "id": "sensor4"},
+        ],
+        "logger": {"level": "VERBOSE"},
+        CONF_SUBSTITUTIONS: {"a": 1, "e": 5, "b": 2, "d": 6, "c": 3},
+    }
+    actual = merge_packages(config)
+
     assert actual == expected
