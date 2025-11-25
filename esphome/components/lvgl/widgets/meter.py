@@ -33,7 +33,7 @@ from ..defines import (
     LV_SCALE_MODE,
     literal,
 )
-from ..helpers import lvgl_components_required
+from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import (
     get_end_value,
     get_start_value,
@@ -96,9 +96,12 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): size,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_R_MOD, default=0): size,
+        cv.Optional(CONF_R_MOD, default=0): cv.invalid(
+            "'r_mod' is removed: use 'length' instead"
+        ),
+        cv.Optional(CONF_LENGTH, default="100%"): size,
         cv.Optional(CONF_VALUE): lv_float,
-        cv.Optional(CONF_OPA): opacity,
+        cv.Optional(CONF_OPA, default="COVER"): opacity,
     }
 )
 INDICATOR_IMG_SCHEMA = cv.Schema(
@@ -378,6 +381,25 @@ class MeterType(WidgetType):
                             )
                             lv.obj_add_flag(
                                 scale_var, literal("LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS")
+                            )
+
+                    if t == CONF_LINE:
+                        add_lv_use(CONF_LINE)
+                        with LocalVariable(
+                            "line", lv_obj_t, lv_expr.obj_create(scale_var)
+                        ) as line:
+                            lv_obj.remove_style_all(line)
+                            lv_obj.set_style_line_rounded(line, True, 0)
+                            lv_obj.set_style_bg_color(
+                                line,
+                                await lv_color.process(v[CONF_COLOR]),
+                                LV_PART.MAIN,
+                            )
+                            width = await size.process(v[CONF_WIDTH])
+                            length = await size.process(v[CONF_LENGTH])
+                            lv_obj.set_style_height(line, width)
+                            lv_obj.set_style_bg_opa(
+                                line, await opacity.process(v[CONF_OPA]), LV_PART.MAIN
                             )
 
                     # Note: Image indicators (needles) are not directly supported by scale widget
