@@ -88,7 +88,7 @@ void Esp32HostedUpdate::perform(bool force) {
   hasher.add(this->firmware_data_, this->firmware_size_);
   hasher.calculate();
   if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
-    this->status_set_error("SHA256 verification failed");
+    this->status_set_error(LOG_STR("SHA256 verification failed"));
     this->publish_state();
     return;
   }
@@ -105,7 +105,7 @@ void Esp32HostedUpdate::perform(bool force) {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
     this->state_ = prev_state;
-    this->status_set_error("Failed to begin OTA");
+    this->status_set_error(LOG_STR("Failed to begin OTA"));
     this->publish_state();
     return;
   }
@@ -121,7 +121,7 @@ void Esp32HostedUpdate::perform(bool force) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
       esp_hosted_slave_ota_end();  // NOLINT
       this->state_ = prev_state;
-      this->status_set_error("Failed to write OTA data");
+      this->status_set_error(LOG_STR("Failed to write OTA data"));
       this->publish_state();
       return;
     }
@@ -134,7 +134,7 @@ void Esp32HostedUpdate::perform(bool force) {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to end OTA: %s", esp_err_to_name(err));
     this->state_ = prev_state;
-    this->status_set_error("Failed to end OTA");
+    this->status_set_error(LOG_STR("Failed to end OTA"));
     this->publish_state();
     return;
   }
@@ -144,7 +144,7 @@ void Esp32HostedUpdate::perform(bool force) {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(err));
     this->state_ = prev_state;
-    this->status_set_error("Failed to activate OTA");
+    this->status_set_error(LOG_STR("Failed to activate OTA"));
     this->publish_state();
     return;
   }

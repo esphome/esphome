@@ -11,7 +11,7 @@ void USBHost::setup() {
   usb_host_config_t config{};
 
   if (usb_host_install(&config) != ESP_OK) {
-    this->status_set_error("usb_host_install failed");
+    this->status_set_error(LOG_STR("usb_host_install failed"));
     this->mark_failed();
     return;
   }
