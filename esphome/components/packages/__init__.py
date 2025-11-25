@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_PATH,
     CONF_REF,
     CONF_REFRESH,
+    CONF_SUBSTITUTIONS,
     CONF_URL,
     CONF_USERNAME,
     CONF_VARS,
@@ -250,14 +251,33 @@ def _walk_packages(config: dict, callback: callable) -> dict:
     return config
 
 
-def do_packages_pass(config: dict, skip_update: bool = False):
+def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
+    if CONF_PACKAGES not in config:
+        return config
+    substitutions = config.pop(CONF_SUBSTITUTIONS, {})
+
+    def process_package_callback(package_config):
+        nonlocal substitutions
+        if CONF_URL in package_config:
+            package_config = _process_remote_package(package_config, skip_update)
+        substitutions = merge_config(
+            package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions
+        )
+        return package_config
+
+    _walk_packages(config, process_package_callback)
+    if substitutions:
+        config[CONF_SUBSTITUTIONS] = substitutions
+
+    return config
+
+
+def merge_packages(config: dict):
     if CONF_PACKAGES not in config:
         return config
 
     def process_package_callback(package_config):
         nonlocal config
-        if CONF_URL in package_config:
-            package_config = _process_remote_package(package_config, skip_update)
         config = merge_config(package_config, config)
         return package_config
 
