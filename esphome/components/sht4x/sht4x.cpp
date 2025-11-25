@@ -20,7 +20,6 @@ void SHT4XComponent::start_heater_() {
 
 void SHT4XComponent::read_serial_number_() {
   uint16_t buffer[2];
-
   if (!this->get_8bit_register(SERIAL_NUMBER_COMMAND, buffer, 2, 1)) {
     ESP_LOGE(TAG, "Get serial number failed");
     this->serial_number_ = 0;
