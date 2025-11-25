@@ -40,7 +40,15 @@ bool MQTTBackendESP32::initialize_() {
   if (!this->client_id_.empty()) {
     mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
-  if (ca_certificate_.has_value()) {
+
+  // Configure transport based on settings
+  if (this->transport_ == "ws") {
+    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
+    mqtt_cfg_.broker.address.path = this->ws_path_.c_str();
+  } else if (this->transport_ == "wss") {
+    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
+    mqtt_cfg_.broker.address.path = this->ws_path_.c_str();
+  } else if (ca_certificate_.has_value()) {
     mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
     mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
@@ -51,6 +59,17 @@ bool MQTTBackendESP32::initialize_() {
     }
   } else {
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+  }
+
+  // For WSS, also configure TLS certificate if provided
+  if (this->transport_ == "wss" && ca_certificate_.has_value()) {
+    mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
+    mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
+
+    if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
+      mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
+      mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
+    }
   }
 
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
