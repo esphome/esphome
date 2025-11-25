@@ -20,7 +20,7 @@ CONF_PRESSURE_COMPENSATION = "pressure_compensation"
 CONF_PRESSURE_COMPENSATION_SOURCE = "pressure_compensation_source"
 
 
-xensiv_pasco2_ns = cg.esphome_ns.namespace("xensiv_pasco2_base")
+xensiv_pas_co2_ns = cg.esphome_ns.namespace("xensiv_pas_co2_base")
 
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
@@ -31,7 +31,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
             device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
+        cv.Required(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_SENSOR_RATE, default="60s"): cv.All(
             cv.positive_time_period_seconds,
             cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=4095)),

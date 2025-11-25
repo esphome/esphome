@@ -1,9 +1,9 @@
 #include "esphome/core/log.h"
-#include "xensiv_pasco2_base.h"
+#include "xensiv_pas_co2_base.h"
 
 namespace esphome {
-namespace xensiv_pasco2_base {
-static const char *const TAG = "xensiv_pasco2_i2c.component";
+namespace xensiv_pas_co2_base {
+static const char *const TAG = "xensiv_pas_co2.component";
 
 void XensivPasCO2::setup() {
   ESP_LOGCONFIG(TAG, "Setting up XensivPasCO2 component");
@@ -17,8 +17,8 @@ void XensivPasCO2::setup() {
 
   // Perform full sensor reset (reset sticky bits, set to idle state)
 
-  // Soft reset - use XENSIV_PASCO2_CMD_SOFT_RESET command
-  if (this->write_byte(XENSIV_PASCO2_REG_SENS_RST, XENSIV_PASCO2_CMD_SOFT_RESET)) {
+  // Soft reset - use XENSIV_PAS_CO2_CMD_SOFT_RESET command
+  if (this->write_byte(XENSIV_PAS_CO2_REG_SENS_RST, XENSIV_PAS_CO2_CMD_SOFT_RESET)) {
     ESP_LOGCONFIG(TAG, "Sensor soft reset");
   } else {
     ESP_LOGW(TAG, "Failed to perform sensor soft reset");
@@ -26,7 +26,7 @@ void XensivPasCO2::setup() {
   }
 
   // Schedule sensor initialization after a delay to avoid blocking setup
-  this->set_timeout(XENSIV_PASCO2_SOFT_RESET_DELAY_MS, [this]() { XensivPasCO2::setup_sensor_(this); });
+  this->set_timeout(XENSIV_PAS_CO2_SOFT_RESET_DELAY_MS, [this]() { XensivPasCO2::setup_sensor_(this); });
 }
 
 void XensivPasCO2::loop() {
@@ -43,7 +43,7 @@ void XensivPasCO2::loop() {
     this->read_co2_ppm();
 
     // Clear MEAS_STS INT_STS_CLR bit
-    this->write_byte(XENSIV_PASCO2_REG_MEAS_STS, XENSIV_PASCO2_REG_MEAS_STS_INT_STS_CLR_MSK);
+    this->write_byte(XENSIV_PAS_CO2_REG_MEAS_STS, XENSIV_PAS_CO2_REG_MEAS_STS_INT_STS_CLR_MSK);
 
     // Update operation mode if needed
     this->update_operation_mode_();
@@ -64,10 +64,10 @@ void XensivPasCO2::setup_sensor_(XensivPasCO2 *arg) {
 
     ESP_LOGD(TAG, "Setting pressure compensation to %d Pa", arg->pressure_ref_);
 
-    if (!arg->write_byte(XENSIV_PASCO2_REG_PRESS_REF_H, press_h)) {
+    if (!arg->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
       ESP_LOGE(TAG, "Failed to write PRESS_REF_H");
     }
-    if (!arg->write_byte(XENSIV_PASCO2_REG_PRESS_REF_L, press_l)) {
+    if (!arg->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
       ESP_LOGE(TAG, "Failed to write PRESS_REF_L");
     }
   } else {
@@ -86,7 +86,7 @@ void XensivPasCO2::setup_sensor_(XensivPasCO2 *arg) {
   }
 
   // Testing single shot measurement to finalize initialization
-  arg->set_timeout(XENSIV_PASCO2_SINGLE_SHOT_DELAY_MS, [arg]() {
+  arg->set_timeout(XENSIV_PAS_CO2_SINGLE_SHOT_DELAY_MS, [arg]() {
     if (!arg->check_sensor_ready_()) {
       ESP_LOGW(TAG, "Sensor not ready after single shot");
     } else {
@@ -100,20 +100,20 @@ bool XensivPasCO2::test_scratch_register_() {
   uint8_t read_val = 0;
 
   // Write test pattern to scratch register
-  if (!this->write_byte(XENSIV_PASCO2_REG_SCRATCH_PAD, XENSIV_PASCO2_COMM_TEST_VAL)) {
+  if (!this->write_byte(XENSIV_PAS_CO2_REG_SCRATCH_PAD, XENSIV_PAS_CO2_COMM_TEST_VAL)) {
     ESP_LOGE(TAG, "Failed to write to scratch register");
     return false;
   }
 
   // Read back the value
-  if (!this->read_byte(XENSIV_PASCO2_REG_SCRATCH_PAD, &read_val)) {
+  if (!this->read_byte(XENSIV_PAS_CO2_REG_SCRATCH_PAD, &read_val)) {
     ESP_LOGE(TAG, "Failed to read from scratch register");
     return false;
   }
 
   // Verify the value matches
-  if (read_val != XENSIV_PASCO2_COMM_TEST_VAL) {
-    ESP_LOGE(TAG, "Scratch register test failed: expected 0x%02X, got 0x%02X", XENSIV_PASCO2_COMM_TEST_VAL, read_val);
+  if (read_val != XENSIV_PAS_CO2_COMM_TEST_VAL) {
+    ESP_LOGE(TAG, "Scratch register test failed: expected 0x%02X, got 0x%02X", XENSIV_PAS_CO2_COMM_TEST_VAL, read_val);
     return false;
   }
 
@@ -125,13 +125,13 @@ void XensivPasCO2::gpio_intr_(XensivPasCO2 *arg) { arg->data_ready_ = true; }
 
 bool XensivPasCO2::setup_interrupt_() {
   // Configure interrupt: DRDY function (data ready), active low
-  xensiv_pasco2_interrupt_config_t int_cfg;
+  xensiv_pas_co2_interrupt_config_t int_cfg;
   int_cfg.u = 0;
-  int_cfg.b.int_func = XENSIV_PASCO2_INTERRUPT_FUNCTION_DRDY;
-  int_cfg.b.int_typ = XENSIV_PASCO2_INTERRUPT_TYPE_LOW_ACTIVE;
-  int_cfg.b.alarm_typ = XENSIV_PASCO2_ALARM_TYPE_LOW_TO_HIGH;
+  int_cfg.b.int_func = XENSIV_PAS_CO2_INTERRUPT_FUNCTION_DRDY;
+  int_cfg.b.int_typ = XENSIV_PAS_CO2_INTERRUPT_TYPE_LOW_ACTIVE;
+  int_cfg.b.alarm_typ = XENSIV_PAS_CO2_ALARM_TYPE_LOW_TO_HIGH;
 
-  if (!this->write_byte(XENSIV_PASCO2_REG_INT_CFG, int_cfg.u)) {
+  if (!this->write_byte(XENSIV_PAS_CO2_REG_INT_CFG, int_cfg.u)) {
     ESP_LOGW(TAG, "Failed to configure interrupt register");
     return false;
   }
@@ -155,18 +155,18 @@ bool XensivPasCO2::setup_interrupt_() {
 bool XensivPasCO2::update_operation_mode_() {
   if (this->continuous_operation_mode_) {
     // Read current measurement config
-    xensiv_pasco2_measurement_config_t current_meas_cfg;
-    if (this->read_bytes(XENSIV_PASCO2_REG_MEAS_CFG, &current_meas_cfg.u, 1)) {
-      if (current_meas_cfg.b.op_mode != XENSIV_PASCO2_OP_MODE_CONTINUOUS) {
+    xensiv_pas_co2_measurement_config_t current_meas_cfg;
+    if (this->read_bytes(XENSIV_PAS_CO2_REG_MEAS_CFG, &current_meas_cfg.u, 1)) {
+      if (current_meas_cfg.b.op_mode != XENSIV_PAS_CO2_OP_MODE_CONTINUOUS) {
         // Set to continuous measurement mode with automatic baseline offset compensation
-        xensiv_pasco2_measurement_config_t meas_cfg;
+        xensiv_pas_co2_measurement_config_t meas_cfg;
         meas_cfg.u = 0;
-        meas_cfg.b.op_mode = XENSIV_PASCO2_OP_MODE_CONTINUOUS;
-        meas_cfg.b.boc_cfg = XENSIV_PASCO2_BOC_CFG_AUTOMATIC;
-        meas_cfg.b.pwm_mode = XENSIV_PASCO2_PWM_MODE_SINGLE_PULSE;
+        meas_cfg.b.op_mode = XENSIV_PAS_CO2_OP_MODE_CONTINUOUS;
+        meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_AUTOMATIC;
+        meas_cfg.b.pwm_mode = XENSIV_PAS_CO2_PWM_MODE_SINGLE_PULSE;
         meas_cfg.b.pwm_outen = 0;  // PWM output disabled
 
-        bool success = this->write_byte(XENSIV_PASCO2_REG_MEAS_CFG, meas_cfg.u);
+        bool success = this->write_byte(XENSIV_PAS_CO2_REG_MEAS_CFG, meas_cfg.u);
 
         if (success) {
           ESP_LOGD(TAG, "Sensor reverted to continuous measurement mode");
@@ -183,7 +183,7 @@ bool XensivPasCO2::update_operation_mode_() {
       return false;
     }
   }
-  // continuous_operation_mode_ is false, nothing to do
+  // this->continuous_operation_mode_ is false, nothing to do
   return true;
 }
 
@@ -196,11 +196,11 @@ bool XensivPasCO2::update_sensor_rate_() {
 
   ESP_LOGD(TAG, "Setting sensor rate to %d seconds", rate);
 
-  if (!this->write_byte(XENSIV_PASCO2_REG_MEAS_RATE_H, rate_h)) {
+  if (!this->write_byte(XENSIV_PAS_CO2_REG_MEAS_RATE_H, rate_h)) {
     ESP_LOGE(TAG, "Failed to write MEAS_RATE_H");
     return false;
   }
-  if (!this->write_byte(XENSIV_PASCO2_REG_MEAS_RATE_L, rate_l)) {
+  if (!this->write_byte(XENSIV_PAS_CO2_REG_MEAS_RATE_L, rate_l)) {
     ESP_LOGE(TAG, "Failed to write MEAS_RATE_L");
     return false;
   }
@@ -224,11 +224,11 @@ void XensivPasCO2::set_pressure_compensation(uint16_t pressure_ref) {
 
     ESP_LOGD(TAG, "Setting pressure compensation to %d Pa", pressure_ref);
 
-    if (!this->write_byte(XENSIV_PASCO2_REG_PRESS_REF_H, press_h)) {
+    if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
       ESP_LOGE(TAG, "Failed to write PRESS_REF_H");
       return;
     }
-    if (!this->write_byte(XENSIV_PASCO2_REG_PRESS_REF_L, press_l)) {
+    if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
       ESP_LOGE(TAG, "Failed to write PRESS_REF_L");
       return;
     }
@@ -237,10 +237,10 @@ void XensivPasCO2::set_pressure_compensation(uint16_t pressure_ref) {
 }
 
 bool XensivPasCO2::check_sensor_ready_() {
-  xensiv_pasco2_status_t sens_sts;
+  xensiv_pas_co2_status_t sens_sts;
 
   // Read sensor status register
-  if (!this->read_byte(XENSIV_PASCO2_REG_SENS_STS, &sens_sts.u)) {
+  if (!this->read_byte(XENSIV_PAS_CO2_REG_SENS_STS, &sens_sts.u)) {
     ESP_LOGE(TAG, "Failed to read SENS_STS register");
     return false;
   }
@@ -268,14 +268,14 @@ bool XensivPasCO2::check_sensor_ready_() {
 
 bool XensivPasCO2::measure_now() {
   // Start single-shot measurement with automatic baseline offset compensation
-  xensiv_pasco2_measurement_config_t meas_cfg;
+  xensiv_pas_co2_measurement_config_t meas_cfg;
   meas_cfg.u = 0;
-  meas_cfg.b.op_mode = XENSIV_PASCO2_OP_MODE_SINGLE;
-  meas_cfg.b.boc_cfg = XENSIV_PASCO2_BOC_CFG_AUTOMATIC;
-  meas_cfg.b.pwm_mode = XENSIV_PASCO2_PWM_MODE_SINGLE_PULSE;
+  meas_cfg.b.op_mode = XENSIV_PAS_CO2_OP_MODE_SINGLE;
+  meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_AUTOMATIC;
+  meas_cfg.b.pwm_mode = XENSIV_PAS_CO2_PWM_MODE_SINGLE_PULSE;
   meas_cfg.b.pwm_outen = 0;  // PWM output disabled
 
-  if (this->write_byte(XENSIV_PASCO2_REG_MEAS_CFG, meas_cfg.u)) {
+  if (this->write_byte(XENSIV_PAS_CO2_REG_MEAS_CFG, meas_cfg.u)) {
     ESP_LOGD(TAG, "Starting single-shot measurement");
     return true;
   } else {
@@ -288,15 +288,15 @@ void XensivPasCO2::read_co2_ppm() {
   ESP_LOGD(TAG, "Reading CO2 data...");
 
   uint8_t co2_ppm_val[2] = {0};
-  xensiv_pasco2_meas_status_t meas_sts;
+  xensiv_pas_co2_meas_status_t meas_sts;
 
   // Check DRDY flag
-  if (this->read_bytes(XENSIV_PASCO2_REG_MEAS_STS, &meas_sts.u, 1)) {
+  if (this->read_bytes(XENSIV_PAS_CO2_REG_MEAS_STS, &meas_sts.u, 1)) {
     ESP_LOGD(TAG, "MEAS_STS: 0x%02X, DRDY: %s, INT_STS: %s, ALARM: %s", meas_sts.u, meas_sts.b.drdy ? "SET" : "NOT SET",
              meas_sts.b.int_sts ? "SET" : "NOT SET", meas_sts.b.alarm ? "SET" : "NOT SET");
 
     if (meas_sts.b.drdy) {
-      if (this->read_bytes(XENSIV_PASCO2_REG_CO2PPM_H, co2_ppm_val, 2)) {
+      if (this->read_bytes(XENSIV_PAS_CO2_REG_CO2PPM_H, co2_ppm_val, 2)) {
         // Read CO2PPM_H and CO2PPM_L
         uint8_t co2ppm_h = co2_ppm_val[0];
         uint8_t co2ppm_l = co2_ppm_val[1];
@@ -344,5 +344,5 @@ void XensivPasCO2::dump_config() {
     ESP_LOGCONFIG(TAG, "  Pressure Compensation: Using sensor default : 1015 hPa");
   }
 }
-}  // namespace xensiv_pasco2_base
+}  // namespace xensiv_pas_co2_base
 }  // namespace esphome

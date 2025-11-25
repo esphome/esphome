@@ -2,13 +2,13 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 
-from ..xensiv_pasco2_base import CONFIG_SCHEMA_BASE, to_code_base
+from ..xensiv_pas_co2_base import CONFIG_SCHEMA_BASE, to_code_base
 
-AUTO_LOAD = ["xensiv_pasco2_base"]
+AUTO_LOAD = ["xensiv_pas_co2_base"]
 DEPENDENCIES = ["i2c"]
 
-xensiv_pasco2_ns = cg.esphome_ns.namespace("xensiv_pasco2_i2c")
-XENSIVPASCO2I2CComponent = xensiv_pasco2_ns.class_(
+xensiv_pas_co2_ns = cg.esphome_ns.namespace("xensiv_pas_co2_i2c")
+XENSIVPASCO2I2CComponent = xensiv_pas_co2_ns.class_(
     "XensivPasCO2I2CComponent", cg.Component, i2c.I2CDevice
 )
 

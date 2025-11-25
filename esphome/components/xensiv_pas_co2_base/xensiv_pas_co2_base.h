@@ -3,10 +3,10 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/gpio.h"
-#include "xensiv_pasco2_regs.h"
+#include "xensiv_pas_co2_regs.h"
 
 namespace esphome {
-namespace xensiv_pasco2_base {
+namespace xensiv_pas_co2_base {
 
 class XensivPasCO2 : public Component {
  public:
@@ -49,5 +49,5 @@ class XensivPasCO2 : public Component {
   volatile bool data_ready_{false};
 };
 
-}  // namespace xensiv_pasco2_base
+}  // namespace xensiv_pas_co2_base
 }  // namespace esphome
