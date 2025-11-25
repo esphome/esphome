@@ -1,0 +1,13 @@
+idf_component_register(
+    SRCS
+        "usb_ethernet.cpp"
+        "cdc_ecm_host.c"
+        "cdc_host_descriptor_parsing.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        usb
+        esp_event
+        esp_netif
+        esp_eth
+)
