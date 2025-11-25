@@ -66,7 +66,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETINY)
     txt_count++;  // platform
 #endif
-#if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD)
+#if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD) || defined(USE_USB_ETHERNET)
     txt_count++;  // network
 #endif
 #ifdef USE_API_NOISE
