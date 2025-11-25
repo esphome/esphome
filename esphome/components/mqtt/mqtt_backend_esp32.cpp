@@ -45,6 +45,9 @@ bool MQTTBackendESP32::initialize_() {
   if (this->transport_ == "ws") {
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
     mqtt_cfg_.broker.address.path = this->ws_path_.c_str();
+    // Disable TLS for plain WebSocket
+    mqtt_cfg_.broker.verification.skip_cert_common_name_check = true;
+    mqtt_cfg_.broker.verification.use_global_ca_store = false;
   } else if (this->transport_ == "wss") {
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
     mqtt_cfg_.broker.address.path = this->ws_path_.c_str();
