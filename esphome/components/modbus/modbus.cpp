@@ -404,49 +404,12 @@ float Modbus::get_setup_priority() const {
 }
 
 void ModbusClient::send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
-                        uint16_t number_of_entities, uint8_t payload_len, const uint8_t *payload) {
-  ESP_LOGVV(TAG,
-            "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d "
-            "payload_len=%d %s",
-            address, function_code, start_address, number_of_entities, payload_len,
-            payload != nullptr ? format_hex_pretty(std::vector<uint8_t>(payload, payload + payload_len)).c_str()
-                               : "no payload");
-
-  // Only check max number of registers for standard function codes
-  // Some devices use non standard codes like 0x43
-  if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_WRITE &&
-      function_code <= ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-    ESP_LOGE(TAG, "send too many values %d max=%zu", number_of_entities, MAX_NUM_OF_REGISTERS_TO_READ);
-    if (device)
-      device->on_modbus_not_sent();
-    return;
-  }
-
+                        uint16_t number_of_entities) {
+  ESP_LOGVV(TAG, "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d ", address,
+            function_code, start_address, number_of_entities);
   std::vector<uint8_t> data;
   data.push_back(address);
-  data.push_back(function_code);
-
-  data.push_back(start_address >> 8);
-  data.push_back(start_address >> 0);
-  if (function_code != ModbusFunctionCode::WRITE_SINGLE_COIL &&
-      function_code != ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
-    // TODO: The naming is misleading here for coils. This is the value, not the number of coils.
-    data.push_back(number_of_entities >> 8);
-    data.push_back(number_of_entities >> 0);
-  }
-
-  if (payload != nullptr) {
-    if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
-        function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {  // Write multiple
-      data.push_back(payload_len);                                        // Byte count is required for write
-    } else {
-      payload_len = 2;  // Write single register or coil
-    }
-    for (int i = 0; i < payload_len; i++) {
-      data.push_back(payload[i]);
-    }
-  }
-
+  create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities);
   this->send_raw(device, data);
 }
 
@@ -463,7 +426,15 @@ void ModbusClient::send_raw(ModbusClientDevice *device, const std::vector<uint8_
       device->on_modbus_not_sent();
     return;
   }
-  std::vector<uint8_t> frame = Modbus::add_crc_to_payload(payload);
+  std::vector<uint8_t> frame = add_crc_to_payload(payload);
+
+  if (!is_client_frame_length_valid(frame)) {
+    ESP_LOGW(TAG, "Frame is incorrect length, sending: %s", format_hex_pretty(frame).c_str());
+    // TODO: Decide whether to actually drop frames of incorrect length. How common is this?
+    //  if (device)
+    //    device->on_modbus_not_sent();
+    //  return;
+  }
 
   for (const auto &item : this->tx_buffer_) {
     if (item.frame == frame && item.device == device) {
@@ -520,7 +491,7 @@ void ModbusServer::send_raw(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {
     return;
   }
-  std::vector<uint8_t> frame = Modbus::add_crc_to_payload(payload);
+  std::vector<uint8_t> frame = add_crc_to_payload(payload);
 
   const uint32_t now = millis();
   if (now - this->last_modbus_byte_ < this->frame_delay_ms_) {
@@ -529,14 +500,6 @@ void ModbusServer::send_raw(const std::vector<uint8_t> &payload) {
   } else {
     this->send_frame_(frame);
   }
-}
-
-std::vector<uint8_t> Modbus::add_crc_to_payload(const std::vector<uint8_t> &payload) {
-  std::vector<uint8_t> data = payload;
-  auto crc = crc16(data.data(), data.size());
-  data.push_back(crc >> 0);
-  data.push_back(crc >> 8);
-  return data;
 }
 
 void Modbus::clear_rx_buffer_(const std::string &reason, bool warn, size_t bytes_to_clear) {
