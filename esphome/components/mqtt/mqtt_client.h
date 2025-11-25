@@ -155,6 +155,14 @@ class MQTTClientComponent : public Component {
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+  void set_transport(const std::string &transport) {
+    this->transport_ = transport;
+    this->mqtt_backend_.set_transport(transport);
+  }
+  void set_ws_path(const std::string &path) {
+    this->ws_path_ = path;
+    this->mqtt_backend_.set_ws_path(path);
+  }
 #endif
   const Availability &get_availability();
 
@@ -339,6 +347,10 @@ class MQTTClientComponent : public Component {
 
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};
+#ifdef USE_ESP32
+  std::string transport_{"tcp"};
+  std::string ws_path_{"/mqtt"};
+#endif
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

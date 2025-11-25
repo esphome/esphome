@@ -158,6 +158,14 @@ void MQTTClientComponent::dump_config() {
                 this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str().c_str(),
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
+#ifdef USE_ESP32
+  if (this->transport_ != "tcp") {
+    ESP_LOGCONFIG(TAG, "  Transport: %s", this->transport_.c_str());
+    if (this->transport_ == "ws" || this->transport_ == "wss") {
+      ESP_LOGCONFIG(TAG, "  WebSocket Path: %s", this->ws_path_.c_str());
+    }
+  }
+#endif
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
