@@ -475,11 +475,13 @@ async def to_code(config):
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
 
-    # Configure WebSocket transport for ESP32-IDF
+    # Configure transport for ESP32-IDF
     if CORE.is_esp32 and CORE.using_esp_idf:
         transport = config[CONF_TRANSPORT]
+        # Always set transport to ensure it's configured correctly
+        cg.add(var.set_transport(transport))
+        # Set WebSocket path only for WebSocket transports
         if transport in ["ws", "wss"]:
-            cg.add(var.set_transport(transport))
             cg.add(var.set_ws_path(config[CONF_WS_PATH]))
 
     for conf in config.get(CONF_ON_MESSAGE, []):
