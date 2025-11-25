@@ -26,7 +26,7 @@ class DNSAddressWifiInfo : public Component, public text_sensor::TextSensor {
   void dump_config() override;
 
  protected:
-  void state_callback_(network::IPAddress dns1_ip, network::IPAddress dns2_ip);
+  void state_callback_(const network::IPAddress &dns1_ip, const network::IPAddress &dns2_ip);
 };
 
 class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
@@ -54,7 +54,7 @@ class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {
   void dump_config() override;
 
  protected:
-  void state_callback_(wifi::bssid_t bssid);
+  void state_callback_(const wifi::bssid_t &bssid);
 };
 
 class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
