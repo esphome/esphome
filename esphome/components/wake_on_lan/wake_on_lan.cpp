@@ -67,7 +67,7 @@ void WakeOnLanButton::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
   if (this->broadcast_socket_ == nullptr) {
-    this->status_set_error("Could not create socket");
+    this->status_set_error(LOG_STR("Could not create socket"));
     this->mark_failed();
     return;
   }
