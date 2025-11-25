@@ -1,6 +1,7 @@
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
 from esphome.components.time import RealTimeClock
+from esphome.config_validation import prepend_path
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
@@ -456,7 +457,10 @@ def any_widget_schema(extras=None):
     def validator(value):
         if isinstance(value, dict):
             # Convert to list
+            isdict = True
             value = [{k: v} for k, v in value.items()]
+        else:
+            isdict = False
         if not isinstance(value, list):
             raise cv.Invalid("Expected a list of widgets")
         result = []
@@ -477,7 +481,9 @@ def any_widget_schema(extras=None):
                 )
             # Apply custom validation
             value = widget_type.validate(value or {})
-            result.append({key: container_validator(value)})
+            path = [key] if isdict else [index, key]
+            with prepend_path(path):
+                result.append({key: container_validator(value)})
         return result
 
     return validator
