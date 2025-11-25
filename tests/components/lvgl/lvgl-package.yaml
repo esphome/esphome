@@ -478,19 +478,19 @@ lvgl:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: time_id
+                    time: sntp_time
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: !lambda return id(time_id).now();
+                    time: !lambda return id(sntp_time).now();
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
                     time: !lambda |-
                         ESP_LOGD("label", "multi-line lambda");
-                        return id(time_id).now();
+                        return id(sntp_time).now();
             on_value:
               logger.log:
                 format: "state now %d"
@@ -703,7 +703,9 @@ lvgl:
             on_value:
               - lvgl.spinbox.update:
                   id: spinbox_id
-                  value: !lambda return x;
+                  value: !lambda |-
+                      static float yyy = 83.0;
+                      return yyy + .8;
         - button:
             styles: spin_button
             id: spin_up
@@ -779,6 +781,18 @@ lvgl:
                 arc_color: 0xFFFF00
               focused:
                 arc_color: 0x808080
+            on_click:
+              then:
+                - lvgl.arc.update:
+                    id: lv_arc_1
+                    value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    min_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    max_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    start_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    end_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    rotation: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    change_rate: !lambda return (uint)((float)rand() / RAND_MAX * 100);
+                    mode: NORMAL
         - bar:
             id: bar_id
             align: top_mid
@@ -879,6 +893,7 @@ lvgl:
                   grid_columns: [40, fr(1), fr(1)]
                   pad_row: 6px
                   pad_column: 0
+                  multiple_widgets_per_cell: true
                 widgets:
                   - image:
                       grid_cell_row_pos: 0
@@ -903,6 +918,10 @@ lvgl:
                       grid_cell_row_pos: 1
                       grid_cell_column_pos: 0
                       text: "Grid cell 1/0"
+                  - label:
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 0
+                      text: "Duplicate for 1/0"
                   - label:
                       styles: bdr_style
                       grid_cell_row_pos: 1

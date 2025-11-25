@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RANGE_FROM, CONF_RANGE_TO, CONF_STEP, CONF_VALUE
+from esphome.cpp_generator import MockObj
 
 from ..automation import action_to_code
 from ..defines import (
@@ -114,7 +115,9 @@ class SpinboxType(WidgetType):
                 w.obj, digits, digits - config[CONF_DECIMAL_PLACES]
             )
         if (value := config.get(CONF_VALUE)) is not None:
-            lv.spinbox_set_value(w.obj, await lv_float.process(value))
+            lv.spinbox_set_value(
+                w.obj, MockObj(await lv_float.process(value)) * w.get_scale()
+            )
 
     def get_scale(self, config):
         return 10 ** config[CONF_DECIMAL_PLACES]
