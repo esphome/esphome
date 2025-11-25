@@ -20,6 +20,7 @@ from esphome.cpp_types import nullptr
 from .. import set_obj_properties
 from ..automation import action_to_code
 from ..defines import (
+    CHILD_ALIGNMENTS,
     CONF_END_VALUE,
     CONF_INDICATOR,
     CONF_MAIN,
@@ -43,10 +44,11 @@ from ..lv_validation import (
     lv_float,
     lv_image,
     lv_int,
-    lv_pct,
     opacity,
     opacity_consts,
     pixels,
+    pixels_or_percent,
+    pixels_or_percent_validator,
     requires_component,
     size,
 )
@@ -96,10 +98,8 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): size,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_R_MOD, default=0): cv.invalid(
-            "'r_mod' is removed: use 'length' instead"
-        ),
-        cv.Optional(CONF_LENGTH, default="100%"): size,
+        cv.Optional(CONF_R_MOD): cv.invalid("'r_mod' is removed: use 'length' instead"),
+        cv.Optional(CONF_LENGTH, default="100%"): pixels_or_percent_validator,
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_OPA, default="COVER"): opacity,
     }
@@ -251,8 +251,9 @@ class MeterType(WidgetType):
             with LocalVariable(
                 "scale", lv_obj_t, lv_expr.scale_create(var)
             ) as scale_var:
-                lv_obj.set_style_height(scale_var, lv_pct(100), LV_PART.MAIN)
-                lv_obj.set_style_width(scale_var, lv_pct(100), LV_PART.MAIN)
+                percent100 = await pixels_or_percent.process(1.0)
+                lv_obj.set_style_height(scale_var, percent100, LV_PART.MAIN)
+                lv_obj.set_style_width(scale_var, percent100, LV_PART.MAIN)
                 lv_obj.set_style_align(
                     scale_var, literal("LV_ALIGN_CENTER"), LV_PART.MAIN
                 )
@@ -395,9 +396,18 @@ class MeterType(WidgetType):
                                 await lv_color.process(v[CONF_COLOR]),
                                 LV_PART.MAIN,
                             )
+                            lv_obj.set_style_align(
+                                line, CHILD_ALIGNMENTS.CENTER, LV_PART.MAIN
+                            )
                             width = await size.process(v[CONF_WIDTH])
-                            length = await size.process(v[CONF_LENGTH])
-                            lv_obj.set_style_height(line, width)
+                            length = v[CONF_LENGTH]
+                            if isinstance(length, float):
+                                length = length * 0.5
+                            x = await pixels_or_percent.process(length / 2)
+                            length = await pixels_or_percent.process(length)
+                            lv_obj.set_style_height(line, width, LV_PART.MAIN)
+                            lv_obj.set_style_width(line, length, LV_PART.MAIN)
+                            lv_obj.set_style_x(line, x, LV_PART.MAIN)
                             lv_obj.set_style_bg_opa(
                                 line, await opacity.process(v[CONF_OPA]), LV_PART.MAIN
                             )

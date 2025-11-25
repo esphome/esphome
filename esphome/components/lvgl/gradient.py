@@ -49,6 +49,7 @@ async def gradients_to_code(config):
     max_stops = 2
     for gradient in config.get(CONF_GRADIENTS, ()):
         var = MockObj(cg.new_Pvariable(gradient[CONF_ID]), "->")
+        print(var, gradient)
         max_stops = max(max_stops, len(gradient[CONF_STOPS]))
         lv_assign(var.dir, await LV_GRAD_DIR.process(gradient[CONF_DIRECTION]))
         lv_assign(var.stops_count, len(gradient[CONF_STOPS]))

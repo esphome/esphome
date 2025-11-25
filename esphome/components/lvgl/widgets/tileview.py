@@ -15,7 +15,7 @@ from ..defines import (
     TILE_DIRECTIONS,
     literal,
 )
-from ..lv_validation import animated, lv_int, lv_pct
+from ..lv_validation import animated, lv_int, pixels_or_percent
 from ..lvcode import lv, lv_assign, lv_expr, lv_obj, lv_Pvariable
 from ..schemas import container_schema
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
@@ -78,7 +78,11 @@ class TileviewType(WidgetType):
                 lv_expr.tileview_add_tile(w.obj, col_pos, row_pos, literal(dirs)),
             )
             # Bugfix for LVGL 8.x
-            lv_obj.set_pos(tile_obj, lv_pct(col_pos * 100), lv_pct(row_pos * 100))
+            lv_obj.set_pos(
+                tile_obj,
+                await pixels_or_percent.process(float(col_pos)),
+                await pixels_or_percent.process(float(row_pos)),
+            )
             await set_obj_properties(tile, tile_conf)
             await add_widgets(tile, tile_conf)
         if tiles:

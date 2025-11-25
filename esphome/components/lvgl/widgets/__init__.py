@@ -553,6 +553,8 @@ async def set_obj_properties(w: Widget, config):
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
+                    if prop == "bg_grad":
+                        print(prop, type(ALL_STYLES[prop]))
                 prop_r = remap_property(prop)
                 w.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):

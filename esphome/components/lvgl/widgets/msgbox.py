@@ -19,7 +19,7 @@ from ..defines import (
     literal,
 )
 from ..helpers import add_lv_use, lvgl_components_required
-from ..lv_validation import lv_bool, lv_image, lv_pct, lv_text
+from ..lv_validation import lv_bool, lv_image, lv_text, pixels_or_percent
 from ..lvcode import (
     EVENT_ARG,
     LambdaContext,
@@ -32,7 +32,7 @@ from ..lvcode import (
 )
 from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema
 from ..types import LV_EVENT, lv_obj_t
-from . import Widget, set_obj_properties, WidgetType
+from . import Widget, WidgetType, set_obj_properties
 from .button import button_spec, lv_button_t
 from .label import CONF_LABEL
 from .obj import obj_spec
@@ -122,8 +122,9 @@ async def msgbox_to_code(top_layer, conf):
     title = await lv_text.process(conf[CONF_TITLE].get(CONF_TEXT, ""))
     close_button = conf[CONF_CLOSE_BUTTON]
     lv_assign(outer, lv_expr.obj_create(top_layer))
-    lv_obj.set_width(outer, lv_pct(100))
-    lv_obj.set_height(outer, lv_pct(100))
+    percent100 = await pixels_or_percent.process(1.0)
+    lv_obj.set_width(outer, percent100)
+    lv_obj.set_height(outer, percent100)
     lv_obj.set_style_bg_opa(outer, 128, 0)
     lv_obj.set_style_bg_color(outer, literal("lv_color_black()"), 0)
     lv_obj.set_style_border_width(outer, 0, 0)

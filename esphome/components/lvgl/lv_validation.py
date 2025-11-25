@@ -234,7 +234,6 @@ def color_retmapper(value):
         else:
             r, g, b, _ = from_rgbw(cval)
         return literal(f"lv_color_make({r}, {g}, {b})")
-    print(value, type(value))
     assert False
 
 
@@ -265,14 +264,15 @@ def pixels_or_percent_validator(value):
     if isinstance(value, str) and value.lower().endswith("px"):
         value = cv.int_(value[:-2])
     if isinstance(value, str) and re.match(r"^lv_pct\((\d+)\)$", value):
-        return value
-    value = cv.Any(cv.int_, cv.percentage)(value)
-    if isinstance(value, int):
-        return value
-    return f"lv_pct({int(value * 100)})"
+        return int(value[6:-1]) / 100.0
+    return cv.Any(cv.int_, cv.percentage)(value)
 
 
-pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal)
+pixels_or_percent = LValidator(
+    pixels_or_percent_validator,
+    uint32,
+    retmapper=lambda x: x if isinstance(x, int) else literal(f"lv_pct({int(x * 100)})"),
+)
 
 
 def pixels_validator(value):
@@ -297,11 +297,7 @@ def zoom_validator(value):
     return cv.float_range(0.1, 10.0)(value)
 
 
-def zoom_retmapper(value):
-    return int(value * 256)
-
-
-zoom = LValidator(zoom_validator, uint32, retmapper=zoom_retmapper)
+zoom = LValidator(zoom_validator, uint32, retmapper=lambda x: int(x * 256))
 
 
 def angle(value):
@@ -332,7 +328,13 @@ def size_validator(value):
     return pixels_or_percent_validator(value)
 
 
-size = LValidator(size_validator, uint32, retmapper=literal)
+size = LValidator(
+    size_validator,
+    uint32,
+    retmapper=lambda x: literal(x)
+    if isinstance(x, str)
+    else pixels_or_percent.retmapper(x),
+)
 
 
 radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
@@ -383,12 +385,6 @@ lv_image_list = LValidator(
     requires="image",
 )
 lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)
-
-
-def lv_pct(value: int | float):
-    if isinstance(value, float):
-        value = int(value * 100)
-    return literal(f"lv_pct({value})")
 
 
 def lvms_validator_(value):
@@ -473,18 +469,10 @@ lv_positive_int = LValidator(cv.positive_int, cg.int_)
 lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
 
 
-def gradient_mapper(value):
-    return MockObj(value)
-
-
-def gradient_validator(value):
-    return cv.use_id(lv_gradient_t)(value)
-
-
 lv_gradient = LValidator(
-    validator=gradient_validator,
+    validator=cv.use_id(lv_gradient_t),
     rtype=lv_gradient_t,
-    retmapper=gradient_mapper,
+    retmapper=lambda x: MockObj(x),
 )
 
 

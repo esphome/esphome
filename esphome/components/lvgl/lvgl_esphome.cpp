@@ -554,8 +554,8 @@ void LvglComponent::static_flush_cb(lv_display_t *disp_drv, const lv_area_t *are
 }
 
 /**
- *
- * @param e Function to apply colors to ticks based on position
+ * Function to apply colors to ticks based on position
+ * @param e The event data
  * @param color_start The color to apply to the first tick
  * @param color_end  The color to apply to the last tick
  */

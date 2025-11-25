@@ -37,12 +37,11 @@ async def style_set(svar, style):
                 value = await validator.process(value)
             if isinstance(value, list):
                 value = "|".join(value)
-            print(prop, value)
             lv.call(f"style_set_{remap_property(prop)}", svar, literal(value))
 
 
 async def create_style(id_name, style=None):
-    style_id = ID(id_name + "_style_", True, lv_style_t)
+    style_id = ID(id_name, True, lv_style_t)
     svar = cg.new_Pvariable(style_id)
     lv.style_init(svar)
     if style:
@@ -64,7 +63,7 @@ class LVStyle:
 
     async def get_var(self):
         if self._style_var is None:
-            self._style_var = await create_style(self.id_name, self.style)
+            self._style_var = await create_style(self.id_name + "_style", self.style)
         return self._style_var
 
     @classmethod
