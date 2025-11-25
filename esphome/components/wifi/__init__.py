@@ -634,7 +634,7 @@ def enable_runtime_power_save_control():
     CORE.data[RUNTIME_POWER_SAVE_KEY] = True
 
 
-def request_wifi_callbacks():
+def request_wifi_callbacks() -> None:
     """Request that WiFi callbacks be compiled in.
 
     Components that need to be notified about WiFi state changes (IP address changes,
