@@ -1,0 +1,7 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+substitutions:
+  interrupt_pin: GPIO19
+
+<<: !include common.yaml
