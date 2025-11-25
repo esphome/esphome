@@ -6,6 +6,8 @@ namespace esphome::wifi_info {
 
 static const char *const TAG = "wifi_info";
 
+static constexpr size_t MAX_STATE_LENGTH = 255;
+
 /********************
  * IPAddressWiFiInfo
  *******************/
@@ -73,7 +75,10 @@ void ScanResultsWiFiInfo::state_callback_(const wifi::wifi_scan_vector_t<wifi::W
     scan_results += "dB\n";
   }
   // There's a limit of 255 characters per state; longer states just don't get sent so we truncate it
-  this->publish_state(scan_results.substr(0, 255));
+  if (scan_results.length() > MAX_STATE_LENGTH) {
+    scan_results.resize(MAX_STATE_LENGTH);
+  }
+  this->publish_state(scan_results);
 }
 
 /***************
@@ -82,7 +87,7 @@ void ScanResultsWiFiInfo::state_callback_(const wifi::wifi_scan_vector_t<wifi::W
 
 void SSIDWiFiInfo::setup() {
   wifi::global_wifi_component->add_on_wifi_connect_state_callback(
-      [this](std::string ssid, wifi::bssid_t bssid) { this->state_callback_(ssid); });
+      [this](const std::string &ssid, wifi::bssid_t bssid) { this->state_callback_(ssid); });
 }
 
 void SSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "SSID", this); }
