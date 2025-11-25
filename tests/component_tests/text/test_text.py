@@ -1,4 +1,6 @@
-"""Tests for the binary sensor component."""
+"""Tests for the text component."""
+
+from esphome.core import CORE
 
 
 def test_text_is_setup(generate_main):
@@ -56,15 +58,22 @@ def test_text_config_value_mode_set(generate_main):
     assert "it_3->traits.set_mode(text::TEXT_MODE_PASSWORD);" in main_cpp
 
 
-def test_text_config_lamda_is_set(generate_main):
+def test_text_config_lambda_is_set(generate_main) -> None:
     """
-    Test if lambda is set for lambda mode (optimized with stateless lambda)
+    Test if lambda is set for lambda mode (optimized with stateless lambda and deduplication)
     """
     # Given
 
     # When
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
+    # Get both global and main sections to find the shared lambda definition
+    full_cpp = CORE.cpp_global_section + main_cpp
+
     # Then
-    assert "it_4->set_template([]() -> esphome::optional<std::string> {" in main_cpp
-    assert 'return std::string{"Hello"};' in main_cpp
+    # Lambda is deduplicated into a shared function (reference in main section)
+    assert "it_4->set_template(shared_lambda_" in main_cpp
+    # Lambda body should be in the code somewhere
+    assert 'return std::string{"Hello"};' in full_cpp
+    # Verify the shared lambda function is defined (in global section)
+    assert "esphome::optional<std::string> shared_lambda_" in full_cpp
