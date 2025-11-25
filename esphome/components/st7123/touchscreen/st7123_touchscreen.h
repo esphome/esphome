@@ -39,6 +39,10 @@ class ST7123Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   /// On success, sets @ref setup_done_ to true.
   /// On failure, calls @ref mark_failed() with an appropriate error message.
   void setup_internal_();
+  /// @brief Perform the late setup routine for the ST7123 touchscreen.
+  ///
+  /// This function reads the calibration data (maximum X and Y values) if not already set.
+  void setup_lazy_();
   /// @brief True if the touchscreen setup has completed successfully.
   bool setup_done_{false};
 

@@ -12,6 +12,7 @@ static const char *const TAG = "st7123.touchscreen";
 static const uint16_t REG_GET_TOUCH_INFO = 0x0010;
 static const uint16_t REG_GET_TOUCH = 0x0014;
 static const uint16_t REG_GET_KEYS = 0x0013;
+static const uint16_t REG_GET_MAX_COORD = 0x0005;
 static const uint8_t MAX_TOUCHES = 10;
 static const uint8_t MAX_BUTTONS = 6;
 
@@ -34,6 +35,15 @@ struct adv_info_t {
   uint8_t with_coord : 1;
   uint8_t prox_status : 3;
   uint8_t rst_chip : 1;
+};
+
+struct max_coord_info_t {
+  uint8_t max_x_h : 6;
+  uint8_t reserved_x_7_8 : 2;
+  uint8_t max_x_l;
+  uint8_t max_y_h : 6;
+  uint8_t reserved_y_7_8 : 2;
+  uint8_t max_y_l;
 };
 
 void ST7123Touchscreen::setup() {
@@ -60,10 +70,29 @@ void ST7123Touchscreen::setup_internal_() {
   this->setup_done_ = true;
 }
 
+void ST7123Touchscreen::setup_lazy_() {
+  max_coord_info_t max_coord_info;
+  ESP_LOGD(TAG, "Reading max touch coordinates");
+  // no calibration? Attempt to read the max values from the touchscreen.
+  i2c::ErrorCode err = this->read_register16(REG_GET_MAX_COORD, (uint8_t *) &max_coord_info, sizeof(max_coord_info_t));
+  if (err == i2c::ERROR_OK) {
+    this->x_raw_max_ = encode_uint16(max_coord_info.max_x_h, max_coord_info.max_x_l);
+    this->y_raw_max_ = encode_uint16(max_coord_info.max_y_h, max_coord_info.max_y_l);
+    ESP_LOGD(TAG, "Max Coord: %d %d", x_raw_max_, y_raw_max_);
+    if (this->swap_x_y_)
+      std::swap(this->x_raw_max_, this->y_raw_max_);
+  } else {
+    this->mark_failed("Calibration error");
+  }
+}
+
 void ST7123Touchscreen::update_touches() {
   this->skip_update_ = true;  // skip send touch events by default, set to false after successful error checks
   if (!this->setup_done_) {
     return;
+  }
+  if (x_raw_max_ == 0 || y_raw_max_ == 0) {
+    setup_lazy_();
   }
   i2c::ErrorCode err;
   touch_data_t touch_data[MAX_TOUCHES];
@@ -82,7 +111,6 @@ void ST7123Touchscreen::update_touches() {
           uint16_t ypos = encode_uint16(touch_data[i].y_h, touch_data[i].y_l);
           uint16_t id = touch_data[i].area;
           this->add_raw_touch_position_(id, xpos, ypos);
-          ESP_LOGD(TAG, "touch id:%d X=%d Y=%d", id, xpos, ypos);
         }
       }
     }
