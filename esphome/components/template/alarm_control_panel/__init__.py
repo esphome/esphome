@@ -137,7 +137,11 @@ async def to_code(config):
         cg.add(var.set_arming_night_time(config[CONF_ARMING_NIGHT_TIME]))
         supports_arm_night = True
 
-    for sensor in config.get(CONF_BINARY_SENSORS, []):
+    if sensors := config.get(CONF_BINARY_SENSORS, []):
+        # Initialize FixedVector with the exact number of sensors
+        cg.add(var.init_sensors(len(sensors)))
+
+    for sensor in sensors:
         bs = await cg.get_variable(sensor[CONF_INPUT])
 
         flags = BinarySensorFlags[FLAG_NORMAL]

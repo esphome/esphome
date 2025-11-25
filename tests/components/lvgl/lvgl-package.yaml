@@ -781,6 +781,18 @@ lvgl:
                 arc_color: 0xFFFF00
               focused:
                 arc_color: 0x808080
+            on_click:
+              then:
+                - lvgl.arc.update:
+                    id: lv_arc_1
+                    value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    min_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    max_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    start_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    end_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    rotation: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    change_rate: !lambda return (uint)((float)rand() / RAND_MAX * 100);
+                    mode: NORMAL
         - bar:
             id: bar_id
             align: top_mid

@@ -1,4 +1,4 @@
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include "i2c_bus_arduino.h"
 #include <Arduino.h>
@@ -15,16 +15,7 @@ static const char *const TAG = "i2c.arduino";
 void ArduinoI2CBus::setup() {
   recover_();
 
-#if defined(USE_ESP32)
-  static uint8_t next_bus_num = 0;
-  if (next_bus_num == 0) {
-    wire_ = &Wire;
-  } else {
-    wire_ = new TwoWire(next_bus_num);  // NOLINT(cppcoreguidelines-owning-memory)
-  }
-  this->port_ = next_bus_num;
-  next_bus_num++;
-#elif defined(USE_ESP8266)
+#if defined(USE_ESP8266)
   wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
 #elif defined(USE_RP2040)
   static bool first = true;
@@ -54,10 +45,7 @@ void ArduinoI2CBus::set_pins_and_clock_() {
   wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
 #endif
   if (timeout_ > 0) {  // if timeout specified in yaml
-#if defined(USE_ESP32)
-    // https://github.com/espressif/arduino-esp32/blob/master/libraries/Wire/src/Wire.cpp
-    wire_->setTimeOut(timeout_ / 1000);  // unit: ms
-#elif defined(USE_ESP8266)
+#if defined(USE_ESP8266)
     // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
     wire_->setClockStretchLimit(timeout_);  // unit: us
 #elif defined(USE_RP2040)
@@ -76,9 +64,7 @@ void ArduinoI2CBus::dump_config() {
                 "  Frequency: %u Hz",
                 this->sda_pin_, this->scl_pin_, this->frequency_);
   if (timeout_ > 0) {
-#if defined(USE_ESP32)
-    ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
-#elif defined(USE_ESP8266)
+#if defined(USE_ESP8266)
     ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
 #elif defined(USE_RP2040)
     ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
@@ -275,4 +261,4 @@ void ArduinoI2CBus::recover_() {
 }  // namespace i2c
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // defined(USE_ARDUINO) && !defined(USE_ESP32)
