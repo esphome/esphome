@@ -15,6 +15,9 @@ namespace esphome::usb_cdc_acm {
 
 static const char *TAG = "usb_cdc_acm";
 
+static constexpr size_t USB_TX_TASK_STACK_SIZE = 4096;
+static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
+
 // Global component instance for managing USB device
 USBCDCACMComponent *global_usb_cdc_component = nullptr;
 
@@ -146,10 +149,8 @@ void USBCDCACMInstance::setup() {
     return;
   }
 
-  size_t stack_size = 4096;
-  if (esp_log_level_get(TAG) > ESP_LOG_DEBUG) {
-    stack_size = 8192;  // Increase stack size for debug logging
-  }
+  // Use a larger stack size for (very) verbose logging
+  size_t stack_size = esp_log_level_get(TAG) > ESP_LOG_DEBUG ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE;
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
