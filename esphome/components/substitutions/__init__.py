@@ -75,7 +75,7 @@ def _expand_jinja(
     value: str,
     orig_value: str,
     path,
-    context_vars: ChainMap,
+    context_vars: ContextVars,
     strict_undefined: bool,
 ) -> Any:
     if has_jinja(value):
@@ -211,6 +211,11 @@ def _substitute_item(
 
 
 def _push_context(context_vars: ContextVars, vars: dict[str, Any]) -> ContextVars:
+    """Returns a new ContextVars with vars pushed on top.
+    Resolves any substitutions in vars using the existing context_vars.
+    vars is modified in-place to contain the resolved values and
+    sorted in dependency order if not already sorted.
+    """
     unresolved_vars = vars.copy()
     vars.clear()
     context_vars = context_vars.new_child(vars)
@@ -219,12 +224,12 @@ def _push_context(context_vars: ContextVars, vars: dict[str, Any]) -> ContextVar
         for k, value in unresolved_vars.items():
             try:
                 result = _substitute_item(value, [], context_vars, True)
-            except UndefinedError:
+            except UndefinedError:  # try to resolve in next pass
                 new_unresolved_vars[k] = value
                 continue
             vars[k] = value if result is None else result
         if len(unresolved_vars) == len(new_unresolved_vars):
-            vars.update(new_unresolved_vars)
+            vars.update(unresolved_vars)
             break
         unresolved_vars = new_unresolved_vars
     return context_vars
@@ -238,7 +243,7 @@ def do_substitution_pass(
     substitutions = merge_dicts_ordered(
         config.get(CONF_SUBSTITUTIONS, {}), command_line_substitutions or {}
     )
-    with cv.prepend_path("substitutions"):
+    with cv.prepend_path(CONF_SUBSTITUTIONS):
         if not isinstance(substitutions, dict):
             raise cv.Invalid(
                 f"Substitutions must be a key to value mapping, got {type(substitutions)}"
@@ -255,9 +260,8 @@ def do_substitution_pass(
             substitutions[new] = substitutions[old]
             del substitutions[old]
 
-    context_vars: ContextVars = ChainMap()
     if CONF_SUBSTITUTIONS in config:
         config[CONF_SUBSTITUTIONS] = substitutions
         config.move_to_end(CONF_SUBSTITUTIONS, last=False)
-    context_vars = _push_context(context_vars, substitutions)
+    context_vars = _push_context(ContextVars(), substitutions)
     _substitute_item(config, [], context_vars, False)

@@ -16,8 +16,6 @@ import yaml
 from yaml import SafeLoader as PurePythonLoader
 import yaml.constructor
 
-from esphome.const import CONF_DEFAULTS
-
 try:
     from yaml import CSafeLoader as FastestAvailableSafeLoader
 except ImportError:
@@ -25,6 +23,7 @@ except ImportError:
 
 from esphome import core
 from esphome.config_helpers import Extend, Remove
+from esphome.const import CONF_DEFAULTS
 from esphome.core import (
     CORE,
     DocumentRange,
@@ -90,6 +89,9 @@ def make_data_base(
 
 
 class ConfigContext:
+    """Holds substitution vars that should be applied
+    to the tagged node and its children."""
+
     @property
     def vars(self) -> dict[str, Any]:
         return self._context_vars
@@ -100,6 +102,8 @@ class ConfigContext:
 
 
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
+    """Tags a value with context vars that must be applied to it and its children
+    during the substitution pass"""
     if isinstance(value, dict) and CONF_DEFAULTS in value:
         context_vars = {
             **value.pop(CONF_DEFAULTS),
