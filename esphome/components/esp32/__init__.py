@@ -856,7 +856,7 @@ async def to_code(config):
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
     cg.add_platformio_option(
         "board_upload.maximum_size",
-        int(config[CONF_FLASH_SIZE].rstrip("MB")) * 1024 * 1024,
+        int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
     )
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
