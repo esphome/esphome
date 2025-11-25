@@ -147,15 +147,15 @@ The following configuration variables apply to the main `lvgl` component, in ord
 - **widgets** (*Optional*, list): A list of {{< docref "/components/lvgl/widgets" >}} to be drawn on the root display. May not be used if `pages` (below) is configured.
 - **pages** (*Optional*, list): A list of page IDs. Each page acts as a parent for widgets placed on it. May not be used with `widgets` (above). Options for each page:
   - **skip** (*Optional*, boolean): Option to skip this page when navigating between them with [`lvgl.page.next`, `lvgl.page.previous`](#lvgl-page-next-previous-action).
-  - **layout** (*Optional*): See [Layouts](#lvgl-layouts) for details. Defaults to `NONE`.
+  - **layout** (*Optional*): See [Layouts](/components/lvgl/layouts#lvgl-layouts) for details. Defaults to `NONE`.
   - **widgets** (*Optional*, list): A list of {{< docref "/components/lvgl/widgets" >}} to be drawn on the page.
   - All other options from [Style properties](#lvgl-styling) to be applied to this page.
 - **page_wrap** (*Optional*, boolean): Wrap from the last to the first page when navigating between them with [`lvgl.page.next`, `lvgl.page.previous`](#lvgl-page-next-previous-action). Defaults to `true`.
 - **top_layer** (*Optional*, list): A special kind of *Always on Top* page, which acts as a parent for widgets placed on it. It's shown above all the pages, which may be useful for widgets which always need to be visible.
-  - **layout** (*Optional*): See [Layouts](#lvgl-layouts) for details. Defaults to `NONE`.
+  - **layout** (*Optional*): See [Layouts](/components/lvgl/layouts#lvgl-layouts) for details. Defaults to `NONE`.
   - **widgets** (*Optional*, list): A list of {{< docref "/components/lvgl/widgets" >}} to be drawn on the page.
   - All other options from [Style properties](#lvgl-styling) to be applied to this page.
-- **layout** (*Optional*): See [Layouts](#lvgl-layouts) for details. Defaults to `NONE`.
+- **layout** (*Optional*): See [Layouts](/components/lvgl/layouts#lvgl-layouts) for details. Defaults to `NONE`.
 - All other options from [Style properties](#lvgl-styling) to be applied to all widgets directly.
 
 **Example:**
@@ -832,11 +832,11 @@ This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is triggered a
 
 ### `on_draw_start`
 
-This [trigger](#lvgl-automation-triggers) is executed before each LVGL drawing operation.
+This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is executed before each LVGL drawing operation.
 
 ### `on_draw_end`
 
-This [trigger](#lvgl-automation-triggers) is executed after LVGL has completed drawing all updated screen elements. It
+This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is executed after LVGL has completed drawing all updated screen elements. It
 may be used for example to trigger an update of a display component like an e-paper screen that requires the buffer
 to be sent to the display for it to be updated.
 

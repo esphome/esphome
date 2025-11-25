@@ -301,13 +301,13 @@ These should be used to control the fan only, if available.
 These are triggered when the humidity control action is changed by the thermostat controller. It can trigger actions
 to activate humidification **or** dehumidification.
 
-- **humidity_control_dehumidify_action** (*Optional*, [Action](#config-action)): The action to call when
+- **humidity_control_dehumidify_action** (*Optional*, [Action](/automations/actions#config-action)): The action to call when
   dehumidification is required.
 
-- **humidity_control_humidify_action** (*Optional*, [Action](#config-action)): The action to call when
+- **humidity_control_humidify_action** (*Optional*, [Action](/automations/actions#config-action)): The action to call when
   humidification is required.
 
-- **humidity_control_off_action** (*Optional*, [Action](#config-action)): The action to call when
+- **humidity_control_off_action** (*Optional*, [Action](/automations/actions#config-action)): The action to call when
   (de)humidification should stop. This action is **required** when either of the above actions are configured.
 
 ## Advanced Configuration/Behavior
@@ -562,7 +562,7 @@ the range of allowed temperature values in the thermostat component. See {{< doc
   before calling the idle [action](/automations/actions#all-actions). Defaults to 0.5 °C.
 
 - **humidity_hysteresis** (*Optional*, float): The maximum humidity differential (above/below the set point)
-  before calling the respective humidity control [action](#config-action). Defaults to 1%.
+  before calling the respective humidity control [action](/automations/actions#config-action). Defaults to 1%.
 
 > [!NOTE]
 >

@@ -14,12 +14,12 @@ The layout configuration options are applied to any parent widget or page, influ
 The position and size calculated by the layout override the *normal* `x`, `y`, `width`, and `height` settings of the
 children.
 
-Check out [Flex layout positioning](#lvgl-cookbook-flex), [Grid layout positioning](#lvgl-cookbook-grid)
-and [Weather forecast panel](#lvgl-cookbook-weather) in the Cookbook for examples which demonstrate how to automate
+Check out [Flex layout positioning](/cookbook/lvgl#lvgl-cookbook-flex), [Grid layout positioning](/cookbook/lvgl#lvgl-cookbook-grid)
+and [Weather forecast panel](/cookbook/lvgl#lvgl-cookbook-weather) in the Cookbook for examples which demonstrate how to automate
 widget positioning, potentially reducing the size of your device's YAML configuration, and saving you from lots of
 manual calculations.
 
-The `hidden`, `ignore_layout` and `floating` [flags](#lvgl-widget-flags) can be used on widgets to ignore them in layout
+The `hidden`, `ignore_layout` and `floating` [flags](/components/lvgl/widgets#lvgl-widget-flags) can be used on widgets to ignore them in layout
 calculations.
 
 ### Configuration variables
@@ -188,9 +188,9 @@ placement:
 - **grid_cell_row_pos** (*Optional*, int16): Position of the widget, in which row to appear (0 based count).
 - **grid_cell_column_pos** (*Optional*, int16): Position of the widget, in which column to appear (0 based count).
 - **grid_cell_x_align** (*Optional*, string): How to align the widget horizontally within the cell. Can also be applied
-  through [Style properties](#lvgl-styling). Possible options below.
+  through [Style properties](/components/lvgl#lvgl-styling). Possible options below.
 - **grid_cell_y_align** (*Optional*, string): How to align the widget vertically within the cell. Can also be applied
-  through [Style properties](#lvgl-styling). Possible options below.
+  through [Style properties](/components/lvgl#lvgl-styling). Possible options below.
 - **grid_cell_row_span** (*Optional*, int16): How many rows to span across the widget. Defaults to `1`.
 - **grid_cell_column_span** (*Optional*, int16): How many columns to span across the widget. Defaults to `1`.
 
