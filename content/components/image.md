@@ -36,7 +36,7 @@ image:
     type: rgb565
     resize: 200x162
   images:
-    - file: https://esphome.io/images/logo.png
+    - file: https://media.esphome.io/logo/logo.png
       id: esphome_logo
 ```
 

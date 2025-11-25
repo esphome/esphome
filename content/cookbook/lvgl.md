@@ -1223,7 +1223,7 @@ esphome:
     - lvgl.widget.hide: boot_screen
 
 image:
-  - file: https://esphome.io/favicon.ico
+  - file: https://media.esphome.io/logo/logo.png
     id: boot_logo
     resize: 200x200
     type: RGB565
