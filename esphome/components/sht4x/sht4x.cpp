@@ -70,7 +70,7 @@ void SHT4XComponent::setup() {
 void SHT4XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SHT4x:\n"
-                "  Serial number: %08" PRIx32 "\n",
+                "  Serial number: %08" PRIx32,
                 this->serial_number_);
 
   LOG_I2C_DEVICE(this);
