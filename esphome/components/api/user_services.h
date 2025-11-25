@@ -7,7 +7,7 @@
 #include "esphome/core/automation.h"
 #include "api_pb2.h"
 
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 namespace esphome::api {
 
 class UserServiceDescriptor {
@@ -122,4 +122,4 @@ template<typename... Ts> class UserServiceTrigger : public UserServiceBase<Ts...
 };
 
 }  // namespace esphome::api
-#endif  // USE_API_SERVICES
+#endif  // USE_API_USER_DEFINED_ACTIONS

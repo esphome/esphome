@@ -1,4 +1,3 @@
-
 #include "wifi_component.h"
 
 #ifdef USE_WIFI
@@ -15,10 +14,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_pico_w";
+
+// Track previous state for detecting changes
+static bool s_sta_was_connected = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_had_ip = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   if (sta.has_value()) {
@@ -51,7 +53,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
   return ret == 0;
 }
 
-// TODO: The driver doesnt seem to have an API for this
+// TODO: The driver doesn't seem to have an API for this
 bool WiFiComponent::wifi_apply_output_power_(float output_power) { return true; }
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
@@ -219,16 +221,61 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 }
 
 void WiFiComponent::wifi_loop_() {
+  // Handle scan completion
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     ESP_LOGV(TAG, "Scan done");
+#ifdef USE_WIFI_CALLBACKS
+    this->wifi_scan_state_callback_.call(this->scan_result_);
+#endif
+  }
+
+  // Poll for connection state changes
+  // The arduino-pico WiFi library doesn't have event callbacks like ESP8266/ESP32,
+  // so we need to poll the link status to detect state changes
+  auto status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+  bool is_connected = (status == CYW43_LINK_UP);
+
+  // Detect connection state change
+  if (is_connected && !s_sta_was_connected) {
+    // Just connected
+    s_sta_was_connected = true;
+    ESP_LOGV(TAG, "Connected");
+#ifdef USE_WIFI_CALLBACKS
+    this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
+#endif
+  } else if (!is_connected && s_sta_was_connected) {
+    // Just disconnected
+    s_sta_was_connected = false;
+    s_sta_had_ip = false;
+    ESP_LOGV(TAG, "Disconnected");
+#ifdef USE_WIFI_CALLBACKS
+    this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#endif
+  }
+
+  // Detect IP address changes (only when connected)
+  if (is_connected) {
+    bool has_ip = false;
+    // Check for any IP address (IPv4 or IPv6)
+    for (auto addr : addrList) {
+      has_ip = true;
+      break;
+    }
+
+    if (has_ip && !s_sta_had_ip) {
+      // Just got IP address
+      s_sta_had_ip = true;
+      ESP_LOGV(TAG, "Got IP address");
+#ifdef USE_WIFI_CALLBACKS
+      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#endif
+    }
   }
 }
 
 void WiFiComponent::wifi_pre_setup_() {}
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif
 #endif
