@@ -85,11 +85,10 @@ class SensorItemsComparator {
 
 using SensorSet = std::set<SensorItem *, SensorItemsComparator>;
 
-class ModbusCommandItem;
 struct RegisterRange {
   uint16_t start_address;
   ModbusRegisterType register_type;
-  uint8_t register_count;
+  uint16_t register_count;
   uint16_t skip_updates;  // the config value
   SensorSet sensors;      // all sensors of this range
 };
@@ -98,17 +97,17 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
  public:
   /// For compatibility, a constructor for an empty command with no controller connection.
   ModbusCommandItem() = default;
+  ModbusCommandItem(ModbusController &controller, modbus::ModbusClient *parent, uint8_t address)
+      : modbus::ModbusClientDevice(parent, address), controller_(&controller){};
   // constructor creates a read command from a range
-  ModbusCommandItem(ModbusController &controller, modbus::ModbusClient *parent, uint8_t address,
-                    RegisterRange &&range = {})
+  ModbusCommandItem(ModbusController &controller, modbus::ModbusClient *parent, uint8_t address, RegisterRange &&range)
       : modbus::ModbusClientDevice(parent, address),
         sensors(std::move(range.sensors)),
-        register_address(range.start_address),
-        register_count(range.register_count),
         skip_updates(range.skip_updates),
-        function_code(modbus_register_read_function(range.register_type)),
-        register_type(range.register_type),
-        controller_(&controller){};
+        controller_(&controller) {
+    create_client_pdu(this->payload, modbus_register_read_function(range.register_type), range.start_address,
+                      range.register_count);
+  };
   SensorSet sensors;  // all sensors of this range
   /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
@@ -118,15 +117,27 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   void on_modbus_not_sent() override;
   /// called when a modbus timeout occurred
   void on_modbus_no_response() override;
-  uint16_t register_address{0};
-  uint16_t register_count{0};
+  /// extract the register address from payload (only used in log messages)
+  uint16_t register_address() { return get_data<uint16_t>(this->payload, this->raw_payload ? 2 : 1); };
+  /// extract register count from payload (only used in log messages)
+  uint16_t register_count() {
+    if (is_register_type_binary(this->register_type())) {
+      return 1;
+    } else {
+      return get_data<uint16_t>(this->payload, this->raw_payload ? 4 : 3);
+    }
+  }
   uint16_t skip_updates{0};
-  ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
-  ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
+  ModbusFunctionCode function_code() {
+    return static_cast<ModbusFunctionCode>(this->payload[this->raw_payload ? 1 : 0]);
+  };
+  ModbusRegisterType register_type() { return modbus_register_type(this->function_code()); };
   std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
       on_data_func;
+  /// the modbus client pdu
   std::vector<uint8_t> payload = {};
-  bool send();
+  bool raw_payload{false};
+  void send();
 
   /// factory methods
   /** Create modbus read command
@@ -245,8 +256,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   /// Check if the command should be retried based on the max_retries parameter
   bool can_send() { return this->cmd_non_responses_ <= this->max_cmd_retries_; };
   /// Factory method to create a command item for a register range (or default)
-  ModbusCommandItem create_command(RegisterRange &&range = {}) {
+  ModbusCommandItem create_command(RegisterRange &&range) {
     ModbusCommandItem cmd(*this, this->parent_, this->address_, std::move(range));
+    return cmd;
+  };
+  ModbusCommandItem create_command() {
+    ModbusCommandItem cmd(*this, this->parent_, this->address_);
     return cmd;
   };
 
