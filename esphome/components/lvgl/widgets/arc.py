@@ -71,34 +71,34 @@ class ArcType(NumberType):
         )
 
     async def to_code(self, w: Widget, config):
-        if CONF_MIN_VALUE in config:
-            max_value = lv.arc_get_max_value(w.obj)
+        if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
+            max_value = await lv_int.process(config[CONF_MAX_VALUE])
             min_value = await lv_int.process(config[CONF_MIN_VALUE])
             lv.arc_set_range(w.obj, min_value, max_value)
-
-        if CONF_MAX_VALUE in config:
+        elif CONF_MIN_VALUE in config:
+            max_value = lv_expr.arc_get_max_value(w.obj)
+            min_value = await lv_int.process(config[CONF_MIN_VALUE])
+            lv.arc_set_range(w.obj, min_value, max_value)
+        elif CONF_MAX_VALUE in config:
             max_value = await lv_int.process(config[CONF_MAX_VALUE])
-            min_value = lv.arc_get_min_value(w.obj)
+            min_value = lv_expr.arc_get_min_value(w.obj)
             lv.arc_set_range(w.obj, min_value, max_value)
 
-        if CONF_START_ANGLE in config:
-            start = await lv_angle_degrees.process(config[CONF_START_ANGLE])
-            lv.arc_set_bg_start_angle(w.obj, start)
-
-        if CONF_END_ANGLE in config:
-            end = await lv_angle_degrees.process(config[CONF_END_ANGLE])
-            lv.arc_set_bg_end_angle(w.obj, end)
-
-        if CONF_ROTATION in config:
-            rotation = await lv_angle_degrees.process(config[CONF_ROTATION])
-            lv.arc_set_rotation(w.obj, rotation)
-
-        if CONF_MODE in config:
-            lv.arc_set_mode(w.obj, literal(config[CONF_MODE]))
-
-        if CONF_CHANGE_RATE in config:
-            change_rate = await lv_positive_int.process(config[CONF_CHANGE_RATE])
-            lv.arc_set_change_rate(w.obj, change_rate)
+        await w.set_property(
+            CONF_START_ANGLE,
+            await lv_angle_degrees.process(config.get(CONF_START_ANGLE)),
+        )
+        await w.set_property(
+            CONF_END_ANGLE, await lv_angle_degrees.process(config.get(CONF_END_ANGLE))
+        )
+        await w.set_property(
+            CONF_ROTATION, await lv_angle_degrees.process(config.get(CONF_ROTATION))
+        )
+        await w.set_property(CONF_MODE, literal(config.get(CONF_MODE)))
+        await w.set_property(
+            CONF_CHANGE_RATE,
+            await lv_positive_int.process(config.get(CONF_CHANGE_RATE)),
+        )
 
         if CONF_ADJUSTABLE in config:
             if not config[CONF_ADJUSTABLE]:
@@ -108,9 +108,7 @@ class ArcType(NumberType):
                 # For some reason arc does not get automatically added to the default group
                 lv.group_add_obj(lv_expr.group_get_default(), w.obj)
 
-        value = await get_start_value(config)
-        if value is not None:
-            lv.arc_set_value(w.obj, value)
+        await w.set_property(CONF_VALUE, await get_start_value(config))
 
 
 arc_spec = ArcType()
