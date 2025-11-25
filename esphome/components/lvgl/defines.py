@@ -192,9 +192,7 @@ TYPE_FLEX = "flex"
 TYPE_GRID = "grid"
 TYPE_NONE = "none"
 
-DIRECTIONS = LvConstant(
-    "LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP", typename="lv_dir_t"
-)
+DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
 
 LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
     "dejavu_16_persian_hebrew",
@@ -381,15 +379,9 @@ OBJ_FLAGS = (
     "user_4",
 )
 
-ARC_MODES = LvConstant(
-    "LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL", "lv_arc_mode_t"
-)
-BAR_MODES = LvConstant(
-    "LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE", "lv_bar_mode_t"
-)
-SLIDER_MODES = LvConstant(
-    "LV_SLIDER_MODE_", "NORMAL", "SYMMETRICAL", "RANGE", "lv_slider_mode_t"
-)
+ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
+BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
+SLIDER_MODES = LvConstant("LV_SLIDER_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
 
 BUTTONMATRIX_CTRLS = LvConstant(
     "LV_BUTTONMATRIX_CTRL_",
@@ -403,7 +395,6 @@ BUTTONMATRIX_CTRLS = LvConstant(
     "RECOLOR",
     "CUSTOM_1",
     "CUSTOM_2",
-    typename="lv_buttonmatrix_ctrl_t",
 )
 
 LV_BASE_ALIGNMENTS = (
