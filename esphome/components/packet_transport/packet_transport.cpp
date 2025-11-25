@@ -195,7 +195,7 @@ static void add(std::vector<uint8_t> &vec, const char *str) {
 void PacketTransport::setup() {
   this->name_ = App.get_name().c_str();
   if (strlen(this->name_) > 255) {
-    this->status_set_error("Device name exceeds 255 chars");
+    this->status_set_error(LOG_STR("Device name exceeds 255 chars"));
     this->mark_failed();
     return;
   }

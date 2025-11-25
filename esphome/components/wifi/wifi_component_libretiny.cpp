@@ -15,8 +15,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_lt";
 
@@ -288,7 +287,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
-
+#ifdef USE_WIFI_CALLBACKS
+      this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED: {
@@ -314,6 +315,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       }
 
       s_sta_connecting = false;
+#ifdef USE_WIFI_CALLBACKS
+      this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE: {
@@ -335,11 +339,17 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(WiFi.localIP()).c_str(),
                format_ip4_addr(WiFi.gatewayIP()).c_str());
       s_sta_connecting = false;
+#ifdef USE_WIFI_CALLBACKS
+      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       // auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "Got IPv6");
+#ifdef USE_WIFI_CALLBACKS
+      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
@@ -433,6 +443,9 @@ void WiFiComponent::wifi_scan_done_callback_() {
   }
   WiFi.scanDelete();
   this->scan_done_ = true;
+#ifdef USE_WIFI_CALLBACKS
+  this->wifi_scan_state_callback_.call(this->scan_result_);
+#endif
 }
 
 #ifdef USE_WIFI_AP
@@ -493,8 +506,6 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {}
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif  // USE_LIBRETINY
 #endif
