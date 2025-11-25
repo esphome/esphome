@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
 from esphome.components.time import RealTimeClock
@@ -406,6 +408,17 @@ def container_schema(widget_type: WidgetType, extras=None):
     return validator
 
 
+@contextmanager
+def append_path(path):
+    """A contextmanager helper to append a path to all voluptuous errors."""
+    if not isinstance(path, (list, tuple)):
+        path = [path]
+    try:
+        yield
+    except cv.Invalid as e:
+        raise cv.Invalid(str(e), path=path + e.path) from e
+
+
 def any_widget_schema(extras=None):
     """
     Dynamically generate schemas for all possible LVGL widgets. This is what implements the ability to have a list of any kind of
@@ -422,7 +435,10 @@ def any_widget_schema(extras=None):
     def validator(value):
         if isinstance(value, dict):
             # Convert to list
+            isdict = True
             value = [{k: v} for k, v in value.items()]
+        else:
+            isdict = False
         if not isinstance(value, list):
             raise cv.Invalid("Expected a list of widgets")
         result = []
@@ -443,7 +459,9 @@ def any_widget_schema(extras=None):
                 )
             # Apply custom validation
             value = widget_type.validate(value or {})
-            result.append({key: container_validator(value)})
+            path = [key] if isdict else [index, key]
+            with append_path(path):
+                result.append({key: container_validator(value)})
         return result
 
     return validator
