@@ -48,7 +48,7 @@ bool MQTTBackendESP32::initialize_() {
   } else if (this->transport_ == "wss") {
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
     mqtt_cfg_.broker.address.path = this->ws_path_.c_str();
-  } else if (ca_certificate_.has_value()) {
+  } else if (ca_certificate_.has_value() || (cl_certificate_.has_value() && cl_key_.has_value())) {
     // TCP with TLS (legacy SSL configuration)
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
   } else {
@@ -60,11 +60,11 @@ bool MQTTBackendESP32::initialize_() {
   if (ca_certificate_.has_value()) {
     mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
     mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
+  }
 
-    if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
-      mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
-      mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
-    }
+  if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
+    mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
+    mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
   }
 
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
