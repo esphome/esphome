@@ -1,0 +1,11 @@
+esphome:
+  on_boot:
+    then:
+      - cover.close: cover_
+      - wait_until:
+          cover.is_closed: cover_
+      - cover.open: cover_
+
+cover:
+  platform: template
+  id: cover_
