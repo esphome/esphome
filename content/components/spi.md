@@ -154,7 +154,7 @@ spi_device:
 
 - **bit_order** (*Optional*): Set the bit order - choose one of `msb_first` (default) or `lsb_first`.
 - **cs_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin.
-- **release_device** (*Optional*, boolean): For ESP-IDF, release the bus device between transactions. Default isk
+- **release_device** (*Optional*, boolean): For ESP-IDF, release the bus device between transactions. The default is
   `False`. Setting this to `True` will enable more than 6 devices to be connected to hardware SPI buses.
 
 - **interface** (*Optional*): Controls which hardware or software SPI implementation should be used.
