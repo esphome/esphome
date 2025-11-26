@@ -99,7 +99,7 @@ class WaveshareEPaperUpTo8Color : public WaveshareEPaperBase {
   void init_internal_(uint32_t buffer_length);
   void send_buffers_();
   void reset_();
-  virtual void init_color_map_() = 0;
+  virtual void init_color_map() = 0;
 
   static const int NUM_BUFFERS = 20;
   uint8_t *buffers_[NUM_BUFFERS];
@@ -109,12 +109,12 @@ class WaveshareEPaperUpTo8Color : public WaveshareEPaperBase {
 
 class WaveshareEPaper7C : public WaveshareEPaperUpTo8Color {
  protected:
-  virtual void init_color_map_() override;
+  void init_color_map() override;
 };
 
 class WaveshareEPaper6C : public WaveshareEPaperUpTo8Color {
  protected:
-  virtual void init_color_map_() override;
+  void init_color_map() override;
 };
 
 enum WaveshareEPaperTypeAModel {

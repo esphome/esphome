@@ -178,7 +178,7 @@ void WaveshareEPaper::fill(Color color) {
     this->buffer_[i] = fill;
 }
 void WaveshareEPaperUpTo8Color::setup() {
-  this->init_color_map_();
+  this->init_color_map();
   this->init_internal_(this->get_buffer_length_());
   this->setup_pins_();
   this->spi_setup();
@@ -267,12 +267,12 @@ void WaveshareEPaperUpTo8Color::reset_() {
     ESP_LOGW(TAG, "Reset pin not defined!");
   }
 }
-void WaveshareEPaper7C::init_color_map_() {
+void WaveshareEPaper7C::init_color_map() {
   this->color_map_ = {{0x0, Color::BLACK},      {0x1, Color::WHITE},     {0x2, Color(0, 255, 0)},
                       {0x3, Color(0, 0, 255)},  {0x4, Color(255, 0, 0)}, {0x5, Color(255, 255, 0)},
                       {0x6, Color(255, 165, 0)}};
 }
-void WaveshareEPaper6C::init_color_map_() {
+void WaveshareEPaper6C::init_color_map() {
   this->color_map_ = {{0x0, Color::BLACK},     {0x1, Color::WHITE},     {0x2, Color(255, 255, 0)},
                       {0x3, Color(255, 0, 0)}, {0x5, Color(0, 0, 255)}, {0x6, Color(0, 255, 0)}};
 }
