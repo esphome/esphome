@@ -16,7 +16,7 @@ static const uint16_t REG_GET_MAX_COORD = 0x0005;
 static const uint8_t MAX_TOUCHES = 10;
 static const uint8_t MAX_BUTTONS = 6;
 
-struct touch_data_t {
+struct TouchData {
   uint8_t x_h : 6;
   uint8_t reserved_6 : 1;
   uint8_t valid : 1;
@@ -29,7 +29,7 @@ struct touch_data_t {
   uint8_t reserved;
 };
 
-struct adv_info_t {
+struct AdvInfo {
   uint8_t reserved : 2;
   uint8_t with_prox : 1;
   uint8_t with_coord : 1;
@@ -37,7 +37,7 @@ struct adv_info_t {
   uint8_t rst_chip : 1;
 };
 
-struct max_coord_info_t {
+struct MaxCoordInfo {
   uint8_t max_x_h : 6;
   uint8_t reserved_x_7_8 : 2;
   uint8_t max_x_l;
@@ -71,10 +71,10 @@ void ST7123Touchscreen::setup_internal_() {
 }
 
 void ST7123Touchscreen::setup_lazy_() {
-  max_coord_info_t max_coord_info;
+  MaxCoordInfo max_coord_info;
   ESP_LOGD(TAG, "Reading max touch coordinates");
   // no calibration? Attempt to read the max values from the touchscreen.
-  i2c::ErrorCode err = this->read_register16(REG_GET_MAX_COORD, (uint8_t *) &max_coord_info, sizeof(max_coord_info_t));
+  i2c::ErrorCode err = this->read_register16(REG_GET_MAX_COORD, (uint8_t *) &max_coord_info, sizeof(MaxCoordInfo));
   if (err == i2c::ERROR_OK) {
     this->x_raw_max_ = encode_uint16(max_coord_info.max_x_h, max_coord_info.max_x_l);
     this->y_raw_max_ = encode_uint16(max_coord_info.max_y_h, max_coord_info.max_y_l);
@@ -82,7 +82,7 @@ void ST7123Touchscreen::setup_lazy_() {
     if (this->swap_x_y_)
       std::swap(this->x_raw_max_, this->y_raw_max_);
   } else {
-    this->mark_failed("Calibration error");
+    this->mark_failed(LOG_STR("Calibration error"));
   }
 }
 
@@ -95,21 +95,21 @@ void ST7123Touchscreen::update_touches() {
     setup_lazy_();
   }
   i2c::ErrorCode err;
-  touch_data_t touch_data[MAX_TOUCHES];
-  adv_info_t adv_info;
+  TouchData touch_data[MAX_TOUCHES];
+  AdvInfo adv_info;
 
   err = this->read_register16(REG_GET_TOUCH_INFO, (uint8_t *) &adv_info, 1);
   if (err == i2c::ERROR_OK) {
     if (adv_info.with_coord) {
-      err = this->read_register16(REG_GET_TOUCH, (uint8_t *) &touch_data[0], sizeof(touch_data_t) * MAX_TOUCHES);
+      err = this->read_register16(REG_GET_TOUCH, (uint8_t *) &touch_data[0], sizeof(TouchData) * MAX_TOUCHES);
       if (err == i2c::ERROR_OK) {
-        for (size_t i = 0; i < MAX_TOUCHES; i++) {
-          if (!touch_data[i].valid) {
+        for (auto &i : touch_data) {
+          if (!i.valid) {
             continue;
           }
-          uint16_t xpos = encode_uint16(touch_data[i].x_h, touch_data[i].x_l);
-          uint16_t ypos = encode_uint16(touch_data[i].y_h, touch_data[i].y_l);
-          uint16_t id = touch_data[i].area;
+          uint16_t xpos = encode_uint16(i.x_h, i.x_l);
+          uint16_t ypos = encode_uint16(i.y_h, i.y_l);
+          uint16_t id = i.area;
           this->add_raw_touch_position_(id, xpos, ypos);
         }
       }
@@ -129,8 +129,6 @@ void ST7123Touchscreen::update_touches() {
   }
 
   this->skip_update_ = false;  // All error checks passed, send touch events
-
-  return;
 }
 
 void ST7123Touchscreen::dump_config() {
