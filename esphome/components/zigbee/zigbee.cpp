@@ -18,16 +18,12 @@ namespace esphome::zigbee {
 
 ZigbeeComponent *zigbeeC;
 
-device_params_t coord;
-
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size) {
   uint8_t str_len = static_cast<uint8_t>(strlen(str));
   uint8_t zcl_str_size = use_max_size ? max_size : std::min(max_size, str_len);
-
   uint8_t *zcl_str = new uint8_t[zcl_str_size + 1];  // string + length octet
   zcl_str[0] = zcl_str_size;
   memcpy(zcl_str + 1, str, str_len);
-
   return zcl_str;
 }
 
@@ -41,12 +37,6 @@ void ZigbeeComponent::set_report(ZigbeeAttribute *attribute, esp_zb_zcl_reportin
   this->reporting_list.push_back(std::make_tuple(attribute, reporting_info));
 }
 
-void ZigbeeComponent::report() {
-  for (const auto &[attribute, _] : zigbeeC->reporting_list) {
-    attribute->report();
-  }
-}
-
 void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
   static uint8_t steering_retry_count = 0;
   uint32_t *p_sg_p = signal_struct->p_app_signal;
@@ -55,15 +45,11 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
   esp_zb_zdo_signal_leave_params_t *leave_params = NULL;
   switch (sig_type) {
     case ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP:
-      // Notifies the application that ZBOSS framework (scheduler, buffer pool, etc.) has started, but no
-      // join/rejoin/formation/BDB initialization has been done yet.
       ESP_LOGD(TAG, "Zigbee stack initialized");
       esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_INITIALIZATION);
       break;
     case ESP_ZB_BDB_SIGNAL_DEVICE_FIRST_START:
-      // Device started for the first time after the NVRAM erase
     case ESP_ZB_BDB_SIGNAL_DEVICE_REBOOT:
-      // Device started using the NVRAM contents.
       if (err_status == ESP_OK) {
         ESP_LOGD(TAG, "Device started up in %sfactory-reset mode", esp_zb_bdb_is_factory_new() ? "" : "non ");
         zigbeeC->started_ = true;
@@ -83,7 +69,6 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
       }
       break;
     case ESP_ZB_BDB_SIGNAL_STEERING:
-      // BDB network steering completed (Network steering only)
       if (err_status == ESP_OK) {
         steering_retry_count = 0;
         ESP_LOGI(TAG, "Joined network successfully (PAN ID: 0x%04hx, Channel:%d)", esp_zb_get_pan_id(),
@@ -104,10 +89,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
     case ESP_ZB_ZDO_SIGNAL_LEAVE:
       leave_params = (esp_zb_zdo_signal_leave_params_t *) esp_zb_app_signal_get_params(p_sg_p);
       if (leave_params->leave_type == ESP_ZB_NWK_LEAVE_TYPE_RESET) {
-        ESP_LOGD(TAG, "Reset device");
         esp_zb_factory_reset();
-      } else {
-        ESP_LOGD(TAG, "Leave_type: %u", leave_params->leave_type);
       }
       break;
     default:
@@ -117,24 +99,16 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
   }
 }
 
-// Recall bounded devices from the binding table after reboot
 void ZigbeeComponent::binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx) {
   bool done = true;
   esp_zb_zdo_mgmt_bind_param_t *req = (esp_zb_zdo_mgmt_bind_param_t *) user_ctx;
   esp_zb_zdp_status_t zdo_status = (esp_zb_zdp_status_t) table_info->status;
-  ESP_LOGD(TAG, "Binding table callback for address 0x%04x with status %d", req->dst_addr, zdo_status);
   if (zdo_status == ESP_ZB_ZDP_STATUS_SUCCESS) {
-    // Print binding table log simple
-    ESP_LOGD(TAG, "Binding table info: total %d, index %d, count %d", table_info->total, table_info->index,
-             table_info->count);
-
     if (table_info->total == 0) {
-      ESP_LOGD(TAG, "No binding table entries found");
       free(req);
       zigbeeC->connected_ = true;
       return;
     }
-
     esp_zb_zdo_binding_table_record_t *record = table_info->record;
     for (int i = 0; i < table_info->count; i++) {
       ESP_LOGD(TAG, "Binding table record: src_endp %d, dst_endp %d, cluster_id 0x%04x, dst_addr_mode %d",
@@ -149,10 +123,7 @@ void ZigbeeComponent::binding_table_cb(const esp_zb_zdo_binding_table_info_t *ta
       }
       record = record->next;
     }
-
-    // Continue reading the binding table
     if (table_info->index + table_info->count < table_info->total) {
-      /* There are unreported binding table entries, request for them. */
       req->start_index = table_info->index + table_info->count;
       esp_zb_zdo_binding_table_req(req, binding_table_cb, req);
       done = false;
@@ -160,8 +131,6 @@ void ZigbeeComponent::binding_table_cb(const esp_zb_zdo_binding_table_info_t *ta
   }
 
   if (done) {
-    // Print bound devices
-    ESP_LOGD(TAG, "Filling bounded devices finished");
     free(req);
     zigbeeC->connected_ = true;
   }
@@ -171,13 +140,11 @@ void ZigbeeComponent::search_bindings() {
   esp_zb_zdo_mgmt_bind_param_t *mb_req = (esp_zb_zdo_mgmt_bind_param_t *) malloc(sizeof(esp_zb_zdo_mgmt_bind_param_t));
   mb_req->dst_addr = esp_zb_get_short_address();
   mb_req->start_index = 0;
-  ESP_LOGD(TAG, "Requesting binding table for address 0x%04x", mb_req->dst_addr);
   esp_zb_zdo_binding_table_req(mb_req, binding_table_cb, (void *) mb_req);
 }
 
 static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message) {
   esp_err_t ret = ESP_OK;
-
   ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
   ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG,
                       "Received message: error status(%d)", message->info.status);
@@ -193,11 +160,8 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
     case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
       ret = zb_attribute_handler((esp_zb_zcl_set_attr_value_message_t *) message);
       break;
-    case ESP_ZB_CORE_CMD_DEFAULT_RESP_CB_ID:
-      ESP_LOGD(TAG, "Receive Zigbee default response callback");
-      break;
     default:
-      ESP_LOGW(TAG, "Receive Zigbee action(0x%x) callback", callback_id);
+      ESP_LOGD(TAG, "Receive Zigbee action(0x%x) callback", callback_id);
       break;
   }
   return ret;
@@ -218,12 +182,10 @@ void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, esp_zb_ha_stan
 
 void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role) {
   esp_zb_attribute_list_t *attr_list;
-  switch (cluster_id) {
-    case 0:
-      attr_list = create_basic_cluster_();
-      break;
-    default:
-      attr_list = esphome_zb_default_attr_list_create(cluster_id);
+  if (cluster_id == 0) {
+    attr_list = create_basic_cluster_();
+  } else {
+    attr_list = esphome_zb_default_attr_list_create(cluster_id);
   }
   this->attribute_list_[{endpoint_id, cluster_id, role}] = attr_list;
 }
@@ -237,13 +199,11 @@ void ZigbeeComponent::set_basic_cluster(std::string model, std::string manufactu
 }
 
 esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
-  // ------------------------------ Cluster BASIC ------------------------------
   esp_zb_basic_cluster_cfg_t basic_cluster_cfg = {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
       .power_source = 0,
   };
-  uint8_t *ManufacturerName = get_zcl_string(this->basic_cluster_data_.manufacturer.c_str(),
-                                             32);  // warning: this is in format {length, 'string'} :
+  uint8_t *ManufacturerName = get_zcl_string(this->basic_cluster_data_.manufacturer.c_str(), 32);
   uint8_t *ModelIdentifier = get_zcl_string(this->basic_cluster_data_.model.c_str(), 32);
   uint8_t *DateCode = get_zcl_string(this->basic_cluster_data_.date.c_str(), 16);
   esp_zb_attribute_list_t *attr_list = esp_zb_basic_cluster_create(&basic_cluster_cfg);
@@ -258,7 +218,6 @@ esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
 
 esp_err_t ZigbeeComponent::create_endpoint(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id) {
   esp_zb_cluster_list_t *esp_zb_cluster_list = this->cluster_list_[endpoint_id];
-  // ------------------------------ Create endpoint list ------------------------------
   esp_zb_endpoint_config_t endpoint_config = {.endpoint = endpoint_id,
                                               .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
                                               .app_device_id = device_id,
@@ -292,9 +251,8 @@ void ZigbeeComponent::setup() {
     return;
   }
 
-  /* initialize Zigbee stack */
   esp_zb_zed_cfg_t zb_zed_cfg = {
-      .ed_timeout = ED_AGING_TIMEOUT,
+      .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
       .keep_alive = ED_KEEP_ALIVE,
   };
   esp_zb_zczr_cfg_t zb_zczr_cfg = {
@@ -302,7 +260,7 @@ void ZigbeeComponent::setup() {
   };
   esp_zb_cfg_t zb_nwk_cfg = {
       .esp_zb_role = this->device_role_,
-      .install_code_policy = INSTALLCODE_POLICY_ENABLE,
+      .install_code_policy = false,
   };
 #ifdef ZB_ROUTER_ROLE
   zb_nwk_cfg.nwk_cfg.zczr_cfg = zb_zczr_cfg;
@@ -312,8 +270,6 @@ void ZigbeeComponent::setup() {
   esp_zb_init(&zb_nwk_cfg);
 
   esp_err_t ret;
-
-  // clusters
   for (auto const &[key, val] : this->attribute_list_) {
     esp_zb_cluster_list_t *esp_zb_cluster_list = this->cluster_list_[std::get<0>(key)];
     ret = esphome_zb_cluster_list_add_or_update_cluster(std::get<1>(key), esp_zb_cluster_list, val, std::get<2>(key));
@@ -323,15 +279,12 @@ void ZigbeeComponent::setup() {
     }
   }
 
-  // endpoints
   for (auto const &[ep_id, dev_id] : this->endpoint_list_) {
-    // create_default_cluster(key, val);
     if (create_endpoint(ep_id, dev_id) != ESP_OK) {
       ESP_LOGE(TAG, "Could not create endpoint %u", ep_id);
     }
   }
 
-  // ------------------------------ Register Device ------------------------------
   if (esp_zb_device_register(this->esp_zb_ep_list_) != ESP_OK) {
     ESP_LOGE(TAG, "Could not register the endpoint list");
     this->mark_failed();
@@ -340,15 +293,12 @@ void ZigbeeComponent::setup() {
 
   esp_zb_core_action_handler_register(zb_action_handler);
 
-  if (esp_zb_set_primary_network_channel_set(ESP_ZB_PRIMARY_CHANNEL_MASK) != ESP_OK) {
+  if (esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK) != ESP_OK) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     this->mark_failed();
     return;
   }
-
-  // reporting
   for (auto &[_, reporting_info] : this->reporting_list) {
-    ESP_LOGD(TAG, "set reporting for cluster: %u", reporting_info.cluster_id);
     if (esp_zb_zcl_update_reporting_info(&reporting_info) != ESP_OK) {
       ESP_LOGE(TAG, "Could not configure reporting for attribute 0x%04X in cluster 0x%04X in endpoint %u",
                reporting_info.attr_id, reporting_info.cluster_id, reporting_info.ep);

@@ -31,26 +31,20 @@ class ZigbeeAttribute : public Component {
         scale_(scale),
         max_size_(max_size) {}
   void loop() override;
-
   template<typename T> void add_attr(uint8_t attr_access, T value);
-  void set_report(bool force);
-  void report();
   template<typename T> void set_attr(const T &value);
-
   uint8_t attr_type() { return attr_type_; }
-
+  void set_report(bool force);
   void add_on_value_callback(std::function<void(esp_zb_zcl_attribute_t attribute)> callback) {
     on_value_callback_.add(std::move(callback));
   }
   void on_value(esp_zb_zcl_attribute_t attribute) { this->on_value_callback_.call(attribute); }
-
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
 #endif
 
  protected:
   void set_attr_();
-  void report_();
   void report_(bool has_lock);
   ZigbeeComponent *zb_;
   uint8_t endpoint_id_;
@@ -73,28 +67,12 @@ template<typename T> void ZigbeeAttribute::add_attr(uint8_t attr_access, T value
 }
 
 template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
-  if constexpr (std::is_convertible<T, const char *>::value) {
-    auto zcl_str = get_zcl_string(value, this->max_size_);
-
-    if (this->value_p_ != nullptr) {
-      delete[](char *) this->value_p_;
-    }
-    this->value_p_ = (void *) zcl_str;
-  } else if constexpr (std::is_same<T, std::string>::value) {
-    auto zcl_str = get_zcl_string(value.c_str(), this->max_size_);
-
-    if (this->value_p_ != nullptr) {
-      delete[](char *) this->value_p_;
-    }
-    this->value_p_ = (void *) zcl_str;
-  } else {
-    if (this->value_p_ != nullptr) {
-      delete (T *) this->value_p_;
-    }
-    T *value_p = new T;
-    *value_p = value;
-    this->value_p_ = (void *) value_p;
+  if (this->value_p_ != nullptr) {
+    delete (T *) this->value_p_;
   }
+  T *value_p = new T;
+  *value_p = value;
+  this->value_p_ = (void *) value_p;
   this->set_attr_requested_ = true;
   this->enable_loop();
 }

@@ -24,11 +24,10 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WIFI,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
 import esphome.final_validate as fv
 
 from .const import (
-    CONF_ACCESS,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
@@ -45,7 +44,7 @@ from .const import (
     ZigbeeAttribute,
     ZigbeeComponent,
 )
-from .zigbee_const import ATTR_ACCESS, ATTR_TYPE, CLUSTER_ID, CLUSTER_ROLE, DEVICE_ID
+from .zigbee_const import ATTR_TYPE, CLUSTER_ID, CLUSTER_ROLE, DEVICE_ID
 from .zigbee_ep import create_ep, ep_configs
 
 CODEOWNERS = ["@luar123"]
@@ -60,35 +59,23 @@ def get_c_size(bits, options):
 def get_c_type(attr_type):
     if attr_type == "BOOL":
         return cg.bool_
-    if attr_type == "SINGLE":
-        return cg.float_
-    if attr_type == "DOUBLE":
-        return cg.double
     if "STRING" in attr_type:
         return cg.std_string
     test = re.match(r"(^U?)(\d{1,2})(BITMAP$|BIT$|BIT_ENUM$|$)", attr_type)
     if test and test.group(2):
         return getattr(cg, "uint" + get_c_size(test.group(2), [8, 16, 32, 64]))
-    test = re.match(r"^S(\d{1,2})$", attr_type)
-    if test and test.group(1):
-        return getattr(cg, "int" + get_c_size(test.group(1), [16, 32, 64]))
-    raise EsphomeError(f"Zigbee: type {attr_type} not supported or implemented")
+    return None
 
 
 def get_cv_by_type(attr_type):
     if attr_type == "BOOL":
         return cv.boolean
-    if attr_type in ["SEMI", "SINGLE", "DOUBLE"]:
-        return cv.float_
     if "STRING" in attr_type:
         return cv.string
     test = re.match(r"(^U?)(\d{1,2})(BITMAP$|BIT$|BIT_ENUM$|$)", attr_type)
     if test and test.group(2):
         return cv.positive_int
-    test = re.match(r"^S(\d{1,2})$", attr_type)
-    if test and test.group(1):
-        return cv.int_
-    raise cv.Invalid(f"Zigbee: type {attr_type} not supported or implemented")
+    return None
 
 
 def get_default_by_type(attr_type):
@@ -99,44 +86,10 @@ def get_default_by_type(attr_type):
     return 0
 
 
-def validate_clusters(config):
-    for attr in config.get(CONF_ATTRIBUTES):
-        if (
-            isinstance(config.get(CONF_ID), int)
-            and config.get(CONF_ID) >= 0xFC00
-            and not {CONF_TYPE, CONF_ACCESS, CONF_VALUE} <= attr.keys()
-        ):
-            raise cv.Invalid(
-                f"Parameters {CONF_TYPE}, {CONF_VALUE} and {CONF_ACCESS} are need for custom cluster."
-            )
-    return config
-
-
-def validate_string_attributes(config):
-    if config[CONF_TYPE] == "CHAR_STRING":
-        if CONF_MAX_LENGTH not in config:
-            raise cv.Invalid(
-                f"The '{CONF_MAX_LENGTH}' parameter is mandatory for string attributes."
-            )
-
-        # Check that size of default value matches CONF_MAX_LENGTH
-        if len(config[CONF_VALUE]) > config[CONF_MAX_LENGTH]:
-            raise cv.Invalid(
-                "The default value is larger than the maximum length of the string attribute."
-            )
-    return config
-
-
 def validate_attributes(config):
     if CONF_VALUE not in config:
         config[CONF_VALUE] = get_default_by_type(config[CONF_TYPE])
     config[CONF_VALUE] = get_cv_by_type(config[CONF_TYPE])(config[CONF_VALUE])
-    config[CONF_ACCESS] = (
-        ATTR_ACCESS[config[CONF_ACCESS]] + config[CONF_REPORT] * 4
-        if CONF_ACCESS in config
-        else 0
-    )
-    validate_string_attributes(config)
 
     return config
 
@@ -233,12 +186,7 @@ async def attributes_to_code(var, ep_num, cl):
         )
         await cg.register_component(attr_var, attr)
 
-        cg.add(
-            attr_var.add_attr(
-                attr[CONF_ACCESS],
-                attr[CONF_VALUE],
-            )
-        )
+        cg.add(attr_var.add_attr(0, attr[CONF_VALUE]))
         if CONF_REPORT in attr and attr[CONF_REPORT]:
             cg.add(attr_var.set_report(attr[CONF_REPORT] == REPORT["force"]))
 

@@ -48,12 +48,8 @@ enum ZigbeeReportT {
 };
 
 /* Zigbee configuration */
-#define INSTALLCODE_POLICY_ENABLE false /* enable the install code policy for security */
-#define ED_AGING_TIMEOUT ESP_ZB_ED_AGING_TIMEOUT_64MIN
 static const uint16_t ED_KEEP_ALIVE = 3000; /* 3000 millisecond */
 static const uint8_t MAX_CHILDREN = 10;
-#define ESP_ZB_PRIMARY_CHANNEL_MASK \
-  ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK /* Zigbee primary channel mask use in the example */
 
 #define ESP_ZB_DEFAULT_RADIO_CONFIG() \
   { .radio_mode = ZB_RADIO_MODE_NATIVE, }
@@ -64,7 +60,6 @@ static const uint8_t MAX_CHILDREN = 10;
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = false);
 
 class ZigbeeAttribute;
-class ZigbeeTime;
 
 class ZigbeeComponent : public Component {
  public:
@@ -89,7 +84,6 @@ class ZigbeeComponent : public Component {
     esp_zb_factory_reset();
     esp_zb_lock_release();
   }
-  void report();
 
   bool is_started() { return this->started_; }
   bool is_connected() { return this->connected_; }
@@ -121,7 +115,6 @@ class ZigbeeComponent : public Component {
 };
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
-extern "C" void zb_set_ed_node_descriptor(bool power_src, bool rx_on_when_idle, bool alloc_addr);
 
 template<typename T>
 void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,

@@ -6,12 +6,7 @@
 #include "zigbee_helpers.h"
 
 esp_zb_cluster_list_t *esphome_zb_default_clusters_create(esp_zb_ha_standard_devices_t device_type) {
-  esp_zb_cluster_list_t *cluster_list;
-
-  // create empty cluster list;
-  cluster_list = esp_zb_zcl_cluster_list_create();
-
-  return cluster_list;
+  return esp_zb_zcl_cluster_list_create();
 }
 
 esp_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, esp_zb_attribute_list_t *attr_list,
@@ -21,11 +16,7 @@ esp_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, esp_zb_attr
   ret = esp_zb_cluster_update_attr(attr_list, attr_id, value_p);
   if (ret != ESP_OK) {
     ESP_LOGE("zigbee_helper", "Ignore previous attribute not found error");
-    if (attr_access > 0) {
-      ret = esp_zb_cluster_add_attr(attr_list, cluster_id, attr_id, attr_type, attr_access, value_p);
-    } else {
-      ret = esphome_zb_cluster_add_attr(cluster_id, attr_list, attr_id, value_p);
-    }
+    ret = esphome_zb_cluster_add_attr(cluster_id, attr_list, attr_id, value_p);
   }
   if (ret != ESP_OK) {
     ESP_LOGE("zigbee_helper", "Could not add attribute 0x%04X to cluster 0x%04X: %s", attr_id, cluster_id,

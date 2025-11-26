@@ -21,12 +21,9 @@ void ZigbeeAttribute::set_attr_() {
     if (state != ESP_ZB_ZCL_STATUS_SUCCESS) {
       ESP_LOGE(TAG, "Setting attribute failed: %s", esp_err_to_name(state));
     }
-    ESP_LOGD(TAG, "Attribute set!");
     esp_zb_lock_release();
   }
 }
-
-void ZigbeeAttribute::report_() { this->report_(false); }
 
 void ZigbeeAttribute::report_(bool has_lock) {
   if (!this->zb_->is_connected()) {
@@ -40,7 +37,6 @@ void ZigbeeAttribute::report_(bool has_lock) {
     cmd.zcl_basic_cmd.dst_addr_u.addr_short = 0x0000;
     cmd.zcl_basic_cmd.dst_endpoint = 1;
     cmd.zcl_basic_cmd.src_endpoint = this->endpoint_id_;
-
     cmd.clusterID = this->cluster_id_;
     cmd.attributeID = this->attr_id_;
 
@@ -73,21 +69,12 @@ void ZigbeeAttribute::set_report(bool force) {
   this->force_report_ = force;
 }
 
-void ZigbeeAttribute::report() {
-  this->report_requested_ = true;
-  this->enable_loop();
-}
-
 void ZigbeeAttribute::loop() {
   if (this->set_attr_requested_) {
     this->set_attr_();
   }
 
-  if (this->report_requested_) {
-    this->report_();
-  }
-
-  if (!this->report_requested_ && !this->set_attr_requested_) {
+  if (!this->set_attr_requested_) {
     this->disable_loop();
   }
 }
