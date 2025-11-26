@@ -155,19 +155,31 @@ def test_package_include(basic_wifi, basic_esphome):
     assert actual == expected
 
 
-def test_single_package(basic_esphome, basic_wifi):
+def test_single_package(
+    basic_esphome,
+    basic_wifi,
+    caplog: pytest.LogCaptureFixture,
+):
     """
     Tests the simple case where a single package is added to the top-level config as is.
     In this test, the CONF_WIFI config is expected to be simply added to the top-level config.
     This tests the case where the user just put packages: !include package.yaml, not
     part of a list or mapping of packages.
+    This behavior is deprecated, the test also checks if a warning is issued.
     """
     config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: {CONF_WIFI: basic_wifi}}
 
     expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
 
-    actual = packages_pass(config)
+    with caplog.at_level("WARNING"):
+        actual = packages_pass(config)
+
     assert actual == expected
+
+    assert (
+        "Including a single package under `packages:` is deprecated. Use a list instead."
+        in caplog.text
+    )
 
 
 def test_package_append(basic_wifi, basic_esphome):
