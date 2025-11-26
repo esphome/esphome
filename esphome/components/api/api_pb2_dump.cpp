@@ -66,7 +66,7 @@ static void dump_field(std::string &out, const char *field_name, float value, in
 static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%llu", value);
+  snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 
@@ -206,7 +206,7 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "UNKNOWN";
   }
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
     case enums::SERVICE_ARG_TYPE_BOOL:
@@ -924,7 +924,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "min_mireds", this->min_mireds);
   dump_field(out, "max_mireds", this->max_mireds);
-  for (const auto &it : this->effects) {
+  for (const auto &it : *this->effects) {
     dump_field(out, "effects", it, 4);
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
@@ -1177,7 +1177,7 @@ void GetTimeResponse::dump_to(std::string &out) const {
   out.append(format_hex_pretty(this->timezone, this->timezone_len));
   out.append("\n");
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesArgument");
   dump_field(out, "name", this->name_ref_);

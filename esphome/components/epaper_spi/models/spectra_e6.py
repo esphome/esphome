@@ -32,11 +32,15 @@ class SpectraE6(EpaperModel):
 
 spectra_e6 = SpectraE6("spectra-e6")
 
-spectra_e6.extend(
-    "Seeed-reTerminal-E1002",
+spectra_e6_7p3 = spectra_e6.extend(
+    "7.3in-Spectra-E6",
     width=800,
     height=480,
     data_rate="20MHz",
+)
+
+spectra_e6_7p3.extend(
+    "Seeed-reTerminal-E1002",
     cs_pin=10,
     dc_pin=11,
     reset_pin=12,
