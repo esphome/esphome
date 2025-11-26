@@ -104,6 +104,8 @@ esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/cm1106/* @andrewjswan
 esphome/components/coap_client/* @rwrozelle
+esphome/components/coap_client/ota/* @rwrozelle
+esphome/components/coap_client/update/* @rwrozelle
 esphome/components/color_temperature/* @jesserockz
 esphome/components/combination/* @Cat-Ion @kahrendt
 esphome/components/const/* @esphome/core
