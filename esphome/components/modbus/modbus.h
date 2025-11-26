@@ -46,7 +46,7 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t last_send_tx_offset_{0};
   uint16_t frame_delay_ms_{5};
   uint16_t long_rx_buffer_delay_ms_{0};
-  uint16_t turnaround_delay_ms_{0};  // This is only used by ModbusClient. Servers respond immediately.
+  uint16_t turnaround_delay_ms_{0};  // This is only used by ModbusClientHub. Servers respond immediately.
 
   GPIOPin *flow_control_pin_{nullptr};
 
@@ -61,9 +61,9 @@ struct ModbusDeviceCommand {
   std::vector<uint8_t> frame;
 };
 
-class ModbusClient : public Modbus {
+class ModbusClientHub : public Modbus {
  public:
-  ModbusClient() = default;
+  ModbusClientHub() = default;
   void dump_config() override;
   void loop() override;
   void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
@@ -90,9 +90,9 @@ class ModbusClient : public Modbus {
   std::deque<ModbusDeviceCommand> tx_buffer_;
 };
 
-class ModbusServer : public Modbus {
+class ModbusServerHub : public Modbus {
  public:
-  ModbusServer() = default;
+  ModbusServerHub() = default;
   void dump_config() override;
   void send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload);
   void send_raw(const std::vector<uint8_t> &payload);
@@ -110,9 +110,9 @@ class ModbusServer : public Modbus {
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
-  ModbusClientDevice(ModbusClient *parent, uint8_t address) : parent_(parent), address_(address) {}
+  ModbusClientDevice(ModbusClientHub *parent, uint8_t address) : parent_(parent), address_(address) {}
   virtual ~ModbusClientDevice() { this->clear_tx_queue_for_device(); }
-  void set_parent(ModbusClient *parent) { parent_ = parent; }
+  void set_parent(ModbusClientHub *parent) { parent_ = parent; }
   void set_address(uint8_t address) { address_ = address; }
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
@@ -132,7 +132,7 @@ class ModbusClientDevice {
   bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
 
  protected:
-  ModbusClient *parent_;
+  ModbusClientHub *parent_;
   uint8_t address_;
 };
 
@@ -142,8 +142,8 @@ class ModbusDevice : public ModbusClientDevice {};
 class ModbusServerDevice {
  public:
   ModbusServerDevice() = default;
-  ModbusServerDevice(ModbusServer *parent, uint8_t address) : parent_(parent), address_(address) {}
-  void set_parent(ModbusServer *parent) { parent_ = parent; }
+  ModbusServerDevice(ModbusServerHub *parent, uint8_t address) : parent_(parent), address_(address) {}
+  void set_parent(ModbusServerHub *parent) { parent_ = parent; }
   void set_address(uint8_t address) { address_ = address; }
   virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
   virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
@@ -161,9 +161,9 @@ class ModbusServerDevice {
   }
 
  protected:
-  friend ModbusServer;
+  friend ModbusServerHub;
 
-  ModbusServer *parent_;
+  ModbusServerHub *parent_;
   uint8_t address_;
 };
 

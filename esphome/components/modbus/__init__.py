@@ -14,8 +14,8 @@ DEPENDENCIES = ["uart"]
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
-ModbusServer = modbus_ns.class_("ModbusServer", Modbus)
-ModbusClient = modbus_ns.class_("ModbusClient", Modbus)
+ModbusServer = modbus_ns.class_("ModbusServerHub", Modbus)
+ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
