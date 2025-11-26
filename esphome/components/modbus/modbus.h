@@ -58,6 +58,7 @@ class ModbusServerDevice;
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   std::vector<uint8_t> frame;
+  bool interrupted{false};
 };
 
 class ModbusClientHub : public Modbus {
@@ -69,9 +70,9 @@ class ModbusClientHub : public Modbus {
   void set_turnaround_time(uint16_t time_in_ms) { turnaround_delay_ms_ = time_in_ms; }
   bool tx_buffer_empty();
   bool tx_blocked() override;
-  void send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
-            uint16_t number_of_entities);
-  void send_raw(ModbusClientDevice *device, const std::vector<uint8_t> &payload);
+  void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
+            ModbusClientDevice *device = nullptr);
+  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -118,14 +119,14 @@ class ModbusClientDevice {
   virtual void on_modbus_not_sent() {}
   virtual void on_modbus_no_response() {}
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities) {
-    this->parent_->send(this, this->address_, function, start_address, number_of_entities);
+    this->parent_->send(this->address_, function, start_address, number_of_entities, this);
   }
   void send_pdu(const std::vector<uint8_t> &pdu) {
     std::vector<uint8_t> payload = pdu;
     payload.insert(payload.begin(), {this->address_});
-    this->parent_->send_raw(this, payload);
+    this->parent_->send_raw(payload, this);
   }
-  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(this, payload); }
+  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
   }

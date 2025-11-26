@@ -245,23 +245,30 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
   } else {  // We are waiting for a response
     // Check if the response matches the expected address and function code
 
-    uint8_t expected_address = this->waiting_for_response_.value().frame[0];
-    uint8_t expected_function_code = this->waiting_for_response_.value().frame[1];
+    ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+    uint8_t expected_address = wfr.frame[0];
+    uint8_t expected_function_code = wfr.frame[1];
     if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
       ESP_LOGW(TAG, "Received incorrect frame address %d <> %d or function code 0x%X <> 0x%X, %dms after last send",
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
                this->last_modbus_byte_ - this->last_send_);
       // Invalidate the waiting device so it won't process this response.
-      this->waiting_for_response_.value().device->on_modbus_no_response();
-      this->waiting_for_response_.value().device = nullptr;
+      if (wfr.device)
+        wfr.device->on_modbus_no_response();
+      wfr.interrupted = true;
+      wfr.device = nullptr;
       return;
     }
-    ModbusClientDevice *device = this->waiting_for_response_.value().device;
-    if (device == nullptr) {
+
+    if (wfr.interrupted) {
       ESP_LOGW(
           TAG,
           "Ignoring response from %d - transmission interrupted by previous unexpected response, %dms after last send",
           address, this->last_modbus_byte_ - this->last_send_);
+      return;
+    } else if (wfr.device == nullptr) {
+      ESP_LOGV(TAG, "Ignoring response from %d - no callback device set, %dms after last send", address,
+               this->last_modbus_byte_ - this->last_send_);
       return;
     } else {  // We have a valid device waiting for this response
 
@@ -271,10 +278,10 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
         uint8_t exception = data[0];
         ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
                  exception, address, this->last_modbus_byte_ - this->last_send_);
-        device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
+        wfr.device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
 
       } else {  // Not an error response
-        device->on_modbus_data(data);
+        wfr.device->on_modbus_data(data);
       }
     }
   }
@@ -404,14 +411,14 @@ float Modbus::get_setup_priority() const {
   return setup_priority::BUS - 1.0f;
 }
 
-void ModbusClientHub::send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
-                           uint16_t number_of_entities) {
+void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
+                           ModbusClientDevice *device) {
   ESP_LOGVV(TAG, "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d ", address,
             function_code, start_address, number_of_entities);
   std::vector<uint8_t> data;
   data.push_back(address);
   create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities);
-  this->send_raw(device, data);
+  this->send_raw(data, device);
 }
 
 void ModbusServerHub::send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
@@ -421,7 +428,7 @@ void ModbusServerHub::send(uint8_t address, uint8_t function_code, std::vector<u
 
 // Helper function for lambdas
 // Send raw command for client pushes to queue. Except CRC everything must be contained in payload
-void ModbusClientHub::send_raw(ModbusClientDevice *device, const std::vector<uint8_t> &payload) {
+void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
   if (payload.empty()) {
     if (device)
       device->on_modbus_not_sent();
