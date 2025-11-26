@@ -219,12 +219,12 @@ async def to_code(config):
     elif rotation == 270:
         transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
         transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-    transform = "|".join(
+    transform_str = "|".join(
         {
             str(getattr(Transform, x.upper()))
             for x in TRANSFORM_OPTIONS
             if transform.get(x)
         }
     )
-    if transform:
-        cg.add(var.set_transform(RawExpression(transform)))
+    if transform_str:
+        cg.add(var.set_transform(RawExpression(transform_str)))
