@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
-from esphome.core import ID, Lambda
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -20,11 +20,27 @@ from .helpers import requires_component
 LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
-lv_defines = {}  # Dict of #defines to provide as build flags
+DOMAIN = "lvgl"
+KEY_LV_DEFINES = "lv_defines"
+KEY_UPDATED_WIDGETS = "updated_widgets"
+
+
+def get_data(key, default=None):
+    """
+    Get a data structure from the global data store by key
+    :param key: A key for the data
+    :param default: The default data - the default is an empty dict
+    :return:
+    """
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(
+        key, default if default is not None else {}
+    )
 
 
 def add_define(macro, value="1"):
-    if macro in lv_defines and lv_defines[macro] != value:
+    lv_defines = get_data(KEY_LV_DEFINES)
+    value = str(value)
+    if lv_defines.setdefault(macro, value) != value:
         LOGGER.error(
             "Redefinition of %s - was %s now %s", macro, lv_defines[macro], value
         )

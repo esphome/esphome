@@ -48,7 +48,6 @@ from .schemas import (
     any_widget_schema,
     container_schema,
     obj_schema,
-    updated_widgets,
 )
 from .styles import add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
@@ -80,7 +79,6 @@ from .widgets.page import (  # page_spec used in LVGL_SCHEMA
 for module_info in pkgutil.iter_modules(widgets.__path__):
     importlib.import_module(f".widgets.{module_info.name}", package=__package__)
 
-DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]
 AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
@@ -109,7 +107,7 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
-    definitions = [as_macro(m, v) for m, v in df.lv_defines.items()]
+    definitions = [as_macro(m, v) for m, v in df.get_data(df.KEY_LV_DEFINES).items()]
     definitions.sort()
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
@@ -192,7 +190,7 @@ def final_validation(config_list):
                     f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
         # Do per-widget type final validation for update actions
-        for widget_type, update_configs in updated_widgets.items():
+        for widget_type, update_configs in df.get_data(df.KEY_UPDATED_WIDGETS).items():
             for conf in update_configs:
                 for id_conf in conf.get(CONF_ID, ()):
                     name = id_conf[CONF_ID]

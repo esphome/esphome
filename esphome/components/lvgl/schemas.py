@@ -311,9 +311,6 @@ def automation_schema(typ: LvType):
     }
 
 
-updated_widgets = {}
-
-
 def _update_widget(widget_type: WidgetType):
     """
     During validation of update actions, create a map of action types to affected widgets
@@ -323,7 +320,7 @@ def _update_widget(widget_type: WidgetType):
     """
 
     def validator(value):
-        updated_widgets.setdefault(widget_type, []).append(value)
+        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
         return value
 
     return validator
