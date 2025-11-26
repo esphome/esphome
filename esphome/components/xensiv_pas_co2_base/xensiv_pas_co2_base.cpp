@@ -26,7 +26,7 @@ void XensivPasCO2::setup() {
   }
 
   // Schedule sensor initialization after a delay to avoid blocking setup
-  this->set_timeout(XENSIV_PAS_CO2_SOFT_RESET_DELAY_MS, [this]() { XensivPasCO2::setup_sensor_(this); });
+  this->set_timeout(XENSIV_PAS_CO2_SOFT_RESET_DELAY_MS, [this]() { XensivPasCO2::setup_sensor(this); });
 }
 
 void XensivPasCO2::loop() {
@@ -50,7 +50,7 @@ void XensivPasCO2::loop() {
   }
 }
 
-void XensivPasCO2::setup_sensor_(XensivPasCO2 *arg) {
+void XensivPasCO2::setup_sensor(XensivPasCO2 *arg) {
   ESP_LOGCONFIG(TAG, "Starting sensor configuration...");
 
   if (!arg->update_sensor_rate_()) {
@@ -121,7 +121,7 @@ bool XensivPasCO2::test_scratch_register_() {
   return true;
 }
 
-void XensivPasCO2::gpio_intr_(XensivPasCO2 *arg) { arg->data_ready_ = true; }
+void XensivPasCO2::gpio_intr(XensivPasCO2 *arg) { arg->data_ready_ = true; }
 
 bool XensivPasCO2::setup_interrupt_() {
   // Configure interrupt: DRDY function (data ready), active low
@@ -143,7 +143,7 @@ bool XensivPasCO2::setup_interrupt_() {
     this->interrupt_pin_->setup();
     // Input only - sensor has push-pull output (active low)
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
-    this->interrupt_pin_->attach_interrupt(XensivPasCO2::gpio_intr_, this,
+    this->interrupt_pin_->attach_interrupt(XensivPasCO2::gpio_intr, this,
                                            gpio::INTERRUPT_FALLING_EDGE  // Active low interrupt
     );
     ESP_LOGCONFIG(TAG, "  Interrupt GPIO pin configured (active low)");

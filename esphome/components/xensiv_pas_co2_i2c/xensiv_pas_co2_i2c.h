@@ -9,9 +9,9 @@ class XensivPasCO2I2C : public esphome::xensiv_pas_co2_base::XensivPasCO2, publi
  public:
  protected:
   void dump_config() override;
-  virtual bool read_byte(uint8_t reg, uint8_t *data) override;
-  virtual bool read_bytes(uint8_t reg, uint8_t *data, size_t len) override;
-  virtual bool write_byte(uint8_t reg, uint8_t value) override;
+  bool read_byte(uint8_t reg, uint8_t *data) override;
+  bool read_bytes(uint8_t reg, uint8_t *data, size_t len) override;
+  bool write_byte(uint8_t reg, uint8_t value) override;
 };
 
 }  // namespace xensiv_pas_co2_i2c

@@ -66,9 +66,7 @@ async def to_code_base(config):
         cg.add(var.set_pressure_compensation(int(config[CONF_PRESSURE_COMPENSATION])))
 
     if CONF_PRESSURE_COMPENSATION_SOURCE in config:
-        sens = await cg.get_variable(
-            config[CONF_PRESSURE_COMPENSATION_SOURCE], sensor.Sensor
-        )
+        sens = await cg.get_variable(config[CONF_PRESSURE_COMPENSATION_SOURCE])
         cg.add(var.set_pressure_compensation_source(sens))
 
     if CONF_INTERRUPT_PIN in config:
