@@ -16,14 +16,10 @@
 namespace esphome {
 namespace modbus_controller {
 
-class ModbusController;
-
 using modbus::ModbusFunctionCode;
 using modbus::ModbusRegisterType;
 using modbus::ModbusExceptionCode;
 using namespace modbus::helpers;
-
-class ModbusController;
 
 class SensorItem {
  public:
@@ -32,7 +28,7 @@ class SensorItem {
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
   size_t virtual get_register_size() const {
-    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT) {
+    if (is_register_type_binary(register_type)) {
       return 1;
     } else {  // if CONF_RESPONSE_BYTES is used override the default
       return response_bytes > 0 ? response_bytes : register_count * 2;
@@ -92,6 +88,8 @@ struct RegisterRange {
   uint16_t skip_updates;  // the config value
   SensorSet sensors;      // all sensors of this range
 };
+
+class ModbusController;
 
 class ModbusCommandItem : public modbus::ModbusClientDevice {
  public:
