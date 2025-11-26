@@ -690,8 +690,14 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method_equals("turn_on") || match.method_equals("turn_off")) {
-      auto call = match.method_equals("turn_on") ? obj->turn_on() : obj->turn_off();
+    } else {
+      bool is_on = match.method_equals("turn_on");
+      bool is_off = match.method_equals("turn_off");
+      if (!is_on && !is_off) {
+        request->send(404);
+        return;
+      }
+      auto call = is_on ? obj->turn_on() : obj->turn_off();
 
       parse_int_param_(request, "speed_level", call, &decltype(call)::set_speed);
 
@@ -715,8 +721,6 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       }
       this->defer([call]() mutable { call.perform(); });
       request->send(200);
-    } else {
-      request->send(404);
     }
     return;
   }
@@ -766,32 +770,35 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method_equals("turn_on")) {
-      auto call = obj->turn_on();
-
-      // Parse color parameters
-      parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
-      parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
-      parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
-      parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
-      parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
-      parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
-
-      // Parse timing parameters
-      parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
-
-      parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
-
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
-    } else if (match.method_equals("turn_off")) {
-      auto call = obj->turn_off();
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
     } else {
-      request->send(404);
+      bool is_on = match.method_equals("turn_on");
+      bool is_off = match.method_equals("turn_off");
+      if (!is_on && !is_off) {
+        request->send(404);
+        return;
+      }
+      auto call = is_on ? obj->turn_on() : obj->turn_off();
+
+      if (is_on) {
+        // Parse color parameters
+        parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
+        parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
+        parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
+        parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
+        parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
+        parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
+
+        // Parse timing parameters
+        parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
+      }
+      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
+
+      if (is_on) {
+        parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
+      }
+
+      this->defer([call]() mutable { call.perform(); });
+      request->send(200);
     }
     return;
   }

@@ -255,6 +255,9 @@ class LightState : public EntityBase, public Component {
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
 
+  /// Disable loop if neither transformer nor effect is active
+  void disable_loop_if_idle_();
+
   /// Store the output to allow effects to have more access.
   LightOutput *output_;
   /// The currently active transformer for this light (transition/flash).

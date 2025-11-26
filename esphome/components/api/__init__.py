@@ -85,6 +85,7 @@ CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
+CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 
 def validate_encryption_key(value):
@@ -537,9 +538,24 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     return var
 
 
-@automation.register_condition("api.connected", APIConnectedCondition, {})
+API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(APIServer),
+        cv.Optional(CONF_STATE_SUBSCRIPTION_ONLY, default=False): cv.templatable(
+            cv.boolean
+        ),
+    }
+)
+
+
+@automation.register_condition(
+    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
+)
 async def api_connected_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
+    var = cg.new_Pvariable(condition_id, template_arg)
+    templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
+    cg.add(var.set_state_subscription_only(templ))
+    return var
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
