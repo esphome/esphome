@@ -476,8 +476,8 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_float(9, this->min_mireds);
   buffer.encode_float(10, this->max_mireds);
-  for (auto &it : this->effects) {
-    buffer.encode_string(11, it, true);
+  for (const char *it : *this->effects) {
+    buffer.encode_string(11, it, strlen(it), true);
   }
   buffer.encode_bool(13, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -499,9 +499,9 @@ void ListEntitiesLightResponse::calculate_size(ProtoSize &size) const {
   }
   size.add_float(1, this->min_mireds);
   size.add_float(1, this->max_mireds);
-  if (!this->effects.empty()) {
-    for (const auto &it : this->effects) {
-      size.add_length_force(1, it.size());
+  if (!this->effects->empty()) {
+    for (const char *it : *this->effects) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->disabled_by_default);
