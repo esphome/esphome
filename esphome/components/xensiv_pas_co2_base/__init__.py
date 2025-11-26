@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
     CONF_ID,
+    CONF_INTERRUPT_PIN,
     DEVICE_CLASS_CARBON_DIOXIDE,
     ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
@@ -13,7 +14,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@michal-gora", "@ederjc", "@jaenrig-ifx"]
 
-CONF_INTERRUPT_PIN = "interrupt_pin"
 CONF_SENSOR_RATE = "sensor_rate"
 CONF_OPERATION_MODE = "operation_mode"
 CONF_PRESSURE_COMPENSATION = "pressure_compensation"
