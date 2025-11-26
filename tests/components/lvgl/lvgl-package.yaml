@@ -560,6 +560,7 @@ lvgl:
                 scroll_snap_y: center
                 scroll_snap_x: start
                 layout: vertical
+                pad_all: 6px
                 row: 0
                 column: 0
                 dir: ALL
@@ -1057,6 +1058,7 @@ lvgl:
                                 opa: 0%
     - id: page3
       layout: Horizontal
+      pad_all: 6px
       widgets:
         - keyboard:
             id: lv_keyboard
