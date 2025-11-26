@@ -854,6 +854,10 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
+    cg.add_platformio_option(
+        "board_upload.maximum_size",
+        int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
+    )
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -881,6 +885,12 @@ async def to_code(config):
     # Set the location of the IDF component manager cache
     os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
         CORE.relative_internal_path(".espressif")
+    )
+
+    add_extra_script(
+        "pre",
+        "pre_build.py",
+        Path(__file__).parent / "pre_build.py.script",
     )
 
     add_extra_script(
@@ -930,6 +940,12 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
         add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
+
+        # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
+        if get_esp32_variant() == VARIANT_ESP32S2:
+            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
+            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=0")
+            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=0")
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
