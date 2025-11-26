@@ -81,7 +81,7 @@ def _expand_jinja(
     if has_jinja(value):
         try:
             # Invoke the jinja engine to evaluate the expression.
-            value, err = jinja.expand(value, context_vars, strict_undefined)
+            value = jinja.expand(value, context_vars, strict_undefined)
         except UndefinedError as err:
             if strict_undefined:
                 raise err

@@ -197,7 +197,7 @@ class Jinja(jinja.Environment):
         finally:
             self.context_trace = old_trace
 
-        return result, None
+        return result
 
 
 class JinjaTemplate(NativeTemplate):
