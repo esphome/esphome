@@ -14,7 +14,7 @@ void BLEBinaryOutput::dump_config() {
                 "  MAC address        : %s\n"
                 "  Service UUID       : %s\n"
                 "  Characteristic UUID: %s",
-                this->parent_->address_str().c_str(), this->service_uuid_.to_string().c_str(),
+                this->parent_->address_str(), this->service_uuid_.to_string().c_str(),
                 this->char_uuid_.to_string().c_str());
   LOG_BINARY_OUTPUT(this);
 }
@@ -44,7 +44,7 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
       ESP_LOGD(TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
-               this->parent()->address_str().c_str());
+               this->parent()->address_str());
       this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }

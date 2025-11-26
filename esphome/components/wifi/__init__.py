@@ -607,6 +607,8 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
+RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
+WIFI_CALLBACKS_KEY = "wifi_callbacks"
 
 
 def request_wifi_scan_results():
@@ -619,13 +621,41 @@ def request_wifi_scan_results():
     CORE.data[KEEP_SCAN_RESULTS_KEY] = True
 
 
+def enable_runtime_power_save_control():
+    """Enable runtime WiFi power save control.
+
+    Components that need to dynamically switch WiFi power saving on/off for latency
+    performance (e.g., audio streaming, large data transfers) should call this
+    function during their code generation. This enables the request_high_performance()
+    and release_high_performance() APIs.
+
+    Only supported on ESP32.
+    """
+    CORE.data[RUNTIME_POWER_SAVE_KEY] = True
+
+
+def request_wifi_callbacks() -> None:
+    """Request that WiFi callbacks be compiled in.
+
+    Components that need to be notified about WiFi state changes (IP address changes,
+    scan results, connection state) should call this function during their code generation.
+    This enables the add_on_ip_state_callback(), add_on_wifi_scan_state_callback(),
+    and add_on_wifi_connect_state_callback() APIs.
+    """
+    CORE.data[WIFI_CALLBACKS_KEY] = True
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
-    """Final code generation step to configure scan result retention."""
+    """Final code generation step to configure optional WiFi features."""
     if CORE.data.get(KEEP_SCAN_RESULTS_KEY, False):
         cg.add(
             cg.RawExpression("wifi::global_wifi_component->set_keep_scan_results(true)")
         )
+    if CORE.data.get(RUNTIME_POWER_SAVE_KEY, False):
+        cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
+    if CORE.data.get(WIFI_CALLBACKS_KEY, False):
+        cg.add_define("USE_WIFI_CALLBACKS")
 
 
 @automation.register_action(

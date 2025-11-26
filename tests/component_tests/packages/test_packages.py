@@ -95,7 +95,7 @@ def test_package_invalid_dict(basic_esphome, basic_wifi):
 
 
 @pytest.mark.parametrize(
-    "package",
+    "packages",
     [
         {"package1": "github://esphome/non-existant-repo/file1.yml@main"},
         {"package2": "github://esphome/non-existant-repo/file1.yml"},
@@ -107,12 +107,12 @@ def test_package_invalid_dict(basic_esphome, basic_wifi):
         ],
     ],
 )
-def test_package_shorthand(package):
-    CONFIG_SCHEMA(package)
+def test_package_shorthand(packages):
+    CONFIG_SCHEMA(packages)
 
 
 @pytest.mark.parametrize(
-    "package",
+    "packages",
     [
         # not github
         {"package1": "someplace://esphome/non-existant-repo/file1.yml@main"},
@@ -133,9 +133,9 @@ def test_package_shorthand(package):
         [3],
     ],
 )
-def test_package_invalid(package):
+def test_package_invalid(packages):
     with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA(package)
+        CONFIG_SCHEMA(packages)
 
 
 def test_package_include(basic_wifi, basic_esphome):
@@ -153,6 +153,33 @@ def test_package_include(basic_wifi, basic_esphome):
 
     actual = packages_pass(config)
     assert actual == expected
+
+
+def test_single_package(
+    basic_esphome,
+    basic_wifi,
+    caplog: pytest.LogCaptureFixture,
+):
+    """
+    Tests the simple case where a single package is added to the top-level config as is.
+    In this test, the CONF_WIFI config is expected to be simply added to the top-level config.
+    This tests the case where the user just put packages: !include package.yaml, not
+    part of a list or mapping of packages.
+    This behavior is deprecated, the test also checks if a warning is issued.
+    """
+    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: {CONF_WIFI: basic_wifi}}
+
+    expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
+
+    with caplog.at_level("WARNING"):
+        actual = packages_pass(config)
+
+    assert actual == expected
+
+    assert (
+        "Including a single package under `packages:` is deprecated. Use a list instead."
+        in caplog.text
+    )
 
 
 def test_package_append(basic_wifi, basic_esphome):

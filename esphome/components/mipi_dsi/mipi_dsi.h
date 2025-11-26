@@ -62,7 +62,7 @@ class MIPI_DSI : public display::Display {
   void set_lanes(uint8_t lanes) { this->lanes_ = lanes; }
   void set_madctl(uint8_t madctl) { this->madctl_ = madctl; }
 
-  void smark_failed(const char *message, esp_err_t err);
+  void smark_failed(const LogString *message, esp_err_t err);
 
   void update() override;
 

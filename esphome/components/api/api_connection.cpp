@@ -90,8 +90,8 @@ static const int CAMERA_STOP_STREAM = 5000;
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
     : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
-  auto noise_ctx = parent->get_noise_ctx();
-  if (noise_ctx->has_psk()) {
+  auto &noise_ctx = parent->get_noise_ctx();
+  if (noise_ctx.has_psk()) {
     this->helper_ =
         std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, &this->client_info_)};
   } else {
@@ -484,12 +484,16 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
+  FixedVector<const char *> effects_list;
   if (light->supports_effects()) {
-    msg.effects.emplace_back("None");
-    for (auto *effect : light->get_effects()) {
-      msg.effects.emplace_back(effect->get_name());
+    auto &light_effects = light->get_effects();
+    effects_list.init(light_effects.size() + 1);
+    effects_list.push_back("None");
+    for (auto *effect : light_effects) {
+      effects_list.push_back(effect->get_name());
     }
   }
+  msg.effects = &effects_list;
   return fill_and_encode_entity_info(light, msg, ListEntitiesLightResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
