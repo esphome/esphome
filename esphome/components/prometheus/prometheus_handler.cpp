@@ -53,6 +53,18 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
     this->lock_row_(stream, obj, area, node, friendly_name);
 #endif
 
+#ifdef USE_EVENT
+  this->event_type_(stream);
+  for (auto *obj : App.get_events())
+    this->event_row_(stream, obj, area, node, friendly_name);
+#endif
+
+#ifdef USE_TEXT
+  this->text_type_(stream);
+  for (auto *obj : App.get_texts())
+    this->text_row_(stream, obj, area, node, friendly_name);
+#endif
+
 #ifdef USE_TEXT_SENSOR
   this->text_sensor_type_(stream);
   for (auto *obj : App.get_text_sensors())
@@ -158,7 +170,7 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",unit=\""));
-    stream->print(obj->get_unit_of_measurement().c_str());
+    stream->print(obj->get_unit_of_measurement_ref().c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(value_accuracy_to_string(obj->state, obj->get_accuracy_decimals()).c_str());
     stream->print(ESPHOME_F("\n"));
@@ -548,6 +560,100 @@ void PrometheusHandler::text_sensor_row_(AsyncResponseStream *stream, text_senso
 #endif
 
 // Type-specific implementation
+#ifdef USE_TEXT
+void PrometheusHandler::text_type_(AsyncResponseStream *stream) {
+  stream->print(ESPHOME_F("#TYPE esphome_text_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_text_failed gauge\n"));
+}
+void PrometheusHandler::text_row_(AsyncResponseStream *stream, text::Text *obj, std::string &area, std::string &node,
+                                  std::string &friendly_name) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  if (obj->has_state()) {
+    // We have a valid value, output this value
+    stream->print(ESPHOME_F("esphome_text_failed{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\"} 0\n"));
+    // Data itself
+    stream->print(ESPHOME_F("esphome_text_value{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\",value=\""));
+    stream->print(obj->state.c_str());
+    stream->print(ESPHOME_F("\"} "));
+    stream->print(ESPHOME_F("1.0"));
+    stream->print(ESPHOME_F("\n"));
+  } else {
+    // Invalid state
+    stream->print(ESPHOME_F("esphome_text_failed{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\"} 1\n"));
+  }
+}
+#endif
+
+// Type-specific implementation
+#ifdef USE_EVENT
+void PrometheusHandler::event_type_(AsyncResponseStream *stream) {
+  stream->print(ESPHOME_F("#TYPE esphome_event_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_event_failed gauge\n"));
+}
+void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *obj, std::string &area, std::string &node,
+                                   std::string &friendly_name) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  if (obj->get_last_event_type() != nullptr) {
+    // We have a valid event type, output this value
+    stream->print(ESPHOME_F("esphome_event_failed{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\"} 0\n"));
+    // Data itself
+    stream->print(ESPHOME_F("esphome_event_value{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\",last_event_type=\""));
+    stream->print(obj->get_last_event_type());
+    stream->print(ESPHOME_F("\"} "));
+    stream->print(ESPHOME_F("1.0"));
+    stream->print(ESPHOME_F("\n"));
+  } else {
+    // No event triggered yet
+    stream->print(ESPHOME_F("esphome_event_failed{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\"} 1\n"));
+  }
+}
+#endif
+
+// Type-specific implementation
 #ifdef USE_NUMBER
 void PrometheusHandler::number_type_(AsyncResponseStream *stream) {
   stream->print(ESPHOME_F("#TYPE esphome_number_value gauge\n"));
@@ -620,7 +726,7 @@ void PrometheusHandler::select_row_(AsyncResponseStream *stream, select::Select 
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",value=\""));
-    stream->print(obj->state.c_str());
+    stream->print(obj->current_option());
     stream->print(ESPHOME_F("\"} "));
     stream->print(ESPHOME_F("1.0"));
     stream->print(ESPHOME_F("\n"));
@@ -916,7 +1022,7 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
   auto min_temp_value = value_accuracy_to_string(traits.get_visual_min_temperature(), target_accuracy);
   climate_value_row_(stream, obj, area, node, friendly_name, min_temp, min_temp_value);
   // now check optional traits
-  if (traits.get_supports_current_temperature()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
     std::string current_temp = "current_temperature";
     if (std::isnan(obj->current_temperature)) {
       climate_failed_row_(stream, obj, area, node, friendly_name, current_temp, true);
@@ -927,7 +1033,7 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
       climate_failed_row_(stream, obj, area, node, friendly_name, current_temp, false);
     }
   }
-  if (traits.get_supports_current_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
     std::string current_humidity = "current_humidity";
     if (std::isnan(obj->current_humidity)) {
       climate_failed_row_(stream, obj, area, node, friendly_name, current_humidity, true);
@@ -938,7 +1044,7 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
       climate_failed_row_(stream, obj, area, node, friendly_name, current_humidity, false);
     }
   }
-  if (traits.get_supports_target_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
     std::string target_humidity = "target_humidity";
     if (std::isnan(obj->target_humidity)) {
       climate_failed_row_(stream, obj, area, node, friendly_name, target_humidity, true);
@@ -949,7 +1055,8 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
       climate_failed_row_(stream, obj, area, node, friendly_name, target_humidity, false);
     }
   }
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     std::string target_temp_low = "target_temperature_low";
     auto target_temp_low_value = value_accuracy_to_string(obj->target_temperature_low, target_accuracy);
     climate_value_row_(stream, obj, area, node, friendly_name, target_temp_low, target_temp_low_value);
@@ -961,7 +1068,7 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
     auto target_temp_value = value_accuracy_to_string(obj->target_temperature, target_accuracy);
     climate_value_row_(stream, obj, area, node, friendly_name, target_temp, target_temp_value);
   }
-  if (traits.get_supports_action()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
     std::string climate_trait_category = "action";
     const auto *climate_trait_value = climate::climate_action_to_string(obj->action);
     climate_setting_row_(stream, obj, area, node, friendly_name, climate_trait_category, climate_trait_value);

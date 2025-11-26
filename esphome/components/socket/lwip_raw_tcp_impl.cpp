@@ -172,16 +172,7 @@ class LWIPRawImpl : public Socket {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[50] = {};
-    if (IP_IS_V4_VAL(pcb_->remote_ip)) {
-      inet_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
-    }
-#if LWIP_IPV6
-    else if (IP_IS_V6_VAL(pcb_->remote_ip)) {
-      inet6_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
-    }
-#endif
-    return std::string(buffer);
+    return this->format_ip_address_(pcb_->remote_ip);
   }
   int getsockname(struct sockaddr *name, socklen_t *addrlen) override {
     if (pcb_ == nullptr) {
@@ -199,16 +190,7 @@ class LWIPRawImpl : public Socket {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[50] = {};
-    if (IP_IS_V4_VAL(pcb_->local_ip)) {
-      inet_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
-    }
-#if LWIP_IPV6
-    else if (IP_IS_V6_VAL(pcb_->local_ip)) {
-      inet6_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
-    }
-#endif
-    return std::string(buffer);
+    return this->format_ip_address_(pcb_->local_ip);
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
     if (pcb_ == nullptr) {
@@ -499,6 +481,19 @@ class LWIPRawImpl : public Socket {
   }
 
  protected:
+  std::string format_ip_address_(const ip_addr_t &ip) {
+    char buffer[50] = {};
+    if (IP_IS_V4_VAL(ip)) {
+      inet_ntoa_r(ip, buffer, sizeof(buffer));
+    }
+#if LWIP_IPV6
+    else if (IP_IS_V6_VAL(ip)) {
+      inet6_ntoa_r(ip, buffer, sizeof(buffer));
+    }
+#endif
+    return std::string(buffer);
+  }
+
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
     if (family_ == AF_INET) {
       if (*addrlen < sizeof(struct sockaddr_in)) {

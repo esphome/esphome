@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include <Arduino.h>
 
-namespace esphome {
-namespace esp8266 {
+namespace esphome::esp8266 {
 
 class ESP8266GPIOPin : public InternalGPIOPin {
  public:
@@ -29,11 +28,10 @@ class ESP8266GPIOPin : public InternalGPIOPin {
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
 
   uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  bool inverted_{};
+  gpio::Flags flags_{};
 };
 
-}  // namespace esp8266
-}  // namespace esphome
+}  // namespace esphome::esp8266
 
 #endif  // USE_ESP8266

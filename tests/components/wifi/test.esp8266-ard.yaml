@@ -1,1 +1,5 @@
-<<: !include common.yaml
+wifi:
+  min_auth_mode: WPA2
+
+packages:
+  - !include common.yaml

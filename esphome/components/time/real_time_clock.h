@@ -27,6 +27,14 @@ class RealTimeClock : public PollingComponent {
     this->apply_timezone_();
   }
 
+  /// Set the time zone from raw buffer, only if it differs from the current one.
+  void set_timezone(const char *tz, size_t len) {
+    if (this->timezone_.length() != len || memcmp(this->timezone_.c_str(), tz, len) != 0) {
+      this->timezone_.assign(tz, len);
+      this->apply_timezone_();
+    }
+  }
+
   /// Get the time zone currently in use.
   std::string get_timezone() { return this->timezone_; }
 #endif
@@ -44,6 +52,8 @@ class RealTimeClock : public PollingComponent {
     this->time_sync_callback_.add(std::move(callback));
   };
 
+  void dump_config() override;
+
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
@@ -59,7 +69,7 @@ class RealTimeClock : public PollingComponent {
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
  public:
   TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
-  bool check(Ts... x) override { return this->parent_->now().is_valid(); }
+  bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
 
  protected:
   RealTimeClock *parent_;

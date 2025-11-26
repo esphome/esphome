@@ -300,7 +300,7 @@ def fix_remote_receiver():
     remote_receiver_schema["CONFIG_SCHEMA"] = {
         "type": "schema",
         "schema": {
-            "extends": ["binary_sensor.BINARY_SENSOR_SCHEMA", "core.COMPONENT_SCHEMA"],
+            "extends": ["binary_sensor._BINARY_SENSOR_SCHEMA", "core.COMPONENT_SCHEMA"],
             "config_vars": output["remote_base"].pop("binary"),
         },
     }

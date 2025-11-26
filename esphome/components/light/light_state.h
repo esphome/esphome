@@ -15,8 +15,7 @@
 #include <strings.h>
 #include <vector>
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class LightOutput;
 
@@ -163,7 +162,7 @@ class LightState : public EntityBase, public Component {
   const FixedVector<LightEffect *> &get_effects() const;
 
   /// Add effects for this light state.
-  void add_effects(const std::vector<LightEffect *> &effects);
+  void add_effects(const std::initializer_list<LightEffect *> &effects);
 
   /// Get the total number of effects available for this light.
   size_t get_effect_count() const { return this->effects_.size(); }
@@ -177,7 +176,7 @@ class LightState : public EntityBase, public Component {
       return 0;
     }
     for (size_t i = 0; i < this->effects_.size(); i++) {
-      if (strcasecmp(effect_name.c_str(), this->effects_[i]->get_name().c_str()) == 0) {
+      if (strcasecmp(effect_name.c_str(), this->effects_[i]->get_name()) == 0) {
         return i + 1;  // Effects are 1-indexed in active_effect_index_
       }
     }
@@ -256,6 +255,9 @@ class LightState : public EntityBase, public Component {
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
 
+  /// Disable loop if neither transformer nor effect is active
+  void disable_loop_if_idle_();
+
   /// Store the output to allow effects to have more access.
   LightOutput *output_;
   /// The currently active transformer for this light (transition/flash).
@@ -298,5 +300,4 @@ class LightState : public EntityBase, public Component {
   LightRestoreMode restore_mode_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

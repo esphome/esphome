@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
@@ -141,6 +142,14 @@ class Component {
    */
   bool is_in_loop_state() const;
 
+  /** Check if this component is idle.
+   * Being idle means being in LOOP_DONE state.
+   * This means the component has completed setup, is not failed, but its loop is currently disabled.
+   *
+   * @return True if the component is idle
+   */
+  bool is_idle() const;
+
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
    * This might be useful if a component wants to indicate that a connection to its peripheral failed.
@@ -149,7 +158,19 @@ class Component {
    */
   virtual void mark_failed();
 
+  // Remove before 2026.6.0
+  ESPDEPRECATED("Use mark_failed(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
+                "strings. Will stop working in 2026.6.0",
+                "2025.12.0")
   void mark_failed(const char *message) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    this->status_set_error(message);
+#pragma GCC diagnostic pop
+    this->mark_failed();
+  }
+
+  void mark_failed(const LogString *message) {
     this->status_set_error(message);
     this->mark_failed();
   }
@@ -208,7 +229,13 @@ class Component {
   void status_set_warning(const char *message = nullptr);
   void status_set_warning(const LogString *message);
 
-  void status_set_error(const char *message = nullptr);
+  void status_set_error();  // Set error flag without message
+  // Remove before 2026.6.0
+  ESPDEPRECATED("Use status_set_error(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
+                "strings. Will stop working in 2026.6.0",
+                "2025.12.0")
+  void status_set_error(const char *message);
+  void status_set_error(const LogString *message);
 
   void status_clear_warning();
 

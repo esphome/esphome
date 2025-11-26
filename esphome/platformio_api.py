@@ -374,3 +374,23 @@ class IDEData:
             return f"{self.cc_path[:-7]}addr2line.exe"
 
         return f"{self.cc_path[:-3]}addr2line"
+
+    @property
+    def objdump_path(self) -> str:
+        # replace gcc at end with objdump
+        path = self.cc_path
+        return (
+            f"{path[:-7]}objdump.exe"
+            if path.endswith(".exe")
+            else f"{path[:-3]}objdump"
+        )
+
+    @property
+    def readelf_path(self) -> str:
+        # replace gcc at end with readelf
+        path = self.cc_path
+        return (
+            f"{path[:-7]}readelf.exe"
+            if path.endswith(".exe")
+            else f"{path[:-3]}readelf"
+        )
