@@ -21,7 +21,6 @@ from ..defines import (
     CONF_MAIN,
     CONF_PAD_COLUMN,
     CONF_PAD_ROW,
-    CONF_SCROLLBAR_MODE,
     CONF_STYLES,
     CONF_WIDGETS,
     OBJ_FLAGS,
@@ -45,7 +44,7 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from ..schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
+from ..schemas import ALL_STYLES, OBJ_PROPERTIES, STYLE_REMAP, WIDGET_TYPES
 from ..types import LV_STATE, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
@@ -213,17 +212,14 @@ class LvScrActType(WidgetType):
     """
 
     def __init__(self):
-        super().__init__("lv_scr_act()", lv_obj_t, ())
+        super().__init__("lv_scr_act()", lv_obj_t, (), is_mock=True)
 
     async def to_code(self, w, config: dict):
         return []
 
 
-lv_scr_act_spec = LvScrActType()
-
-
 def get_scr_act(lv_comp: MockObj) -> Widget:
-    return Widget.create(None, lv_comp.get_scr_act(), lv_scr_act_spec, {})
+    return Widget.create(None, lv_comp.get_scr_act(), LvScrActType(), {})
 
 
 def get_widget_generator(wid):
@@ -417,7 +413,8 @@ async def set_obj_properties(w: Widget, config):
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)
-    await w.set_property(CONF_SCROLLBAR_MODE, config, lv_name="obj")
+    for property in OBJ_PROPERTIES:
+        await w.set_property(property, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):
