@@ -71,8 +71,9 @@ class ModbusClientHub : public Modbus {
   bool tx_buffer_empty();
   bool tx_blocked() override;
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            ModbusClientDevice *device = nullptr);
-  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
+            ModbusClientDevice *device = nullptr, bool allow_duplicates = false);
+  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
+                bool allow_duplicates = false);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 

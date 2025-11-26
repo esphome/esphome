@@ -412,13 +412,13 @@ float Modbus::get_setup_priority() const {
 }
 
 void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-                           ModbusClientDevice *device) {
+                           ModbusClientDevice *device, bool allow_duplicates) {
   ESP_LOGVV(TAG, "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d ", address,
             function_code, start_address, number_of_entities);
   std::vector<uint8_t> data;
   data.push_back(address);
   create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities);
-  this->send_raw(data, device);
+  this->send_raw(data, device, allow_duplicates);
 }
 
 void ModbusServerHub::send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
@@ -428,7 +428,7 @@ void ModbusServerHub::send(uint8_t address, uint8_t function_code, std::vector<u
 
 // Helper function for lambdas
 // Send raw command for client pushes to queue. Except CRC everything must be contained in payload
-void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
+void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device, bool allow_duplicates) {
   if (payload.empty()) {
     if (device)
       device->on_modbus_not_sent();
@@ -444,12 +444,14 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
     //  return;
   }
 
-  for (const auto &item : this->tx_buffer_) {
-    if (item.frame == frame && item.device == device) {
-      ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty(frame).c_str());
-      if (device)
-        device->on_modbus_not_sent();
-      return;
+  if (!allow_duplicates) {
+    for (const auto &item : this->tx_buffer_) {
+      if (item.frame == frame && item.device == device) {
+        ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty(frame).c_str());
+        if (device)
+          device->on_modbus_not_sent();
+        return;
+      }
     }
   }
 
