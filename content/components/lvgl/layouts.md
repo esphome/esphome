@@ -41,6 +41,9 @@ The configuration `layout: horizontal` is a shorthand for a flex layout:
     flex_align_cross: stretch
 ```
 
+In addition, if the option `pad_all` is set on the container (thus applying padding to the outside) the same
+padding will be applied between the columns, i.e. `pad_column` will be set.
+
 ### Vertical Layout
 
 The configuration `layout: vertical` is a shorthand for a flex layout:
@@ -53,6 +56,8 @@ The configuration `layout: vertical` is a shorthand for a flex layout:
     flex_align_track: center
     flex_align_cross: stretch
 ```
+
+Similarly to the `horizontal` layout, using `pad_all` on the container will also apply that padding between rows.
 
 ### Flex
 
