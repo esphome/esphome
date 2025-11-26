@@ -20,7 +20,14 @@ from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .defines import (
+    CONF_SCROLL_DIR,
+    CONF_SCROLL_SNAP_X,
+    CONF_SCROLL_SNAP_Y,
+    CONF_SCROLLBAR_MODE,
+    CONF_TIME_FORMAT,
+    LV_GRAD_DIR,
+)
 from .helpers import CONF_IF_NAN, requires_component, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
@@ -234,8 +241,18 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+        cv.Optional(CONF_SCROLL_DIR): df.SCROLL_DIRECTIONS.one_of,
+        cv.Optional(CONF_SCROLL_SNAP_X): df.SNAP_DIRECTIONS.one_of,
+        cv.Optional(CONF_SCROLL_SNAP_Y): df.SNAP_DIRECTIONS.one_of,
     }
 )
+
+OBJ_PROPERTIES = {
+    CONF_SCROLL_SNAP_X,
+    CONF_SCROLL_SNAP_Y,
+    CONF_SCROLL_DIR,
+    CONF_SCROLLBAR_MODE,
+}
 
 # Also allow widget specific properties for use in style definitions
 FULL_STYLE_SCHEMA = STYLE_SCHEMA.extend(

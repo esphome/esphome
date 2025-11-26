@@ -172,10 +172,14 @@ class DirectionalLayout(FlexLayout):
 
     def validate(self, config):
         assert config[CONF_LAYOUT].lower() == self.direction
-        config[CONF_LAYOUT] = {
+        layout = {
             **FLEX_HV_STYLE,
             CONF_FLEX_FLOW: "LV_FLEX_FLOW_" + self.flow.upper(),
         }
+        if pad_all := config.get("pad_all"):
+            layout[CONF_PAD_ROW] = pad_all
+            layout[CONF_PAD_COLUMN] = pad_all
+        config[CONF_LAYOUT] = layout
         return config
 
 
