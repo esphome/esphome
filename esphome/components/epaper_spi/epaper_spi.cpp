@@ -22,7 +22,7 @@ const char *EPaperBase::epaper_state_to_string_() {
 
 void EPaperBase::setup() {
   if (!this->init_buffer_(this->buffer_length_)) {
-    this->mark_failed("Failed to initialise buffer");
+    this->mark_failed(LOG_STR("Failed to initialise buffer"));
     return;
   }
   this->setup_pins_();
@@ -246,7 +246,7 @@ void EPaperBase::initialise_() {
   auto length = this->init_sequence_length_;
   while (index != length) {
     if (length - index < 2) {
-      this->mark_failed("Malformed init sequence");
+      this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
     const uint8_t cmd = sequence[index++];

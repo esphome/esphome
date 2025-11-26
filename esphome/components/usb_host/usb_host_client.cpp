@@ -188,7 +188,7 @@ void USBClient::setup() {
   auto err = usb_host_client_register(&config, &this->handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "client register failed: %s", esp_err_to_name(err));
-    this->status_set_error("Client register failed");
+    this->status_set_error(LOG_STR("Client register failed"));
     this->mark_failed();
     return;
   }

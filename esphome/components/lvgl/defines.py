@@ -279,6 +279,8 @@ KEYBOARD_MODES = LvConstant(
 )
 ROLLER_MODES = LvConstant("LV_ROLLER_MODE_", "NORMAL", "INFINITE")
 TILE_DIRECTIONS = DIRECTIONS.extend("HOR", "VER", "ALL")
+SCROLL_DIRECTIONS = TILE_DIRECTIONS.extend("NONE")
+SNAP_DIRECTIONS = LvConstant("LV_SCROLL_SNAP_", "NONE", "START", "END", "CENTER")
 CHILD_ALIGNMENTS = LvConstant(
     "LV_ALIGN_",
     "TOP_LEFT",
@@ -511,6 +513,9 @@ CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
+CONF_SCROLL_DIR = "scroll_dir"
+CONF_SCROLL_SNAP_X = "scroll_snap_x"
+CONF_SCROLL_SNAP_Y = "scroll_snap_y"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
