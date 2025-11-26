@@ -1150,7 +1150,13 @@ esp_err_t cdc_ecm_host_data_tx_blocking(cdc_ecm_dev_hdl_t cdc_hdl, const uint8_t
         return ESP_ERR_INVALID_ARG;
     };
 
-    ESP_GOTO_ON_ERROR(usb_host_transfer_submit(cdc_dev->data.out_xfer), unblock, TAG, "Failed to submit BULK OUT transfer");
+    ret = usb_host_transfer_submit(cdc_dev->data.out_xfer);
+    if (ret != ESP_OK) {
+        // Downgrade from E to W or D; this is usually a transient condition.
+        ESP_LOGW(TAG, "usb_host_transfer_submit failed: %s", esp_err_to_name(ret));
+        // We’re going to bail out and let lwIP drop this frame.
+        goto unblock;
+    }
 
     // Wait for OUT transfer completion
     taken = xSemaphoreTake(transfer_finished_semaphore, pdMS_TO_TICKS(timeout_ms));
@@ -1537,9 +1543,13 @@ static esp_err_t netif_transmit(void *h, void *buffer, size_t len)
     {
         size_t chunk_len = remaining_len > out_buf_len ? out_buf_len : remaining_len;
 
-        if (cdc_ecm_host_data_tx_blocking(cdc_dev, data_ptr, chunk_len, 500) != ESP_OK)
-        {
-            return ESP_FAIL;
+        esp_err_t err = cdc_ecm_host_data_tx_blocking(cdc_dev, data_ptr, chunk_len, 100);
+        if (err != ESP_OK) {
+            // Log once per attempt at most, at WARN or DEBUG
+            ESP_LOGW(TAG, "netif_transmit: dropping frame chunk, tx_blocking failed: %s",
+                     esp_err_to_name(err));
+            // Drop this entire frame; returning OK here prevents lwIP from panicking.
+            return ESP_OK;
         }
 
         data_ptr += chunk_len;
