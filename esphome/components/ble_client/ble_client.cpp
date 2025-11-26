@@ -39,7 +39,7 @@ void BLEClient::set_enabled(bool enabled) {
     return;
   this->enabled = enabled;
   if (!enabled) {
-    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str().c_str());
+    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str());
     this->disconnect();
   }
 }
