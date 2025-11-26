@@ -423,10 +423,10 @@ def any_widget_schema(extras=None):
     def validator(value):
         if isinstance(value, dict):
             # Convert to list
-            isdict = True
+            is_dict = True
             value = [{k: v} for k, v in value.items()]
         else:
-            isdict = False
+            is_dict = False
         if not isinstance(value, list):
             raise cv.Invalid("Expected a list of widgets")
         result = []
@@ -447,7 +447,7 @@ def any_widget_schema(extras=None):
                 )
             # Apply custom validation
             value = widget_type.validate(value or {})
-            path = [key] if isdict else [index, key]
+            path = [key] if is_dict else [index, key]
             with prepend_path(path):
                 result.append({key: container_validator(value)})
         return result
