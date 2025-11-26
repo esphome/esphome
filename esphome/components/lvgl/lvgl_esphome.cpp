@@ -397,7 +397,7 @@ void LvglComponent::draw_end_() {
   }
 }
 
-bool LvglComponent::is_paused() {
+bool LvglComponent::is_paused() const {
   if (this->paused_)
     return true;
   if (this->update_when_display_idle_) {

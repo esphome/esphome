@@ -171,7 +171,9 @@ class LvglComponent : public PollingComponent {
   // @param paused If true, pause the display. If false, resume the display.
   // @param show_snow If true, show the snow effect when paused.
   void set_paused(bool paused, bool show_snow);
-  bool is_paused() const { return this->paused_; }
+
+  // Returns true if the display is explicitly paused, or a blocking display update is in progress.
+  bool is_paused() const;
   // If the display is paused and we have resume_on_input_ set to true, resume the display.
   void maybe_wakeup() {
     if (this->paused_ && this->resume_on_input_) {
