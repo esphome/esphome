@@ -167,7 +167,7 @@ class WidgetType:
                         lv_state = literal(state)
                     else:
                         lv_state = join_enums((state, part))
-                    lv.obj_add_style(w.obj, style, lv_state)
+                    w.add_style(style, lv_state)
         await set_obj_properties(w, config)
         await add_widgets(w, config)
         await self.to_code(w, config)
@@ -289,6 +289,11 @@ class Widget:
         if "|" in flag:
             flag = f"(lv_obj_flag_t)({flag})"
         return lv_obj.remove_flag(self.obj, literal(flag))
+
+    def add_style(self, style_id, state=LV_STATE.DEFAULT):
+        if "|" in state:
+            state = f"(lv_state_t)({state})"
+        lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
 
     async def set_property(
         self, prop, value, animated: bool = None, lv_name=None, processor=None
@@ -555,7 +560,7 @@ async def set_obj_properties(w: Widget, config):
             else:
                 lv_state = join_enums((state, part))
             for style_id in props.get(CONF_STYLES, ()):
-                lv_obj.add_style(w.obj, MockObj(style_id), lv_state)
+                w.add_style(style_id, lv_state)
             for prop, value in {
                 k: v for k, v in props.items() if k in ALL_STYLES
             }.items():

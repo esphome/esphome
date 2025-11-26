@@ -122,9 +122,9 @@ class LvConstant(LValidator):
 
     def __init__(self, prefix: str, *choices, typename=None):
         self.prefix = prefix
-        self.choices = choices
+        self.choices = tuple(x.upper() for x in choices)
         self.typename = typename or prefix.lower() + "t"
-        prefixed_choices = [prefix + v for v in choices]
+        prefixed_choices = [prefix + v.upper() for v in choices]
         prefixed_validator = cv.one_of(*prefixed_choices, upper=True)
 
         @schema_extractor("one_of")

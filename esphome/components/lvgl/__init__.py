@@ -1,5 +1,4 @@
 import importlib
-import logging
 import pkgutil
 
 from esphome.automation import build_automation, validate_automation
@@ -33,7 +32,7 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
-from .defines import add_define
+from .defines import LOGGER, add_define
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -90,7 +89,6 @@ DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]
 AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
-LOGGER = logging.getLogger(__name__)
 
 
 SIMPLE_TRIGGERS = (

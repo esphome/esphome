@@ -1,7 +1,8 @@
-from esphome import config_validation as cv
-from esphome.components.lvgl.schemas import TEXT_SCHEMA
+from esphome import codegen as cg, config_validation as cv
+from esphome.components.lvgl.schemas import TEXT_SCHEMA, part_schema
 from esphome.components.lvgl.widgets import add_widgets, widget_to_code
 from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
+from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_types import nullptr
 
@@ -15,22 +16,16 @@ from ..defines import (
     CONF_MSGBOXES,
     CONF_SRC,
     CONF_TITLE,
+    LOGGER,
+    LV_OBJ_FLAG,
     TYPE_FLEX,
     literal,
 )
-from ..helpers import add_lv_use, lvgl_components_required
-from ..lv_validation import lv_bool, lv_image, lv_text, pixels_or_percent
-from ..lvcode import (
-    EVENT_ARG,
-    LambdaContext,
-    LocalVariable,
-    lv,
-    lv_assign,
-    lv_expr,
-    lv_obj,
-    lv_Pvariable,
-)
+from ..helpers import add_lv_use
+from ..lv_validation import lv_bool, lv_color, lv_image, lv_text, pixels_or_percent
+from ..lvcode import EVENT_ARG, LambdaContext, LocalVariable, lv, lv_expr, lv_obj
 from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema
+from ..styles import LVStyle
 from ..types import LV_EVENT, lv_obj_t
 from . import Widget, WidgetType, set_obj_properties
 from .button import button_spec, lv_button_t
@@ -38,6 +33,17 @@ from .label import CONF_LABEL
 from .obj import obj_spec
 
 CONF_MSGBOX = "msgbox"
+
+OUTER_STYLE = LVStyle(
+    "msgbox_outer",
+    {
+        "bg_opa": 128,
+        "bg_color": "black",
+        "border_width": 0,
+        "pad_all": 0,
+        "radius": 0,
+    },
+)
 
 
 class FooterButtonType(WidgetType):
@@ -87,9 +93,7 @@ MSGBOX_SCHEMA = container_schema(
                 container_schema(header_button_spec)
             ),
             cv.Optional(CONF_CLOSE_BUTTON, default=True): lv_bool,
-            cv.Optional(CONF_BUTTON_STYLE): cv.invalid(
-                "button_style is removed - style each button directly"
-            ),
+            cv.Optional(CONF_BUTTON_STYLE): part_schema(button_spec.parts),
         }
     ),
 )
@@ -98,7 +102,9 @@ MSGBOX_SCHEMA = container_schema(
 async def msgbox_to_code(top_layer, conf):
     """
     Construct a message box. This consists of a full-screen translucent background enclosing a centered container
-    with an optional title, body, close button and a button matrix. And any other widgets the user cares to add
+    with an optional title, body, close button and a set of footer buttons.
+    Header buttons can be added - they can be image buttons only.
+    The body of the message box may have any widgets the user wants to add.
     :param conf: The config data
     :return: code to add to the init lambda
     """
@@ -109,29 +115,25 @@ async def msgbox_to_code(top_layer, conf):
         CONF_MSGBOX,
         *button_spec.get_uses(),
     )
-    lvgl_components_required.add("BUTTONMATRIX")
+    if CONF_BUTTON_STYLE in conf:
+        LOGGER.warning(
+            "'button_style' for msgbox is deprecated - style the buttons directly."
+        )
     messagebox_id = conf[CONF_ID]
-    outer_id = f"{messagebox_id.id}_outer"
-    outer = lv_Pvariable(lv_obj_t, messagebox_id.id + "_outer")
-    msgbox = lv_Pvariable(lv_obj_t, messagebox_id.id)
-    outer_widget = Widget.create(outer_id, outer, obj_spec, conf)
+    outer_id = ID(f"{messagebox_id.id}_outer", type=lv_obj_t)
+    outer = cg.Pvariable(outer_id, lv_expr.obj_create(top_layer))
+    outer_widget = Widget.create(outer_id.id, outer, obj_spec, conf)
+    msgbox = cg.Pvariable(messagebox_id, lv_expr.msgbox_create(outer))
     outer_widget.move_to_foreground = True
     msgbox_widget = Widget.create(messagebox_id, msgbox, obj_spec, conf)
     msgbox_widget.outer = outer_widget
     text = await lv_text.process(conf[CONF_BODY].get(CONF_TEXT, ""))
     title = await lv_text.process(conf[CONF_TITLE].get(CONF_TEXT, ""))
     close_button = conf[CONF_CLOSE_BUTTON]
-    lv_assign(outer, lv_expr.obj_create(top_layer))
     percent100 = await pixels_or_percent.process(1.0)
-    lv_obj.set_width(outer, percent100)
-    lv_obj.set_height(outer, percent100)
-    lv_obj.set_style_bg_opa(outer, 128, 0)
-    lv_obj.set_style_bg_color(outer, literal("lv_color_black()"), 0)
-    lv_obj.set_style_border_width(outer, 0, 0)
-    lv_obj.set_style_pad_all(outer, 0, 0)
-    lv_obj.set_style_radius(outer, 0, 0)
-    outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")
-    lv_assign(msgbox, lv_expr.msgbox_create(outer))
+    lv_obj.set_size(outer, percent100, percent100)
+    outer_widget.add_style(await OUTER_STYLE.get_var())
+    outer_widget.add_flag(LV_OBJ_FLAG.HIDDEN)
     lv.msgbox_add_title(msgbox, title)
     lv.msgbox_add_text(msgbox, text)
     lv_obj.set_style_align(msgbox, literal("LV_ALIGN_CENTER"), 0)
@@ -144,7 +146,8 @@ async def msgbox_to_code(top_layer, conf):
         await widget_to_code(button, header_button_spec, msgbox)
 
     async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
-        outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")
+        outer_widget.add_flag(LV_OBJ_FLAG.HIDDEN)
+        outer_widget.set_style("bg_color", await lv_color.process("red"))
     if close_button:
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_add_close_button(msgbox)
