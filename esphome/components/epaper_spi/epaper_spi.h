@@ -23,10 +23,10 @@ enum class EPaperState : uint8_t {
   DEEP_SLEEP,      // deep sleep the display
 };
 
-static const uint8_t NONE = 0;
-static const uint8_t MIRROR_X = 1;
-static const uint8_t MIRROR_Y = 2;
-static const uint8_t SWAP_XY = 4;
+static constexpr uint8_t NONE = 0;
+static constexpr uint8_t MIRROR_X = 1;
+static constexpr uint8_t MIRROR_Y = 2;
+static constexpr uint8_t SWAP_XY = 4;
 
 static constexpr uint32_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
