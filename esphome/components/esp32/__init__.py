@@ -268,7 +268,7 @@ def add_idf_component(
             existing = CORE.data[KEY_ESP32][KEY_COMPONENTS].get(comp)
             if existing and existing.get(KEY_REF) != ref:
                 _LOGGER.warning(
-                    "IDF component %s version overridden from %s to %s.",
+                    "IDF component %s version conflict %s replaced by %s",
                     comp,
                     existing.get(KEY_REF),
                     ref,
@@ -282,7 +282,7 @@ def add_idf_component(
         existing = CORE.data[KEY_ESP32][KEY_COMPONENTS].get(name)
         if existing and existing.get(KEY_REF) != ref:
             _LOGGER.warning(
-                "IDF component %s version overridden from %s to %s.",
+                "IDF component %s version conflict %s replaced by %s",
                 name,
                 existing.get(KEY_REF),
                 ref,
