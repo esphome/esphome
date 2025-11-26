@@ -6,9 +6,10 @@ from esphome.const import CONF_SOURCE
 from .. import CONF_COAP_CLIENT_ID, CoapClientComponent, coap_client_component_ns
 from ..ota import OtaCoapClientComponent
 
-AUTO_LOAD = ["json"]
 CODEOWNERS = ["@rwrozelle"]
+
 DEPENDENCIES = ["ota.coap_client"]
+AUTO_LOAD = ["json", "watchdog"]
 
 CoapClientUpdate = coap_client_component_ns.class_(
     "CoapClientUpdate", update.UpdateEntity, cg.PollingComponent

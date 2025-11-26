@@ -32,6 +32,7 @@ class CoapClientUpdate : public update::UpdateEntity, public PollingComponent {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void set_update_response_ready(bool ready) { this->update_response_ready_ = ready; }
   bool is_update_response_ready() { return this->update_response_ready_; }
+  void set_update_response_has_error(bool error) { this->update_response_has_error_ = error; }
   static void update_callback(uint16_t response_code, const unsigned char *data, size_t len, size_t offset,
                               size_t total, void *context);
 
@@ -48,6 +49,7 @@ class CoapClientUpdate : public update::UpdateEntity, public PollingComponent {
 #ifdef USE_ESP32
   TaskHandle_t update_task_handle_{nullptr};
   bool update_response_ready_{false};
+  bool update_response_has_error_{false};
   std::string update_response_{};
 #endif
 };

@@ -10,8 +10,8 @@ from .. import CONF_COAP_CLIENT_ID, CoapClientComponent, coap_client_component_n
 
 CODEOWNERS = ["@rwrozelle"]
 
-AUTO_LOAD = ["md5", "watchdog"]
 DEPENDENCIES = ["network", "coap_client"]
+AUTO_LOAD = ["md5", "watchdog"]
 
 CONF_MD5 = "md5"
 CONF_MD5_URL = "md5_url"

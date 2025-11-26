@@ -10,7 +10,9 @@ namespace esphome::coap_client {
 
 // The update function runs in a task only on ESP32s.
 #ifdef USE_ESP32
-#define UPDATE_RETURN vTaskDelete(nullptr)  // Delete the current update task
+#define UPDATE_RETURN \
+  ESP_LOGD(TAG, "exiting update_task"); \
+  vTaskDelete(nullptr)  // Delete the current update task
 #else
 #define UPDATE_RETURN return
 #endif
@@ -35,6 +37,10 @@ void CoapClientUpdate::setup() {
 }
 
 void CoapClientUpdate::update() {
+  if (!network::is_connected()) {
+    // Network is not up yet, return early
+    return;
+  }
 #ifdef USE_ESP32
   xTaskCreate(CoapClientUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
@@ -45,50 +51,62 @@ void CoapClientUpdate::update() {
 void CoapClientUpdate::update_task(void *params) {
   CoapClientUpdate *this_update = (CoapClientUpdate *) params;
 
+  this_update->update_response_.clear();
   this_update->set_update_response_ready(false);
+  this_update->set_update_response_has_error(false);
   ESP_LOGI(TAG, "Get: %s", this_update->source_url_.c_str());
   this_update->get_(this_update->source_url_, CoapClientUpdate::update_callback);
-  while (!this_update->is_update_response_ready()) {
-    App.feed_wdt();
-    delay(10);  // NOLINT
+  auto start_time = millis();
+  while ((!this_update->is_update_response_ready()) && (millis() - start_time < 20000)) {
+    yield();
+    delay(100);  // NOLINT
+  }
+  if (!this_update->is_update_response_ready() || this_update->update_response_has_error_) {
+    std::string msg = str_sprintf("Failed to retrieve %s", this_update->source_url_.c_str());
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
+    UPDATE_RETURN;
   }
 
-  bool valid = json::parse_json(this_update->update_response_, [this_update](JsonObject root) -> bool {
-    if (!root["name"].is<const char *>() || !root["version"].is<const char *>() || !root["builds"].is<JsonArray>()) {
-      ESP_LOGE(TAG, "Manifest does not contain required fields");
-      return false;
-    }
-    this_update->update_info_.title = root["name"].as<std::string>();
-    this_update->update_info_.latest_version = root["version"].as<std::string>();
-
-    for (auto build : root["builds"].as<JsonArray>()) {
-      if (!build["chipFamily"].is<const char *>()) {
+  bool valid = false;
+  {
+    valid = json::parse_json(this_update->update_response_, [this_update](JsonObject root) -> bool {
+      if (!root["name"].is<const char *>() || !root["version"].is<const char *>() || !root["builds"].is<JsonArray>()) {
         ESP_LOGE(TAG, "Manifest does not contain required fields");
         return false;
       }
-      if (build["chipFamily"] == ESPHOME_VARIANT) {
-        if (!build["ota"].is<JsonObject>()) {
+      this_update->update_info_.title = root["name"].as<std::string>();
+      this_update->update_info_.latest_version = root["version"].as<std::string>();
+
+      for (auto build : root["builds"].as<JsonArray>()) {
+        if (!build["chipFamily"].is<const char *>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
           return false;
         }
-        JsonObject ota = build["ota"].as<JsonObject>();
-        if (!ota["path"].is<const char *>() || !ota["md5"].is<const char *>()) {
-          ESP_LOGE(TAG, "Manifest does not contain required fields");
-          return false;
+        if (build["chipFamily"] == ESPHOME_VARIANT) {
+          if (!build["ota"].is<JsonObject>()) {
+            ESP_LOGE(TAG, "Manifest does not contain required fields");
+            return false;
+          }
+          JsonObject ota = build["ota"].as<JsonObject>();
+          if (!ota["path"].is<const char *>() || !ota["md5"].is<const char *>()) {
+            ESP_LOGE(TAG, "Manifest does not contain required fields");
+            return false;
+          }
+          this_update->update_info_.firmware_url = ota["path"].as<std::string>();
+          this_update->update_info_.md5 = ota["md5"].as<std::string>();
+
+          if (ota["summary"].is<const char *>())
+            this_update->update_info_.summary = ota["summary"].as<std::string>();
+          if (ota["release_url"].is<const char *>())
+            this_update->update_info_.release_url = ota["release_url"].as<std::string>();
+
+          return true;
         }
-        this_update->update_info_.firmware_url = ota["path"].as<std::string>();
-        this_update->update_info_.md5 = ota["md5"].as<std::string>();
-
-        if (ota["summary"].is<const char *>())
-          this_update->update_info_.summary = ota["summary"].as<std::string>();
-        if (ota["release_url"].is<const char *>())
-          this_update->update_info_.release_url = ota["release_url"].as<std::string>();
-
-        return true;
       }
-    }
-    return false;
-  });
+      return false;
+    });
+  }
 
   if (!valid) {
     std::string msg = str_sprintf("Failed to parse JSON from %s", this_update->source_url_.c_str());
@@ -124,11 +142,13 @@ void CoapClientUpdate::update_task(void *params) {
 
   if (this_update->update_info_.latest_version.empty() ||
       this_update->update_info_.latest_version == this_update->update_info_.current_version) {
+    ESP_LOGD(TAG, "No Update Available");
     this_update->state_ = update::UPDATE_STATE_NO_UPDATE;
   } else {
     if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
       trigger_update_available = true;
     }
+    ESP_LOGD(TAG, "Update Available");
     this_update->state_ = update::UPDATE_STATE_AVAILABLE;
   }
 
@@ -145,6 +165,7 @@ void CoapClientUpdate::update_task(void *params) {
     this_update->publish_state();
 
     if (trigger_update_available) {
+      ESP_LOGD(TAG, "Trigger Update");
       this_update->get_update_available_trigger()->trigger(this_update->update_info_);
     }
   });
@@ -163,6 +184,7 @@ void CoapClientUpdate::perform(bool force) {
   this->ota_parent_->set_md5(this->update_info.md5);
   this->ota_parent_->set_url(this->update_info.firmware_url);
   // Flash in the next loop
+  ESP_LOGD(TAG, "Call OTA Flash");
   this->defer([this]() { this->ota_parent_->flash(); });
 }
 
@@ -173,6 +195,7 @@ void CoapClientUpdate::update_callback(uint16_t response_code, const unsigned ch
   if (!obj->is_update_response_ready()) {
     if (len == 0 && offset == 0 && total == 0) {
       // Error
+      obj->set_update_response_has_error(true);
       obj->set_update_response_ready(true);
       return;
     } else if (len > 0) {
