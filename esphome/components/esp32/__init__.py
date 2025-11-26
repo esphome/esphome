@@ -263,7 +263,6 @@ def add_idf_component(
             "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
             "an issue to the external_component author and ask them to update it."
         )
-
     if components:
         for comp in components:
             CORE.data[KEY_ESP32][KEY_COMPONENTS][comp] = {
