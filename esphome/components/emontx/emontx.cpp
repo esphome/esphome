@@ -12,8 +12,9 @@ static const char *const TAG = "emontx";
  *
  * @details Sets up the initial state of the component by:
  * 1. Setting the state machine to OFF
- * 2. Logging the component configuration
- * 3. Registering and logging all configured sensors (when sensor support is enabled)
+ * 2. Pre-allocating buffer memory to avoid reallocation overhead
+ * 3. Logging the component configuration
+ * 4. Registering and logging all configured sensors (when sensor support is enabled)
  *
  * This method is called once during device startup. After setup completes,
  * the component will wait for update() to be called before starting to
@@ -21,6 +22,10 @@ static const char *const TAG = "emontx";
  */
 void EmonTx::setup() {
   state_ = OFF;
+
+  // Pre-allocate buffer to maximum size to prevent reallocation overhead
+  // during JSON message collection
+  this->buffer_.reserve(1024);
 
   ESP_LOGCONFIG(TAG, "Setting up EmonTx component");
 
@@ -36,15 +41,17 @@ void EmonTx::setup() {
 }
 
 /**
- * @brief Resets the state machine to start looking for new JSON data.
+ * @brief Activates the state machine for continuous JSON data processing.
  *
  * @details This method is called periodically according to the update_interval configured
- * in the YAML. It prepares the component to receive new data by:
- * 1. Clearing the internal buffer
- * 2. Resetting the state machine from OFF to WAITING_FOR_START
+ * in the YAML. It activates the component if it's in OFF state (initial startup or after
+ * component.suspend).
  *
- * After this method is called, the state machine will begin actively looking for
- * the opening brace '{' of a new JSON object in the incoming UART data stream.
+ * Once activated, the state machine runs continuously in loop(), processing all incoming
+ * JSON objects without waiting for subsequent update() calls. This prevents data loss
+ * when multiple JSON messages arrive between polling intervals.
+ *
+ * The update_interval serves as a heartbeat/watchdog rather than controlling data processing.
  */
 void EmonTx::update() {
   ESP_LOGD(TAG, "Updating EmonTx state...");
@@ -52,9 +59,10 @@ void EmonTx::update() {
   if (state_ == OFF) {
     buffer_.clear();  // Clear the buffer for new data
     state_ = WAITING_FOR_START;
+    ESP_LOGD(TAG, "EmonTx activated and ready to receive data.");
+  } else {
+    ESP_LOGV(TAG, "EmonTx already active (state: %d)", state_);
   }
-
-  ESP_LOGD(TAG, "EmonTx is now ready to receive data.");
 }
 
 /**
@@ -65,27 +73,31 @@ void EmonTx::update() {
  * - When drop=true: Discards all characters except the target (used to find the opening brace)
  * - When drop=false: Collects all characters until the target is found (used to collect JSON content)
  *
- * The method also enforces valid JSON formatting by rejecting any data that contains
- * newline characters, which should not appear within a properly formatted JSON object.
+ * The method enforces the EmonTx protocol requirement that JSON messages must not contain
+ * newline characters within the message body. The EmonTx device sends compact JSON without
+ * newlines, so any newline encountered indicates a protocol error or message boundary.
+ * It processes up to 512 bytes per loop() iteration to maintain system responsiveness.
  *
  * @param drop If true, discard all characters except the target character.
  * @param c The target character to look for.
  * @return true If the target character was found.
- * @return false If an error occurred (newline in JSON, buffer overflow) or target not found.
+ * @return false If an error occurred (newline in JSON, buffer overflow) or target not found yet.
  */
 bool EmonTx::read_chars_until_(bool drop, uint8_t c) {
   uint8_t received;
-  int j = 0;
+  uint16_t bytes_read = 0;
 
-  while (available() > 0 && j < 512) {
-    j++;
+  // Process up to 512 bytes per iteration to maintain system responsiveness
+  // while allowing large JSON messages to be collected across multiple loop() calls
+  while (available() > 0 && bytes_read < 512) {
+    bytes_read++;
     received = read();
 
     if (drop && received != c)
       continue;
 
     // If we're collecting JSON data (not dropping) and receive a newline,
-    // consider this invalid and signal to discard the buffer
+    // this indicates a protocol error or message boundary - discard the buffer
     if (!drop && (received == '\r' || received == '\n')) {
       ESP_LOGW(TAG, "Newline found within JSON data, discarding buffer");
       buffer_.clear();
@@ -94,10 +106,10 @@ bool EmonTx::read_chars_until_(bool drop, uint8_t c) {
     }
 
     // Prevent buffer overflow
-    if (buffer_.length() > 1024) {
-      ESP_LOGW(TAG, "Buffer overflow, clearing buffer");
+    if (buffer_.length() >= 1024) {
+      ESP_LOGW(TAG, "Buffer overflow (>1024 bytes), discarding buffer");
       buffer_.clear();
-      state_ = OFF;
+      state_ = WAITING_FOR_START;
       return false;
     }
 
@@ -108,19 +120,28 @@ bool EmonTx::read_chars_until_(bool drop, uint8_t c) {
     }
   }
 
+  // Log if we hit the per-iteration limit with more data available
+  if (bytes_read >= 512 && available() > 0) {
+    ESP_LOGV(TAG, "Reached per-iteration read limit (512 bytes), will continue in next loop()");
+  }
+
   return false;
 }
 
 /**
  * @brief Implements the main state machine for parsing JSON data from the serial port.
  *
- * @details The state machine transitions through the following states:
- * - OFF: Initial state, waiting for update() to be called.
+ * @details The state machine continuously processes incoming UART data through these states:
+ * - OFF: Initial state, waiting for update() to activate the component.
  * - WAITING_FOR_START: Looks for the opening brace '{' of a JSON object.
  * - COLLECTING_JSON: Collects characters until the closing brace '}' is found.
  *   Any newline characters during this phase will cause the buffer to be discarded.
  * - JSON_COLLECTED: Processes the complete JSON object, updating sensors and
- *   executing callbacks before returning to OFF state.
+ *   executing callbacks, then immediately returns to WAITING_FOR_START to process
+ *   the next JSON object.
+ *
+ * This continuous processing ensures no data is lost when multiple JSON messages
+ * arrive in quick succession between polling intervals.
  */
 void EmonTx::loop() {
   switch (state_) {
@@ -149,7 +170,8 @@ void EmonTx::loop() {
       } else {
         ESP_LOGW(TAG, "Received empty buffer, skipping JSON parsing");
       }
-      state_ = OFF;  // Reset state to OFF after processing
+      buffer_.clear();             // Clear buffer for next JSON object
+      state_ = WAITING_FOR_START;  // Continue processing immediately
       break;
   }
 }
@@ -284,7 +306,7 @@ void EmonTx::register_emontx_listener(EmonTxListener *listener) { emontx_listene
 
 void EmonTx::register_sensor(const std::string &tag_name, sensor::Sensor *sensor) {
   ESP_LOGCONFIG(TAG, "Registering sensor for tag: %s", tag_name.c_str());
-  this->sensors_[tag_name] = sensor;
+  this->sensors_.emplace_back(tag_name, sensor);
 }
 #endif
 }  // namespace emontx
