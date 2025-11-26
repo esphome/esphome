@@ -320,7 +320,7 @@ static void fix_mps(const usb_ep_desc_t *ep) {
 void USBUartTypeCdcAcm::on_connected() {
   auto cdc_devs = this->parse_descriptors(this->device_handle_);
   if (cdc_devs.empty()) {
-    this->status_set_error("No CDC-ACM device found");
+    this->status_set_error(LOG_STR("No CDC-ACM device found"));
     this->disconnect();
     return;
   }
@@ -341,7 +341,7 @@ void USBUartTypeCdcAcm::on_connected() {
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "usb_host_interface_claim failed: %s, channel=%d, intf=%d", esp_err_to_name(err), channel->index_,
                channel->cdc_dev_.bulk_interface_number);
-      this->status_set_error("usb_host_interface_claim failed");
+      this->status_set_error(LOG_STR("usb_host_interface_claim failed"));
       this->disconnect();
       return;
     }
