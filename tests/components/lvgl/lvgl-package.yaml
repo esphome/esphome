@@ -25,7 +25,9 @@ binary_sensor:
         - lvgl.checkbox.update:
             id: checkbox_id
             state:
-              checked: !lambda return x;
+              checked: !lambda |-
+                  auto y = x; // block inlining of one line return
+                  return y;
 
 lvgl:
   log_level: debug
