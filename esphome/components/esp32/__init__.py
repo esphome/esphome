@@ -265,12 +265,28 @@ def add_idf_component(
         )
     if components:
         for comp in components:
+            existing = CORE.data[KEY_ESP32][KEY_COMPONENTS].get(comp)
+            if existing and existing.get(KEY_REF) != ref:
+                _LOGGER.warning(
+                    "IDF component %s version overridden from %s to %s.",
+                    comp,
+                    existing.get(KEY_REF),
+                    ref,
+                )
             CORE.data[KEY_ESP32][KEY_COMPONENTS][comp] = {
                 KEY_REPO: repo,
                 KEY_REF: ref,
                 KEY_PATH: f"{path}/{comp}" if path else comp,
             }
     else:
+        existing = CORE.data[KEY_ESP32][KEY_COMPONENTS].get(name)
+        if existing and existing.get(KEY_REF) != ref:
+            _LOGGER.warning(
+                "IDF component %s version overridden from %s to %s.",
+                name,
+                existing.get(KEY_REF),
+                ref,
+            )
         CORE.data[KEY_ESP32][KEY_COMPONENTS][name] = {
             KEY_REPO: repo,
             KEY_REF: ref,
