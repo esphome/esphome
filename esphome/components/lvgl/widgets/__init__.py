@@ -30,7 +30,6 @@ from ..defines import (
     CONF_MAIN,
     CONF_PAD_COLUMN,
     CONF_PAD_ROW,
-    CONF_SCROLLBAR_MODE,
     CONF_STYLES,
     CONF_WIDGETS,
     OBJ_FLAGS,
@@ -54,6 +53,7 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
+from ..schemas import OBJ_PROPERTIES
 from ..types import (
     LV_STATE,
     LvCompound,
@@ -620,7 +620,8 @@ async def set_obj_properties(w: Widget, config):
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)
-    await w.set_property(CONF_SCROLLBAR_MODE, config, lv_name="obj")
+    for property in OBJ_PROPERTIES:
+        await w.set_property(property, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):
