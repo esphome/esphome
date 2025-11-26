@@ -24,7 +24,7 @@ void Esp32HostedUpdate::setup() {
 
   // if wifi is not present, connect to the coprocessor
 #ifndef USE_WIFI
-  esp_hosted_connect_to_slave();
+  esp_hosted_connect_to_slave();  // NOLINT
 #endif
 
   // get coprocessor version
