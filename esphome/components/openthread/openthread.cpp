@@ -29,6 +29,23 @@ OpenThreadComponent *global_openthread_component =  // NOLINT(cppcoreguidelines-
 
 OpenThreadComponent::OpenThreadComponent() { global_openthread_component = this; }
 
+void OpenThreadComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Open Thread:");
+#if CONFIG_OPENTHREAD_FTD
+  ESP_LOGCONFIG(TAG, "  Device Type: FTD");
+#elif CONFIG_OPENTHREAD_MTD
+  ESP_LOGCONFIG(TAG, "  Device Type: MTD");
+  // TBD: Synchronized Sleepy End Device
+  if (this->poll_period > 0) {
+    ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
+    uint32_t duration = this->poll_period / 1000;
+    ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 "s", duration);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
+  }
+#endif
+}
+
 bool OpenThreadComponent::is_connected() {
   auto lock = InstanceLock::try_acquire(100);
   if (!lock) {
@@ -251,6 +268,12 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   }
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
+
+// set_use_address() is guaranteed to be called during component setup by Python code generation,
+// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
+const char *OpenThreadComponent::get_use_address() const { return this->use_address_; }
+
+void OpenThreadComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 }  // namespace openthread
 }  // namespace esphome

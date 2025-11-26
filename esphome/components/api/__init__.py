@@ -71,10 +71,12 @@ SERVICE_ARG_NATIVE_TYPES = {
     "int": cg.int32,
     "float": float,
     "string": cg.std_string,
-    "bool[]": cg.std_vector.template(bool),
-    "int[]": cg.std_vector.template(cg.int32),
-    "float[]": cg.std_vector.template(float),
-    "string[]": cg.std_vector.template(cg.std_string),
+    "bool[]": cg.FixedVector.template(bool).operator("const").operator("ref"),
+    "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
+    "float[]": cg.FixedVector.template(float).operator("const").operator("ref"),
+    "string[]": cg.FixedVector.template(cg.std_string)
+    .operator("const")
+    .operator("ref"),
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
@@ -83,6 +85,7 @@ CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
+CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 
 def validate_encryption_key(value):
@@ -155,6 +158,17 @@ def _validate_api_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def _consume_api_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for API component."""
+    from esphome.components import socket
+
+    # API needs 1 listening socket + typically 3 concurrent client connections
+    # (not max_connections, which is the upper limit rarely reached)
+    sockets_needed = 1 + 3
+    socket.consume_sockets(sockets_needed, "api")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -214,6 +228,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32=8,  # More RAM, can buffer more
                 rp2040=5,  # Limited RAM
                 bk72xx=8,  # Moderate RAM
+                nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
@@ -222,6 +237,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _validate_api_config,
+    _consume_api_sockets,
 )
 
 
@@ -229,6 +245,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Track controller registration for StaticVector sizing
+    CORE.register_controller()
 
     cg.add(var.set_port(config[CONF_PORT]))
     if config[CONF_PASSWORD]:
@@ -242,9 +261,13 @@ async def to_code(config):
         cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
-    # Set USE_API_SERVICES if any services are enabled
+    # Set USE_API_USER_DEFINED_ACTIONS if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
-        cg.add_define("USE_API_SERVICES")
+        cg.add_define("USE_API_USER_DEFINED_ACTIONS")
+
+    # Set USE_API_CUSTOM_SERVICES if external components need dynamic service registration
+    if config[CONF_CUSTOM_SERVICES]:
+        cg.add_define("USE_API_CUSTOM_SERVICES")
 
     if config[CONF_HOMEASSISTANT_SERVICES]:
         cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
@@ -253,6 +276,8 @@ async def to_code(config):
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
+        # Collect all triggers first, then register all at once with initializer_list
+        triggers: list[cg.Pvariable] = []
         for conf in actions:
             template_args = []
             func_args = []
@@ -266,8 +291,10 @@ async def to_code(config):
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
             )
-            cg.add(var.register_user_service(trigger))
+            triggers.append(trigger)
             await automation.build_automation(trigger, func_args, conf)
+        # Register all services at once - single allocation, no reallocations
+        cg.add(var.initialize_user_services(triggers))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
@@ -511,9 +538,24 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     return var
 
 
-@automation.register_condition("api.connected", APIConnectedCondition, {})
+API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(APIServer),
+        cv.Optional(CONF_STATE_SUBSCRIPTION_ONLY, default=False): cv.templatable(
+            cv.boolean
+        ),
+    }
+)
+
+
+@automation.register_condition(
+    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
+)
 async def api_connected_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
+    var = cg.new_Pvariable(condition_id, template_arg)
+    templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
+    cg.add(var.set_state_subscription_only(templ))
+    return var
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
