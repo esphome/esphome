@@ -79,6 +79,7 @@ from .widgets.page import (  # page_spec used in LVGL_SCHEMA
 for module_info in pkgutil.iter_modules(widgets.__path__):
     importlib.import_module(f".widgets.{module_info.name}", package=__package__)
 
+DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]
 AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
