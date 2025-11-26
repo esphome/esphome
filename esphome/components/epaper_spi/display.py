@@ -44,7 +44,7 @@ CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
-    "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
+    "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.Display
 )
 Transform = epaper_spi_ns.enum("Transform")
 
