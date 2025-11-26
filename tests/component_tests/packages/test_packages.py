@@ -95,7 +95,7 @@ def test_package_invalid_dict(basic_esphome, basic_wifi):
 
 
 @pytest.mark.parametrize(
-    "package",
+    "packages",
     [
         {"package1": "github://esphome/non-existant-repo/file1.yml@main"},
         {"package2": "github://esphome/non-existant-repo/file1.yml"},
@@ -107,12 +107,12 @@ def test_package_invalid_dict(basic_esphome, basic_wifi):
         ],
     ],
 )
-def test_package_shorthand(package):
-    CONFIG_SCHEMA(package)
+def test_package_shorthand(packages):
+    CONFIG_SCHEMA(packages)
 
 
 @pytest.mark.parametrize(
-    "package",
+    "packages",
     [
         # not github
         {"package1": "someplace://esphome/non-existant-repo/file1.yml@main"},
@@ -133,9 +133,9 @@ def test_package_shorthand(package):
         [3],
     ],
 )
-def test_package_invalid(package):
+def test_package_invalid(packages):
     with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA(package)
+        CONFIG_SCHEMA(packages)
 
 
 def test_package_include(basic_wifi, basic_esphome):
