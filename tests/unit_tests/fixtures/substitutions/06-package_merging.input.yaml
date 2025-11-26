@@ -9,6 +9,15 @@ substitutions:
         - id: component9
           value: 9
 
+  pin: 12
+  some_switches:
+    - platform: gpio
+      id: switch1
+      pin: ${pin}
+    - platform: gpio
+      id: switch2
+      pin: ${pin+1}
+
   package_selection: fancy_package
 
 packages:
@@ -19,6 +28,7 @@ packages:
   - some_component:
       - id: component2
         value: 2
+  - switch: ${ some_switches }
   - packages:
       package_with_defaults: !include
         file: display.yaml

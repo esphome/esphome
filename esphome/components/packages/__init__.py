@@ -28,6 +28,12 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = CONF_PACKAGES
 
 
+def validate_has_jinja(value):
+    if not isinstance(value, str) or not has_jinja(value):
+        raise cv.Invalid("string does not contain Jinja syntax")
+    return value
+
+
 def valid_package_contents(package_config: dict):
     """Validates that a package_config that will be merged looks as much as possible to a valid config
     to fail early on obvious mistakes."""
@@ -47,7 +53,8 @@ def valid_package_contents(package_config: dict):
                 continue  # e.g. web_server:
             if isinstance(v, str) and has_jinja(v):
                 # e.g: remote package shorthand:
-                # package_name: github://esphome/repo/file.yaml@${ branch }
+                # package_name: github://esphome/repo/file.yaml@${ branch }, or:
+                # switch: ${ expression that evals to a switch }
                 continue
 
             raise cv.Invalid("Invalid component content in package definition")
@@ -88,12 +95,6 @@ def validate_source_shorthand(value):
         conf[CONF_REF] = git_file.ref
 
     return REMOTE_PACKAGE_SCHEMA(conf)
-
-
-def validate_has_jinja(value):
-    if not isinstance(value, str) or not has_jinja(value):
-        raise cv.Invalid("string does not contain Jinja syntax")
-    return value
 
 
 def deprecate_single_package(config):

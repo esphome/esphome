@@ -17,6 +17,13 @@ some_component:
     value: 6
   - id: component7
     value: 7
+switch: &id002
+  - platform: gpio
+    id: switch1
+    pin: 12
+  - platform: gpio
+    id: switch2
+    pin: 13
 display:
   - platform: ili9xxx
     dimensions:
@@ -31,4 +38,6 @@ substitutions:
           value: 8
     fancy_package:
       fancy_component: *id001
+  pin: 12
+  some_switches: *id002
   package_selection: fancy_package
