@@ -537,6 +537,9 @@ lvgl:
         - tileview:
             id: tileview_id
             scrollbar_mode: active
+            scroll_dir: all
+            scroll_elastic: true
+            scroll_momentum: true
             on_value:
               then:
                 - if:
@@ -546,7 +549,10 @@ lvgl:
                       - logger.log: "tile 1 is now showing"
             tiles:
               - id: tile_1
+                scroll_snap_y: center
+                scroll_snap_x: start
                 layout: vertical
+                pad_all: 6px
                 row: 0
                 column: 0
                 dir: ALL
@@ -1044,6 +1050,7 @@ lvgl:
                                 opa: 0%
     - id: page3
       layout: Horizontal
+      pad_all: 6px
       widgets:
         - keyboard:
             id: lv_keyboard
