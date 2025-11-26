@@ -68,6 +68,7 @@ jobs:
               'bugfix',
               'new-feature',
               'breaking-change',
+              'developer-breaking-change',
               'code-quality'
             ];
 
@@ -367,6 +368,7 @@ jobs:
                 { pattern: /- \[x\] Bugfix \(non-breaking change which fixes an issue\)/i, label: 'bugfix' },
                 { pattern: /- \[x\] New feature \(non-breaking change which adds functionality\)/i, label: 'new-feature' },
                 { pattern: /- \[x\] Breaking change \(fix or feature that would cause existing functionality to not work as expected\)/i, label: 'breaking-change' },
+                { pattern: /- \[x\] Developer breaking change \(an API change that could break external components\)/i, label: 'developer-breaking-change' },
                 { pattern: /- \[x\] Code quality improvements to existing code or addition of tests/i, label: 'code-quality' }
               ];
 
