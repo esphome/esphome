@@ -518,7 +518,7 @@ message ListEntitiesLightResponse {
   bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
-  repeated string effects = 11;
+  repeated string effects = 11 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 13;
   string icon = 14 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 15;
