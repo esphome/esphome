@@ -1,6 +1,7 @@
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
 from esphome.components.time import RealTimeClock
+from esphome.config_validation import prepend_path
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
@@ -19,7 +20,14 @@ from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .defines import (
+    CONF_SCROLL_DIR,
+    CONF_SCROLL_SNAP_X,
+    CONF_SCROLL_SNAP_Y,
+    CONF_SCROLLBAR_MODE,
+    CONF_TIME_FORMAT,
+    LV_GRAD_DIR,
+)
 from .helpers import CONF_IF_NAN, requires_component, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
@@ -233,8 +241,18 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+        cv.Optional(CONF_SCROLL_DIR): df.SCROLL_DIRECTIONS.one_of,
+        cv.Optional(CONF_SCROLL_SNAP_X): df.SNAP_DIRECTIONS.one_of,
+        cv.Optional(CONF_SCROLL_SNAP_Y): df.SNAP_DIRECTIONS.one_of,
     }
 )
+
+OBJ_PROPERTIES = {
+    CONF_SCROLL_SNAP_X,
+    CONF_SCROLL_SNAP_Y,
+    CONF_SCROLL_DIR,
+    CONF_SCROLLBAR_MODE,
+}
 
 # Also allow widget specific properties for use in style definitions
 FULL_STYLE_SCHEMA = STYLE_SCHEMA.extend(
@@ -422,7 +440,10 @@ def any_widget_schema(extras=None):
     def validator(value):
         if isinstance(value, dict):
             # Convert to list
+            is_dict = True
             value = [{k: v} for k, v in value.items()]
+        else:
+            is_dict = False
         if not isinstance(value, list):
             raise cv.Invalid("Expected a list of widgets")
         result = []
@@ -443,7 +464,9 @@ def any_widget_schema(extras=None):
                 )
             # Apply custom validation
             value = widget_type.validate(value or {})
-            result.append({key: container_validator(value)})
+            path = [key] if is_dict else [index, key]
+            with prepend_path(path):
+                result.append({key: container_validator(value)})
         return result
 
     return validator
