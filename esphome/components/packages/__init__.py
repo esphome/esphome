@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from esphome import git, yaml_util
@@ -19,6 +20,8 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import EsphomeError
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_PACKAGES
 
@@ -80,6 +83,13 @@ def validate_source_shorthand(value):
     return REMOTE_PACKAGE_SCHEMA(conf)
 
 
+def deprecate_single_package(config):
+    _LOGGER.warning(
+        "Including a single package under `packages:` is deprecated. Use a list instead."
+    )
+    return config
+
+
 REMOTE_PACKAGE_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -128,7 +138,9 @@ CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
         }
     ),
     [PACKAGE_SCHEMA],  # a list of package definitions, or
-    cv.ensure_list(PACKAGE_SCHEMA),  # a single package definition
+    cv.All(  # a single package definition (deprecated)
+        cv.ensure_list(PACKAGE_SCHEMA), deprecate_single_package
+    ),
 )
 
 
