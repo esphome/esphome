@@ -68,7 +68,7 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
 
  protected:
 #ifdef USE_SENSOR
-  std::map<std::string, sensor::Sensor *> sensors_{};
+  std::vector<std::pair<std::string, sensor::Sensor *>> sensors_{};
 #endif
   std::string buffer_;
   std::string last_valid_json_;
