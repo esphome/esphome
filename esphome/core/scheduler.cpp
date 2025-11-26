@@ -359,7 +359,7 @@ void HOT Scheduler::call(uint32_t now) {
       std::unique_ptr<SchedulerItem> item;
       {
         LockGuard guard{this->lock_};
-        item = this->pop_raw_();
+        item = this->pop_raw_locked_();
       }
 
       const char *name = item->get_name();
@@ -400,7 +400,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Don't run on failed components
     if (item->component != nullptr && item->component->is_failed()) {
       LockGuard guard{this->lock_};
-      this->recycle_item_(this->pop_raw_());
+      this->recycle_item_(this->pop_raw_locked_());
       continue;
     }
 
@@ -413,7 +413,7 @@ void HOT Scheduler::call(uint32_t now) {
     {
       LockGuard guard{this->lock_};
       if (is_item_removed_(item.get())) {
-        this->recycle_item_(this->pop_raw_());
+        this->recycle_item_(this->pop_raw_locked_());
         this->to_remove_--;
         continue;
       }
@@ -422,7 +422,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Single-threaded or multi-threaded with atomics: can check without lock
     if (is_item_removed_(item.get())) {
       LockGuard guard{this->lock_};
-      this->recycle_item_(this->pop_raw_());
+      this->recycle_item_(this->pop_raw_locked_());
       this->to_remove_--;
       continue;
     }
@@ -444,7 +444,7 @@ void HOT Scheduler::call(uint32_t now) {
 
     // Only pop after function call, this ensures we were reachable
     // during the function call and know if we were cancelled.
-    auto executed_item = this->pop_raw_();
+    auto executed_item = this->pop_raw_locked_();
 
     if (executed_item->remove) {
       // We were removed/cancelled in the function call, recycle and continue
@@ -496,7 +496,7 @@ size_t HOT Scheduler::cleanup_() {
     return this->items_.size();
 
   // We must hold the lock for the entire cleanup operation because:
-  // 1. We're modifying items_ (via pop_raw_) which requires exclusive access
+  // 1. We're modifying items_ (via pop_raw_locked_) which requires exclusive access
   // 2. We're decrementing to_remove_ which is also modified by other threads
   //    (though all modifications are already under lock)
   // 3. Other threads read items_ when searching for items to cancel in cancel_item_locked_()
@@ -509,11 +509,11 @@ size_t HOT Scheduler::cleanup_() {
     if (!item->remove)
       break;
     this->to_remove_--;
-    this->recycle_item_(this->pop_raw_());
+    this->recycle_item_(this->pop_raw_locked_());
   }
   return this->items_.size();
 }
-std::unique_ptr<Scheduler::SchedulerItem> HOT Scheduler::pop_raw_() {
+std::unique_ptr<Scheduler::SchedulerItem> HOT Scheduler::pop_raw_locked_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
 
   // Move the item out before popping - this is the item that was at the front of the heap

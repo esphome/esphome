@@ -221,7 +221,7 @@ class Scheduler {
   size_t cleanup_();
   // Remove and return the front item from the heap
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  std::unique_ptr<SchedulerItem> pop_raw_();
+  std::unique_ptr<SchedulerItem> pop_raw_locked_();
 
  private:
   // Helper to cancel items by name - must be called with lock held
