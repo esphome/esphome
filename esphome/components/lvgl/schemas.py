@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
 from esphome.components.time import RealTimeClock
@@ -311,7 +313,7 @@ def automation_schema(typ: LvType):
     }
 
 
-def _update_widget(widget_type: WidgetType):
+def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
     During validation of update actions, create a map of action types to affected widgets
     for use in final validation.
@@ -319,7 +321,7 @@ def _update_widget(widget_type: WidgetType):
     :return:
     """
 
-    def validator(value):
+    def validator(value: dict) -> dict:
         df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
         return value
 
