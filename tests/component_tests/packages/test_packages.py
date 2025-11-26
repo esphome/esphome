@@ -155,6 +155,21 @@ def test_package_include(basic_wifi, basic_esphome):
     assert actual == expected
 
 
+def test_single_package(basic_esphome, basic_wifi):
+    """
+    Tests the simple case where a single package is added to the top-level config as is.
+    In this test, the CONF_WIFI config is expected to be simply added to the top-level config.
+    This tests the case where the user just put packages: !include package.yaml, not
+    part of a list or mapping of packages.
+    """
+    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: {CONF_WIFI: basic_wifi}}
+
+    expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
+
+    actual = packages_pass(config)
+    assert actual == expected
+
+
 def test_package_append(basic_wifi, basic_esphome):
     """
     Tests the case where a key is present in both a package and top-level config.
