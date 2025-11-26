@@ -38,7 +38,6 @@ class Modbus : public uart::UARTDevice, public Component {
                                            const std::vector<uint8_t> &data) = 0;
   void clear_rx_buffer_(const std::string &reason, bool warn = false, size_t bytes_to_clear = 0);
   bool send_frame_(const std::vector<uint8_t> &frame);
-  static std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload);
 
   uint32_t last_modbus_byte_{0};
   uint32_t last_receive_check_{0};
@@ -71,7 +70,7 @@ class ModbusClientHub : public Modbus {
   bool tx_buffer_empty();
   bool tx_blocked() override;
   void send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
-            uint16_t number_of_entities, uint8_t payload_len = 0, const uint8_t *payload = nullptr);
+            uint16_t number_of_entities);
   void send_raw(ModbusClientDevice *device, const std::vector<uint8_t> &payload);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
@@ -118,9 +117,13 @@ class ModbusClientDevice {
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_not_sent() {}
   virtual void on_modbus_no_response() {}
-  void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
-            const uint8_t *payload = nullptr) {
-    this->parent_->send(this, this->address_, function, start_address, number_of_entities, payload_len, payload);
+  void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities) {
+    this->parent_->send(this, this->address_, function, start_address, number_of_entities);
+  }
+  void send_pdu(const std::vector<uint8_t> &pdu) {
+    std::vector<uint8_t> payload = pdu;
+    payload.insert(payload.begin(), {this->address_});
+    this->parent_->send_raw(this, payload);
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(this, payload); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {

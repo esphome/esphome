@@ -30,11 +30,14 @@ inline bool is_function_code_exception(uint8_t function_code) {
 
 inline bool is_function_code_custom(uint8_t function_code) {
   uint8_t masked_function_code = static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK;
-  return masked_function_code == ModbusFunctionCode::CUSTOM ||
-         (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT &&
+  return (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT &&
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END) ||
          (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT &&
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
+}
+
+inline bool is_register_type_binary(ModbusRegisterType type) {
+  return type == ModbusRegisterType::COIL || type == ModbusRegisterType::DISCRETE_INPUT;
 }
 
 // Returns the expected length of a server response frame based on the function code
@@ -145,6 +148,14 @@ enum class SensorValueType : uint8_t {
   FP32_R = 0xD
 };
 
+// Check frame length for supported read and write function codes.
+inline bool is_client_frame_length_valid(const std::vector<uint8_t> &frame) {
+  if (is_function_code_read(frame[1]) || is_function_code_write(frame[1])) {
+    return client_frame_length(frame) == frame.size();
+  }
+  return true;
+}
+
 inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
 }
@@ -160,7 +171,7 @@ inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_t
     case ModbusRegisterType::READ:
       return ModbusFunctionCode::READ_INPUT_REGISTERS;
     default:
-      return ModbusFunctionCode::CUSTOM;
+      return ModbusFunctionCode::INVALID;
   }
 }
 
@@ -174,7 +185,7 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
     case ModbusRegisterType::READ:
     case ModbusRegisterType::DISCRETE_INPUT:
     default:
-      return ModbusFunctionCode::CUSTOM;
+      return ModbusFunctionCode::INVALID;
   }
 }
 
@@ -193,7 +204,6 @@ inline ModbusRegisterType modbus_register_type(ModbusFunctionCode function_code)
       return ModbusRegisterType::HOLDING;
     case ModbusFunctionCode::READ_INPUT_REGISTERS:
       return ModbusRegisterType::READ;
-    case ModbusFunctionCode::CUSTOM:
     default:
       return ModbusRegisterType::CUSTOM;
   }
@@ -323,6 +333,66 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
 int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
                           uint32_t bitmask);
 
+/** Create a modbus clinet pdu for reading/writing single/multiple coils/register/inputs.
+ * @param pdu target for modbus protocol data unit (function code + data)
+ * @param function_code the modbus function code to use. One of:
+ * READ_COILS
+ * READ_DISCRETE_INPUTS
+ * READ_HOLDING_REGISTERS
+ * READ_INPUT_REGISTERS
+ * WRITE_SINGLE_COIL
+ * WRITE_SINGLE_REGISTER
+ * WRITE_MULTIPLE_COILS
+ * WRITE_MULTIPLE_REGISTERS
+ * @param start_address coil/register/input starting ddress
+ * @param number_of_entities number of coils/registers/inputs to read/write
+ * @param values vector of the values to write.
+ */
+void create_client_pdu(std::vector<uint8_t> &pdu, ModbusFunctionCode function_code, uint16_t start_address,
+                       uint16_t number_of_entities, const std::vector<uint8_t> &values = {});
+
+/** Create modbus write multiple registers command
+ *  Function 0x10 Write Multiple Registers
+ * @param pdu target for modbus protocol data unit (function code + data)
+ * @param start_address modbus address of the first register to read
+ * @param register_count number of registers to read
+ * @param values uint16_t register values to write
+ */
+void create_write_multiple_pdu(std::vector<uint8_t> &pdu, uint16_t start_address, uint16_t register_count,
+                               const std::vector<uint16_t> &values);
+
+/** Create modbus write single registers command
+ *  Function 0x06 Write Single Register
+ * @param pdu target for modbus protocol data unit (function code + data)
+ * @param start_address modbus address of the first coil to read
+ * @param value uint16_t data to be written to the coils
+ */
+void create_write_single_pdu(std::vector<uint8_t> &pdu, uint16_t start_address, uint16_t value);
+
+/** Create modbus write single coil command
+ *  Function 0x05 Write Single Coil
+ * @param pdu target for modbus protocol data unit (function code + data)
+ * @param start_address modbus address of the first coil to write
+ * @param value data to be written to the coils
+ */
+void create_write_single_coil_pdu(std::vector<uint8_t> &pdu, uint16_t address, bool value);
+
+/** Create modbus write multiple coils command
+ *  Function 0x0F Write Multiple Coils
+ * @param pdu target for modbus protocol data unit (function code + data)
+ * @param start_address modbus address of the first register to read
+ * @param value bool vector of values to be written to the coils
+ */
+void create_write_multiple_coils_pdu(std::vector<uint8_t> &pdu, uint16_t start_address,
+                                     const std::vector<bool> &values);
+
+std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload);
+
+/** Convert float to vector<uint8_t> response payload.
+ * @param value value to convert
+ * @param value_type  defines if 16/32/64 bits or FP32 is used
+ * @return data payload with data
+ */
 inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
   int64_t val;
 
