@@ -3,8 +3,7 @@
 
 #ifdef USE_JSON
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
 
@@ -169,7 +168,6 @@ void LightJSONSchema::parse_json(LightState &state, LightCall &call, JsonObject 
   }
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
 
 #endif
