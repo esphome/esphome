@@ -74,6 +74,12 @@ void EntityBase::set_object_id(const char *object_id) {
   this->calc_object_id_();
 }
 
+void EntityBase::set_name_and_object_id(const char *name, const char *object_id) {
+  this->set_name(name);
+  this->object_id_c_str_ = object_id;
+  this->calc_object_id_();
+}
+
 // Calculate Object ID Hash from Entity Name
 void EntityBase::calc_object_id_() {
   this->object_id_hash_ =

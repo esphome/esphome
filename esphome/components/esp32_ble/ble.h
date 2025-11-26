@@ -112,7 +112,7 @@ class ESP32BLE : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_name(const std::string &name) { this->name_ = name; }
+  void set_name(const char *name) { this->name_ = name; }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_start();
@@ -191,13 +191,11 @@ class ESP32BLE : public Component {
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
   esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_event_pool_;
 
-  // optional<string> (typically 16+ bytes on 32-bit, aligned to 4 bytes)
-  optional<std::string> name_;
-
   // 4-byte aligned members
 #ifdef USE_ESP32_BLE_ADVERTISING
   BLEAdvertising *advertising_{};  // 4 bytes (pointer)
 #endif
+  const char *name_{nullptr};                 // 4 bytes (pointer to string literal in flash)
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
   uint32_t advertising_cycle_time_{};         // 4 bytes
 
