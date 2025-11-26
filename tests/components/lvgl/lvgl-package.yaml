@@ -16,6 +16,16 @@ binary_sensor:
     platform: template
   - id: left_sensor
     platform: template
+  - platform: lvgl
+    id: button_checker
+    name: LVGL button
+    widget: button_button
+    on_state:
+      then:
+        - lvgl.checkbox.update:
+            id: checkbox_id
+            state:
+              checked: !lambda return x;
 
 lvgl:
   log_level: debug
