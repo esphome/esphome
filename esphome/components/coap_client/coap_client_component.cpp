@@ -480,10 +480,8 @@ void CoapClientComponent::housekeeping_() {
     if (tx_request) {
       if (tx_request->create_timestamp == tx_request->response_timestamp) {
         ESP_LOGE(TAG, "Send timeout error to tx_request %s", tx_request->name.c_str());
-        if (!tx_request->sent) {
-          tx_request->callback(0, nullptr, 0, 0, 0, tx_request->callback_context);
-          tx_request->sent = false;
-        }
+        tx_request->callback(0, nullptr, 0, 0, 0, tx_request->callback_context);
+        tx_request->sent = false;
       }
       if (!tx_request->keep) {
         ESP_LOGD(TAG, "Remove request %s due to response timeout of %ums", tx_request->name.c_str(),
