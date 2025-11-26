@@ -28,8 +28,10 @@ static size_t get_field(char *dest, const char *buf_start, const char *buf_end, 
   if (!field_end)
     return 0;
   const size_t len = field_end - buf_start;
-  if (len >= max_len)
+  if (len >= max_len) {
+    ESP_LOGE(TAG, "Field too long: %zu bytes (max %zu)", len, max_len);
     return len;
+  }
 
   memcpy(dest, buf_start, len);
   dest[len] = '\0';  // Null-terminate
@@ -86,7 +88,7 @@ bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
  * @note Logs a warning if the internal buffer is full.
  */
 bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
-  uint8_t j{0};
+  size_t j{0};
 
   while (available() > 0 && j++ < MAX_ITERATIONS) {
     const auto received = read();
@@ -197,6 +199,7 @@ void Mk2PVRouter::loop() {
         }
 
         /* Advance buf_finger to end of group */
+        /* Skip: value field + TAB + CRC + CR */
         buf_finger += field_len + 1 + 1 + 1;
 
         publish_value_(tag_, val_);
@@ -228,14 +231,6 @@ void Mk2PVRouter::publish_value_(const std::string &tag, const std::string &val)
 void Mk2PVRouter::dump_config() {
   ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
   this->check_uart_settings(baud_rate_, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
-}
-
-/**
- * @brief Constructor for the Mk2PVRouter class. Initializes default values for checksum_area_end_ and baud_rate_.
- */
-Mk2PVRouter::Mk2PVRouter() {
-  checksum_area_end_ = 1;
-  baud_rate_ = 9600;
 }
 
 /**

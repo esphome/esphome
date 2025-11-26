@@ -4,7 +4,6 @@
 #include "esphome/components/uart/uart.h"
 
 #include <vector>
-#include <array>
 
 namespace esphome {
 namespace mk2pvrouter {
@@ -30,7 +29,7 @@ static const uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features enabl
 class Mk2PVRouterListener {
  public:
   std::string tag;
-  virtual void publish_val(const std::string &val){};
+  virtual void publish_val(const std::string &val) = 0;
 };
 
 /**
@@ -42,7 +41,7 @@ class Mk2PVRouterListener {
  */
 class Mk2PVRouter : public PollingComponent, public uart::UARTDevice {
  public:
-  Mk2PVRouter();
+  Mk2PVRouter() = default;
   void register_mk2pvrouter_listener(Mk2PVRouterListener *listener);
   void loop() override;
   void setup() override;
@@ -51,8 +50,8 @@ class Mk2PVRouter : public PollingComponent, public uart::UARTDevice {
   std::vector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
 
  protected:
-  uint32_t baud_rate_;
-  size_t checksum_area_end_;
+  uint32_t baud_rate_{9600};
+  size_t checksum_area_end_{1};
   char buf_[MAX_BUF_SIZE];
   size_t buf_index_{0};
   char tag_[MAX_TAG_SIZE];

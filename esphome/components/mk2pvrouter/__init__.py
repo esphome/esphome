@@ -4,6 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@FredM67"]
+DEPENDENCIES = ["uart"]
+MULTI_CONF = True
 
 mk2pvrouter_ns = cg.esphome_ns.namespace("mk2pvrouter")
 Mk2PVRouter = mk2pvrouter_ns.class_("Mk2PVRouter", cg.PollingComponent, uart.UARTDevice)
@@ -26,6 +28,10 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("5s"))
     .extend(uart.UART_DEVICE_SCHEMA)
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "mk2pvrouter", baud_rate=9600, parity="EVEN", require_rx=True
 )
 
 
