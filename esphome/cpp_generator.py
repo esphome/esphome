@@ -19,10 +19,20 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
+
+# Keys for lambda deduplication storage in CORE.data
+_KEY_LAMBDA_DEDUP = "lambda_dedup"
+_KEY_LAMBDA_DEDUP_DECLARATIONS = "lambda_dedup_declarations"
+
+# Regex patterns for static variable detection (compiled once)
+_RE_CPP_SINGLE_LINE_COMMENT = re.compile(r"//.*?$", re.MULTILINE)
+_RE_CPP_MULTI_LINE_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+_RE_STATIC_VARIABLE = re.compile(r"\bstatic\s+(?!cast|assert|pointer_cast)\w+\s+\w+")
 
 
 class RawExpression(Expression):
@@ -188,7 +198,7 @@ class LambdaExpression(Expression):
 
     def __init__(
         self, parts, parameters, capture: str = "=", return_type=None, source=None
-    ):
+    ) -> None:
         self.parts = parts
         if not isinstance(parameters, ParameterListExpression):
             parameters = ParameterListExpression(*parameters)
@@ -197,21 +207,57 @@ class LambdaExpression(Expression):
         self.capture = capture
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
-    def __str__(self):
+    def format_body(self) -> str:
+        """Format the lambda body with source directive and content."""
+        body = ""
+        if self.source is not None:
+            body += f"{self.source.as_line_directive}\n"
+        body += self.content
+        return body
+
+    def __str__(self) -> str:
         # Stateless lambdas (empty capture) implicitly convert to function pointers
         # when assigned to function pointer types - no unary + needed
         cpp = f"[{self.capture}]({self.parameters})"
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
-        cpp += " {\n"
-        if self.source is not None:
-            cpp += f"{self.source.as_line_directive}\n"
-        cpp += f"{self.content}\n}}"
+        cpp += f" {{\n{self.format_body()}\n}}"
         return indent_all_but_first_and_last(cpp)
 
     @property
     def content(self):
         return "".join(str(part) for part in self.parts)
+
+
+class SharedFunctionLambdaExpression(LambdaExpression):
+    """A lambda expression that references a shared deduplicated function.
+
+    This class wraps a function pointer but maintains the LambdaExpression
+    interface so calling code works unchanged.
+    """
+
+    __slots__ = ("_func_name",)
+
+    def __init__(
+        self,
+        func_name: str,
+        parameters: TemplateArgsType,
+        return_type: SafeExpType | None = None,
+    ) -> None:
+        # Initialize parent with empty parts since we're just a function reference
+        super().__init__(
+            [], parameters, capture="", return_type=return_type, source=None
+        )
+        self._func_name = func_name
+
+    def __str__(self) -> str:
+        # Just return the function name - it's already a function pointer
+        return self._func_name
+
+    @property
+    def content(self) -> str:
+        # No content, just a function reference
+        return ""
 
 
 # pylint: disable=abstract-method
@@ -583,6 +629,25 @@ def add_global(expression: SafeExpType | Statement, prepend: bool = False):
     CORE.add_global(expression, prepend)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def flush_lambda_dedup_declarations() -> None:
+    """Flush all deferred lambda deduplication declarations to global scope.
+
+    This is a coroutine that runs with FINAL priority (after all components)
+    to ensure all referenced variables are declared before the shared
+    lambda functions that use them.
+    """
+    if _KEY_LAMBDA_DEDUP_DECLARATIONS not in CORE.data:
+        return
+
+    declarations = CORE.data[_KEY_LAMBDA_DEDUP_DECLARATIONS]
+    for func_declaration in declarations:
+        add_global(RawStatement(func_declaration))
+
+    # Clear the list so we don't add them again
+    CORE.data[_KEY_LAMBDA_DEDUP_DECLARATIONS] = []
+
+
 def add_library(name: str, version: str | None, repository: str | None = None):
     """Add a library to the codegen library storage.
 
@@ -656,6 +721,93 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     return await CORE.get_variable_with_full_id(id_)
 
 
+def _has_static_variables(code: str) -> bool:
+    """Check if code contains static variable definitions.
+
+    Static variables in lambdas should not be deduplicated because each lambda
+    instance should have its own static variable state.
+
+    Args:
+        code: The lambda body code to check
+
+    Returns:
+        True if code contains static variable definitions
+    """
+    # Remove C++ comments to avoid false positives
+    # Remove single-line comments (// ...)
+    code_no_comments = _RE_CPP_SINGLE_LINE_COMMENT.sub("", code)
+    # Remove multi-line comments (/* ... */)
+    code_no_comments = _RE_CPP_MULTI_LINE_COMMENT.sub("", code_no_comments)
+
+    # Match: static <type> <identifier>
+    # But not: static_cast, static_assert, static_pointer_cast
+    return bool(_RE_STATIC_VARIABLE.search(code_no_comments))
+
+
+def _get_shared_lambda_name(lambda_expr: LambdaExpression) -> str | None:
+    """Get the shared function name for a lambda expression.
+
+    If an identical lambda was already generated, returns the existing shared
+    function name. Otherwise, creates a new shared function and returns its name.
+
+    Lambdas with static variables are not deduplicated to preserve their
+    independent state.
+
+    Args:
+        lambda_expr: The lambda expression to deduplicate
+
+    Returns:
+        The name of the shared function for this lambda (either existing or newly created),
+        or None if the lambda should not be deduplicated (e.g., contains static variables)
+    """
+    # Create a unique key from the lambda content, parameters, and return type
+    content = lambda_expr.content
+
+    # Don't deduplicate lambdas with static variables - each instance needs its own state
+    if _has_static_variables(content):
+        return None
+    param_str = str(lambda_expr.parameters)
+    return_str = (
+        str(lambda_expr.return_type) if lambda_expr.return_type is not None else "void"
+    )
+
+    # Use tuple of (content, params, return_type) as key
+    lambda_key = (content, param_str, return_str)
+
+    # Initialize deduplication storage in CORE.data if not exists
+    if _KEY_LAMBDA_DEDUP not in CORE.data:
+        CORE.data[_KEY_LAMBDA_DEDUP] = {}
+        # Register the flush job to run after all components (FINAL priority)
+        # This ensures all variables are declared before shared lambda functions
+        CORE.add_job(flush_lambda_dedup_declarations)
+
+    lambda_cache = CORE.data[_KEY_LAMBDA_DEDUP]
+
+    # Check if we've seen this lambda before
+    if lambda_key in lambda_cache:
+        # Return name of existing shared function
+        return lambda_cache[lambda_key]
+
+    # First occurrence - create a shared function
+    # Use the cache size as the function number
+    func_name = f"shared_lambda_{len(lambda_cache)}"
+
+    # Build the function declaration using lambda's body formatting
+    func_declaration = (
+        f"{return_str} {func_name}({param_str}) {{\n{lambda_expr.format_body()}\n}}"
+    )
+
+    # Store the declaration to be added later (after all variable declarations)
+    # We can't add it immediately because it might reference variables not yet declared
+    CORE.data.setdefault(_KEY_LAMBDA_DEDUP_DECLARATIONS, []).append(func_declaration)
+
+    # Store in cache
+    lambda_cache[lambda_key] = func_name
+
+    # Return the function name (this is the first occurrence, but we still generate shared function)
+    return func_name
+
+
 async def process_lambda(
     value: Lambda,
     parameters: TemplateArgsType,
@@ -713,6 +865,19 @@ async def process_lambda(
         location.line += value.content_offset
     else:
         location = None
+
+    # Lambda deduplication: Only deduplicate stateless lambdas (empty capture).
+    # Stateful lambdas cannot be shared as they capture different contexts.
+    # Lambdas with static variables are also not deduplicated to preserve independent state.
+    if capture == "":
+        lambda_expr = LambdaExpression(
+            parts, parameters, capture, return_type, location
+        )
+        func_name = _get_shared_lambda_name(lambda_expr)
+        if func_name is not None:
+            # Return a shared function reference instead of inline lambda
+            return SharedFunctionLambdaExpression(func_name, parameters, return_type)
+
     return LambdaExpression(parts, parameters, capture, return_type, location)
 
 

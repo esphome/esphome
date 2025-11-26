@@ -41,6 +41,9 @@ class EntityBase {
   std::string get_object_id() const;
   void set_object_id(const char *object_id);
 
+  // Set both name and object_id in one call (reduces generated code size)
+  void set_name_and_object_id(const char *name, const char *object_id);
+
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
 
