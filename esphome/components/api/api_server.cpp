@@ -576,5 +576,47 @@ bool APIServer::teardown() {
   return this->clients_.empty();
 }
 
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void APIServer::register_service_call(uint32_t call_id, APIConnection *conn) {
+  this->active_service_calls_.push_back({call_id, conn});
+}
+
+void APIServer::unregister_service_call(uint32_t call_id) {
+  this->active_service_calls_.erase(
+      std::remove_if(this->active_service_calls_.begin(), this->active_service_calls_.end(),
+                     [call_id](const ActiveServiceCall &call) { return call.call_id == call_id; }),
+      this->active_service_calls_.end());
+}
+
+APIConnection *APIServer::get_service_call_connection(uint32_t call_id) {
+  for (auto &call : this->active_service_calls_) {
+    if (call.call_id == call_id) {
+      return call.connection;
+    }
+  }
+  return nullptr;
+}
+
+void APIServer::send_service_response(uint32_t call_id, bool success, const std::string &error_message) {
+  APIConnection *conn = this->get_service_call_connection(call_id);
+  if (conn == nullptr) {
+    ESP_LOGW(TAG, "Cannot send response: no connection found for call_id %u", call_id);
+    return;
+  }
+  conn->send_execute_service_response(call_id, success, error_message);
+}
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+void APIServer::send_service_response(uint32_t call_id, bool success, const std::string &error_message,
+                                      const uint8_t *response_data, size_t response_data_len) {
+  APIConnection *conn = this->get_service_call_connection(call_id);
+  if (conn == nullptr) {
+    ESP_LOGW(TAG, "Cannot send response: no connection found for call_id %u", call_id);
+    return;
+  }
+  conn->send_execute_service_response(call_id, success, error_message, response_data, response_data_len);
+}
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
+
 }  // namespace esphome::api
 #endif

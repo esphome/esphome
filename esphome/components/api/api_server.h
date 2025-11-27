@@ -12,14 +12,14 @@
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
-#ifdef USE_API_USER_DEFINED_ACTIONS
-#include "user_services.h"
-#endif
-
-#include <map>
 #include <vector>
 
 namespace esphome::api {
+
+#ifdef USE_API_USER_DEFINED_ACTIONS
+// Forward declaration - full definition in user_services.h
+class UserServiceDescriptor;
+#endif
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
@@ -132,6 +132,18 @@ class APIServer : public Component, public Controller {
   // Only compile push_back method when custom_services: true (external components)
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Service call context management - supports concurrent calls from multiple clients
+  void register_service_call(uint32_t call_id, APIConnection *conn);
+  void unregister_service_call(uint32_t call_id);
+  APIConnection *get_service_call_connection(uint32_t call_id);
+  // Send response for a specific service call
+  void send_service_response(uint32_t call_id, bool success, const std::string &error_message);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  void send_service_response(uint32_t call_id, bool success, const std::string &error_message,
+                             const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
@@ -208,6 +220,14 @@ class APIServer : public Component, public Controller {
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Active service calls - supports concurrent calls from multiple clients
+  struct ActiveServiceCall {
+    uint32_t call_id;
+    APIConnection *connection;
+  };
+  std::vector<ActiveServiceCall> active_service_calls_;
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   struct PendingActionResponse {

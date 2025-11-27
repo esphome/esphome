@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_SERVICE,
     CONF_SERVICES,
     CONF_TAG,
+    CONF_THEN,
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
@@ -63,6 +64,7 @@ HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
 APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
+APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 
 UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
@@ -102,6 +104,85 @@ def validate_encryption_key(value):
     return value
 
 
+CONF_SUPPORTS_RESPONSE = "supports_response"
+
+# Enum values in api::enums namespace
+enums_ns = api_ns.namespace("enums")
+SUPPORTS_RESPONSE_OPTIONS = {
+    "none": enums_ns.SUPPORTS_RESPONSE_NONE,
+    "optional": enums_ns.SUPPORTS_RESPONSE_OPTIONAL,
+    "only": enums_ns.SUPPORTS_RESPONSE_ONLY,
+    "status": enums_ns.SUPPORTS_RESPONSE_STATUS,
+}
+
+
+def _auto_detect_supports_response(config):
+    """Auto-detect supports_response based on api.respond usage in the action's then block.
+
+    - If api.respond with data found: set to "optional" (unless user explicitly set)
+    - If api.respond without data found: set to "status" (unless user explicitly set)
+    - If no api.respond found: set to "none" (unless user explicitly set)
+    """
+
+    def scan_actions(items):
+        """Recursively scan actions for api.respond.
+
+        Returns: (found, has_data) tuple - has_data is True if ANY api.respond has data
+        """
+        found_any = False
+        has_data_any = False
+
+        if isinstance(items, list):
+            for item in items:
+                found, has_data = scan_actions(item)
+                if found:
+                    found_any = True
+                    has_data_any = has_data_any or has_data
+        elif isinstance(items, dict):
+            # Check if this is an api.respond action
+            if "api.respond" in items:
+                respond_config = items["api.respond"]
+                has_data = isinstance(respond_config, dict) and "data" in respond_config
+                return True, has_data
+            # Recursively check all values
+            for value in items.values():
+                found, has_data = scan_actions(value)
+                if found:
+                    found_any = True
+                    has_data_any = has_data_any or has_data
+
+        return found_any, has_data_any
+
+    then = config.get(CONF_THEN, [])
+    action_name = config.get(CONF_ACTION)
+    found, has_data = scan_actions(then)
+
+    # If user explicitly set supports_response, validate and use that
+    if CONF_SUPPORTS_RESPONSE in config:
+        user_value = config[CONF_SUPPORTS_RESPONSE]
+        # Validate: "only" requires api.respond with data
+        if user_value == "only" and not has_data:
+            raise cv.Invalid(
+                f"Action '{action_name}' has supports_response=only but no api.respond "
+                "action with 'data:' was found. Use 'status' for responses without data, "
+                "or add 'data:' to your api.respond action."
+            )
+        return config
+
+    # Auto-detect based on api.respond usage
+    if found:
+        config[CONF_SUPPORTS_RESPONSE] = "optional" if has_data else "status"
+    else:
+        config[CONF_SUPPORTS_RESPONSE] = "none"
+
+    return config
+
+
+def _validate_supports_response(value):
+    """Validate supports_response after auto-detection has set the value."""
+    return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
+
+
 ACTIONS_SCHEMA = automation.validate_automation(
     {
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
@@ -112,10 +193,20 @@ ACTIONS_SCHEMA = automation.validate_automation(
                 cv.validate_id_name: cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
             }
         ),
+        # No default - auto-detected by _auto_detect_supports_response
+        cv.Optional(CONF_SUPPORTS_RESPONSE): cv.enum(
+            SUPPORTS_RESPONSE_OPTIONS, lower=True
+        ),
     },
     cv.All(
         cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
         cv.rename_key(CONF_SERVICE, CONF_ACTION),
+        _auto_detect_supports_response,
+        # Re-validate supports_response after auto-detection sets it
+        cv.Schema(
+            {cv.Required(CONF_SUPPORTS_RESPONSE): _validate_supports_response},
+            extra=cv.ALLOW_EXTRA,
+        ),
     ),
 )
 
@@ -279,17 +370,42 @@ async def to_code(config):
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.Pvariable] = []
         for conf in actions:
-            template_args = []
             func_args = []
+            service_template_args = []  # User service argument types
+
+            # Determine supports_response mode
+            # cv.enum returns the key with enum_value attribute containing the MockObj
+            supports_response_key = conf[CONF_SUPPORTS_RESPONSE]
+            supports_response = supports_response_key.enum_value
+            is_none = supports_response_key == "none"
+            is_optional = supports_response_key == "optional"
+
+            # Add call_id and return_response based on supports_response mode
+            # These must match the C++ Trigger template arguments
+            # - none: no extra args
+            # - status: call_id only (for reporting success/error without data)
+            # - only: call_id only (response always expected with data)
+            # - optional: call_id + return_response (client decides)
+            if not is_none:
+                # call_id is present for "optional", "only", and "status"
+                func_args.append((cg.uint32, "call_id"))
+                # return_response only present for "optional"
+                if is_optional:
+                    func_args.append((cg.bool_, "return_response"))
+
             service_arg_names = []
             for name, var_ in conf[CONF_VARIABLES].items():
                 native = SERVICE_ARG_NATIVE_TYPES[var_]
-                template_args.append(native)
+                service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)
-            templ = cg.TemplateArguments(*template_args)
+            # Template args: supports_response mode, then user service arg types
+            templ = cg.TemplateArguments(supports_response, *service_template_args)
             trigger = cg.new_Pvariable(
-                conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
+                conf[CONF_TRIGGER_ID],
+                templ,
+                conf[CONF_ACTION],
+                service_arg_names,
             )
             triggers.append(trigger)
             await automation.build_automation(trigger, func_args, conf)
@@ -535,6 +651,64 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     cg.add(var.init_data(1))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
     cg.add(var.add_data("tag_id", templ))
+    return var
+
+
+CONF_SUCCESS = "success"
+CONF_ERROR_MESSAGE = "error_message"
+
+
+def _validate_api_respond_data(config):
+    """Set flag during validation so AUTO_LOAD can include json component."""
+    if CONF_DATA in config:
+        CORE.data.setdefault(DOMAIN, {})[CONF_CAPTURE_RESPONSE] = True
+    return config
+
+
+API_RESPOND_ACTION_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(APIServer),
+            cv.Optional(CONF_SUCCESS, default=True): cv.templatable(cv.boolean),
+            cv.Optional(CONF_ERROR_MESSAGE, default=""): cv.templatable(cv.string),
+            cv.Optional(CONF_DATA): cv.lambda_,
+        }
+    ),
+    _validate_api_respond_data,
+)
+
+
+@automation.register_action(
+    "api.respond",
+    APIRespondAction,
+    API_RESPOND_ACTION_SCHEMA,
+)
+async def api_respond_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES")
+    serv = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, serv)
+
+    # Check if we're in optional mode (has return_response arg)
+    is_optional = any(name == "return_response" for _, name in args)
+    if is_optional:
+        cg.add(var.set_is_optional_mode(True))
+
+    templ = await cg.templatable(config[CONF_SUCCESS], args, bool)
+    cg.add(var.set_success(templ))
+
+    templ = await cg.templatable(config[CONF_ERROR_MESSAGE], args, cg.std_string)
+    cg.add(var.set_error_message(templ))
+
+    if CONF_DATA in config:
+        cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES_JSON")
+        # Lambda populates the JsonObject root - no return value needed
+        lambda_ = await cg.process_lambda(
+            config[CONF_DATA],
+            args + [(cg.JsonObject, "root")],
+            return_type=cg.void,
+        )
+        cg.add(var.set_data(lambda_))
+
     return var
 
 

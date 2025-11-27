@@ -6,6 +6,9 @@
 #ifdef USE_API_PLAINTEXT
 #include "api_frame_helper_plaintext.h"
 #endif
+#ifdef USE_API_USER_DEFINED_ACTIONS
+#include "user_services.h"
+#endif
 #include <cerrno>
 #include <cinttypes>
 #include <functional>
@@ -1552,6 +1555,13 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Register the call before executing so responses can be sent
+  // Uses call_id as key to support concurrent calls from multiple clients
+  if (msg.call_id != 0) {
+    this->parent_->register_service_call(msg.call_id, this);
+  }
+#endif
   for (auto *service : this->parent_->get_user_services()) {
     if (service->execute_service(msg)) {
       found = true;
@@ -1560,7 +1570,34 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   if (!found) {
     ESP_LOGV(TAG, "Could not find service");
   }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Unregister call after execution
+  if (msg.call_id != 0) {
+    this->parent_->unregister_service_call(msg.call_id);
+  }
+#endif
 }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message) {
+  ExecuteServiceResponse resp;
+  resp.call_id = call_id;
+  resp.success = success;
+  resp.set_error_message(StringRef(error_message));
+  this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
+}
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+                                                  const uint8_t *response_data, size_t response_data_len) {
+  ExecuteServiceResponse resp;
+  resp.call_id = call_id;
+  resp.success = success;
+  resp.set_error_message(StringRef(error_message));
+  resp.response_data = response_data;
+  resp.response_data_len = response_data_len;
+  this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
+}
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
