@@ -240,7 +240,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     return {"packages": packages}
 
 
-def _walk_packages(config: dict, callback: callable) -> dict:
+def _walk_packages(config: dict, callback: callable, context=None) -> dict:
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
@@ -250,11 +250,11 @@ def _walk_packages(config: dict, callback: callable) -> dict:
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
                 with cv.prepend_path(package_name):
-                    packages[package_name] = callback(package_config)
+                    packages[package_name] = callback(package_config, context)
         elif isinstance(packages, list):
             for idx in reversed(range(len(packages))):
                 with cv.prepend_path(idx):
-                    packages[idx] = callback(packages[idx])
+                    packages[idx] = callback(packages[idx], context)
         else:
             raise cv.Invalid(
                 f"Packages must be a key to value mapping or list, got {type(packages)} instead"
@@ -268,10 +268,7 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
         return config
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
 
-    context_vars = ContextVars()
-
-    def process_package_callback(package_config):
-        nonlocal context_vars
+    def process_package_callback(package_config, context_vars):
         if isinstance(package_config, dict) and CONF_URL in package_config:
             _substitute_item(package_config, [], context_vars, False)
         elif isinstance(package_config, str):
@@ -291,13 +288,21 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
         substitutions = merge_config(
             package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions
         )
-        package_config = _walk_packages(package_config, process_package_callback)
 
-        for i in range(0, pushes):
-            context_vars = context_vars.parents
+        if CONF_PACKAGES in package_config:
+            if isinstance(package_config, yaml_util.ConfigContext):
+                context_vars = _push_context(context_vars, package_config.vars)
+            packages = package_config[CONF_PACKAGES]
+            if isinstance(packages, yaml_util.ConfigContext):
+                context_vars = _push_context(context_vars, packages.vars)
+
+            package_config = _walk_packages(
+                package_config, process_package_callback, context_vars
+            )
+
         return package_config
 
-    _walk_packages(config, process_package_callback)
+    _walk_packages(config, process_package_callback, ContextVars())
     if substitutions:
         config[CONF_SUBSTITUTIONS] = substitutions
 
@@ -308,7 +313,7 @@ def merge_packages(config: dict):
     if CONF_PACKAGES not in config:
         return config
 
-    def process_package_callback(package_config):
+    def process_package_callback(package_config, context):
         nonlocal config
         config = merge_config(package_config, config)
         return _walk_packages(package_config, process_package_callback)
