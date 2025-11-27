@@ -3,6 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from esphome.yaml_util import add_context
 import pytest
 
 from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass, merge_packages
@@ -686,6 +687,85 @@ def test_remote_packages_with_files_list(
                 ],
                 CONF_REFRESH: "1d",
             }
+        }
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+        ]
+    }
+
+    actual = packages_pass(config)
+    assert actual == expected
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_with_files_list_and_substitutions(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+):
+    """
+    Ensures that packages are loaded as mixed list of dictionary and strings
+    """
+    # Mock the response from git.clone_or_update
+    mock_revert = MagicMock()
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+
+    # Mock the response from pathlib.Path.is_file
+    mock_is_file.return_value = True
+
+    # Mock the response from esphome.yaml_util.load_yaml
+    mock_load_yaml.side_effect = [
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                    }
+                ]
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_2,
+                    }
+                ]
+            }
+        ),
+    ]
+
+    # Define the input config
+    config = {
+        CONF_PACKAGES: {
+            "package1": add_context(
+                {
+                    CONF_URL: r"${url}",
+                    CONF_REF: r"${branch}",
+                    CONF_FILES: [
+                        {CONF_PATH: r"$file"},
+                        "sensor2.yaml",
+                    ],
+                    CONF_REFRESH: "1d",
+                },
+                {
+                    "branch": "main",
+                    "file": TEST_YAML_FILENAME,
+                    "url": "https://github.com/esphome/non-existant-repo",
+                },
+            )
         }
     }
 

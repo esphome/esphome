@@ -2,6 +2,11 @@ import logging
 from pathlib import Path
 
 from esphome import git, yaml_util
+from esphome.components.substitutions import (
+    ContextVars,
+    _push_context,
+    _substitute_item,
+)
 from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
@@ -240,18 +245,16 @@ def _walk_packages(config: dict, callback: callable) -> dict:
         return config
     packages = config[CONF_PACKAGES]
     # The following line can be safely removed once single-package deprecation is effective
-    packages = CONFIG_SCHEMA(packages)
+    # packages = CONFIG_SCHEMA(packages)
     with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
                 with cv.prepend_path(package_name):
-                    package_config = callback(package_config)
-                    packages[package_name] = _walk_packages(package_config, callback)
+                    packages[package_name] = callback(package_config)
         elif isinstance(packages, list):
             for idx in reversed(range(len(packages))):
                 with cv.prepend_path(idx):
-                    package_config = callback(packages[idx])
-                    packages[idx] = _walk_packages(package_config, callback)
+                    packages[idx] = callback(packages[idx])
         else:
             raise cv.Invalid(
                 f"Packages must be a key to value mapping or list, got {type(packages)} instead"
@@ -265,7 +268,20 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
         return config
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
 
+    context_vars = ContextVars()
+
     def process_package_callback(package_config):
+        nonlocal context_vars
+        if isinstance(package_config, dict) and CONF_URL in package_config:
+            _substitute_item(package_config, [], context_vars, False)
+        elif isinstance(package_config, str):
+            result = _substitute_item(package_config, [], context_vars, False)
+            try:
+                package_config = validate_source_shorthand(result)
+            except:
+                pass
+
+        # -------
         nonlocal substitutions
         package_config = PACKAGE_SCHEMA(package_config)
         if isinstance(package_config, str):
@@ -275,6 +291,10 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
         substitutions = merge_config(
             package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions
         )
+        package_config = _walk_packages(package_config, process_package_callback)
+
+        for i in range(0, pushes):
+            context_vars = context_vars.parents
         return package_config
 
     _walk_packages(config, process_package_callback)
@@ -291,7 +311,7 @@ def merge_packages(config: dict):
     def process_package_callback(package_config):
         nonlocal config
         config = merge_config(package_config, config)
-        return package_config
+        return _walk_packages(package_config, process_package_callback)
 
     _walk_packages(config, process_package_callback)
 
