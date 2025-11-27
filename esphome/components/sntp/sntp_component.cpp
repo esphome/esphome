@@ -33,13 +33,13 @@ void SNTPComponent::setup() {
 
   for (size_t i = 0; i < this->servers_.size(); ++i) {
     const auto &buff = server_name_buffer(this->servers_[i]);
-    if (buff != nullptr &&
+    if (buff != nullptr && 0 != strcmp(buff,
 #ifdef USE_ESP32
-        buff != esp_sntp_getservername(i)
+                                       esp_sntp_getservername(i)
 #else
-        buff != sntp_getservername(i)
+                                       sntp_getservername(i)
 #endif
-    ) {
+                                           )) {
       ESP_LOGCONFIG(TAG, "Can't set server %d", i + 1);
     }
   }
@@ -60,20 +60,21 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SNTP Time:");
   size_t i = 0;
   for (auto &server : this->servers_) {
-    ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server.c_str());
+    ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server);
   }
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
+  RealTimeClock::dump_config();
 }
-void SNTPComponent::set_servers(std::vector<std::string> servers) {
+void SNTPComponent::set_servers(const std::array<const char *, SNTP_SERVER_COUNT> &servers) {
   if (this->servers_was_setup_) {
     // Cleanup all the pointers to prevent use after free
     for (size_t i = 0; i < this->servers_.size(); ++i) {
-      const auto &buff = this->servers_[i].empty() ? nullptr : this->servers_[i].c_str();
+      const auto &buff = this->servers_[i];
 #ifdef USE_ESP32
-      if (buff != nullptr && buff == esp_sntp_getservername(i))
+      if (buff != nullptr && 0 == strcmp(buff, esp_sntp_getservername(i)))
         esp_sntp_setservername(i, nullptr);
 #else
-      if (buff != nullptr && buff == sntp_getservername(i))
+      if (buff != nullptr && 0 == strcmp(buff, sntp_getservername(i)))
         sntp_setservername(i, nullptr);
 #endif
     }

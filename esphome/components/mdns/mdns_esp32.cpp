@@ -2,12 +2,12 @@
 #if defined(USE_ESP32) && defined(USE_MDNS)
 
 #include <mdns.h>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
@@ -27,8 +27,9 @@ void MDNSComponent::setup() {
     return;
   }
 
-  mdns_hostname_set(this->hostname_.c_str());
-  mdns_instance_name_set(this->hostname_.c_str());
+  const char *hostname = App.get_name().c_str();
+  mdns_hostname_set(hostname);
+  mdns_instance_name_set(hostname);
 
   for (const auto &service : services) {
     auto txt_records = std::make_unique<mdns_txt_item_t[]>(service.txt_records.size());
@@ -54,7 +55,6 @@ void MDNSComponent::on_shutdown() {
   delay(40);  // Allow the mdns packets announcing service removal to be sent
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif  // USE_ESP32

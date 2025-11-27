@@ -5,6 +5,7 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -34,7 +35,7 @@ APIServer::APIServer() {
 }
 
 void APIServer::setup() {
-  this->setup_controller();
+  ControllerRegistry::register_controller(this);
 
 #ifdef USE_API_NOISE
   uint32_t hash = 88491486UL;
@@ -224,10 +225,10 @@ void APIServer::dump_config() {
                 "  Address: %s:%u\n"
                 "  Listen backlog: %u\n"
                 "  Max connections: %u",
-                network::get_use_address().c_str(), this->port_, this->listen_backlog_, this->max_connections_);
+                network::get_use_address(), this->port_, this->listen_backlog_, this->max_connections_);
 #ifdef USE_API_NOISE
-  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
-  if (!this->noise_ctx_->has_psk()) {
+  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_.has_psk()));
+  if (!this->noise_ctx_.has_psk()) {
     ESP_LOGCONFIG(TAG, "  Supports encryption: YES");
   }
 #else
@@ -269,18 +270,9 @@ bool APIServer::check_password(const uint8_t *password_data, size_t password_len
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
-// Macro for entities without extra parameters
+// Macro for controller update dispatch
 #define API_DISPATCH_UPDATE(entity_type, entity_name) \
   void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
-    if (obj->is_internal()) \
-      return; \
-    for (auto &c : this->clients_) \
-      c->send_##entity_name##_state(obj); \
-  }
-
-// Macro for entities with extra parameters (but parameters not used in send)
-#define API_DISPATCH_UPDATE_IGNORE_PARAMS(entity_type, entity_name, ...) \
-  void APIServer::on_##entity_name##_update(entity_type *obj, __VA_ARGS__) { /* NOLINT(bugprone-macro-parentheses) */ \
     if (obj->is_internal()) \
       return; \
     for (auto &c : this->clients_) \
@@ -304,15 +296,15 @@ API_DISPATCH_UPDATE(light::LightState, light)
 #endif
 
 #ifdef USE_SENSOR
-API_DISPATCH_UPDATE_IGNORE_PARAMS(sensor::Sensor, sensor, float state)
+API_DISPATCH_UPDATE(sensor::Sensor, sensor)
 #endif
 
 #ifdef USE_SWITCH
-API_DISPATCH_UPDATE_IGNORE_PARAMS(switch_::Switch, switch, bool state)
+API_DISPATCH_UPDATE(switch_::Switch, switch)
 #endif
 
 #ifdef USE_TEXT_SENSOR
-API_DISPATCH_UPDATE_IGNORE_PARAMS(text_sensor::TextSensor, text_sensor, const std::string &state)
+API_DISPATCH_UPDATE(text_sensor::TextSensor, text_sensor)
 #endif
 
 #ifdef USE_CLIMATE
@@ -320,7 +312,7 @@ API_DISPATCH_UPDATE(climate::Climate, climate)
 #endif
 
 #ifdef USE_NUMBER
-API_DISPATCH_UPDATE_IGNORE_PARAMS(number::Number, number, float state)
+API_DISPATCH_UPDATE(number::Number, number)
 #endif
 
 #ifdef USE_DATETIME_DATE
@@ -336,11 +328,11 @@ API_DISPATCH_UPDATE(datetime::DateTimeEntity, datetime)
 #endif
 
 #ifdef USE_TEXT
-API_DISPATCH_UPDATE_IGNORE_PARAMS(text::Text, text, const std::string &state)
+API_DISPATCH_UPDATE(text::Text, text)
 #endif
 
 #ifdef USE_SELECT
-API_DISPATCH_UPDATE_IGNORE_PARAMS(select::Select, select, const std::string &state, size_t index)
+API_DISPATCH_UPDATE(select::Select, select)
 #endif
 
 #ifdef USE_LOCK
@@ -356,12 +348,13 @@ API_DISPATCH_UPDATE(media_player::MediaPlayer, media_player)
 #endif
 
 #ifdef USE_EVENT
-// Event is a special case - it's the only entity that passes extra parameters to the send method
-void APIServer::on_event(event::Event *obj, const std::string &event_type) {
+// Event is a special case - unlike other entities with simple state fields,
+// events store their state in a member accessed via obj->get_last_event_type()
+void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_event(obj, event_type);
+    c->send_event(obj, obj->get_last_event_type());
 }
 #endif
 
@@ -500,7 +493,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   ESP_LOGW(TAG, "Key set in YAML");
   return false;
 #else
-  auto &old_psk = this->noise_ctx_->get_psk();
+  auto &old_psk = this->noise_ctx_.get_psk();
   if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
     ESP_LOGW(TAG, "New PSK matches old");
     return true;
@@ -535,7 +528,18 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected() const { return !this->clients_.empty(); }
+bool APIServer::is_connected(bool state_subscription_only) const {
+  if (!state_subscription_only) {
+    return !this->clients_.empty();
+  }
+
+  for (const auto &client : this->clients_) {
+    if (client->flags_.state_subscription) {
+      return true;
+    }
+  }
+  return false;
+}
 
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;

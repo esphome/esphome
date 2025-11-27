@@ -7,8 +7,7 @@
 
 #include "cover_traits.h"
 
-namespace esphome {
-namespace cover {
+namespace esphome::cover {
 
 const extern float COVER_OPEN;
 const extern float COVER_CLOSED;
@@ -157,5 +156,4 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
   ESPPreferenceObject rtc_;
 };
 
-}  // namespace cover
-}  // namespace esphome
+}  // namespace esphome::cover

@@ -7,8 +7,7 @@
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 inline static int16_t sin16_c(uint16_t theta) {
   static const uint16_t BASE[] = {0, 6393, 12539, 18204, 23170, 27245, 30273, 32137};
@@ -57,9 +56,9 @@ class AddressableLightEffect : public LightEffect {
 
 class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
-  AddressableLambdaLightEffect(const char *name, std::function<void(AddressableLight &, Color, bool initial_run)> f,
+  AddressableLambdaLightEffect(const char *name, void (*f)(AddressableLight &, Color, bool initial_run),
                                uint32_t update_interval)
-      : AddressableLightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
+      : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {}
   void start() override { this->initial_run_ = true; }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
@@ -72,7 +71,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
   }
 
  protected:
-  std::function<void(AddressableLight &, Color, bool initial_run)> f_;
+  void (*f_)(AddressableLight &, Color, bool initial_run);
   uint32_t update_interval_;
   uint32_t last_run_{0};
   bool initial_run_;
@@ -371,5 +370,4 @@ class AddressableFlickerEffect : public AddressableLightEffect {
   uint8_t intensity_{13};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

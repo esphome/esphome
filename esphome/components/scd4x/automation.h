@@ -9,7 +9,7 @@ namespace scd4x {
 
 template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->value_.has_value()) {
       this->parent_->perform_forced_calibration(this->value_.value(x...));
     }
@@ -21,7 +21,7 @@ template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts
 
 template<typename... Ts> class FactoryResetAction : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
-  void play(Ts... x) override { this->parent_->factory_reset(); }
+  void play(const Ts &...x) override { this->parent_->factory_reset(); }
 };
 
 }  // namespace scd4x
