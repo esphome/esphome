@@ -358,10 +358,10 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
 }
 
 // Parses data frames related to product information
+#ifdef USE_TEXT_SENSOR
 void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
   uint16_t product_len = encode_uint16(data[FRAME_COMMAND_WORD_INDEX + 1], data[FRAME_COMMAND_WORD_INDEX + 2]);
   if (data[FRAME_COMMAND_WORD_INDEX] == COMMAND_PRODUCT_MODE) {
-#ifdef USE_TEXT_SENSOR
     if ((this->product_model_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_product_mode_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_product_mode_, &data[FRAME_DATA_INDEX], product_len);
@@ -369,9 +369,7 @@ void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
     } else {
       ESP_LOGD(TAG, "Reply: get product_mode error!");
     }
-#endif
   } else if (data[FRAME_COMMAND_WORD_INDEX] == COMMAND_PRODUCT_ID) {
-#ifdef USE_TEXT_SENSOR
     if ((this->product_id_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_product_id_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_product_id_, &data[FRAME_DATA_INDEX], product_len);
@@ -379,9 +377,7 @@ void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
     } else {
       ESP_LOGD(TAG, "Reply: get productId error!");
     }
-#endif
   } else if (data[FRAME_COMMAND_WORD_INDEX] == COMMAND_HARDWARE_MODEL) {
-#ifdef USE_TEXT_SENSOR
     if ((this->hardware_model_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_hardware_model_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_hardware_model_, &data[FRAME_DATA_INDEX], product_len);
@@ -390,9 +386,7 @@ void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
     } else {
       ESP_LOGD(TAG, "Reply: get hardwareModel error!");
     }
-#endif
   } else if (data[FRAME_COMMAND_WORD_INDEX] == COMMAND_FIRMWARE_VERSION) {
-#ifdef USE_TEXT_SENSOR
     if ((this->firware_version_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_firmware_version_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_firmware_version_, &data[FRAME_DATA_INDEX], product_len);
@@ -400,13 +394,15 @@ void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
     } else {
       ESP_LOGD(TAG, "Reply: get firmwareVersion error!");
     }
-#endif
   }
 }
+#endif
 
 // Parsing the underlying open parameters
 void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *data) {
-  if (data[FRAME_COMMAND_WORD_INDEX] == 0x00) {
+  uint8_t cmd = data[FRAME_COMMAND_WORD_INDEX];
+
+  if (cmd == 0x00) {
 #ifdef USE_SWITCH
     if (this->underlying_open_function_switch_ != nullptr) {
       this->underlying_open_function_switch_->publish_state(
@@ -418,7 +414,10 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
     } else {
       this->s_output_info_switch_flag_ = OUTPUT_SWTICH_OFF;
     }
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x01) {
+    return;
+  }
+
+  if (cmd == 0x01) {
 #ifdef USE_SENSOR
     if (this->custom_spatial_static_value_sensor_ != nullptr) {
       this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
@@ -436,63 +435,79 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX + 4] - 10) * 0.5f);
     }
 #endif
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x06) || (data[FRAME_COMMAND_WORD_INDEX] == 0x86)) {
+    return;
+  }
+
+  if (cmd == 0x06 || cmd == 0x86) {
     // none:0x00  close_to:0x01  far_away:0x02
 #ifdef USE_TEXT_SENSOR
     if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < 3)) {
       this->keep_away_text_sensor_->publish_state(S_KEEP_AWAY_STR[data[FRAME_DATA_INDEX]]);
     }
 #endif
-  } else if ((this->movement_signs_sensor_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x07) || (data[FRAME_COMMAND_WORD_INDEX] == 0x87))) {
+    return;
+  }
+
 #ifdef USE_SENSOR
+  if ((cmd == 0x07 || cmd == 0x87) && this->movement_signs_sensor_ != nullptr) {
     this->movement_signs_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+    return;
+  }
 #endif
-  } else if ((this->existence_threshold_number_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x08) || (data[FRAME_COMMAND_WORD_INDEX] == 0x88))) {
+
 #ifdef USE_NUMBER
+  if ((cmd == 0x08 || cmd == 0x88) && this->existence_threshold_number_ != nullptr) {
     this->existence_threshold_number_->publish_state(data[FRAME_DATA_INDEX]);
-#endif
-  } else if ((this->motion_threshold_number_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x09) || (data[FRAME_COMMAND_WORD_INDEX] == 0x89))) {
-#ifdef USE_NUMBER
+    return;
+  }
+
+  if ((cmd == 0x09 || cmd == 0x89) && this->motion_threshold_number_ != nullptr) {
     this->motion_threshold_number_->publish_state(data[FRAME_DATA_INDEX]);
+    return;
+  }
 #endif
+
 #ifdef USE_SELECT
-  } else if ((this->existence_boundary_select_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x0a) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8a))) {
+  if ((cmd == 0x0a || cmd == 0x8a) && this->existence_boundary_select_ != nullptr) {
     if (this->existence_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
       this->existence_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
     }
-  } else if ((this->motion_boundary_select_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x0b) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8b))) {
+    return;
+  }
+
+  if ((cmd == 0x0b || cmd == 0x8b) && this->motion_boundary_select_ != nullptr) {
     if (this->motion_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
       this->motion_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
     }
+    return;
+  }
 #endif
-  } else if ((this->motion_trigger_number_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x0c) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8c))) {
+
 #ifdef USE_NUMBER
+  if ((cmd == 0x0c || cmd == 0x8c) && this->motion_trigger_number_ != nullptr) {
     uint32_t motion_trigger_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
                                                  data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
     this->motion_trigger_number_->publish_state(motion_trigger_time);
-#endif
-  } else if ((this->motion_to_rest_number_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x0d) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8d))) {
-#ifdef USE_NUMBER
+    return;
+  }
+
+  if ((cmd == 0x0d || cmd == 0x8d) && this->motion_to_rest_number_ != nullptr) {
     uint32_t move_to_rest_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
                                                data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
     this->motion_to_rest_number_->publish_state(move_to_rest_time);
-#endif
-  } else if ((this->custom_unman_time_number_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x0e) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8e))) {
-#ifdef USE_NUMBER
+    return;
+  }
+
+  if ((cmd == 0x0e || cmd == 0x8e) && this->custom_unman_time_number_ != nullptr) {
     uint32_t enter_unmanned_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
                                                  data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
     float custom_unmanned_time = enter_unmanned_time / 1000.0;
     this->custom_unman_time_number_->publish_state(custom_unmanned_time);
+    return;
+  }
 #endif
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x80) {
+
+  if (cmd == 0x80) {
     if (data[FRAME_DATA_INDEX]) {
       this->s_output_info_switch_flag_ = OUTPUT_SWITCH_ON;
     } else {
@@ -503,28 +518,35 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       this->underlying_open_function_switch_->publish_state(data[FRAME_DATA_INDEX]);
     }
 #endif
-  } else if ((this->custom_spatial_static_value_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x81)) {
-#ifdef USE_SENSOR
-    this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-#endif
-  } else if ((this->custom_spatial_motion_value_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x82)) {
-#ifdef USE_SENSOR
-    this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-#endif
-  } else if ((this->custom_presence_of_detection_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x83)) {
-#ifdef USE_SENSOR
-    this->custom_presence_of_detection_sensor_->publish_state(
-        S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
-#endif
-  } else if ((this->custom_motion_distance_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x84)) {
-#ifdef USE_SENSOR
-    this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX] * 0.5f);
-#endif
-  } else if ((this->custom_motion_speed_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x85)) {
-#ifdef USE_SENSOR
-    this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX] - 10) * 0.5f);
-#endif
+    return;
   }
+
+#ifdef USE_SENSOR
+  if (cmd == 0x81 && this->custom_spatial_static_value_sensor_ != nullptr) {
+    this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+    return;
+  }
+
+  if (cmd == 0x82 && this->custom_spatial_motion_value_sensor_ != nullptr) {
+    this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+    return;
+  }
+
+  if (cmd == 0x83 && this->custom_presence_of_detection_sensor_ != nullptr) {
+    this->custom_presence_of_detection_sensor_->publish_state(S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
+    return;
+  }
+
+  if (cmd == 0x84 && this->custom_motion_distance_sensor_ != nullptr) {
+    this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX] * 0.5f);
+    return;
+  }
+
+  if (cmd == 0x85 && this->custom_motion_speed_sensor_ != nullptr) {
+    this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX] - 10) * 0.5f);
+    return;
+  }
+#endif
 }
 
 void MR24HPC1Component::r24_parse_data_frame_(uint8_t *data, uint8_t len) {
@@ -545,7 +567,9 @@ void MR24HPC1Component::r24_parse_data_frame_(uint8_t *data, uint8_t len) {
 #endif
     } break;
     case 0x02: {
+#ifdef USE_TEXT_SENSOR
       this->r24_frame_parse_product_information_(data);
+#endif
     } break;
     case 0x05: {
       this->r24_frame_parse_work_status_(data);
@@ -563,9 +587,14 @@ void MR24HPC1Component::r24_parse_data_frame_(uint8_t *data, uint8_t len) {
 }
 
 void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
-  if (data[FRAME_COMMAND_WORD_INDEX] == 0x01) {
+  uint8_t cmd = data[FRAME_COMMAND_WORD_INDEX];
+
+  if (cmd == 0x01) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x07) {
+    return;
+  }
+
+  if (cmd == 0x07) {
 #ifdef USE_SELECT
     if ((this->scene_mode_select_ != nullptr) && (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX]))) {
       this->scene_mode_select_->publish_state(data[FRAME_DATA_INDEX]);
@@ -573,13 +602,18 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
       ESP_LOGD(TAG, "Select has index offset %d Error", data[FRAME_DATA_INDEX]);
     }
 #endif
-  } else if ((this->sensitivity_number_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x08) || (data[FRAME_COMMAND_WORD_INDEX] == 0x88))) {
-    // 1-3
+    return;
+  }
+
 #ifdef USE_NUMBER
+  if ((cmd == 0x08 || cmd == 0x88) && this->sensitivity_number_ != nullptr) {
+    // 1-3
     this->sensitivity_number_->publish_state(data[FRAME_DATA_INDEX]);
+    return;
+  }
 #endif
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x09) {
+
+  if (cmd == 0x09) {
     // 1-4
 #ifdef USE_SENSOR
     if (this->custom_mode_num_sensor_ != nullptr) {
@@ -596,9 +630,15 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
       this->custom_mode_end_text_sensor_->publish_state("Setup in progress");
     }
 #endif
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x81) {
+    return;
+  }
+
+  if (cmd == 0x81) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x87) {
+    return;
+  }
+
+  if (cmd == 0x87) {
 #ifdef USE_SELECT
     if ((this->scene_mode_select_ != nullptr) && (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX]))) {
       this->scene_mode_select_->publish_state(data[FRAME_DATA_INDEX]);
@@ -606,11 +646,17 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
       ESP_LOGD(TAG, "Select has index offset %d Error", data[FRAME_DATA_INDEX]);
     }
 #endif
-  } else if ((this->custom_mode_end_text_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x0A)) {
+    return;
+  }
+
 #ifdef USE_TEXT_SENSOR
+  if (cmd == 0x0A && this->custom_mode_end_text_sensor_ != nullptr) {
     this->custom_mode_end_text_sensor_->publish_state("Set Success!");
+    return;
+  }
 #endif
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x89) {
+
+  if (cmd == 0x89) {
     if (data[FRAME_DATA_INDEX] == 0) {
 #ifdef USE_TEXT_SENSOR
       if (this->custom_mode_end_text_sensor_ != nullptr) {
@@ -634,48 +680,59 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
       }
 #endif
     }
-  } else {
-    ESP_LOGD(TAG, "[%s] No found COMMAND_WORD(%02X) in Frame", __FUNCTION__, data[FRAME_COMMAND_WORD_INDEX]);
+    return;
   }
+
+  ESP_LOGD(TAG, "[%s] No found COMMAND_WORD(%02X) in Frame", __FUNCTION__, cmd);
 }
 
 void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
-  if ((this->has_target_binary_sensor_ != nullptr) &&
-      ((data[FRAME_COMMAND_WORD_INDEX] == 0x01) || (data[FRAME_COMMAND_WORD_INDEX] == 0x81))) {
+  uint8_t cmd = data[FRAME_COMMAND_WORD_INDEX];
+
 #ifdef USE_BINARY_SENSOR
+  if ((cmd == 0x01 || cmd == 0x81) && this->has_target_binary_sensor_ != nullptr) {
     this->has_target_binary_sensor_->publish_state(S_SOMEONE_EXISTS_STR[data[FRAME_DATA_INDEX]]);
+    return;
+  }
 #endif
-  } else if ((this->motion_status_text_sensor_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x02) || (data[FRAME_COMMAND_WORD_INDEX] == 0x82))) {
+
 #ifdef USE_TEXT_SENSOR
+  if ((cmd == 0x02 || cmd == 0x82) && this->motion_status_text_sensor_ != nullptr) {
     if (data[FRAME_DATA_INDEX] < 3) {
       this->motion_status_text_sensor_->publish_state(S_MOTION_STATUS_STR[data[FRAME_DATA_INDEX]]);
     }
+    return;
+  }
 #endif
-  } else if ((this->movement_signs_sensor_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x03) || (data[FRAME_COMMAND_WORD_INDEX] == 0x83))) {
+
 #ifdef USE_SENSOR
+  if ((cmd == 0x03 || cmd == 0x83) && this->movement_signs_sensor_ != nullptr) {
     this->movement_signs_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+    return;
+  }
 #endif
+
 #ifdef USE_SELECT
-  } else if ((this->unman_time_select_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x0A) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8A))) {
+  if ((cmd == 0x0A || cmd == 0x8A) && this->unman_time_select_ != nullptr) {
     // none:0x00  1s:0x01 30s:0x02 1min:0x03 2min:0x04 5min:0x05 10min:0x06 30min:0x07 1hour:0x08
     if (data[FRAME_DATA_INDEX] < 9) {
       this->unman_time_select_->publish_state(data[FRAME_DATA_INDEX]);
     }
+    return;
+  }
 #endif
-  } else if ((this->keep_away_text_sensor_ != nullptr) &&
-             ((data[FRAME_COMMAND_WORD_INDEX] == 0x0B) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8B))) {
-    // none:0x00  close_to:0x01  far_away:0x02
+
 #ifdef USE_TEXT_SENSOR
+  if ((cmd == 0x0B || cmd == 0x8B) && this->keep_away_text_sensor_ != nullptr) {
+    // none:0x00  close_to:0x01  far_away:0x02
     if (data[FRAME_DATA_INDEX] < 3) {
       this->keep_away_text_sensor_->publish_state(S_KEEP_AWAY_STR[data[FRAME_DATA_INDEX]]);
     }
-#endif
-  } else {
-    ESP_LOGD(TAG, "[%s] No found COMMAND_WORD(%02X) in Frame", __FUNCTION__, data[FRAME_COMMAND_WORD_INDEX]);
+    return;
   }
+#endif
+
+  ESP_LOGD(TAG, "[%s] No found COMMAND_WORD(%02X) in Frame", __FUNCTION__, cmd);
 }
 
 // Sending data frames

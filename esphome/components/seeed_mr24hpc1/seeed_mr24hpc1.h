@@ -160,7 +160,9 @@ class MR24HPC1Component : public Component,
   void r24_parse_data_frame_(uint8_t *data, uint8_t len);
   void r24_frame_parse_open_underlying_information_(uint8_t *data);
   void r24_frame_parse_work_status_(uint8_t *data);
+#ifdef USE_TEXT_SENSOR
   void r24_frame_parse_product_information_(uint8_t *data);
+#endif
   void r24_frame_parse_human_information_(uint8_t *data);
   void send_query_(const uint8_t *query, size_t string_length);
 
