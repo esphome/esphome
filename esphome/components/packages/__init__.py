@@ -4,8 +4,8 @@ from pathlib import Path
 from esphome import git, yaml_util
 from esphome.components.substitutions import (
     ContextVars,
-    _push_context,
-    _substitute_item,
+    push_context,
+    substitute,
 )
 from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import Remove, merge_config
@@ -270,9 +270,9 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
 
     def process_package_callback(package_config, context_vars):
         if isinstance(package_config, dict) and CONF_URL in package_config:
-            _substitute_item(package_config, [], context_vars, False)
+            substitute(package_config, [], context_vars, False)
         elif isinstance(package_config, str):
-            result = _substitute_item(package_config, [], context_vars, False)
+            result = substitute(package_config, [], context_vars, False)
             try:
                 package_config = validate_source_shorthand(result)
             except:
@@ -289,18 +289,12 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
             package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions
         )
 
-        if CONF_PACKAGES in package_config:
-            if isinstance(package_config, yaml_util.ConfigContext):
-                context_vars = _push_context(context_vars, package_config.vars)
-            packages = package_config[CONF_PACKAGES]
-            if isinstance(packages, yaml_util.ConfigContext):
-                context_vars = _push_context(context_vars, packages.vars)
+        if not CONF_PACKAGES in package_config:
+            return package_config
+        context_vars = push_context(package_config, context_vars)
+        context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
 
-            package_config = _walk_packages(
-                package_config, process_package_callback, context_vars
-            )
-
-        return package_config
+        return _walk_packages(package_config, process_package_callback, context_vars)
 
     _walk_packages(config, process_package_callback, ContextVars())
     if substitutions:

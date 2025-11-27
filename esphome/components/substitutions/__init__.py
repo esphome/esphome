@@ -11,6 +11,7 @@ from esphome.yaml_util import (
     ConfigContext,
     ESPHomeDataBase,
     ESPLiteralValue,
+    add_context,
     make_data_base,
 )
 
@@ -169,27 +170,55 @@ def _expand_substitutions(
     return value
 
 
-def _substitute_item(
+def push_context(config_node: Any, parent_context: ContextVars) -> ContextVars:
+    """Returns a new ContextVars with vars pushed on top.
+    Resolves any substitutions in vars using the existing context_vars.
+    vars is modified in-place to contain the resolved values and
+    sorted in dependency order if not already sorted.
+    """
+    if not isinstance(config_node, ConfigContext):
+        return parent_context
+    vars = config_node.vars
+    unresolved_vars = vars.copy()
+    vars.clear()
+    context_vars = parent_context.new_child(vars)
+    # below loops iterate only once if vars are already sorted in dependency order
+    while unresolved_vars:
+        new_unresolved_vars = {}
+        for k, value in unresolved_vars.items():
+            try:
+                result = substitute(value, [], context_vars, True)
+            except UndefinedError:  # try to resolve in next pass
+                new_unresolved_vars[k] = value
+                continue
+            vars[k] = value if result is None else result
+        if len(unresolved_vars) == len(new_unresolved_vars):
+            vars.update(unresolved_vars)
+            break
+        unresolved_vars = new_unresolved_vars
+    return context_vars
+
+
+def substitute(
     item: Any, path: list[int | str], context_vars: ContextVars, strict_undefined: bool
 ) -> Any | None:
     if isinstance(item, ESPLiteralValue):
         return None  # do not substitute inside literal blocks
-    if isinstance(item, ConfigContext):
-        context_vars = _push_context(context_vars, item.vars)
+    context_vars = push_context(item, context_vars)
     result = None
     if isinstance(item, list):
         for i, it in enumerate(item):
-            sub = _substitute_item(it, path + [i], context_vars, strict_undefined)
+            sub = substitute(it, path + [i], context_vars, strict_undefined)
             if sub is not None:
                 item[i] = sub
     elif isinstance(item, dict):
         replace_keys = []
         for k, v in item.items():
             if path or k != CONF_SUBSTITUTIONS:
-                sub = _substitute_item(k, path + [k], context_vars, strict_undefined)
+                sub = substitute(k, path + [k], context_vars, strict_undefined)
                 if sub is not None:
                     replace_keys.append((k, sub))
-                sub = _substitute_item(v, path + [k], context_vars, strict_undefined)
+                sub = substitute(v, path + [k], context_vars, strict_undefined)
                 if sub is not None:
                     item[k] = sub
         for old, new in replace_keys:
@@ -208,31 +237,6 @@ def _substitute_item(
             item.value = sub
 
     return result
-
-
-def _push_context(context_vars: ContextVars, vars: dict[str, Any]) -> ContextVars:
-    """Returns a new ContextVars with vars pushed on top.
-    Resolves any substitutions in vars using the existing context_vars.
-    vars is modified in-place to contain the resolved values and
-    sorted in dependency order if not already sorted.
-    """
-    unresolved_vars = vars.copy()
-    vars.clear()
-    context_vars = context_vars.new_child(vars)
-    while unresolved_vars:
-        new_unresolved_vars = {}
-        for k, value in unresolved_vars.items():
-            try:
-                result = _substitute_item(value, [], context_vars, True)
-            except UndefinedError:  # try to resolve in next pass
-                new_unresolved_vars[k] = value
-                continue
-            vars[k] = value if result is None else result
-        if len(unresolved_vars) == len(new_unresolved_vars):
-            vars.update(unresolved_vars)
-            break
-        unresolved_vars = new_unresolved_vars
-    return context_vars
 
 
 def do_substitution_pass(
@@ -263,5 +267,5 @@ def do_substitution_pass(
     if CONF_SUBSTITUTIONS in config:
         config[CONF_SUBSTITUTIONS] = substitutions
         config.move_to_end(CONF_SUBSTITUTIONS, last=False)
-    context_vars = _push_context(ContextVars(), substitutions)
-    _substitute_item(config, [], context_vars, False)
+    config = add_context(config, substitutions)
+    substitute(config, [], ContextVars(), False)
