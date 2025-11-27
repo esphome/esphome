@@ -70,8 +70,8 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
     int32_t pw_pre = 0;                  // pulse-width of previous carrier (abs value)
     RxSt fsm = RxSt::START_PULSE;
     for (uint32_t ic = 0; (ic != n_received) && (bs_cnt != N_FRAME_CODES); ic++) {
-      int32_t pw_cur = std::abs(src[ic]);  // current pulse-width
-      int32_t pw_sym = pw_cur + pw_pre;    // symbol=pulse+pause
+      uint32_t pw_cur = static_cast<uint32_t>(std::abs(src[ic]));  // current pulse-width
+      uint32_t pw_sym = pw_cur + pw_pre;                           // symbol=pulse+pause
       switch (fsm) {
         case RxSt::START_PULSE: {  // check if start pulse is valid
           if ((src[ic] > 0) && (pw_cur >= START_PULSE_MIN) && (pw_cur <= START_PULSE_MAX)) {
