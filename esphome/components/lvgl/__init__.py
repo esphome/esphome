@@ -34,7 +34,7 @@ from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .hello_world import get_hello_world
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool, lv_images_used
-from .lvcode import LvContext, LvglComponent, lv, lv_expr, lvgl_static
+from .lvcode import LvContext, LvglComponent, lv_expr, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
@@ -268,7 +268,7 @@ async def to_code(configs):
 
         default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
         cg.add(lv_component.set_def_group(default_group))
-        cg.add(lv.group_set_default(default_group))
+        cg.add(lv_expr.group_set_default(default_group))
 
         lv_scr_act = get_scr_act(lv_component)
         async with LvContext():
