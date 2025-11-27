@@ -46,7 +46,6 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
   uint8_t update_display();
 
-  // TODO: Do I need to mask the higher bits here? Maybe do it in the python code instead of here.
   void add_char(const char *char_to_add, uint16_t char_code);
   void remove_char(const char *char_to_remove) { this->char_map_.erase(char_to_remove); };
 

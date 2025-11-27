@@ -53,7 +53,7 @@ namespace esphome {
 namespace ht16k33_char {
 
 void Adafruit7Seg::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0x7F);
   this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
 }
 
@@ -85,7 +85,7 @@ uint8_t Adafruit7Seg::handle_special_char(char char_to_find, uint8_t position) {
 }
 
 void Adafruit7SegFlip::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0x7F);
   this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
 }
 
@@ -118,7 +118,7 @@ uint8_t Adafruit7SegFlip::handle_special_char(char char_to_find, uint8_t positio
 }
 
 void Adafruit7SegLarge::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0x7F);
   this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
 }
 
@@ -157,7 +157,7 @@ uint8_t Adafruit7SegLarge::handle_special_char(char char_to_find, uint8_t positi
 }
 
 void Adafruit7SegLargeFlip::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0x7F);
   this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
 }
 
