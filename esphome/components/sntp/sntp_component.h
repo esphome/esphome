@@ -36,12 +36,10 @@ class SNTPComponent : public time::RealTimeClock {
  protected:
   void setup_servers_();
 
- protected:
   // Store const char pointers to string literals
   // ESP8266: strings in rodata (RAM), but avoids std::string overhead (~24 bytes each)
   // Other platforms: strings in flash
   std::array<const char *, SNTP_SERVER_COUNT> servers_;
-
 #if !defined(USE_ESP32)
   bool has_time_{false};
 #endif
