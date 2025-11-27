@@ -74,7 +74,7 @@ void ZWaveProxy::loop() {
   if (this->api_connection_ != nullptr && (!this->api_connection_->is_connection_setup() || !api_is_connected())) {
     ESP_LOGW(TAG, "Subscriber disconnected");
     this->api_connection_ = nullptr;  // Unsubscribe if disconnected
-    this->high_freq_.stop();          // Stop high-frequency mode when connection lost
+    this->parent_->disable_rx_notification();
   }
 
   this->process_uart_();
@@ -142,17 +142,31 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
         return;
       }
       this->api_connection_ = api_connection;
-      this->high_freq_.start();  // Start high-frequency mode when subscribed
+
+      // Enable low-latency RX notification if supported by UART
+      if (this->parent_->enable_rx_notification([this]() {
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+            // Wake main loop via UDP socket (~12μs latency)
+            App.wake_loop_threadsafe();
+#endif
+          })) {
+        ESP_LOGV(TAG, "RX notification enabled for low-latency operation");
+      } else {
+        ESP_LOGV(TAG, "RX notification not supported, using polling");
+      }
+
       ESP_LOGV(TAG, "API connection is now subscribed");
       break;
+
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       if (this->api_connection_ != api_connection) {
         ESP_LOGV(TAG, "API connection is not subscribed");
         return;
       }
       this->api_connection_ = nullptr;
-      this->high_freq_.stop();  // Stop high-frequency mode when unsubscribed
+      this->parent_->disable_rx_notification();
       break;
+
     default:
       ESP_LOGW(TAG, "Unknown request type: %d", type);
       break;

@@ -1,10 +1,11 @@
 import esphome.codegen as cg
-from esphome.components import uart
+from esphome.components import socket, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@kbx81"]
+AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["api", "uart"]
 
 zwave_proxy_ns = cg.esphome_ns.namespace("zwave_proxy")
@@ -41,3 +42,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     cg.add_define("USE_ZWAVE_PROXY")
+
+    # Enable wake_loop_threadsafe for ESP-IDF builds
+    # This provides ~12μs wake latency when UART data arrives via socket wake
+    socket.require_wake_loop_threadsafe()

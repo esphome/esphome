@@ -188,6 +188,11 @@ void USBUartComponent::loop() {
     // Push data to ring buffer (now safe in main loop)
     channel->input_buffer_.push(chunk->data, chunk->length);
 
+    // Notify if callback is registered
+    if (channel->rx_notification_callback_ != nullptr) {
+      channel->rx_notification_callback_();
+    }
+
     // Return chunk to pool for reuse
     this->chunk_pool_.release(chunk);
   }
@@ -383,6 +388,13 @@ void USBUartTypeCdcAcm::enable_channels() {
     this->start_input(channel);
   }
 }
+
+bool USBUartChannel::enable_rx_notification(std::function<void()> callback) {
+  this->rx_notification_callback_ = std::move(callback);
+  return true;
+}
+
+void USBUartChannel::disable_rx_notification() { this->rx_notification_callback_ = nullptr; }
 
 }  // namespace usb_uart
 }  // namespace esphome

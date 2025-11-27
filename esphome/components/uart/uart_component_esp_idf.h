@@ -44,6 +44,9 @@ class IDFUARTComponent : public UARTComponent, public Component {
   void load_settings(bool dump_config) override;
   void load_settings() override { this->load_settings(true); }
 
+  bool enable_rx_notification(std::function<void()> callback) override;
+  void disable_rx_notification() override;
+
  protected:
   void check_logger_conflict() override;
   uart_port_t uart_num_;
@@ -53,6 +56,15 @@ class IDFUARTComponent : public UARTComponent, public Component {
 
   bool has_peek_{false};
   uint8_t peek_byte_;
+
+  // RX notification support
+  std::function<void()> rx_notification_callback_{nullptr};
+  TaskHandle_t rx_event_task_handle_{nullptr};
+  bool rx_event_task_running_{false};
+
+  void start_rx_event_task_();
+  void stop_rx_event_task_();
+  static void rx_event_task_func_(void *param);
 };
 
 }  // namespace uart

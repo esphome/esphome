@@ -337,6 +337,110 @@ void IDFUARTComponent::flush() {
 
 void IDFUARTComponent::check_logger_conflict() {}
 
+bool IDFUARTComponent::enable_rx_notification(std::function<void()> callback) {
+  if (this->uart_event_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Event queue not available");
+    return false;
+  }
+
+  this->rx_notification_callback_ = std::move(callback);
+  this->start_rx_event_task_();
+  return true;
+}
+
+void IDFUARTComponent::disable_rx_notification() {
+  this->stop_rx_event_task_();
+  this->rx_notification_callback_ = nullptr;
+}
+
+void IDFUARTComponent::start_rx_event_task_() {
+  if (this->rx_event_task_running_) {
+    ESP_LOGV(TAG, "RX event task already running");
+    return;
+  }
+
+  this->rx_event_task_running_ = true;
+
+  // Create FreeRTOS task to monitor UART events
+  BaseType_t result = xTaskCreate(rx_event_task_func_,          // Task function
+                                  "uart_rx_evt",                // Task name (max 16 chars)
+                                  2048,                         // Stack size in bytes (2KB)
+                                  this,                         // Task parameter (this pointer)
+                                  tskIDLE_PRIORITY + 1,         // Priority (low, just above idle)
+                                  &this->rx_event_task_handle_  // Task handle output
+  );
+
+  if (result != pdPASS) {
+    ESP_LOGE(TAG, "Failed to create RX event task");
+    this->rx_event_task_running_ = false;
+    return;
+  }
+
+  ESP_LOGV(TAG, "RX event task started");
+}
+
+void IDFUARTComponent::stop_rx_event_task_() {
+  if (!this->rx_event_task_running_) {
+    return;
+  }
+
+  // Signal task to stop
+  this->rx_event_task_running_ = false;
+
+  // Wait a bit for task to see the flag
+  vTaskDelay(pdMS_TO_TICKS(10));
+
+  // Delete the task if it still exists
+  if (this->rx_event_task_handle_ != nullptr) {
+    vTaskDelete(this->rx_event_task_handle_);
+    this->rx_event_task_handle_ = nullptr;
+  }
+
+  ESP_LOGV(TAG, "RX event task stopped");
+}
+
+void IDFUARTComponent::rx_event_task_func_(void *param) {
+  auto *self = static_cast<IDFUARTComponent *>(param);
+
+  uart_event_t event;
+
+  ESP_LOGV(TAG, "RX event task running");
+
+  while (self->rx_event_task_running_) {
+    // Wait for UART events with timeout (blocks efficiently)
+    // Using 100ms timeout allows checking running flag periodically
+    if (xQueueReceive(self->uart_event_queue_, &event, pdMS_TO_TICKS(100)) == pdTRUE) {
+      switch (event.type) {
+        case UART_DATA:
+          // Data available in UART RX buffer - notify callback
+          ESP_LOGVV(TAG, "Data event: %d bytes", event.size);
+          if (self->rx_notification_callback_) {
+            self->rx_notification_callback_();
+          }
+          break;
+
+        case UART_FIFO_OVF:
+        case UART_BUFFER_FULL:
+          ESP_LOGW(TAG, "FIFO overflow or ring buffer full - clearing");
+          uart_flush_input(self->uart_num_);
+          if (self->rx_notification_callback_) {
+            self->rx_notification_callback_();
+          }
+          break;
+
+        default:
+          // Ignore other event types
+          ESP_LOGVV(TAG, "Event type: %d", event.type);
+          break;
+      }
+    }
+  }
+
+  ESP_LOGV(TAG, "RX event task exiting");
+  self->rx_event_task_handle_ = nullptr;
+  vTaskDelete(nullptr);
+}
+
 }  // namespace uart
 }  // namespace esphome
 
