@@ -576,6 +576,15 @@ class APIConnection final : public APIServerConnection {
     bool empty() const { return items.empty(); }
     size_t size() const { return items.size(); }
     const BatchItem &operator[](size_t index) const { return items[index]; }
+    // Release excess capacity - only releases if items already empty
+    void release_buffer() {
+      // Safe to call: batch is processed before release_buffer is called,
+      // and if any items remain (partial processing), we must not clear them.
+      // Use swap trick since shrink_to_fit() is non-binding and may be ignored.
+      if (items.empty()) {
+        std::vector<BatchItem>().swap(items);
+      }
+    }
   };
 
   // DeferredBatch here (16 bytes, 4-byte aligned)
