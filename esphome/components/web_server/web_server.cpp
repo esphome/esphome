@@ -1694,6 +1694,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
     root["event_type"] = event_type;
   }
   if (start_config == DETAIL_ALL) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     JsonArray event_types = root["event_types"].to<JsonArray>();
     for (const char *event_type : obj->get_event_types()) {
       event_types.add(event_type);
