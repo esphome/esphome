@@ -263,9 +263,10 @@ def add_idf_component(
             "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
             "an issue to the external_component author and ask them to update it."
         )
+    components_registry = CORE.data[KEY_ESP32][KEY_COMPONENTS]
     if components:
         for comp in components:
-            existing = CORE.data[KEY_ESP32][KEY_COMPONENTS].get(comp)
+            existing = components_registry.get(comp)
             if existing and existing.get(KEY_REF) != ref:
                 _LOGGER.warning(
                     "IDF component %s version conflict %s replaced by %s",
@@ -273,13 +274,13 @@ def add_idf_component(
                     existing.get(KEY_REF),
                     ref,
                 )
-            CORE.data[KEY_ESP32][KEY_COMPONENTS][comp] = {
+            components_registry[comp] = {
                 KEY_REPO: repo,
                 KEY_REF: ref,
                 KEY_PATH: f"{path}/{comp}" if path else comp,
             }
     else:
-        existing = CORE.data[KEY_ESP32][KEY_COMPONENTS].get(name)
+        existing = components_registry.get(name)
         if existing and existing.get(KEY_REF) != ref:
             _LOGGER.warning(
                 "IDF component %s version conflict %s replaced by %s",
@@ -287,7 +288,7 @@ def add_idf_component(
                 existing.get(KEY_REF),
                 ref,
             )
-        CORE.data[KEY_ESP32][KEY_COMPONENTS][name] = {
+        components_registry[name] = {
             KEY_REPO: repo,
             KEY_REF: ref,
             KEY_PATH: path,
@@ -882,7 +883,7 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_yaml_idf_components(components):
+async def _add_yaml_idf_components(components: list[ConfigType]):
     """Add IDF components from YAML config with final priority to override code-added components."""
     for component in components:
         add_idf_component(
