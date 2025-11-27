@@ -21,7 +21,7 @@ namespace esphome {
 namespace ht16k33_char {
 
 void Adafruit14Seg::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
   this->buffer_[this->digit_map_[char_position] + 1] |= (uint8_t) ((char_to_write >> 8) & 0x3F);
 }
 
@@ -46,7 +46,7 @@ uint8_t Adafruit14Seg::handle_special_char(char char_to_find, uint8_t position) 
 }
 
 void Adafruit14SegFlip::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
   this->buffer_[this->digit_map_[char_position] + 1] |= (uint8_t) ((char_to_write >> 8) & 0x3F);
 }
 
