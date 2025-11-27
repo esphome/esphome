@@ -38,7 +38,12 @@ The properties below are common to all widgets.
   - `"ON"`  : Always show the scroll bars (use the double quotes!).
   - `"ACTIVE"`  : Show scroll bars while a widget is being scrolled.
   - `"AUTO"`  : Show scroll bars when the content is large enough to be scrolled (default).
-
+- **scroll_dir** (*Optional*, string): Sets the permissible scroll directions for an object - one of `LEFT`, `RIGHT`,
+  `BOTTOM`, `TOP`, `HOR`, `VER`, `ALL` (default).
+- **scroll_snap_x** (*Optional*, string): For a child of a scrollable object, this property defines the snap position
+  of the child in the X direction. One of `NONE` (default), `START`, `END`, `CENTER`.
+- **scroll_snap_y** (*Optional*, string): For a child of a scrollable object, this property defines the snap position
+  of the child in the Y direction. One of `NONE` (default), `START`, `END`, `CENTER`.
 - **align** (*Optional*, enum): Alignment of the widget relative to the parent. A child widget is clipped to its parent boundaries. One of the values *not* starting with `OUT_` (see picture below).
 - **align_to** (*Optional*, list): Alignment of the widget relative to another widget on the same level:
   - **id** (**Required**): The ID of a widget *to* which you want to align.
