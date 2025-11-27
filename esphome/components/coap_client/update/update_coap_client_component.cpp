@@ -1,3 +1,4 @@
+#ifdef USE_ESP32
 #include "update_coap_client_component.h"
 
 #include "esphome/core/application.h"
@@ -220,3 +221,4 @@ void CoapClientUpdate::get_(std::string &url,
 }
 
 }  // namespace esphome::coap_client
+#endif
