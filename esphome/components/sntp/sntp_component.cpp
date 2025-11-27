@@ -14,8 +14,6 @@ namespace sntp {
 
 static const char *const TAG = "sntp";
 
-const char *server_name_buffer(const std::string &server) { return server.empty() ? nullptr : server.c_str(); }
-
 void SNTPComponent::setup() {
 #ifdef USE_ESP32
   if (esp_sntp_enabled()) {
@@ -32,7 +30,7 @@ void SNTPComponent::setup() {
   this->servers_was_setup_ = true;
 
   for (size_t i = 0; i < this->servers_.size(); ++i) {
-    const auto &buff = server_name_buffer(this->servers_[i]);
+    const auto &buff = this->servers_[i];
     if (buff != nullptr && 0 != strcmp(buff,
 #ifdef USE_ESP32
                                        esp_sntp_getservername(i)
@@ -150,7 +148,7 @@ uint32_t SNTPComponent::get_update_interval() const { return sntp_get_sync_inter
 #endif  // USE_ESP32
 void SNTPComponent::setup_servers_() {
   for (size_t i = 0; i < this->servers_.size(); ++i) {
-    const auto &buff = server_name_buffer(this->servers_[i]);
+    const auto &buff = this->servers_[i];
 #ifdef USE_ESP32
     esp_sntp_setservername(i, buff);
     if (buff != nullptr && buff != esp_sntp_getservername(i)) {
