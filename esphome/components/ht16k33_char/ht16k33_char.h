@@ -101,7 +101,7 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   uint16_t send_to_display_common_(i2c::I2CDevice *display, uint16_t position);
 
   uint8_t scroll_state_;
-  uint8_t num_chars_per_display_{0};    //The number of characters per display. This should be set by the derived class.
+  uint8_t num_chars_per_display_{0};  // The number of characters per display. This should be set by the derived class.
 
   std::vector<i2c::I2CDevice *> displays_{this};
 
