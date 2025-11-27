@@ -284,6 +284,8 @@ class WiFiComponent : public Component {
 
   void retry_connect();
 
+  bool can_proceed() override;
+
   void set_reboot_timeout(uint32_t reboot_timeout);
 
   bool is_connected();
