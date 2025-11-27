@@ -144,7 +144,7 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
       this->api_connection_ = api_connection;
 
       // Enable low-latency RX notification if supported by UART
-      if (this->parent_->enable_rx_notification([this]() {
+      if (this->parent_->enable_rx_notification([]() {
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
             // Wake main loop via UDP socket (~12μs latency)
             App.wake_loop_threadsafe();

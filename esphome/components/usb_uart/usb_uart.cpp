@@ -389,7 +389,7 @@ void USBUartTypeCdcAcm::enable_channels() {
   }
 }
 
-bool USBUartChannel::enable_rx_notification(std::function<void()> callback) {
+bool USBUartChannel::enable_rx_notification(const std::function<void()> &callback) {
   this->rx_notification_callback_ = std::move(callback);
   return true;
 }

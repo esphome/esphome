@@ -337,7 +337,7 @@ void IDFUARTComponent::flush() {
 
 void IDFUARTComponent::check_logger_conflict() {}
 
-bool IDFUARTComponent::enable_rx_notification(std::function<void()> callback) {
+bool IDFUARTComponent::enable_rx_notification(const std::function<void()> &callback) {
   if (this->uart_event_queue_ == nullptr) {
     ESP_LOGE(TAG, "Event queue not available");
     return false;
@@ -362,7 +362,7 @@ void IDFUARTComponent::start_rx_event_task_() {
   this->rx_event_task_running_ = true;
 
   // Create FreeRTOS task to monitor UART events
-  BaseType_t result = xTaskCreate(rx_event_task_func_,          // Task function
+  BaseType_t result = xTaskCreate(rx_event_task_func,           // Task function
                                   "uart_rx_evt",                // Task name (max 16 chars)
                                   2048,                         // Stack size in bytes (2KB)
                                   this,                         // Task parameter (this pointer)
@@ -399,7 +399,7 @@ void IDFUARTComponent::stop_rx_event_task_() {
   ESP_LOGV(TAG, "RX event task stopped");
 }
 
-void IDFUARTComponent::rx_event_task_func_(void *param) {
+void IDFUARTComponent::rx_event_task_func(void *param) {
   auto *self = static_cast<IDFUARTComponent *>(param);
 
   uart_event_t event;
