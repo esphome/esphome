@@ -1,5 +1,5 @@
 #pragma once
-
+#ifdef USE_ESP32
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -55,3 +55,4 @@ class CoapClientUpdate : public update::UpdateEntity, public PollingComponent {
 };
 
 }  // namespace esphome::coap_client
+#endif
