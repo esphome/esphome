@@ -53,7 +53,6 @@ from .schemas import (
     any_widget_schema,
     container_schema,
     obj_schema,
-    updated_widgets,
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
@@ -113,7 +112,7 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
-    definitions = [as_macro(m, v) for m, v in df.lv_defines.items()]
+    definitions = [as_macro(m, v) for m, v in df.get_data(df.KEY_LV_DEFINES).items()]
     definitions.sort()
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
@@ -196,7 +195,7 @@ def final_validation(config_list):
                     f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
         # Do per-widget type final validation for update actions
-        for widget_type, update_configs in updated_widgets.items():
+        for widget_type, update_configs in df.get_data(df.KEY_UPDATED_WIDGETS).items():
             for conf in update_configs:
                 for id_conf in conf.get(CONF_ID, ()):
                     name = id_conf[CONF_ID]
@@ -284,6 +283,7 @@ async def to_code(configs):
             config[df.CONF_FULL_REFRESH],
             config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
+            config[df.CONF_UPDATE_WHEN_DISPLAY_IDLE],
         )
         await cg.register_component(lv_component, config)
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
@@ -388,6 +388,9 @@ LVGL_SCHEMA = cv.All(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+                cv.Optional(
+                    df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False
+                ): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(

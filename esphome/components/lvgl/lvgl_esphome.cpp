@@ -240,7 +240,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 }
 
 void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
-  if (!this->paused_) {
+  if (!this->is_paused()) {
     auto now = millis();
     this->draw_buffer_(area, reinterpret_cast<lv_color_data *>(color_p));
     ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
@@ -396,6 +396,27 @@ void LvKeyboardType::set_obj(lv_obj_t *lv_obj) {
 }
 #endif  // USE_LVGL_KEYBOARD
 
+void LvglComponent::draw_end_() {
+  if (this->draw_end_callback_ != nullptr)
+    this->draw_end_callback_->trigger();
+  if (this->update_when_display_idle_) {
+    for (auto *disp : this->displays_)
+      disp->update();
+  }
+}
+
+bool LvglComponent::is_paused() const {
+  if (this->paused_)
+    return true;
+  if (this->update_when_display_idle_) {
+    for (auto *disp : this->displays_) {
+      if (!disp->is_idle())
+        return true;
+    }
+  }
+  return false;
+}
+
 void LvglComponent::write_random_() {
   int iterations = 6 - lv_disp_get_inactive_time(this->disp_) / 60000;
   if (iterations <= 0)
@@ -445,12 +466,13 @@ void LvglComponent::write_random_() {
  *                         presses a key or clicks on the screen.
  */
 LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh,
-                             int draw_rounding, bool resume_on_input)
+                             int draw_rounding, bool resume_on_input, bool update_when_display_idle)
     : draw_rounding(draw_rounding),
       displays_(std::move(displays)),
       buffer_frac_(buffer_frac),
       full_refresh_(full_refresh),
-      resume_on_input_(resume_on_input) {
+      resume_on_input_(resume_on_input),
+      update_when_display_idle_(update_when_display_idle) {
   this->disp_ = lv_display_create(240, 240);
 }
 
@@ -503,7 +525,7 @@ void LvglComponent::setup() {
   if (this->draw_start_callback_ != nullptr) {
     lv_display_add_event_cb(this->disp_, render_start_cb, LV_EVENT_RENDER_START, this);
   }
-  if (this->draw_end_callback_ != nullptr) {
+  if (this->draw_end_callback_ != nullptr || this->update_when_display_idle_) {
     lv_display_add_event_cb(this->disp_, render_end_cb, LV_EVENT_REFR_READY, this);
   }
 #if LV_USE_LOG
@@ -527,15 +549,15 @@ void LvglComponent::setup() {
 
 void LvglComponent::update() {
   // update indicators
-  if (this->paused_) {
+  if (this->is_paused()) {
     return;
   }
   this->idle_callbacks_.call(lv_disp_get_inactive_time(this->disp_));
 }
 
 void LvglComponent::loop() {
-  if (this->paused_) {
-    if (this->show_snow_)
+  if (this->is_paused()) {
+    if (this->paused_ && this->show_snow_)
       this->write_random_();
   } else {
     lv_timer_handler();
