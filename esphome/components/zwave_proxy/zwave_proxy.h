@@ -8,8 +8,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace zwave_proxy {
+namespace esphome::zwave_proxy {
 
 static constexpr size_t MAX_ZWAVE_FRAME_SIZE = 257;  // Maximum Z-Wave frame size
 
@@ -85,9 +84,10 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
   bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
   bool home_id_ready_{false};  // True when home ID has been received from Z-Wave module
+
+  HighFrequencyLoopRequester high_freq_;  // Request high-frequency loop() calls when subscribed
 };
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace zwave_proxy
-}  // namespace esphome
+}  // namespace esphome::zwave_proxy

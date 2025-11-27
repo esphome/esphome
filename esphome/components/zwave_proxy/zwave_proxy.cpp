@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace zwave_proxy {
+namespace esphome::zwave_proxy {
 
 static const char *const TAG = "zwave_proxy";
 
@@ -75,6 +74,7 @@ void ZWaveProxy::loop() {
   if (this->api_connection_ != nullptr && (!this->api_connection_->is_connection_setup() || !api_is_connected())) {
     ESP_LOGW(TAG, "Subscriber disconnected");
     this->api_connection_ = nullptr;  // Unsubscribe if disconnected
+    this->high_freq_.stop();          // Stop high-frequency mode when connection lost
   }
 
   this->process_uart_();
@@ -142,6 +142,7 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
         return;
       }
       this->api_connection_ = api_connection;
+      this->high_freq_.start();  // Start high-frequency mode when subscribed
       ESP_LOGV(TAG, "API connection is now subscribed");
       break;
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
@@ -150,6 +151,7 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
         return;
       }
       this->api_connection_ = nullptr;
+      this->high_freq_.stop();  // Stop high-frequency mode when unsubscribed
       break;
     default:
       ESP_LOGW(TAG, "Unknown request type: %d", type);
@@ -342,5 +344,4 @@ bool ZWaveProxy::response_handler_() {
 
 ZWaveProxy *global_zwave_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace zwave_proxy
-}  // namespace esphome
+}  // namespace esphome::zwave_proxy
