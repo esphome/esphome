@@ -45,7 +45,7 @@ update:
 - **sha256** (**Required**, string): SHA256 hash of the firmware binary file. This is used to verify
   the integrity of the firmware both at compile time and at runtime before flashing to the co-processor.
 
-- All other options from [Update](#config-update).
+- All other options from [Update](/components/update#config-update).
 
 ## Platform requirements
 

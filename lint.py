@@ -121,7 +121,6 @@ file_types = (
     ".md",
     ".png",
     ".py",
-    ".rst",
     ".svg",
     ".toml",
     ".txt",
@@ -327,82 +326,205 @@ def lint_end_newline(fname, content):
     return None
 
 
-section_regex = re.compile(r"^(=+|-+|\*+|~+)$")
-directive_regex = re.compile(r"^(\s*)\.\. (.*)::.*$")
-directive_arg_regex = re.compile(r"^(\s+):.*:\s*.*$")
-
-
-@lint_content_check(include=["*.rst"])
-def lint_directive_formatting(fname, content):
-    errors = []
-    lines = content.splitlines(keepends=False)
-
-    for i, line in enumerate(lines):
-        m = directive_regex.match(line)
-        if m is None:
-            continue
-        base_indentation = len(m.group(1))
-        directive_name = m.group(2)
-        if directive_name.startswith("|") or directive_name == "seo":
-            continue
-        # Match directive args
-        for j in range(i + 1, len(lines)):
-            if not directive_arg_regex.match(lines[j]):
-                break
-        else:
-            # Reached end of file
-            continue
-
-        # Empty line must follow
-        if lines[j]:
-            errors.append(
-                (
-                    j,
-                    1,
-                    "Directive '{}' is not followed by an empty line. Please insert an "
-                    "empty line after {}:{}".format(directive_name, fname, j),
-                )
-            )
-            continue
-
-        k = j + 1
-        for j in range(k, len(lines)):
-            if not lines[j]:
-                # Ignore Empty lines
-                continue
-
-            num_spaces = len(lines[j]) - len(lines[j].lstrip())
-            if num_spaces <= base_indentation:
-                # Finished with this directive
-                break
-            num_indent = num_spaces - base_indentation
-            if j == k and num_indent != 4:
-                errors.append(
-                    (
-                        j + 1,
-                        num_indent,
-                        "Directive '{}' must be indented with 4 spaces, not {}. See "
-                        "{}:{}".format(directive_name, num_indent, fname, j + 1),
-                    )
-                )
-                break
-
-    return errors
-
-
 @lint_re_check(
-    r"https://esphome.io/",
-    include=["*.rst"],
-    exclude=[
-        "components/web_server.rst",
-        "components/image.rst",
-        "cookbook/lvgl.rst",
-    ],
+    r"\[([^\]]+)\]\((https://esphome\.io/[^)]+)\)",
+    include=["*.md"],
 )
 def lint_esphome_io_link(fname, match):
+    link_text = match.group(1)
+    full_url = match.group(2)
     return (
-        "All links to esphome.io should be relative, please remove esphome.io from URL"
+        f"Markdown link to esphome.io should use relative path. "
+        f"Change [{link_text}]({full_url}) to use a relative URL"
     )
+
+
+# Build cache of all anchors in the documentation
+ANCHOR_CACHE = None
+
+
+def build_anchor_cache():
+    """Build a cache of all anchors (headings and shortcodes) in markdown files."""
+    global ANCHOR_CACHE
+    if ANCHOR_CACHE is not None:
+        return ANCHOR_CACHE
+
+    ANCHOR_CACHE = {}
+    content_dir = Path("content")
+    if not content_dir.exists():
+        return ANCHOR_CACHE
+
+    def generate_slug(text):
+        """Generate Hugo-compatible slug from heading text."""
+        slug = re.sub(r"[^\w\s-]", "", text).lower()
+        slug = re.sub(r"[-\s]+", "-", slug).strip("-")
+        return slug
+
+    for md_file in content_dir.rglob("*.md"):
+        rel_path = md_file.relative_to(content_dir)
+        # Convert file path to page path
+        if md_file.name == "_index.md":
+            if str(rel_path) == "_index.md":
+                page_path = ""  # Root index
+            else:
+                page_path = str(rel_path.parent)
+        else:
+            page_path = str(rel_path.with_suffix(""))
+
+        page_path = page_path.replace("\\", "/")
+        anchors = set()
+
+        try:
+            with open(md_file, "r", encoding="utf-8") as f:
+                content = f.read()
+                lines = content.split("\n")
+
+            for line in lines:
+                # Match headings
+                heading_match = re.match(r"^(#{1,6})\s+(.*)", line)
+                if heading_match:
+                    heading_text = heading_match.group(2).strip()
+                    anchor_id = generate_slug(heading_text)
+                    anchors.add(anchor_id)
+
+                # Match anchor shortcodes
+                shortcode_match = re.search(r'\{\{<\s*anchor\s+"([^\s>]+)"\s*>}}', line)
+                if shortcode_match:
+                    anchor_id = shortcode_match.group(1)
+                    anchors.add(anchor_id)
+
+            ANCHOR_CACHE[page_path] = anchors
+        except Exception:
+            # Skip files that can't be read
+            pass
+
+    return ANCHOR_CACHE
+
+
+@lint_content_check(include=["*.md"])
+def lint_internal_links(fname, content):
+    """Validate internal markdown links."""
+    errors = []
+    build_anchor_cache()
+
+    # Match markdown links: [text](url)
+    # Capture groups: text and URL
+    link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+    for match in link_pattern.finditer(content):
+        link_text = match.group(1)
+        link_url = match.group(2)
+        lineno = content.count("\n", 0, match.start()) + 1
+        col = match.start() - content.rfind("\n", 0, match.start())
+
+        # Skip external links (http://, https://, mailto:, etc.)
+        if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", link_url):
+            continue
+
+        # Check anchor-only links (these used to be resolved by the old system)
+        if link_url.startswith("#"):
+            anchor_id = link_url.lstrip("#")
+
+            # Get current page path (only for files in content/)
+            current_file = Path(fname)
+            try:
+                if current_file.name == "_index.md":
+                    if str(current_file.parent) == "content":
+                        current_page = ""
+                    else:
+                        current_page = str(current_file.parent.relative_to("content"))
+                else:
+                    current_page = str(current_file.relative_to("content").with_suffix(""))
+
+                current_page = current_page.replace("\\", "/")
+
+                # Check if anchor exists on current page
+                if current_page in ANCHOR_CACHE:
+                    if anchor_id not in ANCHOR_CACHE[current_page]:
+                        # Anchor doesn't exist on current page - likely a broken cross-page link
+                        errors.append(
+                            (
+                                lineno,
+                                col,
+                                f"Anchor-only link '#{anchor_id}' not found on current page. "
+                                f"If this should link to another page, use the full path like "
+                                f"[{link_text}](/path/to/page#{anchor_id})",
+                            )
+                        )
+            except ValueError:
+                # File is not in content/ directory, skip anchor validation
+                pass
+            continue
+
+        # Skip relative links to static assets (images, etc.)
+        # These don't start with / and have file extensions
+        if not link_url.startswith("/") and re.search(r"\.(png|jpg|jpeg|gif|svg|webp|pdf|zip)$", link_url, re.IGNORECASE):
+            continue
+
+        # Skip links that look like code/lambda parameters (contain spaces, parentheses, etc.)
+        if " " in link_url or "(" in link_url or ")" in link_url:
+            continue
+
+        # Skip relative links without leading slash (not documentation pages)
+        # unless they're in the components directory
+        if not link_url.startswith("/"):
+            # Allow relative component links
+            if not ("components/" in fname and not re.search(r"\.", link_url)):
+                continue
+
+        # Parse internal link
+        if "#" in link_url:
+            path_part, anchor_part = link_url.split("#", 1)
+        else:
+            path_part = link_url
+            anchor_part = None
+
+        # Validate path - must start with /
+        if not path_part.startswith("/"):
+            continue
+
+        # Remove leading slash
+        clean_path = path_part.lstrip("/")
+
+        # Skip paths with query strings or fragments that look like URLs
+        if "?" in clean_path or ".html" in clean_path:
+            continue
+
+        # Check if page exists
+        if clean_path not in ANCHOR_CACHE:
+            # Try with _index
+            if clean_path and not clean_path.endswith("/"):
+                clean_path_index = clean_path
+            else:
+                clean_path_index = clean_path.rstrip("/")
+
+            if clean_path_index not in ANCHOR_CACHE:
+                errors.append(
+                    (
+                        lineno,
+                        col,
+                        f"Internal link references non-existent page: '{path_part}' in link [{link_text}]({link_url})",
+                    )
+                )
+                continue
+
+        # Validate anchor if present
+        if anchor_part:
+            target_page = clean_path
+            if target_page not in ANCHOR_CACHE:
+                target_page = clean_path.rstrip("/")
+
+            if target_page in ANCHOR_CACHE:
+                if anchor_part not in ANCHOR_CACHE[target_page]:
+                    errors.append(
+                        (
+                            lineno,
+                            col,
+                            f"Internal link references non-existent anchor: '#{anchor_part}' on page '{path_part}' in link [{link_text}]({link_url})",
+                        )
+                    )
+
+    return errors
 
 
 def highlight(s):

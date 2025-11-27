@@ -27,7 +27,6 @@ check-links: anchors
 anchors: repo-data
 	$(PAGEFIND) -s pagefind-bootstrap
 	hugo --environment anchors
-	python3 script/md_anchors.py
 
 repo-data: directories
 	mkdir -p data/automations
@@ -54,7 +53,6 @@ convert-branch-in-place:
 netlify: repo-data
 	$(PAGEFIND) -s pagefind-bootstrap
 	hugo --environment anchors
-	python3 script/md_anchors.py
 	hugo --minify
 	$(PAGEFIND)
 	# rerun hugo to incorporate generated index
