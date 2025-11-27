@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 // Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
 struct MDNSString;
@@ -79,6 +78,5 @@ class MDNSComponent : public Component {
   void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services);
 };
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 #endif

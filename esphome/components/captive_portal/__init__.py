@@ -72,6 +72,16 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "Add 'ap:' to your WiFi configuration to enable the captive portal."
         )
 
+    # Register socket needs for DNS server and additional HTTP connections
+    # - 1 UDP socket for DNS server
+    # - 3 additional TCP sockets for captive portal detection probes + configuration requests
+    #   OS captive portal detection makes multiple probe requests that stay in TIME_WAIT.
+    #   Need headroom for actual user configuration requests.
+    #   LRU purging will reclaim idle sockets to prevent exhaustion from repeated attempts.
+    from esphome.components import socket
+
+    socket.consume_sockets(4, "captive_portal")(config)
+
     return config
 
 

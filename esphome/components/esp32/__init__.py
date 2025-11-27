@@ -37,6 +37,7 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, HexInt, TimePeriod
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
@@ -262,15 +263,32 @@ def add_idf_component(
             "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
             "an issue to the external_component author and ask them to update it."
         )
+    components_registry = CORE.data[KEY_ESP32][KEY_COMPONENTS]
     if components:
         for comp in components:
-            CORE.data[KEY_ESP32][KEY_COMPONENTS][comp] = {
+            existing = components_registry.get(comp)
+            if existing and existing.get(KEY_REF) != ref:
+                _LOGGER.warning(
+                    "IDF component %s version conflict %s replaced by %s",
+                    comp,
+                    existing.get(KEY_REF),
+                    ref,
+                )
+            components_registry[comp] = {
                 KEY_REPO: repo,
                 KEY_REF: ref,
                 KEY_PATH: f"{path}/{comp}" if path else comp,
             }
     else:
-        CORE.data[KEY_ESP32][KEY_COMPONENTS][name] = {
+        existing = components_registry.get(name)
+        if existing and existing.get(KEY_REF) != ref:
+            _LOGGER.warning(
+                "IDF component %s version conflict %s replaced by %s",
+                name,
+                existing.get(KEY_REF),
+                ref,
+            )
+        components_registry[name] = {
             KEY_REPO: repo,
             KEY_REF: ref,
             KEY_PATH: path,
@@ -592,6 +610,14 @@ def require_vfs_dir() -> None:
     CORE.data[KEY_VFS_DIR_REQUIRED] = True
 
 
+def _parse_idf_component(value: str) -> ConfigType:
+    """Parse IDF component shorthand syntax like 'owner/component^version'"""
+    if "^" not in value:
+        raise cv.Invalid(f"Invalid IDF component shorthand '{value}'")
+    name, ref = value.split("^", 1)
+    return {CONF_NAME: name, CONF_REF: ref}
+
+
 def _validate_idf_component(config: ConfigType) -> ConfigType:
     """Validate IDF component config and warn about deprecated options."""
     if CONF_REFRESH in config:
@@ -659,14 +685,19 @@ FRAMEWORK_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
             cv.All(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_NAME): cv.string_strict,
-                        cv.Optional(CONF_SOURCE): cv.git_ref,
-                        cv.Optional(CONF_REF): cv.string,
-                        cv.Optional(CONF_PATH): cv.string,
-                        cv.Optional(CONF_REFRESH): cv.All(cv.string, cv.source_refresh),
-                    }
+                cv.Any(
+                    cv.All(cv.string_strict, _parse_idf_component),
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_NAME): cv.string_strict,
+                            cv.Optional(CONF_SOURCE): cv.git_ref,
+                            cv.Optional(CONF_REF): cv.string,
+                            cv.Optional(CONF_PATH): cv.string,
+                            cv.Optional(CONF_REFRESH): cv.All(
+                                cv.string, cv.source_refresh
+                            ),
+                        }
+                    ),
                 ),
                 _validate_idf_component,
             )
@@ -851,9 +882,25 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_yaml_idf_components(components: list[ConfigType]):
+    """Add IDF components from YAML config with final priority to override code-added components."""
+    for component in components:
+        add_idf_component(
+            name=component[CONF_NAME],
+            repo=component.get(CONF_SOURCE),
+            ref=component.get(CONF_REF),
+            path=component.get(CONF_PATH),
+        )
+
+
 async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
+    cg.add_platformio_option(
+        "board_upload.maximum_size",
+        int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
+    )
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -881,6 +928,12 @@ async def to_code(config):
     # Set the location of the IDF component manager cache
     os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
         CORE.relative_internal_path(".espressif")
+    )
+
+    add_extra_script(
+        "pre",
+        "pre_build.py",
+        Path(__file__).parent / "pre_build.py.script",
     )
 
     add_extra_script(
@@ -930,6 +983,12 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
         add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
+
+        # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
+        if get_esp32_variant() == VARIANT_ESP32S2:
+            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
+            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=0")
+            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=0")
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
@@ -1081,13 +1140,10 @@ async def to_code(config):
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
-    for component in conf[CONF_COMPONENTS]:
-        add_idf_component(
-            name=component[CONF_NAME],
-            repo=component.get(CONF_SOURCE),
-            ref=component.get(CONF_REF),
-            path=component.get(CONF_PATH),
-        )
+    # Components from YAML are added in a separate coroutine with FINAL priority
+    # Schedule it to run after all other components
+    if conf[CONF_COMPONENTS]:
+        CORE.add_job(_add_yaml_idf_components, conf[CONF_COMPONENTS])
 
 
 APP_PARTITION_SIZES = {
