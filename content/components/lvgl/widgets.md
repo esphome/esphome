@@ -429,9 +429,17 @@ Simple push (momentary) or toggle (two-states) button.
 
 {{< img src="lvgl_button.png" alt="Image" class="align-center" >}}
 
+A button has no inherent content so requires child widgets to be added. As a shorthand for a button with a single text label,
+the `text:` option may be used to add a single `label` child, otherwise the `widgets:` key must be used to add other
+widgets inside the button.
+
+A button is momentary by default, which has a `pressed` state. If the `checkable` flag is set, it becomes a toggle button, which also has a `checked` state.
+
 **Configuration variables:**
 
-- **checkable** (*Optional*, boolean): A significant [flag](#lvgl-widget-flags) to make a toggle button (which remains pressed in `checked` state). Defaults to `false`.
+- **checkable** (*Optional*, boolean): A significant [flag](#lvgl-widget-flags) to make a toggle button (which reports its `checked` state). Defaults to `false`.
+- **text** (*Optional*, string): Text to be displayed on the button. This will create and add a single label widget to the button. May not be used
+  with the `widgets:` key.
 - Style options from [Style properties](/components/lvgl#lvgl-styling) for the background of the button. Uses the typical background style properties.
 
 A notable state is `checked` (boolean) which can have different styles applied.
@@ -445,30 +453,22 @@ A notable state is `checked` (boolean) which can have different styles applied.
 **Example:**
 
 ```yaml
-# Example widget:
+# Example widget with text:
 - button:
-    x: 10
-    y: 10
-    width: 50
-    height: 30
     id: btn_id
+    text: "Click me!"
 ```
 
-To have a button with a text label on it, add a child [`label`](#lvgl-widget-label) widget to it:
+To create an image button, add a child [`image`](#lvgl-widget-image) widget to it:
 
 ```yaml
-# Example toggle button with text:
+# Example toggle button with image:
 - button:
-    x: 10
-    y: 10
-    width: 70
-    height: 30
     id: btn_id
     checkable: true
     widgets:
-      - label:
-          align: center
-          text: "Light"
+      - image:
+          src: my_image_id
 
 # Example trigger:
 - button:
@@ -478,11 +478,36 @@ To have a button with a text label on it, add a child [`label`](#lvgl-widget-lab
         - logger.log:
             format: "Button checked state: %d"
             args: [ x ]
+
 ```
 
 The `button` can be also integrated as a {{< docref "/components/binary_sensor/lvgl" "Binary Sensor" >}} or as a {{< docref "/components/switch/lvgl" "Switch" >}} component.
+> [!NOTE]
+> A binary sensor linked to a button reports its `pressed` state, while a switch linked to a button reports its `checked` state.
 
 See [Remote light button](/cookbook/lvgl#lvgl-cookbook-binent) for an example which demonstrates how to use a checkable button to act on a Home Assistant service.
+
+**Actions:**
+
+- `lvgl.button.update` [action](/automations/actions#actions-action) may be used to update the button styles at runtime. If
+  the button has a `text:` option then it may also be updated with this action.
+  - **id** (**Required**): The ID or a list of IDs of button widgets to be updated.
+  - **text** (*Optional*, string): Update the button's text (only if the button was configured with the `text:` option).
+  - Style options from [Style properties](/components/lvgl#lvgl-styling) for the background of the button.
+
+  > [!NOTE]
+  > Where other widgets are added as children, they must be updated directly.
+
+```yaml
+# Text update example
+- button:
+    id: btn_id
+    text: "Click me!"
+    on_click:
+      lvgl.button.update:
+        id: btn_id
+        text: "Clicked"
+```
 
 {{< anchor "lvgl-widget-buttonmatrix" >}}
 
