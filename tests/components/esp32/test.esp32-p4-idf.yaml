@@ -4,6 +4,10 @@ esp32:
   cpu_frequency: 400MHz
   framework:
     type: esp-idf
+    components:
+      - espressif/mdns^1.8.2
+      - name: espressif/esp_hosted
+        ref: 2.6.6
     advanced:
       enable_idf_experimental_features: yes
 

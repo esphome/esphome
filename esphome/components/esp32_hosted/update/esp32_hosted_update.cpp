@@ -22,6 +22,11 @@ constexpr size_t CHUNK_SIZE = 1500;
 void Esp32HostedUpdate::setup() {
   this->update_info_.title = "ESP32 Hosted Coprocessor";
 
+  // if wifi is not present, connect to the coprocessor
+#ifndef USE_WIFI
+  esp_hosted_connect_to_slave();  // NOLINT
+#endif
+
   // get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
