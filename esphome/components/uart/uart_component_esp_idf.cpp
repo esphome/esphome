@@ -343,7 +343,7 @@ bool IDFUARTComponent::enable_rx_notification(const std::function<void()> &callb
     return false;
   }
 
-  this->rx_notification_callback_ = std::move(callback);
+  this->rx_notification_callback_ = callback;
   this->start_rx_event_task_();
   return true;
 }
