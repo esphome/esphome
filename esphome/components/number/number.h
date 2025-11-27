@@ -6,22 +6,12 @@
 #include "number_call.h"
 #include "number_traits.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 
-#define LOG_NUMBER(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
-    } \
-    if (!(obj)->traits.get_unit_of_measurement().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->traits.get_unit_of_measurement().c_str()); \
-    } \
-    if (!(obj)->traits.get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->traits.get_device_class().c_str()); \
-    } \
-  }
+class Number;
+void log_number(const char *tag, const char *prefix, const char *type, Number *obj);
+
+#define LOG_NUMBER(prefix, type, obj) log_number(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_NUMBER(name) \
  protected: \
@@ -62,5 +52,4 @@ class Number : public EntityBase {
   CallbackManager<void(float)> state_callback_;
 };
 
-}  // namespace number
-}  // namespace esphome
+}  // namespace esphome::number

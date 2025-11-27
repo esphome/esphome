@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace hte501 {
@@ -19,7 +19,6 @@ class HTE501Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-  unsigned char calc_crc8_(const unsigned char buf[], unsigned char from, unsigned char to);
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *humidity_sensor_;
 

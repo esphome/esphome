@@ -5,7 +5,7 @@
 #ifdef USE_MQTT
 #ifdef USE_FAN
 
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 #include "mqtt_component.h"
 
 namespace esphome {

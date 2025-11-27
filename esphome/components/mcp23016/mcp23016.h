@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/gpio_expander/cached_gpio.h"
 
 namespace esphome {
 namespace mcp23016 {
@@ -24,19 +25,22 @@ enum MCP23016GPIORegisters {
   MCP23016_IOCON1 = 0x0B,
 };
 
-class MCP23016 : public Component, public i2c::I2CDevice {
+class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint8_t, 16> {
  public:
   MCP23016() = default;
 
   void setup() override;
-
-  bool digital_read(uint8_t pin);
-  void digital_write(uint8_t pin, bool value);
+  void loop() override;
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
 
  protected:
+  // Virtual methods from CachedGpioExpander
+  bool digital_read_hw(uint8_t pin) override;
+  bool digital_read_cache(uint8_t pin) override;
+  void digital_write_hw(uint8_t pin, bool value) override;
+
   // read a given register
   bool read_reg_(uint8_t reg, uint8_t *value);
   // write a value to a given register
@@ -46,6 +50,8 @@ class MCP23016 : public Component, public i2c::I2CDevice {
 
   uint8_t olat_0_{0x00};
   uint8_t olat_1_{0x00};
+  // Cache for input values (16-bit combined for both banks)
+  uint16_t input_mask_{0x00};
 };
 
 class MCP23016GPIOPin : public GPIOPin {

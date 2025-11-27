@@ -122,7 +122,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config):
     if not use_legacy() and config[CONF_ADC_TYPE] == "internal":
-        raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver.")
+        raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

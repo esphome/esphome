@@ -1,6 +1,6 @@
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components import wifi
+from esphome.components import socket, wifi
 from esphome.components.udp import CONF_ON_RECEIVE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -17,6 +17,7 @@ from esphome.core import CORE, HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+AUTO_LOAD = ["socket"]
 
 byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
@@ -65,15 +66,6 @@ CONF_WAIT_FOR_SENT = "wait_for_sent"
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
 
-def _validate_unknown_peer(config):
-    if config[CONF_AUTO_ADD_PEER] and config.get(CONF_ON_UNKNOWN_PEER):
-        raise cv.Invalid(
-            f"'{CONF_ON_UNKNOWN_PEER}' cannot be used when '{CONF_AUTO_ADD_PEER}' is enabled.",
-            path=[CONF_ON_UNKNOWN_PEER],
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -103,7 +95,6 @@ CONFIG_SCHEMA = cv.All(
         },
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
-    _validate_unknown_peer,
 )
 
 
@@ -124,12 +115,15 @@ async def _trigger_to_code(config):
 
 
 async def to_code(config):
-    print(config)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+    # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks
+    # This enables low-latency event processing instead of waiting for select() timeout
+    socket.require_wake_loop_threadsafe()
 
     cg.add_define("USE_ESPNOW")
     if wifi_channel := config.get(CONF_CHANNEL):

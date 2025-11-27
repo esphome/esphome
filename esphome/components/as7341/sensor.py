@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CLEAR,
     CONF_GAIN,
     CONF_ID,
     DEVICE_CLASS_ILLUMINANCE,
@@ -29,7 +30,6 @@ CONF_F5 = "f5"
 CONF_F6 = "f6"
 CONF_F7 = "f7"
 CONF_F8 = "f8"
-CONF_CLEAR = "clear"
 CONF_NIR = "nir"
 
 UNIT_COUNTS = "#"

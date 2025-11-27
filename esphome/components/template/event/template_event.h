@@ -6,7 +6,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateEvent : public Component, public event::Event {};
+class TemplateEvent final : public Component, public event::Event {};
 
 }  // namespace template_
 }  // namespace esphome

@@ -4,6 +4,7 @@
 
 #include "espnow_err.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
@@ -97,6 +98,11 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
   // Push the packet to the queue
   global_esp_now->receive_packet_queue_.push(packet);
   // Push always because we're the only producer and the pool ensures we never exceed queue size
+
+  // Wake main loop immediately to process ESP-NOW send event instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 
 void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
@@ -114,6 +120,11 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
   // Push the packet to the queue
   global_esp_now->receive_packet_queue_.push(packet);
   // Push always because we're the only producer and the pool ensures we never exceed queue size
+
+  // Wake main loop immediately to process ESP-NOW receive event instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
@@ -154,7 +165,7 @@ void ESPNowComponent::setup() {
 }
 
 void ESPNowComponent::enable() {
-  if (this->state_ != ESPNOW_STATE_ENABLED)
+  if (this->state_ == ESPNOW_STATE_ENABLED)
     return;
 
   ESP_LOGD(TAG, "Enabling");
@@ -178,11 +189,7 @@ void ESPNowComponent::enable_() {
 
     this->apply_wifi_channel();
   }
-#ifdef USE_WIFI
-  else {
-    this->wifi_channel_ = wifi::global_wifi_component->get_wifi_channel();
-  }
-#endif
+  this->get_wifi_channel();
 
   esp_err_t err = esp_now_init();
   if (err != ESP_OK) {
@@ -212,10 +219,11 @@ void ESPNowComponent::enable_() {
   esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL);
 #endif
 
+  this->state_ = ESPNOW_STATE_ENABLED;
+
   for (auto peer : this->peers_) {
     this->add_peer(peer.address);
   }
-  this->state_ = ESPNOW_STATE_ENABLED;
 }
 
 void ESPNowComponent::disable() {
@@ -227,10 +235,6 @@ void ESPNowComponent::disable() {
 
   esp_now_unregister_recv_cb();
   esp_now_unregister_send_cb();
-
-  for (auto peer : this->peers_) {
-    this->del_peer(peer.address);
-  }
 
   esp_err_t err = esp_now_deinit();
   if (err != ESP_OK) {
@@ -267,7 +271,6 @@ void ESPNowComponent::loop() {
     }
   }
 #endif
-
   // Process received packets
   ESPNowPacket *packet = this->receive_packet_queue_.pop();
   while (packet != nullptr) {
@@ -275,13 +278,15 @@ void ESPNowComponent::loop() {
       case ESPNowPacket::RECEIVED: {
         const ESPNowRecvInfo info = packet->get_receive_info();
         if (!esp_now_is_peer_exist(info.src_addr)) {
-          if (this->auto_add_peer_) {
-            this->add_peer(info.src_addr);
-          } else {
-            for (auto *handler : this->unknown_peer_handlers_) {
-              if (handler->on_unknown_peer(info, packet->packet_.receive.data, packet->packet_.receive.size))
-                break;  // If a handler returns true, stop processing further handlers
+          bool handled = false;
+          for (auto *handler : this->unknown_peer_handlers_) {
+            if (handler->on_unknown_peer(info, packet->packet_.receive.data, packet->packet_.receive.size)) {
+              handled = true;
+              break;  // If a handler returns true, stop processing further handlers
             }
+          }
+          if (!handled && this->auto_add_peer_) {
+            this->add_peer(info.src_addr);
           }
         }
         // Intentionally left as if instead of else in case the peer is added above
@@ -341,6 +346,12 @@ void ESPNowComponent::loop() {
   if (send_dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u send packets due to buffer overflow", send_dropped);
   }
+}
+
+uint8_t ESPNowComponent::get_wifi_channel() {
+  wifi_second_chan_t dummy;
+  esp_wifi_get_channel(&this->wifi_channel_, &dummy);
+  return this->wifi_channel_;
 }
 
 esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
@@ -407,7 +418,7 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
   }
 
   if (memcmp(peer, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
-    this->mark_failed();
+    this->status_momentary_warning("peer-add-failed");
     return ESP_ERR_INVALID_MAC;
   }
 

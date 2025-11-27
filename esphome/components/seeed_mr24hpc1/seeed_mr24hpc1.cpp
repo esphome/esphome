@@ -462,12 +462,12 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
   } else if ((this->existence_boundary_select_ != nullptr) &&
              ((data[FRAME_COMMAND_WORD_INDEX] == 0x0a) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8a))) {
     if (this->existence_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
-      this->existence_boundary_select_->publish_state(S_BOUNDARY_STR[data[FRAME_DATA_INDEX] - 1]);
+      this->existence_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
     }
   } else if ((this->motion_boundary_select_ != nullptr) &&
              ((data[FRAME_COMMAND_WORD_INDEX] == 0x0b) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8b))) {
     if (this->motion_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
-      this->motion_boundary_select_->publish_state(S_BOUNDARY_STR[data[FRAME_DATA_INDEX] - 1]);
+      this->motion_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
     }
 #endif
   } else if ((this->motion_trigger_number_ != nullptr) &&
@@ -568,7 +568,7 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x07) {
 #ifdef USE_SELECT
     if ((this->scene_mode_select_ != nullptr) && (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX]))) {
-      this->scene_mode_select_->publish_state(S_SCENE_STR[data[FRAME_DATA_INDEX]]);
+      this->scene_mode_select_->publish_state(data[FRAME_DATA_INDEX]);
     } else {
       ESP_LOGD(TAG, "Select has index offset %d Error", data[FRAME_DATA_INDEX]);
     }
@@ -601,7 +601,7 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x87) {
 #ifdef USE_SELECT
     if ((this->scene_mode_select_ != nullptr) && (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX]))) {
-      this->scene_mode_select_->publish_state(S_SCENE_STR[data[FRAME_DATA_INDEX]]);
+      this->scene_mode_select_->publish_state(data[FRAME_DATA_INDEX]);
     } else {
       ESP_LOGD(TAG, "Select has index offset %d Error", data[FRAME_DATA_INDEX]);
     }
@@ -662,7 +662,7 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
              ((data[FRAME_COMMAND_WORD_INDEX] == 0x0A) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8A))) {
     // none:0x00  1s:0x01 30s:0x02 1min:0x03 2min:0x04 5min:0x05 10min:0x06 30min:0x07 1hour:0x08
     if (data[FRAME_DATA_INDEX] < 9) {
-      this->unman_time_select_->publish_state(S_UNMANNED_TIME_STR[data[FRAME_DATA_INDEX]]);
+      this->unman_time_select_->publish_state(data[FRAME_DATA_INDEX]);
     }
 #endif
   } else if ((this->keep_away_text_sensor_ != nullptr) &&

@@ -30,14 +30,12 @@ class DateTimeBase : public EntityBase {
 #endif
 };
 
-#ifdef USE_TIME
 class DateTimeStateTrigger : public Trigger<ESPTime> {
  public:
   explicit DateTimeStateTrigger(DateTimeBase *parent) {
     parent->add_on_state_callback([this, parent]() { this->trigger(parent->state_as_esptime()); });
   }
 };
-#endif
 
 }  // namespace datetime
 }  // namespace esphome

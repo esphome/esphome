@@ -3,17 +3,17 @@
 #include <map>
 #include "api_server.h"
 #ifdef USE_API
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
 namespace esphome::api {
 
-#ifdef USE_API_SERVICES
-template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceBase<Ts...> {
+#ifdef USE_API_USER_DEFINED_ACTIONS
+template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceDynamic<Ts...> {
  public:
   CustomAPIDeviceService(const std::string &name, const std::array<std::string, sizeof...(Ts)> &arg_names, T *obj,
                          void (T::*callback)(Ts...))
-      : UserServiceBase<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
+      : UserServiceDynamic<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
 
  protected:
   void execute(Ts... x) override { (this->obj_->*this->callback_)(x...); }  // NOLINT
@@ -21,7 +21,7 @@ template<typename T, typename... Ts> class CustomAPIDeviceService : public UserS
   T *obj_;
   void (T::*callback_)(Ts...);
 };
-#endif  // USE_API_SERVICES
+#endif  // USE_API_USER_DEFINED_ACTIONS
 
 class CustomAPIDevice {
  public:
@@ -49,12 +49,26 @@ class CustomAPIDevice {
    * @param name The name of the service to register.
    * @param arg_names The name of the arguments for the service, must match the arguments of the function.
    */
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   template<typename T, typename... Ts>
   void register_service(void (T::*callback)(Ts...), const std::string &name,
                         const std::array<std::string, sizeof...(Ts)> &arg_names) {
+#ifdef USE_API_CUSTOM_SERVICES
     auto *service = new CustomAPIDeviceService<T, Ts...>(name, arg_names, (T *) this, callback);  // NOLINT
     global_api_server->register_user_service(service);
+#else
+    static_assert(
+        sizeof(T) == 0,
+        "register_service() requires 'custom_services: true' in the 'api:' section of your YAML configuration");
+#endif
+  }
+#else
+  template<typename T, typename... Ts>
+  void register_service(void (T::*callback)(Ts...), const std::string &name,
+                        const std::array<std::string, sizeof...(Ts)> &arg_names) {
+    static_assert(
+        sizeof(T) == 0,
+        "register_service() requires 'custom_services: true' in the 'api:' section of your YAML configuration");
   }
 #endif
 
@@ -76,10 +90,22 @@ class CustomAPIDevice {
    * @param callback The member function to call when the service is triggered.
    * @param name The name of the arguments for the service, must match the arguments of the function.
    */
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   template<typename T> void register_service(void (T::*callback)(), const std::string &name) {
+#ifdef USE_API_CUSTOM_SERVICES
     auto *service = new CustomAPIDeviceService<T>(name, {}, (T *) this, callback);  // NOLINT
     global_api_server->register_user_service(service);
+#else
+    static_assert(
+        sizeof(T) == 0,
+        "register_service() requires 'custom_services: true' in the 'api:' section of your YAML configuration");
+#endif
+  }
+#else
+  template<typename T> void register_service(void (T::*callback)(), const std::string &name) {
+    static_assert(
+        sizeof(T) == 0,
+        "register_service() requires 'custom_services: true' in the 'api:' section of your YAML configuration");
   }
 #endif
 
@@ -135,6 +161,22 @@ class CustomAPIDevice {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
+#else
+  template<typename T>
+  void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    static_assert(sizeof(T) == 0,
+                  "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
+                  "of your YAML configuration");
+  }
+
+  template<typename T>
+  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    static_assert(sizeof(T) == 0,
+                  "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
+                  "of your YAML configuration");
+  }
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
@@ -149,9 +191,9 @@ class CustomAPIDevice {
    * @param service_name The service to call.
    */
   void call_homeassistant_service(const std::string &service_name) {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     resp.set_service(StringRef(service_name));
-    global_api_server->send_homeassistant_service_call(resp);
+    global_api_server->send_homeassistant_action(resp);
   }
 
   /** Call a Home Assistant service from ESPHome.
@@ -169,15 +211,15 @@ class CustomAPIDevice {
    * @param data The data for the service call, mapping from string to string.
    */
   void call_homeassistant_service(const std::string &service_name, const std::map<std::string, std::string> &data) {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     resp.set_service(StringRef(service_name));
+    resp.data.init(data.size());
     for (auto &it : data) {
-      resp.data.emplace_back();
-      auto &kv = resp.data.back();
+      auto &kv = resp.data.emplace_back();
       kv.set_key(StringRef(it.first));
       kv.value = it.second;
     }
-    global_api_server->send_homeassistant_service_call(resp);
+    global_api_server->send_homeassistant_action(resp);
   }
 
   /** Fire an ESPHome event in Home Assistant.
@@ -191,10 +233,10 @@ class CustomAPIDevice {
    * @param event_name The event to fire.
    */
   void fire_homeassistant_event(const std::string &event_name) {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     resp.set_service(StringRef(event_name));
     resp.is_event = true;
-    global_api_server->send_homeassistant_service_call(resp);
+    global_api_server->send_homeassistant_action(resp);
   }
 
   /** Fire an ESPHome event in Home Assistant.
@@ -211,16 +253,38 @@ class CustomAPIDevice {
    * @param data The data for the event, mapping from string to string.
    */
   void fire_homeassistant_event(const std::string &service_name, const std::map<std::string, std::string> &data) {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     resp.set_service(StringRef(service_name));
     resp.is_event = true;
+    resp.data.init(data.size());
     for (auto &it : data) {
-      resp.data.emplace_back();
-      auto &kv = resp.data.back();
+      auto &kv = resp.data.emplace_back();
       kv.set_key(StringRef(it.first));
       kv.value = it.second;
     }
-    global_api_server->send_homeassistant_service_call(resp);
+    global_api_server->send_homeassistant_action(resp);
+  }
+#else
+  template<typename T = void> void call_homeassistant_service(const std::string &service_name) {
+    static_assert(sizeof(T) == 0, "call_homeassistant_service() requires 'homeassistant_services: true' in the 'api:' "
+                                  "section of your YAML configuration");
+  }
+
+  template<typename T = void>
+  void call_homeassistant_service(const std::string &service_name, const std::map<std::string, std::string> &data) {
+    static_assert(sizeof(T) == 0, "call_homeassistant_service() requires 'homeassistant_services: true' in the 'api:' "
+                                  "section of your YAML configuration");
+  }
+
+  template<typename T = void> void fire_homeassistant_event(const std::string &event_name) {
+    static_assert(sizeof(T) == 0, "fire_homeassistant_event() requires 'homeassistant_services: true' in the 'api:' "
+                                  "section of your YAML configuration");
+  }
+
+  template<typename T = void>
+  void fire_homeassistant_event(const std::string &service_name, const std::map<std::string, std::string> &data) {
+    static_assert(sizeof(T) == 0, "fire_homeassistant_event() requires 'homeassistant_services: true' in the 'api:' "
+                                  "section of your YAML configuration");
   }
 #endif
 };

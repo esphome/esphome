@@ -1,6 +1,5 @@
-substitutions:
-  tx_pin: GPIO12
-  rx_pin: GPIO14
-  pin: GPIO2
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-ard.yaml
+  uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
 
 <<: !include common.yaml

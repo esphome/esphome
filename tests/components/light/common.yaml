@@ -17,6 +17,20 @@ esphome:
           relative_brightness: 5%
           brightness_limits:
             max_brightness: 90%
+      - light.turn_on:
+          id: test_addressable_transition
+          brightness: 50%
+          red: 100%
+          green: 0%
+          blue: 0%
+          transition_length: 500ms
+      - light.turn_on:
+          id: test_addressable_transition
+          brightness: 100%
+          red: 0%
+          green: 100%
+          blue: 0%
+          transition_length: 1s
 
 light:
   - platform: binary
@@ -123,3 +137,49 @@ light:
       red: 100%
       green: 50%
       blue: 50%
+  # Test StrobeLightEffect with multiple colors
+  - platform: monochromatic
+    id: test_strobe_multiple
+    name: Strobe Multiple Colors
+    output: test_ledc_1
+    effects:
+      - strobe:
+          name: Strobe Multi
+          colors:
+            - state: true
+              brightness: 100%
+              duration: 500ms
+            - state: false
+              duration: 250ms
+            - state: true
+              brightness: 50%
+              duration: 500ms
+  # Test StrobeLightEffect with transition
+  - platform: rgb
+    id: test_strobe_transition
+    name: Strobe With Transition
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    effects:
+      - strobe:
+          name: Strobe Transition
+          colors:
+            - state: true
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 1s
+              transition_length: 500ms
+            - state: true
+              red: 0%
+              green: 100%
+              blue: 0%
+              duration: 1s
+              transition_length: 500ms
+  - platform: partition
+    id: test_addressable_transition
+    name: Addressable Transition Test
+    default_transition_length: 1s
+    segments:
+      - single_light_id: test_rgb_light

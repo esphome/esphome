@@ -1,7 +1,8 @@
 #pragma once
+#include <array>
 #include <cstdint>
-#include <deque>
 #include <limits>
+#include <memory>
 #include <span>
 #include <utility>
 #include <vector>
@@ -16,6 +17,17 @@ namespace esphome::api {
 
 // uncomment to log raw packets
 //#define HELPER_LOG_PACKETS
+
+// Maximum message size limits to prevent OOM on constrained devices
+// Handshake messages are limited to a small size for security
+static constexpr uint16_t MAX_HANDSHAKE_SIZE = 128;
+
+// Data message limits vary by platform based on available memory
+#ifdef USE_ESP8266
+static constexpr uint16_t MAX_MESSAGE_SIZE = 8192;  // 8 KiB for ESP8266
+#else
+static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and other platforms
+#endif
 
 // Forward declaration
 struct ClientInfo;
@@ -66,20 +78,18 @@ enum class APIError : uint16_t {
 #endif
 };
 
-const char *api_error_to_str(APIError err);
+const LogString *api_error_to_logstr(APIError err);
 
 class APIFrameHelper {
  public:
   APIFrameHelper() = default;
   explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : socket_owned_(std::move(socket)), client_info_(client_info) {
-    socket_ = socket_owned_.get();
-  }
+      : socket_(std::move(socket)), client_info_(client_info) {}
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
   virtual APIError loop();
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
-  bool can_write_without_blocking() { return state_ == State::DATA && tx_buf_.empty(); }
+  bool can_write_without_blocking() { return this->state_ == State::DATA && this->tx_buf_count_ == 0; }
   std::string getpeername() { return socket_->getpeername(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
   APIError close() {
@@ -104,9 +114,9 @@ class APIFrameHelper {
   // The buffer contains all messages with appropriate padding before each
   virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) = 0;
   // Get the frame header padding required by this protocol
-  virtual uint8_t frame_header_padding() = 0;
+  uint8_t frame_header_padding() const { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
-  virtual uint8_t frame_footer_size() = 0;
+  uint8_t frame_footer_size() const { return frame_footer_size_; }
   // Check if socket has data ready to read
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
 
@@ -137,9 +147,8 @@ class APIFrameHelper {
   APIError write_raw_(const struct iovec *iov, int iovcnt, socket::Socket *socket, std::vector<uint8_t> &tx_buf,
                       const std::string &info, StateEnum &state, StateEnum failed_state);
 
-  // Pointers first (4 bytes each)
-  socket::Socket *socket_{nullptr};
-  std::unique_ptr<socket::Socket> socket_owned_;
+  // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
+  std::unique_ptr<socket::Socket> socket_;
 
   // Common state enum for all frame helpers
   // Note: Not all states are used by all implementations
@@ -161,7 +170,7 @@ class APIFrameHelper {
   };
 
   // Containers (size varies, but typically 12+ bytes on 32-bit)
-  std::deque<SendBuffer> tx_buf_;
+  std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
   std::vector<struct iovec> reusable_iovs_;
   std::vector<uint8_t> rx_buf_;
 
@@ -174,7 +183,10 @@ class APIFrameHelper {
   State state_{State::INITIALIZE};
   uint8_t frame_header_padding_{0};
   uint8_t frame_footer_size_{0};
-  // 5 bytes total, 3 bytes padding
+  uint8_t tx_buf_head_{0};
+  uint8_t tx_buf_tail_{0};
+  uint8_t tx_buf_count_{0};
+  // 8 bytes total, 0 bytes padding
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();

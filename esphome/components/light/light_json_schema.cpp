@@ -3,8 +3,7 @@
 
 #ifdef USE_JSON
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
 
@@ -36,11 +35,13 @@ static constexpr const char *get_color_mode_json_str(ColorMode mode) {
 
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  if (state.supports_effects())
+  if (state.supports_effects()) {
     root["effect"] = state.get_effect_name();
+    root["effect_index"] = state.get_current_effect_index();
+    root["effect_count"] = state.get_effect_count();
+  }
 
   auto values = state.remote_values;
-  auto traits = state.get_output()->get_traits();
 
   const auto color_mode = values.get_color_mode();
   const char *mode_str = get_color_mode_json_str(color_mode);
@@ -160,9 +161,13 @@ void LightJSONSchema::parse_json(LightState &state, LightCall &call, JsonObject 
     const char *effect = root["effect"];
     call.set_effect(effect);
   }
+
+  if (root["effect_index"].is<uint32_t>()) {
+    uint32_t effect_index = root["effect_index"];
+    call.set_effect(effect_index);
+  }
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
 
 #endif
