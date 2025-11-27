@@ -16,6 +16,18 @@ binary_sensor:
     platform: template
   - id: left_sensor
     platform: template
+  - platform: lvgl
+    id: button_checker
+    name: LVGL button
+    widget: button_button
+    on_state:
+      then:
+        - lvgl.checkbox.update:
+            id: checkbox_id
+            state:
+              checked: !lambda |-
+                  auto y = x; // block inlining of one line return
+                  return y;
 
 lvgl:
   log_level: debug
@@ -414,6 +426,14 @@ lvgl:
                         logger.log: Long pressed repeated
               - buttons:
                   - id: button_e
+        - button:
+            id: button_with_text
+            text: Button
+            on_click:
+              lvgl.button.update:
+                id: button_with_text
+                text: Clicked
+
         - button:
             layout: 2x1
             id: button_button
