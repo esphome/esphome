@@ -66,15 +66,7 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
-  // uint8_t i;
   uint16_t current_buffer_location;
-
-  // ESP_LOGD("dbg", "message: %s", this->message_buffer_.c_str());    //TODO: Remove this when everything works.
-
-  // Display the character map. TODO: Remove this when everything works.
-  // for (auto it : this->char_map_) {
-  //   ESP_LOGD("dbg", "%s: %d", it.first.c_str(), it.second);
-  // }
 
   // This checks if the lambda function is defined. If it is not defined, we don't do anything.
   if (this->writer_.has_value()) {
@@ -432,7 +424,7 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
   digit_number = 0;
   special_character_found = false;
 
-  while (digit_number < 4) {
+  while (digit_number < this->num_chars_per_display_) {
     if (char_buffer_location >= this->message_buffer_.length()) {
       // char_buffer_location is past the end of the character buffer.
       if (this->continuous_) {
@@ -638,12 +630,9 @@ uint8_t HT16k33CharComponent::printf(uint16_t start_pos, bool clear_buffer, cons
  *  Returns the number of bytes written to the buffer.
  ************************************/
 uint8_t HT16k33CharComponent::strftime(uint16_t start_pos, bool clear_buffer, const char *format, ESPTime time) {
-  char buffer[64];  // TODO: This buffer is really big, I should make it smaller.
-  size_t ret = time.strftime(buffer, sizeof(buffer), format);
-  if (ret > 0) {
-    return this->print(start_pos, clear_buffer, buffer);
-  }
-  return 0;
+  std::string time_string_buffer;
+  time_string_buffer = time.strftime(format);
+  return this->print(start_pos, clear_buffer, time_string_buffer.c_str());
 }
 
 /***********************************
@@ -665,8 +654,6 @@ uint8_t HT16k33CharComponent::strftime(uint16_t start_pos, bool clear_buffer, co
 uint8_t HT16k33CharComponent::clock_display(uint16_t start_pos, bool clear_buffer, bool show_leading_zero,
                                             bool use_ampm, ESPTime time) {
   char buffer[6];
-  // TODO: strftime is very memory intensive if all I need is hours and minutes. I could rewrite this to not use
-  // strftime and save a bunch of flash
 
   if (use_ampm) {
     time.strftime(buffer, sizeof(buffer), "%I:%M");

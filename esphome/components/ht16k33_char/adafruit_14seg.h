@@ -7,6 +7,7 @@ namespace ht16k33_char {
 class Adafruit14Seg : public HT16k33CharComponent {
  public:
   Adafruit14Seg() {
+    this->num_chars_per_display_ = 4;
     this->char_map_.insert({
         {" ", 0b0000000000000000}, {"!", 0b0000000000000110}, {"\"", 0b0000001000100000}, {"#", 0b0001001011001110},
         {"$", 0b0001001011101101}, {"%", 0b0000110000100100}, {"&", 0b0010001101011101},  {"\'", 0b0000010000000000},
@@ -44,6 +45,7 @@ class Adafruit14Seg : public HT16k33CharComponent {
 class Adafruit14SegFlip : public HT16k33CharComponent {
  public:
   Adafruit14SegFlip() {
+    this->num_chars_per_display_ = 4;
     this->char_map_.insert({
         {" ", 0b0000000000000000}, {"!", 0b0000000000110000}, {"\"", 0b0001000000000100}, {"#", 0b0001001011110001},
         {"$", 0b0001001011101101}, {"%", 0b0000110000100100}, {"&", 0b0011000110101011},  {"\'", 0b0000100000000000},

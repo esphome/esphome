@@ -176,8 +176,8 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(HT16k33Char_BaseClassType),
             cv.Required(CONF_DEVICE): cv.enum(HT16K33_DEVICE_TYPES, upper=True),
             cv.Optional(CONF_MAX_BUFFER_LENGTH, default=8): cv.int_range(
-                min=2, max=255
-            ),  # TODO: Change to min of 4.
+                min=4, max=255
+            ),
             cv.Optional(CONF_BRIGHTNESS, default=15): cv.int_range(min=1, max=16),
             cv.Optional(CONF_SECONDARY_DISPLAYS): cv.ensure_list(CONFIG_SECONDARY),
             cv.Optional(CONF_CONTINUOUS, default=False): cv.boolean,

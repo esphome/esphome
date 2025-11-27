@@ -25,8 +25,6 @@ static const uint8_t SPECIAL_CHAR_NOT_FOUND = 0x00;      // Not a special char.
 static const uint8_t SPECIAL_CHAR_FOUND = 0x01;          // Special char found and handled
 static const uint8_t SPECIAL_CHAR_FOUND_ADVANCE = 0x02;  // Special char found and handled, advance display if the
                                                          // special char was in the first position of the first display.
-// static const uint8_t SPECIAL_CHAR_FOUND_NO_ADVANCE = 0x03;  // Special char found and handled, advance display if the
-//  special char was in the first position of the first display.
 
 class HT16k33CharComponent;
 
@@ -103,6 +101,7 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   uint16_t send_to_display_common_(i2c::I2CDevice *display, uint16_t position);
 
   uint8_t scroll_state_;
+  uint8_t num_chars_per_display_{0};    //The number of characters per display. This should be set by the derived class.
 
   std::vector<i2c::I2CDevice *> displays_{this};
 

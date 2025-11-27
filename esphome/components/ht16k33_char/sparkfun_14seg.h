@@ -7,6 +7,7 @@ namespace ht16k33_char {
 class Sparkfun14Seg : public HT16k33CharComponent {
  public:
   Sparkfun14Seg() {
+    this->num_chars_per_display_ = 4;
     this->char_map_.insert({
         {" ", 0b0000000000000000}, {"!", 0b0000000000000110}, {"\"", 0b0000010000100000}, {"#", 0b0010010101001110},
         {"$", 0b0010010101101101}, {"%", 0b0100100000100100}, {"&", 0b0001011001011101},  {"\'", 0b0000100000000000},
@@ -43,6 +44,7 @@ class Sparkfun14Seg : public HT16k33CharComponent {
 class Sparkfun14SegFlip : public HT16k33CharComponent {
  public:
   Sparkfun14SegFlip() {
+    this->num_chars_per_display_ = 4;
     this->char_map_.insert({
         {" ", 0b0000000000000000}, {"!", 0b0000000000110000}, {"\"", 0b0010000000000100}, {"#", 0b0010010101110001},
         {"$", 0b0010010101101101}, {"%", 0b0100100000100100}, {"&", 0b0011001100101011},  {"\'", 0b0100000000000000},

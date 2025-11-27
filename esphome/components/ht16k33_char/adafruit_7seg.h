@@ -8,6 +8,7 @@ namespace ht16k33_char {
 class Adafruit7Seg : public HT16k33CharComponent {
  public:
   Adafruit7Seg() {
+    this->num_chars_per_display_ = 4;
     this->char_map_.insert({
         {"0", 0b0000000000111111}, {"1", 0b0000000000000110}, {"2", 0b0000000001011011}, {"3", 0b0000000001001111},
         {"4", 0b0000000001100110}, {"5", 0b0000000001101101}, {"6", 0b0000000001111101}, {"7", 0b0000000000000111},
@@ -30,6 +31,7 @@ class Adafruit7Seg : public HT16k33CharComponent {
 class Adafruit7SegFlip : public HT16k33CharComponent {
  public:
   Adafruit7SegFlip() {
+    this->num_chars_per_display_ = 4;
     this->char_map_.insert({
         {"0", 0b0000000000111111}, {"1", 0b0000000000110000}, {"2", 0b0000000001011011}, {"3", 0b0000000001111001},
         {"4", 0b0000000001110100}, {"5", 0b0000000001101101}, {"6", 0b0000000001101111}, {"7", 0b0000000000111000},
@@ -52,6 +54,7 @@ class Adafruit7SegFlip : public HT16k33CharComponent {
 class Adafruit7SegLarge : public HT16k33CharComponent {
  public:
   Adafruit7SegLarge() {
+    this->num_chars_per_display_ = 4;
     this->char_map_.insert({
         {"0", 0b0000000000111111}, {"1", 0b0000000000000110}, {"2", 0b0000000001011011}, {"3", 0b0000000001001111},
         {"4", 0b0000000001100110}, {"5", 0b0000000001101101}, {"6", 0b0000000001111101}, {"7", 0b0000000000000111},
@@ -74,6 +77,7 @@ class Adafruit7SegLarge : public HT16k33CharComponent {
 class Adafruit7SegLargeFlip : public HT16k33CharComponent {
  public:
   Adafruit7SegLargeFlip() {
+    this->num_chars_per_display_ = 4;
     this->char_map_.insert({
         {"0", 0b0000000000111111}, {"1", 0b0000000000110000}, {"2", 0b0000000001011011}, {"3", 0b0000000001111001},
         {"4", 0b0000000001110100}, {"5", 0b0000000001101101}, {"6", 0b0000000001101111}, {"7", 0b0000000000111000},
