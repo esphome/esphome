@@ -18,3 +18,8 @@ values_from_repo1_main:
     y: 20
     z: 5
     volume: 1000
+  - package_name: package4_from_repo2
+    x: 9
+    y: 10
+    z: 11
+    volume: 990

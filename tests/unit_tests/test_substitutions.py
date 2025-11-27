@@ -88,6 +88,7 @@ def verify_database(value: Any, path: str = "") -> str | None:
 # Mapping of (url, ref) to local test repository path under fixtures/substitutions
 REMOTES = {
     ("https://github.com/esphome/repo1", "main"): "remotes/repo1/main",
+    ("https://github.com/esphome/repo2", "main"): "remotes/repo2/main",
 }
 
 
@@ -112,7 +113,9 @@ def test_substitutions_fixtures(mock_clone_or_update, fixture_path):
         if path is None:
             path = REMOTES.get((url.rstrip(".git"), ref))
             if path is None:
-                raise RuntimeError(f"Cannot find test repository for {url} @ {ref}")
+                raise RuntimeError(
+                    f"Cannot find test repository for {url} @ {ref}. Check the REMOTES mapping in test_substitutions.py"
+                )
         return base_dir / path, None
 
     mock_clone_or_update.side_effect = fake_clone_or_update
