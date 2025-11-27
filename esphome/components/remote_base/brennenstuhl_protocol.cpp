@@ -3,12 +3,11 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.brennenstuhl";
 
-// receiver timings [µs]
+// receiver timing ranges [µs]
 constexpr uint32_t START_PULSE_MIN = 200;
 constexpr uint32_t START_PULSE_MAX = 500;
 constexpr uint32_t START_SYMBOL_MIN = 2600;
@@ -24,7 +23,7 @@ constexpr uint32_t PW_START_US = 2300;
 // number of data bits
 constexpr uint32_t N_BITS = 24;
 
-// numbar of required symbols = 2 x (start + N_BITS) = 50
+// number of required symbols = 2 x (start + N_BITS) = 50
 constexpr uint32_t N_SYMBOLS_REQ = 2u * (N_BITS + 1);
 
 // number of bs codes within received frame
@@ -33,21 +32,15 @@ constexpr int32_t N_FRAME_CODES = 4;
 // decoder finite-state-machine
 enum class RxSt { START_PULSE, START_SYMBOL, PULSE, DATA_SYMBOL };
 
-// validates if a pulse or symbol is within expected range
-static bool validate_timing(int32_t val, int32_t val_min, int32_t val_max) {
-  return (val_min <= val && val <= val_max);
-}
-
 // The encode() member function reserves and fills a complete frame, to be send. The Brennenstuhl
 // RC receivers demand a frame with a start-symbol followed by 4 repeated codes.
 void BrennenstuhlProtocol::encode(RemoteTransmitData *dst, const BrennenstuhlData &data) {
   uint32_t code = data.code;
-  dst->reserve(N_SYMBOLS_REQ * N_FRAME_CODES + 1);
-  for (uint32_t kc = 0; kc < N_FRAME_CODES; kc++) {
+  dst->reserve((N_SYMBOLS_REQ * N_FRAME_CODES) + 1);
+  for (int32_t kc = 0; kc != N_FRAME_CODES; kc++) {
     dst->item(PW_SHORT_US, PW_START_US);
-    for (uint32_t ic = 0; ic < N_BITS; ic++) {
-      uint32_t bit = ((code) >> (N_BITS - 1 - ic)) & 1;
-      if (1 == bit) {
+    for (int32_t ic = (N_BITS - 1); ic != -1; ic--) {
+      if (1 == ((code >> ic) & 1)) {
         dst->item(PW_LONG_US, PW_SHORT_US);
       } else {
         dst->item(PW_SHORT_US, PW_LONG_US);
@@ -74,60 +67,60 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
     int32_t bs_cnt = 0;                  // number of bs codes found within frame
     int32_t bs_idx = -1;                 // index to best code
     uint32_t bit_cnt = 0;                // bit counter [0..23]
-    int32_t abs_pre = 0;                 // pulse-width of previous carrier (abs value)
+    int32_t pw_pre = 0;                  // pulse-width of previous carrier (abs value)
     RxSt fsm = RxSt::START_PULSE;
-    for (uint32_t ic = 0; ic < n_received && bs_cnt < N_FRAME_CODES; ic++) {
-      int32_t act = src[ic];
-      int32_t abs_act = std::abs(act);
+    for (uint32_t ic = 0; (ic != n_received) && (bs_cnt != N_FRAME_CODES); ic++) {
+      int32_t pw_cur = std::abs(src[ic]);  // current pulse-width
+      int32_t pw_sym = pw_cur + pw_pre;    // symbol=pulse+pause
       switch (fsm) {
         case RxSt::START_PULSE: {  // check if start pulse is valid
-          if ((act > 0) && validate_timing(abs_act, START_PULSE_MIN, START_PULSE_MAX)) {
+          if ((src[ic] > 0) && (pw_cur >= START_PULSE_MIN) && (pw_cur <= START_PULSE_MAX)) {
             bs_codes[bs_cnt] = 0;
             bit_cnt = 0;
-            abs_pre = abs_act;
+            pw_pre = pw_cur;
             fsm = RxSt::START_SYMBOL;
           }
           break;
         }
-        case RxSt::START_SYMBOL: {  // check if start symbol (pulse+pause) is valid
-          if ((act < 0) && validate_timing(abs_pre + abs_act, START_SYMBOL_MIN, START_SYMBOL_MAX)) {
+        case RxSt::START_SYMBOL: {  // check if start symbol is valid
+          if ((src[ic] < 0) && (pw_sym >= START_SYMBOL_MIN) && (pw_sym <= START_SYMBOL_MAX)) {
             fsm = RxSt::PULSE;
           } else {
             fsm = RxSt::START_PULSE;
           }
           break;
         }
-        case RxSt::PULSE: {  // grab the carrier pulse, validation is done in DATA_SYMBOL state
-          if (act > 0) {
-            abs_pre = abs_act;
+        case RxSt::PULSE: {  // just grab carrier, validation is done in DATA_SYMBOL state
+          if (src[ic] > 0) {
+            pw_pre = pw_cur;
             fsm = RxSt::DATA_SYMBOL;
           } else {
             fsm = RxSt::START_PULSE;
           }
           break;
         }
-        case RxSt::DATA_SYMBOL: {  // check if symbol (=pulse+pause) is valid and append bit to data
-          if ((act < 0) && validate_timing(abs_pre + abs_act, DATA_SYMBOL_MIN, DATA_SYMBOL_MAX)) {
+        case RxSt::DATA_SYMBOL: {  // check if data symbol is valid and append bit to data
+          if ((src[ic] < 0) && (pw_sym >= DATA_SYMBOL_MIN) && (pw_sym <= DATA_SYMBOL_MAX)) {
             bs_codes[bs_cnt] <<= 1;
-            bs_codes[bs_cnt] += (abs_act < abs_pre) ? 1 : 0;
+            bs_codes[bs_cnt] += (pw_cur < pw_pre) ? 1 : 0;
             if (++bit_cnt < N_BITS) {
               fsm = RxSt::PULSE;
             } else {
-              bs_cnt++;                 // valid code found
+              bs_cnt++;                 // complete code found
               fsm = RxSt::START_PULSE;  // start over for further codes
             }
           } else {
-            fsm = RxSt::START_PULSE;
+            fsm = RxSt::START_PULSE;  // decoding failed, start over for further codes
           }
           break;
         }
       }
     }
-    if (bs_cnt > 0) {  // complete codes found
+    if (bs_cnt > 0) {  // complete codes found, find best code now
       uint8_t identical_max = 0;
-      for (int32_t ic = 0; ic < bs_cnt; ic++) {
+      for (int32_t ic = 0; ic != bs_cnt; ic++) {
         uint8_t identical_cnt = 0;
-        for (int32_t jc = 0; jc < bs_cnt; jc++) {
+        for (int32_t jc = 0; jc != bs_cnt; jc++) {
           identical_cnt += (bs_codes[ic] == bs_codes[jc]) ? 1 : 0;
         }
         if (identical_cnt > identical_max) {
@@ -146,5 +139,4 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
 
 void BrennenstuhlProtocol::dump(const BrennenstuhlData &data) { ESP_LOGI(TAG, "Brennenstuhl: code=0x%x", data.code); }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct BrennenstuhlData {
   uint32_t code;
@@ -32,5 +31,4 @@ template<typename... Ts> class BrennenstuhlAction : public RemoteTransmitterActi
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
