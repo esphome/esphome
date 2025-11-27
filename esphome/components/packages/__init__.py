@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from esphome import git, yaml_util
@@ -20,18 +21,41 @@ from esphome.const import (
 )
 from esphome.core import EsphomeError
 
+_LOGGER = logging.getLogger(__name__)
+
 DOMAIN = CONF_PACKAGES
 
 
-def validate_git_package(config: dict):
-    if CONF_URL not in config:
-        return config
-    config = BASE_SCHEMA(config)
-    new_config = config
+def valid_package_contents(package_config: dict):
+    """Validates that a package_config that will be merged looks as much as possible to a valid config
+    to fail early on obvious mistakes."""
+    if isinstance(package_config, dict):
+        if CONF_URL in package_config:
+            # If a URL key is found, then make sure the config conforms to a remote package schema:
+            return REMOTE_PACKAGE_SCHEMA(package_config)
+
+        # Validate manually since Voluptuous would regenerate dicts and lose metadata
+        # such as ESPHomeDataBase
+        for k, v in package_config.items():
+            if not isinstance(k, str):
+                raise cv.Invalid("Package content keys must be strings")
+            if isinstance(v, (dict, list)):
+                continue  # e.g. script: [] or logger: {level: debug}
+            if v is None:
+                continue  # e.g. web_server:
+            raise cv.Invalid("Invalid component content in package definition")
+        return package_config
+
+    raise cv.Invalid("Package contents must be a dict")
+
+
+def expand_file_to_files(config: dict):
     if CONF_FILE in config:
+        new_config = config
         new_config[CONF_FILES] = [config[CONF_FILE]]
         del new_config[CONF_FILE]
-    return new_config
+        return new_config
+    return config
 
 
 def validate_yaml_filename(value):
@@ -45,7 +69,7 @@ def validate_yaml_filename(value):
 
 def validate_source_shorthand(value):
     if not isinstance(value, str):
-        raise cv.Invalid("Shorthand only for strings")
+        raise cv.Invalid("Git URL shorthand only for strings")
 
     git_file = git.GitFile.from_shorthand(value)
 
@@ -56,10 +80,17 @@ def validate_source_shorthand(value):
     if git_file.ref:
         conf[CONF_REF] = git_file.ref
 
-    return BASE_SCHEMA(conf)
+    return REMOTE_PACKAGE_SCHEMA(conf)
 
 
-BASE_SCHEMA = cv.All(
+def deprecate_single_package(config):
+    _LOGGER.warning(
+        "Including a single package under `packages:` is deprecated. Use a list instead."
+    )
+    return config
+
+
+REMOTE_PACKAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_URL): cv.url,
@@ -90,23 +121,30 @@ BASE_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_FILE, CONF_FILES),
+    expand_file_to_files,
 )
 
-PACKAGE_SCHEMA = cv.All(
-    cv.Any(validate_source_shorthand, BASE_SCHEMA, dict), validate_git_package
+PACKAGE_SCHEMA = cv.Any(  # A package definition is either:
+    validate_source_shorthand,  # A git URL shorthand string that expands to a remote package schema, or
+    REMOTE_PACKAGE_SCHEMA,  # a valid remote package schema, or
+    valid_package_contents,  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
+    # which will have to be fully validated later as per each component's schema.
 )
 
-CONFIG_SCHEMA = cv.Any(
+CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
     cv.Schema(
         {
-            str: PACKAGE_SCHEMA,
+            str: PACKAGE_SCHEMA,  # a named dict of package definitions, or
         }
     ),
-    [PACKAGE_SCHEMA],
+    [PACKAGE_SCHEMA],  # a list of package definitions, or
+    cv.All(  # a single package definition (deprecated)
+        cv.ensure_list(PACKAGE_SCHEMA), deprecate_single_package
+    ),
 )
 
 
-def _process_base_package(config: dict, skip_update: bool = False) -> dict:
+def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     # When skip_update is True, use NEVER_REFRESH to prevent updates
     actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
     repo_dir, revert = git.clone_or_update(
@@ -185,7 +223,7 @@ def _process_base_package(config: dict, skip_update: bool = False) -> dict:
 def _process_package(package_config, config, skip_update: bool = False):
     recursive_package = package_config
     if CONF_URL in package_config:
-        package_config = _process_base_package(package_config, skip_update)
+        package_config = _process_remote_package(package_config, skip_update)
     if isinstance(package_config, dict):
         recursive_package = do_packages_pass(package_config, skip_update)
     return merge_config(recursive_package, config)
