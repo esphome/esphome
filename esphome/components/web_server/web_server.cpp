@@ -1941,6 +1941,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   UrlMatch match = match_url(url.c_str(), url.length(), false);
 
   // Route to appropriate handler based on domain
+  // NOLINTNEXTLINE(readability-simplify-boolean-expr)
   if (false) {  // Start chain for else-if macro pattern
   }
 #ifdef USE_SENSOR
