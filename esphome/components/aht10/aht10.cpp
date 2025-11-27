@@ -83,7 +83,7 @@ void AHT10Component::setup() {
 void AHT10Component::restart_read_() {
   if (this->read_count_ == AHT10_ATTEMPTS) {
     this->read_count_ = 0;
-    this->status_set_error("Reading timed out");
+    this->status_set_error(LOG_STR("Reading timed out"));
     return;
   }
   this->read_count_++;
