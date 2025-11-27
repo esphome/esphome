@@ -1,3 +1,4 @@
+#ifdef USE_ESP32
 #include "ota_coap_client_component.h"
 
 #include "esphome/core/application.h"
@@ -256,3 +257,4 @@ void OtaCoapClientComponent::get_(std::string &url,
 }
 
 }  // namespace esphome::coap_client
+#endif
