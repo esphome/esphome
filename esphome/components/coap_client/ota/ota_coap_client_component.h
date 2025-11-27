@@ -1,5 +1,5 @@
 #pragma once
-
+#ifdef USE_ESP32
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/core/component.h"
@@ -75,3 +75,4 @@ class OtaCoapClientComponent : public ota::OTAComponent, public Parented<CoapCli
 };
 
 }  // namespace esphome::coap_client
+#endif
