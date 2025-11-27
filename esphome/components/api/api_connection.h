@@ -554,10 +554,8 @@ class APIConnection final : public APIServerConnection {
     std::vector<BatchItem> items;
     uint32_t batch_start_time{0};
 
-    DeferredBatch() {
-      // Pre-allocate capacity for typical batch sizes to avoid reallocation
-      items.reserve(8);
-    }
+    // No pre-allocation - log connections never use batching, and for
+    // connections that do, buffers are released after initial sync anyway
 
     // Add item to the batch
     void add_item(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size);
