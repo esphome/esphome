@@ -363,8 +363,13 @@ void ModbusCommandItem::send() {
   } else {
     this->send_pdu(this->payload);
   }
+  this->controller_->command_sent((int) this->function_code(), this->register_address());
   ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code()), this->register_address(),
            this->register_count());
+}
+
+void ModbusController::command_sent(int function_code, int register_address) {
+  this->command_sent_callback_.call(function_code, register_address);
 }
 
 void ModbusController::add_on_command_sent_callback(std::function<void(int, int)> &&callback) {

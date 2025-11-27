@@ -233,6 +233,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   void setup() override;
   void update() override;
   void set_online(bool online, int function_code, int register_address);
+  void command_sent(int function_code, int register_address);
   void increment_non_response_count();
 
   /// Registers a sensor with the controller. Called by esphomes code generator
