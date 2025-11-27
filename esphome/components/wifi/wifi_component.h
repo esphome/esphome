@@ -284,7 +284,9 @@ class WiFiComponent : public Component {
 
   void retry_connect();
 
+#ifdef USE_RP2040
   bool can_proceed() override;
+#endif
 
   void set_reboot_timeout(uint32_t reboot_timeout);
 

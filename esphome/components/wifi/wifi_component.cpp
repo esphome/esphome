@@ -1612,12 +1612,15 @@ void WiFiComponent::retry_connect() {
   }
 }
 
+#ifdef USE_RP2040
 bool WiFiComponent::can_proceed() {
   if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED || this->ap_setup_) {
     return true;
   }
   return this->is_connected();
 }
+#endif
+
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 bool WiFiComponent::is_connected() {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
