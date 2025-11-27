@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_ESP32
 #include "ota_coap_client_component.h"
 
 #include "esphome/core/automation.h"
@@ -30,3 +31,4 @@ template<typename... Ts> class OtaCoapClientComponentFlashAction : public Action
 };
 
 }  // namespace esphome::coap_client
+#endif
