@@ -64,21 +64,7 @@ void SNTPComponent::dump_config() {
   RealTimeClock::dump_config();
 }
 void SNTPComponent::set_servers(const std::array<const char *, SNTP_SERVER_COUNT> &servers) {
-  if (this->servers_was_setup_) {
-    // Cleanup all the pointers to prevent use after free
-    for (size_t i = 0; i < this->servers_.size(); ++i) {
-      const auto &buff = this->servers_[i];
-#ifdef USE_ESP32
-      if (buff != nullptr && 0 == strcmp(buff, esp_sntp_getservername(i)))
-        esp_sntp_setservername(i, nullptr);
-#else
-      if (buff != nullptr && 0 == strcmp(buff, sntp_getservername(i)))
-        sntp_setservername(i, nullptr);
-#endif
-    }
-  }
-
-  this->servers_ = std::move(servers);
+  this->servers_ = servers;
 
   if (this->servers_was_setup_) {
     this->setup_servers_();
