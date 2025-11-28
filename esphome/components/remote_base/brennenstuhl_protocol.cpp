@@ -40,7 +40,7 @@ void BrennenstuhlProtocol::encode(RemoteTransmitData *dst, const BrennenstuhlDat
   for (int32_t kc = 0; kc != N_FRAME_CODES; kc++) {
     dst->item(PW_SHORT_US, PW_START_US);
     for (int32_t ic = (N_BITS - 1); ic != -1; ic--) {
-      if (1 == ((code >> ic) & 1)) {
+      if ((code >> ic) & 1) {
         dst->item(PW_LONG_US, PW_SHORT_US);
       } else {
         dst->item(PW_SHORT_US, PW_LONG_US);
@@ -51,8 +51,8 @@ void BrennenstuhlProtocol::encode(RemoteTransmitData *dst, const BrennenstuhlDat
 
 // The decode() member function extracts Brennenstuhl codes from the received frame. Instead
 // of validating the pulse width of the carriers and pauses individually, it is more accurate
-// to validate the symbols (symbol=carrier+pause) The symbol pulsewith is arround 1550µs, but
-// the pulse with of the carrier and the pauses vary greatly. Once the symbole pulsewith is
+// to validate the symbols (symbol=carrier+pause) The symbol pulsewidth is around 1550µs, but
+// the pulse with of the carrier and the pauses vary greatly. Once the symbol pulsewidth is
 // valid, a code bit becomes "1" if the carrier is longer then the pause and "0" else. A total
 // frame consists of a start symbol and up to four codes. The decoder decodes all codes and
 // returns the best code (the one with the most identical codes)
@@ -65,12 +65,12 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
   if (n_received > N_SYMBOLS_REQ) {
     int32_t bs_codes[4] = {0, 0, 0, 0};  // internal bs codes
     int32_t bs_cnt = 0;                  // number of bs codes found within frame
-    int32_t bs_idx = -1;                 // index to best code
-    uint32_t bit_cnt = 0;                // bit counter [0..23]
-    uint32_t pw_pre = 0;                 // pulse-width of previous carrier (abs value)
+    int32_t bs_idx = -1;                 // index to best bs code
+    int32_t bit_cnt = 0;                 // bit counter [0..23]
+    uint32_t pw_pre = 0;                 // pulsewidth of previous carrier (abs value)
     RxSt fsm = RxSt::START_PULSE;
     for (uint32_t ic = 0; (ic != n_received) && (bs_cnt != N_FRAME_CODES); ic++) {
-      uint32_t pw_cur = (uint32_t) (src[ic] < 0 ? -src[ic] : src[ic]);  // current pulse-width
+      uint32_t pw_cur = (uint32_t) (src[ic] < 0 ? -src[ic] : src[ic]);  // current pulsewidth
       uint32_t pw_sym = pw_cur + pw_pre;                                // symbol=pulse+pause
       switch (fsm) {
         case RxSt::START_PULSE: {  // check if start pulse is valid
@@ -90,7 +90,7 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
           }
           break;
         }
-        case RxSt::PULSE: {  // just grab carrier, validation is done in DATA_SYMBOL state
+        case RxSt::PULSE: {  // just grab pulse, validation is done in DATA_SYMBOL state
           if (src[ic] > 0) {
             pw_pre = pw_cur;
             fsm = RxSt::DATA_SYMBOL;
@@ -107,7 +107,7 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
               fsm = RxSt::PULSE;
             } else {
               bs_cnt++;                 // complete code found
-              fsm = RxSt::START_PULSE;  // start over for further codes
+              fsm = RxSt::START_PULSE;  // start over for further codes in frame
             }
           } else {
             fsm = RxSt::START_PULSE;  // decoding failed, start over for further codes
@@ -116,10 +116,10 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
         }
       }
     }
-    if (bs_cnt > 0) {  // complete codes found, find best code now
-      uint8_t identical_max = 0;
+    if (bs_cnt > 0) {  // complete codes found, find best code in list now
+      int32_t identical_max = 0;
       for (int32_t ic = 0; ic != bs_cnt; ic++) {
-        uint8_t identical_cnt = 0;
+        int32_t identical_cnt = 0;
         for (int32_t jc = 0; jc != bs_cnt; jc++) {
           identical_cnt += (bs_codes[ic] == bs_codes[jc]) ? 1 : 0;
         }
@@ -130,7 +130,7 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
       }
       if (bs_idx > -1) {
         data.code = bs_codes[bs_idx];
-        return data;  // return best code
+        return data;  // return best bs code of list
       }
     }
   }
