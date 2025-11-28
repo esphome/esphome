@@ -71,20 +71,23 @@ void ESP32BLETracker::setup() {
 
   global_esp32_ble_tracker = this;
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          this->stop_scan();
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-          for (auto *client : this->clients_) {
-            client->disconnect();
-          }
-#endif
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    this->stop_scan();
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+    for (auto *client : this->clients_) {
+      client->disconnect();
+    }
+#endif
+  }
+}
+#endif
 
 void ESP32BLETracker::loop() {
   if (!this->parent_->is_active()) {
