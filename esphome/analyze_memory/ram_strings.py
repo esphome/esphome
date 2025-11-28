@@ -28,6 +28,9 @@ ESP8266_FLASH_SECTIONS = frozenset([".irom0.text", ".irom.text", ".text"])
 ESP32_RAM_SECTIONS = frozenset([".data", ".bss", ".dram0.data", ".dram0.bss"])
 ESP32_FLASH_SECTIONS = frozenset([".text", ".rodata", ".flash.text", ".flash.rodata"])
 
+# nm symbol types for data symbols (D=global data, d=local data, R=rodata, B=bss)
+DATA_SYMBOL_TYPES = frozenset(["D", "d", "R", "r", "B", "b"])
+
 
 @dataclass
 class SectionInfo:
@@ -141,8 +144,7 @@ class RamStringsAnalyzer:
         )
 
         for line in output.split("\n"):
-            match = section_pattern.match(line)
-            if match:
+            if match := section_pattern.match(line):
                 name = match.group(1)
                 size = int(match.group(2), 16)
                 vma = int(match.group(3), 16)
@@ -248,7 +250,7 @@ class RamStringsAnalyzer:
             name = " ".join(parts[3:])
 
             # Filter for data symbols
-            if sym_type not in ["D", "d", "R", "r", "B", "b"]:
+            if sym_type not in DATA_SYMBOL_TYPES:
                 continue
 
             # Check if symbol is in a RAM section
@@ -282,21 +284,21 @@ class RamStringsAnalyzer:
         for symbol in self.ram_symbols:
             symbol.demangled = demangle_cache.get(symbol.name, symbol.name)
 
-    def get_total_ram_usage(self) -> int:
-        """Get total RAM usage from RAM sections."""
+    def _get_sections_size(self, section_names: frozenset[str]) -> int:
+        """Get total size of specified sections."""
         return sum(
             section.size
             for name, section in self.sections.items()
-            if name in self.ram_sections
+            if name in section_names
         )
+
+    def get_total_ram_usage(self) -> int:
+        """Get total RAM usage from RAM sections."""
+        return self._get_sections_size(self.ram_sections)
 
     def get_total_flash_usage(self) -> int:
         """Get total flash usage from flash sections."""
-        return sum(
-            section.size
-            for name, section in self.sections.items()
-            if name in self.flash_sections
-        )
+        return self._get_sections_size(self.flash_sections)
 
     def get_total_string_bytes(self) -> int:
         """Get total bytes used by strings in RAM."""
