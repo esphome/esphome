@@ -13,10 +13,11 @@ OTAGlobalCallback *get_global_ota_callback() {
   return global_ota_callback;
 }
 
-void register_ota_platform(OTAComponent *ota_caller) { get_global_ota_callback()->register_ota(ota_caller); }
-
-void OTAComponentBridge::on_ota_state(OTAState state, float progress, uint8_t error) {
-  this->global_callback_->notify_global_listeners(state, progress, error, this->component_);
+void OTAComponent::notify_state_(OTAState state, float progress, uint8_t error) {
+  for (auto *listener : this->state_listeners_) {
+    listener->on_ota_state(state, progress, error);
+  }
+  get_global_ota_callback()->notify_ota_state(state, progress, error, this);
 }
 #endif
 

@@ -17,11 +17,7 @@ namespace http_request {
 
 static const char *const TAG = "http_request.ota";
 
-void OtaHttpRequestComponent::setup() {
-#ifdef USE_OTA_STATE_LISTENER
-  ota::register_ota_platform(this);
-#endif
-}
+void OtaHttpRequestComponent::setup() {}
 
 void OtaHttpRequestComponent::dump_config() { ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request"); };
 

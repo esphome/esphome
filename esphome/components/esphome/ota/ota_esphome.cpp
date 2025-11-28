@@ -42,10 +42,6 @@ static constexpr size_t SHA256_HEX_SIZE = 64;  // SHA256 hash as hex string (32 
 #endif  // USE_OTA_PASSWORD
 
 void ESPHomeOTAComponent::setup() {
-#ifdef USE_OTA_STATE_LISTENER
-  ota::register_ota_platform(this);
-#endif
-
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
   if (this->server_ == nullptr) {
     this->log_socket_error_(LOG_STR("creation"));

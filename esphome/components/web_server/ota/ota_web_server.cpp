@@ -232,10 +232,6 @@ void WebServerOTAComponent::setup() {
 
   // AsyncWebServer takes ownership of the handler and will delete it when the server is destroyed
   base->add_handler(new OTARequestHandler(this));  // NOLINT
-#ifdef USE_OTA_STATE_LISTENER
-  // Register with global OTA callback system
-  ota::register_ota_platform(this);
-#endif
 }
 
 void WebServerOTAComponent::dump_config() { ESP_LOGCONFIG(TAG, "Web Server OTA"); }

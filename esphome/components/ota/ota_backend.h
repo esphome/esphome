@@ -76,11 +76,7 @@ class OTAComponent : public Component {
   void add_state_listener(OTAStateListener *listener) { this->state_listeners_.push_back(listener); }
 
  protected:
-  void notify_state_(OTAState state, float progress, uint8_t error) {
-    for (auto *listener : this->state_listeners_) {
-      listener->on_ota_state(state, progress, error);
-    }
-  }
+  void notify_state_(OTAState state, float progress, uint8_t error);
 
   /** Notify state with deferral to main loop (for thread safety).
    *
@@ -96,7 +92,6 @@ class OTAComponent : public Component {
 };
 
 #ifdef USE_OTA_STATE_LISTENER
-class OTAGlobalCallback;
 
 /** Listener interface for global OTA state changes (includes OTA component pointer).
  *
@@ -107,36 +102,16 @@ class OTAGlobalStateListener {
   virtual void on_ota_global_state(OTAState state, float progress, uint8_t error, OTAComponent *component) = 0;
 };
 
-/** Helper class to bridge per-component OTA state to global listeners.
+/** Global callback that aggregates OTA state from all OTA components.
  *
- * Each OTA component gets one of these registered as a listener. When that
- * component fires state events, this bridge forwards them to all global listeners
- * along with the component pointer.
+ * OTA components call notify_ota_state() directly with their pointer,
+ * which forwards the event to all registered global listeners.
  */
-class OTAComponentBridge : public OTAStateListener {
- public:
-  OTAComponentBridge(OTAGlobalCallback *global_callback, OTAComponent *component)
-      : global_callback_(global_callback), component_(component) {}
-
-  void on_ota_state(OTAState state, float progress, uint8_t error) override;
-
- private:
-  OTAGlobalCallback *global_callback_;
-  OTAComponent *component_;
-};
-
 class OTAGlobalCallback {
  public:
-  void register_ota(OTAComponent *ota_caller) {
-    // Create a bridge that forwards this component's events to global listeners.
-    // Intentionally never deleted - these objects live for the lifetime of the device.
-    auto *bridge = new OTAComponentBridge(this, ota_caller);  // NOLINT(cppcoreguidelines-owning-memory)
-    ota_caller->add_state_listener(bridge);
-  }
-
   void add_global_state_listener(OTAGlobalStateListener *listener) { this->global_listeners_.push_back(listener); }
 
-  void notify_global_listeners(OTAState state, float progress, uint8_t error, OTAComponent *component) {
+  void notify_ota_state(OTAState state, float progress, uint8_t error, OTAComponent *component) {
     for (auto *listener : this->global_listeners_) {
       listener->on_ota_global_state(state, progress, error, component);
     }
@@ -147,7 +122,6 @@ class OTAGlobalCallback {
 };
 
 OTAGlobalCallback *get_global_ota_callback();
-void register_ota_platform(OTAComponent *ota_caller);
 
 // OTA implementations should use:
 // - notify_state_() when already in main loop (e.g., esphome OTA)
