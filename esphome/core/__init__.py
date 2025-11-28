@@ -557,7 +557,6 @@ class EsphomeCore:
         #       return CORE.data[DOMAIN]
         #
         # The first key should always be the component domain name (DOMAIN constant).
-        # See esphome/components/zephyr/__init__.py for a real-world example.
         self.data = {}
         # The relative path to the configuration YAML
         self.config_path: Path | None = None
