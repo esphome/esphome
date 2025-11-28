@@ -396,9 +396,9 @@ class TimeoutFilterBase : public Filter, public Component {
 };
 
 // Timeout filter for "last" mode - outputs the last received value after timeout
-class TimeoutFilter : public TimeoutFilterBase {
+class TimeoutFilterLast : public TimeoutFilterBase {
  public:
-  explicit TimeoutFilter(uint32_t time_period) : TimeoutFilterBase(time_period) {}
+  explicit TimeoutFilterLast(uint32_t time_period) : TimeoutFilterBase(time_period) {}
 
   optional<float> new_value(float value) override;
 

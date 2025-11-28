@@ -355,8 +355,8 @@ void TimeoutFilterBase::loop() {
 
 float TimeoutFilterBase::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-// TimeoutFilter - "last" mode implementation
-optional<float> TimeoutFilter::new_value(float value) {
+// TimeoutFilterLast - "last" mode implementation
+optional<float> TimeoutFilterLast::new_value(float value) {
   // Store the value to output when timeout fires
   this->pending_value_ = value;
 
