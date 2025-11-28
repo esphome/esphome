@@ -1272,8 +1272,9 @@ std::string WebServer::select_json(select::Select *obj, const char *value, JsonD
 }
 #endif
 
-// Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), 15)
+// Longest: HORIZONTAL (10 chars + null terminator, rounded up)
+static constexpr size_t PSTR_LOCAL_SIZE = 16;
+#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
@@ -1482,7 +1483,7 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[lock::LOCK_STATE_STR_SIZE];
+  char buf[PSTR_LOCAL_SIZE];
   set_json_icon_state_value(root, obj, "lock", PSTR_LOCAL(lock::lock_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
