@@ -3,8 +3,8 @@ from esphome.components import switch
 import esphome.config_validation as cv
 import esphome.final_validate as fv
 
-from ..climate import CONF_MODEL, GreeClimate, Model
 from .. import gree_ns
+from ..climate import CONF_MODEL, GreeClimate, Model
 
 CODEOWNERS = ["@orestismers"]
 
@@ -110,4 +110,3 @@ async def to_code(config):
         await cg.register_component(xfan_switch, xfan_conf)
         await cg.register_parented(xfan_switch, parent)
         cg.add(parent.set_xfan_switch(xfan_switch))
-

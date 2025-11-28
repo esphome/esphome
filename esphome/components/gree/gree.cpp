@@ -20,21 +20,13 @@ void GreeClimate::set_model(Model model) {
 }
 
 #ifdef USE_SWITCH
-void GreeClimate::set_turbo_switch(switch_::Switch *sw) {
-  this->turbo_switch_ = sw;
-}
+void GreeClimate::set_turbo_switch(switch_::Switch *sw) { this->turbo_switch_ = sw; }
 
-void GreeClimate::set_light_switch(switch_::Switch *sw) {
-  this->light_switch_ = sw;
-}
+void GreeClimate::set_light_switch(switch_::Switch *sw) { this->light_switch_ = sw; }
 
-void GreeClimate::set_health_switch(switch_::Switch *sw) {
-  this->health_switch_ = sw;
-}
+void GreeClimate::set_health_switch(switch_::Switch *sw) { this->health_switch_ = sw; }
 
-void GreeClimate::set_xfan_switch(switch_::Switch *sw) {
-  this->xfan_switch_ = sw;
-}
+void GreeClimate::set_xfan_switch(switch_::Switch *sw) { this->xfan_switch_ = sw; }
 #endif
 
 void GreeClimate::set_turbo_mode(bool enabled) {
@@ -131,7 +123,8 @@ void GreeClimate::transmit_state() {
     }
   }
 
-  if (this->model_ == GREE_YAN || this->model_ == GREE_YAA || this->model_ == GREE_YAC || this->model_ == GREE_YAC1FB9) {
+  if (this->model_ == GREE_YAN || this->model_ == GREE_YAA || this->model_ == GREE_YAC ||
+      this->model_ == GREE_YAC1FB9) {
     // Mirror the persisted switch states into the feature bitfield for supported models.
     if (this->turbo_mode_) {
       remote_state[2] |= (1 << 4);  // Set bit 4 (TURBO ON)
