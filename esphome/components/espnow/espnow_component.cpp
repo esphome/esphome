@@ -10,6 +10,7 @@
 
 #include <esp_event.h>
 #include <esp_mac.h>
+#include <esp_netif.h>
 #include <esp_now.h>
 #include <esp_random.h>
 #include <esp_wifi.h>
@@ -177,6 +178,8 @@ void ESPNowComponent::enable() {
 void ESPNowComponent::enable_() {
   if (!this->is_wifi_enabled()) {
     esp_event_loop_create_default();
+    // Initialize LwIP stack for wake_loop_threadsafe() socket support
+    ESP_ERROR_CHECK(esp_netif_init());
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
