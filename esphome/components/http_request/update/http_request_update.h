@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/http_request/http_request.h"
@@ -14,7 +15,11 @@
 namespace esphome {
 namespace http_request {
 
-class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
+#ifdef USE_OTA_STATE_LISTENER
+class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
+#else
+class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent {
+#endif
  public:
   void setup() override;
   void update() override;
@@ -28,6 +33,10 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
   void set_ota_parent(OtaHttpRequestComponent *ota_parent) { this->ota_parent_ = ota_parent; }
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_state(ota::OTAState state, float progress, uint8_t error) override;
+#endif
 
  protected:
   HttpRequestComponent *request_parent_;

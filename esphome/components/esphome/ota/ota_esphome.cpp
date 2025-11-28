@@ -42,7 +42,7 @@ static constexpr size_t SHA256_HEX_SIZE = 64;  // SHA256 hash as hex string (32 
 #endif  // USE_OTA_PASSWORD
 
 void ESPHomeOTAComponent::setup() {
-#ifdef USE_OTA_STATE_CALLBACK
+#ifdef USE_OTA_STATE_LISTENER
   ota::register_ota_platform(this);
 #endif
 
@@ -298,8 +298,8 @@ void ESPHomeOTAComponent::handle_data_() {
   // accidentally trigger the update process.
   this->log_start_(LOG_STR("update"));
   this->status_set_warning();
-#ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
+#ifdef USE_OTA_STATE_LISTENER
+  this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
   // This will block for a few seconds as it locks flash
@@ -358,8 +358,8 @@ void ESPHomeOTAComponent::handle_data_() {
       last_progress = now;
       float percentage = (total * 100.0f) / ota_size;
       ESP_LOGD(TAG, "Progress: %0.1f%%", percentage);
-#ifdef USE_OTA_STATE_CALLBACK
-      this->state_callback_.call(ota::OTA_IN_PROGRESS, percentage, 0);
+#ifdef USE_OTA_STATE_LISTENER
+      this->notify_state_(ota::OTA_IN_PROGRESS, percentage, 0);
 #endif
       // feed watchdog and give other tasks a chance to run
       this->yield_and_feed_watchdog_();
@@ -388,8 +388,8 @@ void ESPHomeOTAComponent::handle_data_() {
   delay(10);
   ESP_LOGI(TAG, "Update complete");
   this->status_clear_warning();
-#ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, 0);
+#ifdef USE_OTA_STATE_LISTENER
+  this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
   delay(100);  // NOLINT
   App.safe_reboot();
@@ -403,8 +403,8 @@ error:
   }
 
   this->status_momentary_error("onerror", 5000);
-#ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
+#ifdef USE_OTA_STATE_LISTENER
+  this->notify_state_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
 }
 
