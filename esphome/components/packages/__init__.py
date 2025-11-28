@@ -241,13 +241,19 @@ def _walk_packages(config: dict, callback: callable, context=None) -> dict:
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
-    # The following line can be safely removed once single-package deprecation is effective
-    # packages = CONFIG_SCHEMA(packages)
     with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
                 with cv.prepend_path(package_name):
-                    packages[package_name] = callback(package_config, context)
+                    try:
+                        packages[package_name] = callback(package_config, context)
+                    except cv.Invalid:
+                        # This except block can be removed once the single-package
+                        # deprecation period is over.
+                        config[CONF_PACKAGES] = [packages]
+                        return _walk_packages(
+                            deprecate_single_package(config), callback, context
+                        )
         elif isinstance(packages, list):
             for idx in reversed(range(len(packages))):
                 with cv.prepend_path(idx):
@@ -269,8 +275,10 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
         if isinstance(package_config, dict) and CONF_URL in package_config:
             substitute(package_config, [], context_vars, False)
         elif isinstance(package_config, str):
-            result = substitute(package_config, [], context_vars, False)
-            with contextlib.supress(ValueError):
+            result = (
+                substitute(package_config, [], context_vars, False) or package_config
+            )
+            with contextlib.suppress(ValueError):
                 package_config = validate_source_shorthand(result)
 
         # -------
