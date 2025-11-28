@@ -102,7 +102,7 @@ struct CameraImageSpec {
 };
 
 /** Abstract camera base class. Collaborates with API.
- *  1) API server starts and registers as a listener (add_image_listener)
+ *  1) API server starts and registers as a listener (add_listener)
  *     to receive new images from the camera.
  *  2) New API client connects and creates a new image reader (create_image_reader).
  *  3) API connection receives protobuf CameraImageRequest and calls request_image.
