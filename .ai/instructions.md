@@ -434,7 +434,7 @@ This document provides essential context for AI models interacting with this pro
             _get_data().items.append(item)
         ```
 
-        See `esphome/components/zephyr/__init__.py` for a real-world example.
+        If you need a real-world example, search for components that use `@dataclass` with `CORE.data` in the codebase. Note: Some components may use `TypedDict` for dictionary-based storage; both patterns are acceptable depending on your needs.
 
         **Why this matters:**
         - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
