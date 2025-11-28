@@ -34,22 +34,22 @@ CONFIG_SCHEMA = cv.Schema(
             GreeTurboSwitch,
             icon="mdi:car-turbocharger",
             default_restore_mode="RESTORE_DEFAULT_OFF",
-        ),
+        ).extend(cv.COMPONENT_SCHEMA),
         cv.Optional(CONF_LIGHT): switch.switch_schema(
             GreeLightSwitch,
             icon="mdi:led-outline",
             default_restore_mode="RESTORE_DEFAULT_OFF",
-        ),
+        ).extend(cv.COMPONENT_SCHEMA),
         cv.Optional(CONF_HEALTH_MODE): switch.switch_schema(
             GreeHealthSwitch,
             icon="mdi:pine-tree",
             default_restore_mode="RESTORE_DEFAULT_OFF",
-        ),
+        ).extend(cv.COMPONENT_SCHEMA),
         cv.Optional(CONF_XFAN): switch.switch_schema(
             GreeXfanSwitch,
             icon="mdi:wall-sconce-flat",
             default_restore_mode="RESTORE_DEFAULT_OFF",
-        ),
+        ).extend(cv.COMPONENT_SCHEMA),
     }
 )
 
@@ -92,18 +92,22 @@ async def to_code(config):
 
     if turbo_conf := config.get(CONF_TURBO):
         turbo_switch = await switch.new_switch(turbo_conf)
+        await cg.register_component(turbo_switch, turbo_conf)
         await cg.register_parented(turbo_switch, parent)
         cg.add(parent.set_turbo_switch(turbo_switch))
     if light_conf := config.get(CONF_LIGHT):
         light_switch = await switch.new_switch(light_conf)
+        await cg.register_component(light_switch, light_conf)
         await cg.register_parented(light_switch, parent)
         cg.add(parent.set_light_switch(light_switch))
     if health_conf := config.get(CONF_HEALTH_MODE):
         health_switch = await switch.new_switch(health_conf)
+        await cg.register_component(health_switch, health_conf)
         await cg.register_parented(health_switch, parent)
         cg.add(parent.set_health_switch(health_switch))
     if xfan_conf := config.get(CONF_XFAN):
         xfan_switch = await switch.new_switch(xfan_conf)
+        await cg.register_component(xfan_switch, xfan_conf)
         await cg.register_parented(xfan_switch, parent)
         cg.add(parent.set_xfan_switch(xfan_switch))
 
