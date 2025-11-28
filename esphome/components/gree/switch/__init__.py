@@ -25,6 +25,7 @@ SUPPORTED_MODELS = [
     Model.GREE_YAC,
     Model.GREE_YAC1FB9,
 ]
+SUPPORTED_MODEL_NAMES = ["yan", "yaa", "yac", "yac1fb9"]
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -63,7 +64,7 @@ def _validate_model(config):
     if model is None:
         raise cv.Invalid("Gree climate model is not configured")
 
-    if model not in SUPPORTED_MODELS:
+    if model not in SUPPORTED_MODELS and str(model) not in SUPPORTED_MODEL_NAMES:
         raise cv.Invalid("Gree switches are only supported for the yan, yaa, yac and yac1fb9 models")
 
     return config
