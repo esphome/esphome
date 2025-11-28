@@ -240,6 +240,20 @@ ethernet:
   power_pin: GPIO5
 ```
 
+**DFRobot Edge101** and **ESP32-DOWD-V3**:
+
+```yaml
+ethernet:
+  type: IP101
+  mdc_pin: GPIO4
+  mdio_pin: GPIO13
+  clk:
+    pin: GPIO0
+    mode: CLK_EXT_IN
+  power_pin: GPIO2
+  phy_addr: 1
+```
+
 **AiThinker ESP32-G Gateway**:
 
 ```yaml
