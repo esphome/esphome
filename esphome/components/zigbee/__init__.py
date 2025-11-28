@@ -155,7 +155,7 @@ async def to_code(config: ConfigType) -> None:
         await zephyr_to_code(config)
 
 
-async def setup_binary_sensor(entity, config: ConfigType) -> None:
+async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
