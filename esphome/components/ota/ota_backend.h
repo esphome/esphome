@@ -128,7 +128,8 @@ class OTAComponentBridge : public OTAStateListener {
 class OTAGlobalCallback {
  public:
   void register_ota(OTAComponent *ota_caller) {
-    // Create a bridge that forwards this component's events to global listeners
+    // Create a bridge that forwards this component's events to global listeners.
+    // Intentionally never deleted - these objects live for the lifetime of the device.
     auto *bridge = new OTAComponentBridge(this, ota_caller);  // NOLINT(cppcoreguidelines-owning-memory)
     ota_caller->add_state_listener(bridge);
   }
