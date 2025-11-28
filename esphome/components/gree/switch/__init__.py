@@ -64,8 +64,22 @@ def _validate_model(config):
     if model is None:
         raise cv.Invalid("Gree climate model is not configured")
 
-    if model not in SUPPORTED_MODELS and str(model) not in SUPPORTED_MODEL_NAMES:
-        raise cv.Invalid("Gree switches are only supported for the yan, yaa, yac and yac1fb9 models")
+    def normalize_model(value):
+        # Accept Model enums, strings, and expressions; reduce to a lower-case name without the GREE_ prefix.
+        if hasattr(value, "name"):
+            value = value.name
+        text = str(value)
+        if "." in text:
+            text = text.rsplit(".", 1)[-1]
+        if text.upper().startswith("GREE_"):
+            text = text[5:]
+        return text.casefold()
+
+    normalized_model = normalize_model(model)
+    if normalized_model not in SUPPORTED_MODEL_NAMES:
+        raise cv.Invalid(
+            "Gree switches are only supported for the yan, yaa, yac and yac1fb9 models"
+        )
 
     return config
 
