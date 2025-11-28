@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from pathlib import Path
 
@@ -273,10 +274,8 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
             substitute(package_config, [], context_vars, False)
         elif isinstance(package_config, str):
             result = substitute(package_config, [], context_vars, False)
-            try:
+            with contextlib.supress(ValueError):
                 package_config = validate_source_shorthand(result)
-            except:
-                pass
 
         # -------
         nonlocal substitutions
@@ -289,7 +288,7 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
             package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions
         )
 
-        if not CONF_PACKAGES in package_config:
+        if CONF_PACKAGES not in package_config:
             return package_config
         context_vars = push_context(package_config, context_vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
