@@ -335,20 +335,20 @@ class RamStringsAnalyzer:
             reverse=True,
         )
 
-    def get_largest_symbols(self, limit: int = 20) -> list[RamSymbol]:
-        """Get the largest RAM symbols.
+    def get_largest_symbols(self, min_size: int = 100) -> list[RamSymbol]:
+        """Get RAM symbols larger than the specified size.
 
         Args:
-            limit: Maximum number of symbols to return
+            min_size: Minimum symbol size in bytes
 
         Returns:
             List of RamSymbol objects sorted by size
         """
         return sorted(
-            [s for s in self.ram_symbols if s.size > 0],
+            [s for s in self.ram_symbols if s.size >= min_size],
             key=lambda x: x.size,
             reverse=True,
-        )[:limit]
+        )
 
     def generate_report(self, show_all_sections: bool = False) -> str:
         """Generate a formatted RAM strings analysis report.
@@ -426,10 +426,10 @@ class RamStringsAnalyzer:
         # Large RAM symbols
         lines.append("")
         lines.append("=" * table_width)
-        lines.append("LARGE DATA SYMBOLS IN RAM")
+        lines.append("LARGE DATA SYMBOLS IN RAM (>= 50 bytes)")
         lines.append("=" * table_width)
 
-        largest_symbols = self.get_largest_symbols(20)
+        largest_symbols = self.get_largest_symbols(50)
         lines.append(f"\n{'Symbol':<50} {'Type':<6} {'Size':<10} {'Section'}")
         lines.append("-" * table_width)
 
