@@ -7,7 +7,6 @@ from ..climate import CONF_MODEL, GreeClimate, Model
 from .. import gree_ns
 
 CODEOWNERS = ["@orestismers"]
-DEPENDENCIES = ["gree"]
 
 GreeTurboSwitch = gree_ns.class_("GreeTurboSwitch", switch.Switch)
 GreeLightSwitch = gree_ns.class_("GreeLightSwitch", switch.Switch)
