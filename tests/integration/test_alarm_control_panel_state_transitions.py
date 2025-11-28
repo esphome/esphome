@@ -237,7 +237,7 @@ async def test_alarm_control_panel_state_transitions(
         # Should go to PENDING (delayed sensor)
         await wait_for_state(AlarmControlPanelState.PENDING)
 
-        # Should go to TRIGGERED after pending_time (100ms)
+        # Should go to TRIGGERED after pending_time (50ms)
         await wait_for_state(AlarmControlPanelState.TRIGGERED)
 
         # Close the sensor
