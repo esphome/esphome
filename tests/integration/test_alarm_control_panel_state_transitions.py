@@ -15,6 +15,7 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -107,7 +108,18 @@ async def test_alarm_control_panel_state_transitions(
                 states_received.append(state.state)
                 state_event.set()
 
-        client.subscribe_states(on_state)
+        # Use InitialStateHelper to handle initial state broadcast
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial states from all entities
+        await initial_state_helper.wait_for_initial_states()
+
+        # Verify alarm panel started in DISARMED state
+        initial_alarm_state = initial_state_helper.initial_states.get(alarm_info.key)
+        assert initial_alarm_state is not None, "No initial alarm state received"
+        assert isinstance(initial_alarm_state, AlarmControlPanelEntityState)
+        assert initial_alarm_state.state == AlarmControlPanelState.DISARMED
 
         # Helper to wait for specific state
         async def wait_for_state(
@@ -126,9 +138,6 @@ async def test_alarm_control_panel_state_transitions(
                 if states_received[-1] == expected:
                     return
 
-        # Wait for initial DISARMED state
-        await wait_for_state(AlarmControlPanelState.DISARMED)
-
         # ===== Test wrong code rejection =====
         client.alarm_control_panel_command(
             alarm_info.key,
@@ -136,10 +145,11 @@ async def test_alarm_control_panel_state_transitions(
             code="0000",  # Wrong code
         )
 
-        # Should NOT transition - wait a bit and verify still disarmed
+        # Should NOT transition - wait a bit and verify no state changes
         with pytest.raises(asyncio.TimeoutError):
             await asyncio.wait_for(state_event.wait(), timeout=0.5)
-        assert states_received[-1] == AlarmControlPanelState.DISARMED
+        # No state changes should have occurred (list is empty)
+        assert len(states_received) == 0, f"Unexpected state changes: {states_received}"
 
         # ===== Test ARM_AWAY sequence =====
         client.alarm_control_panel_command(
@@ -192,9 +202,8 @@ async def test_alarm_control_panel_state_transitions(
         )
         await wait_for_state(AlarmControlPanelState.DISARMED)
 
-        # Verify basic state sequence
+        # Verify basic state sequence (initial DISARMED is handled by InitialStateHelper)
         expected_states = [
-            AlarmControlPanelState.DISARMED,  # Initial
             AlarmControlPanelState.ARMING,  # Arm away
             AlarmControlPanelState.ARMED_AWAY,
             AlarmControlPanelState.DISARMED,

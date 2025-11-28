@@ -35,15 +35,15 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
     ESP_LOGD(TAG, "Set state to: %s, previous: %s", LOG_STR_ARG(alarm_control_panel_state_to_string(state)),
              LOG_STR_ARG(alarm_control_panel_state_to_string(prev_state)));
     this->current_state_ = state;
-
-    for (auto *listener : this->state_listeners_) {
-      listener->on_state(state, prev_state);
-    }
-
+    // Single state callback - triggers check get_state() for specific states
+    this->state_callback_.call();
 #if defined(USE_ALARM_CONTROL_PANEL) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_alarm_control_panel_update(this);
 #endif
-
+    // Cleared fires when leaving TRIGGERED state
+    if (prev_state == ACP_STATE_TRIGGERED) {
+      this->cleared_callback_.call();
+    }
     if (state == this->desired_state_) {
       // only store when in the desired state
       this->pref_.save(&state);
@@ -51,14 +51,20 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
   }
 }
 
-void AlarmControlPanel::notify_chime() {
-  for (auto *listener : this->event_listeners_)
-    listener->on_chime();
+void AlarmControlPanel::add_on_state_callback(std::function<void()> &&callback) {
+  this->state_callback_.add(std::move(callback));
 }
 
-void AlarmControlPanel::notify_ready() {
-  for (auto *listener : this->event_listeners_)
-    listener->on_ready();
+void AlarmControlPanel::add_on_cleared_callback(std::function<void()> &&callback) {
+  this->cleared_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_chime_callback(std::function<void()> &&callback) {
+  this->chime_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_ready_callback(std::function<void()> &&callback) {
+  this->ready_callback_.add(std::move(callback));
 }
 
 void AlarmControlPanel::arm_away(optional<std::string> code) {

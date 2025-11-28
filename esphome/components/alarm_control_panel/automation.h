@@ -7,54 +7,133 @@ namespace esphome {
 namespace alarm_control_panel {
 
 /// Trigger on any state change
-class StateTrigger final : public Trigger<>, public AlarmControlPanelStateListener {
+class StateTrigger : public Trigger<> {
  public:
-  explicit StateTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override { this->trigger(); }
-};
-
-/// Template trigger that fires when entering a specific state
-template<AlarmControlPanelState State>
-class StateEnterTrigger final : public Trigger<>, public AlarmControlPanelStateListener {
- public:
-  explicit StateEnterTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (new_state == State)
-      this->trigger();
+  explicit StateTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() { this->trigger(); });
   }
 };
 
-// Type aliases for state-specific triggers
-using TriggeredTrigger = StateEnterTrigger<ACP_STATE_TRIGGERED>;
-using ArmingTrigger = StateEnterTrigger<ACP_STATE_ARMING>;
-using PendingTrigger = StateEnterTrigger<ACP_STATE_PENDING>;
-using ArmedHomeTrigger = StateEnterTrigger<ACP_STATE_ARMED_HOME>;
-using ArmedNightTrigger = StateEnterTrigger<ACP_STATE_ARMED_NIGHT>;
-using ArmedAwayTrigger = StateEnterTrigger<ACP_STATE_ARMED_AWAY>;
-using DisarmedTrigger = StateEnterTrigger<ACP_STATE_DISARMED>;
+/// Trigger when entering TRIGGERED state
+class TriggeredTrigger : public Trigger<> {
+ public:
+  explicit TriggeredTrigger(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() {
+      if (this->alarm_control_panel_->get_state() == ACP_STATE_TRIGGERED)
+        this->trigger();
+    });
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+/// Trigger when entering ARMING state
+class ArmingTrigger : public Trigger<> {
+ public:
+  explicit ArmingTrigger(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() {
+      if (this->alarm_control_panel_->get_state() == ACP_STATE_ARMING)
+        this->trigger();
+    });
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+/// Trigger when entering PENDING state
+class PendingTrigger : public Trigger<> {
+ public:
+  explicit PendingTrigger(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() {
+      if (this->alarm_control_panel_->get_state() == ACP_STATE_PENDING)
+        this->trigger();
+    });
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+/// Trigger when entering ARMED_HOME state
+class ArmedHomeTrigger : public Trigger<> {
+ public:
+  explicit ArmedHomeTrigger(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() {
+      if (this->alarm_control_panel_->get_state() == ACP_STATE_ARMED_HOME)
+        this->trigger();
+    });
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+/// Trigger when entering ARMED_NIGHT state
+class ArmedNightTrigger : public Trigger<> {
+ public:
+  explicit ArmedNightTrigger(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() {
+      if (this->alarm_control_panel_->get_state() == ACP_STATE_ARMED_NIGHT)
+        this->trigger();
+    });
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+/// Trigger when entering ARMED_AWAY state
+class ArmedAwayTrigger : public Trigger<> {
+ public:
+  explicit ArmedAwayTrigger(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() {
+      if (this->alarm_control_panel_->get_state() == ACP_STATE_ARMED_AWAY)
+        this->trigger();
+    });
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+/// Trigger when entering DISARMED state
+class DisarmedTrigger : public Trigger<> {
+ public:
+  explicit DisarmedTrigger(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() {
+      if (this->alarm_control_panel_->get_state() == ACP_STATE_DISARMED)
+        this->trigger();
+    });
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
 
 /// Trigger when leaving TRIGGERED state (alarm cleared)
-class ClearedTrigger final : public Trigger<>, public AlarmControlPanelStateListener {
+class ClearedTrigger : public Trigger<> {
  public:
-  explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (prev_state == ACP_STATE_TRIGGERED)
-      this->trigger();
+  explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_cleared_callback([this]() { this->trigger(); });
   }
 };
 
 /// Trigger on chime event (zone opened while disarmed)
-class ChimeTrigger final : public Trigger<>, public AlarmControlPanelEventListener {
+class ChimeTrigger : public Trigger<> {
  public:
-  explicit ChimeTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_chime() override { this->trigger(); }
+  explicit ChimeTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_chime_callback([this]() { this->trigger(); });
+  }
 };
 
 /// Trigger on ready state change
-class ReadyTrigger final : public Trigger<>, public AlarmControlPanelEventListener {
+class ReadyTrigger : public Trigger<> {
  public:
-  explicit ReadyTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_ready() override { this->trigger(); }
+  explicit ReadyTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_ready_callback([this]() { this->trigger(); });
+  }
 };
 
 template<typename... Ts> class ArmAwayAction : public Action<Ts...> {

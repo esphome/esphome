@@ -1,36 +1,16 @@
 #pragma once
 
-#include <vector>
+#include <map>
 
 #include "alarm_control_panel_call.h"
 #include "alarm_control_panel_state.h"
 
-#include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/entity_base.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/preferences.h"
 
 namespace esphome {
 namespace alarm_control_panel {
-
-/// Listener interface for alarm control panel state changes.
-class AlarmControlPanelStateListener {
- public:
-  virtual ~AlarmControlPanelStateListener() = default;
-  /// Called when state changes. Check new_state/prev_state to filter specific states.
-  virtual void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) = 0;
-};
-
-/// Listener interface for alarm events (chime, ready, etc).
-class AlarmControlPanelEventListener {
- public:
-  virtual ~AlarmControlPanelEventListener() = default;
-  /// Called when a chime zone opens while disarmed.
-  virtual void on_chime() {}
-  /// Called when zones ready state changes.
-  virtual void on_ready() {}
-};
 
 enum AlarmControlPanelFeature : uint8_t {
   // Matches Home Assistant values
@@ -55,25 +35,30 @@ class AlarmControlPanel : public EntityBase {
    */
   void publish_state(AlarmControlPanelState state);
 
-  /** Register a listener for state changes.
+  /** Add a callback for when the state of the alarm_control_panel changes.
+   * Triggers can check get_state() to determine the new state.
    *
-   * @param listener The listener to add (must remain valid for lifetime of panel)
+   * @param callback The callback function
    */
-  void add_listener(AlarmControlPanelStateListener *listener) { this->state_listeners_.push_back(listener); }
+  void add_on_state_callback(std::function<void()> &&callback);
 
-  /** Register a listener for alarm events (chime/ready/etc).
+  /** Add a callback for when the state of the alarm_control_panel clears from triggered
    *
-   * @param listener The listener to add (must remain valid for lifetime of panel)
+   * @param callback The callback function
    */
-  void add_listener(AlarmControlPanelEventListener *listener) { this->event_listeners_.push_back(listener); }
+  void add_on_cleared_callback(std::function<void()> &&callback);
 
-  /** Notify listeners of a chime event (zone opened while disarmed).
+  /** Add a callback for when a chime zone goes from closed to open
+   *
+   * @param callback The callback function
    */
-  void notify_chime();
+  void add_on_chime_callback(std::function<void()> &&callback);
 
-  /** Notify listeners of a ready state change.
+  /** Add a callback for when a ready state changes
+   *
+   * @param callback The callback function
    */
-  void notify_ready();
+  void add_on_ready_callback(std::function<void()> &&callback);
 
   /** A numeric representation of the supported features as per HomeAssistant
    *
@@ -146,10 +131,14 @@ class AlarmControlPanel : public EntityBase {
   uint32_t last_update_;
   // the call control function
   virtual void control(const AlarmControlPanelCall &call) = 0;
-  // registered state listeners
-  std::vector<AlarmControlPanelStateListener *> state_listeners_;
-  // registered event listeners (chime/ready/etc)
-  std::vector<AlarmControlPanelEventListener *> event_listeners_;
+  // state callback - triggers check get_state() for specific state
+  CallbackManager<void()> state_callback_{};
+  // clear callback - fires when leaving TRIGGERED state
+  CallbackManager<void()> cleared_callback_{};
+  // chime callback
+  CallbackManager<void()> chime_callback_{};
+  // ready callback
+  CallbackManager<void()> ready_callback_{};
 };
 
 }  // namespace alarm_control_panel
