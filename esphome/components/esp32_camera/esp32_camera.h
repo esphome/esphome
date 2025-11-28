@@ -232,14 +232,12 @@ class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::
 class ESP32CameraStreamStartTrigger : public Trigger<>, public camera::CameraListener {
  public:
   explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) { parent->add_listener(this); }
-  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override {}
   void on_stream_start() override { this->trigger(); }
 };
 
 class ESP32CameraStreamStopTrigger : public Trigger<>, public camera::CameraListener {
  public:
   explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) { parent->add_listener(this); }
-  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override {}
   void on_stream_stop() override { this->trigger(); }
 };
 
