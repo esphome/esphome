@@ -23,9 +23,11 @@ merged by concatenation. All other configuration values are replaced with the la
 
 ESPHome uses `!include` to "bring in" packages from other files; this feature is described in [!include](/guides/yaml#yaml-include).
 
-The `packages:` key may have a value that is a list of valid package references, or a mapping of keys to package references.
-When a mapping is used, the keys are for reference only and have no significance in themselves.
-Where only a single package reference is required, it may be used directly rather than in a list.
+The `packages:` key may have a value that is:
+
+- A list of valid package references
+- A mapping of keys to package references. When a mapping is used, the keys are for reference only and have no significance in themselves.
+
 Examples of all formats are shown below.
 
 ## Local Packages
@@ -186,8 +188,8 @@ sensor:
 ```
 
 ```yaml
-# only one package is included here, no need for a list
-packages: !include common.yaml
+packages:
+  - !include common.yaml
 
 sensor:
   - id: !extend uptime_sensor
@@ -255,7 +257,8 @@ the ID of the entry to modify.
 For example, to remove a common uptime sensor that is shared between configurations:
 
 ```yaml
-packages: !include common.yaml  # see above
+packages:
+  - !include common.yaml  # see above
 
 sensor:
   - id: !remove uptime_sensor
@@ -277,7 +280,8 @@ lvgl:
 To remove captive portal for a specific device:
 
 ```yaml
-packages: !include common.yaml  # see above
+packages:
+  - !include common.yaml  # see above
 
 captive_portal: !remove
 ```
