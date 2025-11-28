@@ -8,9 +8,12 @@
 #define SDL_MAIN_HANDLED
 #include "SDL.h"
 #include <map>
+#include <vector>
 
 namespace esphome {
 namespace sdl {
+
+class SdlEncoder;  // forward declaration
 
 constexpr static const char *const TAG = "sdl";
 
@@ -24,6 +27,7 @@ class Sdl : public display::Display {
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void draw_pixel_at(int x, int y, Color color) override;
   void process_key(uint32_t keycode, bool down);
+  void process_mouse_button(uint8_t button, bool down);
   void set_dimensions(uint16_t width, uint16_t height) {
     this->width_ = width;
     this->height_ = height;
@@ -43,6 +47,15 @@ class Sdl : public display::Display {
     }
     this->key_callbacks_[keycode].add(std::move(callback));
   }
+
+  void add_mouse_button_listener(uint8_t button, std::function<void(bool)> &&callback) {
+    if (!this->mouse_button_callbacks_.count(button)) {
+      this->mouse_button_callbacks_[button] = CallbackManager<void(bool)>();
+    }
+    this->mouse_button_callbacks_[button].add(std::move(callback));
+  }
+
+  void register_encoder(SdlEncoder *encoder) { this->encoders_.push_back(encoder); }
 
   int mouse_x{};
   int mouse_y{};
@@ -65,6 +78,8 @@ class Sdl : public display::Display {
   uint16_t x_high_{0};
   uint16_t y_high_{0};
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
+  std::map<uint8_t, CallbackManager<void(bool)>> mouse_button_callbacks_{};
+  std::vector<SdlEncoder *> encoders_{};
 };
 }  // namespace sdl
 }  // namespace esphome

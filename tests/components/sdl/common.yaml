@@ -12,6 +12,7 @@ display:
       height: 600
 
 binary_sensor:
+  # Keyboard binary sensors
   - platform: sdl
     sdl_id: sdl_display
     id: key_up
@@ -24,3 +25,41 @@ binary_sensor:
     sdl_id: sdl_display
     id: key_enter
     key: SDLK_RETURN
+
+  # Mouse button binary sensors
+  - platform: sdl
+    sdl_id: sdl_display
+    id: mouse_left_button
+    name: "Left Mouse Button"
+    mouse_button: 1
+  - platform: sdl
+    sdl_id: sdl_display
+    id: mouse_middle_button
+    name: "Middle Mouse Button"
+    mouse_button: 2
+  - platform: sdl
+    sdl_id: sdl_display
+    id: mouse_right_button
+    name: "Right Mouse Button"
+    mouse_button: 3
+
+sensor:
+  # Test mouse wheel encoder with wrapping
+  - platform: sdl
+    sdl_id: sdl_display
+    id: mouse_encoder
+    name: "Mouse Wheel Encoder"
+    wheel_button: 1
+    min_value: 0
+    max_value: 100
+    wrap: true
+
+  # Test encoder without wrapping
+  - platform: sdl
+    sdl_id: sdl_display
+    id: mouse_encoder_no_wrap
+    name: "Mouse Encoder No Wrap"
+    wheel_button: 2
+    min_value: 10
+    max_value: 50
+    wrap: false
