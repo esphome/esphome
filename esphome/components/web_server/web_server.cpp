@@ -1333,7 +1333,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   const auto traits = obj->get_traits();
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
-  char buf[16];
+  char buf[PSTR_LOCAL_SIZE];
 
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root["modes"].to<JsonArray>();
@@ -1645,7 +1645,7 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[16];
+  char buf[PSTR_LOCAL_SIZE];
   set_json_icon_state_value(root, obj, "alarm-control-panel", PSTR_LOCAL(alarm_control_panel_state_to_string(value)),
                             value, start_config);
   if (start_config == DETAIL_ALL) {
