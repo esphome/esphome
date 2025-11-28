@@ -60,16 +60,6 @@ class AlarmControlPanel : public EntityBase {
    */
   void add_on_ready_callback(std::function<void()> &&callback);
 
-  /** Notify chime event listeners
-   *
-   */
-  void notify_chime() { this->chime_callback_.call(); }
-
-  /** Notify ready state change listeners
-   *
-   */
-  void notify_ready() { this->ready_callback_.call(); }
-
   /** A numeric representation of the supported features as per HomeAssistant
    *
    */
