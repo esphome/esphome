@@ -884,7 +884,7 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
-  struct station_config conf;
+  struct station_config conf {};
   if (wifi_station_get_config(&conf)) {
     std::copy_n(conf.bssid, bssid.size(), bssid.begin());
   }
