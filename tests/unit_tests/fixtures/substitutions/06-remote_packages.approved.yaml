@@ -1,0 +1,25 @@
+substitutions:
+  x: 10
+  y: 20
+  z: 30
+values_from_repo1_main:
+  - package_name: package1
+    x: 3
+    y: 4
+    z: 5
+    volume: 60
+  - package_name: package2
+    x: 6
+    y: 7
+    z: 8
+    volume: 336
+  - package_name: default
+    x: 10
+    y: 20
+    z: 5
+    volume: 1000
+  - package_name: package4_from_repo2
+    x: 9
+    y: 10
+    z: 11
+    volume: 990

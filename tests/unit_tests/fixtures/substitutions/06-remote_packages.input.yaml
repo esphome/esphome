@@ -1,0 +1,37 @@
+substitutions:
+  x: 10
+  y: 20
+  z: 30
+packages:
+  package1:
+    url: https://github.com/esphome/repo1
+    files:
+      - path: file1.yaml
+        vars:
+          package_name: package1
+          x: 3
+          y: 4
+    ref: main
+  package2: !include  # a package that just includes the given remote package
+    file: remote_package_proxy.yaml
+    vars:
+      url: https://github.com/esphome/repo1
+      ref: main
+      files:
+        - path: file1.yaml
+          vars:
+            package_name: package2
+            x: 6
+            y: 7
+            z: 8
+  package3: github://esphome/repo1/file1.yaml@main  # a package that uses the shorthand syntax
+  package4:  # include repo2, which itself includes repo1
+    url: https://github.com/esphome/repo2
+    files:
+      - path: file2.yaml
+        vars:
+          package_name: package4
+          a: 9
+          b: 10
+          c: 11
+    ref: main
