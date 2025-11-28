@@ -10,6 +10,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 #if defined(USE_ESP32)
 #include "mqtt_backend_esp32.h"
 #elif defined(USE_ESP8266)
@@ -97,7 +100,12 @@ enum MQTTClientState {
 
 class MQTTComponent;
 
-class MQTTClientComponent : public Component {
+class MQTTClientComponent : public Component
+#ifdef USE_LOGGER
+    ,
+                            public logger::LogListener
+#endif
+{
  public:
   MQTTClientComponent();
 
@@ -237,6 +245,10 @@ class MQTTClientComponent : public Component {
   void loop() override;
   /// MQTT client setup priority
   float get_setup_priority() const override;
+
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+#endif
 
   void on_message(const std::string &topic, const std::string &payload);
 
