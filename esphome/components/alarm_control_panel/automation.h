@@ -6,76 +6,35 @@
 namespace esphome {
 namespace alarm_control_panel {
 
-class StateTrigger final : public Trigger<>, public AlarmControlPanelListener {
+/// Trigger on any state change
+class StateTrigger final : public Trigger<>, public AlarmControlPanelStateListener {
  public:
   explicit StateTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
   void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override { this->trigger(); }
 };
 
-class TriggeredTrigger final : public Trigger<>, public AlarmControlPanelListener {
+/// Template trigger that fires when entering a specific state
+template<AlarmControlPanelState State>
+class StateEnterTrigger final : public Trigger<>, public AlarmControlPanelStateListener {
  public:
-  explicit TriggeredTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
+  explicit StateEnterTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
   void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (new_state == ACP_STATE_TRIGGERED)
+    if (new_state == State)
       this->trigger();
   }
 };
 
-class ArmingTrigger final : public Trigger<>, public AlarmControlPanelListener {
- public:
-  explicit ArmingTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (new_state == ACP_STATE_ARMING)
-      this->trigger();
-  }
-};
+// Type aliases for state-specific triggers
+using TriggeredTrigger = StateEnterTrigger<ACP_STATE_TRIGGERED>;
+using ArmingTrigger = StateEnterTrigger<ACP_STATE_ARMING>;
+using PendingTrigger = StateEnterTrigger<ACP_STATE_PENDING>;
+using ArmedHomeTrigger = StateEnterTrigger<ACP_STATE_ARMED_HOME>;
+using ArmedNightTrigger = StateEnterTrigger<ACP_STATE_ARMED_NIGHT>;
+using ArmedAwayTrigger = StateEnterTrigger<ACP_STATE_ARMED_AWAY>;
+using DisarmedTrigger = StateEnterTrigger<ACP_STATE_DISARMED>;
 
-class PendingTrigger final : public Trigger<>, public AlarmControlPanelListener {
- public:
-  explicit PendingTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (new_state == ACP_STATE_PENDING)
-      this->trigger();
-  }
-};
-
-class ArmedHomeTrigger final : public Trigger<>, public AlarmControlPanelListener {
- public:
-  explicit ArmedHomeTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (new_state == ACP_STATE_ARMED_HOME)
-      this->trigger();
-  }
-};
-
-class ArmedNightTrigger final : public Trigger<>, public AlarmControlPanelListener {
- public:
-  explicit ArmedNightTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (new_state == ACP_STATE_ARMED_NIGHT)
-      this->trigger();
-  }
-};
-
-class ArmedAwayTrigger final : public Trigger<>, public AlarmControlPanelListener {
- public:
-  explicit ArmedAwayTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (new_state == ACP_STATE_ARMED_AWAY)
-      this->trigger();
-  }
-};
-
-class DisarmedTrigger final : public Trigger<>, public AlarmControlPanelListener {
- public:
-  explicit DisarmedTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
-  void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
-    if (new_state == ACP_STATE_DISARMED)
-      this->trigger();
-  }
-};
-
-class ClearedTrigger final : public Trigger<>, public AlarmControlPanelListener {
+/// Trigger when leaving TRIGGERED state (alarm cleared)
+class ClearedTrigger final : public Trigger<>, public AlarmControlPanelStateListener {
  public:
   explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
   void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) override {
@@ -84,13 +43,15 @@ class ClearedTrigger final : public Trigger<>, public AlarmControlPanelListener 
   }
 };
 
-class ChimeTrigger final : public Trigger<>, public AlarmControlPanelListener {
+/// Trigger on chime event (zone opened while disarmed)
+class ChimeTrigger final : public Trigger<>, public AlarmControlPanelEventListener {
  public:
   explicit ChimeTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
   void on_chime() override { this->trigger(); }
 };
 
-class ReadyTrigger final : public Trigger<>, public AlarmControlPanelListener {
+/// Trigger on ready state change
+class ReadyTrigger final : public Trigger<>, public AlarmControlPanelEventListener {
  public:
   explicit ReadyTrigger(AlarmControlPanel *alarm_control_panel) { alarm_control_panel->add_listener(this); }
   void on_ready() override { this->trigger(); }

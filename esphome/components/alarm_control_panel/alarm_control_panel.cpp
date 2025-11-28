@@ -36,7 +36,7 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
              LOG_STR_ARG(alarm_control_panel_state_to_string(prev_state)));
     this->current_state_ = state;
 
-    for (auto *listener : this->listeners_) {
+    for (auto *listener : this->state_listeners_) {
       listener->on_state(state, prev_state);
     }
 
@@ -52,12 +52,12 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
 }
 
 void AlarmControlPanel::notify_chime() {
-  for (auto *listener : this->listeners_)
+  for (auto *listener : this->event_listeners_)
     listener->on_chime();
 }
 
 void AlarmControlPanel::notify_ready() {
-  for (auto *listener : this->listeners_)
+  for (auto *listener : this->event_listeners_)
     listener->on_ready();
 }
 

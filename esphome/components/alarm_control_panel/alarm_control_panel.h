@@ -14,16 +14,21 @@
 namespace esphome {
 namespace alarm_control_panel {
 
-/// Listener interface for alarm control panel events.
-/// Implement this interface and register with add_listener() to receive notifications.
-class AlarmControlPanelListener {
+/// Listener interface for alarm control panel state changes.
+class AlarmControlPanelStateListener {
  public:
-  virtual ~AlarmControlPanelListener() = default;
-  /// Called when state changes. Check new_state to filter specific states.
-  virtual void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) {}
+  virtual ~AlarmControlPanelStateListener() = default;
+  /// Called when state changes. Check new_state/prev_state to filter specific states.
+  virtual void on_state(AlarmControlPanelState new_state, AlarmControlPanelState prev_state) = 0;
+};
+
+/// Listener interface for alarm events (chime, ready, etc).
+class AlarmControlPanelEventListener {
+ public:
+  virtual ~AlarmControlPanelEventListener() = default;
   /// Called when a chime zone opens while disarmed.
   virtual void on_chime() {}
-  /// Called when ready state changes.
+  /// Called when zones ready state changes.
   virtual void on_ready() {}
 };
 
@@ -50,11 +55,17 @@ class AlarmControlPanel : public EntityBase {
    */
   void publish_state(AlarmControlPanelState state);
 
-  /** Register a listener for alarm control panel events.
+  /** Register a listener for state changes.
    *
    * @param listener The listener to add (must remain valid for lifetime of panel)
    */
-  void add_listener(AlarmControlPanelListener *listener) { this->listeners_.push_back(listener); }
+  void add_listener(AlarmControlPanelStateListener *listener) { this->state_listeners_.push_back(listener); }
+
+  /** Register a listener for alarm events (chime/ready/etc).
+   *
+   * @param listener The listener to add (must remain valid for lifetime of panel)
+   */
+  void add_listener(AlarmControlPanelEventListener *listener) { this->event_listeners_.push_back(listener); }
 
   /** Notify listeners of a chime event (zone opened while disarmed).
    */
@@ -135,8 +146,10 @@ class AlarmControlPanel : public EntityBase {
   uint32_t last_update_;
   // the call control function
   virtual void control(const AlarmControlPanelCall &call) = 0;
-  // registered listeners
-  std::vector<AlarmControlPanelListener *> listeners_;
+  // registered state listeners
+  std::vector<AlarmControlPanelStateListener *> state_listeners_;
+  // registered event listeners (chime/ready/etc)
+  std::vector<AlarmControlPanelEventListener *> event_listeners_;
 };
 
 }  // namespace alarm_control_panel

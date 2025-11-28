@@ -12,7 +12,7 @@ namespace esphome {
 namespace mqtt {
 
 class MQTTAlarmControlPanelComponent final : public mqtt::MQTTComponent,
-                                             public alarm_control_panel::AlarmControlPanelListener {
+                                             public alarm_control_panel::AlarmControlPanelStateListener {
  public:
   explicit MQTTAlarmControlPanelComponent(alarm_control_panel::AlarmControlPanel *alarm_control_panel);
 
@@ -26,7 +26,7 @@ class MQTTAlarmControlPanelComponent final : public mqtt::MQTTComponent,
 
   void dump_config() override;
 
-  // AlarmControlPanelListener interface
+  // AlarmControlPanelStateListener interface
   void on_state(alarm_control_panel::AlarmControlPanelState new_state,
                 alarm_control_panel::AlarmControlPanelState prev_state) override {
     this->publish_state();
