@@ -39,7 +39,7 @@ namespace esphome::logger {
 /** Interface for receiving log messages without std::function overhead.
  *
  * Components can implement this interface instead of using lambdas with std::function
- * to avoid the ~600 bytes per-type cost of std::function type erasure machinery.
+ * to reduce flash usage from std::function type erasure machinery.
  *
  * Usage:
  *   class MyComponent : public Component, public LogListener {
