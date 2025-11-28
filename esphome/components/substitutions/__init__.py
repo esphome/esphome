@@ -171,18 +171,20 @@ def _expand_substitutions(
 
 
 def push_context(config_node: Any, parent_context: ContextVars) -> ContextVars:
-    """Returns a new ContextVars with vars pushed on top.
-    Resolves any substitutions in vars using the existing context_vars.
-    vars is modified in-place to contain the resolved values and
-    sorted in dependency order if not already sorted.
+    """Returns the context_vars this config node must be evaluated with.
+    If any var definition contains substitutions itself, those are resolved first using
+    the values from parent_context.
     """
     if not isinstance(config_node, ConfigContext):
+        # This node does not define any vars itself, so just return parent context
         return parent_context
     vars = config_node.vars
     unresolved_vars = vars.copy()
     vars.clear()
     context_vars = parent_context.new_child(vars)
-    # below loops iterate only once if vars are already sorted in dependency order
+    # below loops iterate exactly once if vars are already sorted in dependency order, i.e.,
+    # no var depends on another var defined later. If there are dependency cycles or
+    # unresolved vars, multiple passes are done until no progress is made.
     while unresolved_vars:
         new_unresolved_vars = {}
         for k, value in unresolved_vars.items():
@@ -200,12 +202,17 @@ def push_context(config_node: Any, parent_context: ContextVars) -> ContextVars:
 
 
 def substitute(
-    item: Any, path: list[int | str], context_vars: ContextVars, strict_undefined: bool
+    item: Any,
+    path: list[int | str],
+    parent_context: ContextVars,
+    strict_undefined: bool,
 ) -> Any | None:
+    """Applies substitutions in-place to the given item.
+    If a substitution was made to `item` itself, the new value is returned.
+    Returns None if no substitution was made to `item` itself."""
     if isinstance(item, ESPLiteralValue):
         return None  # do not substitute inside literal blocks
-    context_vars = push_context(item, context_vars)
-    result = None
+    context_vars = push_context(item, parent_context)
     if isinstance(item, list):
         for i, it in enumerate(item):
             sub = substitute(it, path + [i], context_vars, strict_undefined)
@@ -230,13 +237,13 @@ def substitute(
     elif isinstance(item, str):
         sub = _expand_substitutions(item, path, context_vars, strict_undefined)
         if sub != item:
-            result = sub
+            return sub
     elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
         sub = _expand_substitutions(item.value, path, context_vars, strict_undefined)
         if sub != item:
             item.value = sub
 
-    return result
+    return None
 
 
 def do_substitution_pass(
