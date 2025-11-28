@@ -22,22 +22,18 @@ void GreeClimate::set_model(Model model) {
 #ifdef USE_SWITCH
 void GreeClimate::set_turbo_switch(switch_::Switch *sw) {
   this->turbo_switch_ = sw;
-  this->turbo_switch_->publish_state(this->turbo_mode_);
 }
 
 void GreeClimate::set_light_switch(switch_::Switch *sw) {
   this->light_switch_ = sw;
-  this->light_switch_->publish_state(this->light_mode_);
 }
 
 void GreeClimate::set_health_switch(switch_::Switch *sw) {
   this->health_switch_ = sw;
-  this->health_switch_->publish_state(this->health_mode_);
 }
 
 void GreeClimate::set_xfan_switch(switch_::Switch *sw) {
   this->xfan_switch_ = sw;
-  this->xfan_switch_->publish_state(this->xfan_mode_);
 }
 #endif
 
