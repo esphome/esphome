@@ -3,11 +3,7 @@ import logging
 from pathlib import Path
 
 from esphome import git, yaml_util
-from esphome.components.substitutions import (
-    ContextVars,
-    push_context,
-    substitute,
-)
+from esphome.components.substitutions import ContextVars, push_context, substitute
 from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
@@ -58,9 +54,9 @@ def valid_package_contents(package_config: dict):
             if v is None:
                 continue  # e.g. web_server:
             if isinstance(v, str) and has_jinja(v):
-                # e.g: remote package shorthand:
-                # package_name: github://esphome/repo/file.yaml@${ branch }, or:
-                # switch: ${ expression that evals to a switch }
+                # e.g: switch: ${ expression that evals to a switch }, or:
+                # remote package shorthand:
+                # package_name: github://esphome/repo/file.yaml@${ branch }
                 continue
 
             raise cv.Invalid("Invalid component content in package definition")

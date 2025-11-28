@@ -3,7 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from esphome.yaml_util import add_context
 import pytest
 
 from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass, merge_packages
@@ -36,6 +35,7 @@ from esphome.const import (
     CONF_WIFI,
 )
 from esphome.util import OrderedDict
+from esphome.yaml_util import add_context
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
