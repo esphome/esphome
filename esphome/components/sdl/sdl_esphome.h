@@ -56,6 +56,7 @@ class Sdl : public display::Display {
   }
 
   void register_encoder(SdlEncoder *encoder) { this->encoders_.push_back(encoder); }
+  void set_has_touchscreen(bool has_touchscreen) { this->has_touchscreen_ = has_touchscreen; }
 
   int mouse_x{};
   int mouse_y{};
@@ -80,6 +81,7 @@ class Sdl : public display::Display {
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
   std::map<uint8_t, CallbackManager<void(bool)>> mouse_button_callbacks_{};
   std::vector<SdlEncoder *> encoders_{};
+  bool has_touchscreen_{false};
 };
 }  // namespace sdl
 }  // namespace esphome

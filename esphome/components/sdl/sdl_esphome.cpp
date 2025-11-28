@@ -15,6 +15,11 @@ void Sdl::setup() {
   this->texture_ =
       SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
   SDL_SetTextureBlendMode(this->texture_, SDL_BLENDMODE_BLEND);
+
+  // Hide cursor if no touchscreen is configured (set during code generation)
+  if (!this->has_touchscreen_) {
+    SDL_ShowCursor(SDL_DISABLE);
+  }
 }
 void Sdl::update() {
   this->do_update_();
