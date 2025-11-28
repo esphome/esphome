@@ -36,6 +36,28 @@ struct device;
 
 namespace esphome::logger {
 
+/** Interface for receiving log messages without std::function overhead.
+ *
+ * Components can implement this interface instead of using lambdas with std::function
+ * to reduce flash usage from std::function type erasure machinery.
+ *
+ * Usage:
+ *   class MyComponent : public Component, public LogListener {
+ *    public:
+ *     void setup() override {
+ *       if (logger::global_logger != nullptr)
+ *         logger::global_logger->add_log_listener(this);
+ *     }
+ *     void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
+ *       // Handle log message
+ *     }
+ *   };
+ */
+class LogListener {
+ public:
+  virtual void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) = 0;
+};
+
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 // Comparison function for const char* keys in log_levels_ map
 struct CStrCompare {
@@ -168,8 +190,8 @@ class Logger : public Component {
 
   inline uint8_t level_for(const char *tag);
 
-  /// Register a callback that will be called for every log message sent
-  void add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback);
+  /// Register a log listener to receive log messages
+  void add_log_listener(LogListener *listener) { this->log_listeners_.push_back(listener); }
 
   // add a listener for log level changes
   void add_listener(std::function<void(uint8_t)> &&callback) { this->level_callback_.add(std::move(callback)); }
@@ -240,7 +262,7 @@ class Logger : public Component {
     }
   }
 
-  // Helper to format and send a log message to both console and callbacks
+  // Helper to format and send a log message to both console and listeners
   inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
                                                   va_list args) {
     // Format to tx_buffer and prepare for output
@@ -248,8 +270,9 @@ class Logger : public Component {
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, this->tx_buffer_, &this->tx_buffer_at_,
                                                 this->tx_buffer_size_);
 
-    // Callbacks get message WITHOUT newline (for API/MQTT/syslog)
-    this->log_callback_.call(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+    // Listeners get message WITHOUT newline (for API/MQTT/syslog)
+    for (auto *listener : this->log_listeners_)
+      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
 
     // Console gets message WITH newline (if platform needs it)
     this->write_tx_buffer_to_console_();
@@ -301,7 +324,7 @@ class Logger : public Component {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif
-  CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
+  std::vector<LogListener *> log_listeners_;  // Log message listeners (API, MQTT, syslog, etc.)
   CallbackManager<void(uint8_t)> level_callback_{};
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
@@ -496,15 +519,15 @@ class Logger : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *> {
+class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>, public LogListener {
  public:
-  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) {
-    this->level_ = level;
-    parent->add_on_log_callback([this](uint8_t level, const char *tag, const char *message, size_t message_len) {
-      if (level <= this->level_) {
-        this->trigger(level, tag, message);
-      }
-    });
+  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) { parent->add_log_listener(this); }
+
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
+    (void) message_len;
+    if (level <= this->level_) {
+      this->trigger(level, tag, message);
+    }
   }
 
  protected:

@@ -140,8 +140,9 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   uint16_t msg_length =
       this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
 
-  // Callbacks get message first (before console write)
-  this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start, msg_length);
+  // Listeners get message first (before console write)
+  for (auto *listener : this->log_listeners_)
+    listener->on_log(level, tag, this->tx_buffer_ + msg_start, msg_length);
 
   // Write to console starting at the msg_start
   this->write_tx_buffer_to_console_(msg_start, &msg_length);
@@ -203,7 +204,8 @@ void Logger::process_messages_() {
       this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
       this->tx_buffer_[this->tx_buffer_at_] = '\0';
       size_t msg_len = this->tx_buffer_at_;  // We already know the length from tx_buffer_at_
-      this->log_callback_.call(message->level, message->tag, this->tx_buffer_, msg_len);
+      for (auto *listener : this->log_listeners_)
+        listener->on_log(message->level, message->tag, this->tx_buffer_, msg_len);
       // At this point all the data we need from message has been transferred to the tx_buffer
       // so we can release the message to allow other tasks to use it as soon as possible.
       this->log_buffer_->release_message_main_loop(received_token);
@@ -231,9 +233,6 @@ void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_level
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
-void Logger::add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback) {
-  this->log_callback_.add(std::move(callback));
-}
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
