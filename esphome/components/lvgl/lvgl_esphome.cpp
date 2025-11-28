@@ -158,10 +158,12 @@ void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t ti
   this->current_page_ = index;
   lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
 
+  // Add all top level objects to this page's group
   for (lv_obj_t *obj : this->top_level_objs_) {
     lv_group_add_obj(this->pages_[this->current_page_]->def_group, obj);
   }
 
+  // Set all inputs that didn't have a group definition to this page's group
   for (lv_indev_t *indev : this->inputs_) {
     lv_indev_set_group(indev, this->pages_[this->current_page_]->def_group);
   }

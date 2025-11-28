@@ -275,6 +275,8 @@ async def to_code(configs):
         await cg.register_component(lv_component, config)
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
+        # Build the default group for this lvgl instance. This CONF_DEFAULT_GROUP is not
+        # intended to be used in configurations
         default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
         cg.add(lv_component.set_def_group(default_group))
         cg.add(lv_expr.group_set_default(default_group))
@@ -291,6 +293,7 @@ async def to_code(configs):
             await add_widgets(lv_scr_act, config)
             await add_top_layer(lv_component, config)
             await msgboxes_to_code(lv_component, config)
+            # add_pages will change the lvgl default group, be careful adding widgets after this call
             await add_pages(lv_component, config)
             await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.

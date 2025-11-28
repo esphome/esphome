@@ -170,6 +170,9 @@ async def add_pages(lv_component, config):
     for pconf in config.get(CONF_PAGES, ()):
         id = pconf[CONF_ID]
         skip = pconf[CONF_SKIP]
+        # Create a group specific to this page and set it as the lvgl default.
+        # This CONF_DEFAULT_GROUP is not intended to be used in configurations
+        # Widgets that are created without a specific group will get added to this group
         default_group = cg.Pvariable(pconf[CONF_DEFAULT_GROUP], lv_expr.group_create())
         lv.group_set_default(default_group)
         var = cg.new_Pvariable(id, skip, default_group)
