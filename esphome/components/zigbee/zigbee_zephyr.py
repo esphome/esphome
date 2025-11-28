@@ -10,6 +10,7 @@ from esphome.cpp_generator import (
     MockObj,
     VariableDeclarationExpression,
 )
+from esphome.types import ConfigType
 
 from .const_zephyr import (
     CONF_BASIC_ATTRIB_LIST_EXT,
@@ -39,7 +40,7 @@ from .const_zephyr import (
 )
 
 
-async def zephyr_to_code(config):
+async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
@@ -65,7 +66,7 @@ async def zephyr_to_code(config):
     CORE.add_job(_ctx_to_code, config)
 
 
-async def _attr_to_code(config):
+async def _attr_to_code(config: ConfigType) -> None:
     basic_attrs_ext = zigbee_new_variable(config[CONF_BASIC_ATTRS_EXT])
     zigbee_new_attr_list(
         config[CONF_BASIC_ATTRIB_LIST_EXT],
@@ -145,16 +146,16 @@ def zigbee_set_string(target, value: str):
 
 def zigbee_new_attr_list(id_: ID, *args):
     assert isinstance(id_, ID)
-    list = []
+    attr_list = []
     for arg in args:
         if str(zb_char_t_ptr) == str(arg.type) or (
             str(arg) == "zb_zcl_time_attrs_t_id"
         ):
-            list.append(f"{arg}")
+            attr_list.append(f"{arg}")
         else:
-            list.append(f"&{arg}")
+            attr_list.append(f"&{arg}")
 
-    obj = cg.RawExpression(f"{id_.type}({id_}, {', '.join(list)})")
+    obj = cg.RawExpression(f"{id_.type}({id_}, {', '.join(attr_list)})")
     CORE.add_global(obj)
     CORE.register_variable(id_, obj)
     return id_
@@ -198,7 +199,7 @@ class ZigbeeClusterDesc(MockObj):
         return f"ZB_ZCL_CLUSTER_DESC({self.name}, {attr_count}, {attr_desc_list}, {role}, ZB_ZCL_MANUF_CODE_INVALID)"
 
 
-def zigbee_new_cluster_list(config, attr_list):
+def zigbee_new_cluster_list(config: ConfigType, attr_list):
     rhs = [
         ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_BASIC, config[CONF_BASIC_ATTRIB_LIST_EXT]),
         ZigbeeClusterDesc(
@@ -223,7 +224,7 @@ def zigbee_new_cluster_list(config, attr_list):
 
 
 def zigbee_register_ep(
-    config, cluster_id, report_attr_count: int, clusters, empty_slot: int
+    config: ConfigType, cluster_id, report_attr_count: int, clusters, empty_slot: int
 ):
     id_ = config[CONF_EP]
     in_cluster_num = 0
@@ -242,8 +243,8 @@ def zigbee_register_ep(
     CORE.add_global(obj)
 
 
-async def _ctx_to_code(config):
-    print("_ctx_to_code")
+async def _ctx_to_code(config: ConfigType) -> None:
+    cg.add_define("ZIGBEE_ENDPOINTS_COUNT", len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]))
     cg.add_global(
         cg.RawExpression(
             f"ZBOSS_DECLARE_DEVICE_CTX_EP_VA(zb_device_ctx, &{', &'.join(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
@@ -252,11 +253,11 @@ async def _ctx_to_code(config):
     cg.add(cg.RawExpression("ZB_AF_REGISTER_DEVICE_CTX(&zb_device_ctx)"))
 
 
-async def zephyr_setup_binary_sensor(entity, config):
+async def zephyr_setup_binary_sensor(entity, config: ConfigType) -> None:
     CORE.add_job(_add_binary_sensor, entity, config)
 
 
-async def _add_binary_sensor(entity, config):
+async def _add_binary_sensor(entity, config: ConfigType) -> None:
     empty_slot = next(
         (i for i, v in enumerate(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]) if v == ""), None
     )

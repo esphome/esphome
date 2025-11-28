@@ -1,7 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52)
-#include <map>
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 extern "C" {
@@ -66,7 +65,8 @@ class ZigbeeComponent : public Component {
  public:
   void setup() override;
   void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
-    this->callbacks_[endpoint] = std::move(cb);
+    // endpoint are enumerated from 1
+    this->callbacks_[endpoint - 1] = std::move(cb);
   }
   void add_join_callback(std::function<void()> &&cb) { this->join_cb_ = std::move(cb); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
@@ -83,7 +83,7 @@ class ZigbeeComponent : public Component {
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   void erase_flash_(int area);
 #endif
-  std::map<zb_uint8_t, std::function<void(zb_bufid_t bufid)>> callbacks_;
+  StaticVector<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_;
   std::function<void()> join_cb_;
   Trigger<> *join_trigger_{new Trigger<>()};
   bool need_flush_{false};

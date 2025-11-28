@@ -1,6 +1,6 @@
 from typing import Any
 
-from esphome import automation
+from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
 from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
@@ -8,6 +8,7 @@ from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from .const_zephyr import (
     CONF_BASIC_ATTRIB_LIST_EXT,
@@ -46,7 +47,7 @@ from .const_zephyr import (
 CODEOWNERS = ["@tomaszduda23"]
 
 
-def zigbee_set_core_data(config):
+def zigbee_set_core_data(config: ConfigType) -> ConfigType:
     if zephyr_data()[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(
             [Section("empty_after_zboss_offset", 0xF4000, 0xC000, "flash_primary")]
@@ -133,7 +134,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_number_of_ep(config):
+def validate_number_of_ep(config: ConfigType) -> None:
     if KEY_ZIGBEE not in CORE.data:
         raise cv.Invalid("At least one zigbee device need to be included")
     count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
@@ -146,7 +147,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ZIGBEE")
     if CORE.using_zephyr:
         from .zigbee_zephyr import zephyr_to_code
@@ -154,7 +155,7 @@ async def to_code(config):
         await zephyr_to_code(config)
 
 
-async def setup_binary_sensor(entity, config):
+async def setup_binary_sensor(entity, config: ConfigType) -> None:
     if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
@@ -163,7 +164,7 @@ async def setup_binary_sensor(entity, config):
         await zephyr_setup_binary_sensor(entity, config)
 
 
-def validate_binary_sensor(config):
+def validate_binary_sensor(config: ConfigType) -> ConfigType:
     if config.get(CONF_INTERNAL):
         return config
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
@@ -176,5 +177,10 @@ FactoryResetAction = zigbee_ns.class_("FactoryResetAction", automation.Action)
 
 
 @automation.register_action("zigbee.factory_reset", FactoryResetAction, cv.Schema({}))
-async def zigbee_factory_reset_to_code(config, action_id, template_arg, args):
+async def zigbee_factory_reset_to_code(
+    config: ConfigType,
+    action_id: core.ID,
+    template_arg: cg.TemplateArguments,
+    args: list[tuple],
+):
     return cg.new_Pvariable(action_id, template_arg)

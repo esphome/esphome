@@ -297,6 +297,7 @@
 #define USE_SOFTDEVICE_VERSION 1
 #define USE_ZIGBEE
 #define USE_ZIGBEE_WIPE_ON_BOOT
+#define ZIGBEE_ENDPOINTS_COUNT 8
 #endif
 
 // Disabled feature flags
