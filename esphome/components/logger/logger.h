@@ -524,6 +524,7 @@ class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>
   explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) { parent->add_log_listener(this); }
 
   void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
+    (void) message_len;
     if (level <= this->level_) {
       this->trigger(level, tag, message);
     }
