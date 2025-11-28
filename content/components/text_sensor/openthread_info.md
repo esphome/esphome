@@ -40,28 +40,28 @@ text_sensor:
 
 - **ip_address** (*Optional*): Expose the off-mesh routable IPv6 address of the Thread device as a text sensor.
   This is the address used for communication outside the Thread mesh network.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **channel** (*Optional*): Expose the Thread network channel (11-26) as a text sensor.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **role** (*Optional*): Expose the current device role in the Thread network (Leader, Router, Child, Detached,
-  etc.) as a text sensor. All options from [Text Sensor](#config-text_sensor).
+  etc.) as a text sensor. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **rloc16** (*Optional*): Expose the Router Locator (RLOC16) address as a text sensor. This is a 16-bit address
-  used for routing within the Thread network. All options from [Text Sensor](#config-text_sensor).
+  used for routing within the Thread network. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **ext_addr** (*Optional*): Expose the IEEE 802.15.4 Extended MAC address as a text sensor.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **eui64** (*Optional*): Expose the EUI-64 address as a text sensor. This is the unique 64-bit identifier for
-  the device. All options from [Text Sensor](#config-text_sensor).
+  the device. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **network_name** (*Optional*): Expose the Thread network name as a text sensor.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **network_key** (*Optional*): Expose the Thread network key as a text sensor.
-  All options from [Text Sensor](#config-text_sensor).
+  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
   > [!WARNING]
   > The `network_key` sensor exposes sensitive security credentials that could allow unauthorized access to your
@@ -69,10 +69,10 @@ text_sensor:
   > implications.
 
 - **pan_id** (*Optional*): Expose the Personal Area Network ID (PAN ID) as a text sensor. This is a 16-bit
-  identifier for the Thread network. All options from [Text Sensor](#config-text_sensor).
+  identifier for the Thread network. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 - **ext_pan_id** (*Optional*): Expose the Extended PAN ID as a text sensor. This is a 64-bit extended identifier
-  for the Thread network. All options from [Text Sensor](#config-text_sensor).
+  for the Thread network. All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## See Also
 
