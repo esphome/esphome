@@ -1,6 +1,7 @@
 import contextlib
 import logging
 from pathlib import Path
+from typing import Any, Callable
 
 from esphome import git, yaml_util
 from esphome.components.substitutions import ContextVars, push_context, substitute
@@ -237,7 +238,10 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     return {"packages": packages}
 
 
-def _walk_packages(config: dict, callback: callable, context=None) -> dict:
+def _walk_packages(
+    config: dict, callback: Callable[[dict, Any], dict], context: Any = None
+) -> dict:
+    """Walks the packages structure, calling `callback` on each package definition found."""
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
@@ -248,7 +252,8 @@ def _walk_packages(config: dict, callback: callable, context=None) -> dict:
                     try:
                         packages[package_name] = callback(package_config, context)
                     except cv.Invalid:
-                        # This except block can be removed once the single-package
+                        # This except block can be removed once the single-package inclusion, i.e.:
+                        # packages: !include package.yaml
                         # deprecation period is over.
                         config[CONF_PACKAGES] = [packages]
                         return _walk_packages(
@@ -266,33 +271,57 @@ def _walk_packages(config: dict, callback: callable, context=None) -> dict:
     return config
 
 
-def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
+def _substitute_remote_package_definition(
+    package_config: dict, context_vars: ContextVars
+) -> dict:
+    """If the package definition is a remote package, attempt to substitute any variables in it, since
+    these could affect the URL, file paths, refs, etc. This does not substitute inside the package
+    contents itself, only the remote package definition fields because the remote package has not
+    been even been downloaded yet."""
+    if isinstance(package_config, dict) and CONF_URL in package_config:
+        substitute(package_config, [], context_vars, False)
+    elif isinstance(package_config, str):
+        # If a string is found, it may be a potential github:// shorthand
+        # try to substitute it and then validate it actually is a remote package definition
+        result = substitute(package_config, [], context_vars, False) or package_config
+        if isinstance(result, str):
+            with contextlib.suppress(ValueError):
+                package_config = validate_source_shorthand(result)
+    return package_config
+
+
+def do_packages_pass(
+    config: dict,
+    skip_update: bool = False,
+    command_line_substitutions: dict[str, Any] = {},
+) -> dict:
+    """Processes, downloads and validates all packages in the config.
+    Also extracts and merges all substitutions found in packages into the main config substitutions.
+    """
     if CONF_PACKAGES not in config:
         return config
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
 
     def process_package_callback(package_config, context_vars):
-        if isinstance(package_config, dict) and CONF_URL in package_config:
-            substitute(package_config, [], context_vars, False)
-        elif isinstance(package_config, str):
-            result = (
-                substitute(package_config, [], context_vars, False) or package_config
-            )
-            with contextlib.suppress(ValueError):
-                package_config = validate_source_shorthand(result)
+        """This will be called for each package found in the config."""
+        package_config = _substitute_remote_package_definition(
+            package_config, context_vars
+        )
 
-        # -------
         nonlocal substitutions
         package_config = PACKAGE_SCHEMA(package_config)
         if isinstance(package_config, str):
             return package_config  # Jinja string, skip processing
         if CONF_URL in package_config:
+            # This is a remote package definition. Replace it with the actual package contents:
             package_config = _process_remote_package(package_config, skip_update)
+        # Extract substitutions from the package and merge them into the main substitutions:
         substitutions = merge_config(
             package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions
         )
 
         if CONF_PACKAGES not in package_config:
+            # This package has no nested packages, so we're done.
             return package_config
         context_vars = push_context(package_config, context_vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
@@ -307,6 +336,7 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
 
 
 def merge_packages(config: dict):
+    """Merges all packages into the main config and removes the `packages:` key."""
     if CONF_PACKAGES not in config:
         return config
 
