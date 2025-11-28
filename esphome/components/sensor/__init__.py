@@ -270,7 +270,7 @@ ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
 ThrottleWithPriorityFilter = sensor_ns.class_(
     "ThrottleWithPriorityFilter", ValueListFilter
 )
-TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
+TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", Filter, cg.Component)
 TimeoutFilterConfigured = sensor_ns.class_(
     "TimeoutFilterConfigured", Filter, cg.Component
 )
@@ -684,18 +684,17 @@ TIMEOUT_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
+@FILTER_REGISTRY.register("timeout", Filter, TIMEOUT_SCHEMA)
 async def timeout_filter_to_code(config, filter_id):
     if config[CONF_VALUE] == "last":
-        # Use TimeoutFilter for "last" mode (smaller, more common - LD2450, LD2412, etc.)
-        var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
+        # Use TimeoutFilterLast for "last" mode (smaller, more common - LD2450, LD2412, etc.)
+        rhs = TimeoutFilterLast.new(config[CONF_TIMEOUT])
+        var = cg.Pvariable(filter_id, rhs, TimeoutFilterLast)
     else:
         # Use TimeoutFilterConfigured for configured value mode
-        # Change the type to TimeoutFilterConfigured (similar to stateless lambda pattern)
-        filter_id = filter_id.copy()
-        filter_id.type = TimeoutFilterConfigured
         template_ = await cg.templatable(config[CONF_VALUE], [], float)
-        var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
+        rhs = TimeoutFilterConfigured.new(config[CONF_TIMEOUT], template_)
+        var = cg.Pvariable(filter_id, rhs, TimeoutFilterConfigured)
     await cg.register_component(var, {})
     return var
 
