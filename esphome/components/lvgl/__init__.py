@@ -108,7 +108,7 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
-    definitions = [as_macro(m, v) for m, v in df.lv_defines.items()]
+    definitions = [as_macro(m, v) for m, v in df.get_data(df.KEY_LV_DEFINES).items()]
     definitions.sort()
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
@@ -140,11 +140,11 @@ def multi_conf_validate(configs: list[dict]):
                 )
 
 
-def final_validation(configs):
-    if len(configs) != 1:
-        multi_conf_validate(configs)
+def final_validation(config_list):
+    if len(config_list) != 1:
+        multi_conf_validate(config_list)
     global_config = full_config.get()
-    for config in configs:
+    for config in config_list:
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
         for display_id in config[df.CONF_DISPLAYS]:
@@ -190,6 +190,14 @@ def final_validation(configs):
                 raise cv.Invalid(
                     f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
+        # Do per-widget type final validation for update actions
+        for widget_type, update_configs in df.get_data(df.KEY_UPDATED_WIDGETS).items():
+            for conf in update_configs:
+                for id_conf in conf.get(CONF_ID, ()):
+                    name = id_conf[CONF_ID]
+                    path = global_config.get_path_for_id(name)
+                    widget_conf = global_config.get_config_for_path(path[:-1])
+                    widget_type.final_validate(name, conf, widget_conf, path[1:])
 
 
 async def to_code(configs):
@@ -276,6 +284,7 @@ async def to_code(configs):
             config[df.CONF_FULL_REFRESH],
             config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
+            config[df.CONF_UPDATE_WHEN_DISPLAY_IDLE],
         )
         await cg.register_component(lv_component, config)
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
@@ -373,6 +382,9 @@ LVGL_SCHEMA = cv.All(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+                cv.Optional(
+                    df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False
+                ): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(

@@ -15,6 +15,9 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 #include <map>
 #include <vector>
@@ -27,7 +30,13 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component, public Controller {
+class APIServer : public Component,
+                  public Controller
+#ifdef USE_LOGGER
+    ,
+                  public logger::LogListener
+#endif
+{
  public:
   APIServer();
   void setup() override;
@@ -37,6 +46,9 @@ class APIServer : public Component, public Controller {
   void dump_config() override;
   void on_shutdown() override;
   bool teardown() override;
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+#endif
 #ifdef USE_API_PASSWORD
   bool check_password(const uint8_t *password_data, size_t password_len) const;
   void set_password(const std::string &password);
@@ -54,8 +66,8 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
   bool clear_noise_psk(bool make_active = true);
-  void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(psk); }
-  std::shared_ptr<APINoiseContext> get_noise_ctx() { return noise_ctx_; }
+  void set_noise_psk(psk_t psk) { this->noise_ctx_.set_psk(psk); }
+  APINoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
 
   void handle_disconnect(APIConnection *conn);
@@ -150,7 +162,7 @@ class APIServer : public Component, public Controller {
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
 
-  bool is_connected() const;
+  bool is_connected(bool state_subscription_only = false) const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
@@ -228,7 +240,7 @@ class APIServer : public Component, public Controller {
   // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE
-  std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
+  APINoiseContext noise_ctx_;
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
 };
@@ -236,8 +248,11 @@ class APIServer : public Component, public Controller {
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
+  TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
-  bool check(const Ts &...x) override { return global_api_server->is_connected(); }
+  bool check(const Ts &...x) override {
+    return global_api_server->is_connected(this->state_subscription_only_.value(x...));
+  }
 };
 
 }  // namespace esphome::api
