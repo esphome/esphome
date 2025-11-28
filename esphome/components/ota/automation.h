@@ -14,16 +14,20 @@ class OTAStateChangeTrigger final : public Trigger<OTAState>, public OTAStateLis
   void on_ota_state(OTAState state, float progress, uint8_t error) override { this->trigger(state); }
 };
 
-class OTAStartTrigger final : public Trigger<>, public OTAStateListener {
+template<OTAState State> class OTAStateTrigger final : public Trigger<>, public OTAStateListener {
  public:
-  explicit OTAStartTrigger(OTAComponent *parent) { parent->add_state_listener(this); }
+  explicit OTAStateTrigger(OTAComponent *parent) { parent->add_state_listener(this); }
 
   void on_ota_state(OTAState state, float progress, uint8_t error) override {
-    if (state == OTA_STARTED) {
+    if (state == State) {
       this->trigger();
     }
   }
 };
+
+using OTAStartTrigger = OTAStateTrigger<OTA_STARTED>;
+using OTAEndTrigger = OTAStateTrigger<OTA_COMPLETED>;
+using OTAAbortTrigger = OTAStateTrigger<OTA_ABORT>;
 
 class OTAProgressTrigger final : public Trigger<float>, public OTAStateListener {
  public:
@@ -32,28 +36,6 @@ class OTAProgressTrigger final : public Trigger<float>, public OTAStateListener 
   void on_ota_state(OTAState state, float progress, uint8_t error) override {
     if (state == OTA_IN_PROGRESS) {
       this->trigger(progress);
-    }
-  }
-};
-
-class OTAEndTrigger final : public Trigger<>, public OTAStateListener {
- public:
-  explicit OTAEndTrigger(OTAComponent *parent) { parent->add_state_listener(this); }
-
-  void on_ota_state(OTAState state, float progress, uint8_t error) override {
-    if (state == OTA_COMPLETED) {
-      this->trigger();
-    }
-  }
-};
-
-class OTAAbortTrigger final : public Trigger<>, public OTAStateListener {
- public:
-  explicit OTAAbortTrigger(OTAComponent *parent) { parent->add_state_listener(this); }
-
-  void on_ota_state(OTAState state, float progress, uint8_t error) override {
-    if (state == OTA_ABORT) {
-      this->trigger();
     }
   }
 };
