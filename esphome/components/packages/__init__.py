@@ -328,7 +328,8 @@ def do_packages_pass(
 
         return _walk_packages(package_config, process_package_callback, context_vars)
 
-    _walk_packages(config, process_package_callback, ContextVars())
+    context_vars = push_context(config[CONF_PACKAGES], ContextVars())
+    _walk_packages(config, process_package_callback, context_vars)
     if substitutions:
         config[CONF_SUBSTITUTIONS] = substitutions
 
