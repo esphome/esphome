@@ -133,10 +133,12 @@ template<typename T, typename... X> class TemplatableValue {
       case VALUE:
         return this->value_;
       case STATIC_STRING:
+        // if constexpr required: code must compile for all T, but STATIC_STRING
+        // can only be set when T is std::string (enforced by constructor constraint)
         if constexpr (std::same_as<T, std::string>) {
-          return std::string(this->static_str_);  // Convert to string only when needed
+          return std::string(this->static_str_);
         }
-        [[fallthrough]];
+        __builtin_unreachable();
       case NONE:
       default:
         return T{};
