@@ -4,7 +4,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
+#ifdef USE_OTA_STATE_LISTENER
 #include <vector>
+#endif
 
 namespace esphome {
 namespace ota {
