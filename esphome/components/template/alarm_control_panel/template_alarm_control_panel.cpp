@@ -133,7 +133,7 @@ void TemplateAlarmControlPanel::loop() {
       if ((!this->sensor_data_[info.store_index].last_chime_state) && (sensor->state)) {
         // Must be disarmed to chime
         if (this->current_state_ == ACP_STATE_DISARMED) {
-          this->chime_callback_.call();
+          this->notify_chime();
         }
       }
       // Record the sensor state change
@@ -182,7 +182,7 @@ void TemplateAlarmControlPanel::loop() {
   // Call the ready state change callback if there was a change
   if (this->sensors_ready_ != sensors_ready) {
     this->sensors_ready_ = sensors_ready;
-    this->ready_callback_.call();
+    this->notify_ready();
   }
 
 #endif
