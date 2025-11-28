@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from esphome import git, yaml_util
+from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -26,6 +27,12 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = CONF_PACKAGES
 
 
+def validate_has_jinja(value):
+    if not isinstance(value, str) or not has_jinja(value):
+        raise cv.Invalid("string does not contain Jinja syntax")
+    return value
+
+
 def valid_package_contents(package_config: dict):
     """Validates that a package_config that will be merged looks as much as possible to a valid config
     to fail early on obvious mistakes."""
@@ -43,6 +50,11 @@ def valid_package_contents(package_config: dict):
                 continue  # e.g. script: [] or logger: {level: debug}
             if v is None:
                 continue  # e.g. web_server:
+            if validate_has_jinja(v):
+                # e.g: remote package shorthand:
+                # package_name: github://esphome/repo/file.yaml@${ branch }
+                continue
+
             raise cv.Invalid("Invalid component content in package definition")
         return package_config
 

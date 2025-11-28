@@ -23,3 +23,8 @@ values_from_repo1_main:
     y: 10
     z: 11
     volume: 990
+  - package_name: default
+    x: 10
+    y: 20
+    z: 5
+    volume: 1000
