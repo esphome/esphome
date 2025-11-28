@@ -1482,7 +1482,8 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "lock", lock::lock_state_to_string(value), value, start_config);
+  char buf[lock::LOCK_STATE_STR_SIZE];
+  set_json_icon_state_value(root, obj, "lock", PSTR_LOCAL(lock::lock_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
