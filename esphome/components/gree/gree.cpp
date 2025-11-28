@@ -132,6 +132,7 @@ void GreeClimate::transmit_state() {
   }
 
   if (this->model_ == GREE_YAN || this->model_ == GREE_YAA || this->model_ == GREE_YAC || this->model_ == GREE_YAC1FB9) {
+    // Mirror the persisted switch states into the feature bitfield for supported models.
     if (this->turbo_mode_) {
       remote_state[2] |= (1 << 4);  // Set bit 4 (TURBO ON)
     } else {
