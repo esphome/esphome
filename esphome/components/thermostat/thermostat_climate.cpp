@@ -654,7 +654,7 @@ void ThermostatClimate::trigger_supplemental_action_() {
 
 void ThermostatClimate::switch_to_humidity_control_action_(HumidificationAction action) {
   // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((action == this->humidification_action_) && this->setup_complete_) {
+  if ((action == this->humidification_action) && this->setup_complete_) {
     // already in target mode
     return;
   }
@@ -683,7 +683,7 @@ void ThermostatClimate::switch_to_humidity_control_action_(HumidificationAction 
     this->prev_humidity_control_trigger_->stop_action();
     this->prev_humidity_control_trigger_ = nullptr;
   }
-  this->humidification_action_ = action;
+  this->humidification_action = action;
   this->prev_humidity_control_trigger_ = trig;
   if (trig != nullptr) {
     trig->trigger();
@@ -1114,7 +1114,7 @@ bool ThermostatClimate::dehumidification_required_() {
   }
   // if we get here, the current humidity is between target + hysteresis and target - hysteresis,
   //  so the action should not change
-  return this->humidification_action_ == THERMOSTAT_HUMIDITY_CONTROL_ACTION_DEHUMIDIFY;
+  return this->humidification_action == THERMOSTAT_HUMIDITY_CONTROL_ACTION_DEHUMIDIFY;
 }
 
 bool ThermostatClimate::humidification_required_() {
@@ -1127,7 +1127,7 @@ bool ThermostatClimate::humidification_required_() {
   }
   // if we get here, the current humidity is between target - hysteresis and target + hysteresis,
   //  so the action should not change
-  return this->humidification_action_ == THERMOSTAT_HUMIDITY_CONTROL_ACTION_HUMIDIFY;
+  return this->humidification_action == THERMOSTAT_HUMIDITY_CONTROL_ACTION_HUMIDIFY;
 }
 
 void ThermostatClimate::dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config) {

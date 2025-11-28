@@ -28,7 +28,7 @@ void BLETextSensor::dump_config() {
                 "  Characteristic UUID: %s\n"
                 "  Descriptor UUID    : %s\n"
                 "  Notifications      : %s",
-                this->parent()->address_str().c_str(), this->service_uuid_.to_string().c_str(),
+                this->parent()->address_str(), this->service_uuid_.to_string().c_str(),
                 this->char_uuid_.to_string().c_str(), this->descr_uuid_.to_string().c_str(), YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
