@@ -242,7 +242,6 @@ enum WifiMinAuthMode : uint8_t {
 struct IDFWiFiEvent;
 #endif
 
-#ifdef USE_WIFI_LISTENERS
 /** Listener interface for WiFi IP state changes.
  *
  * Components can implement this interface to receive IP address updates
@@ -273,7 +272,6 @@ class WiFiConnectStateListener {
  public:
   virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
 };
-#endif  // USE_WIFI_LISTENERS
 
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent : public Component {
