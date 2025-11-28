@@ -8,10 +8,10 @@ from .. import gree_ns
 
 CODEOWNERS = ["@orestismers"]
 
-GreeTurboSwitch = gree_ns.class_("GreeTurboSwitch", switch.Switch)
-GreeLightSwitch = gree_ns.class_("GreeLightSwitch", switch.Switch)
-GreeHealthSwitch = gree_ns.class_("GreeHealthSwitch", switch.Switch)
-GreeXfanSwitch = gree_ns.class_("GreeXfanSwitch", switch.Switch)
+GreeTurboSwitch = gree_ns.class_("GreeTurboSwitch", switch.Switch, cg.Component)
+GreeLightSwitch = gree_ns.class_("GreeLightSwitch", switch.Switch, cg.Component)
+GreeHealthSwitch = gree_ns.class_("GreeHealthSwitch", switch.Switch, cg.Component)
+GreeXfanSwitch = gree_ns.class_("GreeXfanSwitch", switch.Switch, cg.Component)
 
 CONF_TURBO = "turbo"
 CONF_LIGHT = "light"
