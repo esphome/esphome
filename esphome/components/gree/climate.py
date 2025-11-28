@@ -3,11 +3,11 @@ from esphome.components import climate_ir
 import esphome.config_validation as cv
 from esphome.const import CONF_MODEL
 
-from . import gree_ns
-
 CODEOWNERS = ["@orestismers"]
 
 AUTO_LOAD = ["climate_ir"]
+
+gree_ns = cg.esphome_ns.namespace("gree")
 GreeClimate = gree_ns.class_("GreeClimate", climate_ir.ClimateIR)
 
 Model = gree_ns.enum("Model")
