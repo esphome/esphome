@@ -40,6 +40,7 @@ from ..defines import (
 )
 from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import (
+    LV_OPA,
     get_end_value,
     get_start_value,
     lv_angle_degrees,
@@ -49,7 +50,6 @@ from ..lv_validation import (
     lv_image,
     lv_int,
     opacity,
-    opacity_consts,
     pixels,
     pixels_or_percent,
     pixels_or_percent_validator,
@@ -200,7 +200,7 @@ METER_SCHEMA = {cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA)}
 LIGHT_STYLE = LVStyle(
     "lv_meter_light",
     {
-        "bg_opa": "LV_OPA_COVER",
+        "bg_opa": 1.0,
         "bg_color": 0xEEEEEE,
         "line_width": 1,
         "line_color": 0xEEEEEE,
@@ -305,9 +305,7 @@ class MeterType(WidgetType):
                     )
 
                     # Hide the scale line
-                    lv.obj_set_style_arc_opa(
-                        scale_var, opacity_consts.TRANSP, LV_PART.MAIN
-                    )
+                    lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
                     if CONF_MAJOR in ticks:
                         major = ticks[CONF_MAJOR]
                         # Set major tick frequency

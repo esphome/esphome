@@ -2,7 +2,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_BRIGHTNESS, CONF_COLOR, CONF_LED
 
 from ..defines import CONF_MAIN
-from ..lv_validation import lv_brightness, lv_color
+from ..lv_validation import lv_color, lv_percentage
 from ..lvcode import lv
 from ..types import LvType
 from . import Widget, WidgetType
@@ -10,7 +10,7 @@ from . import Widget, WidgetType
 LED_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_COLOR): lv_color,
-        cv.Optional(CONF_BRIGHTNESS): lv_brightness,
+        cv.Optional(CONF_BRIGHTNESS): lv_percentage,
     }
 )
 
@@ -23,7 +23,7 @@ class LedType(WidgetType):
         if (color := config.get(CONF_COLOR)) is not None:
             lv.led_set_color(w.obj, await lv_color.process(color))
         if (brightness := config.get(CONF_BRIGHTNESS)) is not None:
-            lv.led_set_brightness(w.obj, await lv_brightness.process(brightness))
+            lv.led_set_brightness(w.obj, await lv_percentage.process(brightness))
 
 
 led_spec = LedType()

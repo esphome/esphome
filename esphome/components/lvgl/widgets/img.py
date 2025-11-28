@@ -15,7 +15,6 @@ from ..defines import (
     CONF_SCALE,
     CONF_SRC,
     CONF_ZOOM,
-    LvConstant,
 )
 from ..lv_validation import lv_angle, lv_bool, lv_image, scale, size
 from ..types import lv_img_t
@@ -35,9 +34,7 @@ BASE_IMG_SCHEMA = cv.Schema(
         cv.Optional(CONF_OFFSET_X): size,
         cv.Optional(CONF_OFFSET_Y): size,
         cv.Optional(CONF_ANTIALIAS): lv_bool,
-        cv.Optional(CONF_MODE): LvConstant(
-            "LV_IMG_SIZE_MODE_", "VIRTUAL", "REAL"
-        ).one_of,
+        cv.Optional(CONF_MODE): cv.invalid(f"{CONF_MODE} is not supported in LVGL 9.x"),
     }
 )
 
@@ -68,7 +65,7 @@ class ImgType(WidgetType):
         return CONF_IMAGE, CONF_LABEL
 
     async def to_code(self, w: Widget, config):
-        await w.set_property(CONF_SRC, config)
+        await w.set_property(CONF_SRC, await lv_image.process(config.get(CONF_SRC)))
         for prop, validator in BASE_IMG_SCHEMA.schema.items():
             await w.set_property(prop, config, processor=validator)
 

@@ -30,6 +30,7 @@ from .defines import (
     LV_FONTS,
     LValidator,
     LvConstant,
+    StaticCastExpression,
     call_lambda,
     literal,
 )
@@ -40,22 +41,28 @@ from .helpers import (
     lv_fonts_used,
     requires_component,
 )
-from .types import lv_gradient_t
+from .types import lv_gradient_t, lv_opa_t
 
-opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
+LV_OPA = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
 
 @schema_extractor("one_of")
 def opacity_validator(value):
     if value == SCHEMA_EXTRACT:
-        return opacity_consts.choices
-    value = cv.Any(cv.percentage, opacity_consts.one_of)(value)
-    if isinstance(value, float):
-        return int(value * 255)
-    return value
+        return LV_OPA.choices
+    value = cv.Any(cv.percentage, LV_OPA.one_of)(value)
+    if value == str(LV_OPA.COVER):
+        value = 1.0
+    if value == str(LV_OPA.TRANSP):
+        value = 0.0
+    return cv.float_range(0.0, 1.0)(value)
 
 
-opacity = LValidator(opacity_validator, uint32, retmapper=literal)
+opacity = LValidator(
+    opacity_validator,
+    lv_opa_t,
+    retmapper=lambda opa: StaticCastExpression(cg.uint8, opa * 255.0),
+)
 
 COLOR_NAMES = {
     "aliceblue": 0xF0F8FF,
@@ -466,7 +473,18 @@ lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
 lv_int = LValidator(cv.int_, cg.int_)
 lv_positive_int = LValidator(cv.positive_int, cg.int_)
-lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
+
+
+def _percentage_validator(value):
+    value = cv.Any(cv.percentage, cv.float_range(0.0, 1.0), cv.int_range(0, 255))(value)
+    if isinstance(value, int):
+        return value / 255.0
+    return value
+
+
+lv_percentage = LValidator(
+    _percentage_validator, cg.float_, retmapper=lambda x: int(x * 255)
+)
 
 
 lv_gradient = LValidator(

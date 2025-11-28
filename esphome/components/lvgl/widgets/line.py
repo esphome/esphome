@@ -26,7 +26,7 @@ async def process_coord(coord):
     if isinstance(coord, Lambda):
         coord = call_lambda(await cg.process_lambda(coord, [], return_type=lv_coord_t))
         if not coord.endswith("()"):
-            coord = StaticCastExpression(lv_coord_t, coord)
+            return StaticCastExpression(lv_coord_t, coord)
         return cg.RawExpression(coord)
     return cg.safe_exp(coord)
 

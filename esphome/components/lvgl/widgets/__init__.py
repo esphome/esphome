@@ -53,7 +53,6 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from ..schemas import OBJ_PROPERTIES
 from ..types import (
     LV_STATE,
     LvCompound,
@@ -141,6 +140,7 @@ class WidgetType:
         :param config: The configuration for the widget
         :param parent: The parent to which it should be attached
         """
+
         creator = await self.obj_creator(parent, config)
         add_lv_use(self.name)
         add_lv_use(*self.get_uses())
@@ -512,7 +512,7 @@ def collect_parts(config):
 
 
 async def set_obj_properties(w: Widget, config):
-    from ..schemas import ALL_STYLES, remap_property
+    from ..schemas import ALL_STYLES, OBJ_PROPERTIES, remap_property
 
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
     if layout := config.get(CONF_LAYOUT):

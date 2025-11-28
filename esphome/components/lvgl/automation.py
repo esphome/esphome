@@ -24,7 +24,7 @@ from .defines import (
     PARTS,
     StaticCastExpression,
 )
-from .lv_validation import lv_bool, lv_milliseconds, opacity_consts
+from .lv_validation import LV_OPA, lv_bool, lv_milliseconds
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
@@ -59,11 +59,12 @@ from .types import (
 )
 from .widgets import (
     Widget,
+    WidgetType,
     add_widgets,
     get_screen_active,
     get_widgets,
     set_obj_properties,
-    wait_for_widgets, WidgetType,
+    wait_for_widgets,
 )
 
 # Record widgets that are used in a focused action here
@@ -102,7 +103,7 @@ async def lvgl_update(lv_component, config):
     )
     # Preserve default opacity from 8.x
     if CONF_BG_OPA not in bottom:
-        bottom[CONF_BG_OPA] = opacity_consts.COVER
+        bottom[CONF_BG_OPA] = LV_OPA.COVER
     await layers_to_code(lv_component, {CONF_BOTTOM_LAYER: bottom})
 
 

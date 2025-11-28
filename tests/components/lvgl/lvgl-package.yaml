@@ -49,7 +49,7 @@ lvgl:
   gradients:
     - id: color_bar
       direction: hor
-      dither: err_diff
+      #dither: err_diff
       stops:
         - color: 0xFF0000
           position: 0
@@ -200,7 +200,7 @@ lvgl:
       on_all_events:
         logger.log:
           format: "Event %s"
-          args: ['lv_event_code_name_for(event->code).c_str()']
+          args: ['lv_event_code_name_for(event).c_str()']
       skip: true
       layout:
         type: Flex
@@ -303,7 +303,6 @@ lvgl:
             anim_time: 1s
             bg_color: light_blue
             bg_grad_color: light_blue
-            bg_dither_mode: ordered
             bg_grad_dir: hor
             bg_grad_stop: 128
             bg_image_opa: transp
@@ -551,7 +550,7 @@ lvgl:
             src: cat_image
             align: top_left
             y: "50"
-            mode: real
+            #mode: real
             zoom: 2.0
             angle: 45
         - tileview:
@@ -925,7 +924,7 @@ lvgl:
                       grid_cell_row_pos: 0
                       grid_cell_column_pos: 0
                       src: !lambda return dog_image;
-                      mode: virtual
+                      #mode: virtual
                       on_click:
                         then:
                           - lvgl.tabview.select:
