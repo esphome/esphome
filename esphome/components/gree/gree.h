@@ -3,6 +3,11 @@
 #include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome {
+#ifdef USE_SWITCH
+namespace switch_ {
+class Switch;
+}
+#endif
 namespace gree {
 
 // Values for GREE IR Controllers
@@ -90,6 +95,16 @@ class GreeClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
+#ifdef USE_SWITCH
+  void set_turbo_switch(switch_::Switch *sw);
+  void set_light_switch(switch_::Switch *sw);
+  void set_health_switch(switch_::Switch *sw);
+  void set_xfan_switch(switch_::Switch *sw);
+#endif
+  void set_turbo_mode(bool enabled);
+  void set_light_mode(bool enabled);
+  void set_health_mode(bool enabled);
+  void set_xfan_mode(bool enabled);
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -103,6 +118,16 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t preset_();
 
   Model model_{};
+#ifdef USE_SWITCH
+  switch_::Switch *turbo_switch_{nullptr};
+  switch_::Switch *light_switch_{nullptr};
+  switch_::Switch *health_switch_{nullptr};
+  switch_::Switch *xfan_switch_{nullptr};
+#endif
+  bool turbo_mode_{false};
+  bool light_mode_{false};
+  bool health_mode_{false};
+  bool xfan_mode_{false};
 };
 
 }  // namespace gree
