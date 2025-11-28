@@ -231,15 +231,39 @@ esp32:
 
 The `components` option allows you to include IDF components. These components will then be compiled into the resulting
 firmware and may be used by [lambdas](/automations/templates#config-lambda). The most common usage of this option is to include third-party
-components that are available in the [ESP Component Registry](https://components.espressif.com/). They can be added by
-listing their name under this option. It is also possible to use specific versions, or to fetch components from a file or
-git repository.
+components that are available in the [ESP Component Registry](https://components.espressif.com/).
+
+### Simple
+
+For components from the ESP Component Registry, you can use the shorthand syntax `owner/component^version`:
+
+```yaml
+esp32:
+  framework:
+    components:
+      - espressif/esp_hosted^2.6.1
+```
+
+### Advanced
+
+For more complex configurations (custom git repositories, local paths, etc.), use the advanced syntax:
+
+```yaml
+esp32:
+  framework:
+    components:
+      - name: my_custom_component
+        source: https://github.com/user/component.git
+        ref: main
+        path: components/custom
+```
+
+#### Configuration Variables
 
 - **name** (*Required*, string): Name of the component e.g. `espressif/esp_hosted`.
 - **ref** (*Optional*, string): Component registry version or a git ref.
 - **source** (*Optional*, string): The git repository to use for the component. This can be used for a
   custom or patched version of the component.
-
 - **path** (*Optional*, string): The path of the component in the git repository or a local path to the
   component if `source` is not set.
 
