@@ -63,6 +63,18 @@ class LogListener {
  *
  * Components can implement this interface instead of using lambdas with std::function
  * to reduce flash usage from std::function type erasure machinery.
+ *
+ * Usage:
+ *   class MyComponent : public Component, public LoggerLevelListener {
+ *    public:
+ *     void setup() override {
+ *       if (logger::global_logger != nullptr)
+ *         logger::global_logger->add_logger_level_listener(this);
+ *     }
+ *     void on_log_level_change(uint8_t level) override {
+ *       // Handle log level change
+ *     }
+ *   };
  */
 class LoggerLevelListener {
  public:
