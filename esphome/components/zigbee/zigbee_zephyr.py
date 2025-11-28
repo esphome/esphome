@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 
 from esphome import automation, core
@@ -171,12 +172,18 @@ class ArrayAssignmentExpression(AssignmentExpression):
         return f"{self.type} {self.name}[] = {self.rhs}"
 
 
+@dataclass(eq=True, frozen=False)
 class ZigbeeClusterDesc(MockObj):
-    def __init__(self, name: str, attr: ID = None):
-        self.name = name
-        self.attr = attr
-        base = ID(name + "_ZHA_", True, type)
+    _name: str
+    _attr: ID = None
+
+    def __post_init__(self):
+        base = ID(self._name + "_ZHA_", True, type)
         super().__init__(base, "")
+
+    @property
+    def name(self):
+        return self._name
 
     def __str__(self):
         role = (
@@ -184,10 +191,10 @@ class ZigbeeClusterDesc(MockObj):
         )
         attr_count = "0"
         attr_desc_list = "NULL"
-        if self.attr:
-            attr_count = f"ZB_ZCL_ARRAY_SIZE({self.attr}, zb_zcl_attr_t)"
-            attr_desc_list = str(self.attr)
-        return f"ZB_ZCL_CLUSTER_DESC({self.name}, {attr_count}, {attr_desc_list}, {role}, ZB_ZCL_MANUF_CODE_INVALID)"
+        if self._attr:
+            attr_desc_list = str(self._attr)
+            attr_count = f"ZB_ZCL_ARRAY_SIZE({attr_desc_list}, zb_zcl_attr_t)"
+        return f"ZB_ZCL_CLUSTER_DESC({self._name}, {attr_count}, {attr_desc_list}, {role}, ZB_ZCL_MANUF_CODE_INVALID)"
 
 
 def zigbee_array(
