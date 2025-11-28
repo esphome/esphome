@@ -34,7 +34,7 @@ void _pin_mode(GPIO_TypeDef *port, uint8_t pin, gpio::Flags flags, optional<uint
   uint16_t port_mask = 1 << port_index;
   GPIO_InitTypeDef GPIO_InitStruct;
   GPIO_InitStruct.Pin = pin_to_mask(pin);
-  if (flags & gpio::Flags::FLAG_INPUT) {
+  if (!af and (flags & gpio::Flags::FLAG_INPUT)) {
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT | interrupt_type;
   } else {
     if (!af) {
