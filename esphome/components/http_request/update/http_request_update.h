@@ -15,11 +15,7 @@
 namespace esphome {
 namespace http_request {
 
-#ifdef USE_OTA_STATE_LISTENER
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
-#else
-class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent {
-#endif
  public:
   void setup() override;
   void update() override;
@@ -34,9 +30,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-#ifdef USE_OTA_STATE_LISTENER
   void on_ota_state(ota::OTAState state, float progress, uint8_t error) override;
-#endif
 
  protected:
   HttpRequestComponent *request_parent_;
