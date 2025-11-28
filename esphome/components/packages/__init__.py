@@ -27,12 +27,6 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = CONF_PACKAGES
 
 
-def validate_has_jinja(value):
-    if not isinstance(value, str) or not has_jinja(value):
-        raise cv.Invalid("string does not contain Jinja syntax")
-    return value
-
-
 def valid_package_contents(package_config: dict):
     """Validates that a package_config that will be merged looks as much as possible to a valid config
     to fail early on obvious mistakes."""
@@ -50,7 +44,7 @@ def valid_package_contents(package_config: dict):
                 continue  # e.g. script: [], psram: !remove, logger: {level: debug}
             if v is None:
                 continue  # e.g. web_server:
-            if validate_has_jinja(v):
+            if isinstance(v, str) and has_jinja(v):
                 # e.g: remote package shorthand:
                 # package_name: github://esphome/repo/file.yaml@${ branch }
                 continue
