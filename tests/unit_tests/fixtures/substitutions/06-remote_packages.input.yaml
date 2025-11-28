@@ -35,3 +35,9 @@ packages:
           b: 10
           c: 11
     ref: main
+  package5: !include
+    file: remote_package_shorthand.yaml
+    vars:
+      repo: repo1
+      file: file1.yaml
+      ref: main
