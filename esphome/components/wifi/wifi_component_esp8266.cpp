@@ -878,10 +878,9 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
-  uint8_t *raw_bssid = WiFi.BSSID();
-  if (raw_bssid != nullptr) {
-    for (size_t i = 0; i < bssid.size(); i++)
-      bssid[i] = raw_bssid[i];
+  struct station_config conf {};
+  if (wifi_station_get_config(&conf)) {
+    std::copy_n(conf.bssid, bssid.size(), bssid.begin());
   }
   return bssid;
 }
