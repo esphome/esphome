@@ -45,7 +45,7 @@ class CameraImage;
  */
 class CameraListener {
  public:
-  virtual void on_camera_image(const std::shared_ptr<CameraImage> &image) = 0;
+  virtual void on_camera_image(const std::shared_ptr<CameraImage> &image) {}
   virtual void on_stream_start() {}
   virtual void on_stream_stop() {}
 };
