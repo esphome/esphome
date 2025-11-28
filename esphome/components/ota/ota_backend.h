@@ -67,6 +67,7 @@ class OTABackend {
  */
 class OTAStateListener {
  public:
+  virtual ~OTAStateListener() = default;
   virtual void on_ota_state(OTAState state, float progress, uint8_t error) = 0;
 };
 
@@ -99,6 +100,7 @@ class OTAComponent : public Component {
  */
 class OTAGlobalStateListener {
  public:
+  virtual ~OTAGlobalStateListener() = default;
   virtual void on_ota_global_state(OTAState state, float progress, uint8_t error, OTAComponent *component) = 0;
 };
 
