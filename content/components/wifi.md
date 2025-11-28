@@ -97,12 +97,18 @@ wifi:
   for ESP8266 is 20dB, 20.5dB might cause unexpected restarts.
 
 - **fast_connect** (*Optional*, boolean): If enabled, directly connects to WiFi network without doing a full scan
-  first. This is required for hidden networks and can significantly improve connection times (thus reducing power
-  consumption). Defaults to `off`.
+  first. This can significantly improve connection times (thus reducing power consumption). Defaults to `off`.
   The downside is that this option connects to the first network the ESP sees, even if that network is very far away and
   better ones are available. If multiple networks are configured, the last successfully connected one is tested first.
   In case it fails, all networks are then tested one after the other in their declared order, starting with the first
   one in the list.
+
+  > [!NOTE]
+  > While `fast_connect` skips the initial scan, if the connection attempt fails, ESPHome will still perform a scan
+  > to find available networks. For hidden networks, use `hidden: true` on the network configuration (see
+  > [Connecting to Multiple Networks](#wifi-networks)) to ensure the device always connects without scanning.
+  > Be aware that marking networks as hidden prevents ESPHome from finding the best access point to connect to,
+  > so the device may not connect to the AP with the best signal strength.
 
 - **min_auth_mode** (*Optional*, string): Only on `esp32` and `esp8266`. Sets the minimum WiFi authentication mode
   that the device will accept when connecting to access points. This controls the weakest encryption your device will
@@ -300,10 +306,26 @@ wifi:
 - **hidden** (*Optional*, boolean): Whether this network is hidden. Defaults to false.
   If you add this option you also have to specify ssid.
 
+  > [!TIP]
+  > Set `hidden: true` if your network does not broadcast its SSID. This ensures the device attempts to connect
+  > using hidden network mode without first scanning for visible networks. Note that when connecting to a hidden
+  > network, ESPHome cannot determine which access point has the best signal strength, potentially resulting in
+  > connections to APs with weaker signals when multiple APs share the same SSID.
+
 - **priority** (*Optional*, int): The priority of this network (range: -128 to 127). The network with
   the highest priority is chosen. After each connection failure, the priority is decreased by one.
   If all tracked BSSIDs have identical priorities, they are automatically reset to 0 to start fresh.
   Defaults to `0`.
+
+### Example: Connecting to a Hidden Network
+
+```yaml
+wifi:
+  networks:
+  - ssid: MyHiddenNetwork
+    password: VerySafePassword
+    hidden: true
+```
 
 {{< anchor "eap" >}}
 
