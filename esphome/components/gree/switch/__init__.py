@@ -20,12 +20,12 @@ CONF_HEALTH_MODE = "health"
 CONF_XFAN = "xfan"
 CONF_GREE_ID = "gree_id"
 
-SUPPORTED_MODELS = {
+SUPPORTED_MODELS = [
     Model.GREE_YAN,
     Model.GREE_YAA,
     Model.GREE_YAC,
     Model.GREE_YAC1FB9,
-}
+]
 
 CONFIG_SCHEMA = cv.Schema(
     {
