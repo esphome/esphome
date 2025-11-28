@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_HEALTH_MODE): switch.switch_schema(
             GreeHealthSwitch,
-            icon="mdi:tree-outline",
+            icon="mdi:pine-tree",
             default_restore_mode="RESTORE_DEFAULT_OFF",
         ),
         cv.Optional(CONF_XFAN): switch.switch_schema(
