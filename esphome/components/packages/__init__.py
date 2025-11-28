@@ -1,7 +1,8 @@
+from collections.abc import Callable
 import contextlib
 import logging
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from esphome import git, yaml_util
 from esphome.components.substitutions import ContextVars, push_context, substitute
@@ -293,7 +294,6 @@ def _substitute_remote_package_definition(
 def do_packages_pass(
     config: dict,
     skip_update: bool = False,
-    command_line_substitutions: dict[str, Any] = {},
 ) -> dict:
     """Processes, downloads and validates all packages in the config.
     Also extracts and merges all substitutions found in packages into the main config substitutions.
