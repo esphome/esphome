@@ -243,7 +243,7 @@ async def test_alarm_control_panel_state_transitions(
         # Close the sensor
         client.switch_command(door_switch_info.key, False)
 
-        # Wait for trigger_time to expire and auto-reset (500ms)
+        # Wait for trigger_time to expire and auto-reset (100ms)
         # The alarm should go back to ARMED_AWAY after trigger_time
         # This transition FROM TRIGGERED fires on_cleared
         await wait_for_state(AlarmControlPanelState.ARMED_AWAY, timeout=2.0)
