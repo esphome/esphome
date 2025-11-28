@@ -35,7 +35,10 @@ def find_tool(
     """
     # Try to derive from objdump path first (most reliable)
     if objdump_path and objdump_path != "objdump":
-        potential_path = objdump_path.replace("objdump", tool_name)
+        objdump_file = Path(objdump_path)
+        # Replace just the filename portion, preserving any prefix (e.g., xtensa-esp32-elf-)
+        new_name = objdump_file.name.replace("objdump", tool_name)
+        potential_path = str(objdump_file.with_name(new_name))
         if Path(potential_path).exists():
             _LOGGER.debug("Found %s at: %s", tool_name, potential_path)
             return potential_path

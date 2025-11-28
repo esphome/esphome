@@ -141,6 +141,16 @@ def batch_demangle(
 
     # Process demangled output
     demangled_lines = result.stdout.strip().split("\n")
+
+    # Check for output length mismatch
+    if len(demangled_lines) != len(symbols):
+        _LOGGER.warning(
+            "c++filt output mismatch: expected %d lines, got %d",
+            len(symbols),
+            len(demangled_lines),
+        )
+        return {s: s for s in symbols}
+
     failed_count = 0
 
     for original, stripped, prefix, demangled in zip(

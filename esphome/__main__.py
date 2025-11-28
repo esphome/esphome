@@ -984,17 +984,20 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Perform RAM strings analysis
     _LOGGER.info("Analyzing RAM strings...")
-    ram_analyzer = RamStringsAnalyzer(
-        str(firmware_elf),
-        objdump_path=idedata.objdump_path,
-        platform=CORE.target_platform,
-    )
-    ram_analyzer.analyze()
+    try:
+        ram_analyzer = RamStringsAnalyzer(
+            str(firmware_elf),
+            objdump_path=idedata.objdump_path,
+            platform=CORE.target_platform,
+        )
+        ram_analyzer.analyze()
 
-    # Generate and display RAM strings report
-    ram_report = ram_analyzer.generate_report()
-    print()
-    print(ram_report)
+        # Generate and display RAM strings report
+        ram_report = ram_analyzer.generate_report()
+        print()
+        print(ram_report)
+    except Exception as e:  # pylint: disable=broad-except
+        _LOGGER.warning("RAM strings analysis failed: %s", e)
 
     return 0
 
