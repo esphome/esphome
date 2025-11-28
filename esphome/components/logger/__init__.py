@@ -509,7 +509,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
     }
 )
 
-# Key for CORE.data[CONF_LOGGER] to track if level listeners are requested
+# Keys for CORE.data storage
+KEY_LOGGER = "logger"
 KEY_LEVEL_LISTENERS = "level_listeners"
 
 
@@ -520,11 +521,11 @@ def request_logger_level_listeners() -> None:
     function during their code generation. This enables the add_level_listener()
     method and compiles in the listener vector.
     """
-    CORE.data.setdefault(CONF_LOGGER, {})[KEY_LEVEL_LISTENERS] = True
+    CORE.data.setdefault(KEY_LOGGER, {})[KEY_LEVEL_LISTENERS] = True
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional logger features."""
-    if CORE.data.get(CONF_LOGGER, {}).get(KEY_LEVEL_LISTENERS, False):
+    if CORE.data.get(KEY_LOGGER, {}).get(KEY_LEVEL_LISTENERS, False):
         cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
