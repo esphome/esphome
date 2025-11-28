@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from esphome import automation
+from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.const import CONF_ID, CONF_NAME, __version__
@@ -119,7 +119,7 @@ async def _attr_to_code(config: ConfigType) -> None:
     )
 
 
-def zigbee_new_variable(id_: ID, type_: "MockObj" = None) -> "MockObj":
+def zigbee_new_variable(id_: ID, type_: cg.MockObj | None = None) -> cg.MockObj:
     assert isinstance(id_, ID)
     obj = MockObj(id_, ".")
     if type_ is not None:
@@ -130,12 +130,12 @@ def zigbee_new_variable(id_: ID, type_: "MockObj" = None) -> "MockObj":
     return obj
 
 
-def zigbee_assign(target, expression):
+def zigbee_assign(target: cg.MockObj, expression: cg.MockObj | int) -> cg.MockObj:
     cg.add(AssignmentExpression("", "", target, expression))
     return target
 
 
-def zigbee_set_string(target, value: str):
+def zigbee_set_string(target: cg.MockObj, value: str) -> core.ID:
     cg.add(
         cg.RawExpression(
             f"ZB_ZCL_SET_STRING_VAL({target}, {cg.safe_exp(value)}, ZB_ZCL_STRING_CONST_SIZE({cg.safe_exp(value)}))"
@@ -144,7 +144,7 @@ def zigbee_set_string(target, value: str):
     return ID(str(target), True, zb_char_t_ptr)
 
 
-def zigbee_new_attr_list(id_: ID, *args):
+def zigbee_new_attr_list(id_: ID, *args: ID | cg.MockObj) -> core.ID:
     assert isinstance(id_, ID)
     attr_list = []
     for arg in args:
@@ -164,24 +164,15 @@ def zigbee_new_attr_list(id_: ID, *args):
 class ArrayAssignmentExpression(AssignmentExpression):
     __slots__ = ()
 
-    def __init__(self, type_, name, rhs):
+    def __init__(self, type_: cg.MockObj, name: ID, rhs: cg.ArrayInitializer):
         super().__init__(type_, "", name, rhs)
 
     def __str__(self):
         return f"{self.type} {self.name}[] = {self.rhs}"
 
 
-def zigbee_array(id_, rhs) -> "MockObj":
-    rhs = cg.safe_exp(rhs)
-    obj = MockObj(id_, ".")
-    assignment = ArrayAssignmentExpression(id_.type, id_, rhs)
-    CORE.add_global(assignment)
-    CORE.register_variable(id_, obj)
-    return obj
-
-
 class ZigbeeClusterDesc(MockObj):
-    def __init__(self, name: str, attr=None):
+    def __init__(self, name: str, attr: ID = None):
         self.name = name
         self.attr = attr
         base = ID(name + "_ZHA_", True, type)
@@ -199,7 +190,20 @@ class ZigbeeClusterDesc(MockObj):
         return f"ZB_ZCL_CLUSTER_DESC({self.name}, {attr_count}, {attr_desc_list}, {role}, ZB_ZCL_MANUF_CODE_INVALID)"
 
 
-def zigbee_new_cluster_list(config: ConfigType, attr_list):
+def zigbee_array(
+    id_: ID, rhs: list[ZigbeeClusterDesc] | cg.ArrayInitializer
+) -> cg.MockObj:
+    rhs = cg.safe_exp(rhs)
+    obj = MockObj(id_, ".")
+    assignment = ArrayAssignmentExpression(id_.type, id_, rhs)
+    CORE.add_global(assignment)
+    CORE.register_variable(id_, obj)
+    return obj
+
+
+def zigbee_new_cluster_list(
+    config: ConfigType, attr_list: list[ZigbeeClusterDesc]
+) -> (int, int):
     rhs = [
         ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_BASIC, config[CONF_BASIC_ATTRIB_LIST_EXT]),
         ZigbeeClusterDesc(
@@ -224,8 +228,12 @@ def zigbee_new_cluster_list(config: ConfigType, attr_list):
 
 
 def zigbee_register_ep(
-    config: ConfigType, cluster_id, report_attr_count: int, clusters, empty_slot: int
-):
+    config: ConfigType,
+    cluster_id: cg.MockObj,
+    report_attr_count: int,
+    clusters: list[ZigbeeClusterDesc],
+    empty_slot: int,
+) -> None:
     id_ = config[CONF_EP]
     in_cluster_num = 0
     out_cluster_num = 0
@@ -253,11 +261,11 @@ async def _ctx_to_code(config: ConfigType) -> None:
     cg.add(cg.RawExpression("ZB_AF_REGISTER_DEVICE_CTX(&zb_device_ctx)"))
 
 
-async def zephyr_setup_binary_sensor(entity, config: ConfigType) -> None:
+async def zephyr_setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(_add_binary_sensor, entity, config)
 
 
-async def _add_binary_sensor(entity, config: ConfigType) -> None:
+async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     empty_slot = next(
         (i for i, v in enumerate(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]) if v == ""), None
     )
