@@ -58,6 +58,30 @@ class LogListener {
   virtual void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) = 0;
 };
 
+#ifdef USE_LOGGER_LEVEL_LISTENERS
+/** Interface for receiving log level changes without std::function overhead.
+ *
+ * Components can implement this interface instead of using lambdas with std::function
+ * to reduce flash usage from std::function type erasure machinery.
+ *
+ * Usage:
+ *   class MyComponent : public Component, public LoggerLevelListener {
+ *    public:
+ *     void setup() override {
+ *       if (logger::global_logger != nullptr)
+ *         logger::global_logger->add_logger_level_listener(this);
+ *     }
+ *     void on_log_level_change(uint8_t level) override {
+ *       // Handle log level change
+ *     }
+ *   };
+ */
+class LoggerLevelListener {
+ public:
+  virtual void on_log_level_change(uint8_t level) = 0;
+};
+#endif
+
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 // Comparison function for const char* keys in log_levels_ map
 struct CStrCompare {
@@ -193,8 +217,10 @@ class Logger : public Component {
   /// Register a log listener to receive log messages
   void add_log_listener(LogListener *listener) { this->log_listeners_.push_back(listener); }
 
-  // add a listener for log level changes
-  void add_listener(std::function<void(uint8_t)> &&callback) { this->level_callback_.add(std::move(callback)); }
+#ifdef USE_LOGGER_LEVEL_LISTENERS
+  /// Register a listener for log level changes
+  void add_level_listener(LoggerLevelListener *listener) { this->level_listeners_.push_back(listener); }
+#endif
 
   float get_setup_priority() const override;
 
@@ -325,7 +351,9 @@ class Logger : public Component {
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif
   std::vector<LogListener *> log_listeners_;  // Log message listeners (API, MQTT, syslog, etc.)
-  CallbackManager<void(uint8_t)> level_callback_{};
+#ifdef USE_LOGGER_LEVEL_LISTENERS
+  std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
+#endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
 #endif
