@@ -3,7 +3,7 @@ from pathlib import Path
 
 from esphome import git, yaml_util
 from esphome.components.substitutions.jinja import has_jinja
-from esphome.config_helpers import merge_config
+from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -46,8 +46,8 @@ def valid_package_contents(package_config: dict):
         for k, v in package_config.items():
             if not isinstance(k, str):
                 raise cv.Invalid("Package content keys must be strings")
-            if isinstance(v, (dict, list)):
-                continue  # e.g. script: [] or logger: {level: debug}
+            if isinstance(v, (dict, list, Remove)):
+                continue  # e.g. script: [], psram: !remove, logger: {level: debug}
             if v is None:
                 continue  # e.g. web_server:
             if validate_has_jinja(v):
