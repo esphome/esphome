@@ -16,6 +16,12 @@
 namespace esphome::api {
 
 template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
+  // Verify that const char* uses the base class STATIC_STRING optimization (no heap allocation)
+  // rather than being wrapped in a lambda. The base class constructor for const char* is more
+  // specialized than the templated constructor here, so it should be selected.
+  static_assert(std::is_constructible_v<TemplatableValue<std::string, X...>, const char *>,
+                "Base class must have const char* constructor for STATIC_STRING optimization");
+
  private:
   // Helper to convert value to string - handles the case where value is already a string
   template<typename T> static std::string value_to_string(T &&val) { return to_string(std::forward<T>(val)); }
