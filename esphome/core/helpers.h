@@ -245,6 +245,9 @@ template<typename T> class FixedVector {
     other.reset_();
   }
 
+  // Allow conversion to std::vector
+  operator std::vector<T>() const { return {data_, data_ + size_}; }
+
   FixedVector &operator=(FixedVector &&other) noexcept {
     if (this != &other) {
       // Delete our current data
