@@ -163,7 +163,7 @@ class ZigbeeClusterDesc(MockObj):
     def name(self) -> str:
         return self._name
 
-    def __str__(self):
+    def __str__(self) -> str:
         role = (
             "ZB_ZCL_CLUSTER_SERVER_ROLE" if self._attr else "ZB_ZCL_CLUSTER_CLIENT_ROLE"
         )
