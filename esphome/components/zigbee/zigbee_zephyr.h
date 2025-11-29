@@ -8,7 +8,6 @@ extern "C" {
 #include <zboss_api_addons.h>
 }
 
-#include <deque>
 
 #define ESPHOME_ZB_DECLARE_SIMPLE_DESC(ep_name, in_clusters_count, out_clusters_count) \
   typedef ZB_PACKED_PRE struct zb_af_simple_desc_##ep_name##_##in_clusters_count##_##out_clusters_count##_s { \
