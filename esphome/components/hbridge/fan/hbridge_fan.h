@@ -15,7 +15,7 @@ enum DecayMode {
 
 class HBridgeFan : public Component, public fan::Fan {
  public:
-  HBridgeFan(int speed_count, DecayMode decay_mode) : speed_count_(speed_count), decay_mode_(decay_mode) {}
+  HBridgeFan(uint8_t speed_count, DecayMode decay_mode) : speed_count_(speed_count), decay_mode_(decay_mode) {}
 
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
@@ -33,7 +33,7 @@ class HBridgeFan : public Component, public fan::Fan {
   output::FloatOutput *pin_b_;
   output::FloatOutput *enable_{nullptr};
   output::BinaryOutput *oscillating_{nullptr};
-  int speed_count_{};
+  uint8_t speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
   fan::FanTraits traits_;
   std::vector<const char *> preset_modes_{};
