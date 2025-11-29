@@ -186,7 +186,9 @@ def zigbee_array(
     return obj
 
 
-def zigbee_new_cluster_list(config: ConfigType, attr_list: list[ZigbeeClusterDesc]):
+def zigbee_new_cluster_list(
+    config: ConfigType, attr_list: list[ZigbeeClusterDesc]
+) -> tuple[cg.MockObj, list[ZigbeeClusterDesc]]:
     rhs = [
         ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_BASIC, config[CONF_BASIC_ATTRIB_LIST_EXT]),
         ZigbeeClusterDesc(
