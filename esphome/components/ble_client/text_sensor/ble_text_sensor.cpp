@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 static const char *const TAG = "ble_text_sensor";
 
@@ -138,6 +137,5 @@ void BLETextSensor::update() {
   }
 }
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 #endif
