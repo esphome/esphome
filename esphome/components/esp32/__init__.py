@@ -1008,10 +1008,17 @@ async def to_code(config):
     # Place non-ISR FreeRTOS functions into flash instead of IRAM
     # This saves up to 8KB of IRAM. ISR-safe functions (FromISR variants) stay in IRAM.
     # In ESP-IDF 6.0 this becomes the default and CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH
-    # is removed. We enable this now to match IDF 6.0 behavior and catch any issues early.
+    # is removed (replaced by CONFIG_FREERTOS_IN_IRAM to restore old behavior).
+    # We enable this now to match IDF 6.0 behavior and catch any issues early.
     # Users can set freertos_in_iram: true as an escape hatch if they encounter problems
     # with code that incorrectly calls FreeRTOS functions from ISRs with cache disabled.
-    if not conf[CONF_ADVANCED][CONF_FREERTOS_IN_IRAM]:
+    if conf[CONF_ADVANCED][CONF_FREERTOS_IN_IRAM]:
+        # IDF 5.x: don't set the flash option (keeps functions in IRAM)
+        # IDF 6.0+: will need CONFIG_FREERTOS_IN_IRAM=y to restore IRAM placement
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_IN_IRAM", True)
+    else:
+        # IDF 5.x: explicitly place functions in flash
+        # IDF 6.0+: this is the default, option no longer exists
         add_idf_sdkconfig_option("CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH", True)
 
     # Setup watchdog
