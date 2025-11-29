@@ -9,55 +9,61 @@
 
 namespace esphome::wifi_info {
 
-class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
+class IPAddressWiFiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiIPStateListener {
  public:
   void setup() override;
   void dump_config() override;
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
+  // WiFiIPStateListener interface
+  void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                   const network::IPAddress &dns2) override;
+
  protected:
-  void state_callback_(const network::IPAddresses &ips);
   std::array<text_sensor::TextSensor *, 5> ip_sensors_;
 };
 
-class DNSAddressWifiInfo : public Component, public text_sensor::TextSensor {
+class DNSAddressWifiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiIPStateListener {
  public:
   void setup() override;
   void dump_config() override;
 
- protected:
-  void state_callback_(const network::IPAddress &dns1_ip, const network::IPAddress &dns2_ip);
+  // WiFiIPStateListener interface
+  void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                   const network::IPAddress &dns2) override;
 };
 
-class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
+class ScanResultsWiFiInfo final : public Component,
+                                  public text_sensor::TextSensor,
+                                  public wifi::WiFiScanResultsListener {
  public:
   void setup() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
- protected:
-  void state_callback_(const wifi::wifi_scan_vector_t<wifi::WiFiScanResult> &results);
+  // WiFiScanResultsListener interface
+  void on_wifi_scan_results(const wifi::wifi_scan_vector_t<wifi::WiFiScanResult> &results) override;
 };
 
-class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
+class SSIDWiFiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiConnectStateListener {
  public:
   void setup() override;
   void dump_config() override;
 
- protected:
-  void state_callback_(const std::string &ssid);
+  // WiFiConnectStateListener interface
+  void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override;
 };
 
-class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {
+class BSSIDWiFiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiConnectStateListener {
  public:
   void setup() override;
   void dump_config() override;
 
- protected:
-  void state_callback_(const wifi::bssid_t &bssid);
+  // WiFiConnectStateListener interface
+  void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override;
 };
 
-class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
+class MacAddressWifiInfo final : public Component, public text_sensor::TextSensor {
  public:
   void setup() override {
     char mac_s[18];
