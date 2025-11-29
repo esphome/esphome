@@ -117,9 +117,11 @@ void APIServer::setup() {
 #endif
 }
 
+static const char *const REBOOT_TIMEOUT = "reboot";
+
 void APIServer::schedule_reboot_timeout_() {
   this->status_set_warning();
-  this->set_timeout("api_reboot", this->reboot_timeout_, []() {
+  this->set_timeout(REBOOT_TIMEOUT, this->reboot_timeout_, []() {
     if (!global_api_server->is_connected()) {
       ESP_LOGE(TAG, "No clients; rebooting");
       App.reboot();
@@ -155,7 +157,7 @@ void APIServer::loop() {
       // Clear warning status and cancel reboot when first client connects
       if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
         this->status_clear_warning();
-        this->cancel_timeout("api_reboot");
+        this->cancel_timeout(REBOOT_TIMEOUT);
       }
     }
   }
