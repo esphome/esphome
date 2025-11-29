@@ -165,7 +165,7 @@ class ZigbeeClusterDesc(MockObj):
 
     def __str__(self):
         role = (
-            "ZB_ZCL_CLUSTER_SERVER_ROLE" if self.attr else "ZB_ZCL_CLUSTER_CLIENT_ROLE"
+            "ZB_ZCL_CLUSTER_SERVER_ROLE" if self._attr else "ZB_ZCL_CLUSTER_CLIENT_ROLE"
         )
         attr_count = "0"
         attr_desc_list = "NULL"
