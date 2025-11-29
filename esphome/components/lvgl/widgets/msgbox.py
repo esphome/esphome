@@ -1,4 +1,4 @@
-from esphome import config_validation as cv
+from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_BUTTON, CONF_ID, CONF_ITEMS, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import new_Pvariable, static_const_array
@@ -9,12 +9,13 @@ from ..defines import (
     CONF_BUTTON_STYLE,
     CONF_BUTTONS,
     CONF_CLOSE_BUTTON,
+    CONF_DEFAULT_GROUP,
     CONF_MSGBOXES,
     CONF_TITLE,
     TYPE_FLEX,
     literal,
 )
-from ..helpers import add_lv_use, lvgl_components_required
+from ..helpers import add_lv_use, lvgl_components_required, lvgl_msgboxes
 from ..lv_validation import lv_bool, lv_pct, lv_text
 from ..lvcode import (
     EVENT_ARG,
@@ -28,7 +29,7 @@ from ..lvcode import (
     lv_Pvariable,
 )
 from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema, part_schema
-from ..types import LV_EVENT, char_ptr, lv_obj_t
+from ..types import LV_EVENT, char_ptr, lv_group_t, lv_obj_t
 from . import Widget, add_widgets, set_obj_properties
 from .button import button_spec
 from .buttonmatrix import (
@@ -54,12 +55,13 @@ MSGBOX_SCHEMA = container_schema(
             cv.Optional(CONF_BUTTON_STYLE): part_schema(buttonmatrix_spec.parts),
             cv.Optional(CONF_CLOSE_BUTTON, default=True): lv_bool,
             cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
+            cv.GenerateID(CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
         }
     ),
 )
 
 
-async def msgbox_to_code(top_layer, conf):
+async def msgbox_to_code(top_layer, conf, group):
     """
     Construct a message box. This consists of a full-screen translucent background enclosing a centered container
     with an optional title, body, close button and a button matrix. And any other widgets the user cares to add
@@ -122,6 +124,11 @@ async def msgbox_to_code(top_layer, conf):
     await add_widgets(msgbox_widget, conf)
     async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
         outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")
+        lv_add(
+            lvgl_msgboxes[str(outer_widget.var)]["lvgl"].restore_indev_group(
+                lvgl_msgboxes[str(outer_widget.var)]["default_group"]
+            )
+        )
     if close_button:
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_get_close_btn(msgbox)
@@ -141,8 +148,19 @@ async def msgbox_to_code(top_layer, conf):
     if len(ctrl_list) != 0 or len(width_list) != 0:
         set_btn_data(buttonmatrix.obj, ctrl_list, width_list)
 
+    lv.group_focus_obj(buttonmatrix_widget.obj)
 
-async def msgboxes_to_code(lv_component, config):
+
+async def msgboxes_to_code(lv_component, config, default_group):
     top_layer = lv.disp_get_layer_top(lv_component.get_disp())
     for conf in config.get(CONF_MSGBOXES, ()):
-        await msgbox_to_code(top_layer, conf)
+        # Create a group specific to this msgbox and set it as the lvgl default.
+        # This CONF_DEFAULT_GROUP is not intended to be used in configurations
+        msgbox_group = cg.Pvariable(conf[CONF_DEFAULT_GROUP], lv_expr.group_create())
+        lv.group_set_default(msgbox_group)
+        lvgl_msgboxes[conf[CONF_ID].id + "_outer"] = {
+            "lvgl": lv_component,
+            "default_group": default_group,
+            "msgbox_group": msgbox_group,
+        }
+        await msgbox_to_code(top_layer, conf, msgbox_group)

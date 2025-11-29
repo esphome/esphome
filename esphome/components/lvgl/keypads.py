@@ -14,7 +14,7 @@ from .defines import (
 from .helpers import lvgl_components_required
 from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
-from .types import lv_group_t, lv_indev_type_t
+from .types import lv_group_t, lv_indev_t, lv_indev_type_t
 
 KEYPAD_KEYS = (
     "up",
@@ -62,7 +62,8 @@ async def keypads_to_code(var, config, default_group):
         for key in [x for x in enc_conf if x in KEYPAD_KEYS]:
             b_sensor = await cg.get_variable(enc_conf[key])
             cg.add(listener.add_button(b_sensor, literal(f"LV_KEY_{key.upper()}")))
-        indev = lv_expr.indev_drv_register(listener.get_drv())
+        indev = lv_Pvariable(lv_indev_t, enc_conf[CONF_ID].id + "_indev")
+        lv_assign(indev, lv_expr.indev_drv_register(listener.get_drv()))
         if group := enc_conf.get(CONF_GROUP):
             group = lv_Pvariable(lv_group_t, group)
             lv_assign(group, lv_expr.group_create())

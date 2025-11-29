@@ -21,6 +21,7 @@ from .defines import (
     literal,
     static_cast,
 )
+from .helpers import lvgl_msgboxes
 from .lv_validation import lv_bool, lv_color, lv_image, lv_milliseconds, opacity
 from .lvcode import (
     LVGL_COMP_ARG,
@@ -271,6 +272,13 @@ async def obj_enable_to_code(config, action_id, template_arg, args):
 async def obj_hide_to_code(config, action_id, template_arg, args):
     async def do_hide(widget: Widget):
         widget.add_flag("LV_OBJ_FLAG_HIDDEN")
+        # If this widget is actually a msgbox we have to move encoder/keypad input groups back
+        if str(widget.var) in lvgl_msgboxes:
+            lv_add(
+                lvgl_msgboxes[str(widget.var)]["lvgl"].restore_indev_group(
+                    lvgl_msgboxes[str(widget.var)]["default_group"]
+                )
+            )
 
     widgets = [
         widget.outer if widget.outer else widget for widget in await get_widgets(config)
@@ -284,6 +292,13 @@ async def obj_show_to_code(config, action_id, template_arg, args):
         widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
         if widget.move_to_foreground:
             lv_obj.move_foreground(widget.obj)
+        # If this widget is actually a msgbox we have to move encoder/keypad input groups to the msgbox specific group
+        if str(widget.var) in lvgl_msgboxes:
+            lv_add(
+                lvgl_msgboxes[str(widget.var)]["lvgl"].set_indev_group(
+                    lvgl_msgboxes[str(widget.var)]["msgbox_group"]
+                )
+            )
 
     widgets = [
         widget.outer if widget.outer else widget for widget in await get_widgets(config)

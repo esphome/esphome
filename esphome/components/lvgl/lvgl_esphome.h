@@ -194,6 +194,8 @@ class LvglComponent : public PollingComponent {
   void set_def_group(lv_group_t *group);
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
+  void set_indev_group(lv_group_t *group);
+  void restore_indev_group(lv_group_t *group);
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
   void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }

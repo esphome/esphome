@@ -169,6 +169,23 @@ void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t ti
   }
 }
 
+void LvglComponent::set_indev_group(lv_group_t *group) {
+  for (lv_indev_t *indev : this->inputs_) {
+    lv_indev_set_group(indev, group);
+  }
+}
+
+void LvglComponent::restore_indev_group(lv_group_t *group) {
+  lv_obj_t *active_page = lv_scr_act();
+  for (LvPageType *page : this->pages_) {
+    if (page->obj == active_page) {
+      this->set_indev_group(page->def_group);
+      return;
+    }
+  }
+  this->set_indev_group(group);
+}
+
 void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;

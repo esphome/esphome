@@ -292,7 +292,8 @@ async def to_code(configs):
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
             await add_top_layer(lv_component, config)
-            await msgboxes_to_code(lv_component, config)
+            # msgboxes_to_code will change the lvgl default group, be careful adding widgets after this call
+            await msgboxes_to_code(lv_component, config, default_group)
             # add_pages will change the lvgl default group, be careful adding widgets after this call
             await add_pages(lv_component, config)
             await disp_update(lv_component.get_disp(), config)
