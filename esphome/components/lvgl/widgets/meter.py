@@ -34,6 +34,7 @@ from ..defines import (
     CONF_SRC,
     CONF_START_VALUE,
     CONF_TICKS,
+    CONF_TRANSFORM_ROTATION,
     LV_PART,
     LV_SCALE_MODE,
     literal,
@@ -58,7 +59,7 @@ from ..lv_validation import (
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_expr, lv_obj
 from ..styles import LVStyle, style_set
-from ..types import LV_EVENT, ObjUpdateAction, lv_event_t, lv_img_t, lv_obj_t
+from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_event_t, lv_img_t, lv_obj_t
 from . import Widget, WidgetType, get_widgets
 from .arc import CONF_ARC
 from .container import container_spec
@@ -95,6 +96,12 @@ CONF_LINE_ID = "line_id"
 # For compatibility, keep meter types but map to scale
 lv_meter_t = lv_obj_t
 lv_meter_indicator_t = lv_scale_section_t
+lv_meter_indicator_ticks_t = LvType(
+    "lv_scale_section_t", parents=(lv_meter_indicator_t,)
+)
+lv_meter_indicator_arc_t = LvType("lv_scale_section_t", parents=(lv_meter_indicator_t,))
+lv_meter_indicator_line_t = LvType("lv_obj_t", parents=(lv_meter_indicator_t,))
+lv_meter_indicator_image_t = LvType("lv_image_t", parents=(lv_meter_indicator_t,))
 
 
 INDICATOR_LINE_SCHEMA = cv.Schema(
@@ -142,14 +149,13 @@ INDICATOR_SCHEMA = cv.Schema(
     {
         cv.Exclusive(CONF_LINE, CONF_INDICATORS): INDICATOR_LINE_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(lv_meter_indicator_t),
-                cv.GenerateID(CONF_LINE_ID): cv.declare_id(lv_obj_t),
+                cv.GenerateID(): cv.declare_id(lv_meter_indicator_line_t),
             }
         ),
         cv.Exclusive(CONF_IMAGE, CONF_INDICATORS): cv.All(
             INDICATOR_IMG_SCHEMA.extend(
                 {
-                    cv.GenerateID(): cv.declare_id(lv_meter_indicator_t),
+                    cv.GenerateID(): cv.declare_id(lv_meter_indicator_image_t),
                     cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_img_t),
                 }
             ),
@@ -157,12 +163,12 @@ INDICATOR_SCHEMA = cv.Schema(
         ),
         cv.Exclusive(CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(lv_meter_indicator_t),
+                cv.GenerateID(): cv.declare_id(lv_meter_indicator_arc_t),
             }
         ),
         cv.Exclusive(CONF_TICK_STYLE, CONF_INDICATORS): INDICATOR_TICKS_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(lv_meter_indicator_t),
+                cv.GenerateID(): cv.declare_id(lv_meter_indicator_ticks_t),
             }
         ),
     }
@@ -190,7 +196,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_RANGE_FROM, default=0.0): lv_int,
         cv.Optional(CONF_RANGE_TO, default=100.0): lv_int,
         cv.Optional(CONF_ANGLE_RANGE, default=270): lv_angle_degrees,
-        cv.Optional(CONF_ROTATION): lv_angle_degrees,
+        cv.Optional(CONF_ROTATION, default=0): lv_angle_degrees,
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
     }
 )
@@ -270,21 +276,22 @@ class MeterType(WidgetType):
 
                 lv.scale_set_mode(scale_var, LV_SCALE_MODE.ROUND_INNER)
                 # Set the scale range
-                lv.scale_set_range(
-                    scale_var,
-                    await lv_int.process(scale_conf[CONF_RANGE_FROM]),
-                    await lv_int.process(scale_conf[CONF_RANGE_TO]),
-                )
+                range_from = await lv_int.process(scale_conf[CONF_RANGE_FROM])
+                range_to = await lv_int.process(scale_conf[CONF_RANGE_TO])
+                lv.scale_set_range(scale_var, range_from, range_to)
 
+                angle_range = await lv_angle_degrees.process(
+                    scale_conf[CONF_ANGLE_RANGE]
+                )
+                rotation = await lv_angle_degrees.process(scale_conf[CONF_ROTATION])
                 # Set angle range
                 lv.scale_set_angle_range(
                     scale_var,
-                    await lv_angle_degrees.process(scale_conf[CONF_ANGLE_RANGE]),
+                    angle_range,
                 )
 
                 # Set rotation if specified
-                if CONF_ROTATION in scale_conf:
-                    rotation = await lv_angle_degrees.process(scale_conf[CONF_ROTATION])
+                if rotation:
                     lv.scale_set_rotation(scale_var, rotation)
 
                 if ticks := scale_conf.get(CONF_TICKS):
@@ -345,14 +352,7 @@ class MeterType(WidgetType):
                     (t, v) = next(iter(indicator.items()))
                     iid = v[CONF_ID]
 
-                    # Create a section for this indicator
-                    section_var = cg.Pvariable(
-                        iid, lv_expr.scale_add_section(scale_var)
-                    )
-
                     # Enable getting the meter to which this belongs.
-                    section_widget = Widget.create(iid, var, section_spec, v)
-                    section_widget.obj = section_var
 
                     # Set section range based on indicator values
                     start_value = (
@@ -360,20 +360,34 @@ class MeterType(WidgetType):
                     )
                     end_value = await get_end_value(v) or scale_conf[CONF_RANGE_TO]
 
-                    lv.scale_section_set_range(section_var, start_value, end_value)
-
                     # Create and apply styles based on indicator type
-                    style_var = await LVStyle.get_style(iid.id).get_var()
-                    await style_set(style_var, v)
+                    if t == CONF_ARC:
+                        section_widget = Widget.create(iid, var, section_spec, v)
+                        # Create a section for this indicator
+                        section_var = cg.Pvariable(
+                            iid, lv_expr.scale_add_section(scale_var)
+                        )
+                        section_widget.obj = section_var
+                        lv.scale_section_set_range(section_var, start_value, end_value)
+                        style_var = await LVStyle.get_style(iid.id).get_var()
+                        await style_set(style_var, v)
+
                     if t == CONF_TICK_STYLE:
+                        # No object created for this
                         color_start = await lv_color.process(v[CONF_COLOR_START])
                         color_end = await lv_color.process(v[CONF_COLOR_END])
+                        local = v[CONF_LOCAL]
                         if color_start and color_end:
                             async with LambdaContext(
                                 [(lv_event_t.operator("ptr"), "e")]
                             ) as lambda_:
                                 lv.scale_draw_event_cb(
-                                    literal("e"), color_start, color_end
+                                    literal("e"),
+                                    start_value,
+                                    end_value,
+                                    color_start,
+                                    color_end,
+                                    local,
                                 )
                             lv_obj.add_event_cb(
                                 scale_var,
@@ -387,10 +401,9 @@ class MeterType(WidgetType):
 
                     if t == CONF_LINE:
                         add_lv_use(CONF_LINE)
-                        line = cg.Pvariable(
-                            v[CONF_LINE_ID], lv_expr.container_create(scale_var)
-                        )
-                        lw = Widget(line, container_spec, v)
+                        # Needle represented by a container
+                        line = cg.Pvariable(iid, lv_expr.container_create(scale_var))
+                        lw = Widget.create(iid, line, container_spec, v)
                         lw.set_style("line_rounded", True)
                         lw.set_style("bg_color", await lv_color.process(v[CONF_COLOR]))
                         lw.set_style(CONF_ALIGN, CHILD_ALIGNMENTS.CENTER)
@@ -402,9 +415,17 @@ class MeterType(WidgetType):
                         length = await pixels_or_percent.process(length)
                         lv_obj.set_size(line, length, width)
                         lw.set_style(CONF_X, x)
+                        lw.set_style("transform_pivot_y", literal("lv_pct(50)"))
+                        lw.set_style("transform_pivot_x", width / 2)
                         lw.set_style(CONF_BG_OPA, await opacity.process(v[CONF_OPA]))
+                        lw.set_style(CONF_TRANSFORM_ROTATION, rotation * 10)
                         if r_mode := v.get(CONF_R_MOD):
                             lw.set_style("pad_right", -r_mode)
+                        # Set up linear equation for needle rotation. Value will be in 1/10 degrees
+                        lw.slope = MockObj(angle_range) / (
+                            MockObj(range_to) - MockObj(range_from)
+                        )
+                        lw.y_int = -lw.slope * range_from + rotation
 
                     # Note: Image indicators (needles) are not directly supported by scale widget
                     # They would need to be implemented as separate image objects positioned over the scale
@@ -440,27 +461,35 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
     widget = await get_widgets(config)
 
     async def set_value(w: Widget):
-        await set_indicator_values(w.var, w.obj, config)
+        await set_indicator_values(w, config)
 
     return await action_to_code(
         widget, set_value, action_id, template_arg, args, config
     )
 
 
-async def set_indicator_values(scale, section, config):
+async def set_indicator_values(indicator: Widget, config):
     """Update scale section values (replaces meter indicator values)"""
     start_value = await get_start_value(config)
     end_value = await get_end_value(config)
-
-    # For scale sections, we update the range
-    if start_value is not None and end_value is not None:
-        lv.scale_section_set_range(section, start_value, end_value)
-    elif start_value is not None:
-        # If only start value, use it as both start and end (single point)
-        lv.scale_section_set_range(section, start_value, start_value)
-    elif end_value is not None:
-        # If only end value, assume range from 0 to end_value
-        lv.scale_section_set_range(section, 0, end_value)
+    if indicator.type is scale_spec:
+        # For scale sections, we update the range
+        if start_value is not None and end_value is not None:
+            lv.scale_section_set_range(indicator.obj, start_value, end_value)
+        elif start_value is not None:
+            # If only start value, use it as both start and end (single point)
+            lv.scale_section_set_range(indicator.obj, start_value, start_value)
+        elif end_value is not None:
+            # If only end value, assume range from 0 to end_value
+            lv.scale_section_set_range(indicator.obj, 0, end_value)
+    if indicator.type is container_spec:
+        # Line needle
+        print(start_value, end_value)
+        print(indicator.var)
+        print(indicator.slope)
+        print(indicator.y_int)
+        angle = start_value * indicator.slope + indicator.y_int
+        indicator.set_style(CONF_TRANSFORM_ROTATION, angle * 10)
 
     # Note: Opacity for sections would need to be handled through style properties
     # This is more complex in LVGL 9.4 scale sections
@@ -468,5 +497,3 @@ async def set_indicator_values(scale, section, config):
     # Would need to create/update section style with opacity
     # For now, we'll skip this as it requires more complex style management
     #    pass
-
-    lv_obj.invalidate(scale)

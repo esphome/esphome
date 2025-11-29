@@ -218,7 +218,8 @@ STYLE_PROPS = {
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
     "transform_rotation": lvalid.lv_angle,
-    "transform_scale": lvalid.scale,
+    "transform_scale_x": lvalid.scale,
+    "transform_scale_y": lvalid.scale,
     "transform_zoom": lvalid.scale,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
@@ -234,7 +235,6 @@ STYLE_PROPS = {
 
 STYLE_REMAP = {
     "transform_angle": "transform_rotation",
-    "transform_zoom": "transform_scale",
     "zoom": "scale",
     "angle": "rotation",
     "shadow_ofs_x": "shadow_offset_x",
@@ -432,6 +432,17 @@ ALL_STYLES = {
     cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
     cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
 }
+
+
+def strip_defaults(schema: cv.Schema):
+    """
+    Take a schema and remove any default values, also convert Required to Optional.
+    Useful for converting an object schema to a modify schema
+    :param schema: The original Schema
+    :return: A new schema with no defaults and all items optional
+    """
+
+    return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
 
 
 def container_schema(widget_type: WidgetType, extras=None):

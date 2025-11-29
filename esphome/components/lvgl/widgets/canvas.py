@@ -56,7 +56,7 @@ from ..lv_validation import (
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
 from ..types import LvType, ObjUpdateAction
-from . import Widget, get_widgets, WidgetType
+from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
 from .line import lv_point_precise_t, process_coord
 
@@ -337,19 +337,19 @@ async def canvas_draw_text(config, action_id, template_arg, args):
     )
 
 
-IMG_PROPS = {
-    "angle": STYLE_PROPS["transform_rotation"],
-    "rotation": STYLE_PROPS["transform_rotation"],
-    "scale_x": STYLE_PROPS["transform_scale"],
-    "scale_y": STYLE_PROPS["transform_scale"],
-    "skew_x": STYLE_PROPS["transform_rotation"],
-    "skew_y": STYLE_PROPS["transform_rotation"],
-    "scale": STYLE_PROPS["transform_scale"],
-    "zoom": STYLE_PROPS["transform_scale"],
-    "recolor": STYLE_PROPS["image_recolor"],
-    "recolor_opa": STYLE_PROPS["image_recolor_opa"],
-    "opa": STYLE_PROPS["opa"],
-}
+IMG_PROPS = (
+    "angle",
+    "rotation",
+    "scale_x",
+    "scale_y",
+    "skew_x",
+    "skew_y",
+    "scale",
+    "zoom",
+    "recolor",
+    "recolor_opa",
+    "opa",
+)
 
 
 def _scale_map(config):
@@ -362,6 +362,13 @@ def _scale_map(config):
     return config
 
 
+def _prop_validator(prop):
+    def validator(value):
+        return STYLE_PROPS[f"transform_{remap_property(prop)}"](value)
+
+    return validator
+
+
 @automation.register_action(
     "lvgl.canvas.draw_image",
     ObjUpdateAction,
@@ -371,7 +378,7 @@ def _scale_map(config):
             cv.Required(CONF_SRC): lv_image,
             cv.Optional(CONF_PIVOT_X, default=0): pixels,
             cv.Optional(CONF_PIVOT_Y, default=0): pixels,
-            **{cv.Optional(prop): validator for prop, validator in IMG_PROPS.items()},
+            **{cv.Optional(prop): _prop_validator(prop) for prop in IMG_PROPS},
         }
     ).add_extra(_scale_map),
 )

@@ -30,6 +30,7 @@ from ..defines import (
     CONF_MAIN,
     CONF_PAD_COLUMN,
     CONF_PAD_ROW,
+    CONF_SCALE,
     CONF_STYLES,
     CONF_WIDGETS,
     OBJ_FLAGS,
@@ -254,6 +255,9 @@ class Widget:
             self.obj = var
         self.outer = None
         self.move_to_foreground = False
+        # Properties for linear equations
+        self.slope = None
+        self.y_int = None
 
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):
@@ -481,7 +485,11 @@ def collect_props(config):
     props = {}
     for prop in [*ALL_STYLES, *OBJ_FLAGS, CONF_STYLES, CONF_GROUP]:
         if prop in config:
-            props[prop] = config[prop]
+            if prop == CONF_SCALE:
+                props[CONF_SCALE + "_x"] = config[prop]
+                props[CONF_SCALE + "_y"] = config[prop]
+            else:
+                props[prop] = config[prop]
     return props
 
 

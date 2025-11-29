@@ -52,7 +52,8 @@ extern lv_event_code_t lv_update_event;  // NOLINT
 extern std::string lv_event_code_name_for(lv_event_t *event);
 
 lv_obj_t *lv_container_create(lv_obj_t *parent);
-void lv_scale_draw_event_cb(lv_event_t *e, lv_color_t color_start, lv_color_t color_end);
+void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
+                            lv_color_t color_end, bool local);
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32

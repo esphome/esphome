@@ -582,14 +582,26 @@ void LvglComponent::static_flush_cb(lv_display_t *disp_drv, const lv_area_t *are
  * @param color_start The color to apply to the first tick
  * @param color_end  The color to apply to the last tick
  */
-void lv_scale_draw_event_cb(lv_event_t *e, lv_color_t color_start, lv_color_t color_end) {
+void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
+                            lv_color_t color_end, bool local) {
   auto *scale = static_cast<lv_obj_t *>(lv_event_get_target(e));
   lv_draw_task_t *task = lv_event_get_draw_task(e);
 
   if (lv_draw_task_get_type(task) == LV_DRAW_TASK_TYPE_LINE) {
     auto *line_dsc = static_cast<lv_draw_line_dsc_t *>(lv_draw_task_get_draw_dsc(task));
-    auto ratio = (line_dsc->base.id1 * 255) / (lv_scale_get_total_tick_count(scale) - 1);
-    line_dsc->color = lv_color_mix(color_end, color_start, ratio);
+    auto tick = line_dsc->base.id1;
+    if (tick >= range_start && tick <= range_end) {
+      unsigned range = range_end - range_start;
+      if (local) {
+        tick -= range_start;
+      } else {
+        range = lv_scale_get_total_tick_count(scale) - 1;
+      }
+      if (range == 0)
+        range = 1;
+      auto ratio = (tick * 255) / range;
+      line_dsc->color = lv_color_mix(color_end, color_start, ratio);
+    }
   }
 }
 
