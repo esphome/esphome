@@ -25,7 +25,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SPEED): cv.invalid(
                 "Configuring individual speeds is deprecated."
             ),
-            cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
+            cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1, max=255),
             cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
         }
     )

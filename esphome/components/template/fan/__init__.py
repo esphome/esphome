@@ -19,7 +19,7 @@ CONFIG_SCHEMA = (
         {
             cv.Optional(CONF_HAS_DIRECTION, default=False): cv.boolean,
             cv.Optional(CONF_HAS_OSCILLATING, default=False): cv.boolean,
-            cv.Optional(CONF_SPEED_COUNT): cv.int_range(min=1),
+            cv.Optional(CONF_SPEED_COUNT): cv.int_range(min=1, max=255),
             cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
         }
     )
