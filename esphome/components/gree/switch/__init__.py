@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 import esphome.final_validate as fv
+from esphome.const import CONF_LIGHT
 
 from .. import gree_ns
 from ..climate import CONF_MODEL, GreeClimate, Model
@@ -14,8 +15,7 @@ GreeHealthSwitch = gree_ns.class_("GreeHealthSwitch", switch.Switch, cg.Componen
 GreeXfanSwitch = gree_ns.class_("GreeXfanSwitch", switch.Switch, cg.Component)
 
 CONF_TURBO = "turbo"
-CONF_LIGHT = "light"
-CONF_HEALTH_MODE = "health"
+CONF_HEALTH = "health"
 CONF_XFAN = "xfan"
 CONF_GREE_ID = "gree_id"
 
@@ -40,7 +40,7 @@ CONFIG_SCHEMA = cv.Schema(
             icon="mdi:led-outline",
             default_restore_mode="RESTORE_DEFAULT_OFF",
         ).extend(cv.COMPONENT_SCHEMA),
-        cv.Optional(CONF_HEALTH_MODE): switch.switch_schema(
+        cv.Optional(CONF_HEALTH): switch.switch_schema(
             GreeHealthSwitch,
             icon="mdi:pine-tree",
             default_restore_mode="RESTORE_DEFAULT_OFF",
@@ -100,7 +100,7 @@ async def to_code(config):
         await cg.register_component(light_switch, light_conf)
         await cg.register_parented(light_switch, parent)
         cg.add(parent.set_light_switch(light_switch))
-    if health_conf := config.get(CONF_HEALTH_MODE):
+    if health_conf := config.get(CONF_HEALTH):
         health_switch = await switch.new_switch(health_conf)
         await cg.register_component(health_switch, health_conf)
         await cg.register_parented(health_switch, parent)
