@@ -160,7 +160,7 @@ class ZigbeeClusterDesc(MockObj):
         super().__init__(base, "")
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     def __str__(self):
