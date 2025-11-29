@@ -39,7 +39,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DECAY_MODE, default="SLOW"): cv.enum(
                 DECAY_MODE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
+            cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1, max=255),
             cv.Optional(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
         }
