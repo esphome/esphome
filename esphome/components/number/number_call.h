@@ -40,7 +40,7 @@ class NumberCall {
   Number *const parent_;
   optional<float> value_;
   NumberOperation operation_{NUMBER_OP_NONE};
-  bool cycle_;
+  bool cycle_{false};
 };
 
 }  // namespace esphome::number
