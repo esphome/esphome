@@ -287,8 +287,10 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
-#ifdef USE_WIFI_CALLBACKS
-      this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : this->connect_state_listeners_) {
+        listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+      }
 #endif
       break;
     }
@@ -315,8 +317,10 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       }
 
       s_sta_connecting = false;
-#ifdef USE_WIFI_CALLBACKS
-      this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : this->connect_state_listeners_) {
+        listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+      }
 #endif
       break;
     }
@@ -339,16 +343,20 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(WiFi.localIP()).c_str(),
                format_ip4_addr(WiFi.gatewayIP()).c_str());
       s_sta_connecting = false;
-#ifdef USE_WIFI_CALLBACKS
-      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
 #endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       // auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "Got IPv6");
-#ifdef USE_WIFI_CALLBACKS
-      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
 #endif
       break;
     }
@@ -443,8 +451,10 @@ void WiFiComponent::wifi_scan_done_callback_() {
   }
   WiFi.scanDelete();
   this->scan_done_ = true;
-#ifdef USE_WIFI_CALLBACKS
-  this->wifi_scan_state_callback_.call(this->scan_result_);
+#ifdef USE_WIFI_LISTENERS
+  for (auto *listener : this->scan_results_listeners_) {
+    listener->on_wifi_scan_results(this->scan_result_);
+  }
 #endif
 }
 
