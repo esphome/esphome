@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.const import CONF_LIGHT
+import esphome.final_validate as fv
 
 from .. import gree_ns
 from ..climate import CONF_MODEL, GreeClimate, Model
