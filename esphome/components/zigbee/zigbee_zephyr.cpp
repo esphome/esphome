@@ -104,7 +104,7 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   ESP_LOGI(TAG, "zcl_device_cb %s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id,
            attr_id, endpoint);
 
-  // endpoint are enumerated from 1
+  // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
     global_zigbee->callbacks_[endpoint - 1](bufid);
     return;
@@ -113,12 +113,10 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
 }
 
 void ZigbeeComponent::on_join_() {
-  this->schedule([this]() {
+  this->defer([this]() {
     ESP_LOGD(TAG, "joined the network");
-    this->join_trigger_->trigger();
-    if (this->join_cb_) {
-      this->join_cb_();
-    }
+    this->join_trigger_.trigger();
+    this->join_cb_.call();
   });
 }
 
@@ -154,6 +152,15 @@ void ZigbeeComponent::setup() {
   zigbee_enable();
 }
 
+void ZigbeeComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Zigbee");
+  bool wipe = false;
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT
+  wipe = true;
+#endif
+  ESP_LOGCONFIG(TAG, "  wipe on boot: %s", YESNO(wipe));
+}
+
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   ESP_LOGD(TAG, "force zboss scheduler to wake and send attribute report");
   zb_buf_free(bufid);
@@ -166,22 +173,6 @@ void ZigbeeComponent::loop() {
     this->need_flush_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
-  std::function<void()> fn;
-  this->mutex_.lock();
-  if (!to_schedule_.empty()) {
-    fn = std::move(this->to_schedule_.front());
-    to_schedule_.pop_front();
-  }
-  this->mutex_.unlock();
-  if (fn) {
-    fn();
-  }
-}
-
-void ZigbeeComponent::schedule(std::function<void()> &&f) {
-  this->mutex_.lock();
-  this->to_schedule_.push_back(std::move(f));
-  this->mutex_.unlock();
 }
 
 void ZigbeeComponent::factory_reset() {

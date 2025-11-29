@@ -64,18 +64,17 @@ struct AnalogAttrs {
 class ZigbeeComponent : public Component {
  public:
   void setup() override;
+  void dump_config() override;
   void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
-    // endpoint are enumerated from 1
+    // endpoints are enumerated from 1
     this->callbacks_[endpoint - 1] = std::move(cb);
   }
-  void add_join_callback(std::function<void()> &&cb) { this->join_cb_ = std::move(cb); }
+  void add_join_callback(std::function<void()> &&cb) { this->join_cb_.add(std::move(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
   void factory_reset();
-  Trigger<> *get_join_trigger() const { return this->join_trigger_; };
+  Trigger<> *get_join_trigger() { return &this->join_trigger_; };
   void flush();
   void loop() override;
-
-  void schedule(std::function<void()> &&f);
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
@@ -84,20 +83,18 @@ class ZigbeeComponent : public Component {
   void erase_flash_(int area);
 #endif
   StaticVector<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_;
-  std::function<void()> join_cb_;
-  Trigger<> *join_trigger_{new Trigger<>()};
+  CallbackManager<void()> join_cb_;
+  Trigger<> join_trigger_;
   bool need_flush_{false};
-  std::deque<std::function<void()>> to_schedule_;
-  Mutex mutex_;
 };
 
 class ZigbeeEntity {
  public:
   void set_parent(ZigbeeComponent *parent) { this->parent_ = parent; }
-  void set_ep(zb_uint8_t ep) { this->ep_ = ep; }
+  void set_end_point(zb_uint8_t end_point) { this->end_point_ = end_point; }
 
  protected:
-  zb_uint8_t ep_{0};
+  zb_uint8_t end_point_{0};
   ZigbeeComponent *parent_{nullptr};
 };
 

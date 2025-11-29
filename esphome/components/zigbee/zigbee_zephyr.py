@@ -260,7 +260,7 @@ async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ZIGBEE_BINARY_SENSOR], entity)
     await cg.register_component(var, config)
 
-    cg.add(var.set_ep(empty_slot + 1))
+    cg.add(var.set_end_point(empty_slot + 1))
     cg.add(var.set_cluster_attributes(binary_attrs))
     hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
     cg.add(var.set_parent(hub))
