@@ -130,6 +130,28 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     return value
 
 
+class IncludeFile:
+    def __init__(
+        self,
+        parent_file: Path,
+        file: Path,
+        vars: dict[str, Any] | None = None,
+        yaml_loader=Callable[[Path], dict[str, Any]],
+    ) -> None:
+        self.parent_file = parent_file
+        self.file = file
+        self.vars = vars
+        self.yaml_loader = yaml_loader
+        self.content = None
+
+    def load(self) -> dict[str, Any]:
+        if self.content is not None:
+            return self.content
+        self.content = self.yaml_loader(Path(self.parent_file.parent / self.file))
+        self.content = add_context(self.content, self.vars)
+        return self.content
+
+
 def _add_data_ref(fn):
     @functools.wraps(fn)
     def wrapped(loader, node):
@@ -341,8 +363,7 @@ class ESPHomeLoaderMixin:
         else:
             file, vars = node.value, None
 
-        result = self.yaml_loader(self._rel_path(file))
-        return add_context(result, vars)
+        return IncludeFile(self.name, file, vars, self.yaml_loader)
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:

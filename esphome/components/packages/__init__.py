@@ -59,8 +59,8 @@ def valid_package_contents(package_config: dict) -> dict:
     for k, v in package_config.items():
         if not isinstance(k, str):
             raise cv.Invalid("Package content keys must be strings")
-        if isinstance(v, (dict, list, Remove)):
-            continue  # e.g. script: [], psram: !remove, logger: {level: debug}
+        if isinstance(v, (dict, list, Remove, yaml_util.IncludeFile)):
+            continue  # e.g. script: [], psram: !remove, logger: {level: debug}, switch: !include switches.yaml
         if v is None:
             continue  # e.g. web_server:
         if isinstance(v, str) and has_jinja(v):
@@ -160,6 +160,7 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
 PACKAGE_SCHEMA = cv.Any(  # A package definition is either:
     validate_source_shorthand,  # A git URL shorthand string that expands to a remote package schema, or
     REMOTE_PACKAGE_SCHEMA,  # a valid remote package schema, or
+    yaml_util.IncludeFile,  # an included file that may resolve to a package, or:
     valid_package_contents,  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
     # which will have to be fully validated later as per each component's schema.
 )
@@ -404,8 +405,16 @@ class _PackageProcessor:
         ``dict`` (remote or local package).  After ``PACKAGE_SCHEMA`` validation
         the result is always a ``dict``.
         """
-        package_config = _substitute_package_definition(package_config, context_vars)
-        package_config = PACKAGE_SCHEMA(package_config)
+        while True:
+            if isinstance(package_config, yaml_util.IncludeFile):
+                package_config = package_config.load()
+            package_config = _substitute_package_definition(
+                package_config, context_vars
+            )
+            package_config = PACKAGE_SCHEMA(package_config)
+            if isinstance(package_config, dict):
+                break
+
         if is_remote_package(package_config):
             package_config = _process_remote_package(package_config, self.skip_update)
         return package_config

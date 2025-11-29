@@ -12,6 +12,7 @@ from esphome.yaml_util import (
     ConfigContext,
     ESPHomeDataBase,
     ESPLiteralValue,
+    IncludeFile,
     make_data_base,
 )
 
@@ -332,6 +333,15 @@ def substitute(
         )
         if item.value != value:
             result = type(item)(value)
+
+    elif isinstance(item, IncludeFile):
+        item.file = _expand_substitutions(
+            item.file, path + [".file"], context_vars, strict_undefined, errors
+        )
+        content = item.load()
+        result = substitute(
+            content, path + [f"<{item.file}>"], context_vars, strict_undefined, errors
+        )
 
     if isinstance(item, ESPHomeDataBase):
         result = make_data_base(result, item)
