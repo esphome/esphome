@@ -52,6 +52,8 @@ LibreTinyUARTComponent = uart_ns.class_(
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
 
+UART_WAKE_LOOP_ON_RX_KEY = "uart_wake_loop_on_rx"
+
 NATIVE_UART_CLASSES = (
     str(IDFUARTComponent),
     str(ESP8266UartComponent),
@@ -470,9 +472,6 @@ async def uart_write_to_code(config, action_id, template_arg, args):
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
     return var
-
-
-UART_WAKE_LOOP_ON_RX_KEY = "uart_data_listeners"
 
 
 def request_uart_wake_loop_on_rx() -> None:
