@@ -472,24 +472,24 @@ async def uart_write_to_code(config, action_id, template_arg, args):
     return var
 
 
-UART_DATA_LISTENERS_KEY = "uart_data_listeners"
+UART_WAKE_LOOP_ON_RX_KEY = "uart_data_listeners"
 
 
-def request_uart_listeners() -> None:
-    """Request that UART data listeners be compiled in.
+def request_uart_wake_loop_on_rx() -> None:
+    """Request that the UART wake the main loop when data is received.
 
-    Components that need to be notified about UART data received events
+    Components that need low-latency notification of incoming UART data
     should call this function during their code generation.
-    This enables the add_data_listener() API and the RX event task.
+    This enables the RX event task which wakes the main loop when data arrives.
     """
-    CORE.data[UART_DATA_LISTENERS_KEY] = True
+    CORE.data[UART_WAKE_LOOP_ON_RX_KEY] = True
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if CORE.data.get(UART_DATA_LISTENERS_KEY, False):
-        cg.add_define("USE_UART_DATA_LISTENERS")
+    if CORE.data.get(UART_WAKE_LOOP_ON_RX_KEY, False):
+        cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

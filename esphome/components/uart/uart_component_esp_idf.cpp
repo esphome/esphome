@@ -14,6 +14,10 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+#include "esphome/core/application.h"
+#endif
+
 namespace esphome {
 namespace uart {
 static const char *const TAG = "uart.idf";
@@ -107,12 +111,10 @@ void IDFUARTComponent::setup() {
 
   xSemaphoreGive(this->lock_);
 
-#ifdef USE_UART_DATA_LISTENERS
-  // Start the RX event task if any listeners are registered
-  if (!this->data_listeners_.empty()) {
-    this->start_rx_event_task_();
-  }
-#endif  // USE_UART_DATA_LISTENERS
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+  // Start the RX event task to enable low-latency data notifications
+  this->start_rx_event_task_();
+#endif  // USE_UART_WAKE_LOOP_ON_RX
 }
 
 void IDFUARTComponent::load_settings(bool dump_config) {
@@ -344,7 +346,7 @@ void IDFUARTComponent::flush() {
 
 void IDFUARTComponent::check_logger_conflict() {}
 
-#ifdef USE_UART_DATA_LISTENERS
+#ifdef USE_UART_WAKE_LOOP_ON_RX
 void IDFUARTComponent::start_rx_event_task_() {
   if (this->rx_event_task_running_) {
     ESP_LOGV(TAG, "RX event task already running");
@@ -404,20 +406,16 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
     if (xQueueReceive(self->uart_event_queue_, &event, pdMS_TO_TICKS(100)) == pdTRUE) {
       switch (event.type) {
         case UART_DATA:
-          // Data available in UART RX buffer - notify listeners
+          // Data available in UART RX buffer - wake the main loop
           ESP_LOGVV(TAG, "Data event: %d bytes", event.size);
-          for (auto *listener : self->data_listeners_) {
-            listener->on_uart_data_received();
-          }
+          App.wake_loop_threadsafe();
           break;
 
         case UART_FIFO_OVF:
         case UART_BUFFER_FULL:
           ESP_LOGW(TAG, "FIFO overflow or ring buffer full - clearing");
           uart_flush_input(self->uart_num_);
-          for (auto *listener : self->data_listeners_) {
-            listener->on_uart_data_received();
-          }
+          App.wake_loop_threadsafe();
           break;
 
         default:
@@ -432,7 +430,7 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
   self->rx_event_task_handle_ = nullptr;
   vTaskDelete(nullptr);
 }
-#endif  // USE_UART_DATA_LISTENERS
+#endif  // USE_UART_WAKE_LOOP_ON_RX
 
 }  // namespace uart
 }  // namespace esphome
