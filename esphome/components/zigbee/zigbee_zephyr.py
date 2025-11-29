@@ -20,13 +20,9 @@ from .const_zephyr import (
     CONF_BINARY_INPUT_ATTRIB_LIST,
     CONF_CLUSTER_LIST,
     CONF_EP,
-    CONF_GROUPS_ATTRIB_LIST,
-    CONF_GROUPS_ATTRS,
     CONF_IDENTIFY_ATTRIB_LIST,
     CONF_IDENTIFY_ATTRS,
     CONF_ON_JOIN,
-    CONF_SCENES_ATTRIB_LIST,
-    CONF_SCENES_ATTRS,
     CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
@@ -34,9 +30,7 @@ from .const_zephyr import (
     KEY_ZIGBEE,
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
-    ZB_ZCL_CLUSTER_ID_GROUPS,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
-    ZB_ZCL_CLUSTER_ID_SCENES,
     zb_char_t_ptr,
 )
 
@@ -101,22 +95,6 @@ async def _attr_to_code(config: ConfigType) -> None:
             identify_attrs.identify_time,
             cg.global_ns.namespace("ZB_ZCL_IDENTIFY_IDENTIFY_TIME_DEFAULT_VALUE"),
         ),
-    )
-
-    groups_attrs = zigbee_new_variable(config[CONF_GROUPS_ATTRS])
-    zigbee_new_attr_list(
-        config[CONF_GROUPS_ATTRIB_LIST],
-        zigbee_assign(groups_attrs.name_support, 0),
-    )
-
-    scenes_attrs = zigbee_new_variable(config[CONF_SCENES_ATTRS])
-    zigbee_new_attr_list(
-        config[CONF_SCENES_ATTRIB_LIST],
-        zigbee_assign(scenes_attrs.scene_count, 0),
-        zigbee_assign(scenes_attrs.current_scene, 0),
-        zigbee_assign(scenes_attrs.current_group, 0),
-        zigbee_assign(scenes_attrs.scene_valid, 0),
-        zigbee_assign(scenes_attrs.name_support, 0),
     )
 
 
@@ -208,9 +186,7 @@ def zigbee_array(
     return obj
 
 
-def zigbee_new_cluster_list(
-    config: ConfigType, attr_list: list[ZigbeeClusterDesc]
-) -> (int, int):
+def zigbee_new_cluster_list(config: ConfigType, attr_list: list[ZigbeeClusterDesc]):
     rhs = [
         ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_BASIC, config[CONF_BASIC_ATTRIB_LIST_EXT]),
         ZigbeeClusterDesc(
@@ -218,16 +194,6 @@ def zigbee_new_cluster_list(
         ),
     ]
     rhs.extend([attr_list[0]])
-    rhs.extend(
-        [
-            ZigbeeClusterDesc(
-                ZB_ZCL_CLUSTER_ID_GROUPS, config[CONF_GROUPS_ATTRIB_LIST]
-            ),
-            ZigbeeClusterDesc(
-                ZB_ZCL_CLUSTER_ID_SCENES, config[CONF_SCENES_ATTRIB_LIST]
-            ),
-        ]
-    )
     if len(attr_list) == 2:
         rhs.extend([attr_list[1]])
     obj = zigbee_array(config[CONF_CLUSTER_LIST], rhs)

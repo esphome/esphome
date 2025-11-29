@@ -30,7 +30,7 @@ extern "C" {
 #define ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC(ep_name, ep_id, in_clust_num, out_clust_num, ...) \
   ESPHOME_ZB_DECLARE_SIMPLE_DESC(ep_name, in_clust_num, out_clust_num); \
   ESPHOME_ZB_AF_SIMPLE_DESC_TYPE(ep_name, in_clust_num, out_clust_num) \
-  simple_desc_##ep_name = {ep_id,         ZB_AF_HA_PROFILE_ID, ZB_HA_CUSTOM_ATTR_DEVICE_ID, 0, 0, in_clust_num, \
+  simple_desc_##ep_name = {ep_id,         ZB_AF_HA_PROFILE_ID, ZB_HA_SIMPLE_SENSOR_DEVICE_ID, 0, 0, in_clust_num, \
                            out_clust_num, {__VA_ARGS__}}
 
 #define ESPHOME_ZB_HA_DECLARE_EP(ep_name, ep_id, cluster_list, in_cluster_num, out_cluster_num, report_attr_count, \

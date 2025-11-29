@@ -17,14 +17,10 @@ from .const_zephyr import (
     CONF_BINARY_INPUT_ATTRIB_LIST,
     CONF_CLUSTER_LIST,
     CONF_EP,
-    CONF_GROUPS_ATTRIB_LIST,
-    CONF_GROUPS_ATTRS,
     CONF_IDENTIFY_ATTRIB_LIST,
     CONF_IDENTIFY_ATTRS,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
-    CONF_SCENES_ATTRIB_LIST,
-    CONF_SCENES_ATTRS,
     CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
@@ -32,15 +28,11 @@ from .const_zephyr import (
     KEY_EP_NUMBER,
     KEY_ZIGBEE,
     ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT,
-    ZB_ZCL_DECLARE_GROUPS_ATTRIB_LIST,
     ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST,
-    ZB_ZCL_DECLARE_SCENES_ATTRIB_LIST,
     BinaryAttrs,
     ZigbeeComponent,
     zb_zcl_basic_attrs_ext_t,
-    zb_zcl_groups_attrs_t,
     zb_zcl_identify_attrs_t,
-    zb_zcl_scenes_attrs_t,
     zigbee_ns,
 )
 
@@ -64,12 +56,6 @@ ZigbeeBaseSchema = cv.Schema(
         ),
         cv.OnlyWith(CONF_IDENTIFY_ATTRIB_LIST, ["nrf52", "zigbee"]): cv.use_id(
             ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST
-        ),
-        cv.OnlyWith(CONF_GROUPS_ATTRIB_LIST, ["nrf52", "zigbee"]): cv.use_id(
-            ZB_ZCL_DECLARE_GROUPS_ATTRIB_LIST
-        ),
-        cv.OnlyWith(CONF_SCENES_ATTRIB_LIST, ["nrf52", "zigbee"]): cv.use_id(
-            ZB_ZCL_DECLARE_SCENES_ATTRIB_LIST
         ),
         cv.OnlyWith(CONF_EP, ["nrf52", "zigbee"]): cv.declare_id(
             ESPHOME_ZB_HA_DECLARE_EP
@@ -109,18 +95,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.OnlyWith(CONF_IDENTIFY_ATTRIB_LIST, "nrf52"): cv.declare_id(
                 ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST
-            ),
-            cv.OnlyWith(CONF_GROUPS_ATTRS, "nrf52"): cv.declare_id(
-                zb_zcl_groups_attrs_t
-            ),
-            cv.OnlyWith(CONF_GROUPS_ATTRIB_LIST, "nrf52"): cv.declare_id(
-                ZB_ZCL_DECLARE_GROUPS_ATTRIB_LIST
-            ),
-            cv.OnlyWith(CONF_SCENES_ATTRS, "nrf52"): cv.declare_id(
-                zb_zcl_scenes_attrs_t
-            ),
-            cv.OnlyWith(CONF_SCENES_ATTRIB_LIST, "nrf52"): cv.declare_id(
-                ZB_ZCL_DECLARE_SCENES_ATTRIB_LIST
             ),
             cv.Optional(CONF_ON_JOIN): automation.validate_automation(single=True),
             cv.Optional(CONF_WIPE_ON_BOOT, default=False): cv.All(
