@@ -150,7 +150,7 @@ class ArrayAssignmentExpression(AssignmentExpression):
 
 
 class ZigbeeClusterDesc(MockObj):
-    def __init__(self, name, attr):
+    def __init__(self, name: str, attr: ID | None = None) -> None:
         self._name = name
         self._attr = attr
         base = ID(self._name + "_ZHA_", True, type)
