@@ -37,6 +37,7 @@ from ..defines import (
     CONF_TRANSFORM_ROTATION,
     LV_PART,
     LV_SCALE_MODE,
+    StaticCastExpression,
     literal,
 )
 from ..helpers import add_lv_use, lvgl_components_required
@@ -106,7 +107,7 @@ lv_meter_indicator_image_t = LvType("lv_image_t", parents=(lv_meter_indicator_t,
 
 INDICATOR_LINE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_WIDTH, default=4): size,
+        cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
         cv.Optional(CONF_R_MOD): cv.int_,
         cv.Optional(CONF_LENGTH, default="100%"): pixels_or_percent_validator,
@@ -125,7 +126,7 @@ INDICATOR_IMG_SCHEMA = cv.Schema(
 )
 INDICATOR_ARC_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_WIDTH, default=4): size,
+        cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
         cv.Optional(CONF_R_MOD, default=0): size,
         cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
@@ -136,7 +137,7 @@ INDICATOR_ARC_SCHEMA = cv.Schema(
 )
 INDICATOR_TICKS_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_WIDTH, default=4): size,
+        cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR_START, default=0): lv_color,
         cv.Optional(CONF_COLOR_END): lv_color,
         cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
@@ -179,7 +180,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_TICKS): cv.Schema(
             {
                 cv.Optional(CONF_COUNT, default=12): cv.positive_int,
-                cv.Optional(CONF_WIDTH, default=2): size,
+                cv.Optional(CONF_WIDTH, default=2): cv.positive_int,
                 cv.Optional(CONF_LENGTH, default=10): size,
                 cv.Optional(CONF_COLOR, default=0x808080): lv_color,
                 cv.Optional(CONF_MAJOR): cv.Schema(
@@ -346,6 +347,8 @@ class MeterType(WidgetType):
                         )
                     else:
                         lv.scale_set_major_tick_every(scale_var, 0)
+                else:
+                    lv.scale_set_total_tick_count(scale_var, 0)
 
                 # Handle indicators as sections
                 for indicator in scale_conf.get(CONF_INDICATORS, ()):
@@ -407,7 +410,7 @@ class MeterType(WidgetType):
                         lw.set_style("line_rounded", True)
                         lw.set_style("bg_color", await lv_color.process(v[CONF_COLOR]))
                         lw.set_style(CONF_ALIGN, CHILD_ALIGNMENTS.CENTER)
-                        width = await size.process(v[CONF_WIDTH])
+                        width = v[CONF_WIDTH]
                         length = v[CONF_LENGTH]
                         if isinstance(length, float):
                             length = length * 0.5
@@ -416,7 +419,10 @@ class MeterType(WidgetType):
                         lv_obj.set_size(line, length, width)
                         lw.set_style(CONF_X, x)
                         lw.set_style("transform_pivot_y", literal("lv_pct(50)"))
-                        lw.set_style("transform_pivot_x", width / 2)
+                        lw.set_style(
+                            "transform_pivot_x",
+                            StaticCastExpression(cg.uint16, width // 2),
+                        )
                         lw.set_style(CONF_BG_OPA, await opacity.process(v[CONF_OPA]))
                         lw.set_style(CONF_TRANSFORM_ROTATION, rotation * 10)
                         if r_mode := v.get(CONF_R_MOD):
@@ -484,10 +490,6 @@ async def set_indicator_values(indicator: Widget, config):
             lv.scale_section_set_range(indicator.obj, 0, end_value)
     if indicator.type is container_spec:
         # Line needle
-        print(start_value, end_value)
-        print(indicator.var)
-        print(indicator.slope)
-        print(indicator.y_int)
         angle = start_value * indicator.slope + indicator.y_int
         indicator.set_style(CONF_TRANSFORM_ROTATION, angle * 10)
 
