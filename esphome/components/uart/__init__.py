@@ -32,7 +32,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PlatformFramework,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
 
@@ -470,6 +470,26 @@ async def uart_write_to_code(config, action_id, template_arg, args):
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
     return var
+
+
+UART_DATA_LISTENERS_KEY = "uart_data_listeners"
+
+
+def request_uart_listeners() -> None:
+    """Request that UART data listeners be compiled in.
+
+    Components that need to be notified about UART data received events
+    should call this function during their code generation.
+    This enables the add_data_listener() API and the RX event task.
+    """
+    CORE.data[UART_DATA_LISTENERS_KEY] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional UART features."""
+    if CORE.data.get(UART_DATA_LISTENERS_KEY, False):
+        cg.add_define("USE_UART_DATA_LISTENERS")
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

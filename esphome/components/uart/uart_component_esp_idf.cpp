@@ -106,6 +106,13 @@ void IDFUARTComponent::setup() {
   this->load_settings(false);
 
   xSemaphoreGive(this->lock_);
+
+#ifdef USE_UART_DATA_LISTENERS
+  // Start the RX event task if any listeners are registered
+  if (!this->data_listeners_.empty()) {
+    this->start_rx_event_task_();
+  }
+#endif  // USE_UART_DATA_LISTENERS
 }
 
 void IDFUARTComponent::load_settings(bool dump_config) {
@@ -337,22 +344,7 @@ void IDFUARTComponent::flush() {
 
 void IDFUARTComponent::check_logger_conflict() {}
 
-bool IDFUARTComponent::enable_rx_notification(const std::function<void()> &callback) {
-  if (this->uart_event_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Event queue not available");
-    return false;
-  }
-
-  this->rx_notification_callback_ = callback;
-  this->start_rx_event_task_();
-  return true;
-}
-
-void IDFUARTComponent::disable_rx_notification() {
-  this->stop_rx_event_task_();
-  this->rx_notification_callback_ = nullptr;
-}
-
+#ifdef USE_UART_DATA_LISTENERS
 void IDFUARTComponent::start_rx_event_task_() {
   if (this->rx_event_task_running_) {
     ESP_LOGV(TAG, "RX event task already running");
@@ -412,10 +404,10 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
     if (xQueueReceive(self->uart_event_queue_, &event, pdMS_TO_TICKS(100)) == pdTRUE) {
       switch (event.type) {
         case UART_DATA:
-          // Data available in UART RX buffer - notify callback
+          // Data available in UART RX buffer - notify listeners
           ESP_LOGVV(TAG, "Data event: %d bytes", event.size);
-          if (self->rx_notification_callback_) {
-            self->rx_notification_callback_();
+          for (auto *listener : self->data_listeners_) {
+            listener->on_uart_data_received();
           }
           break;
 
@@ -423,8 +415,8 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
         case UART_BUFFER_FULL:
           ESP_LOGW(TAG, "FIFO overflow or ring buffer full - clearing");
           uart_flush_input(self->uart_num_);
-          if (self->rx_notification_callback_) {
-            self->rx_notification_callback_();
+          for (auto *listener : self->data_listeners_) {
+            listener->on_uart_data_received();
           }
           break;
 
@@ -440,6 +432,7 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
   self->rx_event_task_handle_ = nullptr;
   vTaskDelete(nullptr);
 }
+#endif  // USE_UART_DATA_LISTENERS
 
 }  // namespace uart
 }  // namespace esphome

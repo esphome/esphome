@@ -30,6 +30,18 @@ enum UARTDirection {
 
 const LogString *parity_to_str(UARTParityOptions parity);
 
+#ifdef USE_UART_DATA_LISTENERS
+/** Listener interface for UART data received events.
+ *
+ * Components can implement this interface to receive RX notifications
+ * without the overhead of std::function callbacks.
+ */
+class UARTDataListener {
+ public:
+  virtual void on_uart_data_received() = 0;
+};
+#endif  // USE_UART_DATA_LISTENERS
+
 class UARTComponent {
  public:
   // Writes an array of bytes to the UART bus.
@@ -180,13 +192,12 @@ class UARTComponent {
   }
 #endif
 
-  // Request notification when data is received (for low-latency applications)
-  // @param callback Function to call when data is available
-  // @return True if notification is supported by this UART implementation, false otherwise
-  virtual bool enable_rx_notification(const std::function<void()> &callback) { return false; }
-
-  // Disable RX data notification
-  virtual void disable_rx_notification() {}
+#ifdef USE_UART_DATA_LISTENERS
+  /** Register a listener for UART data received events.
+   * @param listener Pointer to the listener implementation
+   */
+  void add_data_listener(UARTDataListener *listener);
+#endif  // USE_UART_DATA_LISTENERS
 
  protected:
   virtual void check_logger_conflict() = 0;
@@ -202,6 +213,9 @@ class UARTComponent {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
+#ifdef USE_UART_DATA_LISTENERS
+  std::vector<UARTDataListener *> data_listeners_;
+#endif  // USE_UART_DATA_LISTENERS
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif

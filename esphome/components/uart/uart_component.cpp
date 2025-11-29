@@ -28,5 +28,9 @@ void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
   this->set_rx_full_threshold(val);
 }
 
+#ifdef USE_UART_DATA_LISTENERS
+void UARTComponent::add_data_listener(UARTDataListener *listener) { this->data_listeners_.push_back(listener); }
+#endif  // USE_UART_DATA_LISTENERS
+
 }  // namespace uart
 }  // namespace esphome
