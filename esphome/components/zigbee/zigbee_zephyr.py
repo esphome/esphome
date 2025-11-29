@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 
 from esphome import automation, core
@@ -150,12 +149,10 @@ class ArrayAssignmentExpression(AssignmentExpression):
         return f"{self.type} {self.name}[] = {self.rhs}"
 
 
-@dataclass(eq=True, frozen=False)
 class ZigbeeClusterDesc(MockObj):
-    _name: str
-    _attr: ID = None
-
-    def __post_init__(self) -> None:
+    def __init__(self, name, attr):
+        self._name = name
+        self._attr = attr
         base = ID(self._name + "_ZHA_", True, type)
         super().__init__(base, "")
 
