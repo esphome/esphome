@@ -155,7 +155,7 @@ class ZigbeeClusterDesc(MockObj):
     _name: str
     _attr: ID = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         base = ID(self._name + "_ZHA_", True, type)
         super().__init__(base, "")
 
