@@ -301,12 +301,7 @@ void WebServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
-    logger::global_logger->add_on_log_callback(
-        // logs are not deferred, the memory overhead would be too large
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          (void) message_len;
-          this->events_.try_send_nodefer(message, "log", millis());
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
@@ -322,6 +317,16 @@ void WebServer::setup() {
   this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
 }
 void WebServer::loop() { this->events_.loop(); }
+
+#ifdef USE_LOGGER
+void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) level;
+  (void) tag;
+  (void) message_len;
+  this->events_.try_send_nodefer(message, "log", millis());
+}
+#endif
+
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"

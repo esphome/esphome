@@ -52,7 +52,9 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
+                             public esp32_ble_tracker::BLEScannerStateListener,
+                             public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
  public:
   BluetoothProxy();
@@ -107,6 +109,9 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
 
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
+
+  /// BLEScannerStateListener interface
+  void on_scanner_state(esp32_ble_tracker::ScannerState state) override;
 
   uint32_t get_legacy_version() const {
     if (this->active_) {
