@@ -20,6 +20,7 @@
 
 namespace esphome::api {
 
+#ifdef USE_API_USER_DEFINED_ACTIONS
 // Forward declaration - full definition in user_services.h
 class UserServiceDescriptor;
 #endif
