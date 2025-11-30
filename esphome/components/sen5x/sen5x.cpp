@@ -390,6 +390,13 @@ void SEN5XComponent::update() {
     if (this->pm_10_0_sensor_ != nullptr) {
       this->pm_10_0_sensor_->publish_state(pm_10_0);
     }
+
+    if (this->aqi_sensor_ != nullptr) {
+      aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+      int aqi_value = calculator->get_aqi(pm_2_5, pm_10_0);
+      this->aqi_sensor_->publish_state(aqi_value);
+    }
+
     if (this->temperature_sensor_ != nullptr) {
       this->temperature_sensor_->publish_state(temperature);
     }

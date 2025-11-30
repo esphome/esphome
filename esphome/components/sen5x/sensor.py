@@ -1,7 +1,7 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import i2c, sensirion_common, sensor
+from esphome.components import aqi, i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
@@ -44,7 +44,11 @@ from esphome.const import (
 
 CODEOWNERS = ["@martgras"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensirion_common"]
+AUTO_LOAD = ["aqi", "sensirion_common"]
+
+CONF_AQI = aqi.CONF_AQI
+CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
+AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
 
 sen5x_ns = cg.esphome_ns.namespace("sen5x")
 SEN5XComponent = sen5x_ns.class_(
@@ -190,11 +194,33 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
+            cv.Optional(CONF_AQI): sensor.sensor_schema(
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Required(CONF_CALCULATION_TYPE): cv.enum(
+                        AQI_CALCULATION_TYPE, upper=True
+                    ),
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x69))
 )
+
+
+def validate_aqi_requires_pm(config):
+    if CONF_AQI in config and (CONF_PM_2_5 not in config or CONF_PM_10_0 not in config):
+        raise cv.Invalid(
+            f"AQI sensor requires both '{CONF_PM_2_5}' and '{CONF_PM_10_0}' sensors to be configured"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = validate_aqi_requires_pm
 
 SENSOR_MAP = {
     CONF_PM_1_0: "set_pm_1_0_sensor",
@@ -205,6 +231,7 @@ SENSOR_MAP = {
     CONF_NOX: "set_nox_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
+    CONF_AQI: "set_aqi_sensor",
 }
 
 SETTING_MAP = {
@@ -226,6 +253,9 @@ async def to_code(config):
         if cfg := config.get(key):
             sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, funcName)(sens))
+
+    if CONF_AQI in config:
+        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
 
     if cfg := config.get(CONF_VOC, {}).get(CONF_ALGORITHM_TUNING):
         cg.add(
