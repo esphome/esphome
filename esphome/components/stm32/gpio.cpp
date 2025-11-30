@@ -46,7 +46,7 @@ void _pin_mode(GPIO_TypeDef *port, uint8_t pin, gpio::Flags flags, optional<uint
   GPIO_InitStruct.Pull = (flags & gpio::Flags::FLAG_PULLUP)
                              ? GPIO_PULLUP
                              : ((flags & gpio::Flags::FLAG_PULLDOWN) ? GPIO_PULLDOWN : GPIO_NOPULL);
-#ifndef F1
+#ifndef STM32F1
   if (af) {
     GPIO_InitStruct.Alternate = *af;
   }
