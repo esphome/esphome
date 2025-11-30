@@ -1,3 +1,5 @@
+CODEOWNERS = ["@tek79"]
+
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.network import ip_address_literal
