@@ -9,13 +9,14 @@ extern "C" {
 #include <zboss_api_addons.h>
 }
 
-// this macro should have been defined inside zboss. It is missing though.
+// it should have been defined inside of sdk. It is missing though
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID(data_ptr) \
   { \
     ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID, ZB_ZCL_ATTR_TYPE_CHAR_STRING, ZB_ZCL_ATTR_ACCESS_READ_ONLY, \
         (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), (void *) (data_ptr) \
   }
 
+// copy of ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST + description
 #define ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST(attr_list, out_of_service, present_value, status_flag, \
                                                         description) \
   ZB_ZCL_START_DECLARE_ATTRIB_LIST_CLUSTER_REVISION(attr_list, ZB_ZCL_BINARY_INPUT) \

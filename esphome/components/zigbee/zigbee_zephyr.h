@@ -8,6 +8,7 @@ extern "C" {
 #include <zboss_api_addons.h>
 }
 
+// copy of ZB_DECLARE_SIMPLE_DESC. Due to https://github.com/nrfconnect/sdk-nrfxlib/pull/666
 #define ESPHOME_ZB_DECLARE_SIMPLE_DESC(ep_name, in_clusters_count, out_clusters_count) \
   typedef ZB_PACKED_PRE struct zb_af_simple_desc_##ep_name##_##in_clusters_count##_##out_clusters_count##_s { \
     zb_uint8_t endpoint;                  /* Endpoint */ \
@@ -22,15 +23,18 @@ extern "C" {
   } ZB_PACKED_STRUCT zb_af_simple_desc_##ep_name##_##in_clusters_count##_##out_clusters_count##_t
 
 #define ESPHOME_CAT7(a, b, c, d, e, f, g) a##b##c##d##e##f##g
+// needed to use ESPHOME_ZB_DECLARE_SIMPLE_DESC
 #define ESPHOME_ZB_AF_SIMPLE_DESC_TYPE(ep_name, in_num, out_num) \
   ESPHOME_CAT7(zb_af_simple_desc_, ep_name, _, in_num, _, out_num, _t)
 
+// needed to use ESPHOME_ZB_DECLARE_SIMPLE_DESC
 #define ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC(ep_name, ep_id, in_clust_num, out_clust_num, ...) \
   ESPHOME_ZB_DECLARE_SIMPLE_DESC(ep_name, in_clust_num, out_clust_num); \
   ESPHOME_ZB_AF_SIMPLE_DESC_TYPE(ep_name, in_clust_num, out_clust_num) \
   simple_desc_##ep_name = {ep_id,         ZB_AF_HA_PROFILE_ID, ZB_HA_SIMPLE_SENSOR_DEVICE_ID, 0, 0, in_clust_num, \
                            out_clust_num, {__VA_ARGS__}}
 
+// needed to use ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC
 #define ESPHOME_ZB_HA_DECLARE_EP(ep_name, ep_id, cluster_list, in_cluster_num, out_cluster_num, report_attr_count, \
                                  ...) \
   ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC(ep_name, ep_id, in_cluster_num, out_cluster_num, __VA_ARGS__); \
