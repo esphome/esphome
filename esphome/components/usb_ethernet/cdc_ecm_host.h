@@ -182,6 +182,7 @@ extern "C"
         char *nameserver;                  //!< Nameserver for the device
         char *if_key;                      //!< Interface key for the device
         char *if_desc;                     //!< Interface description for the device
+        bool disable_dhcp;                 //!< If true, do not start DHCP client (for manual IP configuration)
     } cdc_ecm_params_t;
 
     /**
