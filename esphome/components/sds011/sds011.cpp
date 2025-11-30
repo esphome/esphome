@@ -180,6 +180,12 @@ void SDS011Component::parse_data_() {
   if (this->pm_10_0_sensor_ != nullptr) {
     this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
   }
+
+  if (this->aqi_sensor_ != nullptr) {
+    aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+    int aqi_value = calculator->get_aqi(pm_2_5_concentration, pm_10_0_concentration);
+    this->aqi_sensor_->publish_state(aqi_value);
+  }
 }
 
 void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {
