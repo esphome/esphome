@@ -151,14 +151,30 @@ def validate_binary_sensor(config: ConfigType) -> ConfigType:
     return config
 
 
-FactoryResetAction = zigbee_ns.class_("FactoryResetAction", automation.Action)
+ZIGBEE_ACTION_SCHEMA = automation.maybe_simple_id(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(ZigbeeComponent),
+        }
+    )
+)
+
+FactoryResetAction = zigbee_ns.class_(
+    "FactoryResetAction", automation.Action, cg.Parented.template(ZigbeeComponent)
+)
 
 
-@automation.register_action("zigbee.factory_reset", FactoryResetAction, cv.Schema({}))
-async def zigbee_factory_reset_to_code(
+@automation.register_action(
+    "zigbee.factory_reset",
+    FactoryResetAction,
+    ZIGBEE_ACTION_SCHEMA,
+)
+async def reset_zigbee_to_code(
     config: ConfigType,
     action_id: core.ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple],
 ):
-    return cg.new_Pvariable(action_id, template_arg)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var

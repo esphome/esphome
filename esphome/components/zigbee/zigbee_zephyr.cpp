@@ -62,7 +62,7 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
 
   auto err = zigbee_default_signal_handler(bufid);
   if (err != RET_OK) {
-    ESP_LOGE(TAG, "zigbee_default_signal_handler ERROR %u [%s]", err, zb_error_to_string_get(err));
+    ESP_LOGE(TAG, "Zigbee_default_signal_handler ERROR %u [%s]", err, zb_error_to_string_get(err));
   }
 
   switch (sig) {
@@ -101,7 +101,7 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   zb_uint16_t attr_id = p_device_cb_param->cb_param.set_attr_value_param.attr_id;
   auto endpoint = p_device_cb_param->endpoint;
 
-  ESP_LOGI(TAG, "zcl_device_cb %s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id,
+  ESP_LOGI(TAG, "Zcl_device_cb %s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id,
            attr_id, endpoint);
 
   // endpoints are enumerated from 1
@@ -114,7 +114,7 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
 
 void ZigbeeComponent::on_join_() {
   this->defer([this]() {
-    ESP_LOGD(TAG, "joined the network");
+    ESP_LOGD(TAG, "Joined the network");
     this->join_trigger_.trigger();
     this->join_cb_.call();
   });
@@ -158,11 +158,11 @@ void ZigbeeComponent::dump_config() {
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   wipe = true;
 #endif
-  ESP_LOGCONFIG(TAG, "  wipe on boot: %s", YESNO(wipe));
+  ESP_LOGCONFIG(TAG, "  Wipe on boot: %s", YESNO(wipe));
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
-  ESP_LOGD(TAG, "force zboss scheduler to wake and send attribute report");
+  ESP_LOGD(TAG, "Force zboss scheduler to wake and send attribute report");
   zb_buf_free(bufid);
 }
 
@@ -176,7 +176,7 @@ void ZigbeeComponent::loop() {
 }
 
 void ZigbeeComponent::factory_reset() {
-  ESP_LOGD(TAG, "factory reset");
+  ESP_LOGD(TAG, "Factory reset");
   ZB_SCHEDULE_APP_CALLBACK(zb_bdb_reset_via_local_action, 0);
 }
 
