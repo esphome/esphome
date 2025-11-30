@@ -3046,16 +3046,16 @@ void WaveshareEPaper4P2InGV2::reset_() {
   ESP_LOGD(TAG, "EPaper4.2G reset");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->digital_write(true);
-    delay(200);
+    delay(20);
     this->reset_pin_->digital_write(false);
     delay(2);
     this->reset_pin_->digital_write(true);
-    delay(200);
+    delay(20);
   }
 }
 bool WaveshareEPaper4P2InGV2::wait_until_idle_() {
   // low when busy
-  delay(100);
+  delay(5);
   if (this->busy_pin_ == nullptr) {
     ESP_LOGW(TAG, "EPaper4.2G busy pin not set");
     return true;
@@ -3068,7 +3068,7 @@ bool WaveshareEPaper4P2InGV2::wait_until_idle_() {
       return false;
     }
     App.feed_wdt();
-    delay(100);
+    delay(5);
   }
   return true;
 }
