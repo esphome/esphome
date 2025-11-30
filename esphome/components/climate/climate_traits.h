@@ -6,8 +6,7 @@
 #include "esphome/core/finite_set_mask.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 // Type aliases for climate enum bitmasks
 // These replace std::set<EnumType> to eliminate red-black tree overhead
@@ -292,5 +291,4 @@ class ClimateTraits {
   std::vector<const char *> supported_custom_presets_;
 };
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate
