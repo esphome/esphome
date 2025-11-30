@@ -43,6 +43,11 @@ void GCJA5Component::loop() {
           this->pm_2_5_sensor_->publish_state(get_32_bit_uint_(5));
         if (this->pm_10_0_sensor_ != nullptr)
           this->pm_10_0_sensor_->publish_state(get_32_bit_uint_(9));
+        if (this->aqi_sensor_ != nullptr) {
+          aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+          int aqi_value = calculator->get_aqi(get_32_bit_uint_(5), get_32_bit_uint_(9));
+          this->aqi_sensor_->publish_state(aqi_value);
+        }
         if (this->pmc_0_3_sensor_ != nullptr)
           this->pmc_0_3_sensor_->publish_state(get_16_bit_uint_(13));
         if (this->pmc_0_5_sensor_ != nullptr)

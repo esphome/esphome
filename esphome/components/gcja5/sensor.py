@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import sensor, uart
+from esphome.components import aqi, sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -21,6 +21,11 @@ from esphome.const import (
 
 CODEOWNERS = ["@gcormier"]
 DEPENDENCIES = ["uart"]
+AUTO_LOAD = ["aqi"]
+
+CONF_AQI = aqi.CONF_AQI
+CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
+AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
 
 gcja5_ns = cg.esphome_ns.namespace("gcja5")
 
@@ -89,10 +94,34 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional(CONF_AQI): sensor.sensor_schema(
+            icon=ICON_CHEMICAL_WEAPON,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(
+            {
+                cv.Required(CONF_CALCULATION_TYPE): cv.enum(
+                    AQI_CALCULATION_TYPE, upper=True
+                ),
+            }
+        ),
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
-FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "gcja5", baud_rate=9600, require_rx=True, parity="EVEN"
+
+
+def validate_aqi_requires_pm(config):
+    if CONF_AQI in config and (CONF_PM_2_5 not in config or CONF_PM_10_0 not in config):
+        raise cv.Invalid(
+            f"AQI sensor requires both '{CONF_PM_2_5}' and '{CONF_PM_10_0}' sensors to be configured"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    uart.final_validate_device_schema(
+        "gcja5", baud_rate=9600, require_rx=True, parity="EVEN"
+    ),
+    validate_aqi_requires_pm,
 )
 TYPES = {
     CONF_PM_1_0: "set_pm_1_0_sensor",
@@ -104,6 +133,7 @@ TYPES = {
     CONF_PMC_2_5: "set_pmc_2_5_sensor",
     CONF_PMC_5_0: "set_pmc_5_0_sensor",
     CONF_PMC_10_0: "set_pmc_10_0_sensor",
+    CONF_AQI: "set_aqi_sensor",
 }
 
 
@@ -116,3 +146,6 @@ async def to_code(config):
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
+
+    if CONF_AQI in config:
+        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))

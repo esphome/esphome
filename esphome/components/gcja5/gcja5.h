@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/aqi/aqi_calculator_factory.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
@@ -23,6 +24,9 @@ class GCJA5Component : public Component, public uart::UARTDevice {
   void set_pmc_2_5_sensor(sensor::Sensor *pmc_2_5) { pmc_2_5_sensor_ = pmc_2_5; }
   void set_pmc_5_0_sensor(sensor::Sensor *pmc_5_0) { pmc_5_0_sensor_ = pmc_5_0; }
   void set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0) { pmc_10_0_sensor_ = pmc_10_0; }
+
+  void set_aqi_sensor(sensor::Sensor *aqi_sensor) { aqi_sensor_ = aqi_sensor; }
+  void set_aqi_calculation_type(aqi::AQICalculatorType aqi_calc_type) { aqi_calc_type_ = aqi_calc_type; }
 
  protected:
   void parse_data_();
@@ -50,6 +54,10 @@ class GCJA5Component : public Component, public uart::UARTDevice {
   sensor::Sensor *pmc_2_5_sensor_{nullptr};
   sensor::Sensor *pmc_5_0_sensor_{nullptr};
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
+
+  sensor::Sensor *aqi_sensor_{nullptr};
+  aqi::AQICalculatorType aqi_calc_type_;
+  aqi::AQICalculatorFactory aqi_calculator_factory_;
 };
 
 }  // namespace gcja5
