@@ -22,6 +22,10 @@ class UserServiceDescriptor {
   virtual ListEntitiesServicesResponse encode_list_service_response() = 0;
 
   virtual bool execute_service(const ExecuteServiceRequest &req) = 0;
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Overload that accepts server-generated action_call_id (avoids client call_id collisions)
+  virtual bool execute_service(const ExecuteServiceRequest &req, uint32_t action_call_id) = 0;
+#endif
 
   bool is_internal() { return false; }
 };
@@ -67,6 +71,17 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
 #endif
     return true;
   }
+
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  bool execute_service(const ExecuteServiceRequest &req, uint32_t action_call_id) override {
+    if (req.key != this->key_)
+      return false;
+    if (req.args.size() != sizeof...(Ts))
+      return false;
+    this->execute_(req.args, action_call_id, req.return_response, std::make_index_sequence<sizeof...(Ts)>{});
+    return true;
+  }
+#endif
 
  protected:
   virtual void execute(uint32_t call_id, bool return_response, Ts... x) = 0;
@@ -118,6 +133,18 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
 #endif
     return true;
   }
+
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Dynamic services don't support responses yet, but need to implement the interface
+  bool execute_service(const ExecuteServiceRequest &req, uint32_t action_call_id) override {
+    if (req.key != this->key_)
+      return false;
+    if (req.args.size() != sizeof...(Ts))
+      return false;
+    this->execute_(req.args, action_call_id, req.return_response, std::make_index_sequence<sizeof...(Ts)>{});
+    return true;
+  }
+#endif
 
  protected:
   virtual void execute(uint32_t call_id, bool return_response, Ts... x) = 0;
@@ -228,7 +255,7 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
             bool return_response = std::get<1>(args);
             if (!return_response) {
               // Client doesn't want response data, just send success/error
-              this->parent_->send_service_response(call_id, success, error_message);
+              this->parent_->send_action_response(call_id, success, error_message);
               return;
             }
           }
@@ -238,12 +265,12 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
       json::JsonBuilder builder;
       this->json_builder_(x..., builder.root());
       std::string json_str = builder.serialize();
-      this->parent_->send_service_response(call_id, success, error_message,
-                                           reinterpret_cast<const uint8_t *>(json_str.data()), json_str.size());
+      this->parent_->send_action_response(call_id, success, error_message,
+                                          reinterpret_cast<const uint8_t *>(json_str.data()), json_str.size());
       return;
     }
 #endif
-    this->parent_->send_service_response(call_id, success, error_message);
+    this->parent_->send_action_response(call_id, success, error_message);
   }
 
  protected:
@@ -268,7 +295,7 @@ template<typename... Ts> class APIUnregisterServiceCallAction : public Action<Ts
     auto args = std::make_tuple(x...);
     uint32_t call_id = std::get<0>(args);
     if (call_id != 0) {
-      this->parent_->unregister_service_call(call_id);
+      this->parent_->unregister_active_action_call(call_id);
     }
   }
 

@@ -1556,17 +1556,25 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-  // Register the call before executing so responses can be sent
-  // Uses call_id as key to support concurrent calls from multiple clients
+  // Register the call and get a unique server-generated action_call_id
+  // This avoids collisions when multiple clients use the same call_id
+  uint32_t action_call_id = 0;
   if (msg.call_id != 0) {
-    this->parent_->register_service_call(msg.call_id, this);
+    action_call_id = this->parent_->register_active_action_call(msg.call_id, this);
   }
-#endif
+  // Use the overload that passes action_call_id separately (avoids copying msg)
+  for (auto *service : this->parent_->get_user_services()) {
+    if (service->execute_service(msg, action_call_id)) {
+      found = true;
+    }
+  }
+#else
   for (auto *service : this->parent_->get_user_services()) {
     if (service->execute_service(msg)) {
       found = true;
     }
   }
+#endif
   if (!found) {
     ESP_LOGV(TAG, "Could not find service");
   }

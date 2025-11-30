@@ -577,43 +577,47 @@ bool APIServer::teardown() {
 }
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-void APIServer::register_service_call(uint32_t call_id, APIConnection *conn) {
-  this->active_service_calls_.push_back({call_id, conn});
+uint32_t APIServer::register_active_action_call(uint32_t client_call_id, APIConnection *conn) {
+  uint32_t action_call_id = this->next_action_call_id_++;
+  // Handle wraparound (skip 0 as it means "no call")
+  if (this->next_action_call_id_ == 0) {
+    this->next_action_call_id_ = 1;
+  }
+  this->active_action_calls_.push_back({action_call_id, client_call_id, conn});
+  return action_call_id;
 }
 
-void APIServer::unregister_service_call(uint32_t call_id) {
-  this->active_service_calls_.erase(
-      std::remove_if(this->active_service_calls_.begin(), this->active_service_calls_.end(),
-                     [call_id](const ActiveServiceCall &call) { return call.call_id == call_id; }),
-      this->active_service_calls_.end());
-}
-
-APIConnection *APIServer::get_service_call_connection(uint32_t call_id) {
-  for (auto &call : this->active_service_calls_) {
-    if (call.call_id == call_id) {
-      return call.connection;
+void APIServer::unregister_active_action_call(uint32_t action_call_id) {
+  // Swap-and-pop is more efficient than remove_if for unordered vectors
+  for (size_t i = 0; i < this->active_action_calls_.size(); i++) {
+    if (this->active_action_calls_[i].action_call_id == action_call_id) {
+      std::swap(this->active_action_calls_[i], this->active_action_calls_.back());
+      this->active_action_calls_.pop_back();
+      return;
     }
   }
-  return nullptr;
 }
 
-void APIServer::send_service_response(uint32_t call_id, bool success, const std::string &error_message) {
-  APIConnection *conn = this->get_service_call_connection(call_id);
-  if (conn == nullptr) {
-    ESP_LOGW(TAG, "Cannot send response: no connection found for call_id %u", call_id);
-    return;
+void APIServer::send_action_response(uint32_t action_call_id, bool success, const std::string &error_message) {
+  for (auto &call : this->active_action_calls_) {
+    if (call.action_call_id == action_call_id) {
+      call.connection->send_execute_service_response(call.client_call_id, success, error_message);
+      return;
+    }
   }
-  conn->send_execute_service_response(call_id, success, error_message);
+  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-void APIServer::send_service_response(uint32_t call_id, bool success, const std::string &error_message,
-                                      const uint8_t *response_data, size_t response_data_len) {
-  APIConnection *conn = this->get_service_call_connection(call_id);
-  if (conn == nullptr) {
-    ESP_LOGW(TAG, "Cannot send response: no connection found for call_id %u", call_id);
-    return;
+void APIServer::send_action_response(uint32_t action_call_id, bool success, const std::string &error_message,
+                                     const uint8_t *response_data, size_t response_data_len) {
+  for (auto &call : this->active_action_calls_) {
+    if (call.action_call_id == action_call_id) {
+      call.connection->send_execute_service_response(call.client_call_id, success, error_message, response_data,
+                                                     response_data_len);
+      return;
+    }
   }
-  conn->send_execute_service_response(call_id, success, error_message, response_data, response_data_len);
+  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES

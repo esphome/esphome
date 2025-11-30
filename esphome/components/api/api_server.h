@@ -133,15 +133,15 @@ class APIServer : public Component, public Controller {
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-  // Service call context management - supports concurrent calls from multiple clients
-  void register_service_call(uint32_t call_id, APIConnection *conn);
-  void unregister_service_call(uint32_t call_id);
-  APIConnection *get_service_call_connection(uint32_t call_id);
-  // Send response for a specific service call
-  void send_service_response(uint32_t call_id, bool success, const std::string &error_message);
+  // Action call context management - supports concurrent calls from multiple clients
+  // Returns server-generated action_call_id to avoid collisions when clients use same call_id
+  uint32_t register_active_action_call(uint32_t client_call_id, APIConnection *conn);
+  void unregister_active_action_call(uint32_t action_call_id);
+  // Send response for a specific action call (uses action_call_id, sends client_call_id in response)
+  void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void send_service_response(uint32_t call_id, bool success, const std::string &error_message,
-                             const uint8_t *response_data, size_t response_data_len);
+  void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message,
+                            const uint8_t *response_data, size_t response_data_len);
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
@@ -221,13 +221,16 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-  // Active service calls - supports concurrent calls from multiple clients
-  struct ActiveServiceCall {
-    uint32_t call_id;
+  // Active action calls - supports concurrent calls from multiple clients
+  // Uses server-generated action_call_id to avoid collisions when multiple clients use same call_id
+  struct ActiveActionCall {
+    uint32_t action_call_id;  // Server-generated unique ID (passed to actions)
+    uint32_t client_call_id;  // Client's original call_id (used in response)
     APIConnection *connection;
   };
-  std::vector<ActiveServiceCall> active_service_calls_;
-#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
+  std::vector<ActiveActionCall> active_action_calls_;
+  uint32_t next_action_call_id_{1};  // Counter for generating unique action_call_ids
+#endif                               // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   struct PendingActionResponse {
