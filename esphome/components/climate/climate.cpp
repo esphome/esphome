@@ -3,8 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/macros.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 static const char *const TAG = "climate";
 
@@ -762,5 +761,4 @@ void Climate::dump_traits_(const char *tag) {
   }
 }
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate
