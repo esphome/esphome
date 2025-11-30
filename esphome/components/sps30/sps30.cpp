@@ -235,6 +235,12 @@ void SPS30Component::update() {
     if (this->pm_size_sensor_ != nullptr)
       this->pm_size_sensor_->publish_state(pm_size.value);
 
+    if (this->aqi_sensor_ != nullptr) {
+      aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+      int aqi_value = calculator->get_aqi(pm_2_5.value, pm_10_0.value);
+      this->aqi_sensor_->publish_state(aqi_value);
+    }
+
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
 

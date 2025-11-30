@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/aqi/aqi_calculator_factory.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
@@ -22,6 +23,8 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   void set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0) { pmc_10_0_sensor_ = pmc_10_0; }
 
   void set_pm_size_sensor(sensor::Sensor *pm_size) { pm_size_sensor_ = pm_size; }
+  void set_aqi_sensor(sensor::Sensor *aqi_sensor) { aqi_sensor_ = aqi_sensor; }
+  void set_aqi_calculation_type(aqi::AQICalculatorType aqi_calc_type) { aqi_calc_type_ = aqi_calc_type; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { fan_interval_ = auto_cleaning_interval; }
   void set_idle_interval(uint32_t idle_interval) { idle_interval_ = idle_interval; }
   void setup() override;
@@ -63,6 +66,9 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *pmc_4_0_sensor_{nullptr};
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
   sensor::Sensor *pm_size_sensor_{nullptr};
+  sensor::Sensor *aqi_sensor_{nullptr};
+  aqi::AQICalculatorType aqi_calc_type_;
+  aqi::AQICalculatorFactory aqi_calculator_factory_;
   optional<uint32_t> fan_interval_;
   optional<uint32_t> idle_interval_;
 };
