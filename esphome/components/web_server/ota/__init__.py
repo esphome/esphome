@@ -5,7 +5,7 @@ from esphome.components.esp32 import add_idf_component
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OTA, CONF_PLATFORM
+from esphome.const import CONF_ID, CONF_OTA, CONF_PLATFORM, CONF_WEB_SERVER
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
@@ -15,8 +15,6 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network", "web_server_base"]
-
-CONF_WEB_SERVER = "web_server"
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServerOTAComponent = web_server_ns.class_("WebServerOTAComponent", OTAComponent)
@@ -47,7 +45,11 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
     merged = web_server_ota_configs[0]
     for ota_conf in web_server_ota_configs[1:]:
         # Validate that IDs are consistent if manually specified
-        if merged[CONF_ID].is_manual and ota_conf[CONF_ID].is_manual:
+        if (
+            merged[CONF_ID].is_manual
+            and ota_conf[CONF_ID].is_manual
+            and merged[CONF_ID] != ota_conf[CONF_ID]
+        ):
             raise cv.Invalid(
                 f"Found multiple web_server OTA configurations but {CONF_ID} is inconsistent"
             )

@@ -9,11 +9,8 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.web_server.ota import (
-    CONF_WEB_SERVER,
-    _web_server_ota_final_validate,
-)
-from esphome.const import CONF_ID, CONF_OTA, CONF_PLATFORM
+from esphome.components.web_server.ota import _web_server_ota_final_validate
+from esphome.const import CONF_ID, CONF_OTA, CONF_PLATFORM, CONF_WEB_SERVER
 from esphome.core import ID
 import esphome.final_validate as fv
 
@@ -195,6 +192,39 @@ def test_web_server_ota_instance_merging(
             ), "Expected merge warning not found in log"
         else:
             assert len(caplog.records) == 0, "Unexpected warnings logged"
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_web_server_ota_consistent_manual_ids(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that consistent manual IDs can be merged successfully."""
+    ota_configs = [
+        {
+            CONF_PLATFORM: CONF_WEB_SERVER,
+            CONF_ID: ID("ota_web", is_manual=True),
+        },
+        {
+            CONF_PLATFORM: CONF_WEB_SERVER,
+            CONF_ID: ID("ota_web", is_manual=True),
+        },
+    ]
+
+    full_conf = {CONF_OTA: ota_configs}
+
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            _web_server_ota_final_validate({})
+
+        updated_conf = fv.full_config.get()
+        assert len(updated_conf[CONF_OTA]) == 1
+        assert updated_conf[CONF_OTA][0][CONF_ID].id == "ota_web"
+        assert any(
+            "Found and merged" in record.message and "web_server OTA" in record.message
+            for record in caplog.records
+        )
     finally:
         fv.full_config.reset(token)
 

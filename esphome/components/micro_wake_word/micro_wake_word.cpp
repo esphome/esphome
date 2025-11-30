@@ -119,17 +119,20 @@ void MicroWakeWord::setup() {
     }
   });
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          this->suspend_task_();
-        } else if (state == ota::OTA_ERROR) {
-          this->resume_task_();
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void MicroWakeWord::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    this->suspend_task_();
+  } else if (state == ota::OTA_ERROR) {
+    this->resume_task_();
+  }
+}
+#endif
 
 void MicroWakeWord::inference_task(void *params) {
   MicroWakeWord *this_mww = (MicroWakeWord *) params;

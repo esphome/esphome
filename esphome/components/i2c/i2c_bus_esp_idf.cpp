@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "i2c_bus_esp_idf.h"
 
@@ -299,4 +299,4 @@ void IDFI2CBus::recover_() {
 
 }  // namespace i2c
 }  // namespace esphome
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

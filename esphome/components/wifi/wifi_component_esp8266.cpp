@@ -38,8 +38,7 @@ extern "C" {
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp8266";
 
@@ -514,6 +513,11 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_address_pretty(it.bssid).c_str(),
                it.channel);
       s_sta_connected = true;
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : global_wifi_component->connect_state_listeners_) {
+        listener->on_wifi_connect_state(global_wifi_component->wifi_ssid(), global_wifi_component->wifi_bssid());
+      }
+#endif
       break;
     }
     case EVENT_STAMODE_DISCONNECTED: {
@@ -533,6 +537,11 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : global_wifi_component->connect_state_listeners_) {
+        listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+      }
+#endif
       break;
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
@@ -555,6 +564,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(), format_ip_addr(it.gw).c_str(),
                format_ip_addr(it.mask).c_str());
       s_sta_got_ip = true;
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : global_wifi_component->ip_state_listeners_) {
+        listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(), global_wifi_component->get_dns_address(0),
+                              global_wifi_component->get_dns_address(1));
+      }
+#endif
       break;
     }
     case EVENT_STAMODE_DHCP_TIMEOUT: {
@@ -729,6 +744,11 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
         it->is_hidden != 0);
   }
   this->scan_done_ = true;
+#ifdef USE_WIFI_LISTENERS
+  for (auto *listener : global_wifi_component->scan_results_listeners_) {
+    listener->on_wifi_scan_results(global_wifi_component->scan_result_);
+  }
+#endif
 }
 
 #ifdef USE_WIFI_AP
@@ -864,23 +884,26 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
-  uint8_t *raw_bssid = WiFi.BSSID();
-  if (raw_bssid != nullptr) {
-    for (size_t i = 0; i < bssid.size(); i++)
-      bssid[i] = raw_bssid[i];
+  struct station_config conf {};
+  if (wifi_station_get_config(&conf)) {
+    std::copy_n(conf.bssid, bssid.size(), bssid.begin());
   }
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
-int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
+int8_t WiFiComponent::wifi_rssi() {
+  if (WiFi.status() != WL_CONNECTED)
+    return WIFI_RSSI_DISCONNECTED;
+  int8_t rssi = WiFi.RSSI();
+  // Values >= 31 are error codes per NONOS SDK API, not valid RSSI readings
+  return rssi >= 31 ? WIFI_RSSI_DISCONNECTED : rssi;
+}
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {(const ip_addr_t *) WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {}
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif
 #endif

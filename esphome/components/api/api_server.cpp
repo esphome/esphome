@@ -101,30 +101,13 @@ void APIServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          if (this->shutting_down_) {
-            // Don't try to send logs during shutdown
-            // as it could result in a recursion and
-            // we would be filling a buffer we are trying to clear
-            return;
-          }
-          for (auto &c : this->clients_) {
-            if (!c->flags_.remove && c->get_log_subscription_level() >= level)
-              c->try_send_log_message(level, tag, message, message_len);
-          }
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
 #ifdef USE_CAMERA
   if (camera::Camera::instance() != nullptr && !camera::Camera::instance()->is_internal()) {
-    camera::Camera::instance()->add_image_callback([this](const std::shared_ptr<camera::CameraImage> &image) {
-      for (auto &c : this->clients_) {
-        if (!c->flags_.remove)
-          c->set_camera_state(image);
-      }
-    });
+    camera::Camera::instance()->add_listener(this);
   }
 #endif
 }
@@ -227,8 +210,8 @@ void APIServer::dump_config() {
                 "  Max connections: %u",
                 network::get_use_address(), this->port_, this->listen_backlog_, this->max_connections_);
 #ifdef USE_API_NOISE
-  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
-  if (!this->noise_ctx_->has_psk()) {
+  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_.has_psk()));
+  if (!this->noise_ctx_.has_psk()) {
     ESP_LOGCONFIG(TAG, "  Supports encryption: YES");
   }
 #else
@@ -431,25 +414,56 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 
 #ifdef USE_API_HOMEASSISTANT_STATES
+// Helper to add subscription (reduces duplication)
+void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
+                                        std::function<void(std::string)> f, bool once) {
+  this->state_subs_.push_back(HomeAssistantStateSubscription{
+      .entity_id_ = entity_id, .attribute_ = attribute, .callback_ = std::move(f), .once_ = once,
+      // entity_id_dynamic_storage_ and attribute_dynamic_storage_ remain nullptr (no heap allocation)
+  });
+}
+
+// Helper to add subscription with heap-allocated strings (reduces duplication)
+void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                                        std::function<void(std::string)> f, bool once) {
+  HomeAssistantStateSubscription sub;
+  // Allocate heap storage for the strings
+  sub.entity_id_dynamic_storage_ = std::make_unique<std::string>(std::move(entity_id));
+  sub.entity_id_ = sub.entity_id_dynamic_storage_->c_str();
+
+  if (attribute.has_value()) {
+    sub.attribute_dynamic_storage_ = std::make_unique<std::string>(std::move(attribute.value()));
+    sub.attribute_ = sub.attribute_dynamic_storage_->c_str();
+  } else {
+    sub.attribute_ = nullptr;
+  }
+
+  sub.callback_ = std::move(f);
+  sub.once_ = once;
+  this->state_subs_.push_back(std::move(sub));
+}
+
+// New const char* overload (for internal components - zero allocation)
+void APIServer::subscribe_home_assistant_state(const char *entity_id, const char *attribute,
+                                               std::function<void(std::string)> f) {
+  this->add_state_subscription_(entity_id, attribute, std::move(f), false);
+}
+
+void APIServer::get_home_assistant_state(const char *entity_id, const char *attribute,
+                                         std::function<void(std::string)> f) {
+  this->add_state_subscription_(entity_id, attribute, std::move(f), true);
+}
+
+// Existing std::string overload (for custom_api_device.h - heap allocation)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
-  this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = std::move(entity_id),
-      .attribute = std::move(attribute),
-      .callback = std::move(f),
-      .once = false,
-  });
+  this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                          std::function<void(std::string)> f) {
-  this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = std::move(entity_id),
-      .attribute = std::move(attribute),
-      .callback = std::move(f),
-      .once = true,
-  });
-};
+  this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
+}
 
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
@@ -493,7 +507,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   ESP_LOGW(TAG, "Key set in YAML");
   return false;
 #else
-  auto &old_psk = this->noise_ctx_->get_psk();
+  auto &old_psk = this->noise_ctx_.get_psk();
   if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
     ESP_LOGW(TAG, "New PSK matches old");
     return true;
@@ -528,7 +542,42 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected() const { return !this->clients_.empty(); }
+bool APIServer::is_connected(bool state_subscription_only) const {
+  if (!state_subscription_only) {
+    return !this->clients_.empty();
+  }
+
+  for (const auto &client : this->clients_) {
+    if (client->flags_.state_subscription) {
+      return true;
+    }
+  }
+  return false;
+}
+
+#ifdef USE_LOGGER
+void APIServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  if (this->shutting_down_) {
+    // Don't try to send logs during shutdown
+    // as it could result in a recursion and
+    // we would be filling a buffer we are trying to clear
+    return;
+  }
+  for (auto &c : this->clients_) {
+    if (!c->flags_.remove && c->get_log_subscription_level() >= level)
+      c->try_send_log_message(level, tag, message, message_len);
+  }
+}
+#endif
+
+#ifdef USE_CAMERA
+void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
+  for (auto &c : this->clients_) {
+    if (!c->flags_.remove)
+      c->set_camera_state(image);
+  }
+}
+#endif
 
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;

@@ -16,6 +16,12 @@
 namespace esphome::api {
 
 template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
+  // Verify that const char* uses the base class STATIC_STRING optimization (no heap allocation)
+  // rather than being wrapped in a lambda. The base class constructor for const char* is more
+  // specialized than the templated constructor here, so it should be selected.
+  static_assert(std::is_constructible_v<TemplatableValue<std::string, X...>, const char *>,
+                "Base class must have const char* constructor for STATIC_STRING optimization");
+
  private:
   // Helper to convert value to string - handles the case where value is already a string
   template<typename T> static std::string value_to_string(T &&val) { return to_string(std::forward<T>(val)); }
@@ -46,10 +52,10 @@ template<typename... Ts> class TemplatableKeyValuePair {
 
   // Keys are always string literals from YAML dictionary keys (e.g., "code", "event")
   // and never templatable values or lambdas. Only the value parameter can be a lambda/template.
-  // Using pass-by-value with std::move allows optimal performance for both lvalues and rvalues.
-  template<typename T> TemplatableKeyValuePair(std::string key, T value) : key(std::move(key)), value(value) {}
+  // Using const char* avoids std::string heap allocation - keys remain in flash.
+  template<typename T> TemplatableKeyValuePair(const char *key, T value) : key(key), value(value) {}
 
-  std::string key;
+  const char *key{nullptr};
   TemplatableStringValue<Ts...> value;
 };
 
@@ -105,14 +111,15 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
   // Keys are always string literals from the Python code generation (e.g., cg.add(var.add_data("tag_id", templ))).
   // The value parameter can be a lambda/template, but keys are never templatable.
-  template<typename K, typename V> void add_data(K &&key, V &&value) {
-    this->add_kv_(this->data_, std::forward<K>(key), std::forward<V>(value));
+  // Using const char* for keys avoids std::string heap allocation - keys remain in flash.
+  template<typename V> void add_data(const char *key, V &&value) {
+    this->add_kv_(this->data_, key, std::forward<V>(value));
   }
-  template<typename K, typename V> void add_data_template(K &&key, V &&value) {
-    this->add_kv_(this->data_template_, std::forward<K>(key), std::forward<V>(value));
+  template<typename V> void add_data_template(const char *key, V &&value) {
+    this->add_kv_(this->data_template_, key, std::forward<V>(value));
   }
-  template<typename K, typename V> void add_variable(K &&key, V &&value) {
-    this->add_kv_(this->variables_, std::forward<K>(key), std::forward<V>(value));
+  template<typename V> void add_variable(const char *key, V &&value) {
+    this->add_kv_(this->variables_, key, std::forward<V>(value));
   }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -185,10 +192,11 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   }
 
  protected:
-  // Helper to add key-value pairs to FixedVectors with perfect forwarding to avoid copies
-  template<typename K, typename V> void add_kv_(FixedVector<TemplatableKeyValuePair<Ts...>> &vec, K &&key, V &&value) {
+  // Helper to add key-value pairs to FixedVectors
+  // Keys are always string literals (const char*), values can be lambdas/templates
+  template<typename V> void add_kv_(FixedVector<TemplatableKeyValuePair<Ts...>> &vec, const char *key, V &&value) {
     auto &kv = vec.emplace_back();
-    kv.key = std::forward<K>(key);
+    kv.key = key;
     kv.value = std::forward<V>(value);
   }
 

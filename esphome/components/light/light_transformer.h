@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "light_color_values.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 /// Base class for all light color transformers, such as transitions or flashes.
 class LightTransformer {
@@ -59,5 +58,4 @@ class LightTransformer {
   LightColorValues target_values_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

@@ -1,8 +1,8 @@
 #pragma once
 
+#include <list>
 #include <memory>
 #include <tuple>
-#include <forward_list>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -278,7 +278,12 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
 
   void setup() override {
     // Start with loop disabled - only enable when there's work to do
-    this->disable_loop();
+    // IMPORTANT: Only disable if num_running_ is 0, otherwise play_complex() was already
+    // called before our setup() (e.g., from on_boot trigger at same priority level)
+    // and we must not undo its enable_loop() call
+    if (this->num_running_ == 0) {
+      this->disable_loop();
+    }
   }
 
   void play_complex(const Ts &...x) override {
@@ -290,10 +295,10 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     }
 
     // Store parameters for later execution
-    this->param_queue_.emplace_front(x...);
-    // Enable loop now that we have work to do
+    this->param_queue_.emplace_back(x...);
+    // Enable loop now that we have work to do - don't call loop() synchronously!
+    // Let the event loop call it to avoid reentrancy issues
     this->enable_loop();
-    this->loop();
   }
 
   void loop() override {
@@ -303,13 +308,17 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     if (this->script_->is_running())
       return;
 
-    while (!this->param_queue_.empty()) {
+    // Only process ONE queued item per loop iteration
+    // Processing all items in a while loop causes infinite loops because
+    // play_next_() can trigger more items to be queued
+    if (!this->param_queue_.empty()) {
       auto &params = this->param_queue_.front();
       this->play_next_tuple_(params, std::make_index_sequence<sizeof...(Ts)>{});
       this->param_queue_.pop_front();
+    } else {
+      // Queue is now empty - disable loop until next play_complex
+      this->disable_loop();
     }
-    // Queue is now empty - disable loop until next play_complex
-    this->disable_loop();
   }
 
   void play(const Ts &...x) override { /* ignore - see play_complex */
@@ -326,7 +335,7 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
   }
 
   C *script_;
-  std::forward_list<std::tuple<Ts...>> param_queue_;
+  std::list<std::tuple<Ts...>> param_queue_;
 };
 
 }  // namespace script

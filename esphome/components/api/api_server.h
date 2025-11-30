@@ -12,8 +12,14 @@
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
+#endif
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
+#ifdef USE_CAMERA
+#include "esphome/components/camera/camera.h"
 #endif
 
 #include <map>
@@ -27,7 +33,17 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component, public Controller {
+class APIServer : public Component,
+                  public Controller
+#ifdef USE_LOGGER
+    ,
+                  public logger::LogListener
+#endif
+#ifdef USE_CAMERA
+    ,
+                  public camera::CameraListener
+#endif
+{
  public:
   APIServer();
   void setup() override;
@@ -37,6 +53,12 @@ class APIServer : public Component, public Controller {
   void dump_config() override;
   void on_shutdown() override;
   bool teardown() override;
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+#endif
+#ifdef USE_CAMERA
+  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
+#endif
 #ifdef USE_API_PASSWORD
   bool check_password(const uint8_t *password_data, size_t password_len) const;
   void set_password(const std::string &password);
@@ -54,8 +76,8 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
   bool clear_noise_psk(bool make_active = true);
-  void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(psk); }
-  std::shared_ptr<APINoiseContext> get_noise_ctx() { return noise_ctx_; }
+  void set_noise_psk(psk_t psk) { this->noise_ctx_.set_psk(psk); }
+  APINoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
 
   void handle_disconnect(APIConnection *conn);
@@ -124,7 +146,7 @@ class APIServer : public Component, public Controller {
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   void initialize_user_services(std::initializer_list<UserServiceDescriptor *> services) {
     this->user_services_.assign(services);
   }
@@ -150,23 +172,34 @@ class APIServer : public Component, public Controller {
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
 
-  bool is_connected() const;
+  bool is_connected(bool state_subscription_only = false) const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
-    std::string entity_id;
-    optional<std::string> attribute;
-    std::function<void(std::string)> callback;
-    bool once;
+    const char *entity_id_;  // Pointer to flash (internal) or heap (external)
+    const char *attribute_;  // Pointer to flash or nullptr (nullptr means no attribute)
+    std::function<void(std::string)> callback_;
+    bool once_;
+
+    // Dynamic storage for external components using std::string API (custom_api_device.h)
+    // These are only allocated when using the std::string overload (nullptr for const char* overload)
+    std::unique_ptr<std::string> entity_id_dynamic_storage_;
+    std::unique_ptr<std::string> attribute_dynamic_storage_;
   };
 
+  // New const char* overload (for internal components - zero allocation)
+  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(std::string)> f);
+  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(std::string)> f);
+
+  // Existing std::string overload (for custom_api_device.h - heap allocation)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(std::string)> f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
+
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 #endif
 
@@ -185,6 +218,13 @@ class APIServer : public Component, public Controller {
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
 #endif  // USE_API_NOISE
+#ifdef USE_API_HOMEASSISTANT_STATES
+  // Helper methods to reduce code duplication
+  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(std::string)> f,
+                               bool once);
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                               std::function<void(std::string)> f, bool once);
+#endif  // USE_API_HOMEASSISTANT_STATES
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
@@ -206,7 +246,7 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -228,7 +268,7 @@ class APIServer : public Component, public Controller {
   // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE
-  std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
+  APINoiseContext noise_ctx_;
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
 };
@@ -236,8 +276,11 @@ class APIServer : public Component, public Controller {
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
+  TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
-  bool check(const Ts &...x) override { return global_api_server->is_connected(); }
+  bool check(const Ts &...x) override {
+    return global_api_server->is_connected(this->state_subscription_only_.value(x...));
+  }
 };
 
 }  // namespace esphome::api

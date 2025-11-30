@@ -44,6 +44,8 @@ const LogString *state_class_to_string(StateClass state_class) {
       return LOG_STR("total_increasing");
     case STATE_CLASS_TOTAL:
       return LOG_STR("total");
+    case STATE_CLASS_MEASUREMENT_ANGLE:
+      return LOG_STR("measurement_angle");
     case STATE_CLASS_NONE:
     default:
       return LOG_STR("");
