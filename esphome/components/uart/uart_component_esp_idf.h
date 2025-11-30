@@ -57,14 +57,11 @@ class IDFUARTComponent : public UARTComponent, public Component {
   bool has_peek_{false};
   uint8_t peek_byte_;
 
+#ifdef USE_UART_WAKE_LOOP_ON_RX
   // RX notification support
-  bool rx_event_task_running_{false};
-  std::function<void()> rx_notification_callback_{nullptr};
-  TaskHandle_t rx_event_task_handle_{nullptr};
-
   void start_rx_event_task_();
-  void stop_rx_event_task_();
   static void rx_event_task_func(void *param);
+#endif  // USE_UART_WAKE_LOOP_ON_RX
 };
 
 }  // namespace uart

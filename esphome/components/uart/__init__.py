@@ -32,7 +32,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PlatformFramework,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
 
@@ -51,6 +51,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+
+UART_WAKE_LOOP_ON_RX_KEY = "uart_wake_loop_on_rx"
 
 NATIVE_UART_CLASSES = (
     str(IDFUARTComponent),
@@ -470,6 +472,23 @@ async def uart_write_to_code(config, action_id, template_arg, args):
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
     return var
+
+
+def request_uart_wake_loop_on_rx() -> None:
+    """Request that the UART wake the main loop when data is received.
+
+    Components that need low-latency notification of incoming UART data
+    should call this function during their code generation.
+    This enables the RX event task which wakes the main loop when data arrives.
+    """
+    CORE.data[UART_WAKE_LOOP_ON_RX_KEY] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional UART features."""
+    if CORE.data.get(UART_WAKE_LOOP_ON_RX_KEY, False):
+        cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
