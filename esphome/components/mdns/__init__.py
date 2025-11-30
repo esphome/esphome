@@ -165,7 +165,7 @@ async def to_code(config):
             cg.add_library("LEAmDNS", None)
 
     if CORE.using_esp_idf:
-        add_idf_component(name="espressif/mdns", ref="1.8.2")
+        add_idf_component(name="espressif/mdns", ref="1.9.1")
 
     cg.add_define("USE_MDNS")
 
