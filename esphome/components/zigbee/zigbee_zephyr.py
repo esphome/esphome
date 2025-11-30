@@ -71,7 +71,7 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_assign(basic_attrs_ext.stack_version, 0),
         zigbee_assign(basic_attrs_ext.hw_version, 0),
         zigbee_set_string(basic_attrs_ext.mf_name, "esphome"),
-        zigbee_set_string(basic_attrs_ext.model_id, "v1"),
+        zigbee_set_string(basic_attrs_ext.model_id, CORE.name),
         zigbee_set_string(
             basic_attrs_ext.date_code, datetime.now().strftime("%d/%m/%y %H:%M")
         ),
