@@ -25,21 +25,14 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
 }
 
 void TextSensor::publish_state(const std::string &state) {
-<<<<<<< Updated upstream
-  this->raw_state = state;
-  if (this->raw_callback_) {
-    this->raw_callback_->call(state);
-  }
-=======
   // Only store raw_state_ separately when filters exist
   // When no filters, raw_state == state, so we avoid the duplicate storage
   if (this->filter_list_ != nullptr) {
     this->raw_state_ = state;
   }
-
-  // Call raw callbacks (before filters)
-  this->callbacks_.call_first(this->raw_count_, state);
->>>>>>> Stashed changes
+  if (this->raw_callback_) {
+    this->raw_callback_->call(state);
+  }
 
   ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
 
