@@ -58,8 +58,7 @@ Gate 0 high thresh = 10 00 uint16_t 0x0010, Threshold value = 60 EA 00 00 uint32
 Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_t 0x0000EA60
 */
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
 static const char *const TAG = "ld2420";
 
@@ -174,7 +173,7 @@ static uint8_t calc_checksum(void *data, size_t size) {
 static int get_firmware_int(const char *version_string) {
   std::string version_str = version_string;
   if (version_str[0] == 'v') {
-    version_str = version_str.substr(1);
+    version_str.erase(0, 1);
   }
   version_str.erase(remove(version_str.begin(), version_str.end(), '.'), version_str.end());
   int version_integer = stoi(version_str);
@@ -880,5 +879,4 @@ void LD2420Component::refresh_gate_config_numbers() {
 
 #endif
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

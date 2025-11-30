@@ -3,17 +3,17 @@
 #include <map>
 #include "api_server.h"
 #ifdef USE_API
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
 namespace esphome::api {
 
-#ifdef USE_API_SERVICES
-template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceBase<Ts...> {
+#ifdef USE_API_USER_DEFINED_ACTIONS
+template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceDynamic<Ts...> {
  public:
   CustomAPIDeviceService(const std::string &name, const std::array<std::string, sizeof...(Ts)> &arg_names, T *obj,
                          void (T::*callback)(Ts...))
-      : UserServiceBase<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
+      : UserServiceDynamic<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
 
  protected:
   void execute(Ts... x) override { (this->obj_->*this->callback_)(x...); }  // NOLINT
@@ -21,7 +21,7 @@ template<typename T, typename... Ts> class CustomAPIDeviceService : public UserS
   T *obj_;
   void (T::*callback_)(Ts...);
 };
-#endif  // USE_API_SERVICES
+#endif  // USE_API_USER_DEFINED_ACTIONS
 
 class CustomAPIDevice {
  public:
@@ -49,7 +49,7 @@ class CustomAPIDevice {
    * @param name The name of the service to register.
    * @param arg_names The name of the arguments for the service, must match the arguments of the function.
    */
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   template<typename T, typename... Ts>
   void register_service(void (T::*callback)(Ts...), const std::string &name,
                         const std::array<std::string, sizeof...(Ts)> &arg_names) {
@@ -90,7 +90,7 @@ class CustomAPIDevice {
    * @param callback The member function to call when the service is triggered.
    * @param name The name of the arguments for the service, must match the arguments of the function.
    */
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   template<typename T> void register_service(void (T::*callback)(), const std::string &name) {
 #ifdef USE_API_CUSTOM_SERVICES
     auto *service = new CustomAPIDeviceService<T>(name, {}, (T *) this, callback);  // NOLINT

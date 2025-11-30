@@ -60,7 +60,7 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
   }
 };
 
-class TemplateText : public text::Text, public PollingComponent {
+class TemplateText final : public text::Text, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 

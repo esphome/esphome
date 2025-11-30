@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VALUE,
 )
+from esphome.core import ID
 
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
@@ -198,7 +199,12 @@ async def ble_write_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_value_template(templ))
     else:
-        cg.add(var.set_value_simple(value))
+        # Generate static array in flash to avoid RAM copy
+        if isinstance(value, bytes):
+            value = list(value)
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*value))
+        cg.add(var.set_value_simple(arr, len(value)))
 
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(

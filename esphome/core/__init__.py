@@ -48,6 +48,9 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
+KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
+
 
 class EsphomeError(Exception):
     """General ESPHome exception occurred."""
@@ -909,6 +912,11 @@ class EsphomeCore:
         :param var: The variable (component) being registered (currently unused but kept for future use)
         """
         self.platform_counts[platform_name] += 1
+
+    def register_controller(self) -> None:
+        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
+        controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
+        self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
 
     @property
     def cpp_main_section(self):

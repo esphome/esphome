@@ -7,7 +7,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateSensor : public sensor::Sensor, public PollingComponent {
+class TemplateSensor final : public sensor::Sensor, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
