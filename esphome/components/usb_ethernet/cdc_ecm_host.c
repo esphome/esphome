@@ -1152,9 +1152,8 @@ esp_err_t cdc_ecm_host_data_tx_blocking(cdc_ecm_dev_hdl_t cdc_hdl, const uint8_t
 
     ret = usb_host_transfer_submit(cdc_dev->data.out_xfer);
     if (ret != ESP_OK) {
-        // Downgrade from E to W or D; this is usually a transient condition.
         ESP_LOGW(TAG, "usb_host_transfer_submit failed: %s", esp_err_to_name(ret));
-        // We’re going to bail out and let lwIP drop this frame.
+        // let lwIP drop this frame
         goto unblock;
     }
 
@@ -1416,8 +1415,6 @@ static bool handle_rx(const uint8_t *data, size_t data_len, void *arg)
         return false;
     }
 
-    esp_netif_set_default_netif(usb_netif);
-
     // Allocate a buffer for the received data
     uint8_t *rx_buffer = (uint8_t *)heap_caps_malloc(data_len, MALLOC_CAP_8BIT);
     if (!rx_buffer)
@@ -1545,7 +1542,7 @@ static esp_err_t netif_transmit(void *h, void *buffer, size_t len)
 
         esp_err_t err = cdc_ecm_host_data_tx_blocking(cdc_dev, data_ptr, chunk_len, 100);
         if (err != ESP_OK) {
-            // Log once per attempt at most, at WARN or DEBUG
+            // Log once per attempt
             ESP_LOGW(TAG, "netif_transmit: dropping frame chunk, tx_blocking failed: %s",
                      esp_err_to_name(err));
             // Drop this entire frame; returning OK here prevents lwIP from panicking.
@@ -1578,8 +1575,14 @@ esp_err_t cdc_ecm_netif_init(cdc_ecm_dev_hdl_t cdc_hdl, cdc_ecm_params_t *params
 
     esp_netif_ip_info_t ip_info = {0};
 
+    // Set flags based on whether DHCP should be enabled
+    esp_netif_flags_t netif_flags = ESP_NETIF_FLAG_EVENT_IP_MODIFIED | ESP_NETIF_FLAG_AUTOUP;
+    if (!params->disable_dhcp) {
+        netif_flags |= ESP_NETIF_DHCP_CLIENT;
+    }
+
     esp_netif_inherent_config_t base_cfg = {
-        .flags = ESP_NETIF_FLAG_EVENT_IP_MODIFIED | ESP_NETIF_FLAG_AUTOUP | ESP_NETIF_DHCP_CLIENT,
+        .flags = netif_flags,
         .ip_info = &ip_info,
         .get_ip_event = IP_EVENT_ETH_GOT_IP,
         .lost_ip_event = IP_EVENT_ETH_LOST_IP,
@@ -1621,10 +1624,15 @@ esp_err_t cdc_ecm_netif_init(cdc_ecm_dev_hdl_t cdc_hdl, cdc_ecm_params_t *params
     }
     esp_netif_set_mac(usb_netif, cdc_dev->mac);
 
-    err = esp_netif_dhcpc_start(usb_netif);
-    if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED)
-    {
-        ESP_LOGE(TAG, "Failed to start DHCP client: %s", esp_err_to_name(err));
+    // Only start DHCP if needed
+    if (!params->disable_dhcp) {
+        err = esp_netif_dhcpc_start(usb_netif);
+        if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED)
+        {
+            ESP_LOGE(TAG, "Failed to start DHCP client: %s", esp_err_to_name(err));
+        }
+    } else {
+        ESP_LOGI(TAG, "DHCP disabled per configuration (manual IP will be used)");
     }
 
     if (params->hostname)
@@ -1743,8 +1751,8 @@ static void cdc_ecm_task(void *arg)
 
         if (params->event_cb)
         {
-            esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, params->event_cb, NULL);
-            esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, params->event_cb, NULL);
+            esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, params->event_cb, params->callback_arg);
+            esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, params->event_cb, params->callback_arg);
         }
 
         // Post an event to start the Ethernet connection.
