@@ -4,7 +4,11 @@ esphome:
       - hlk_fm22x.enroll:
           name: "Test"
           direction: 1
+      - hlk_fm22x.delete:
+          face_id: 1
       - hlk_fm22x.delete_all:
+      - hlk_fm22x.scan:
+      - hlk_fm22x.reset:
 
 hlk_fm22x:
   on_face_scan_matched:
