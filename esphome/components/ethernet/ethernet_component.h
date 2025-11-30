@@ -82,7 +82,9 @@ class EthernetComponent : public Component {
   void add_phy_register(PHYRegister register_value);
 #endif
   void set_type(EthernetType type);
+#ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
+#endif
   void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
@@ -137,7 +139,9 @@ class EthernetComponent : public Component {
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
 #endif
+#ifdef USE_ETHERNET_MANUAL_IP
   optional<ManualIP> manual_ip_{};
+#endif
   uint32_t connect_begin_;
 
   // Group all uint8_t types together (enums and bools)

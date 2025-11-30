@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace lock {
+namespace esphome::lock {
 
 template<typename... Ts> class LockAction : public Action<Ts...> {
  public:
@@ -72,5 +71,4 @@ class LockUnlockTrigger : public Trigger<> {
   }
 };
 
-}  // namespace lock
-}  // namespace esphome
+}  // namespace esphome::lock

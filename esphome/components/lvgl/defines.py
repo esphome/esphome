@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
-from esphome.core import ID, Lambda
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -20,11 +20,27 @@ from .helpers import requires_component
 LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
-lv_defines = {}  # Dict of #defines to provide as build flags
+DOMAIN = "lvgl"
+KEY_LV_DEFINES = "lv_defines"
+KEY_UPDATED_WIDGETS = "updated_widgets"
+
+
+def get_data(key, default=None):
+    """
+    Get a data structure from the global data store by key
+    :param key: A key for the data
+    :param default: The default data - the default is an empty dict
+    :return:
+    """
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(
+        key, default if default is not None else {}
+    )
 
 
 def add_define(macro, value="1"):
-    if macro in lv_defines and lv_defines[macro] != value:
+    lv_defines = get_data(KEY_LV_DEFINES)
+    value = str(value)
+    if lv_defines.setdefault(macro, value) != value:
         LOGGER.error(
             "Redefinition of %s - was %s now %s", macro, lv_defines[macro], value
         )
@@ -279,6 +295,8 @@ KEYBOARD_MODES = LvConstant(
 )
 ROLLER_MODES = LvConstant("LV_ROLLER_MODE_", "NORMAL", "INFINITE")
 TILE_DIRECTIONS = DIRECTIONS.extend("HOR", "VER", "ALL")
+SCROLL_DIRECTIONS = TILE_DIRECTIONS.extend("NONE")
+SNAP_DIRECTIONS = LvConstant("LV_SCROLL_SNAP_", "NONE", "START", "END", "CENTER")
 CHILD_ALIGNMENTS = LvConstant(
     "LV_ALIGN_",
     "TOP_LEFT",
@@ -511,6 +529,9 @@ CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
+CONF_SCROLL_DIR = "scroll_dir"
+CONF_SCROLL_SNAP_X = "scroll_snap_x"
+CONF_SCROLL_SNAP_Y = "scroll_snap_y"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
@@ -537,6 +558,7 @@ CONF_TOUCHSCREENS = "touchscreens"
 CONF_TRANSPARENCY_KEY = "transparency_key"
 CONF_THEME = "theme"
 CONF_UPDATE_ON_RELEASE = "update_on_release"
+CONF_UPDATE_WHEN_DISPLAY_IDLE = "update_when_display_idle"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"

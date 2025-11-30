@@ -40,7 +40,7 @@ from .helpers import (
     lv_fonts_used,
     requires_component,
 )
-from .types import lv_font_t, lv_gradient_t
+from .types import lv_gradient_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -498,7 +498,9 @@ class LvFont(LValidator):
             esphome_fonts_used.add(fontval)
             return requires_component("font")(fontval)
 
-        super().__init__(validator, lv_font_t)
+        # Use font::Font* as return type for lambdas returning ESPHome fonts
+        # The inline overloads in lvgl_esphome.h handle conversion to lv_font_t*
+        super().__init__(validator, Font.operator("ptr"))
 
     async def process(self, value, args=()):
         if is_lv_font(value):
