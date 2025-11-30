@@ -1565,7 +1565,8 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
   set_json_icon_state_value(root, obj, "valve", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  root["current_operation"] = valve::valve_operation_to_str(obj->current_operation);
+  char buf[PSTR_LOCAL_SIZE];
+  root["current_operation"] = PSTR_LOCAL(valve::valve_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root["position"] = obj->position;
