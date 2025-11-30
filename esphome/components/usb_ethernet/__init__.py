@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import network
 from esphome.components.network import ip_address_literal
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DNS1,
     CONF_DNS2,

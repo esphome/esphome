@@ -28,10 +28,8 @@ namespace network {
 // an AP that use a previous interface for NAT).
 
 bool is_connected() {
-
 #ifdef USE_USB_ETHERNET
-  if (usb_ethernet::global_usb_eth_component != nullptr &&
-      usb_ethernet::global_usb_eth_component->is_connected()) {
+  if (usb_ethernet::global_usb_eth_component != nullptr && usb_ethernet::global_usb_eth_component->is_connected()) {
     return true;
   }
 #endif
@@ -77,8 +75,7 @@ bool is_disabled() {
 
 network::IPAddresses get_ip_addresses() {
 #ifdef USE_USB_ETHERNET
-  if (usb_ethernet::global_usb_eth_component != nullptr &&
-      usb_ethernet::global_usb_eth_component->is_connected()) {
+  if (usb_ethernet::global_usb_eth_component != nullptr && usb_ethernet::global_usb_eth_component->is_connected()) {
     return usb_ethernet::global_usb_eth_component->get_ip_addresses();
   }
 #endif
@@ -107,12 +104,11 @@ network::IPAddresses get_ip_addresses() {
 const char *get_use_address() {
   // Global component pointers are guaranteed to be set by component constructors when USE_* is defined
 #ifdef USE_USB_ETHERNET
-  if (usb_ethernet::global_usb_eth_component != nullptr &&
-      usb_ethernet::global_usb_eth_component->is_connected()) {
+  if (usb_ethernet::global_usb_eth_component != nullptr && usb_ethernet::global_usb_eth_component->is_connected()) {
     return usb_ethernet::global_usb_eth_component->get_use_address();
   }
 #endif
-  
+
 #ifdef USE_ETHERNET
   return ethernet::global_eth_component->get_use_address();
 #endif
@@ -129,7 +125,8 @@ const char *get_use_address() {
   return openthread::global_openthread_component->get_use_address();
 #endif
 
-#if !defined(USE_ETHERNET) && !defined(USE_USB_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI) && !defined(USE_OPENTHREAD)
+#if !defined(USE_ETHERNET) && !defined(USE_USB_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI) && \
+    !defined(USE_OPENTHREAD)
   // Fallback when no network component is defined (e.g., host platform)
   return "";
 #endif

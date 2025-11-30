@@ -2,19 +2,19 @@
 #include "esphome/core/application.h"
 
 extern "C" {
-  #include "cdc_ecm_host.h"
-  #include "cdc_host_descriptor_parsing.h"
-  #include "cdc_host_types.h"
-  #include "usb_types_cdc.h"
-  #include "esp_event.h"
-  #include "esp_log.h"
-  #include "esp_netif.h"
-  #include "esp_eth.h"
-  #include "esp_heap_caps.h"
-  #include "esp_netif_net_stack.h"
-  #include "lwip/igmp.h"
-  #include "lwip/ip4_addr.h"
-  #include "lwip/netif.h"
+#include "cdc_ecm_host.h"
+#include "cdc_host_descriptor_parsing.h"
+#include "cdc_host_types.h"
+#include "usb_types_cdc.h"
+#include "esp_event.h"
+#include "esp_log.h"
+#include "esp_netif.h"
+#include "esp_eth.h"
+#include "esp_heap_caps.h"
+#include "esp_netif_net_stack.h"
+#include "lwip/igmp.h"
+#include "lwip/ip4_addr.h"
+#include "lwip/netif.h"
 }
 
 namespace esphome {
@@ -25,17 +25,16 @@ const char *const TAG = "usb_ethernet";
 USBEthernetComponent *global_usb_eth_component = nullptr;
 
 // Realtek 8152/8153 Vendor and Product IDs
-#define USB_DEVICE_VID   0x0BDA
+#define USB_DEVICE_VID 0x0BDA
 #define USB_DEVICE_PID_1 0x8152
 #define USB_DEVICE_PID_2 0x8153
 
 // Forward declaration for the event handler used by esp_event and the CDC driver
-static void netif_event_handler(void *arg, esp_event_base_t event_base,
-                                int32_t event_id, void *event_data);
+static void netif_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
 // External reference to the global usb_netif from cdc_ecm_host.c
 extern "C" {
-  extern esp_netif_t *usb_netif;
+extern esp_netif_t *usb_netif;
 }
 
 void USBEthernetComponent::set_has_ip(bool has_ip) {
@@ -57,14 +56,14 @@ void USBEthernetComponent::apply_manual_ip() {
   if (!this->manual_ip_.has_value()) {
     return;
   }
-  
+
   if (usb_netif == nullptr) {
     ESP_LOGE(TAG, "Cannot configure manual IP: netif not available");
     return;
   }
 
   ESP_LOGI(TAG, "Configuring Manual IP...");
-  
+
   // Stop DHCP client
   esp_err_t err = esp_netif_dhcpc_stop(usb_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
@@ -98,30 +97,25 @@ void USBEthernetComponent::apply_manual_ip() {
     dns.ip.type = ESP_IPADDR_TYPE_V4;
     esp_netif_set_dns_info(usb_netif, ESP_NETIF_DNS_BACKUP, &dns);
   }
-  
+
   // Set MAC address if configured
   if (this->fixed_mac_.has_value()) {
     err = esp_netif_set_mac(usb_netif, this->fixed_mac_->data());
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to set MAC address: %s", esp_err_to_name(err));
     } else {
-      ESP_LOGI(TAG, "MAC Address: %02X:%02X:%02X:%02X:%02X:%02X",
-               (*this->fixed_mac_)[0], (*this->fixed_mac_)[1], (*this->fixed_mac_)[2],
-               (*this->fixed_mac_)[3], (*this->fixed_mac_)[4], (*this->fixed_mac_)[5]);
+      ESP_LOGI(TAG, "MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", (*this->fixed_mac_)[0], (*this->fixed_mac_)[1],
+               (*this->fixed_mac_)[2], (*this->fixed_mac_)[3], (*this->fixed_mac_)[4], (*this->fixed_mac_)[5]);
     }
   }
-  
+
   // Manually trigger the IP set event since DHCP won't provide it
   this->set_primary_ip(this->manual_ip_->static_ip);
 }
 
-bool USBEthernetComponent::is_connected() {
-  return this->connected_;
-}
+bool USBEthernetComponent::is_connected() { return this->connected_; }
 
-network::IPAddresses USBEthernetComponent::get_ip_addresses() const {
-  return this->ip_addresses_;
-}
+network::IPAddresses USBEthernetComponent::get_ip_addresses() const { return this->ip_addresses_; }
 
 const char *USBEthernetComponent::get_use_address() const {
   // If user or setup() already set a hostname/address, return that
@@ -154,11 +148,6 @@ void USBEthernetComponent::setup() {
   // Expose this instance globally so network::util can see us
   global_usb_eth_component = this;
 
-                                                                  
-                             
-                                      
-                                 
-
   // Ensure the default event loop is running
   esp_err_t err = esp_event_loop_create_default();
   if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
@@ -177,18 +166,12 @@ void USBEthernetComponent::setup() {
   esp_log_level_set("cdc_ecm", ESP_LOG_DEBUG);
   esp_log_level_set("USB-CDC", ESP_LOG_DEBUG);
 
-                            
-                                             
-                                                                
-                                             
-                                                                  
-
   static cdc_ecm_params_t cdc_ecm_params = {
       .vid = USB_DEVICE_VID,
       .pids = {USB_DEVICE_PID_1, USB_DEVICE_PID_2},
       .event_cb = netif_event_handler,
       .callback_arg = this,  // Pass 'this' so the event handler can access the component
-      .hostname = (char *)"esphome-ethernet",
+      .hostname = (char *) "esphome-ethernet",
       .nameserver = nullptr,
       .if_key = nullptr,
       .if_desc = nullptr,
@@ -199,23 +182,20 @@ void USBEthernetComponent::setup() {
   ESP_LOGI(TAG, "USB CDC-ECM Host task started.");
 }
 
-void USBEthernetComponent::loop() {
-
-}
+void USBEthernetComponent::loop() {}
 
 void USBEthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "USB Ethernet (CDC-ECM / Realtek 8152/8153):");
-  
+
   // Display use_address
   ESP_LOGCONFIG(TAG, "  Use Address: %s", this->use_address_.c_str());
-  
+
   // Display MAC address if set
   if (this->fixed_mac_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X",
-                 (*this->fixed_mac_)[0], (*this->fixed_mac_)[1], (*this->fixed_mac_)[2],
-                 (*this->fixed_mac_)[3], (*this->fixed_mac_)[4], (*this->fixed_mac_)[5]);
+    ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", (*this->fixed_mac_)[0], (*this->fixed_mac_)[1],
+                  (*this->fixed_mac_)[2], (*this->fixed_mac_)[3], (*this->fixed_mac_)[4], (*this->fixed_mac_)[5]);
   }
-  
+
   // Display manual IP if configured
   if (this->manual_ip_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Manual IP:");
@@ -229,7 +209,7 @@ void USBEthernetComponent::dump_config() {
       ESP_LOGCONFIG(TAG, "    DNS2: %s", this->manual_ip_->dns2.str().c_str());
     }
   }
-  
+
   // Display current IP
   if (this->has_ip_) {
     // Slot 0 is the primary IP
@@ -239,8 +219,7 @@ void USBEthernetComponent::dump_config() {
   }
 }
 
-static void netif_event_handler(void *arg, esp_event_base_t event_base,
-                                int32_t event_id, void *event_data) {
+static void netif_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   auto *self = static_cast<USBEthernetComponent *>(arg);
 
   if (event_base == ETH_EVENT) {
@@ -282,7 +261,7 @@ static void netif_event_handler(void *arg, esp_event_base_t event_base,
       ESP_LOGD(TAG, "Ignoring DHCP IP (using manual IP configuration)");
       return;
     }
-    
+
     auto *event = (ip_event_got_ip_t *) event_data;
 
     ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
@@ -295,8 +274,6 @@ static void netif_event_handler(void *arg, esp_event_base_t event_base,
       uint8_t b4 = (addr >> 24) & 0xFF;
       network::IPAddress ipaddr(b1, b2, b3, b4);
       self->set_primary_ip(ipaddr);
-      
-
     }
   }
 }
