@@ -219,7 +219,9 @@ class Scheduler {
   // Returns the number of items remaining after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
   size_t cleanup_();
-  void pop_raw_();
+  // Remove and return the front item from the heap
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  std::unique_ptr<SchedulerItem> pop_raw_locked_();
 
  private:
   // Helper to cancel items by name - must be called with lock held

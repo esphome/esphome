@@ -406,6 +406,8 @@ async def to_code(config):
             conf,
         )
 
+    CORE.add_job(final_step)
+
 
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
@@ -506,3 +508,24 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# Keys for CORE.data storage
+DOMAIN = "logger"
+KEY_LEVEL_LISTENERS = "level_listeners"
+
+
+def request_logger_level_listeners() -> None:
+    """Request that logger level listeners be compiled in.
+
+    Components that need to be notified about log level changes should call this
+    function during their code generation. This enables the add_level_listener()
+    method and compiles in the listener vector.
+    """
+    CORE.data.setdefault(DOMAIN, {})[KEY_LEVEL_LISTENERS] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional logger features."""
+    if CORE.data.get(DOMAIN, {}).get(KEY_LEVEL_LISTENERS, False):
+        cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
