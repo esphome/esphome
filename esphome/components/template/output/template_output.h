@@ -7,7 +7,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateBinaryOutput : public output::BinaryOutput {
+class TemplateBinaryOutput final : public output::BinaryOutput {
  public:
   Trigger<bool> *get_trigger() const { return trigger_; }
 
@@ -17,7 +17,7 @@ class TemplateBinaryOutput : public output::BinaryOutput {
   Trigger<bool> *trigger_ = new Trigger<bool>();
 };
 
-class TemplateFloatOutput : public output::FloatOutput {
+class TemplateFloatOutput final : public output::FloatOutput {
  public:
   Trigger<float> *get_trigger() const { return trigger_; }
 

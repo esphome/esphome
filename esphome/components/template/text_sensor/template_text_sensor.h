@@ -8,7 +8,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateTextSensor : public text_sensor::TextSensor, public PollingComponent {
+class TemplateTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 

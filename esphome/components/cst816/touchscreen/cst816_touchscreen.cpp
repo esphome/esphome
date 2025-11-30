@@ -19,13 +19,14 @@ void CST816Touchscreen::continue_setup_() {
       case CST816T_CHIP_ID:
         break;
       default:
+        ESP_LOGE(TAG, "Unknown chip ID: 0x%02X", this->chip_id_);
+        this->status_set_error(LOG_STR("Unknown chip ID"));
         this->mark_failed();
-        this->status_set_error(str_sprintf("Unknown chip ID 0x%02X", this->chip_id_).c_str());
         return;
     }
     this->write_byte(REG_IRQ_CTL, IRQ_EN_MOTION);
   } else if (!this->skip_probe_) {
-    this->status_set_error("Failed to read chip id");
+    this->status_set_error(LOG_STR("Failed to read chip id"));
     this->mark_failed();
     return;
   }

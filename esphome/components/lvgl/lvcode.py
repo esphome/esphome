@@ -299,6 +299,7 @@ class LvExpr(MockLv):
 
 # Top level mock for generic lv_ calls to be recorded
 lv = MockLv("lv_")
+LV = MockLv("LV_")
 # Just generate an expression
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
@@ -327,7 +328,7 @@ def lv_assign(target, expression):
     lv_add(AssignmentExpression("", "", target, expression))
 
 
-def lv_Pvariable(type, name):
+def lv_Pvariable(type, name) -> MockObj:
     """
     Create but do not initialise a pointer variable
     :param type: Type of the variable target
@@ -343,7 +344,7 @@ def lv_Pvariable(type, name):
     return var
 
 
-def lv_variable(type, name):
+def lv_variable(type, name) -> MockObj:
     """
     Create but do not initialise a variable
     :param type: Type of the variable target
