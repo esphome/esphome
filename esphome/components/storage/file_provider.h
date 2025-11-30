@@ -144,20 +144,47 @@ class FileProvider {
    * @return DirObj*  Pointer to opened directory
    */
   virtual DirObj *open_dir(std::string path) = 0;
-
   /**
    * @brief Move file from one path to anather.
    * Note: the file is not transferred if the paths are from different storages.
    *
    * @param from_path
    * @param to_path
-   * @return uint8_tß
+   * @return true  Done
+   * @return false  Any error. Check error()
    */
-  virtual uint8_t rename(std::string from_path, std::string to_path) = 0;
-  virtual uint8_t del(std::string path) = 0;
-  virtual uint8_t mk_dir(std::string path) = 0;
+  virtual bool rename(std::string from_path, std::string to_path) = 0;
 
+  /**
+   * @brief Delete file or directory
+   *
+   * @param path
+   * @return true Done
+   * @return false Any error. Check error()
+   */
+  virtual bool del(std::string path) = 0;
+
+  /**
+   * @brief Create directory
+   *
+   * @param path
+   * @return true Done
+   * @return false Any error. Check error()
+   */
+  virtual bool mk_dir(std::string path) = 0;
+
+  /**
+   * @brief Return err number of last operation
+   *
+   * @return uint8_t
+   */
   virtual uint8_t error() = 0;
+
+  /**
+   * @brief Return descriotion string of last error
+   *
+   * @return const char*
+   */
   virtual const char *error_str() = 0;
 };
 
