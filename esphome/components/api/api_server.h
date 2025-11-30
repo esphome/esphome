@@ -12,11 +12,14 @@
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
+
 #include <vector>
 
 namespace esphome::api {
 
-#ifdef USE_API_USER_DEFINED_ACTIONS
 // Forward declaration - full definition in user_services.h
 class UserServiceDescriptor;
 #endif
@@ -27,7 +30,13 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component, public Controller {
+class APIServer : public Component,
+                  public Controller
+#ifdef USE_LOGGER
+    ,
+                  public logger::LogListener
+#endif
+{
  public:
   APIServer();
   void setup() override;
@@ -37,6 +46,9 @@ class APIServer : public Component, public Controller {
   void dump_config() override;
   void on_shutdown() override;
   bool teardown() override;
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+#endif
 #ifdef USE_API_PASSWORD
   bool check_password(const uint8_t *password_data, size_t password_len) const;
   void set_password(const std::string &password);

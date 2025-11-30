@@ -589,6 +589,7 @@ enum SensorStateClass {
   STATE_CLASS_MEASUREMENT = 1;
   STATE_CLASS_TOTAL_INCREASING = 2;
   STATE_CLASS_TOTAL = 3;
+  STATE_CLASS_MEASUREMENT_ANGLE = 4;
 }
 
 // Deprecated in API version 1.5
