@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/aqi/aqi_calculator_factory.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -21,6 +22,8 @@ class PM2005Component : public PollingComponent, public i2c::I2CDevice {
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { this->pm_1_0_sensor_ = pm_1_0_sensor; }
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { this->pm_2_5_sensor_ = pm_2_5_sensor; }
   void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { this->pm_10_0_sensor_ = pm_10_0_sensor; }
+  void set_aqi_sensor(sensor::Sensor *aqi_sensor) { this->aqi_sensor_ = aqi_sensor; }
+  void set_aqi_calculation_type(aqi::AQICalculatorType aqi_calc_type) { this->aqi_calc_type_ = aqi_calc_type; }
 
   void setup() override;
   void dump_config() override;
@@ -34,6 +37,9 @@ class PM2005Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};
+  sensor::Sensor *aqi_sensor_{nullptr};
+  aqi::AQICalculatorType aqi_calc_type_;
+  aqi::AQICalculatorFactory aqi_calculator_factory_;
 
   uint8_t situation_value_index_{3};
   uint8_t pm_1_0_value_index_{4};

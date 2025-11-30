@@ -98,6 +98,12 @@ void PM2005Component::update() {
     this->pm_10_0_sensor_->publish_state(pm10);
   }
 
+  if (this->aqi_sensor_ != nullptr) {
+    aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+    int aqi_value = calculator->get_aqi(pm25, pm10);
+    this->aqi_sensor_->publish_state(aqi_value);
+  }
+
   this->status_clear_warning();
 }
 

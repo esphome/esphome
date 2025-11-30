@@ -1,7 +1,7 @@
 """PM2005/2105 Sensor component for ESPHome."""
 
 import esphome.codegen as cg
-from esphome.components import i2c, sensor
+from esphome.components import aqi, i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -18,7 +18,12 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["aqi"]
 CODEOWNERS = ["@andrewjswan"]
+
+CONF_AQI = aqi.CONF_AQI
+CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
+AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
 
 pm2005_ns = cg.esphome_ns.namespace("pm2005")
 PM2005Component = pm2005_ns.class_(
@@ -58,11 +63,33 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_AQI): sensor.sensor_schema(
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Required(CONF_CALCULATION_TYPE): cv.enum(
+                        AQI_CALCULATION_TYPE, upper=True
+                    ),
+                }
+            ),
         },
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x28)),
 )
+
+
+def validate_aqi_requires_pm(config):
+    if CONF_AQI in config and (CONF_PM_2_5 not in config or CONF_PM_10_0 not in config):
+        raise cv.Invalid(
+            f"AQI sensor requires both '{CONF_PM_2_5}' and '{CONF_PM_10_0}' sensors to be configured"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = validate_aqi_requires_pm
 
 
 async def to_code(config) -> None:
@@ -84,3 +111,8 @@ async def to_code(config) -> None:
     if pm_10_0_config := config.get(CONF_PM_10_0):
         sens = await sensor.new_sensor(pm_10_0_config)
         cg.add(var.set_pm_10_0_sensor(sens))
+
+    if CONF_AQI in config:
+        sens = await sensor.new_sensor(config[CONF_AQI])
+        cg.add(var.set_aqi_sensor(sens))
+        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
