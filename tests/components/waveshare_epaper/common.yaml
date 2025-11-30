@@ -458,7 +458,6 @@ display:
   - platform: waveshare_epaper
     id: epd_3_70g
     model: 3.70in-g
-    spi_id: spi_waveshare_epaper
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
