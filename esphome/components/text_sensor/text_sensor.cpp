@@ -25,10 +25,21 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
 }
 
 void TextSensor::publish_state(const std::string &state) {
+<<<<<<< Updated upstream
   this->raw_state = state;
   if (this->raw_callback_) {
     this->raw_callback_->call(state);
   }
+=======
+  // Only store raw_state_ separately when filters exist
+  // When no filters, raw_state == state, so we avoid the duplicate storage
+  if (this->filter_list_ != nullptr) {
+    this->raw_state_ = state;
+  }
+
+  // Call raw callbacks (before filters)
+  this->callbacks_.call_first(this->raw_count_, state);
+>>>>>>> Stashed changes
 
   ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
 
@@ -80,7 +91,11 @@ void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> call
 }
 
 std::string TextSensor::get_state() const { return this->state; }
-std::string TextSensor::get_raw_state() const { return this->raw_state; }
+std::string TextSensor::get_raw_state() const {
+  // When no filters exist, raw_state == state, so return state to avoid
+  // requiring separate storage
+  return this->filter_list_ != nullptr ? this->raw_state_ : this->state;
+}
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = state;
   this->set_has_state(true);

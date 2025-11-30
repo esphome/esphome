@@ -50,7 +50,6 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void add_on_raw_state_callback(std::function<void(std::string)> callback);
 
   std::string state;
-  std::string raw_state;
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -63,6 +62,15 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   CallbackManager<void(std::string)> callback_;  ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
+<<<<<<< Updated upstream
+=======
+
+  /// Raw state (before filters). Only populated when filters are configured.
+  /// When no filters exist, get_raw_state() returns state directly.
+  std::string raw_state_;
+
+  uint8_t raw_count_{0};  ///< Number of raw callbacks (partition point in callbacks_ vector)
+>>>>>>> Stashed changes
 };
 
 }  // namespace text_sensor
