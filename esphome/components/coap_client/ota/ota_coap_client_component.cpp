@@ -114,7 +114,7 @@ uint8_t OtaCoapClientComponent::do_ota_() {
 
   ESP_LOGV(TAG, "OTA backend begin");
   this->backend_ = ota::make_ota_backend();
-  auto error_code = this->backend_->begin(OTA_SIZE_UNKNOWN);
+  auto error_code = this->backend_->begin(0);
   if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "backend->begin error: %d", error_code);
     this->abort();
@@ -192,7 +192,7 @@ void OtaCoapClientComponent::append_image(const uint8_t *block, uint16_t length,
     if (error_code != ota::OTA_RESPONSE_OK) {
       // error code explanation available at
       // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
-      ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash");
+      ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash", error_code);
       this->abort();
     }
 #ifdef USE_OTA_STATE_CALLBACK
@@ -246,8 +246,7 @@ void OtaCoapClientComponent::image_callback(uint16_t response_code, const unsign
 
 void OtaCoapClientComponent::get_(std::string &url,
                                   std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
-                                                     size_t offset, size_t total, void *context)>
-                                      callback) {
+                                                     size_t offset, size_t total, void *context)> &callback) {
   std::unique_ptr<CoapClientRequestData> tx_request = std::make_unique<CoapClientRequestData>();
   tx_request->method = CoapMethod::GET;
   tx_request->uri = url;

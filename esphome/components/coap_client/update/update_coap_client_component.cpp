@@ -10,7 +10,6 @@
 namespace esphome::coap_client {
 
 // The update function runs in a task only on ESP32s.
-#ifdef USE_ESP32
 #define UPDATE_RETURN \
   ESP_LOGD(TAG, "exiting update_task"); \
   vTaskDelete(nullptr)  // Delete the current update task
@@ -42,11 +41,7 @@ void CoapClientUpdate::update() {
     // Network is not up yet, return early
     return;
   }
-#ifdef USE_ESP32
   xTaskCreate(CoapClientUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
-#else
-  this->update_task(this);
-#endif
 }
 
 void CoapClientUpdate::update_task(void *params) {
@@ -210,8 +205,7 @@ void CoapClientUpdate::update_callback(uint16_t response_code, const unsigned ch
 
 void CoapClientUpdate::get_(std::string &url,
                             std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
-                                               size_t offset, size_t total, void *context)>
-                                callback) {
+                                               size_t offset, size_t total, void *context)> &callback) {
   std::unique_ptr<CoapClientRequestData> tx_request = std::make_unique<CoapClientRequestData>();
   tx_request->method = CoapMethod::GET;
   tx_request->uri = url;
