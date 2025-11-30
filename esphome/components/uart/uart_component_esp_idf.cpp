@@ -14,10 +14,6 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-#ifdef USE_UART_WAKE_LOOP_ON_RX
-#include "esphome/core/application.h"
-#endif
-
 namespace esphome {
 namespace uart {
 static const char *const TAG = "uart.idf";
