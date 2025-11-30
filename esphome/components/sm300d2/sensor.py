@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import sensor, uart
+from esphome.components import aqi, sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
@@ -28,6 +28,11 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["uart"]
+AUTO_LOAD = ["aqi"]
+
+CONF_AQI = aqi.CONF_AQI
+CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
+AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
 
 sm300d2_ns = cg.esphome_ns.namespace("sm300d2")
 SM300D2Sensor = sm300d2_ns.class_("SM300D2Sensor", cg.PollingComponent, uart.UARTDevice)
@@ -82,11 +87,33 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_AQI): sensor.sensor_schema(
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Required(CONF_CALCULATION_TYPE): cv.enum(
+                        AQI_CALCULATION_TYPE, upper=True
+                    ),
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+
+
+def validate_aqi_requires_pm(config):
+    if CONF_AQI in config and (CONF_PM_2_5 not in config or CONF_PM_10_0 not in config):
+        raise cv.Invalid(
+            f"AQI sensor requires both '{CONF_PM_2_5}' and '{CONF_PM_10_0}' sensors to be configured"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = validate_aqi_requires_pm
 
 
 async def to_code(config):
@@ -115,3 +142,7 @@ async def to_code(config):
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
+    if CONF_AQI in config:
+        sens = await sensor.new_sensor(config[CONF_AQI])
+        cg.add(var.set_aqi_sensor(sens))
+        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
