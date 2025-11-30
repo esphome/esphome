@@ -53,6 +53,68 @@ void USBEthernetComponent::set_primary_ip(const network::IPAddress &ip) {
   this->connected_ = true;  // set this true when we have a v4 addr
 }
 
+void USBEthernetComponent::apply_manual_ip() {
+  if (!this->manual_ip_.has_value()) {
+    return;
+  }
+  
+  if (usb_netif == nullptr) {
+    ESP_LOGE(TAG, "Cannot configure manual IP: netif not available");
+    return;
+  }
+
+  ESP_LOGI(TAG, "Configuring Manual IP...");
+  
+  // Stop DHCP client
+  esp_err_t err = esp_netif_dhcpc_stop(usb_netif);
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+    ESP_LOGE(TAG, "Failed to stop DHCP client: %s", esp_err_to_name(err));
+  }
+
+  // Set static IP info
+  esp_netif_ip_info_t ip_info;
+  ip_info.ip = this->manual_ip_->static_ip;
+  ip_info.gw = this->manual_ip_->gateway;
+  ip_info.netmask = this->manual_ip_->subnet;
+
+  err = esp_netif_set_ip_info(usb_netif, &ip_info);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to set manual IP: %s", esp_err_to_name(err));
+  } else {
+    ESP_LOGI(TAG, "Manual IP configured: %s", this->manual_ip_->static_ip.str().c_str());
+  }
+
+  // Set DNS servers if configured
+  if (this->manual_ip_->dns1 != network::IPAddress(0, 0, 0, 0)) {
+    esp_netif_dns_info_t dns;
+    dns.ip.u_addr.ip4 = this->manual_ip_->dns1;
+    dns.ip.type = ESP_IPADDR_TYPE_V4;
+    esp_netif_set_dns_info(usb_netif, ESP_NETIF_DNS_MAIN, &dns);
+  }
+
+  if (this->manual_ip_->dns2 != network::IPAddress(0, 0, 0, 0)) {
+    esp_netif_dns_info_t dns;
+    dns.ip.u_addr.ip4 = this->manual_ip_->dns2;
+    dns.ip.type = ESP_IPADDR_TYPE_V4;
+    esp_netif_set_dns_info(usb_netif, ESP_NETIF_DNS_BACKUP, &dns);
+  }
+  
+  // Set MAC address if configured
+  if (this->fixed_mac_.has_value()) {
+    err = esp_netif_set_mac(usb_netif, this->fixed_mac_->data());
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to set MAC address: %s", esp_err_to_name(err));
+    } else {
+      ESP_LOGI(TAG, "MAC Address: %02X:%02X:%02X:%02X:%02X:%02X",
+               (*this->fixed_mac_)[0], (*this->fixed_mac_)[1], (*this->fixed_mac_)[2],
+               (*this->fixed_mac_)[3], (*this->fixed_mac_)[4], (*this->fixed_mac_)[5]);
+    }
+  }
+  
+  // Manually trigger the IP set event since DHCP won't provide it
+  this->set_primary_ip(this->manual_ip_->static_ip);
+}
+
 bool USBEthernetComponent::is_connected() {
   return this->connected_;
 }
@@ -92,10 +154,10 @@ void USBEthernetComponent::setup() {
   // Expose this instance globally so network::util can see us
   global_usb_eth_component = this;
 
-  // Initialize our hostname / use_address_ to "<node_name>.local"
-  this->use_address_.clear();
-  this->use_address_ = App.get_name();
-  this->use_address_ += ".local";
+                                                                  
+                             
+                                      
+                                 
 
   // Ensure the default event loop is running
   esp_err_t err = esp_event_loop_create_default();
@@ -115,18 +177,22 @@ void USBEthernetComponent::setup() {
   esp_log_level_set("cdc_ecm", ESP_LOG_DEBUG);
   esp_log_level_set("USB-CDC", ESP_LOG_DEBUG);
 
-  // Register event handlers
-  ESP_ERROR_CHECK(esp_event_handler_register(
-      ETH_EVENT, ESP_EVENT_ANY_ID, &netif_event_handler, this));
-  ESP_ERROR_CHECK(esp_event_handler_register(
-      IP_EVENT, IP_EVENT_ETH_GOT_IP, &netif_event_handler, this));
+                            
+                                             
+                                                                
+                                             
+                                                                  
 
   static cdc_ecm_params_t cdc_ecm_params = {
       .vid = USB_DEVICE_VID,
       .pids = {USB_DEVICE_PID_1, USB_DEVICE_PID_2},
       .event_cb = netif_event_handler,
-      .callback_arg = nullptr,  // we rely on esp_event handlers for 'self'
+      .callback_arg = this,  // Pass 'this' so the event handler can access the component
       .hostname = (char *)"esphome-ethernet",
+      .nameserver = nullptr,
+      .if_key = nullptr,
+      .if_desc = nullptr,
+      .disable_dhcp = this->manual_ip_.has_value(),  // Disable DHCP if manual IP is configured
   };
 
   cdc_ecm_init(&cdc_ecm_params);
@@ -139,6 +205,32 @@ void USBEthernetComponent::loop() {
 
 void USBEthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "USB Ethernet (CDC-ECM / Realtek 8152/8153):");
+  
+  // Display use_address
+  ESP_LOGCONFIG(TAG, "  Use Address: %s", this->use_address_.c_str());
+  
+  // Display MAC address if set
+  if (this->fixed_mac_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X",
+                 (*this->fixed_mac_)[0], (*this->fixed_mac_)[1], (*this->fixed_mac_)[2],
+                 (*this->fixed_mac_)[3], (*this->fixed_mac_)[4], (*this->fixed_mac_)[5]);
+  }
+  
+  // Display manual IP if configured
+  if (this->manual_ip_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Manual IP:");
+    ESP_LOGCONFIG(TAG, "    Static IP: %s", this->manual_ip_->static_ip.str().c_str());
+    ESP_LOGCONFIG(TAG, "    Gateway: %s", this->manual_ip_->gateway.str().c_str());
+    ESP_LOGCONFIG(TAG, "    Subnet: %s", this->manual_ip_->subnet.str().c_str());
+    if (this->manual_ip_->dns1 != network::IPAddress(0, 0, 0, 0)) {
+      ESP_LOGCONFIG(TAG, "    DNS1: %s", this->manual_ip_->dns1.str().c_str());
+    }
+    if (this->manual_ip_->dns2 != network::IPAddress(0, 0, 0, 0)) {
+      ESP_LOGCONFIG(TAG, "    DNS2: %s", this->manual_ip_->dns2.str().c_str());
+    }
+  }
+  
+  // Display current IP
   if (this->has_ip_) {
     // Slot 0 is the primary IP
     ESP_LOGCONFIG(TAG, "  IP Address: %s", this->ip_addresses_[0].str().c_str());
@@ -157,7 +249,12 @@ static void netif_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "Ethernet Connected, waiting for IP...");
         if (self != nullptr) {
           self->set_link_up(true);
-          self->set_has_ip(false);
+          // Apply manual IP configuration if set, otherwise wait for DHCP
+          if (self->has_manual_ip()) {
+            self->apply_manual_ip();
+          } else {
+            self->set_has_ip(false);
+          }
         }
         break;
       case ETHERNET_EVENT_DISCONNECTED:
@@ -171,13 +268,21 @@ static void netif_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "Ethernet Started");
         if (self != nullptr) {
           self->set_link_up(false);
-          self->set_has_ip(false);
+          if (!self->has_manual_ip()) {
+            self->set_has_ip(false);
+          }
         }
         break;
       default:
         break;
     }
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_ETH_GOT_IP) {
+    // Skip this event if we're using manual IP - we've already set it
+    if (self != nullptr && self->has_manual_ip()) {
+      ESP_LOGD(TAG, "Ignoring DHCP IP (using manual IP configuration)");
+      return;
+    }
+    
     auto *event = (ip_event_got_ip_t *) event_data;
 
     ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
