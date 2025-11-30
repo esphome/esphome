@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/aqi/aqi_calculator_factory.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -46,6 +47,9 @@ class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
   void set_pmc_5_0_sensor(sensor::Sensor *pmc_5_0) { this->pmc_5_0_sensor_ = pmc_5_0; }
   void set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0) { this->pmc_10_0_sensor_ = pmc_10_0; }
 
+  void set_aqi_sensor(sensor::Sensor *aqi_sensor) { this->aqi_sensor_ = aqi_sensor; }
+  void set_aqi_calculation_type(aqi::AQICalculatorType aqi_calc_type) { this->aqi_calc_type_ = aqi_calc_type; }
+
  protected:
   bool read_data_(PM25AQIData *data);
 
@@ -61,6 +65,10 @@ class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pmc_2_5_sensor_{nullptr};
   sensor::Sensor *pmc_5_0_sensor_{nullptr};
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
+
+  sensor::Sensor *aqi_sensor_{nullptr};
+  aqi::AQICalculatorType aqi_calc_type_;
+  aqi::AQICalculatorFactory aqi_calculator_factory_;
 };
 
 }  // namespace pmsa003i

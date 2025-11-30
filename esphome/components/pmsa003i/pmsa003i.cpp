@@ -80,6 +80,14 @@ void PMSA003IComponent::update() {
       this->pmc_5_0_sensor_->publish_state(data.particles_50um);
     if (this->pmc_10_0_sensor_ != nullptr)
       this->pmc_10_0_sensor_->publish_state(data.particles_100um);
+
+    if (this->aqi_sensor_ != nullptr) {
+      uint16_t pm25 = this->standard_units_ ? data.pm25_standard : data.pm25_env;
+      uint16_t pm100 = this->standard_units_ ? data.pm100_standard : data.pm100_env;
+      aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+      int aqi_value = calculator->get_aqi(pm25, pm100);
+      this->aqi_sensor_->publish_state(aqi_value);
+    }
   } else {
     this->status_set_warning();
     ESP_LOGV(TAG, "Read failure. Skipping update.");
