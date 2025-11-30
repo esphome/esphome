@@ -41,8 +41,8 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-// Longest: HORIZONTAL (10 chars + null terminator, rounded up)
-static constexpr size_t PSTR_LOCAL_SIZE = 16;
+// Longest: UPDATE AVAILABLE (16 chars + null terminator, rounded up)
+static constexpr size_t PSTR_LOCAL_SIZE = 18;
 #define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
@@ -1565,7 +1565,8 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
   set_json_icon_state_value(root, obj, "valve", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  root["current_operation"] = valve::valve_operation_to_str(obj->current_operation);
+  char buf[PSTR_LOCAL_SIZE];
+  root["current_operation"] = PSTR_LOCAL(valve::valve_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root["position"] = obj->position;
@@ -1715,16 +1716,16 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 #endif
 
 #ifdef USE_UPDATE
-static const char *update_state_to_string(update::UpdateState state) {
+static const LogString *update_state_to_string(update::UpdateState state) {
   switch (state) {
     case update::UPDATE_STATE_NO_UPDATE:
-      return "NO UPDATE";
+      return LOG_STR("NO UPDATE");
     case update::UPDATE_STATE_AVAILABLE:
-      return "UPDATE AVAILABLE";
+      return LOG_STR("UPDATE AVAILABLE");
     case update::UPDATE_STATE_INSTALLING:
-      return "INSTALLING";
+      return LOG_STR("INSTALLING");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
@@ -1767,8 +1768,9 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "update", update_state_to_string(obj->state), obj->update_info.latest_version,
-                            start_config);
+  char buf[PSTR_LOCAL_SIZE];
+  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update_state_to_string(obj->state)),
+                            obj->update_info.latest_version, start_config);
   if (start_config == DETAIL_ALL) {
     root["current_version"] = obj->update_info.current_version;
     root["title"] = obj->update_info.title;
