@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.esp32 import (
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
@@ -152,7 +153,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
     cv.only_with_esp_idf,
-    only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2]),
+    only_on_variant(supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]),
     _validate,
     _require_vfs_select,
 )
