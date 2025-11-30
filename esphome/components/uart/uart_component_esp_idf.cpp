@@ -348,62 +348,33 @@ void IDFUARTComponent::check_logger_conflict() {}
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
 void IDFUARTComponent::start_rx_event_task_() {
-  if (this->rx_event_task_running_) {
-    ESP_LOGV(TAG, "RX event task already running");
-    return;
-  }
-
-  this->rx_event_task_running_ = true;
-
   // Create FreeRTOS task to monitor UART events
-  BaseType_t result = xTaskCreate(rx_event_task_func,           // Task function
-                                  "uart_rx_evt",                // Task name (max 16 chars)
-                                  2048,                         // Stack size in bytes (2KB)
-                                  this,                         // Task parameter (this pointer)
-                                  tskIDLE_PRIORITY + 1,         // Priority (low, just above idle)
-                                  &this->rx_event_task_handle_  // Task handle output
+  BaseType_t result = xTaskCreate(rx_event_task_func,    // Task function
+                                  "uart_rx_evt",         // Task name (max 16 chars)
+                                  2048,                  // Stack size in bytes (2KB)
+                                  this,                  // Task parameter (this pointer)
+                                  tskIDLE_PRIORITY + 1,  // Priority (low, just above idle)
+                                  nullptr                // Task handle (not needed)
   );
 
   if (result != pdPASS) {
     ESP_LOGE(TAG, "Failed to create RX event task");
-    this->rx_event_task_running_ = false;
     return;
   }
 
   ESP_LOGV(TAG, "RX event task started");
 }
 
-void IDFUARTComponent::stop_rx_event_task_() {
-  if (!this->rx_event_task_running_) {
-    return;
-  }
-
-  // Signal task to stop
-  this->rx_event_task_running_ = false;
-
-  // Wait a bit for task to see the flag
-  vTaskDelay(pdMS_TO_TICKS(10));
-
-  // Delete the task if it still exists
-  if (this->rx_event_task_handle_ != nullptr) {
-    vTaskDelete(this->rx_event_task_handle_);
-    this->rx_event_task_handle_ = nullptr;
-  }
-
-  ESP_LOGV(TAG, "RX event task stopped");
-}
-
 void IDFUARTComponent::rx_event_task_func(void *param) {
   auto *self = static_cast<IDFUARTComponent *>(param);
-
   uart_event_t event;
 
   ESP_LOGV(TAG, "RX event task running");
 
-  while (self->rx_event_task_running_) {
-    // Wait for UART events with timeout (blocks efficiently)
-    // Using 100ms timeout allows checking running flag periodically
-    if (xQueueReceive(self->uart_event_queue_, &event, pdMS_TO_TICKS(100)) == pdTRUE) {
+  // Run forever - task lifecycle matches component lifecycle
+  while (true) {
+    // Wait for UART events (blocks efficiently)
+    if (xQueueReceive(self->uart_event_queue_, &event, portMAX_DELAY) == pdTRUE) {
       switch (event.type) {
         case UART_DATA:
           // Data available in UART RX buffer - wake the main loop
@@ -425,10 +396,6 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
       }
     }
   }
-
-  ESP_LOGV(TAG, "RX event task exiting");
-  self->rx_event_task_handle_ = nullptr;
-  vTaskDelete(nullptr);
 }
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 
