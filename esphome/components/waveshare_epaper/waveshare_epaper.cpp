@@ -352,7 +352,12 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
   }
 }
 void WaveshareEPaper4C::fill(Color color) {
-  const uint8_t pixel_bits = this->color_to_hex(color);
+  uint8_t pixel_bits;
+  if (color.is_on()) {
+    pixel_bits = this->color_to_hex(color);
+  } else {
+    pixel_bits = 0x1;
+  }
   const uint8_t fill_pattern = (pixel_bits << 6) | (pixel_bits << 4) | (pixel_bits << 2) | (pixel_bits);
 
   memset(this->buffer_, fill_pattern, this->get_buffer_length_());
@@ -371,6 +376,7 @@ void HOT WaveshareEPaper4C::draw_absolute_pixel_internal(int x, int y, Color col
 }
 
 uint8_t WaveshareEPaper4C::color_to_hex(Color color) {
+  // Colors according to https://www.waveshare.com/wiki/4.2inch_e-Paper_Module_(G)_Manual#Programming_Principle
   uint8_t hex_code;
   if (color.red > 127) {
     if (color.green > 170) {
@@ -3016,7 +3022,144 @@ void WaveshareEPaper4P2InBV2BWR::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+// ========================================================
+//               4.2in (v2 G version)
+// Datasheet/Specification/Reference:
+//  - https://www.waveshare.com/wiki/4.2inch_e-Paper_Module_(G)_Manual
+//  - https://files.waveshare.com/wiki/4.2inch%20e-Paper%20Module%20(G)/4.2inch_e-Paper_(G).pdf
+//  - https://github.com/waveshareteam/e-Paper/tree/master/E-paper_Separate_Program/4in2_e-Paper_G
+// This implementation is based on Waveshare demo code and EPD_4in2g.cpp
+// ========================================================
+int WaveshareEPaper4P2InGV2::get_width_internal() { return 400; }
+int WaveshareEPaper4P2InGV2::get_height_internal() { return 300; }
+uint32_t WaveshareEPaper4P2InGV2::idle_timeout_() { return 20000; }
 
+void WaveshareEPaper4P2InGV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 4.2in-g-v2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+void WaveshareEPaper4P2InGV2::reset_() {
+  ESP_LOGD(TAG, "EPaper4.2G reset");
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(true);
+    delay(200);
+    this->reset_pin_->digital_write(false);
+    delay(2);
+    this->reset_pin_->digital_write(true);
+    delay(200);
+  }
+}
+bool WaveshareEPaper4P2InGV2::wait_until_idle_() {
+  // low when busy
+  delay(100);
+  if (this->busy_pin_ == nullptr) {
+    ESP_LOGW(TAG, "EPaper4.2G busy pin not set");
+    return true;
+  }
+
+  const uint32_t start = millis();
+  while (!this->busy_pin_->digital_read()) {
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGE(TAG, "EPaper4.2G Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(100);
+  }
+  return true;
+}
+void WaveshareEPaper4P2InGV2::initialize() {
+  this->init_display_();
+  ESP_LOGD(TAG, "EPaper4.2G initialization");
+  this->deep_sleep();
+}
+void WaveshareEPaper4P2InGV2::init_display_() {
+  ESP_LOGD(TAG, "EPaper4.2G init display");
+  this->reset_();
+  this->wait_until_idle_();
+
+  this->command(0x4D);
+  this->data(0x78);
+
+  // panel settings
+  this->command(0x00);
+  this->data(0x0F);
+  this->data(0x29);
+
+  // booster soft start
+  this->command(0x06);
+  this->data(0x0d);
+  this->data(0x12);
+  this->data(0x24);
+  this->data(0x25);
+  this->data(0x12);
+  this->data(0x29);
+  this->data(0x10);
+
+  // PLL control register
+  this->command(0x30);
+  this->data(0x08);
+
+  // Broder color settings
+  this->command(0x50);
+  this->data(0x37);
+
+  // resolution setting
+  this->command(0x61);
+  this->data(get_width_internal() / 256);
+  this->data(get_width_internal() % 256);
+  this->data(get_height_internal() / 256);
+  this->data(get_height_internal() % 256);
+
+  this->command(0xae);
+  this->data(0xcf);
+
+  this->command(0xb0);
+  this->data(0x13);
+
+  this->command(0xbd);
+  this->data(0x07);
+
+  this->command(0xbe);
+  this->data(0xfe);
+
+  this->command(0xE9);
+  this->data(0x01);
+
+  this->command(0x04);
+  this->wait_until_idle_();
+}
+void HOT WaveshareEPaper4P2InGV2::display() {
+  ESP_LOGD(TAG, "EPaper4.2G Display");
+  this->init_display_();
+  const uint32_t buf_len = this->get_buffer_length_();
+  this->command(0x10);  // start transmission register
+  this->start_data_();
+  this->write_array(this->buffer_, buf_len);
+  this->end_data_();
+  this->turn_on_display_();
+  this->deep_sleep();
+}
+void WaveshareEPaper4P2InGV2::deep_sleep() {
+  ESP_LOGD(TAG, "EPaper4.2G deep sleep");
+  // COMMAND POWER OFF
+  this->command(0x02);
+  this->data(0x00);
+  this->wait_until_idle_();
+  // COMMAND DEEP SLEEP
+  this->command(0x07);
+  this->data(0xA5);
+}
+void WaveshareEPaper4P2InGV2::turn_on_display_() {
+  ESP_LOGD(TAG, "EPaper4.2G Turn on disp");
+  this->command(0x12);  // display refresh
+  this->data(0x00);
+  this->wait_until_idle_();
+}
 void WaveshareEPaper5P8In::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);

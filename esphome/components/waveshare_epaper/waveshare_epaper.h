@@ -662,6 +662,32 @@ class WaveshareEPaper4P2InBV2BWR : public WaveshareEPaperBWR {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper4P2InGV2 : public WaveshareEPaper4C {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override;
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  void reset_();
+
+  bool wait_until_idle_();
+
+  void init_display_();
+
+  void turn_on_display_();
+
+  uint32_t idle_timeout_() override;
+};
+
 class WaveshareEPaper5P8In : public WaveshareEPaper {
  public:
   void initialize() override;
