@@ -65,6 +65,9 @@ HomeAssistantActionResponseTrigger = api_ns.class_(
 )
 APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
+APIUnregisterServiceCallAction = api_ns.class_(
+    "APIUnregisterServiceCallAction", automation.Action
+)
 
 UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
@@ -408,7 +411,23 @@ async def to_code(config):
                 service_arg_names,
             )
             triggers.append(trigger)
-            await automation.build_automation(trigger, func_args, conf)
+            auto = await automation.build_automation(trigger, func_args, conf)
+
+            # For non-none response modes, automatically append unregister action
+            # This ensures the call is unregistered after all actions complete (including async ones)
+            if not is_none:
+                arg_types = [arg[0] for arg in func_args]
+                action_templ = cg.TemplateArguments(*arg_types)
+                unregister_id = ID(
+                    f"{conf[CONF_TRIGGER_ID]}__unregister",
+                    is_declaration=True,
+                    type=APIUnregisterServiceCallAction.template(action_templ),
+                )
+                unregister_action = cg.new_Pvariable(
+                    unregister_id,
+                    var,
+                )
+                cg.add(auto.add_actions([unregister_action]))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
 

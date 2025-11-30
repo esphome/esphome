@@ -257,5 +257,24 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
   bool is_optional_mode_{false};
 };
 
+// Action to unregister a service call after execution completes
+// Automatically appended to the end of action lists for non-none response modes
+template<typename... Ts> class APIUnregisterServiceCallAction : public Action<Ts...> {
+ public:
+  explicit APIUnregisterServiceCallAction(APIServer *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) override {
+    // Extract call_id from first argument - same convention as APIRespondAction
+    auto args = std::make_tuple(x...);
+    uint32_t call_id = std::get<0>(args);
+    if (call_id != 0) {
+      this->parent_->unregister_service_call(call_id);
+    }
+  }
+
+ protected:
+  APIServer *parent_;
+};
+
 }  // namespace esphome::api
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES

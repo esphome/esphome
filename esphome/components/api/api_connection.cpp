@@ -1570,12 +1570,9 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   if (!found) {
     ESP_LOGV(TAG, "Could not find service");
   }
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-  // Unregister call after execution
-  if (msg.call_id != 0) {
-    this->parent_->unregister_service_call(msg.call_id);
-  }
-#endif
+  // Note: For services with supports_response != none, the call is unregistered
+  // by an automatically appended APIUnregisterServiceCallAction at the end of
+  // the action list. This ensures async actions (delays, waits) complete first.
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
 void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message) {
