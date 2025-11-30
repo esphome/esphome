@@ -420,7 +420,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     add_idf_component(
         name="stuartparmenter/esp-hub75",
-        ref="0.1.2",
+        ref="0.1.4",
     )
 
     # Set compile-time configuration via defines
