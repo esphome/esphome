@@ -18,6 +18,16 @@ static const uint16_t PMS_CMD_MEASUREMENT_MODE_ACTIVE = 0x0001;  // automaticall
 static const uint16_t PMS_CMD_SLEEP_MODE_SLEEP = 0x0000;         // go to sleep mode
 static const uint16_t PMS_CMD_SLEEP_MODE_WAKEUP = 0x0001;        // wake up from sleep mode
 
+void PMSX003Component::setup() {
+  // When update_interval is small or 0, leave sensor in default active mode (don't send commands)
+  // The sensor powers on in active mode by default
+  if (this->update_interval_ <= PMS_STABILISING_MS) {
+    ESP_LOGCONFIG(TAG, "Using active continuous mode (sensor default)");
+  } else {
+    ESP_LOGCONFIG(TAG, "Will use passive mode with sleep/wake cycles");
+  }
+}
+
 void PMSX003Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMSX003:");
   LOG_SENSOR("  ", "PM1.0STD", this->pm_1_0_std_sensor_);
@@ -45,15 +55,23 @@ void PMSX003Component::dump_config() {
 void PMSX003Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
+  // Initialize sensor mode on first loop
+  if (this->initialised_ == 0) {
+    if (this->update_interval_ > PMS_STABILISING_MS) {
+      // Long update interval: use passive mode with sleep/wake cycles
+      this->send_command_(PMS_CMD_MEASUREMENT_MODE, PMS_CMD_MEASUREMENT_MODE_PASSIVE);
+      this->send_command_(PMS_CMD_SLEEP_MODE, PMS_CMD_SLEEP_MODE_WAKEUP);
+    } else {
+      // Short/zero update interval: use active continuous mode
+      this->send_command_(PMS_CMD_MEASUREMENT_MODE, PMS_CMD_MEASUREMENT_MODE_ACTIVE);
+    }
+    this->initialised_ = 1;
+  }
+
   // If we update less often than it takes the device to stabilise, spin the fan down
   // rather than running it constantly. It does take some time to stabilise, so we
   // need to keep track of what state we're in.
   if (this->update_interval_ > PMS_STABILISING_MS) {
-    if (this->initialised_ == 0) {
-      this->send_command_(PMS_CMD_MEASUREMENT_MODE, PMS_CMD_MEASUREMENT_MODE_PASSIVE);
-      this->send_command_(PMS_CMD_SLEEP_MODE, PMS_CMD_SLEEP_MODE_WAKEUP);
-      this->initialised_ = 1;
-    }
     switch (this->state_) {
       case PMSX003_STATE_IDLE:
         // Power on the sensor now so it'll be ready when we hit the update time
@@ -248,6 +266,13 @@ void PMSX003Component::parse_data_() {
   if (this->pm_particles_25um_sensor_ != nullptr)
     this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
 
+  // Calculate AQI if sensor is configured
+  int aqi_value = -1;
+  if (this->aqi_sensor_ != nullptr && this->pm_2_5_sensor_ != nullptr && this->pm_10_0_sensor_ != nullptr) {
+    aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+    aqi_value = calculator->get_aqi(pm_2_5_concentration, pm_10_0_concentration);
+  }
+
   if (this->type_ == PMSX003_TYPE_5003T) {
     ESP_LOGD(TAG,
              "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
@@ -270,6 +295,10 @@ void PMSX003Component::parse_data_() {
     if (this->pm_particles_100um_sensor_ != nullptr)
       this->pm_particles_100um_sensor_->publish_state(pm_particles_100um);
   }
+
+  // Publish AQI value if calculated
+  if (aqi_value != -1 && this->aqi_sensor_ != nullptr)
+    this->aqi_sensor_->publish_state(aqi_value);
 
   // Formaldehyde
   if (this->type_ == PMSX003_TYPE_5003ST || this->type_ == PMSX003_TYPE_5003S) {
