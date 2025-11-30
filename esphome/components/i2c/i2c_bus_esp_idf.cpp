@@ -14,8 +14,6 @@ namespace esphome {
 namespace i2c {
 
 static const char *const TAG = "i2c.idf";
-static const gpio_num_t LP_SDA_PIN = (gpio_num_t) 6;  // LP I2C hardware pin fixed to 6 for SDA on ESP32-C5/C6/P4
-static const gpio_num_t LP_SCL_PIN = (gpio_num_t) 7;  // LP I2C hardware pin fixed to 7 for SCL on ESP32-C5/C6/P4
 
 void IDFI2CBus::setup() {
   static i2c_port_t next_hp_port = I2C_NUM_0;
@@ -33,7 +31,7 @@ void IDFI2CBus::setup() {
   bus_conf.scl_io_num = gpio_num_t(scl_pin_);
   bus_conf.glitch_ignore_cnt = 7;
 #if SOC_LP_I2C_SUPPORTED
-  if (sda_pin_ == LP_SDA_PIN && scl_pin_ == LP_SCL_PIN) {
+  if (this->lp_mode_) {
     this->port_ = LP_I2C_NUM_0;
     bus_conf.lp_source_clk = LP_I2C_SCLK_DEFAULT;
   } else {
