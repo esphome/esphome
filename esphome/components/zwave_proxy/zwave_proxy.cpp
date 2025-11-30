@@ -74,7 +74,6 @@ void ZWaveProxy::loop() {
   if (this->api_connection_ != nullptr && (!this->api_connection_->is_connection_setup() || !api_is_connected())) {
     ESP_LOGW(TAG, "Subscriber disconnected");
     this->api_connection_ = nullptr;  // Unsubscribe if disconnected
-    this->parent_->disable_rx_notification();
   }
 
   this->process_uart_();
@@ -142,19 +141,6 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
         return;
       }
       this->api_connection_ = api_connection;
-
-      // Enable low-latency RX notification if supported by UART
-      if (this->parent_->enable_rx_notification([]() {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-            // Wake main loop via UDP socket (~12μs latency)
-            App.wake_loop_threadsafe();
-#endif
-          })) {
-        ESP_LOGV(TAG, "RX notification enabled for low-latency operation");
-      } else {
-        ESP_LOGV(TAG, "RX notification not supported, using polling");
-      }
-
       ESP_LOGV(TAG, "API connection is now subscribed");
       break;
 
@@ -164,7 +150,6 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
         return;
       }
       this->api_connection_ = nullptr;
-      this->parent_->disable_rx_notification();
       break;
 
     default:

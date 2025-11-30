@@ -43,6 +43,9 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     cg.add_define("USE_ZWAVE_PROXY")
 
+    # Request UART to wake the main loop when data arrives for low-latency processing
+    uart.request_uart_wake_loop_on_rx()
+
     # Enable wake_loop_threadsafe for ESP-IDF builds
     # This provides ~12μs wake latency when UART data arrives via socket wake
     socket.require_wake_loop_threadsafe()

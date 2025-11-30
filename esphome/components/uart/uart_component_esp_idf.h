@@ -44,9 +44,6 @@ class IDFUARTComponent : public UARTComponent, public Component {
   void load_settings(bool dump_config) override;
   void load_settings() override { this->load_settings(true); }
 
-  bool enable_rx_notification(const std::function<void()> &callback) override;
-  void disable_rx_notification() override;
-
  protected:
   void check_logger_conflict() override;
   uart_port_t uart_num_;

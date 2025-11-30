@@ -351,7 +351,7 @@ void IDFUARTComponent::start_rx_event_task_() {
   // Create FreeRTOS task to monitor UART events
   BaseType_t result = xTaskCreate(rx_event_task_func,    // Task function
                                   "uart_rx_evt",         // Task name (max 16 chars)
-                                  2048,                  // Stack size in bytes (2KB)
+                                  2176,                  // Stack size in bytes (2KB)
                                   this,                  // Task parameter (this pointer)
                                   tskIDLE_PRIORITY + 1,  // Priority (low, just above idle)
                                   nullptr                // Task handle (not needed)

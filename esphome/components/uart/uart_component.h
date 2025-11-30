@@ -180,14 +180,6 @@ class UARTComponent {
   }
 #endif
 
-  // Request notification when data is received (for low-latency applications)
-  // @param callback Function to call when data is available
-  // @return True if notification is supported by this UART implementation, false otherwise
-  virtual bool enable_rx_notification(const std::function<void()> &callback) { return false; }
-
-  // Disable RX data notification
-  virtual void disable_rx_notification() {}
-
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
