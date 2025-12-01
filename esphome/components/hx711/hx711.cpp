@@ -29,10 +29,6 @@ void HX711Sensor::setup() {
   this->sck_pin_->setup();
   this->dout_pin_->setup();
 
-#ifdef USE_ESP8266
-  this->sck_pin_->pin_mode(gpio::Flags::FLAG_OUTPUT);
-#endif
-
   // No timeouts are running, using `power_down_internal_()`
   this->power_cycle_restart_(true);
 }
@@ -239,7 +235,7 @@ void HX711Sensor::power_cycle_restart_(const bool use_internal_powerdown) {
 
 bool HX711Sensor::is_powered_down() {
   // PD_SCK pin is always left low after reading data.
-  return this->sck_pin_->digital_read();
+  return this->hx711_state_flags_.powered_on_state;
 }
 
 bool HX711Sensor::power_up(const bool should_start_poller) {
@@ -342,6 +338,7 @@ void HX711Sensor::power_down_internal_() {
   // When PD_SCK pin changes from low to high and stays at high for longer than 60µs, HX711 enters power down mode.
   this->sck_pin_->digital_write(true);
   this->hx711_state_flags_.settled = false;
+  this->hx711_state_flags_.powered_on_state = false;
 }
 
 void HX711Sensor::power_up_internal_() {
@@ -350,6 +347,7 @@ void HX711Sensor::power_up_internal_() {
   // When PD_SCK pin changes from high to low and stays at low, HX711 exits power down mode.
   this->sck_pin_->digital_write(false);
   this->hx711_state_flags_.settled = false;
+  this->hx711_state_flags_.powered_on_state = true;
 }
 
 #if defined(USE_HX711_CHANNEL_B_SENSOR)
