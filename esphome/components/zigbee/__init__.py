@@ -11,27 +11,16 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 from .const_zephyr import (
-    CONF_BASIC_ATTRIB_LIST_EXT,
-    CONF_BINARY_ATTRS,
-    CONF_BINARY_INPUT_ATTRIB_LIST,
-    CONF_CLUSTER_LIST,
-    CONF_EP,
-    CONF_IDENTIFY_ATTRIB_LIST,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
     CONF_WIPE_ON_BOOT,
-    CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
-    ESPHOME_ZB_HA_DECLARE_EP,
     KEY_EP_NUMBER,
     KEY_ZIGBEE,
-    ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT,
-    ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST,
-    BinaryAttrs,
     ZigbeeComponent,
     zigbee_ns,
 )
-from .zigbee_zephyr import zephyr_component
+from .zigbee_zephyr import zephyr_binary_sensor, zephyr_component
 
 CODEOWNERS = ["@tomaszduda23"]
 
@@ -45,37 +34,7 @@ def zigbee_set_core_data(config: ConfigType) -> ConfigType:
     return config
 
 
-ZigbeeBaseSchema = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_BASIC_ATTRIB_LIST_EXT, ["nrf52", "zigbee"]): cv.use_id(
-            ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT
-        ),
-        cv.OnlyWith(CONF_IDENTIFY_ATTRIB_LIST, ["nrf52", "zigbee"]): cv.use_id(
-            ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST
-        ),
-        cv.OnlyWith(CONF_EP, ["nrf52", "zigbee"]): cv.declare_id(
-            ESPHOME_ZB_HA_DECLARE_EP
-        ),
-        cv.OnlyWith(CONF_CLUSTER_LIST, ["nrf52", "zigbee"]): cv.declare_id(
-            cg.global_ns.namespace("zb_zcl_cluster_desc_t")
-        ),
-    },
-)
-
-ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
-
-BINARY_SENSOR_SCHEMA = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeBinarySensor
-        ),
-        cv.OnlyWith(CONF_BINARY_ATTRS, ["nrf52", "zigbee"]): cv.declare_id(BinaryAttrs),
-        cv.OnlyWith(CONF_BINARY_INPUT_ATTRIB_LIST, ["nrf52", "zigbee"]): cv.declare_id(
-            cg.global_ns.namespace("ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST")
-        ),
-    }
-).extend(ZigbeeBaseSchema)
+BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_binary_sensor)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

@@ -26,6 +26,7 @@ from .const_zephyr import (
     CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    ESPHOME_ZB_HA_DECLARE_EP,
     KEY_EP_NUMBER,
     KEY_ZIGBEE,
     ZB_ZCL_CLUSTER_ID_BASIC,
@@ -33,10 +34,46 @@ from .const_zephyr import (
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT,
     ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST,
+    BinaryAttrs,
+    ZigbeeComponent,
     zb_char_t_ptr,
     zb_zcl_basic_attrs_ext_t,
     zb_zcl_identify_attrs_t,
+    zigbee_ns,
 )
+
+ZigbeeBaseSchema = cv.Schema(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
+        cv.OnlyWith(CONF_BASIC_ATTRIB_LIST_EXT, ["nrf52", "zigbee"]): cv.use_id(
+            ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT
+        ),
+        cv.OnlyWith(CONF_IDENTIFY_ATTRIB_LIST, ["nrf52", "zigbee"]): cv.use_id(
+            ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST
+        ),
+        cv.OnlyWith(CONF_EP, ["nrf52", "zigbee"]): cv.declare_id(
+            ESPHOME_ZB_HA_DECLARE_EP
+        ),
+        cv.OnlyWith(CONF_CLUSTER_LIST, ["nrf52", "zigbee"]): cv.declare_id(
+            cg.global_ns.namespace("zb_zcl_cluster_desc_t")
+        ),
+    },
+)
+
+ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
+
+zephyr_binary_sensor = cv.Schema(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
+            ZigbeeBinarySensor
+        ),
+        cv.OnlyWith(CONF_BINARY_ATTRS, ["nrf52", "zigbee"]): cv.declare_id(BinaryAttrs),
+        cv.OnlyWith(CONF_BINARY_INPUT_ATTRIB_LIST, ["nrf52", "zigbee"]): cv.declare_id(
+            cg.global_ns.namespace("ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST")
+        ),
+    }
+).extend(ZigbeeBaseSchema)
+
 
 zephyr_component = cv.Schema(
     {
