@@ -1062,3 +1062,78 @@ def test_clean_all_preserves_json_files(
     # Verify logging mentions cleaning
     assert "Cleaning" in caplog.text
     assert str(build_dir) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_handles_readonly_files(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_build handles read-only files (e.g., git pack files on Windows)."""
+    import os
+    import stat
+
+    # Create directory structure with read-only files
+    pioenvs_dir = tmp_path / ".pioenvs"
+    pioenvs_dir.mkdir()
+    git_dir = pioenvs_dir / ".git" / "objects" / "pack"
+    git_dir.mkdir(parents=True)
+
+    # Create a read-only file (simulating git pack files on Windows)
+    readonly_file = git_dir / "pack-abc123.pack"
+    readonly_file.write_text("pack data")
+    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+
+    # Setup mocks
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+
+    # Verify file is read-only
+    assert not os.access(readonly_file, os.W_OK)
+
+    # Call the function - should not crash
+    with caplog.at_level("INFO"):
+        clean_build()
+
+    # Verify directory was removed despite read-only files
+    assert not pioenvs_dir.exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_handles_readonly_files(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all handles read-only files."""
+    import os
+    import stat
+
+    from esphome.writer import clean_all
+
+    # Create config directory
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+
+    # Create a subdirectory with read-only files
+    subdir = build_dir / "subdir"
+    subdir.mkdir()
+    readonly_file = subdir / "readonly.txt"
+    readonly_file.write_text("content")
+    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+
+    # Verify file is read-only
+    assert not os.access(readonly_file, os.W_OK)
+
+    # Call the function - should not crash
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    # Verify directory was removed despite read-only files
+    assert not subdir.exists()
+    assert build_dir.exists()  # .esphome dir itself is preserved
