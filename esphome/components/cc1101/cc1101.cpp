@@ -9,13 +9,8 @@ namespace esphome::cc1101 {
 static const char *const TAG = "cc1101";
 
 CC1101Component::CC1101Component() {
-  this->reset_ = false;
-  this->output_power_requested_ = 10.0f;  // Default 10dBm
-  this->output_power_effective_ = 10.0f;
-  memset(this->pa_table_, 0, sizeof(pa_table_));
-  memset(&this->state_, 0, sizeof(this->state_));
-
   // datasheet defaults
+  memset(&this->state_, 0, sizeof(this->state_));
   this->state_.GDO2_CFG = 0x0D;  // Serial Data (for RX on GDO2)
   this->state_.GDO1_CFG = 0x2E;
   this->state_.GDO0_CFG = 0x0D;  // Serial Data (for RX on GDO0 / TX Input)
@@ -104,6 +99,7 @@ CC1101Component::CC1101Component() {
   this->set_wait_time(WaitTime::WAIT_TIME_32_SAMPLES);
 
   // CRITICAL: Initialize PA Table to avoid transmitting 0 power (Silence)
+  memset(this->pa_table_, 0, sizeof(this->pa_table_));
   this->set_output_power(10.0f);
 }
 
@@ -344,7 +340,7 @@ void CC1101Component::set_dc_blocking_filter(bool value) {
 }
 
 void CC1101Component::set_frequency(float value) {
-  int freq = (int) (value * (1 << 16) / XTAL_FREQUENCY);
+  int32_t freq = (int32_t) (value * (1 << 16) / XTAL_FREQUENCY);
   this->state_.FREQ2 = (uint8_t) (freq >> 16);
   this->state_.FREQ1 = (uint8_t) (freq >> 8);
   this->state_.FREQ0 = (uint8_t) freq;

@@ -19,8 +19,9 @@ struct PowerTableItem {
       dbmi -= items[i].dbm_diff;
       if (dbmi_target >= dbmi) {
         // Skip invalid PA settings (magic numbers derived from TI DN013/SmartRC logic)
-        if (items[i].value >= 0x61 && items[i].value <= 0x6F)
+        if (items[i].value >= 0x61 && items[i].value <= 0x6F) {
           continue;
+        }
         dbm_target = static_cast<float>(dbmi) / 10.0f;
         return items[i].value;
       }

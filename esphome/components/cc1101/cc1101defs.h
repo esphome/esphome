@@ -217,7 +217,6 @@ enum class HystLevel : uint8_t {
   HYST_LEVEL_HIGH,
 };
 
-// Added __attribute__((packed)) to ensure memory alignment with the regs_ array
 struct __attribute__((packed)) CC1101State {
   // 0x00
   union {

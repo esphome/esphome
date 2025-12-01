@@ -67,13 +67,13 @@ class CC1101Component : public Component,
   uint16_t chip_id_{0};
   bool reset_{false};
 
-  float output_power_requested_{0.0f};
-  float output_power_effective_{0.0f};
-  uint8_t pa_table_[8];
+  float output_power_requested_{10.0f};
+  float output_power_effective_{10.0f};
+  uint8_t pa_table_[8]{};
 
   union {
     struct CC1101State state_;
-    uint8_t regs_[sizeof(struct CC1101State) / sizeof(uint8_t)];
+    uint8_t regs_[sizeof(struct CC1101State)];
   };
 
   // Low-level Helpers
