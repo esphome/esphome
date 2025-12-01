@@ -233,7 +233,7 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   /// @brief Internal state flags for the HX711 sensor component.
   HX711StateFlags hx711_state_flags_ {
     .should_start_poller = false, .poller_stopped = true, .settled = false, .update_in_progress = false,
-    .power_up_sequence_running = false, .measurement_ready_timeout_active = false, .powered_on_state = true,
+    .power_up_sequence_running = false, .measurement_ready_timeout_active = false, .powered_on_state = false,
 #if defined(USE_HX711_CHANNEL_B_SENSOR)
     .channel_b_sensor_read_pending = false,
 #endif
