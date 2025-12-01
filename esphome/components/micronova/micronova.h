@@ -62,13 +62,7 @@ class MicroNovaBaseListener {
   void set_memory_address(uint8_t a) { this->memory_address_ = a; }
   uint8_t get_memory_address() { return this->memory_address_; }
 
-  void dump_base_config() {
-    ESP_LOGCONFIG(TAG, 
-      "  Memory Location: %02X\n"
-      "  Memory Address: %02X"
-      , this->memory_location_,
-       this->memory_address_);
-  }
+  void dump_base_config();
 
  protected:
   MicroNova *micronova_{nullptr};
@@ -89,10 +83,7 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
 
   void update() override { this->set_needs_update(true); }
 
-  void dump_base_config() {
-    MicroNovaBaseListener::dump_base_config();
-    LOG_UPDATE_INTERVAL(this);
-  }
+  void dump_base_config();
 
  protected:
   bool needs_update_ = false;
