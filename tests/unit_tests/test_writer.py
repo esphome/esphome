@@ -1070,7 +1070,6 @@ def test_clean_all_preserves_json_files(
 def test_clean_build_handles_readonly_files(
     mock_core: MagicMock,
     tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test clean_build handles read-only files (e.g., git pack files on Windows)."""
     # Create directory structure with read-only files
@@ -1093,8 +1092,7 @@ def test_clean_build_handles_readonly_files(
     assert not os.access(readonly_file, os.W_OK)
 
     # Call the function - should not crash
-    with caplog.at_level("INFO"):
-        clean_build()
+    clean_build()
 
     # Verify directory was removed despite read-only files
     assert not pioenvs_dir.exists()
