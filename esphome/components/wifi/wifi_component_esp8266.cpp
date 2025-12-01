@@ -67,10 +67,8 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   }
   if (target_ap && !current_ap) {
     ESP_LOGV(TAG, "Enabling AP");
-    this->ap_started_ = true;
   } else if (!target_ap && current_ap) {
     ESP_LOGV(TAG, "Disabling AP");
-    this->ap_started_ = false;
   }
 
   ETS_UART_INTR_DISABLE();
@@ -84,7 +82,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
 
   if (!ret) {
     ESP_LOGW(TAG, "Set mode failed");
+    return false;
   }
+
+  this->ap_started_ = target_ap;
 
   return ret;
 }

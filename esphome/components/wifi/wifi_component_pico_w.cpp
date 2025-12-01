@@ -23,12 +23,13 @@ static bool s_sta_was_connected = false;  // NOLINT(cppcoreguidelines-avoid-non-
 static bool s_sta_had_ip = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
-  bool ap_state = false;
   if (sta.has_value()) {
     if (sta.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
     }
   }
+
+  bool ap_state = false;
   if (ap.has_value()) {
     if (ap.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
