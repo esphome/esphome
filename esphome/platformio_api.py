@@ -110,6 +110,28 @@ FILTER_PLATFORMIO_LINES = [
 ]
 
 
+class PlatformioLogFilter(logging.Filter):
+    """Filter to suppress noisy platformio log messages."""
+
+    FILTERED_MESSAGES = [
+        "Package configuration completed successfully",
+    ]
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Only filter messages from platformio-related loggers
+        if "platformio" not in record.name.lower():
+            return True
+        return not any(msg in record.getMessage() for msg in self.FILTERED_MESSAGES)
+
+
+def patch_platformio_logging() -> None:
+    """Add filter to root logger handlers to suppress noisy platformio messages."""
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        if not any(isinstance(f, PlatformioLogFilter) for f in handler.filters):
+            handler.addFilter(PlatformioLogFilter())
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
@@ -130,6 +152,8 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
 
     patch_structhash()
     patch_file_downloader()
+    if not CORE.verbose:
+        patch_platformio_logging()
     return run_external_command(platformio.__main__.main, *cmd, **kwargs)
 
 
