@@ -241,9 +241,23 @@ class Component {
 
   void status_clear_error();
 
-  void status_momentary_warning(const std::string &name, uint32_t length = 5000);
+  /** Set warning status flag and automatically clear it after a timeout.
+   *
+   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
+   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
+   *             This is NOT a message to display - use status_set_warning() with a message if logging is needed.
+   * @param length Duration in milliseconds before the warning is automatically cleared.
+   */
+  void status_momentary_warning(const char *name, uint32_t length = 5000);
 
-  void status_momentary_error(const std::string &name, uint32_t length = 5000);
+  /** Set error status flag and automatically clear it after a timeout.
+   *
+   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
+   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
+   *             This is NOT a message to display - use status_set_error() with a message if logging is needed.
+   * @param length Duration in milliseconds before the error is automatically cleared.
+   */
+  void status_momentary_error(const char *name, uint32_t length = 5000);
 
   bool has_overridden_loop() const;
 
