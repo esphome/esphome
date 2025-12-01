@@ -15,7 +15,6 @@
 #include <concepts>
 
 #include "esphome/core/optional.h"
-#include "esphome/core/string_ref.h"
 
 #ifdef USE_ESP8266
 #include <Esp.h>
@@ -47,6 +46,9 @@
 #define PACKED __attribute__((packed))
 
 namespace esphome {
+
+// Forward declaration to avoid circular dependency with string_ref.h
+class StringRef;
 
 /// @name STL backports
 ///@{
@@ -378,7 +380,6 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t p
 /// Calculate a FNV-1 hash of \p str.
 uint32_t fnv1_hash(const char *str);
 inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()); }
-inline uint32_t fnv1_hash(const StringRef &str) { return fnv1_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
