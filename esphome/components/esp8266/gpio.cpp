@@ -11,11 +11,9 @@ static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   if (flags == gpio::FLAG_OUTPUT || flags == (gpio::FLAG_OUTPUT | gpio::FLAG_INPUT)) {
     return OUTPUT;
   }
-
   if (flags == gpio::FLAG_INPUT) {
     return INPUT;
   }
-
   if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     if (pin == 16) {
       // GPIO16 doesn't have a pullup, so pinMode would fail.
@@ -26,15 +24,12 @@ static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
     }
     return INPUT_PULLUP;
   }
-
   if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
     return INPUT_PULLDOWN_16;
   }
-
   if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
     return OUTPUT_OPEN_DRAIN;
   }
-
   return INPUT;
 }
 
