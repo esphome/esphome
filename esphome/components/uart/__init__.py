@@ -42,6 +42,17 @@ _LOGGER = getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "uart"
 
+
+def AUTO_LOAD() -> list[str]:
+    """Ideally, we would only auto-load socket only when wake_loop_on_rx is requested;
+    however, AUTO_LOAD is examined before wake_loop_on_rx is set, so instead, since ESP32
+    always uses socket select support in the main app, we'll just ensure it's loaded here.
+    """
+    if CORE.is_esp32:
+        return ["socket"]
+    return []
+
+
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
@@ -125,7 +136,15 @@ def request_wake_loop_on_rx() -> None:
     should call this function during their code generation.
     This enables the RX event task which wakes the main loop when data arrives.
     """
-    _get_data().wake_loop_on_rx = True
+    data = _get_data()
+    if not data.wake_loop_on_rx:
+        data.wake_loop_on_rx = True
+
+        # UART RX event task uses wake_loop_threadsafe() to notify the main loop
+        # Automatically enable the socket wake infrastructure when RX wake is requested
+        from esphome.components import socket
+
+        socket.require_wake_loop_threadsafe()
 
 
 def validate_raw_data(value):
