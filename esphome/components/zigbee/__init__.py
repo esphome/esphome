@@ -12,13 +12,11 @@ from esphome.types import ConfigType
 
 from .const_zephyr import (
     CONF_BASIC_ATTRIB_LIST_EXT,
-    CONF_BASIC_ATTRS_EXT,
     CONF_BINARY_ATTRS,
     CONF_BINARY_INPUT_ATTRIB_LIST,
     CONF_CLUSTER_LIST,
     CONF_EP,
     CONF_IDENTIFY_ATTRIB_LIST,
-    CONF_IDENTIFY_ATTRS,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
     CONF_WIPE_ON_BOOT,
@@ -31,10 +29,9 @@ from .const_zephyr import (
     ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST,
     BinaryAttrs,
     ZigbeeComponent,
-    zb_zcl_basic_attrs_ext_t,
-    zb_zcl_identify_attrs_t,
     zigbee_ns,
 )
+from .zigbee_zephyr import zephyr_component
 
 CODEOWNERS = ["@tomaszduda23"]
 
@@ -84,25 +81,15 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ZigbeeComponent),
-            cv.OnlyWith(CONF_BASIC_ATTRS_EXT, "nrf52"): cv.declare_id(
-                zb_zcl_basic_attrs_ext_t
-            ),
-            cv.OnlyWith(CONF_BASIC_ATTRIB_LIST_EXT, "nrf52"): cv.declare_id(
-                ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT
-            ),
-            cv.OnlyWith(CONF_IDENTIFY_ATTRS, "nrf52"): cv.declare_id(
-                zb_zcl_identify_attrs_t
-            ),
-            cv.OnlyWith(CONF_IDENTIFY_ATTRIB_LIST, "nrf52"): cv.declare_id(
-                ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST
-            ),
             cv.Optional(CONF_ON_JOIN): automation.validate_automation(single=True),
             cv.Optional(CONF_WIPE_ON_BOOT, default=False): cv.All(
                 cv.boolean,
                 cv.requires_component("nrf52"),
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(zephyr_component),
     zigbee_set_core_data,
     cv.only_with_framework("zephyr"),
 )

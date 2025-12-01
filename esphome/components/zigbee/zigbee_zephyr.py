@@ -3,6 +3,7 @@ from datetime import datetime
 from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, __version__
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import (
@@ -30,7 +31,28 @@ from .const_zephyr import (
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
+    ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT,
+    ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST,
     zb_char_t_ptr,
+    zb_zcl_basic_attrs_ext_t,
+    zb_zcl_identify_attrs_t,
+)
+
+zephyr_component = cv.Schema(
+    {
+        cv.OnlyWith(CONF_BASIC_ATTRS_EXT, "nrf52"): cv.declare_id(
+            zb_zcl_basic_attrs_ext_t
+        ),
+        cv.OnlyWith(CONF_BASIC_ATTRIB_LIST_EXT, "nrf52"): cv.declare_id(
+            ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT
+        ),
+        cv.OnlyWith(CONF_IDENTIFY_ATTRS, "nrf52"): cv.declare_id(
+            zb_zcl_identify_attrs_t
+        ),
+        cv.OnlyWith(CONF_IDENTIFY_ATTRIB_LIST, "nrf52"): cv.declare_id(
+            ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST
+        ),
+    }
 )
 
 
