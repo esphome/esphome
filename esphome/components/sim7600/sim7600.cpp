@@ -205,7 +205,11 @@ void Sim7600Component::parse_cmd_(std::string message) {
       send_cmd_("AT+CREG?");                    
       this->state_ = STATE_CREG_WAIT;
       break;
+    
     case STATE_CREG_WAIT: {
+
+		  LAST_CxREG = STATE_CREG;
+      
       // Response: "+CREG: 0,1" -- the one there means registered ok
       //           "+CREG: *,4" means LTE (4G/5G) not available, try GPRS (3G)
       //           "+CREG: -,-" means not registered ok
@@ -216,7 +220,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
-		    LAST_CxREG = STATE_CREG;
+		   // LAST_CxREG = STATE_CREG;
 		
 #ifdef USE_SENSOR
         if (this->network_sensor_ != nullptr) {
@@ -262,10 +266,14 @@ void Sim7600Component::parse_cmd_(std::string message) {
       send_cmd_("AT+CEREG?");                    
       this->state_ = STATE_CEREG_WAIT;
       break;
+    
     case STATE_CEREG_WAIT: {
       // Response: "+CEREG: 0,1" -- the one there means registered ok
       //           "+CEREG: *,4" means LTE (4G/5G) not available, try GPRS (3G)
       //           "+CEREG: -,-" means not registered ok
+
+      LAST_CxREG = STATE_CEREG;
+      
       bool registered = message.compare(0, 7, "+CEREG:") == 0 && (message[10] == '1' || message[10] == '5');     
       if (registered) {
         if (!this->registered_) {
@@ -274,7 +282,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
 		    
-        LAST_CxREG = STATE_CEREG;
+      //  LAST_CxREG = STATE_CEREG;
 		
 #ifdef USE_SENSOR
         if (this->network_sensor_ != nullptr) {
@@ -315,19 +323,22 @@ void Sim7600Component::parse_cmd_(std::string message) {
       send_cmd_("AT+CGREG?");                    
       this->state_ = STATE_CGREG_WAIT;
       break;
+    
     case STATE_CGREG_WAIT: {
       // Response: "+CGREG: 0,1" the one there means registered ok
       //           "+CGREG: *,4" means GPRS (3G) not available, try LTE (4G/5G)
       //           "+CGREG: -,-" means not registered ok
 	    //
-      bool registered = message.compare(0, 7, "+CGREG:") == 0 && (message[10] == '1' || message[10] == '5');     
+
+      LAST_CxREG = STATE_CGREG;
+      bool registered = message.compare(0, 7, "+CGREG:") == 0 && (message[10] == '1' || message[10] == '5');  
       if (registered) {
         if (!this->registered_) {
           ESP_LOGD(TAG, "GPRS Registered OK");
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
-        LAST_CxREG = STATE_CGREG;
+       // LAST_CxREG = STATE_CGREG;
 
 #ifdef USE_SENSOR
         if (this->network_sensor_ != nullptr) {
