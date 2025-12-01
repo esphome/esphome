@@ -125,7 +125,16 @@ def request_wake_loop_on_rx() -> None:
     should call this function during their code generation.
     This enables the RX event task which wakes the main loop when data arrives.
     """
-    _get_data().wake_loop_on_rx = True
+    data = _get_data()
+    if not data.wake_loop_on_rx:
+        data.wake_loop_on_rx = True
+
+        # UART RX event task uses wake_loop_threadsafe() to notify the main loop
+        # Automatically enable the socket wake infrastructure when RX wake is requested
+        if CORE.is_esp32:
+            from esphome.components import socket
+
+            socket.require_wake_loop_threadsafe()
 
 
 def validate_raw_data(value):
