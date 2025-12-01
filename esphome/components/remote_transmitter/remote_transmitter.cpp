@@ -41,7 +41,7 @@ void RemoteTransmitterComponent::await_target_time_() {
     this->target_time_ = current_time;
   } else if ((int32_t) (this->target_time_ - current_time) > 0) {
 #if defined(USE_LIBRETINY) || defined(USE_RP2040)
-    // busy loop for libretiny is required (see the comment inside micros() in wiring.c)
+    // busy loop is required for libretiny and rp2040 as interrupts are disabled
     while ((int32_t) (this->target_time_ - micros()) > 0)
       ;
 #else
