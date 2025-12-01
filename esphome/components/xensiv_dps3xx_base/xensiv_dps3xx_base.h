@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/gpio.h"
-#include "xensiv_dps3xx.h"
+#include "xensiv_dps3xx_library/xensiv_dps3xx.h"
 namespace esphome {
 namespace xensiv_dps3xx_base {
 
