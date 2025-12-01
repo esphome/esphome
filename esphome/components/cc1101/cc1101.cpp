@@ -2,9 +2,7 @@
 #include "cc1101pa.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <climits>
 #include <cmath>
-#include <cstdio>
 
 namespace esphome::cc1101 {
 
@@ -130,9 +128,7 @@ void CC1101Component::setup() {
   this->read_(Register::PARTNUM);
   this->read_(Register::VERSION);
 
-  char buff[32] = {0};
-  snprintf(buff, sizeof(buff), "%02X%02X", this->state_.PARTNUM, this->state_.VERSION);
-  this->chip_id_ = buff;
+  this->chip_id_ = encode_uint16(this->state_.PARTNUM, this->state_.VERSION);
 
   if (this->state_.VERSION == 0 || this->state_.PARTNUM == 0xFF) {
     ESP_LOGE(TAG, "Failed to verify CC1101.");
@@ -140,7 +136,7 @@ void CC1101Component::setup() {
     return;
   }
 
-  ESP_LOGD(TAG, "CC1101 found! %s", this->chip_id_.c_str());
+  ESP_LOGD(TAG, "CC1101 found! Chip ID: 0x%04X", this->chip_id_);
   this->reset_ = true;
 
   for (uint8_t i = 0; i <= 0x2E; i++) {
@@ -155,7 +151,7 @@ void CC1101Component::setup() {
 void CC1101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CC1101:");
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Chip ID: %s", this->chip_id_.c_str());
+  ESP_LOGCONFIG(TAG, "  Chip ID: 0x%04X", this->chip_id_);
 }
 
 void CC1101Component::begin_tx() {

@@ -5,7 +5,6 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "cc1101defs.h"
-#include <string>
 
 namespace esphome::cc1101 {
 
@@ -64,7 +63,7 @@ class CC1101Component : public Component,
   void set_hyst_level(HystLevel value);
 
  protected:
-  std::string chip_id_;
+  uint16_t chip_id_{0};
   bool reset_{false};
 
   float output_power_requested_{0.0f};
