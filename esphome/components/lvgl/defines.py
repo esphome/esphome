@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import LambdaExpression, MockObj
+from esphome.cpp_generator import CallExpression, LambdaExpression, MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
@@ -68,16 +68,16 @@ def addr(arg) -> MockObj:
 
 
 def call_lambda(lamb: LambdaExpression):
+    # Convert a lambda returning a simple expression to just that expression
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
-        return expr[6:-1].strip()
-    # If lambda has parameters, call it with those parameter names
+        return StaticCastExpression(lamb.return_type, expr[6:-1].strip())
+    # If lambda has parameters, call it with their names
     # Parameter names come from hardcoded component code (like "x", "it", "event")
     # not from user input, so they're safe to use directly
     if lamb.parameters and lamb.parameters.parameters:
-        param_names = ", ".join(str(param.id) for param in lamb.parameters.parameters)
-        return f"{lamb}({param_names})"
-    return f"{lamb}()"
+        return CallExpression(lamb, lamb.parameters.parameters)
+    return CallExpression(lamb)
 
 
 class LValidator:
@@ -113,10 +113,8 @@ class LValidator:
                 # so we need to assert the type here
                 assert isinstance(CodeContext.code_context, LambdaContext)
             args = args or CodeContext.code_context.get_automation_parameters()
-            return cg.RawExpression(
-                call_lambda(
-                    await cg.process_lambda(value, args, return_type=self.rtype)
-                )
+            return call_lambda(
+                await cg.process_lambda(value, args, return_type=self.rtype)
             )
         if self.retmapper is not None:
             return self.retmapper(value)

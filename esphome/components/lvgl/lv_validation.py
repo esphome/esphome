@@ -442,30 +442,28 @@ class TextValidator(LValidator):
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):
-                    time_format = cpp_string_escape(time_format)
-                    return cg.RawExpression(
+                    source = MockObj(
                         call_lambda(
                             await cg.process_lambda(source, args, return_type=ESPTime)
                         )
-                        + f".strftime({time_format}).c_str()"
                     )
                 # must be an ID
-                source = await cg.get_variable(source)
+                else:
+                    source = await cg.get_variable(source)
                 return source.now().strftime(time_format).c_str()
         if isinstance(value, Lambda):
             value = call_lambda(
                 await cg.process_lambda(value, args, return_type=self.rtype)
             )
+            textvalue = str(value)
 
             # Was the lambda call reduced to a string?
-            if value.endswith("c_str()") or (
-                value.endswith('"') and value.startswith('"')
+            if textvalue.endswith("c_str()") or (
+                textvalue.endswith('"') and textvalue.startswith('"')
             ):
-                pass
-            else:
-                # Either a std::string or a lambda call returning that. We need const char*
-                value = f"({value}).c_str()"
-            return cg.RawExpression(value)
+                return value
+            # Either a std::string or a lambda call returning that. We need const char*
+            return MockObj(value).c_str()
         return await super().process(value, args)
 
 
