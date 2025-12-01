@@ -14,11 +14,8 @@ web_server:
 http_request:
   verify_ssl: false
 
-coap_client:
-
 ota:
   - platform: esphome
     password: "test_password"
   - platform: web_server
   - platform: http_request
-  - platform: coap_client

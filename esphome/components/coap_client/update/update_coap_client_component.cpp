@@ -13,9 +13,6 @@ namespace esphome::coap_client {
 #define UPDATE_RETURN \
   ESP_LOGD(TAG, "exiting update_task"); \
   vTaskDelete(nullptr)  // Delete the current update task
-#else
-#define UPDATE_RETURN return
-#endif
 
 static const char *const TAG = "coap_client.update";
 
