@@ -22,16 +22,10 @@ void MicroNova::dump_config() {
   if (this->enable_rx_pin_ != nullptr) {
     LOG_PIN("  Enable RX Pin: ", this->enable_rx_pin_);
   }
-
-  for (auto &mv_sensor : this->micronova_listeners_) {
-    mv_sensor->dump_config();
-    ESP_LOGCONFIG(TAG, "    sensor location:%02X, address:%02X", mv_sensor->get_memory_location(),
-                  mv_sensor->get_memory_address());
-  }
 }
 
-void MicroNova::update() {
-  ESP_LOGD(TAG, "Schedule sensor update");
+void MicroNova::request_update_listener() {
+  ESP_LOGD(TAG, "Schedule listener update");
   for (auto &mv_listener : this->micronova_listeners_) {
     mv_listener->set_needs_update(true);
   }
@@ -62,7 +56,7 @@ void MicroNova::loop() {
   }
 }
 
-void MicroNova::request_address(uint8_t location, uint8_t address, MicroNovaSensorListener *listener) {
+void MicroNova::request_address(uint8_t location, uint8_t address, MicroNovaListener *listener) {
   uint8_t write_data[2] = {0, 0};
   uint8_t trash_rx;
 

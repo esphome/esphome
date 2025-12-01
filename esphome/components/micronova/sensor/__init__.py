@@ -10,18 +10,18 @@ from esphome.const import (
 )
 
 from .. import (
-    CONF_MEMORY_ADDRESS,
-    CONF_MEMORY_LOCATION,
     CONF_MICRONOVA_ID,
-    MICRONOVA_LISTENER_SCHEMA,
+    MICRONOVA_LISTENER_POLLING_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
+    MicroNovaListener,
     micronova_ns,
+    to_code_micronova_listener,
 )
 
 UNIT_BAR = "bar"
 
-MicroNovaSensor = micronova_ns.class_("MicroNovaSensor", sensor.Sensor, cg.Component)
+MicroNovaSensor = micronova_ns.class_("MicroNovaSensor", sensor.Sensor, MicroNovaListener)
 
 CONF_ROOM_TEMPERATURE = "room_temperature"
 CONF_FUMES_TEMPERATURE = "fumes_temperature"
@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
             accuracy_decimals=1,
         ).extend(
-            MICRONOVA_LISTENER_SCHEMA(
+            MICRONOVA_LISTENER_POLLING_SCHEMA(
                 default_memory_location=0x00, default_memory_address=0x01
             )
         ),
@@ -53,7 +53,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
             accuracy_decimals=1,
         ).extend(
-            MICRONOVA_LISTENER_SCHEMA(
+            MICRONOVA_LISTENER_POLLING_SCHEMA(
                 default_memory_location=0x00, default_memory_address=0x5A
             )
         ),
@@ -62,7 +62,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
             accuracy_decimals=0,
         ).extend(
-            MICRONOVA_LISTENER_SCHEMA(
+            MICRONOVA_LISTENER_POLLING_SCHEMA(
                 default_memory_location=0x00, default_memory_address=0x34
             )
         ),
@@ -72,7 +72,7 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
         )
         .extend(
-            MICRONOVA_LISTENER_SCHEMA(
+            MICRONOVA_LISTENER_POLLING_SCHEMA(
                 default_memory_location=0x00, default_memory_address=0x37
             )
         )
@@ -86,7 +86,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
             accuracy_decimals=1,
         ).extend(
-            MICRONOVA_LISTENER_SCHEMA(
+            MICRONOVA_LISTENER_POLLING_SCHEMA(
                 default_memory_location=0x00, default_memory_address=0x3B
             )
         ),
@@ -97,14 +97,14 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
             accuracy_decimals=1,
         ).extend(
-            MICRONOVA_LISTENER_SCHEMA(
+            MICRONOVA_LISTENER_POLLING_SCHEMA(
                 default_memory_location=0x00, default_memory_address=0x3C
             )
         ),
         cv.Optional(CONF_MEMORY_ADDRESS_SENSOR): sensor.sensor_schema(
             MicroNovaSensor,
         ).extend(
-            MICRONOVA_LISTENER_SCHEMA(
+            MICRONOVA_LISTENER_POLLING_SCHEMA(
                 default_memory_location=0x00, default_memory_address=0x00
             )
         ),
@@ -115,58 +115,20 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
-    if room_temperature_config := config.get(CONF_ROOM_TEMPERATURE):
-        sens = await sensor.new_sensor(room_temperature_config, mv)
-        cg.add(mv.register_micronova_listener(sens))
-        cg.add(sens.set_memory_location(room_temperature_config[CONF_MEMORY_LOCATION]))
-        cg.add(sens.set_memory_address(room_temperature_config[CONF_MEMORY_ADDRESS]))
-        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_ROOM_TEMPERATURE))
-
-    if fumes_temperature_config := config.get(CONF_FUMES_TEMPERATURE):
-        sens = await sensor.new_sensor(fumes_temperature_config, mv)
-        cg.add(mv.register_micronova_listener(sens))
-        cg.add(sens.set_memory_location(fumes_temperature_config[CONF_MEMORY_LOCATION]))
-        cg.add(sens.set_memory_address(fumes_temperature_config[CONF_MEMORY_ADDRESS]))
-        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_FUMES_TEMPERATURE))
-
-    if stove_power_config := config.get(CONF_STOVE_POWER):
-        sens = await sensor.new_sensor(stove_power_config, mv)
-        cg.add(mv.register_micronova_listener(sens))
-        cg.add(sens.set_memory_location(stove_power_config[CONF_MEMORY_LOCATION]))
-        cg.add(sens.set_memory_address(stove_power_config[CONF_MEMORY_ADDRESS]))
-        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_STOVE_POWER))
+    for key, fn in {
+        CONF_ROOM_TEMPERATURE: MicroNovaFunctions.STOVE_FUNCTION_ROOM_TEMPERATURE,
+        CONF_FUMES_TEMPERATURE: MicroNovaFunctions.STOVE_FUNCTION_FUMES_TEMPERATURE,
+        CONF_STOVE_POWER: MicroNovaFunctions.STOVE_FUNCTION_STOVE_POWER,
+        CONF_MEMORY_ADDRESS_SENSOR: MicroNovaFunctions.STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR,
+        CONF_WATER_TEMPERATURE: MicroNovaFunctions.STOVE_FUNCTION_WATER_TEMPERATURE,
+        CONF_WATER_PRESSURE: MicroNovaFunctions.STOVE_FUNCTION_WATER_PRESSURE,
+    }.items():
+        if sensor_config := config.get(key):
+            sens = await sensor.new_sensor(sensor_config, mv)
+            await to_code_micronova_listener(mv, sens, sensor_config, fn)
 
     if fan_speed_config := config.get(CONF_FAN_SPEED):
         sens = await sensor.new_sensor(fan_speed_config, mv)
-        cg.add(mv.register_micronova_listener(sens))
-        cg.add(sens.set_memory_location(fan_speed_config[CONF_MEMORY_LOCATION]))
-        cg.add(sens.set_memory_address(fan_speed_config[CONF_MEMORY_ADDRESS]))
-        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED))
+        await to_code_micronova_listener(mv, sens, fan_speed_config, MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED)
         cg.add(sens.set_fan_speed_offset(fan_speed_config[CONF_FAN_RPM_OFFSET]))
 
-    if memory_address_sensor_config := config.get(CONF_MEMORY_ADDRESS_SENSOR):
-        sens = await sensor.new_sensor(memory_address_sensor_config, mv)
-        cg.add(mv.register_micronova_listener(sens))
-        cg.add(
-            sens.set_memory_location(memory_address_sensor_config[CONF_MEMORY_LOCATION])
-        )
-        cg.add(
-            sens.set_memory_address(memory_address_sensor_config[CONF_MEMORY_ADDRESS])
-        )
-        cg.add(
-            sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR)
-        )
-
-    if water_temperature_config := config.get(CONF_WATER_TEMPERATURE):
-        sens = await sensor.new_sensor(water_temperature_config, mv)
-        cg.add(mv.register_micronova_listener(sens))
-        cg.add(sens.set_memory_location(water_temperature_config[CONF_MEMORY_LOCATION]))
-        cg.add(sens.set_memory_address(water_temperature_config[CONF_MEMORY_ADDRESS]))
-        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_WATER_TEMPERATURE))
-
-    if water_pressure_config := config.get(CONF_WATER_PRESSURE):
-        sens = await sensor.new_sensor(water_pressure_config, mv)
-        cg.add(mv.register_micronova_listener(sens))
-        cg.add(sens.set_memory_location(water_pressure_config[CONF_MEMORY_LOCATION]))
-        cg.add(sens.set_memory_address(water_pressure_config[CONF_MEMORY_ADDRESS]))
-        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_WATER_PRESSURE))

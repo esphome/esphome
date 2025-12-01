@@ -12,6 +12,7 @@ CONF_MICRONOVA_ID = "micronova_id"
 CONF_ENABLE_RX_PIN = "enable_rx_pin"
 CONF_MEMORY_LOCATION = "memory_location"
 CONF_MEMORY_ADDRESS = "memory_address"
+DEFAULT_POLLING_INTERVAL = "60s"
 
 micronova_ns = cg.esphome_ns.namespace("micronova")
 
@@ -31,7 +32,8 @@ MICRONOVA_FUNCTIONS_ENUM = {
     "STOVE_FUNCTION_CUSTOM": MicroNovaFunctions.STOVE_FUNCTION_CUSTOM,
 }
 
-MicroNova = micronova_ns.class_("MicroNova", cg.PollingComponent, uart.UARTDevice)
+MicroNova = micronova_ns.class_("MicroNova", cg.Component, uart.UARTDevice)
+MicroNovaListener = micronova_ns.class_("MicroNovaListener", cg.PollingComponent)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -41,7 +43,6 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("60s"))
 )
 
 
@@ -57,6 +58,16 @@ def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
             ): cv.hex_int_range(),
         }
     )
+
+def MICRONOVA_LISTENER_POLLING_SCHEMA(default_memory_location, default_memory_address):
+    return MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
+
+async def to_code_micronova_listener(mv, var, config, micronova_function):
+    await cg.register_component(var, config)
+    cg.add(mv.register_micronova_listener(var))
+    cg.add(var.set_memory_location(config[CONF_MEMORY_LOCATION]))
+    cg.add(var.set_memory_address(config[CONF_MEMORY_ADDRESS]))
+    cg.add(var.set_function(micronova_function))
 
 
 async def to_code(config):
