@@ -15,6 +15,7 @@
 #include <concepts>
 
 #include "esphome/core/optional.h"
+#include "esphome/core/string_ref.h"
 
 #ifdef USE_ESP8266
 #include <Esp.h>
@@ -46,9 +47,6 @@
 #define PACKED __attribute__((packed))
 
 namespace esphome {
-
-// Forward declaration to avoid circular dependency with string_ref.h
-class StringRef;
 
 /// @name STL backports
 ///@{
