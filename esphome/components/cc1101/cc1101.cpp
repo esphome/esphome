@@ -88,10 +88,6 @@ CC1101Component::CC1101Component() {
   this->state_.VCO_SEL_CAL_EN = 1;
   this->state_.TEST0_HI = 2;
 
-  // IOCFGx
-  this->state_.GDO2_CFG = 0x0D;  // Async serial output (TODO: enum)
-  this->state_.GDO0_CFG = 0x0D;
-
   // PKTCTRL0
   this->state_.PKT_FORMAT = 3;
   this->state_.LENGTH_CONFIG = 2;
@@ -161,8 +157,6 @@ void CC1101Component::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG, "  Chip ID: %s", this->chip_id_.c_str());
 }
-
-void CC1101Component::loop() {}
 
 void CC1101Component::begin_tx() {
   ESP_LOGV(TAG, "Beginning TX sequence");

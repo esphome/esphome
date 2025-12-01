@@ -17,7 +17,6 @@ class CC1101Component : public Component,
 
   void setup() override;
   void dump_config() override;
-  void loop() override;
 
   // Actions
   void begin_tx();
@@ -25,8 +24,8 @@ class CC1101Component : public Component,
   void reset();
   void set_idle();
   // GDO Pin Configuration
-  void set_gdo0_config(uint8_t value);  // Added
-  void set_gdo2_config(uint8_t value);  // Added
+  void set_gdo0_config(uint8_t value);
+  void set_gdo2_config(uint8_t value);
 
   // Configuration Setters
   void set_output_power(float value);
@@ -67,7 +66,6 @@ class CC1101Component : public Component,
  protected:
   std::string chip_id_;
   bool reset_{false};
-  bool is_calibrated_{false};
 
   float output_power_requested_{0.0f};
   float output_power_effective_{0.0f};
@@ -108,8 +106,7 @@ template<typename... Ts> class ResetAction : public Action<Ts...>, public Parent
   void play(Ts... x) override { this->parent_->reset(); }
 };
 
-template<typename... Ts>
-class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {  // <--- ADD THIS CLASS
+template<typename... Ts> class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void play(Ts... x) override { this->parent_->set_idle(); }
 };
