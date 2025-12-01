@@ -583,9 +583,9 @@ bool WiFiComponent::has_ap() const { return this->has_ap_; }
 bool WiFiComponent::is_ap_active() const {
 #ifdef USE_WIFI_AP
 #ifdef USE_ESP_IDF
-  return s_ap_started;
+  return wifi::s_ap_started;
 #else
-  return s_ap_mode;
+  return wifi::s_ap_mode;
 #endif  // USE_ESP_IDF
 #else
   return false;
