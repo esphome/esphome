@@ -7,16 +7,14 @@ namespace micronova {
 void MicroNovaBaseListener::dump_base_config() {
   ESP_LOGCONFIG(TAG,
                 "  Memory Location: %02X\n"
-                "  Memory Address: %02X"
-                , this->memory_location_,
-                  this->memory_address_);
+                "  Memory Address: %02X",
+                this->memory_location_, this->memory_address_);
 }
 
 void MicroNovaListener::dump_base_config() {
   MicroNovaBaseListener::dump_base_config();
   LOG_UPDATE_INTERVAL(this);
 }
-
 
 void MicroNova::setup() {
   if (this->enable_rx_pin_ != nullptr) {
