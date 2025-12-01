@@ -45,7 +45,7 @@ DOMAIN = "uart"
 
 def AUTO_LOAD() -> list[str]:
     """Conditionally auto-load socket only when wake_loop_on_rx is requested."""
-    if _get_data().wake_loop_on_rx:
+    if CORE.is_esp32:
         return ["socket"]
     return []
 
