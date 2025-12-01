@@ -231,7 +231,11 @@ void IDFUARTComponent::dump_config() {
                 "  Baud Rate: %" PRIu32 " baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
-                "  Stop bits: %u",
+                "  Stop bits: %u"
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+                "\n  Wake on data RX: ENABLED"
+#endif
+                ,
                 this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   this->check_logger_conflict();
 }
@@ -347,7 +351,7 @@ void IDFUARTComponent::start_rx_event_task_() {
   // Create FreeRTOS task to monitor UART events
   BaseType_t result = xTaskCreate(rx_event_task_func,    // Task function
                                   "uart_rx_evt",         // Task name (max 16 chars)
-                                  2176,                  // Stack size in bytes (2KB)
+                                  2240,                  // Stack size in bytes (~2.2KB); increase if needed for logging
                                   this,                  // Task parameter (this pointer)
                                   tskIDLE_PRIORITY + 1,  // Priority (low, just above idle)
                                   nullptr                // Task handle (not needed)
