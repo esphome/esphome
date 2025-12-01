@@ -593,9 +593,6 @@ CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
 KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
 
-# Ring buffer IRAM requirement tracking
-KEY_RINGBUF_IN_IRAM = "ringbuf_in_iram"
-
 
 def require_vfs_select() -> None:
     """Mark that VFS select support is required by a component.
@@ -613,17 +610,6 @@ def require_vfs_dir() -> None:
     This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
     """
     CORE.data[KEY_VFS_DIR_REQUIRED] = True
-
-
-def enable_ringbuf_in_iram() -> None:
-    """Keep ring buffer functions in IRAM instead of moving them to flash.
-
-    Call this from components that use esphome/core/ring_buffer.cpp and need
-    the ring buffer functions to remain in IRAM for performance reasons
-    (e.g., voice assistants, audio components).
-    This prevents CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH from being enabled.
-    """
-    CORE.data[KEY_RINGBUF_IN_IRAM] = True
 
 
 def _parse_idf_component(value: str) -> ConfigType:
@@ -1038,18 +1024,14 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH", True)
 
     # Place ring buffer functions into flash instead of IRAM by default
-    # This saves IRAM but may impact performance for audio/voice components.
-    # Components that need ring buffer in IRAM call enable_ringbuf_in_iram().
-    # Users can also set ringbuf_in_iram: true to force IRAM placement.
-    # In ESP-IDF 6.0 flash placement becomes the default.
-    if conf[CONF_ADVANCED][CONF_RINGBUF_IN_IRAM] or CORE.data.get(
-        KEY_RINGBUF_IN_IRAM, False
-    ):
-        # User config or component requires ring buffer in IRAM for performance
+    # This saves IRAM. In ESP-IDF 6.0 flash placement becomes the default.
+    # Users can set ringbuf_in_iram: true as an escape hatch if they encounter issues.
+    if conf[CONF_ADVANCED][CONF_RINGBUF_IN_IRAM]:
+        # User requests ring buffer in IRAM
         # IDF 6.0+: will need CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=n
         add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH", False)
     else:
-        # No component needs it - place in flash to save IRAM
+        # Place in flash to save IRAM (default)
         add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH", True)
 
     # Setup watchdog
