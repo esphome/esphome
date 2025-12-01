@@ -20,7 +20,6 @@ namespace esphome::wifi {
 static const char *const TAG = "wifi_lt";
 
 static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_ap_mode = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
@@ -38,10 +37,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   }
   if (enable_ap && !current_ap) {
     ESP_LOGV(TAG, "Enabling AP");
-    s_ap_mode = true;
+    this->ap_started_ = true;
   } else if (!enable_ap && current_ap) {
     ESP_LOGV(TAG, "Disabling AP");
-    s_ap_mode = false;
+    this->ap_started_ = false;
   }
 
   uint8_t mode = 0;
