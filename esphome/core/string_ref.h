@@ -128,6 +128,12 @@ inline std::string operator+(const StringRef &lhs, const char *rhs) {
   return str;
 }
 
+inline std::string operator+(const StringRef &lhs, const std::string &rhs) {
+  auto str = lhs.str();
+  str.append(rhs);
+  return str;
+}
+
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
 inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
