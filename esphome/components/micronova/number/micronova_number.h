@@ -8,6 +8,7 @@ namespace micronova {
 
 class MicroNovaNumber : public number::Number, public MicroNovaListener {
  public:
+  MicroNovaNumber() {}
   MicroNovaNumber(MicroNova *m) : MicroNovaListener(m) {}
   void dump_config() override {
     LOG_NUMBER("", "Micronova number", this);
