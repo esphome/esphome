@@ -10,7 +10,7 @@ params:
 The `esp32_camera` component allows you to use ESP32-based camera boards in ESPHome that
 directly integrate into Home Assistant through the native API.
 
-Requires an {{< docref "/components/i2c" >}} to be set up.
+Requires an {{< docref "/components/i2c" >}} and {{< docref "/components/psram" >}} to be configured.
 
 ```yaml
 # Example configuration entry
