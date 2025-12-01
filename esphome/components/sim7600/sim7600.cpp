@@ -292,10 +292,10 @@ void Sim7600Component::parse_cmd_(std::string message) {
           this->state_ = STATE_SETUP_CMGF;
 		//  break;
 		} else if (message[10] == '4')  {          //LTE not available, 
-          ESP_LOGD(TAG, "LTE Registration failed, trying GSM"); //trying GSM
-          this->state_ = STATE_CREG;
-        // ESP_LOGD(TAG, "LTE Registration failed, trying GPRS"); //trying GPRS
-        // this->state_ = STATE_CGREG;
+        //  ESP_LOGD(TAG, "LTE Registration failed, trying GSM"); //trying GSM
+        //  this->state_ = STATE_CREG;
+          ESP_LOGD(TAG, "LTE Registration failed, trying GPRS"); //trying GPRS
+          this->state_ = STATE_CGREG;
           this->expect_ack_ = true;
         //  break;			
         } else {
@@ -319,7 +319,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       // Response: "+CGREG: 0,1" the one there means registered ok
       //           "+CGREG: *,4" means GPRS (3G) not available, try LTE (4G/5G)
       //           "+CGREG: -,-" means not registered ok
-	  //
+	    //
       bool registered = message.compare(0, 7, "+CGREG:") == 0 && (message[10] == '1' || message[10] == '5');     
       if (registered) {
         if (!this->registered_) {
@@ -343,10 +343,12 @@ void Sim7600Component::parse_cmd_(std::string message) {
           this->expect_ack_ = true;
           this->state_ = STATE_SETUP_CMGF;			
 		//  break;
-        } else if (message[10] == '4')  {          //GPRS not available, trying LTE
-          ESP_LOGD(TAG, "GPRS Registration failed, trying LTE");
-          this->state_ = STATE_CEREG;
-          this->expect_ack_ = true;
+        } else if (message[10] == '4')  {          //GPRS not available, trying GSM
+           ESP_LOGD(TAG, "LTE Registration failed, trying GSM"); //trying GSM
+           this->state_ = STATE_CREG;
+        //   ESP_LOGD(TAG, "GPRS Registration failed, trying LTE");
+        //   this->state_ = STATE_CEREG;
+           this->expect_ack_ = true;
         //  break;
         } else {
           ESP_LOGD(TAG, "GPRS Registration failed, trying again");
