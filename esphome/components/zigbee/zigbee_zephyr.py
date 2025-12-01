@@ -4,7 +4,7 @@ from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.const import CONF_ID, CONF_NAME, __version__
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import (
     AssignmentExpression,
     MockObj,
@@ -223,6 +223,7 @@ def zigbee_register_ep(
     CORE.add_global(obj)
 
 
+@coroutine_with_priority(CoroPriority.LATE)
 async def _ctx_to_code(config: ConfigType) -> None:
     cg.add_define("ZIGBEE_ENDPOINTS_COUNT", len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]))
     cg.add_global(
