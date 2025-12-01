@@ -301,12 +301,7 @@ void WebServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
-    logger::global_logger->add_on_log_callback(
-        // logs are not deferred, the memory overhead would be too large
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          (void) message_len;
-          this->events_.try_send_nodefer(message, "log", millis());
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
@@ -322,6 +317,16 @@ void WebServer::setup() {
   this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
 }
 void WebServer::loop() { this->events_.loop(); }
+
+#ifdef USE_LOGGER
+void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) level;
+  (void) tag;
+  (void) message_len;
+  this->events_.try_send_nodefer(message, "log", millis());
+}
+#endif
+
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
@@ -690,8 +695,14 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method_equals("turn_on") || match.method_equals("turn_off")) {
-      auto call = match.method_equals("turn_on") ? obj->turn_on() : obj->turn_off();
+    } else {
+      bool is_on = match.method_equals("turn_on");
+      bool is_off = match.method_equals("turn_off");
+      if (!is_on && !is_off) {
+        request->send(404);
+        return;
+      }
+      auto call = is_on ? obj->turn_on() : obj->turn_off();
 
       parse_int_param_(request, "speed_level", call, &decltype(call)::set_speed);
 
@@ -715,8 +726,6 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       }
       this->defer([call]() mutable { call.perform(); });
       request->send(200);
-    } else {
-      request->send(404);
     }
     return;
   }
@@ -766,32 +775,35 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method_equals("turn_on")) {
-      auto call = obj->turn_on();
-
-      // Parse color parameters
-      parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
-      parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
-      parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
-      parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
-      parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
-      parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
-
-      // Parse timing parameters
-      parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
-
-      parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
-
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
-    } else if (match.method_equals("turn_off")) {
-      auto call = obj->turn_off();
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
     } else {
-      request->send(404);
+      bool is_on = match.method_equals("turn_on");
+      bool is_off = match.method_equals("turn_off");
+      if (!is_on && !is_off) {
+        request->send(404);
+        return;
+      }
+      auto call = is_on ? obj->turn_on() : obj->turn_off();
+
+      if (is_on) {
+        // Parse color parameters
+        parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
+        parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
+        parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
+        parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
+        parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
+        parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
+
+        // Parse timing parameters
+        parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
+      }
+      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
+
+      if (is_on) {
+        parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
+      }
+
+      this->defer([call]() mutable { call.perform(); });
+      request->send(200);
     }
     return;
   }
@@ -1674,6 +1686,7 @@ std::string WebServer::event_state_json_generator(WebServer *web_server, void *s
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json(event, get_event_type(event), DETAIL_STATE);
 }
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json(event, get_event_type(event), DETAIL_ALL);
@@ -1697,6 +1710,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 
   return builder.serialize();
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 #endif
 
 #ifdef USE_UPDATE
@@ -1933,83 +1947,110 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   // Parse URL for component routing
   UrlMatch match = match_url(url.c_str(), url.length(), false);
 
-  // Component routing using minimal code repetition
-  struct ComponentRoute {
-    const char *domain;
-    void (WebServer::*handler)(AsyncWebServerRequest *, const UrlMatch &);
-  };
-
-  static const ComponentRoute ROUTES[] = {
+  // Route to appropriate handler based on domain
+  // NOLINTNEXTLINE(readability-simplify-boolean-expr)
+  if (false) {  // Start chain for else-if macro pattern
+  }
 #ifdef USE_SENSOR
-      {"sensor", &WebServer::handle_sensor_request},
+  else if (match.domain_equals("sensor")) {
+    this->handle_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_SWITCH
-      {"switch", &WebServer::handle_switch_request},
+  else if (match.domain_equals("switch")) {
+    this->handle_switch_request(request, match);
+  }
 #endif
 #ifdef USE_BUTTON
-      {"button", &WebServer::handle_button_request},
+  else if (match.domain_equals("button")) {
+    this->handle_button_request(request, match);
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
-      {"binary_sensor", &WebServer::handle_binary_sensor_request},
+  else if (match.domain_equals("binary_sensor")) {
+    this->handle_binary_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_FAN
-      {"fan", &WebServer::handle_fan_request},
+  else if (match.domain_equals("fan")) {
+    this->handle_fan_request(request, match);
+  }
 #endif
 #ifdef USE_LIGHT
-      {"light", &WebServer::handle_light_request},
+  else if (match.domain_equals("light")) {
+    this->handle_light_request(request, match);
+  }
 #endif
 #ifdef USE_TEXT_SENSOR
-      {"text_sensor", &WebServer::handle_text_sensor_request},
+  else if (match.domain_equals("text_sensor")) {
+    this->handle_text_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_COVER
-      {"cover", &WebServer::handle_cover_request},
+  else if (match.domain_equals("cover")) {
+    this->handle_cover_request(request, match);
+  }
 #endif
 #ifdef USE_NUMBER
-      {"number", &WebServer::handle_number_request},
+  else if (match.domain_equals("number")) {
+    this->handle_number_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_DATE
-      {"date", &WebServer::handle_date_request},
+  else if (match.domain_equals("date")) {
+    this->handle_date_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_TIME
-      {"time", &WebServer::handle_time_request},
+  else if (match.domain_equals("time")) {
+    this->handle_time_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_DATETIME
-      {"datetime", &WebServer::handle_datetime_request},
+  else if (match.domain_equals("datetime")) {
+    this->handle_datetime_request(request, match);
+  }
 #endif
 #ifdef USE_TEXT
-      {"text", &WebServer::handle_text_request},
+  else if (match.domain_equals("text")) {
+    this->handle_text_request(request, match);
+  }
 #endif
 #ifdef USE_SELECT
-      {"select", &WebServer::handle_select_request},
+  else if (match.domain_equals("select")) {
+    this->handle_select_request(request, match);
+  }
 #endif
 #ifdef USE_CLIMATE
-      {"climate", &WebServer::handle_climate_request},
+  else if (match.domain_equals("climate")) {
+    this->handle_climate_request(request, match);
+  }
 #endif
 #ifdef USE_LOCK
-      {"lock", &WebServer::handle_lock_request},
+  else if (match.domain_equals("lock")) {
+    this->handle_lock_request(request, match);
+  }
 #endif
 #ifdef USE_VALVE
-      {"valve", &WebServer::handle_valve_request},
+  else if (match.domain_equals("valve")) {
+    this->handle_valve_request(request, match);
+  }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-      {"alarm_control_panel", &WebServer::handle_alarm_control_panel_request},
+  else if (match.domain_equals("alarm_control_panel")) {
+    this->handle_alarm_control_panel_request(request, match);
+  }
 #endif
 #ifdef USE_UPDATE
-      {"update", &WebServer::handle_update_request},
-#endif
-  };
-
-  // Check each route
-  for (const auto &route : ROUTES) {
-    if (match.domain_equals(route.domain)) {
-      (this->*route.handler)(request, match);
-      return;
-    }
+  else if (match.domain_equals("update")) {
+    this->handle_update_request(request, match);
   }
-
-  // No matching handler found - send 404
-  ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-  request->send(404, "text/plain", "Not Found");
+#endif
+  else {
+    // No matching handler found - send 404
+    ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
+    request->send(404, "text/plain", "Not Found");
+  }
 }
 
 bool WebServer::isRequestHandlerTrivial() const { return false; }
