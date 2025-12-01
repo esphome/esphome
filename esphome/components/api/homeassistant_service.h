@@ -12,6 +12,7 @@
 #endif
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::api {
 
@@ -55,14 +56,16 @@ template<typename... Ts> class TemplatableKeyValuePair {
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 // Represents the response data from a Home Assistant action
+// Note: This class holds a StringRef to the error_message from the protobuf message.
+// The protobuf message must outlive the ActionResponse (which is guaranteed since
+// the callback is invoked synchronously while the message is on the stack).
 class ActionResponse {
  public:
-  ActionResponse(bool success, std::string error_message = "")
-      : success_(success), error_message_(std::move(error_message)) {}
+  ActionResponse(bool success, const std::string &error_message) : success_(success), error_message_(error_message) {}
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  ActionResponse(bool success, std::string error_message, const uint8_t *data, size_t data_len)
-      : success_(success), error_message_(std::move(error_message)) {
+  ActionResponse(bool success, const std::string &error_message, const uint8_t *data, size_t data_len)
+      : success_(success), error_message_(error_message) {
     if (data == nullptr || data_len == 0)
       return;
     this->json_document_ = json::parse_json(data, data_len);
@@ -70,7 +73,8 @@ class ActionResponse {
 #endif
 
   bool is_success() const { return this->success_; }
-  const std::string &get_error_message() const { return this->error_message_; }
+  // Returns reference to error message - can be implicitly converted to std::string if needed
+  const StringRef &get_error_message() const { return this->error_message_; }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   // Get data as parsed JSON object (const version returns read-only view)
@@ -79,7 +83,7 @@ class ActionResponse {
 
  protected:
   bool success_;
-  std::string error_message_;
+  StringRef error_message_;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   JsonDocument json_document_;
 #endif
