@@ -40,7 +40,7 @@ void RemoteTransmitterComponent::await_target_time_() {
   if (this->target_time_ == 0) {
     this->target_time_ = current_time;
   } else if ((int32_t) (this->target_time_ - current_time) > 0) {
-#if defined(USE_LIBRETINY)
+#if defined(USE_LIBRETINY) || defined(USE_RP2040)
     // busy loop for libretiny is required (see the comment inside micros() in wiring.c)
     while ((int32_t) (this->target_time_ - micros()) > 0)
       ;
@@ -88,9 +88,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->target_time_ = 0;
   this->transmit_trigger_->trigger();
   for (uint32_t i = 0; i < send_times; i++) {
-#if !defined(USE_RP2040)
     InterruptLock lock;
-#endif
     for (int32_t item : this->temp_.get_data()) {
       if (item > 0) {
         const auto length = uint32_t(item);
