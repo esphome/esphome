@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from logging import getLogger
 import math
 import re
@@ -32,13 +33,15 @@ from esphome.const import (
     PLATFORM_HOST,
     PlatformFramework,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
 
 _LOGGER = getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "uart"
+
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
@@ -51,6 +54,7 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+
 
 NATIVE_UART_CLASSES = (
     str(IDFUARTComponent),
@@ -98,6 +102,30 @@ UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
+
+
+@dataclass
+class UARTData:
+    """State data for UART component configuration generation."""
+
+    wake_loop_on_rx: bool = False
+
+
+def _get_data() -> UARTData:
+    """Get UART component data from CORE.data."""
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = UARTData()
+    return CORE.data[DOMAIN]
+
+
+def request_wake_loop_on_rx() -> None:
+    """Request that the UART wake the main loop when data is received.
+
+    Components that need low-latency notification of incoming UART data
+    should call this function during their code generation.
+    This enables the RX event task which wakes the main loop when data arrives.
+    """
+    _get_data().wake_loop_on_rx = True
 
 
 def validate_raw_data(value):
@@ -335,6 +363,8 @@ async def to_code(config):
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
 
+    CORE.add_job(final_step)
+
 
 # A schema to use for all UART devices, all UART integrations must extend this!
 UART_DEVICE_SCHEMA = cv.Schema(
@@ -470,6 +500,13 @@ async def uart_write_to_code(config, action_id, template_arg, args):
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
     return var
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional UART features."""
+    if _get_data().wake_loop_on_rx:
+        cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
