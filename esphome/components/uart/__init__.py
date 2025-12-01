@@ -42,6 +42,14 @@ _LOGGER = getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "uart"
 
+
+def AUTO_LOAD() -> list[str]:
+    """Conditionally auto-load socket only when wake_loop_on_rx is requested."""
+    if _get_data().wake_loop_on_rx:
+        return ["socket"]
+    return []
+
+
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
