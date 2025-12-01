@@ -47,6 +47,7 @@ static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-
 static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_ap_mode = false;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
@@ -67,8 +68,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   }
   if (target_ap && !current_ap) {
     ESP_LOGV(TAG, "Enabling AP");
+    s_ap_mode = true;
   } else if (!target_ap && current_ap) {
     ESP_LOGV(TAG, "Disabling AP");
+    s_ap_mode = false;
   }
 
   ETS_UART_INTR_DISABLE();
