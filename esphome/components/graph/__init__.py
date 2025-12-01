@@ -65,7 +65,7 @@ VALUE_POSITION_TYPE = {
 GRAPH_TRACE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(GraphTrace),
-        cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+        cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_NAME): cv.string,
         cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
         cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
@@ -174,11 +174,12 @@ async def to_code(config):
     # Trace options
     for trace in config[CONF_TRACES]:
         tr = cg.new_Pvariable(trace[CONF_ID], GraphTrace())
-        sens = await cg.get_variable(trace[CONF_SENSOR])
-        cg.add(tr.set_sensor(sens))
+        if CONF_SENSOR in trace:
+            sens = await cg.get_variable(trace[CONF_SENSOR])
+            cg.add(tr.set_sensor(sens))
         if CONF_NAME in trace:
             cg.add(tr.set_name(trace[CONF_NAME]))
-        else:
+        elif CONF_SENSOR in trace:
             cg.add(tr.set_name(trace[CONF_SENSOR].id))
         if CONF_LINE_THICKNESS in trace:
             cg.add(tr.set_line_thickness(trace[CONF_LINE_THICKNESS]))

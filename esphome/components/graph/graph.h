@@ -93,6 +93,8 @@ class HistoryData {
   float get_value(int idx) const { return samples_[(count_ + length_ - 1 - idx) % length_]; }
   float get_recent_max() const { return recent_max_; }
   float get_recent_min() const { return recent_min_; }
+  void set_sample_at_index(int idx, float value);
+  void recalc_minmax();
 
  protected:
   uint32_t last_sample_;
@@ -120,6 +122,7 @@ class GraphTrace {
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   std::string get_name() { return name_; }
   const HistoryData *get_tracedata() { return &data_; }
+  HistoryData *get_tracedata_mutable() { return &data_; }
 
  protected:
   sensor::Sensor *sensor_{nullptr};
@@ -163,6 +166,12 @@ class Graph : public Component {
   uint32_t get_height() { return height_; }
   float get_graph_limit_min() { return graph_limit_min_; }
   float get_graph_limit_max() { return graph_limit_max_; }
+  GraphTrace *get_trace(size_t index) {
+    if (index < traces_.size()) {
+      return traces_[index];
+    }
+    return nullptr;
+  }
 
  protected:
   uint32_t duration_;  /// in seconds

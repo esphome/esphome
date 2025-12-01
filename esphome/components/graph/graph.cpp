@@ -46,10 +46,32 @@ void HistoryData::take_sample(float data) {
   }
 }
 
+void HistoryData::recalc_minmax() {
+  this->recent_min_ = NAN;
+  this->recent_max_ = NAN;
+  for (int i = 0; i < this->length_; i++) {
+    if (!std::isnan(this->samples_[i])) {
+      if (std::isnan(this->recent_min_) || this->recent_min_ > this->samples_[i])
+        this->recent_min_ = this->samples_[i];
+      if (std::isnan(this->recent_max_) || this->recent_max_ < this->samples_[i])
+        this->recent_max_ = this->samples_[i];
+    }
+  }
+}
+
+void HistoryData::set_sample_at_index(int idx, float value) {
+  if (idx >= 0 && idx < this->length_) {
+    this->samples_[idx] = value;
+    ESP_LOGI(TAG, "Set sample at index %d to value: %f", idx, value);
+  }
+}
+
 void GraphTrace::init(Graph *g) {
   ESP_LOGI(TAG, "Init trace for sensor %s", this->get_name().c_str());
   this->data_.init(g->get_width());
-  sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
+  if (sensor_ != nullptr) {
+    sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
+  }
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
 }
 
