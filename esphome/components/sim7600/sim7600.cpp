@@ -575,7 +575,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       ESP_LOGW(TAG, "Unhandled: %s - %d", message.c_str(), this->state_);
       break;
   }
-}  // namespace sim7600
+}  // void Sim7600Component::parse_
 
 void Sim7600Component::loop() {
   // Read message
