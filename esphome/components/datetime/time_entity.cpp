@@ -5,8 +5,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 static const char *const TAG = "datetime.time_entity";
 
@@ -152,7 +151,6 @@ bool OnTimeTrigger::matches_(const ESPTime &time) const {
 }
 #endif
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_TIME
