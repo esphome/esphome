@@ -3,7 +3,7 @@ esphome:
   friendly_name: $component_name
 
 rtl87xx:
-  board: generic-rtl8710bn-2mb-468k
+  board: generic-rtl8710bn-2mb-788k
 
 logger:
   level: VERY_VERBOSE
