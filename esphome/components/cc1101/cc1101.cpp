@@ -294,17 +294,17 @@ void CC1101Component::set_output_power(float value) {
   if (!is_float_in_range(value, OUTPUT_POWER_MIN, OUTPUT_POWER_MAX))
     return;
   this->output_power_requested_ = value;
-  int freq =
-      (int) (this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) * XTAL_FREQUENCY / (1 << 16);
+  int32_t freq = static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
+                 XTAL_FREQUENCY / (1 << 16);
   uint8_t a = 0xC0;
   if (freq >= 300000 && freq <= 348000) {
-    a = PowerTable::find(PA_TABLE_315, sizeof(PA_TABLE_315) / sizeof(PA_TABLE_315[0]), value);
+    a = PowerTableItem::find(PA_TABLE_315, sizeof(PA_TABLE_315) / sizeof(PA_TABLE_315[0]), value);
   } else if (freq >= 378000 && freq <= 464000) {
-    a = PowerTable::find(PA_TABLE_433, sizeof(PA_TABLE_433) / sizeof(PA_TABLE_433[0]), value);
+    a = PowerTableItem::find(PA_TABLE_433, sizeof(PA_TABLE_433) / sizeof(PA_TABLE_433[0]), value);
   } else if (freq >= 779000 && freq < 900000) {
-    a = PowerTable::find(PA_TABLE_868, sizeof(PA_TABLE_868) / sizeof(PA_TABLE_868[0]), value);
+    a = PowerTableItem::find(PA_TABLE_868, sizeof(PA_TABLE_868) / sizeof(PA_TABLE_868[0]), value);
   } else if (freq >= 900000 && freq <= 928000) {
-    a = PowerTable::find(PA_TABLE_915, sizeof(PA_TABLE_915) / sizeof(PA_TABLE_915[0]), value);
+    a = PowerTableItem::find(PA_TABLE_915, sizeof(PA_TABLE_915) / sizeof(PA_TABLE_915[0]), value);
   }
 
   if ((Modulation) this->state_.MOD_FORMAT == Modulation::MODULATION_ASK_OOK) {

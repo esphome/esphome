@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <cstddef>
 #include <cmath>
-#include <cstdio>
 
 namespace esphome::cc1101 {
 
@@ -12,21 +11,17 @@ namespace esphome::cc1101 {
 struct PowerTableItem {
   uint8_t value;
   uint8_t dbm_diff;  // starts from 12.0, diff to previous entry, scaled by 10
-};
 
-struct PowerTable {
- public:
-  static float find(const PowerTableItem *items, size_t count, float &dbm_target) {
-    int dbmi = 120;
-    int dbmi_target = (int) std::lround(dbm_target * 10);
+  static uint8_t find(const PowerTableItem *items, size_t count, float &dbm_target) {
+    int32_t dbmi = 120;
+    int32_t dbmi_target = static_cast<int32_t>(std::lround(dbm_target * 10));
     for (size_t i = 0; i < count; i++) {
       dbmi -= items[i].dbm_diff;
       if (dbmi_target >= dbmi) {
-        // Check for specific invalid PA settings (magic numbers derived from TI DN013/SmartRC logic)
+        // Skip invalid PA settings (magic numbers derived from TI DN013/SmartRC logic)
         if (items[i].value >= 0x61 && items[i].value <= 0x6F)
           continue;
-
-        dbm_target = (float) dbmi / 10.0f;
+        dbm_target = static_cast<float>(dbmi) / 10.0f;
         return items[i].value;
       }
     }
