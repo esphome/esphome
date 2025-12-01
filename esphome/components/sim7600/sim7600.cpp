@@ -207,9 +207,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       break;
     
     case STATE_CREG_WAIT: {
-
-		  LAST_CxREG = STATE_CREG;
-      
+   
       // Response: "+CREG: 0,1" -- the one there means registered ok
       //           "+CREG: *,4" means LTE (4G/5G) not available, try GPRS (3G)
       //           "+CREG: -,-" means not registered ok
@@ -220,7 +218,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
-		   // LAST_CxREG = STATE_CREG;
+		    LAST_CxREG = STATE_CREG;
 		
 #ifdef USE_SENSOR
         if (this->network_sensor_ != nullptr) {
@@ -232,22 +230,23 @@ void Sim7600Component::parse_cmd_(std::string message) {
 		
       } else {
         
- 		if (message[7] == '0') {           // Network registration is disabled, enable it   
-          ESP_LOGD(TAG, " Registration is disabled, enable it");
-          send_cmd_("AT+CREG=1");                        
-          this->expect_ack_ = true;
-          this->state_ = STATE_SETUP_CMGF;
-		//  break;
-		} else if (message[9] == '4')  {          // not available, trying LTE
-          ESP_LOGD(TAG, "network Registration failed, trying LTE");
-          this->state_ = STATE_CEREG;
-          this->expect_ack_ = true;
-        //  break;			
-        } else {
-          ESP_LOGD(TAG, "network Registration failed, trying again");
-          // Keep waiting registration
-          this->state_ = STATE_INIT;
-        }
+       		if (message[7] == '0') {           // Network registration is disabled, enable it   
+                ESP_LOGD(TAG, " Registration is disabled, enable it");
+                send_cmd_("AT+CREG=1");                        
+                this->expect_ack_ = true;
+                LAST_CxREG = STATE_CREG;
+                this->state_ = STATE_SETUP_CMGF;
+      		//  break;
+      		} else if (message[9] == '4')  {          // not available, trying LTE
+                ESP_LOGD(TAG, "network Registration failed, trying LTE");
+                this->state_ = STATE_CEREG;
+                this->expect_ack_ = true;
+              //  break;			
+          } else {
+            ESP_LOGD(TAG, "network Registration failed, trying again");
+            // Keep waiting registration
+            this->state_ = STATE_INIT;
+          }
       }
       set_registered_(registered);
       break;
@@ -271,8 +270,6 @@ void Sim7600Component::parse_cmd_(std::string message) {
       // Response: "+CEREG: 0,1" -- the one there means registered ok
       //           "+CEREG: *,4" means LTE (4G/5G) not available, try GPRS (3G)
       //           "+CEREG: -,-" means not registered ok
-
-      LAST_CxREG = STATE_CEREG;
       
       bool registered = message.compare(0, 7, "+CEREG:") == 0 && (message[10] == '1' || message[10] == '5');     
       if (registered) {
@@ -282,39 +279,40 @@ void Sim7600Component::parse_cmd_(std::string message) {
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
 		    
-      //  LAST_CxREG = STATE_CEREG;
+        LAST_CxREG = STATE_CEREG;
 		
 #ifdef USE_SENSOR
         if (this->network_sensor_ != nullptr) {
           this->network_sensor_->publish_state(4);
-		}
+		    }
         ESP_LOGD(TAG, "network registration: 4 (LTE 4G/5G)");
 #endif
 
 		
       } else {
- 		if (message[8] == '0') {           // LTE Network registration is disabled, enable it   
-          ESP_LOGD(TAG, "LTE Registration is disabled, enable it");
-          send_cmd_("AT+CEREG=1");                        
-          this->expect_ack_ = true;
-          this->state_ = STATE_SETUP_CMGF;
-		//  break;
-		} else if (message[10] == '4')  {          //LTE not available, 
-        //  ESP_LOGD(TAG, "LTE Registration failed, trying GSM"); //trying GSM
-        //  this->state_ = STATE_CREG;
-          ESP_LOGD(TAG, "LTE Registration failed, trying GPRS"); //trying GPRS
-          this->state_ = STATE_CGREG;
-          this->expect_ack_ = true;
-        //  break;			
-        } else {
-          ESP_LOGD(TAG, "LTE Registration failed, trying again");
-          // Keep waiting registration
-          this->state_ = STATE_INIT;
-        }
+       		if (message[8] == '0') {           // LTE Network registration is disabled, enable it   
+                ESP_LOGD(TAG, "LTE Registration is disabled, enable it");
+                send_cmd_("AT+CEREG=1");                        
+                this->expect_ack_ = true;
+          		  LAST_CxREG = STATE_CEREG;
+                this->state_ = STATE_SETUP_CMGF;
+      		//  break;
+      		} else if (message[10] == '4')  {          //LTE not available, 
+              //  ESP_LOGD(TAG, "LTE Registration failed, trying GSM"); //trying GSM
+              //  this->state_ = STATE_CREG;
+                ESP_LOGD(TAG, "LTE Registration failed, trying GPRS"); //trying GPRS
+                this->state_ = STATE_CGREG;
+                this->expect_ack_ = true;
+              //  break;			
+          } else {
+            ESP_LOGD(TAG, "LTE Registration failed, trying again");
+            // Keep waiting registration
+            this->state_ = STATE_INIT;
+          }
       }
-      set_registered_(registered);
-      break;
-    }
+          set_registered_(registered);
+          break;
+   }
 
 
 
@@ -330,7 +328,6 @@ void Sim7600Component::parse_cmd_(std::string message) {
       //           "+CGREG: -,-" means not registered ok
 	    //
 
-      LAST_CxREG = STATE_CGREG;
       bool registered = message.compare(0, 7, "+CGREG:") == 0 && (message[10] == '1' || message[10] == '5');  
       if (registered) {
         if (!this->registered_) {
@@ -338,34 +335,35 @@ void Sim7600Component::parse_cmd_(std::string message) {
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
-       // LAST_CxREG = STATE_CGREG;
+        LAST_CxREG = STATE_CGREG;
 
 #ifdef USE_SENSOR
-        if (this->network_sensor_ != nullptr) {
+        if (this->network_sensor_ != nullptr)   {
           this->network_sensor_->publish_state(3);
-		}
+	    	}
         ESP_LOGD(TAG, "network registration: 3 (GPRS 3G)");
 #endif
 
       } else {
-		if (message[8] == '0') {     // GPRS Network registration is disabled, enable it  
-          ESP_LOGD(TAG, "GPRS Registration is dsabled, enable it");
-          send_cmd_("AT+CGREG=1");                        
-          this->expect_ack_ = true;
-          this->state_ = STATE_SETUP_CMGF;			
-		//  break;
-        } else if (message[10] == '4')  {          //GPRS not available, trying GSM
-           ESP_LOGD(TAG, "LTE Registration failed, trying GSM"); //trying GSM
-           this->state_ = STATE_CREG;
-        //   ESP_LOGD(TAG, "GPRS Registration failed, trying LTE");
-        //   this->state_ = STATE_CEREG;
-           this->expect_ack_ = true;
-        //  break;
-        } else {
-          ESP_LOGD(TAG, "GPRS Registration failed, trying again");
-          // Keep waiting registration
-          this->state_ = STATE_INIT;
-        }
+      		if (message[8] == '0') {     // GPRS Network registration is disabled, enable it  
+                ESP_LOGD(TAG, "GPRS Registration is dsabled, enable it");
+                send_cmd_("AT+CGREG=1");                        
+                this->expect_ack_ = true;
+                LAST_CxREG = STATE_CGREG;
+                this->state_ = STATE_SETUP_CMGF;			
+      		//  break;
+              } else if (message[10] == '4')  {          //GPRS not available, trying GSM
+                 ESP_LOGD(TAG, "LTE Registration failed, trying GSM"); //trying GSM
+                 this->state_ = STATE_CREG;
+              //   ESP_LOGD(TAG, "GPRS Registration failed, trying LTE");
+              //   this->state_ = STATE_CEREG;
+                 this->expect_ack_ = true;
+              //  break;
+              } else {
+                ESP_LOGD(TAG, "GPRS Registration failed, trying again");
+                // Keep waiting registration
+                this->state_ = STATE_INIT;
+              }
       }
       set_registered_(registered);
       break;
