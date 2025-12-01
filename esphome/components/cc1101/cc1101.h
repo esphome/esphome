@@ -87,7 +87,6 @@ class CC1101Component : public Component,
   // State Management
   bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
   void enter_idle_();
-  void enter_rx_();
 };
 
 // Action Wrappers
