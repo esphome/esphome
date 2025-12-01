@@ -127,16 +127,14 @@ void CC1101Component::setup() {
 
   this->read_(Register::PARTNUM);
   this->read_(Register::VERSION);
-
   this->chip_id_ = encode_uint16(this->state_.PARTNUM, this->state_.VERSION);
-
+  ESP_LOGD(TAG, "CC1101 found! Chip ID: 0x%04X", this->chip_id_);
   if (this->state_.VERSION == 0 || this->state_.PARTNUM == 0xFF) {
     ESP_LOGE(TAG, "Failed to verify CC1101.");
     this->mark_failed();
     return;
   }
 
-  ESP_LOGD(TAG, "CC1101 found! Chip ID: 0x%04X", this->chip_id_);
   this->reset_ = true;
 
   for (uint8_t i = 0; i <= 0x2E; i++) {
@@ -149,9 +147,25 @@ void CC1101Component::setup() {
 }
 
 void CC1101Component::dump_config() {
+  static const char *const MODULATION_NAMES[] = {"2-FSK", "GFSK",   "UNUSED", "ASK/OOK",
+                                                 "4-FSK", "UNUSED", "UNUSED", "MSK"};
+  int32_t freq = static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
+                 XTAL_FREQUENCY / (1 << 16);
+  float symbol_rate =
+      (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY * 1000.0f;
+  float bw = XTAL_FREQUENCY / (8.0f * (4 + this->state_.CHANBW_M) * (1 << this->state_.CHANBW_E));
   ESP_LOGCONFIG(TAG, "CC1101:");
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Chip ID: 0x%04X", this->chip_id_);
+  ESP_LOGCONFIG(TAG,
+                "  Chip ID: 0x%04X\n"
+                "  Frequency: %" PRId32 " kHz\n"
+                "  Channel: %u\n"
+                "  Modulation: %s\n"
+                "  Symbol Rate: %.0f baud\n"
+                "  Filter Bandwidth: %.1f kHz\n"
+                "  Output Power: %.1f dBm",
+                this->chip_id_, freq, this->state_.CHANNR, MODULATION_NAMES[this->state_.MOD_FORMAT & 0x07],
+                symbol_rate, bw, this->output_power_effective_);
 }
 
 void CC1101Component::begin_tx() {

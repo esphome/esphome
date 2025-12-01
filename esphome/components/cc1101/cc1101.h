@@ -22,6 +22,7 @@ class CC1101Component : public Component,
   void end_tx();
   void reset();
   void set_idle();
+
   // GDO Pin Configuration
   void set_gdo0_config(uint8_t value);
   void set_gdo2_config(uint8_t value);
