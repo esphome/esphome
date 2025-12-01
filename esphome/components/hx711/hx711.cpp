@@ -235,7 +235,7 @@ void HX711Sensor::power_cycle_restart_(const bool use_internal_powerdown) {
 
 bool HX711Sensor::is_powered_down() {
   // PD_SCK pin is always left low after reading data.
-  return this->hx711_state_flags_.powered_on_state;
+  return !this->hx711_state_flags_.powered_on_state;
 }
 
 bool HX711Sensor::power_up(const bool should_start_poller) {
