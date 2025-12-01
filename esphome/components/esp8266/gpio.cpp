@@ -8,10 +8,10 @@ namespace esphome::esp8266 {
 static const char *const TAG = "esp8266";
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
-  if (flags == gpio::FLAG_INPUT) {  // NOLINT(bugprone-branch-clone)
-    return INPUT;
-  } else if (flags == gpio::FLAG_OUTPUT) {
+  if (flags == gpio::FLAG_OUTPUT) {  // NOLINT(bugprone-branch-clone)
     return OUTPUT;
+  } else if (flags == gpio::FLAG_INPUT) {
+    return INPUT;
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     if (pin == 16) {
       // GPIO16 doesn't have a pullup, so pinMode would fail.
