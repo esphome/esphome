@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -52,8 +51,10 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
   }
 
 static const LogString *color_mode_to_human(ColorMode color_mode) {
-  if (color_mode == ColorMode::UNKNOWN)
-    return LOG_STR("Unknown");
+  if (color_mode == ColorMode::ON_OFF)
+    return LOG_STR("On/Off");
+  if (color_mode == ColorMode::BRIGHTNESS)
+    return LOG_STR("Brightness");
   if (color_mode == ColorMode::WHITE)
     return LOG_STR("White");
   if (color_mode == ColorMode::COLOR_TEMPERATURE)
@@ -68,16 +69,16 @@ static const LogString *color_mode_to_human(ColorMode color_mode) {
     return LOG_STR("RGB + cold/warm white");
   if (color_mode == ColorMode::RGB_COLOR_TEMPERATURE)
     return LOG_STR("RGB + color temperature");
-  return LOG_STR("");
+  return LOG_STR("Unknown");
 }
 
 // Helper to log percentage values
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-static void log_percent(const char *name, const char *param, float value) {
-  ESP_LOGD(TAG, "  %s: %.0f%%", param, value * 100.0f);
+static void log_percent(const LogString *param, float value) {
+  ESP_LOGD(TAG, "  %s: %.0f%%", LOG_STR_ARG(param), value * 100.0f);
 }
 #else
-#define log_percent(name, param, value)
+#define log_percent(param, value)
 #endif
 
 void LightCall::perform() {
@@ -103,11 +104,11 @@ void LightCall::perform() {
     }
 
     if (this->has_brightness()) {
-      log_percent(name, "Brightness", v.get_brightness());
+      log_percent(LOG_STR("Brightness"), v.get_brightness());
     }
 
     if (this->has_color_brightness()) {
-      log_percent(name, "Color brightness", v.get_color_brightness());
+      log_percent(LOG_STR("Color brightness"), v.get_color_brightness());
     }
     if (this->has_red() || this->has_green() || this->has_blue()) {
       ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
@@ -115,7 +116,7 @@ void LightCall::perform() {
     }
 
     if (this->has_white()) {
-      log_percent(name, "White", v.get_white());
+      log_percent(LOG_STR("White"), v.get_white());
     }
     if (this->has_color_temperature()) {
       ESP_LOGD(TAG, "  Color temperature: %.1f mireds", v.get_color_temperature());
@@ -406,7 +407,7 @@ void LightCall::transform_parameters_() {
   }
 }
 ColorMode LightCall::compute_color_mode_() {
-  const auto &supported_modes = this->parent_->get_traits().get_supported_color_modes();
+  auto supported_modes = this->parent_->get_traits().get_supported_color_modes();
   int supported_count = supported_modes.size();
 
   // Some lights don't support any color modes (e.g. monochromatic light), leave it at unknown.
@@ -645,5 +646,4 @@ LightCall &LightCall::set_rgbw(float red, float green, float blue, float white) 
   return *this;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

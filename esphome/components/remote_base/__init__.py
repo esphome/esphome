@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_FAMILY,
     CONF_GROUP,
     CONF_ID,
+    CONF_INDEX,
     CONF_INVERTED,
     CONF_LEVEL,
     CONF_MAGNITUDE,
@@ -38,7 +39,7 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import coroutine
+from esphome.core import ID, coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry, SimpleRegistry
 
@@ -614,6 +615,49 @@ async def dooya_action(var, config, args):
     cg.add(var.set_button(template_))
     template_ = await cg.templatable(config[CONF_CHECK], args, cg.uint8)
     cg.add(var.set_check(template_))
+
+
+# Dyson
+DysonData, DysonBinarySensor, DysonTrigger, DysonAction, DysonDumper = declare_protocol(
+    "Dyson"
+)
+DYSON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.hex_uint16_t,
+        cv.Optional(CONF_INDEX, default=0xFF): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("dyson", DysonBinarySensor, DYSON_SCHEMA)
+def dyson_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DysonData,
+                ("code", config[CONF_CODE]),
+                ("index", config[CONF_INDEX]),
+            )
+        )
+    )
+
+
+@register_trigger("dyson", DysonTrigger, DysonData)
+def dyson_trigger(var, config):
+    pass
+
+
+@register_dumper("dyson", DysonDumper)
+def dyson_dumper(var, config):
+    pass
+
+
+@register_action("dyson", DysonAction, DYSON_SCHEMA)
+async def dyson_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint16)
+    cg.add(var.set_code(template_))
+    template_ = await cg.templatable(config[CONF_INDEX], args, cg.uint8)
+    cg.add(var.set_index(template_))
 
 
 # JVC
@@ -2060,7 +2104,9 @@ async def abbwelcome_action(var, config, args):
             )
             cg.add(var.set_data_template(template_))
         else:
-            cg.add(var.set_data_static(data_))
+            arr_id = ID(f"{var.base}_data", is_declaration=True, type=cg.uint8)
+            arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data_))
+            cg.add(var.set_data_static(arr, len(data_)))
 
 
 # Mirage

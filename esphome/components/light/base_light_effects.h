@@ -6,8 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "light_effect.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 inline static float random_cubic_float() {
   const float r = random_float() * 2.0f - 1.0f;
@@ -112,8 +111,8 @@ class RandomLightEffect : public LightEffect {
 
 class LambdaLightEffect : public LightEffect {
  public:
-  LambdaLightEffect(const char *name, std::function<void(bool initial_run)> f, uint32_t update_interval)
-      : LightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
+  LambdaLightEffect(const char *name, void (*f)(bool initial_run), uint32_t update_interval)
+      : LightEffect(name), f_(f), update_interval_(update_interval) {}
 
   void start() override { this->initial_run_ = true; }
   void apply() override {
@@ -130,7 +129,7 @@ class LambdaLightEffect : public LightEffect {
   uint32_t get_current_index() const { return this->get_index(); }
 
  protected:
-  std::function<void(bool initial_run)> f_;
+  void (*f_)(bool initial_run);
   uint32_t update_interval_;
   uint32_t last_run_{0};
   bool initial_run_;
@@ -235,5 +234,4 @@ class FlickerLightEffect : public LightEffect {
   float alpha_{};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

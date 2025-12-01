@@ -1,6 +1,8 @@
 import glob
 import logging
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
@@ -60,10 +62,63 @@ def write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml_util.dump(data), encoding="utf-8")
 
 
-def test_substitutions_fixtures(fixture_path):
+def verify_database(value: Any, path: str = "") -> str | None:
+    if isinstance(value, list):
+        for i, v in enumerate(value):
+            result = verify_database(v, f"{path}[{i}]")
+            if result is not None:
+                return result
+        return None
+    if isinstance(value, dict):
+        for k, v in value.items():
+            key_result = verify_database(k, f"{path}/{k}")
+            if key_result is not None:
+                return key_result
+            value_result = verify_database(v, f"{path}/{k}")
+            if value_result is not None:
+                return value_result
+        return None
+    if isinstance(value, str):
+        if not isinstance(value, yaml_util.ESPHomeDataBase):
+            return f"{path}: {value!r} is not ESPHomeDataBase"
+        return None
+    return None
+
+
+# Mapping of (url, ref) to local test repository path under fixtures/substitutions
+REMOTES = {
+    ("https://github.com/esphome/repo1", "main"): "remotes/repo1/main",
+    ("https://github.com/esphome/repo2", "main"): "remotes/repo2/main",
+}
+
+
+@patch("esphome.git.clone_or_update")
+def test_substitutions_fixtures(mock_clone_or_update, fixture_path):
     base_dir = fixture_path / "substitutions"
     sources = sorted(glob.glob(str(base_dir / "*.input.yaml")))
     assert sources, f"No input YAML files found in {base_dir}"
+
+    def fake_clone_or_update(
+        *,
+        url: str,
+        ref: str | None = None,
+        refresh=None,
+        domain: str,
+        username: str | None = None,
+        password: str | None = None,
+        submodules: list[str] | None = None,
+        _recover_broken: bool = True,
+    ) -> tuple[Path, None]:
+        path = REMOTES.get((url, ref))
+        if path is None:
+            path = REMOTES.get((url.rstrip(".git"), ref))
+            if path is None:
+                raise RuntimeError(
+                    f"Cannot find test repository for {url} @ {ref}. Check the REMOTES mapping in test_substitutions.py"
+                )
+        return base_dir / path, None
+
+    mock_clone_or_update.side_effect = fake_clone_or_update
 
     failures = []
     for source_path in sources:
@@ -83,6 +138,9 @@ def test_substitutions_fixtures(fixture_path):
             substitutions.do_substitution_pass(config, None)
 
             resolve_extend_remove(config)
+            verify_database_result = verify_database(config)
+            if verify_database_result is not None:
+                raise AssertionError(verify_database_result)
 
             # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
             if expected_path.is_file():

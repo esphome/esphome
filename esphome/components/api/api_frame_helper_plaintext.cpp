@@ -210,8 +210,7 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
     return aerr;
   }
 
-  buffer->container = std::move(this->rx_buf_);
-  buffer->data_offset = 0;
+  buffer->data = this->rx_buf_.data();
   buffer->data_len = this->rx_header_parsed_len_;
   buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
@@ -230,8 +229,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
     return APIError::OK;
   }
 
-  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
-  uint8_t *buffer_data = raw_buffer->data();  // Cache buffer pointer
+  uint8_t *buffer_data = buffer.get_buffer()->data();
 
   this->reusable_iovs_.clear();
   this->reusable_iovs_.reserve(packets.size());

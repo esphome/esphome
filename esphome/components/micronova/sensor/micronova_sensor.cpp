@@ -1,7 +1,6 @@
 #include "micronova_sensor.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 void MicroNovaSensor::process_value_from_stove(int value_from_stove) {
   if (value_from_stove == -1) {
@@ -31,5 +30,4 @@ void MicroNovaSensor::process_value_from_stove(int value_from_stove) {
   this->publish_state(new_sensor_value);
 }
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

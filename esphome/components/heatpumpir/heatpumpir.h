@@ -97,12 +97,11 @@ const float TEMP_MAX = 100;  // Celsius
 class HeatpumpIRClimate : public climate_ir::ClimateIR {
  public:
   HeatpumpIRClimate()
-      : climate_ir::ClimateIR(
-            TEMP_MIN, TEMP_MAX, 1.0f, true, true,
-            std::set<climate::ClimateFanMode>{climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                                              climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_AUTO},
-            std::set<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
-                                                climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
+      : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
+                               climate::CLIMATE_FAN_AUTO},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
+                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
   void setup() override;
   void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {

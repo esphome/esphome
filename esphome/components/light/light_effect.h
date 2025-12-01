@@ -2,8 +2,7 @@
 
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class LightState;
 
@@ -55,5 +54,4 @@ class LightEffect {
   uint32_t get_index_in_parent_() const;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

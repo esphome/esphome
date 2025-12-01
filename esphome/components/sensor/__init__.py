@@ -182,6 +182,7 @@ STATE_CLASSES = {
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
     "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
     "total": StateClasses.STATE_CLASS_TOTAL,
+    "measurement_angle": StateClasses.STATE_CLASS_MEASUREMENT_ANGLE,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
@@ -261,6 +262,7 @@ ExponentialMovingAverageFilter = sensor_ns.class_(
 )
 ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Component)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
@@ -269,7 +271,9 @@ ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
 ThrottleWithPriorityFilter = sensor_ns.class_(
     "ThrottleWithPriorityFilter", ValueListFilter
 )
-TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
+TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
+TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
+TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
@@ -366,11 +370,6 @@ def sensor_schema(
             schema[cv.Optional(key, default=default)] = validator
 
     return _SENSOR_SCHEMA.extend(schema)
-
-
-# Remove before 2025.11.0
-SENSOR_SCHEMA = sensor_schema()
-SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("sensor"))
 
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
@@ -573,7 +572,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(float, "x")], return_type=cg.optional.template(float)
     )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 DELTA_SCHEMA = cv.Schema(
@@ -685,11 +684,16 @@ TIMEOUT_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
+@FILTER_REGISTRY.register("timeout", TimeoutFilterBase, TIMEOUT_SCHEMA)
 async def timeout_filter_to_code(config, filter_id):
+    filter_id = filter_id.copy()
     if config[CONF_VALUE] == "last":
+        # Use TimeoutFilterLast for "last" mode (smaller, more common - LD2450, LD2412, etc.)
+        filter_id.type = TimeoutFilterLast
         var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
     else:
+        # Use TimeoutFilterConfigured for configured value mode
+        filter_id.type = TimeoutFilterConfigured
         template_ = await cg.templatable(config[CONF_VALUE], [], float)
         var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
     await cg.register_component(var, {})
@@ -878,7 +882,9 @@ async def setup_sensor_core_(var, config):
         cg.add(var.set_unit_of_measurement(unit_of_measurement))
     if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
         cg.add(var.set_accuracy_decimals(accuracy_decimals))
-    cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
+    # Only set force_update if True (default is False)
+    if config[CONF_FORCE_UPDATE]:
+        cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))

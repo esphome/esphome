@@ -198,6 +198,8 @@ class LambdaExpression(Expression):
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
     def __str__(self):
+        # Stateless lambdas (empty capture) implicitly convert to function pointers
+        # when assigned to function pointer types - no unary + needed
         cpp = f"[{self.capture}]({self.parameters})"
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
@@ -348,7 +350,7 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return IntLiteral(int(obj.total_seconds))
     if isinstance(obj, TimePeriodMinutes):
         return IntLiteral(int(obj.total_minutes))
-    if isinstance(obj, tuple | list):
+    if isinstance(obj, (tuple, list)):
         return ArrayInitializer(*[safe_exp(o) for o in obj])
     if obj is bool:
         return bool_
@@ -657,7 +659,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 async def process_lambda(
     value: Lambda,
     parameters: TemplateArgsType,
-    capture: str = "=",
+    capture: str = "",
     return_type: SafeExpType = None,
 ) -> LambdaExpression | None:
     """Process the given lambda value into a LambdaExpression.
