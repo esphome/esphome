@@ -106,17 +106,18 @@ void IDFUARTComponent::setup() {
   this->load_settings(false);
 
   xSemaphoreGive(this->lock_);
-
-#ifdef USE_UART_WAKE_LOOP_ON_RX
-  // Start the RX event task to enable low-latency data notifications
-  this->start_rx_event_task_();
-#endif  // USE_UART_WAKE_LOOP_ON_RX
 }
 
 void IDFUARTComponent::load_settings(bool dump_config) {
   esp_err_t err;
 
   if (uart_is_driver_installed(this->uart_num_)) {
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+    if (this->rx_event_task_handle_ != nullptr) {
+      vTaskDelete(this->rx_event_task_handle_);
+      this->rx_event_task_handle_ = nullptr;
+    }
+#endif
     err = uart_driver_delete(this->uart_num_);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
@@ -208,6 +209,11 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+  // Start the RX event task to enable low-latency data notifications
+  this->start_rx_event_task_();
+#endif  // USE_UART_WAKE_LOOP_ON_RX
 
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "Reloaded UART %u", this->uart_num_);
@@ -354,7 +360,7 @@ void IDFUARTComponent::start_rx_event_task_() {
                                   2240,                  // Stack size in bytes (~2.2KB); increase if needed for logging
                                   this,                  // Task parameter (this pointer)
                                   tskIDLE_PRIORITY + 1,  // Priority (low, just above idle)
-                                  nullptr                // Task handle (not needed)
+                                  &this->rx_event_task_handle_  // Task handle
   );
 
   if (result != pdPASS) {

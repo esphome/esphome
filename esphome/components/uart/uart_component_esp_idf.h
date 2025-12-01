@@ -58,6 +58,8 @@ class IDFUARTComponent : public UARTComponent, public Component {
   // RX notification support
   void start_rx_event_task_();
   static void rx_event_task_func(void *param);
+
+  TaskHandle_t rx_event_task_handle_{nullptr};
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 };
 
