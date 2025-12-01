@@ -131,10 +131,9 @@ def request_wake_loop_on_rx() -> None:
 
         # UART RX event task uses wake_loop_threadsafe() to notify the main loop
         # Automatically enable the socket wake infrastructure when RX wake is requested
-        if CORE.is_esp32:
-            from esphome.components import socket
+        from esphome.components import socket
 
-            socket.require_wake_loop_threadsafe()
+        socket.require_wake_loop_threadsafe()
 
 
 def validate_raw_data(value):
