@@ -1,8 +1,12 @@
+from collections.abc import Callable
 import importlib
 import logging
 import os
 from pathlib import Path
 import re
+import shutil
+import stat
+from types import TracebackType
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
@@ -301,9 +305,24 @@ def clean_cmake_cache():
             pioenvs_cmake_path.unlink()
 
 
-def clean_build(clear_pio_cache: bool = True):
-    import shutil
+def _rmtree_error_handler(
+    func: Callable[[str], object],
+    path: str,
+    exc_info: tuple[type[BaseException], BaseException, TracebackType | None],
+) -> None:
+    """Error handler for shutil.rmtree to handle read-only files on Windows.
 
+    On Windows, git pack files and other files may be marked read-only,
+    causing shutil.rmtree to fail with "Access is denied". This handler
+    removes the read-only flag and retries the deletion.
+    """
+    if os.access(path, os.W_OK):
+        raise exc_info[1].with_traceback(exc_info[2])
+    os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+    func(path)
+
+
+def clean_build(clear_pio_cache: bool = True):
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
@@ -312,11 +331,11 @@ def clean_build(clear_pio_cache: bool = True):
     pioenvs = CORE.relative_pioenvs_path()
     if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
-        shutil.rmtree(pioenvs)
+        shutil.rmtree(pioenvs, onerror=_rmtree_error_handler)
     piolibdeps = CORE.relative_piolibdeps_path()
     if piolibdeps.is_dir():
         _LOGGER.info("Deleting %s", piolibdeps)
-        shutil.rmtree(piolibdeps)
+        shutil.rmtree(piolibdeps, onerror=_rmtree_error_handler)
     dependencies_lock = CORE.relative_build_path("dependencies.lock")
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
@@ -337,12 +356,10 @@ def clean_build(clear_pio_cache: bool = True):
         cache_dir = Path(config.get("platformio", "cache_dir"))
         if cache_dir.is_dir():
             _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
-            shutil.rmtree(cache_dir)
+            shutil.rmtree(cache_dir, onerror=_rmtree_error_handler)
 
 
 def clean_all(configuration: list[str]):
-    import shutil
-
     data_dirs = []
     for config in configuration:
         item = Path(config)
@@ -364,7 +381,7 @@ def clean_all(configuration: list[str]):
                 if item.is_file() and not item.name.endswith(".json"):
                     item.unlink()
                 elif item.is_dir() and item.name != "storage":
-                    shutil.rmtree(item)
+                    shutil.rmtree(item, onerror=_rmtree_error_handler)
 
     # Clean PlatformIO project files
     try:
@@ -378,7 +395,7 @@ def clean_all(configuration: list[str]):
             path = Path(config.get("platformio", pio_dir))
             if path.is_dir():
                 _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
-                shutil.rmtree(path)
+                shutil.rmtree(path, onerror=_rmtree_error_handler)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
