@@ -44,7 +44,10 @@ DOMAIN = "uart"
 
 
 def AUTO_LOAD() -> list[str]:
-    """Conditionally auto-load socket only when wake_loop_on_rx is requested."""
+    """Ideally, we would only auto-load socket only when wake_loop_on_rx is requested;
+    however, AUTO_LOAD is examined before wake_loop_on_rx is set, so instead, since ESP32
+    always uses socket select support in the main app, we'll just ensure it's loaded here.
+    """
     if CORE.is_esp32:
         return ["socket"]
     return []
