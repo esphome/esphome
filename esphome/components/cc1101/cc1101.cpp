@@ -8,10 +8,6 @@ namespace esphome::cc1101 {
 
 static const char *const TAG = "cc1101";
 
-template<typename T> constexpr bool is_enum_valid(T value) { return value < T::LAST; }
-constexpr bool is_float_in_range(float value, float min, float max) { return value >= min && value <= max; }
-constexpr bool is_int_in_range(int value, int min, int max) { return value >= min && value <= max; }
-
 CC1101Component::CC1101Component() {
   this->reset_ = false;
   this->output_power_requested_ = 10.0f;  // Default 10dBm
@@ -306,9 +302,6 @@ static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
 
 // Setters
 void CC1101Component::set_output_power(float value) {
-  if (!is_float_in_range(value, OUTPUT_POWER_MIN, OUTPUT_POWER_MAX)) {
-    return;
-  }
   this->output_power_requested_ = value;
   int32_t freq = static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
                  XTAL_FREQUENCY / (1 << 16);
@@ -337,9 +330,6 @@ void CC1101Component::set_output_power(float value) {
 }
 
 void CC1101Component::set_rx_attenuation(RxAttenuation value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.CLOSE_IN_RX = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::FIFOTHR);
@@ -354,9 +344,6 @@ void CC1101Component::set_dc_blocking_filter(bool value) {
 }
 
 void CC1101Component::set_frequency(float value) {
-  if (!is_float_in_range(value, FREQUENCY_MIN, FREQUENCY_MAX)) {
-    return;
-  }
   int freq = (int) (value * (1 << 16) / XTAL_FREQUENCY);
   this->state_.FREQ2 = (uint8_t) (freq >> 16);
   this->state_.FREQ1 = (uint8_t) (freq >> 8);
@@ -371,9 +358,6 @@ void CC1101Component::set_frequency(float value) {
 }
 
 void CC1101Component::set_if_frequency(float value) {
-  if (!is_float_in_range(value, IF_FREQUENCY_MIN, IF_FREQUENCY_MAX)) {
-    return;
-  }
   this->state_.FREQ_IF = value * (1 << 10) / XTAL_FREQUENCY;
   if (this->reset_) {
     this->write_(Register::FSCTRL1);
@@ -381,9 +365,6 @@ void CC1101Component::set_if_frequency(float value) {
 }
 
 void CC1101Component::set_filter_bandwidth(float value) {
-  if (!is_float_in_range(value, BANDWIDTH_MIN, BANDWIDTH_MAX)) {
-    return;
-  }
   uint8_t e;
   uint32_t m;
   split_float(XTAL_FREQUENCY / (value * 8), 2, e, m);
@@ -395,9 +376,6 @@ void CC1101Component::set_filter_bandwidth(float value) {
 }
 
 void CC1101Component::set_channel(uint8_t value) {
-  if (!is_int_in_range(value, CHANNEL_MIN, CHANNEL_MAX)) {
-    return;
-  }
   this->state_.CHANNR = value;
   if (this->reset_) {
     this->enter_idle_();
@@ -407,9 +385,6 @@ void CC1101Component::set_channel(uint8_t value) {
 }
 
 void CC1101Component::set_channel_spacing(float value) {
-  if (!is_float_in_range(value, CHANNEL_SPACING_MIN, CHANNEL_SPACING_MAX)) {
-    return;
-  }
   uint8_t e;
   uint32_t m;
   split_float(value * (1 << 18) / XTAL_FREQUENCY, 8, e, m);
@@ -422,9 +397,6 @@ void CC1101Component::set_channel_spacing(float value) {
 }
 
 void CC1101Component::set_fsk_deviation(float value) {
-  if (!is_float_in_range(value, FSK_DEVIATION_MIN, FSK_DEVIATION_MAX)) {
-    return;
-  }
   uint8_t e;
   uint32_t m;
   split_float(value * (1 << 17) / XTAL_FREQUENCY, 3, e, m);
@@ -436,9 +408,6 @@ void CC1101Component::set_fsk_deviation(float value) {
 }
 
 void CC1101Component::set_msk_deviation(uint8_t value) {
-  if (!is_int_in_range(value, MSK_DEVIATION_MIN, MSK_DEVIATION_MAX)) {
-    return;
-  }
   this->state_.DEVIATION_E = 0;
   this->state_.DEVIATION_M = value - 1;
   if (this->reset_) {
@@ -447,9 +416,6 @@ void CC1101Component::set_msk_deviation(uint8_t value) {
 }
 
 void CC1101Component::set_symbol_rate(float value) {
-  if (!is_float_in_range(value, SYMBOL_RATE_MIN, SYMBOL_RATE_MAX)) {
-    return;
-  }
   uint8_t e;
   uint32_t m;
   split_float(value * (1 << 28) / (XTAL_FREQUENCY * 1000), 8, e, m);
@@ -462,9 +428,6 @@ void CC1101Component::set_symbol_rate(float value) {
 }
 
 void CC1101Component::set_sync_mode(SyncMode value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.SYNC_MODE = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::MDMCFG2);
@@ -479,9 +442,6 @@ void CC1101Component::set_carrier_sense_above_threshold(bool value) {
 }
 
 void CC1101Component::set_modulation_type(Modulation value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.MOD_FORMAT = (uint8_t) value;
   this->state_.PA_POWER = value == Modulation::MODULATION_ASK_OOK ? 1 : 0;
   if (this->reset_) {
@@ -528,9 +488,6 @@ void CC1101Component::set_pktlen(uint8_t value) {
 }
 
 void CC1101Component::set_magn_target(MagnTarget value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.MAGN_TARGET = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL2);
@@ -538,9 +495,6 @@ void CC1101Component::set_magn_target(MagnTarget value) {
 }
 
 void CC1101Component::set_max_lna_gain(MaxLnaGain value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.MAX_LNA_GAIN = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL2);
@@ -548,9 +502,6 @@ void CC1101Component::set_max_lna_gain(MaxLnaGain value) {
 }
 
 void CC1101Component::set_max_dvga_gain(MaxDvgaGain value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.MAX_DVGA_GAIN = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL2);
@@ -558,9 +509,6 @@ void CC1101Component::set_max_dvga_gain(MaxDvgaGain value) {
 }
 
 void CC1101Component::set_carrier_sense_abs_thr(int8_t value) {
-  if (!is_int_in_range(value, CARRIER_SENSE_ABS_THR_MIN, CARRIER_SENSE_ABS_THR_MAX)) {
-    return;
-  }
   this->state_.CARRIER_SENSE_ABS_THR = (uint8_t) (value & 0b1111);
   if (this->reset_) {
     this->write_(Register::AGCCTRL1);
@@ -568,9 +516,6 @@ void CC1101Component::set_carrier_sense_abs_thr(int8_t value) {
 }
 
 void CC1101Component::set_carrier_sense_rel_thr(CarrierSenseRelThr value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.CARRIER_SENSE_REL_THR = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL1);
@@ -585,9 +530,6 @@ void CC1101Component::set_lna_priority(bool value) {
 }
 
 void CC1101Component::set_filter_length_fsk_msk(FilterLengthFskMsk value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.FILTER_LENGTH = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL0);
@@ -595,9 +537,6 @@ void CC1101Component::set_filter_length_fsk_msk(FilterLengthFskMsk value) {
 }
 
 void CC1101Component::set_filter_length_ask_ook(FilterLengthAskOok value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.FILTER_LENGTH = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL0);
@@ -605,9 +544,6 @@ void CC1101Component::set_filter_length_ask_ook(FilterLengthAskOok value) {
 }
 
 void CC1101Component::set_freeze(Freeze value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.AGC_FREEZE = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL0);
@@ -615,9 +551,6 @@ void CC1101Component::set_freeze(Freeze value) {
 }
 
 void CC1101Component::set_wait_time(WaitTime value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.WAIT_TIME = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL0);
@@ -625,9 +558,6 @@ void CC1101Component::set_wait_time(WaitTime value) {
 }
 
 void CC1101Component::set_hyst_level(HystLevel value) {
-  if (!is_enum_valid(value)) {
-    return;
-  }
   this->state_.HYST_LEVEL = (uint8_t) value;
   if (this->reset_) {
     this->write_(Register::AGCCTRL0);

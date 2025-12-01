@@ -5,26 +5,6 @@
 namespace esphome::cc1101 {
 
 static constexpr float XTAL_FREQUENCY = 26000;
-static constexpr float OUTPUT_POWER_MIN = -30;
-static constexpr float OUTPUT_POWER_MAX = 11;
-static constexpr float FREQUENCY_MIN = 300000;
-static constexpr float FREQUENCY_MAX = 928000;
-static constexpr float IF_FREQUENCY_MIN = 25;
-static constexpr float IF_FREQUENCY_MAX = 788;
-static constexpr float BANDWIDTH_MIN = 58;
-static constexpr float BANDWIDTH_MAX = 812;
-static constexpr uint8_t CHANNEL_MIN = 0;
-static constexpr uint8_t CHANNEL_MAX = 255;
-static constexpr float CHANNEL_SPACING_MIN = 25;
-static constexpr float CHANNEL_SPACING_MAX = 405;
-static constexpr float FSK_DEVIATION_MIN = 1.5f;
-static constexpr float FSK_DEVIATION_MAX = 381;
-static constexpr uint8_t MSK_DEVIATION_MIN = 1;
-static constexpr uint8_t MSK_DEVIATION_MAX = 8;
-static constexpr float SYMBOL_RATE_MIN = 600;
-static constexpr float SYMBOL_RATE_MAX = 500000;
-static constexpr int8_t CARRIER_SENSE_ABS_THR_MIN = -8;
-static constexpr int8_t CARRIER_SENSE_ABS_THR_MAX = 7;
 
 static constexpr uint8_t BUS_BURST = 0x40;
 static constexpr uint8_t BUS_READ = 0x80;
@@ -146,16 +126,6 @@ enum class RxAttenuation : uint8_t {
   RX_ATTENUATION_6DB,
   RX_ATTENUATION_12DB,
   RX_ATTENUATION_18DB,
-  LAST,
-};
-
-enum class FrequencyPreset : uint8_t {
-  FREQUENCY_433MHZ,
-  FREQUENCY_915MHZ,
-  FREQUENCY_868MHZ,
-  FREQUENCY_315MHZ,
-  FREQUENCY_MANUAL,  // For when the number slider is used
-  LAST,
 };
 
 enum class SyncMode : uint8_t {
@@ -163,7 +133,6 @@ enum class SyncMode : uint8_t {
   SYNC_MODE_15_16,
   SYNC_MODE_16_16,
   SYNC_MODE_30_32,
-  LAST,
 };
 
 enum class Modulation : uint8_t {
@@ -175,7 +144,6 @@ enum class Modulation : uint8_t {
   MODULATION_UNUSED_5,
   MODULATION_UNUSED_6,
   MODULATION_MSK,
-  LAST,
 };
 
 enum class MagnTarget : uint8_t {
@@ -187,7 +155,6 @@ enum class MagnTarget : uint8_t {
   MAGN_TARGET_38DB,
   MAGN_TARGET_40DB,
   MAGN_TARGET_42DB,
-  LAST,
 };
 
 enum class MaxLnaGain : uint8_t {
@@ -199,7 +166,6 @@ enum class MaxLnaGain : uint8_t {
   MAX_LNA_GAIN_MINUS_11P5DB,
   MAX_LNA_GAIN_MINUS_14P6DB,
   MAX_LNA_GAIN_MINUS_17P1DB,
-  LAST,
 };
 
 enum class MaxDvgaGain : uint8_t {
@@ -207,7 +173,6 @@ enum class MaxDvgaGain : uint8_t {
   MAX_DVGA_GAIN_MINUS_1,
   MAX_DVGA_GAIN_MINUS_2,
   MAX_DVGA_GAIN_MINUS_3,
-  LAST,
 };
 
 enum class CarrierSenseRelThr : uint8_t {
@@ -215,7 +180,6 @@ enum class CarrierSenseRelThr : uint8_t {
   CARRIER_SENSE_REL_THR_PLUS_6DB,
   CARRIER_SENSE_REL_THR_PLUS_10DB,
   CARRIER_SENSE_REL_THR_PLUS_14DB,
-  LAST,
 };
 
 enum class FilterLengthFskMsk : uint8_t {
@@ -223,7 +187,6 @@ enum class FilterLengthFskMsk : uint8_t {
   FILTER_LENGTH_16DB,
   FILTER_LENGTH_32DB,
   FILTER_LENGTH_64DB,
-  LAST,
 };
 
 enum class FilterLengthAskOok : uint8_t {
@@ -231,7 +194,6 @@ enum class FilterLengthAskOok : uint8_t {
   FILTER_LENGTH_8DB,
   FILTER_LENGTH_12DB,
   FILTER_LENGTH_16DB,
-  LAST,
 };
 
 enum class Freeze : uint8_t {
@@ -239,7 +201,6 @@ enum class Freeze : uint8_t {
   FREEZE_ON_SYNC,
   FREEZE_ANALOG_ONLY,
   FREEZE_ANALOG_AND_DIGITAL,
-  LAST,
 };
 
 enum class WaitTime : uint8_t {
@@ -247,7 +208,6 @@ enum class WaitTime : uint8_t {
   WAIT_TIME_16_SAMPLES,
   WAIT_TIME_24_SAMPLES,
   WAIT_TIME_32_SAMPLES,
-  LAST,
 };
 
 enum class HystLevel : uint8_t {
@@ -255,7 +215,6 @@ enum class HystLevel : uint8_t {
   HYST_LEVEL_LOW,
   HYST_LEVEL_MEDIUM,
   HYST_LEVEL_HIGH,
-  LAST,
 };
 
 // Added __attribute__((packed)) to ensure memory alignment with the regs_ array
