@@ -36,7 +36,7 @@ void MicroNova::dump_config() {
   }
 }
 
-void MicroNova::request_update_listener() {
+void MicroNova::request_update_listeners() {
   ESP_LOGD(TAG, "Schedule listener update");
   for (auto &mv_listener : this->micronova_listeners_) {
     mv_listener->set_needs_update(true);

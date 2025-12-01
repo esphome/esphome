@@ -118,7 +118,7 @@ class MicroNova : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   void register_micronova_listener(MicroNovaListener *l) { this->micronova_listeners_.push_back(l); }
-  void request_update_listener();
+  void request_update_listeners();
 
   void request_address(uint8_t location, uint8_t address, MicroNovaListener *listener);
   void write_address(uint8_t location, uint8_t address, uint8_t data);
