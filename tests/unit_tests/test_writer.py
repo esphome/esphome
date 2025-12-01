@@ -1,7 +1,9 @@
 """Test writer module functionality."""
 
 from collections.abc import Callable
+import os
 from pathlib import Path
+import stat
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -15,7 +17,6 @@ from esphome.writer import (
     CPP_INCLUDE_BEGIN,
     CPP_INCLUDE_END,
     GITIGNORE_CONTENT,
-    _rmtree_error_handler,
     clean_build,
     clean_cmake_cache,
     storage_should_clean,
@@ -1072,9 +1073,6 @@ def test_clean_build_handles_readonly_files(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test clean_build handles read-only files (e.g., git pack files on Windows)."""
-    import os
-    import stat
-
     # Create directory structure with read-only files
     pioenvs_dir = tmp_path / ".pioenvs"
     pioenvs_dir.mkdir()
@@ -1109,9 +1107,6 @@ def test_clean_all_handles_readonly_files(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test clean_all handles read-only files."""
-    import os
-    import stat
-
     from esphome.writer import clean_all
 
     # Create config directory
@@ -1140,18 +1135,38 @@ def test_clean_all_handles_readonly_files(
     assert build_dir.exists()  # .esphome dir itself is preserved
 
 
-def test_rmtree_error_handler_reraises_for_writable_files() -> None:
-    """Test _rmtree_error_handler re-raises exception for writable files."""
-    # Create a mock exception
-    original_error = PermissionError("Some other permission error")
-    exc_info = (type(original_error), original_error, original_error.__traceback__)
+@patch("esphome.writer.CORE")
+def test_clean_build_reraises_for_other_errors(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test clean_build re-raises errors that are not read-only permission issues."""
+    # Create directory structure with a read-only subdirectory
+    # This prevents file deletion and triggers the error handler
+    pioenvs_dir = tmp_path / ".pioenvs"
+    pioenvs_dir.mkdir()
+    subdir = pioenvs_dir / "subdir"
+    subdir.mkdir()
+    test_file = subdir / "test.txt"
+    test_file.write_text("content")
 
-    # Patch os.access to return True (file is writable)
-    with (
-        patch("esphome.writer.os.access", return_value=True),
-        pytest.raises(PermissionError) as exc_info_caught,
-    ):
-        _rmtree_error_handler(lambda p: None, "/some/path", exc_info)
+    # Make subdir read-only so files inside can't be deleted
+    os.chmod(subdir, stat.S_IRUSR | stat.S_IXUSR)
 
-    # Verify the original exception was re-raised
-    assert exc_info_caught.value is original_error
+    # Setup mocks
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+
+    try:
+        # Mock os.access in writer module to return True (writable)
+        # This simulates a case where the error is NOT due to read-only permissions
+        # so the error handler should re-raise instead of trying to fix permissions
+        with (
+            patch("esphome.writer.os.access", return_value=True),
+            pytest.raises(PermissionError),
+        ):
+            clean_build()
+    finally:
+        # Cleanup - restore write permission so tmp_path cleanup works
+        os.chmod(subdir, stat.S_IRWXU)
