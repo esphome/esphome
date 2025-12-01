@@ -17,6 +17,7 @@ from esphome.writer import (
     CPP_INCLUDE_BEGIN,
     CPP_INCLUDE_END,
     GITIGNORE_CONTENT,
+    clean_all,
     clean_build,
     clean_cmake_cache,
     storage_should_clean,
@@ -1102,11 +1103,8 @@ def test_clean_build_handles_readonly_files(
 def test_clean_all_handles_readonly_files(
     mock_core: MagicMock,
     tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test clean_all handles read-only files."""
-    from esphome.writer import clean_all
-
     # Create config directory
     config_dir = tmp_path / "config"
     config_dir.mkdir()
@@ -1125,8 +1123,7 @@ def test_clean_all_handles_readonly_files(
     assert not os.access(readonly_file, os.W_OK)
 
     # Call the function - should not crash
-    with caplog.at_level("INFO"):
-        clean_all([str(config_dir)])
+    clean_all([str(config_dir)])
 
     # Verify directory was removed despite read-only files
     assert not subdir.exists()
