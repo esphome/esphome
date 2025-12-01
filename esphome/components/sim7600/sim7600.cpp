@@ -7,7 +7,7 @@ namespace sim7600 {
 
 static const char *const TAG = "sim7600";
 
-enum State PREF_CxREG = STATE_CEREG;
+enum State PREF_CxREG = STATE_CGREG;
 enum State LAST_CxREG = PREF_CxREG;
 
 const char ASCII_CR = 0x0D;
