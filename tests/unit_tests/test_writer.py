@@ -15,6 +15,7 @@ from esphome.writer import (
     CPP_INCLUDE_BEGIN,
     CPP_INCLUDE_END,
     GITIGNORE_CONTENT,
+    _rmtree_error_handler,
     clean_build,
     clean_cmake_cache,
     storage_should_clean,
@@ -1137,3 +1138,20 @@ def test_clean_all_handles_readonly_files(
     # Verify directory was removed despite read-only files
     assert not subdir.exists()
     assert build_dir.exists()  # .esphome dir itself is preserved
+
+
+def test_rmtree_error_handler_reraises_for_writable_files() -> None:
+    """Test _rmtree_error_handler re-raises exception for writable files."""
+    # Create a mock exception
+    original_error = PermissionError("Some other permission error")
+    exc_info = (type(original_error), original_error, original_error.__traceback__)
+
+    # Patch os.access to return True (file is writable)
+    with (
+        patch("esphome.writer.os.access", return_value=True),
+        pytest.raises(PermissionError) as exc_info_caught,
+    ):
+        _rmtree_error_handler(lambda p: None, "/some/path", exc_info)
+
+    # Verify the original exception was re-raised
+    assert exc_info_caught.value is original_error
