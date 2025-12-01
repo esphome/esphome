@@ -104,16 +104,11 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
 
-  bool enable_rx_notification(const std::function<void()> &callback) override;
-  void disable_rx_notification() override;
-
  protected:
   // Larger structures first for better alignment
   RingBuffer input_buffer_;
   RingBuffer output_buffer_;
   CdcEps cdc_dev_{};
-  // RX notification callback
-  std::function<void()> rx_notification_callback_{nullptr};
   // Enum (likely 4 bytes)
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
   // Group atomics together (each 1 byte)
