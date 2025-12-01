@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class IDFUARTComponent : public UARTComponent, public Component {
  public:
@@ -63,7 +62,5 @@ class IDFUARTComponent : public UARTComponent, public Component {
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 };
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_ESP32
