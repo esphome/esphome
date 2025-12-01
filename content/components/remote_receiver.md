@@ -85,7 +85,7 @@ Multiple remote receivers can be configured as a list of dict definitions within
   glitches from noisy signals. Allowed values are in range `0` to `4294967295us`. Defaults to `50us`.
 
 - **idle** (*Optional*, [Time](/guides/configuration-types#time)): The amount of time that a signal should remain stable/unchanged for it to
-  be considered complete. The maximum allowable value is:
+  be considered complete. Defaults to `10ms`. The maximum allowable value is:
 
   - `65536us` on the `ESP32` and `ESP32-S2` variants
   - `32767us` on all other ESP32 variants
