@@ -29,6 +29,10 @@ void HX711Sensor::setup() {
   this->sck_pin_->setup();
   this->dout_pin_->setup();
 
+#ifdef USE_ESP8266
+  this->sck_pin_->pin_mode(gpio::Flags::FLAG_OUTPUT);
+#endif
+
   // No timeouts are running, using `power_down_internal_()`
   this->power_cycle_restart_(true);
 }
