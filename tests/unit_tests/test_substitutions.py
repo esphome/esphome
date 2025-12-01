@@ -134,51 +134,47 @@ def test_substitutions_fixtures(mock_clone_or_update, source_path, fixture_path)
 
     mock_clone_or_update.side_effect = fake_clone_or_update
 
-    try:
-        expected_path = source_path.with_suffix("").with_suffix(".approved.yaml")
-        test_case = source_path.with_suffix("").stem
+    expected_path = source_path.with_suffix("").with_suffix(".approved.yaml")
+    test_case = source_path.with_suffix("").stem
 
-        # Load using ESPHome's YAML loader
-        config = yaml_util.load_yaml(source_path)
+    # Load using ESPHome's YAML loader
+    config = yaml_util.load_yaml(source_path)
 
-        config = do_packages_pass(config)
+    config = do_packages_pass(config)
 
-        substitutions.do_substitution_pass(config, None)
+    substitutions.do_substitution_pass(config, None)
 
-        resolve_extend_remove(config)
-        verify_database_result = verify_database(config)
-        if verify_database_result is not None:
-            raise AssertionError(verify_database_result)
+    resolve_extend_remove(config)
+    verify_database_result = verify_database(config)
+    if verify_database_result is not None:
+        raise AssertionError(verify_database_result)
 
-        # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
-        if expected_path.is_file():
-            expected = yaml_util.load_yaml(expected_path)
-        elif DEV_MODE:
-            expected = {}
-        else:
-            assert expected_path.is_file(), f"Expected file missing: {expected_path}"
+    # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
+    if expected_path.is_file():
+        expected = yaml_util.load_yaml(expected_path)
+    elif DEV_MODE:
+        expected = {}
+    else:
+        assert expected_path.is_file(), f"Expected file missing: {expected_path}"
 
-        # Sort dicts only (not lists) for comparison
-        got_sorted = sort_dicts(config)
-        expected_sorted = sort_dicts(expected)
+    # Sort dicts only (not lists) for comparison
+    got_sorted = sort_dicts(config)
+    expected_sorted = sort_dicts(expected)
 
-        if got_sorted != expected_sorted:
-            diff = "\n".join(dict_diff(got_sorted, expected_sorted))
-            msg = (
-                f"Substitution result mismatch for {source_path.name}\n"
-                f"Diff:\n{diff}\n\n"
-                f"Got:      {got_sorted}\n"
-                f"Expected: {expected_sorted}"
-            )
-            # Write out the received file when test fails
-            if DEV_MODE:
-                received_path = source_path.with_name(f"{test_case}.received.yaml")
-                write_yaml(received_path, config)
-                msg += f"\nWrote received file to {received_path}."
-            raise AssertionError(msg)
-    except Exception as err:
-        _LOGGER.error("Error in test file %s", source_path)
-        raise err
+    if got_sorted != expected_sorted:
+        diff = "\n".join(dict_diff(got_sorted, expected_sorted))
+        msg = (
+            f"Substitution result mismatch for {source_path.name}\n"
+            f"Diff:\n{diff}\n\n"
+            f"Got:      {got_sorted}\n"
+            f"Expected: {expected_sorted}"
+        )
+        # Write out the received file when test fails
+        if DEV_MODE:
+            received_path = source_path.with_name(f"{test_case}.received.yaml")
+            write_yaml(received_path, config)
+            msg += f"\nWrote received file to {received_path}."
+        raise AssertionError(msg)
 
     if DEV_MODE:
         _LOGGER.error("Tests passed, but Dev mode is enabled.")
