@@ -35,15 +35,12 @@ MICRONOVA_FUNCTIONS_ENUM = {
 MicroNova = micronova_ns.class_("MicroNova", cg.Component, uart.UARTDevice)
 MicroNovaListener = micronova_ns.class_("MicroNovaListener", cg.PollingComponent)
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(MicroNova),
-            cv.Required(CONF_ENABLE_RX_PIN): pins.gpio_output_pin_schema,
-        }
-    )
-    .extend(uart.UART_DEVICE_SCHEMA)
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(MicroNova),
+        cv.Required(CONF_ENABLE_RX_PIN): pins.gpio_output_pin_schema,
+    }
+).extend(uart.UART_DEVICE_SCHEMA)
 
 
 def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
@@ -59,8 +56,12 @@ def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
         }
     )
 
+
 def MICRONOVA_LISTENER_POLLING_SCHEMA(default_memory_location, default_memory_address):
-    return MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
+    return MICRONOVA_LISTENER_SCHEMA(
+        default_memory_location, default_memory_address
+    ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
+
 
 async def to_code_micronova_listener(mv, var, config, micronova_function):
     await cg.register_component(var, config)

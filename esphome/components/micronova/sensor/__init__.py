@@ -21,7 +21,9 @@ from .. import (
 
 UNIT_BAR = "bar"
 
-MicroNovaSensor = micronova_ns.class_("MicroNovaSensor", sensor.Sensor, MicroNovaListener)
+MicroNovaSensor = micronova_ns.class_(
+    "MicroNovaSensor", sensor.Sensor, MicroNovaListener
+)
 
 CONF_ROOM_TEMPERATURE = "room_temperature"
 CONF_FUMES_TEMPERATURE = "fumes_temperature"
@@ -129,6 +131,7 @@ async def to_code(config):
 
     if fan_speed_config := config.get(CONF_FAN_SPEED):
         sens = await sensor.new_sensor(fan_speed_config, mv)
-        await to_code_micronova_listener(mv, sens, fan_speed_config, MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED)
+        await to_code_micronova_listener(
+            mv, sens, fan_speed_config, MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED
+        )
         cg.add(sens.set_fan_speed_offset(fan_speed_config[CONF_FAN_RPM_OFFSET]))
-

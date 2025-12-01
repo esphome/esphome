@@ -19,7 +19,9 @@ CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
 CONF_POWER_LEVEL = "power_level"
 CONF_MEMORY_WRITE_LOCATION = "memory_write_location"
 
-MicroNovaNumber = micronova_ns.class_("MicroNovaNumber", number.Number, MicroNovaListener)
+MicroNovaNumber = micronova_ns.class_(
+    "MicroNovaNumber", number.Number, MicroNovaListener
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -68,7 +70,12 @@ async def to_code(config):
             max_value=40,
             step=thermostat_temperature_config.get(CONF_STEP),
         )
-        await to_code_micronova_listener(mv, numb, thermostat_temperature_config, MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE)
+        await to_code_micronova_listener(
+            mv,
+            numb,
+            thermostat_temperature_config,
+            MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE,
+        )
         cg.add(numb.set_micronova_object(mv))
         cg.add(
             numb.set_memory_write_location(
@@ -83,7 +90,9 @@ async def to_code(config):
             max_value=5,
             step=1,
         )
-        await to_code_micronova_listener(mv, numb, power_level_config, MicroNovaFunctions.STOVE_FUNCTION_POWER_LEVEL)
+        await to_code_micronova_listener(
+            mv, numb, power_level_config, MicroNovaFunctions.STOVE_FUNCTION_POWER_LEVEL
+        )
         cg.add(numb.set_micronova_object(mv))
         cg.add(
             numb.set_memory_write_location(

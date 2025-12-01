@@ -9,7 +9,7 @@ namespace micronova {
 class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaListener {
  public:
   MicroNovaTextSensor(MicroNova *m) : MicroNovaListener(m) {}
-  void dump_config() override { 
+  void dump_config() override {
     LOG_TEXT_SENSOR("", "Micronova text sensor", this);
     this->dump_base_config();
   }
