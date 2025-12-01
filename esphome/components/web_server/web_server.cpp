@@ -283,7 +283,7 @@ std::string WebServer::get_config_json() {
   JsonObject root = builder.root();
 
   root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
-  root["comment"] = App.get_comment();
+  root["comment"] = App.get_comment_ref();
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
   root["ota"] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
 #else
