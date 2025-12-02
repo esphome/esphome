@@ -298,8 +298,7 @@ void MicroWakeWord::loop() {
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
                                    this->microphone_source_->get_audio_stream_info().get_sample_rate())) {
-          this->status_momentary_error(
-              "Failed to allocate buffers for spectrogram feature processor, attempting again in 1 second", 1000);
+          this->status_momentary_error("frontend_alloc", 1000);
           return;
         }
 
@@ -308,7 +307,7 @@ void MicroWakeWord::loop() {
 
         if (this->inference_task_handle_ == nullptr) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
-          this->status_momentary_error("Task failed to start, attempting again in 1 second", 1000);
+          this->status_momentary_error("task_start", 1000);
         }
       }
       break;

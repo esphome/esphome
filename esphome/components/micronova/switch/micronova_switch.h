@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 class MicroNovaSwitch : public Component, public switch_::Switch, public MicroNovaSwitchListener {
  public:
@@ -25,5 +24,4 @@ class MicroNovaSwitch : public Component, public switch_::Switch, public MicroNo
   void write_state(bool state) override;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

@@ -407,8 +407,7 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
     return APIError::BAD_DATA_PACKET;
   }
 
-  buffer->container = std::move(this->rx_buf_);
-  buffer->data_offset = 4;
+  buffer->data = msg_data + 4;  // Skip 4-byte header (type + length)
   buffer->data_len = data_len;
   buffer->type = type;
   return APIError::OK;
