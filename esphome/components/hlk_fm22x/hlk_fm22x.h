@@ -189,7 +189,7 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
   TEMPLATABLE_VALUE(std::string, name)
   TEMPLATABLE_VALUE(uint8_t, direction)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto name = this->name_.value(x...);
     auto direction = (HlkFm22xFaceDirection) this->direction_.value(x...);
     this->parent_->enroll_face(name, direction);
@@ -200,7 +200,7 @@ template<typename... Ts> class DeleteAction : public Action<Ts...>, public Paren
  public:
   TEMPLATABLE_VALUE(int16_t, face_id)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto face_id = this->face_id_.value(x...);
     this->parent_->delete_face(face_id);
   }
@@ -208,17 +208,17 @@ template<typename... Ts> class DeleteAction : public Action<Ts...>, public Paren
 
 template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
-  void play(Ts... x) override { this->parent_->delete_all_faces(); }
+  void play(const Ts &...x) override { this->parent_->delete_all_faces(); }
 };
 
 template<typename... Ts> class ScanAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
-  void play(Ts... x) override { this->parent_->scan_face(); }
+  void play(const Ts &...x) override { this->parent_->scan_face(); }
 };
 
 template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
-  void play(Ts... x) override { this->parent_->reset(); }
+  void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
 }  // namespace esphome::hlk_fm22x
