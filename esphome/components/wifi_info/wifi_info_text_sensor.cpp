@@ -2,6 +2,10 @@
 #ifdef USE_WIFI
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+
 namespace esphome::wifi_info {
 
 static const char *const TAG = "wifi_info";
@@ -109,6 +113,34 @@ void PowerSaveModeWiFiInfo::setup() { wifi::global_wifi_component->add_power_sav
 void PowerSaveModeWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "WiFi Power Save Mode", this); }
 
 void PowerSaveModeWiFiInfo::on_wifi_power_save(wifi::WiFiPowerSaveMode mode) {
+#ifdef USE_ESP8266
+#define MODE_STR(s) static const char MODE_##s[] PROGMEM = #s
+  MODE_STR(NONE);
+  MODE_STR(LIGHT);
+  MODE_STR(HIGH);
+  MODE_STR(UNKNOWN);
+
+  const char *mode_str_p;
+  switch (mode) {
+    case wifi::WIFI_POWER_SAVE_NONE:
+      mode_str_p = MODE_NONE;
+      break;
+    case wifi::WIFI_POWER_SAVE_LIGHT:
+      mode_str_p = MODE_LIGHT;
+      break;
+    case wifi::WIFI_POWER_SAVE_HIGH:
+      mode_str_p = MODE_HIGH;
+      break;
+    default:
+      mode_str_p = MODE_UNKNOWN;
+      break;
+  }
+
+  char mode_str[8];
+  strncpy_P(mode_str, mode_str_p, sizeof(mode_str));
+  mode_str[sizeof(mode_str) - 1] = '\0';
+#undef MODE_STR
+#else
   const char *mode_str;
   switch (mode) {
     case wifi::WIFI_POWER_SAVE_NONE:
@@ -124,8 +156,10 @@ void PowerSaveModeWiFiInfo::on_wifi_power_save(wifi::WiFiPowerSaveMode mode) {
       mode_str = "UNKNOWN";
       break;
   }
+#endif
   this->publish_state(mode_str);
 }
+
 #endif
 
 /*********************
