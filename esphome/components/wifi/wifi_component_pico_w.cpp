@@ -55,13 +55,13 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   int ret = cyw43_wifi_pm(&cyw43_state, pm);
   bool success = ret == 0;
-  if (success) {
 #ifdef USE_WIFI_LISTENERS
+  if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
     }
-#endif
   }
+#endif
   return success;
 }
 

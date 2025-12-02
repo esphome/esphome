@@ -105,13 +105,13 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   wifi_fpm_auto_sleep_set_in_null_mode(1);
   bool success = wifi_set_sleep_type(power_save);
-  if (success) {
 #ifdef USE_WIFI_LISTENERS
+  if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
     }
-#endif
   }
+#endif
   return success;
 }
 
