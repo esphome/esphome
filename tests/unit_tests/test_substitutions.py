@@ -107,7 +107,7 @@ assert SOURCES, f"test_substitutions_fixtures: No input YAML files found in {BAS
     ids=lambda p: p.name,
 )
 @patch("esphome.git.clone_or_update")
-def test_substitutions_fixtures(mock_clone_or_update: MagicMock, source_path: Path):
+def test_substitutions_fixtures(mock_clone_or_update: MagicMock, source_path: Path) -> None:
     def fake_clone_or_update(
         *,
         url: str,
