@@ -242,7 +242,7 @@ void CC1101Component::write_(Register reg) {
   uint8_t index = static_cast<uint8_t>(reg);
   this->enable();
   this->write_byte(index);
-  this->transfer_array(&valuethis->regs_[index], 1);
+  this->transfer_array(&this->regs_[index], 1);
   this->disable();
 }
 
