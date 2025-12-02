@@ -1,6 +1,7 @@
 """Tests for platformio_api.py path functions."""
 
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -670,3 +671,152 @@ def test_process_stacktrace_bad_alloc(
     assert "Memory allocation of 512 bytes failed at 40201234" in caplog.text
     mock_decode_pc.assert_called_once_with(config, "40201234")
     assert state is False
+
+
+def test_platformio_log_filter_allows_non_platformio_messages() -> None:
+    """Test that non-platformio logger messages are allowed through."""
+    log_filter = platformio_api.PlatformioLogFilter()
+    record = logging.LogRecord(
+        name="esphome.core",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="Some esphome message",
+        args=(),
+        exc_info=None,
+    )
+    assert log_filter.filter(record) is True
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        pytest.param(
+            "Verbose mode can be enabled via `-v, --verbose` option", id="verbose_mode"
+        ),
+        pytest.param("Found 5 compatible libraries", id="found_5_libs"),
+        pytest.param("Found 123 compatible libraries", id="found_123_libs"),
+        pytest.param("Building in release mode", id="release_mode"),
+        pytest.param("Building in debug mode", id="debug_mode"),
+        pytest.param("Merged 2 ELF section", id="merged_elf"),
+        pytest.param("esptool.py v4.7.0", id="esptool_py"),
+        pytest.param("esptool v4.8.1", id="esptool"),
+        pytest.param("PLATFORM: espressif32 @ 6.4.0", id="platform"),
+        pytest.param("Using cache: /path/to/cache", id="cache"),
+        pytest.param("Package configuration completed successfully", id="pkg_config"),
+        pytest.param("Scanning dependencies...", id="scanning_deps"),
+        pytest.param("Installing dependencies", id="installing_deps"),
+        pytest.param(
+            "Library Manager: Already installed, built-in library", id="lib_manager"
+        ),
+        pytest.param(
+            "Memory Usage -> https://bit.ly/pio-memory-usage", id="memory_usage"
+        ),
+    ],
+)
+def test_platformio_log_filter_blocks_noisy_messages(msg: str) -> None:
+    """Test that noisy platformio messages are filtered out."""
+    log_filter = platformio_api.PlatformioLogFilter()
+    record = logging.LogRecord(
+        name="platformio.builder",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg=msg,
+        args=(),
+        exc_info=None,
+    )
+    assert log_filter.filter(record) is False
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        pytest.param("Compiling .pio/build/test/src/main.cpp.o", id="compiling"),
+        pytest.param("Linking .pio/build/test/firmware.elf", id="linking"),
+        pytest.param("Error: something went wrong", id="error"),
+        pytest.param("warning: unused variable", id="warning"),
+    ],
+)
+def test_platformio_log_filter_allows_other_platformio_messages(msg: str) -> None:
+    """Test that non-noisy platformio messages are allowed through."""
+    log_filter = platformio_api.PlatformioLogFilter()
+    record = logging.LogRecord(
+        name="platformio.builder",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg=msg,
+        args=(),
+        exc_info=None,
+    )
+    assert log_filter.filter(record) is True
+
+
+@pytest.mark.parametrize(
+    "logger_name",
+    [
+        pytest.param("PLATFORMIO.builder", id="upper"),
+        pytest.param("PlatformIO.core", id="mixed"),
+        pytest.param("platformio.run", id="lower"),
+    ],
+)
+def test_platformio_log_filter_case_insensitive_logger_name(logger_name: str) -> None:
+    """Test that platformio logger name matching is case insensitive."""
+    log_filter = platformio_api.PlatformioLogFilter()
+    record = logging.LogRecord(
+        name=logger_name,
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="Found 5 compatible libraries",
+        args=(),
+        exc_info=None,
+    )
+    assert log_filter.filter(record) is False
+
+
+def test_patch_platformio_logging_adds_filter() -> None:
+    """Test that patch_platformio_logging adds filter to all handlers."""
+    test_handler = logging.StreamHandler()
+    root_logger = logging.getLogger()
+    original_handlers = root_logger.handlers.copy()
+
+    try:
+        root_logger.addHandler(test_handler)
+
+        assert not any(
+            isinstance(f, platformio_api.PlatformioLogFilter)
+            for f in test_handler.filters
+        )
+
+        platformio_api.patch_platformio_logging()
+
+        assert any(
+            isinstance(f, platformio_api.PlatformioLogFilter)
+            for f in test_handler.filters
+        )
+    finally:
+        root_logger.handlers = original_handlers
+
+
+def test_patch_platformio_logging_no_duplicate_filters() -> None:
+    """Test that patch_platformio_logging doesn't add duplicate filters."""
+    test_handler = logging.StreamHandler()
+    root_logger = logging.getLogger()
+    original_handlers = root_logger.handlers.copy()
+
+    try:
+        root_logger.addHandler(test_handler)
+
+        platformio_api.patch_platformio_logging()
+        platformio_api.patch_platformio_logging()
+
+        filter_count = sum(
+            1
+            for f in test_handler.filters
+            if isinstance(f, platformio_api.PlatformioLogFilter)
+        )
+        assert filter_count == 1
+    finally:
+        root_logger.handlers = original_handlers
