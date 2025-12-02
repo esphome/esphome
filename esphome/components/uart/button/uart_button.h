@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class UARTButton : public button::Button, public UARTDevice, public Component {
  public:
@@ -21,5 +20,4 @@ class UARTButton : public button::Button, public UARTDevice, public Component {
   std::vector<uint8_t> data_;
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

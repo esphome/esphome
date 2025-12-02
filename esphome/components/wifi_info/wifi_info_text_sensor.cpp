@@ -6,6 +6,8 @@ namespace esphome::wifi_info {
 
 static const char *const TAG = "wifi_info";
 
+#ifdef USE_WIFI_LISTENERS
+
 static constexpr size_t MAX_STATE_LENGTH = 255;
 
 /********************
@@ -97,6 +99,8 @@ void BSSIDWiFiInfo::on_wifi_connect_state(const std::string &ssid, const wifi::b
   }
   this->publish_state(buf);
 }
+
+#endif
 
 /*********************
  * MacAddressWifiInfo
