@@ -162,25 +162,17 @@ void CC1101Component::dump_config() {
 }
 
 void CC1101Component::begin_tx() {
-  ESP_LOGV(TAG, "Beginning TX sequence");
-
-  // 1. Ensure Packet Format is 3 (Async Serial)
-  // This triggers the hardware to use GDO0 as input during TX.
+  // Ensure Packet Format is 3 (Async Serial), use GDO0 as input during TX
   this->write_(Register::PKTCTRL0, 0x32);
-
-  // 2. Turn on RF Synthesizer
+  ESP_LOGV(TAG, "Beginning TX sequence");
   this->strobe_(Command::TX);
-
-  // 3. Wait for TX state
   if (!this->wait_for_state_(State::TX, 50)) {
     ESP_LOGW(TAG, "Timed out waiting for TX state!");
   }
 }
 
 void CC1101Component::begin_rx() {
-  ESP_LOGV(TAG, "Ending TX sequence");
-
-  // 1. Return to RX Mode
+  ESP_LOGV(TAG, "Beginning RX sequence");
   this->strobe_(Command::RX);
 }
 
@@ -190,9 +182,8 @@ void CC1101Component::reset() {
 }
 
 void CC1101Component::set_idle() {
-  // The private helper function handles the strobe to Command::IDLE
+  ESP_LOGV(TAG, "Setting IDLE state");
   this->enter_idle_();
-  ESP_LOGV(TAG, "Transitioned to IDLE state.");
 }
 
 void CC1101Component::set_gdo0_config(uint8_t value) {
