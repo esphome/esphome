@@ -77,7 +77,7 @@ class CC1101Component : public Component,
   uint8_t strobe_(Command cmd);
   void write_(Register reg);
   void write_(Register reg, uint8_t value);
-  void write_(Register reg, uint8_t *buffer, size_t length);
+  void write_(Register reg, const uint8_t *buffer, size_t length);
   void read_(Register reg);
   void read_(Register reg, uint8_t *buffer, size_t length);
 

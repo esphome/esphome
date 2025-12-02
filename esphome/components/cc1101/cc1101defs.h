@@ -638,4 +638,6 @@ struct __attribute__((packed)) CC1101State {
   uint8_t REG_3F;
 };
 
+static_assert(sizeof(CC1101State) == 0x40, "CC1101State size mismatch");
+
 }  // namespace esphome::cc1101
