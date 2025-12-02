@@ -2,8 +2,7 @@
 #include "esphome/core/application.h"
 #include "uart_transport.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart_transport";
 
@@ -84,5 +83,5 @@ void UARTTransport::send_packet(const std::vector<uint8_t> &buf) const {
   this->write_byte_(crc >> 8);
   this->parent_->write_byte(FLAG_BYTE);
 }
-}  // namespace uart
-}  // namespace esphome
+
+}  // namespace esphome::uart

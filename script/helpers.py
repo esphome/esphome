@@ -630,7 +630,12 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
     Returns:
         Set of all components including dependencies and auto-loaded components
     """
-    from esphome.const import KEY_CORE
+    from esphome.const import (
+        KEY_CORE,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        PLATFORM_HOST,
+    )
     from esphome.core import CORE
     from esphome.loader import get_component
 
@@ -642,7 +647,10 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
     CORE.config_path = root
-    CORE.data[KEY_CORE] = {}
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_HOST,
+        KEY_TARGET_FRAMEWORK: "host-native",
+    }
 
     # Keep finding dependencies until no new ones are found
     while True:
