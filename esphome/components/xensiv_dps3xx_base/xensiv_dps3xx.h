@@ -86,15 +86,10 @@
  * \snippet xensiv_dps3xx_example.c snippet_dps3xx_sample
  */
 
-// #include "cy_result.h"
-// #include "cy_utils.h"
+#include "cy_result.h"
+#include "cy_utils.h"
 
-#pragma once
-
-namespace esphome {
-namespace xensiv_dps3xx_base {
-
-#if defined(__cplusplus)
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -113,6 +108,17 @@ typedef cy_rslt_t (*xensiv_dps3xx_i2c_write_t)(void *context, uint16_t timeout, 
                                                uint8_t *data, uint8_t length);
 /** Function pointer for delay operations */
 typedef cy_rslt_t (*xensiv_dps3xx_delay_t)(uint32_t ms);
+
+#ifdef __cplusplus
+}
+#endif
+
+namespace esphome {
+namespace xensiv_dps3xx_base {
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** Possible I2C addresses to communicate with the device */
 typedef enum {
