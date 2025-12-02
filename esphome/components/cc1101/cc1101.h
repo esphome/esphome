@@ -81,8 +81,8 @@ class CC1101Component : public Component,
   void write_(Register reg);
   void write_(Register reg, uint8_t value);
   void write_(Register reg, uint8_t *buffer, size_t length);
-  bool read_(Register reg);
-  bool read_(Register reg, uint8_t *buffer, size_t length);
+  void read_(Register reg);
+  void read_(Register reg, uint8_t *buffer, size_t length);
 
   // State Management
   bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
