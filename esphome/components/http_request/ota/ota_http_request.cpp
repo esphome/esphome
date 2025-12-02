@@ -17,8 +17,6 @@ namespace http_request {
 
 static const char *const TAG = "http_request.ota";
 
-void OtaHttpRequestComponent::setup() {}
-
 void OtaHttpRequestComponent::dump_config() { ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request"); };
 
 void OtaHttpRequestComponent::set_md5_url(const std::string &url) {
