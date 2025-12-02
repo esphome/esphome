@@ -9,6 +9,7 @@
 
 namespace esphome::wifi_info {
 
+#ifdef USE_WIFI_LISTENERS
 class IPAddressWiFiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiIPStateListener {
  public:
   void setup() override;
@@ -62,6 +63,7 @@ class BSSIDWiFiInfo final : public Component, public text_sensor::TextSensor, pu
   // WiFiConnectStateListener interface
   void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override;
 };
+#endif
 
 class MacAddressWifiInfo final : public Component, public text_sensor::TextSensor {
  public:
