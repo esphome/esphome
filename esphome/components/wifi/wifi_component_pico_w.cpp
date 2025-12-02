@@ -225,8 +225,10 @@ void WiFiComponent::wifi_loop_() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     ESP_LOGV(TAG, "Scan done");
-#ifdef USE_WIFI_CALLBACKS
-    this->wifi_scan_state_callback_.call(this->scan_result_);
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->scan_results_listeners_) {
+      listener->on_wifi_scan_results(this->scan_result_);
+    }
 #endif
   }
 
@@ -241,16 +243,20 @@ void WiFiComponent::wifi_loop_() {
     // Just connected
     s_sta_was_connected = true;
     ESP_LOGV(TAG, "Connected");
-#ifdef USE_WIFI_CALLBACKS
-    this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+    }
 #endif
   } else if (!is_connected && s_sta_was_connected) {
     // Just disconnected
     s_sta_was_connected = false;
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
-#ifdef USE_WIFI_CALLBACKS
-    this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+    }
 #endif
   }
 
@@ -267,8 +273,10 @@ void WiFiComponent::wifi_loop_() {
       // Just got IP address
       s_sta_had_ip = true;
       ESP_LOGV(TAG, "Got IP address");
-#ifdef USE_WIFI_CALLBACKS
-      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
 #endif
     }
   }

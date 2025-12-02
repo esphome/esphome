@@ -242,6 +242,37 @@ enum WifiMinAuthMode : uint8_t {
 struct IDFWiFiEvent;
 #endif
 
+/** Listener interface for WiFi IP state changes.
+ *
+ * Components can implement this interface to receive IP address updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiIPStateListener {
+ public:
+  virtual void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                           const network::IPAddress &dns2) = 0;
+};
+
+/** Listener interface for WiFi scan results.
+ *
+ * Components can implement this interface to receive scan results
+ * without the overhead of std::function callbacks.
+ */
+class WiFiScanResultsListener {
+ public:
+  virtual void on_wifi_scan_results(const wifi_scan_vector_t<WiFiScanResult> &results) = 0;
+};
+
+/** Listener interface for WiFi connection state changes.
+ *
+ * Components can implement this interface to receive connection updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiConnectStateListener {
+ public:
+  virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
+};
+
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent : public Component {
  public:
@@ -373,26 +404,22 @@ class WiFiComponent : public Component {
 
   int32_t get_wifi_channel();
 
-#ifdef USE_WIFI_CALLBACKS
-  /// Add a callback that will be called on configuration changes (IP change, SSID change, etc.)
-  /// @param callback The callback to be called; template arguments are:
-  /// - IP addresses
-  /// - DNS address 1
-  /// - DNS address 2
-  void add_on_ip_state_callback(
-      std::function<void(network::IPAddresses, network::IPAddress, network::IPAddress)> &&callback) {
-    this->ip_state_callback_.add(std::move(callback));
+#ifdef USE_WIFI_LISTENERS
+  /** Add a listener for IP state changes.
+   * Listener receives: IP addresses, DNS address 1, DNS address 2
+   */
+  void add_ip_state_listener(WiFiIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
+  /// Add a listener for WiFi scan results
+  void add_scan_results_listener(WiFiScanResultsListener *listener) {
+    this->scan_results_listeners_.push_back(listener);
   }
-  /// - Wi-Fi scan results
-  void add_on_wifi_scan_state_callback(std::function<void(wifi_scan_vector_t<WiFiScanResult> &)> &&callback) {
-    this->wifi_scan_state_callback_.add(std::move(callback));
+  /** Add a listener for WiFi connection state changes.
+   * Listener receives: SSID, BSSID
+   */
+  void add_connect_state_listener(WiFiConnectStateListener *listener) {
+    this->connect_state_listeners_.push_back(listener);
   }
-  /// - Wi-Fi SSID
-  /// - Wi-Fi BSSID
-  void add_on_wifi_connect_state_callback(std::function<void(std::string, wifi::bssid_t)> &&callback) {
-    this->wifi_connect_state_callback_.add(std::move(callback));
-  }
-#endif  // USE_WIFI_CALLBACKS
+#endif  // USE_WIFI_LISTENERS
 
 #ifdef USE_WIFI_RUNTIME_POWER_SAVE
   /** Request high-performance mode (no power saving) for improved WiFi latency.
@@ -550,11 +577,11 @@ class WiFiComponent : public Component {
   WiFiAP ap_;
 #endif
   optional<float> output_power_;
-#ifdef USE_WIFI_CALLBACKS
-  CallbackManager<void(network::IPAddresses, network::IPAddress, network::IPAddress)> ip_state_callback_;
-  CallbackManager<void(wifi_scan_vector_t<WiFiScanResult> &)> wifi_scan_state_callback_;
-  CallbackManager<void(std::string, wifi::bssid_t)> wifi_connect_state_callback_;
-#endif  // USE_WIFI_CALLBACKS
+#ifdef USE_WIFI_LISTENERS
+  std::vector<WiFiIPStateListener *> ip_state_listeners_;
+  std::vector<WiFiScanResultsListener *> scan_results_listeners_;
+  std::vector<WiFiConnectStateListener *> connect_state_listeners_;
+#endif  // USE_WIFI_LISTENERS
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
