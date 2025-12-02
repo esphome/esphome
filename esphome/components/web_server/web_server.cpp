@@ -41,6 +41,10 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
+// Longest: UPDATE AVAILABLE (16 chars + null terminator, rounded up)
+static constexpr size_t PSTR_LOCAL_SIZE = 18;
+#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
+
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
 static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
@@ -908,7 +912,8 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
   set_json_icon_state_value(root, obj, "cover", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  root[ESPHOME_F("current_operation")] = cover::cover_operation_to_str(obj->current_operation);
+  char buf[PSTR_LOCAL_SIZE];
+  root[ESPHOME_F("current_operation")] = PSTR_LOCAL(cover::cover_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root[ESPHOME_F("position")] = obj->position;
@@ -1273,9 +1278,6 @@ std::string WebServer::select_json(select::Select *obj, const char *value, JsonD
 }
 #endif
 
-// Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), 15)
-
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
   if (!this->include_internal_ && obj->is_internal())
@@ -1333,7 +1335,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   const auto traits = obj->get_traits();
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
-  char buf[16];
+  char buf[PSTR_LOCAL_SIZE];
 
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
@@ -1484,7 +1486,8 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "lock", lock::lock_state_to_string(value), value, start_config);
+  char buf[PSTR_LOCAL_SIZE];
+  set_json_icon_state_value(root, obj, "lock", PSTR_LOCAL(lock::lock_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1564,7 +1567,8 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
   set_json_icon_state_value(root, obj, "valve", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  root[ESPHOME_F("current_operation")] = valve::valve_operation_to_str(obj->current_operation);
+  char buf[PSTR_LOCAL_SIZE];
+  root[ESPHOME_F("current_operation")] = PSTR_LOCAL(valve::valve_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root[ESPHOME_F("position")] = obj->position;
@@ -1645,7 +1649,7 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[16];
+  char buf[PSTR_LOCAL_SIZE];
   set_json_icon_state_value(root, obj, "alarm-control-panel", PSTR_LOCAL(alarm_control_panel_state_to_string(value)),
                             value, start_config);
   if (start_config == DETAIL_ALL) {
@@ -1688,6 +1692,7 @@ std::string WebServer::event_state_json_generator(WebServer *web_server, void *s
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json(event, get_event_type(event), DETAIL_STATE);
 }
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json(event, get_event_type(event), DETAIL_ALL);
@@ -1711,19 +1716,20 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 
   return builder.serialize();
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 #endif
 
 #ifdef USE_UPDATE
-static const char *update_state_to_string(update::UpdateState state) {
+static const LogString *update_state_to_string(update::UpdateState state) {
   switch (state) {
     case update::UPDATE_STATE_NO_UPDATE:
-      return "NO UPDATE";
+      return LOG_STR("NO UPDATE");
     case update::UPDATE_STATE_AVAILABLE:
-      return "UPDATE AVAILABLE";
+      return LOG_STR("UPDATE AVAILABLE");
     case update::UPDATE_STATE_INSTALLING:
-      return "INSTALLING";
+      return LOG_STR("INSTALLING");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
@@ -1766,8 +1772,9 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "update", update_state_to_string(obj->state), obj->update_info.latest_version,
-                            start_config);
+  char buf[PSTR_LOCAL_SIZE];
+  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update_state_to_string(obj->state)),
+                            obj->update_info.latest_version, start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = obj->update_info.current_version;
     root[ESPHOME_F("title")] = obj->update_info.title;
@@ -1947,83 +1954,110 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   // Parse URL for component routing
   UrlMatch match = match_url(url.c_str(), url.length(), false);
 
-  // Component routing using minimal code repetition
-  struct ComponentRoute {
-    const char *domain;
-    void (WebServer::*handler)(AsyncWebServerRequest *, const UrlMatch &);
-  };
-
-  static const ComponentRoute ROUTES[] = {
+  // Route to appropriate handler based on domain
+  // NOLINTNEXTLINE(readability-simplify-boolean-expr)
+  if (false) {  // Start chain for else-if macro pattern
+  }
 #ifdef USE_SENSOR
-      {"sensor", &WebServer::handle_sensor_request},
+  else if (match.domain_equals("sensor")) {
+    this->handle_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_SWITCH
-      {"switch", &WebServer::handle_switch_request},
+  else if (match.domain_equals("switch")) {
+    this->handle_switch_request(request, match);
+  }
 #endif
 #ifdef USE_BUTTON
-      {"button", &WebServer::handle_button_request},
+  else if (match.domain_equals("button")) {
+    this->handle_button_request(request, match);
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
-      {"binary_sensor", &WebServer::handle_binary_sensor_request},
+  else if (match.domain_equals("binary_sensor")) {
+    this->handle_binary_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_FAN
-      {"fan", &WebServer::handle_fan_request},
+  else if (match.domain_equals("fan")) {
+    this->handle_fan_request(request, match);
+  }
 #endif
 #ifdef USE_LIGHT
-      {"light", &WebServer::handle_light_request},
+  else if (match.domain_equals("light")) {
+    this->handle_light_request(request, match);
+  }
 #endif
 #ifdef USE_TEXT_SENSOR
-      {"text_sensor", &WebServer::handle_text_sensor_request},
+  else if (match.domain_equals("text_sensor")) {
+    this->handle_text_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_COVER
-      {"cover", &WebServer::handle_cover_request},
+  else if (match.domain_equals("cover")) {
+    this->handle_cover_request(request, match);
+  }
 #endif
 #ifdef USE_NUMBER
-      {"number", &WebServer::handle_number_request},
+  else if (match.domain_equals("number")) {
+    this->handle_number_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_DATE
-      {"date", &WebServer::handle_date_request},
+  else if (match.domain_equals("date")) {
+    this->handle_date_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_TIME
-      {"time", &WebServer::handle_time_request},
+  else if (match.domain_equals("time")) {
+    this->handle_time_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_DATETIME
-      {"datetime", &WebServer::handle_datetime_request},
+  else if (match.domain_equals("datetime")) {
+    this->handle_datetime_request(request, match);
+  }
 #endif
 #ifdef USE_TEXT
-      {"text", &WebServer::handle_text_request},
+  else if (match.domain_equals("text")) {
+    this->handle_text_request(request, match);
+  }
 #endif
 #ifdef USE_SELECT
-      {"select", &WebServer::handle_select_request},
+  else if (match.domain_equals("select")) {
+    this->handle_select_request(request, match);
+  }
 #endif
 #ifdef USE_CLIMATE
-      {"climate", &WebServer::handle_climate_request},
+  else if (match.domain_equals("climate")) {
+    this->handle_climate_request(request, match);
+  }
 #endif
 #ifdef USE_LOCK
-      {"lock", &WebServer::handle_lock_request},
+  else if (match.domain_equals("lock")) {
+    this->handle_lock_request(request, match);
+  }
 #endif
 #ifdef USE_VALVE
-      {"valve", &WebServer::handle_valve_request},
+  else if (match.domain_equals("valve")) {
+    this->handle_valve_request(request, match);
+  }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-      {"alarm_control_panel", &WebServer::handle_alarm_control_panel_request},
+  else if (match.domain_equals("alarm_control_panel")) {
+    this->handle_alarm_control_panel_request(request, match);
+  }
 #endif
 #ifdef USE_UPDATE
-      {"update", &WebServer::handle_update_request},
-#endif
-  };
-
-  // Check each route
-  for (const auto &route : ROUTES) {
-    if (match.domain_equals(route.domain)) {
-      (this->*route.handler)(request, match);
-      return;
-    }
+  else if (match.domain_equals("update")) {
+    this->handle_update_request(request, match);
   }
-
-  // No matching handler found - send 404
-  ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-  request->send(404, "text/plain", "Not Found");
+#endif
+  else {
+    // No matching handler found - send 404
+    ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
+    request->send(404, "text/plain", "Not Found");
+  }
 }
 
 bool WebServer::isRequestHandlerTrivial() const { return false; }

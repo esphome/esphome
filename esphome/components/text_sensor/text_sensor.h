@@ -50,7 +50,13 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void add_on_raw_state_callback(std::function<void(std::string)> callback);
 
   std::string state;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  /// @deprecated Use get_raw_state() instead. This member will be removed in ESPHome 2026.6.0.
+  ESPDEPRECATED("Use get_raw_state() instead of .raw_state. Will be removed in 2026.6.0", "2025.12.0")
   std::string raw_state;
+#pragma GCC diagnostic pop
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
