@@ -2,7 +2,7 @@ import glob
 import logging
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -107,11 +107,7 @@ assert SOURCES, f"test_substitutions_fixtures: No input YAML files found in {BAS
     ids=lambda p: p.name,
 )
 @patch("esphome.git.clone_or_update")
-def test_substitutions_fixtures(mock_clone_or_update, source_path, fixture_path):
-    base_dir = fixture_path / "substitutions"
-    sources = sorted(glob.glob(str(base_dir / "*.input.yaml")))
-    assert sources, f"No input YAML files found in {base_dir}"
-
+def test_substitutions_fixtures(mock_clone_or_update: MagicMock, source_path: Path):
     def fake_clone_or_update(
         *,
         url: str,
@@ -130,7 +126,7 @@ def test_substitutions_fixtures(mock_clone_or_update, source_path, fixture_path)
                 raise RuntimeError(
                     f"Cannot find test repository for {url} @ {ref}. Check the REMOTES mapping in test_substitutions.py"
                 )
-        return base_dir / path, None
+        return BASE_DIR / path, None
 
     mock_clone_or_update.side_effect = fake_clone_or_update
 
