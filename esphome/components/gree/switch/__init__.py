@@ -1,3 +1,5 @@
+from const import DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
+
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
@@ -36,7 +38,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_GREE_ID): cv.use_id(GreeClimate),
         **{
             cv.Optional(key): switch.switch_schema(
-                GreeModeBitSwitch, icon=icon, default_restore_mode="RESTORE_DEFAULT_OFF"
+                GreeModeBitSwitch,
+                icon=icon,
+                default_restore_mode="RESTORE_DEFAULT_OFF",
+                device_class=DEVICE_CLASS_SWITCH,
+                entity_category=ENTITY_CATEGORY_CONFIG,
             )
             for key, _, _, icon in SWITCH_CONFIGS
         },
