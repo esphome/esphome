@@ -62,13 +62,13 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_DNS_ADDRESS): text_sensor.text_sensor_schema(
             DNSAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ).extend(cv.polling_component_schema("1s")),
+        ),
         cv.Optional(CONF_POWER_SAVE_MODE): cv.All(
             text_sensor.text_sensor_schema(
                 PowerSaveModeWiFiInfo,
                 icon=ICON_WIFI,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ).extend(cv.polling_component_schema("1s")),
+            ).extend(cv.polling_component_schema("60s")),
             cv.only_on(["esp32"]),
         ),
     }
