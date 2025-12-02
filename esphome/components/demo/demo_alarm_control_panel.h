@@ -33,7 +33,7 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
       case ACP_STATE_ARMED_AWAY:
         if (this->get_requires_code_to_arm() && call.get_code().has_value()) {
           if (call.get_code().value() != "1234") {
-            this->status_momentary_error("Invalid code", 5000);
+            this->status_momentary_error("invalid_code", 5000);
             return;
           }
         }
@@ -42,7 +42,7 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
       case ACP_STATE_DISARMED:
         if (this->get_requires_code() && call.get_code().has_value()) {
           if (call.get_code().value() != "1234") {
-            this->status_momentary_error("Invalid code", 5000);
+            this->status_momentary_error("invalid_code", 5000);
             return;
           }
         }
