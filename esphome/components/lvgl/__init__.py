@@ -333,7 +333,12 @@ async def to_code(configs):
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
         cg.add_define(f"USE_LVGL_{comp.upper()}")
-    if {"transform_rotation", "transform_scale"} & styles_used:
+    if {
+        "transform_rotation",
+        "transform_scale",
+        "transform_scale_x",
+        "transform_scale_y",
+    } & styles_used:
         add_define("LV_COLOR_SCREEN_TRANSP", "1")
     for use in helpers.lv_uses:
         add_define(f"LV_USE_{use.upper()}")

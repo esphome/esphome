@@ -424,7 +424,7 @@ class MeterType(WidgetType):
                             StaticCastExpression(cg.uint16, width // 2),
                         )
                         lw.set_style(CONF_BG_OPA, await opacity.process(v[CONF_OPA]))
-                        lw.set_style(CONF_TRANSFORM_ROTATION, rotation * 10)
+                        lw.set_style(CONF_TRANSFORM_ROTATION, MockObj(rotation) * 10)
                         if r_mode := v.get(CONF_R_MOD):
                             lw.set_style("pad_right", -r_mode)
                         # Set up linear equation for needle rotation. Value will be in 1/10 degrees

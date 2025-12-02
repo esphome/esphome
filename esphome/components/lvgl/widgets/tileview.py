@@ -68,14 +68,12 @@ class TileviewType(WidgetType):
             w_id = tile_conf[CONF_ID]
             tile_obj = lv_Pvariable(lv_obj_t, w_id)
             tile = Widget.create(w_id, tile_obj, tile_spec, tile_conf)
-            dirs = tile_conf[CONF_DIR]
-            if isinstance(dirs, list):
-                dirs = "|".join(dirs)
+            dirs = await TILE_DIRECTIONS.process(tile_conf[CONF_DIR])
             row_pos = tile_conf[CONF_ROW]
             col_pos = tile_conf[CONF_COLUMN]
             lv_assign(
                 tile_obj,
-                lv_expr.tileview_add_tile(w.obj, col_pos, row_pos, literal(dirs)),
+                lv_expr.tileview_add_tile(w.obj, col_pos, row_pos, dirs),
             )
             # Bugfix for LVGL 8.x
             lv_obj.set_pos(

@@ -449,8 +449,8 @@ class TextValidator(LValidator):
                     )
                 # must be an ID
                 else:
-                    source = await cg.get_variable(source)
-                return source.now().strftime(time_format).c_str()
+                    source = (await cg.get_variable(source)).now()
+                return source.strftime(time_format).c_str()
         if isinstance(value, Lambda):
             value = call_lambda(
                 await cg.process_lambda(value, args, return_type=self.rtype)

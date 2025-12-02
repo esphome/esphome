@@ -238,7 +238,7 @@ lvgl:
             on_all_events:
               - logger.log:
                   format: "Event %s"
-                  args: ['lv_event_code_name_for(event->code).c_str()']
+                  args: ['lv_event_code_name_for(event).c_str()']
               - lvgl.animimg.update:
                   id: anim_img
                   src: !lambda "return {dog_image, cat_image};"
@@ -1019,7 +1019,7 @@ lvgl:
                       text_color: 0xFFFFFF
                       scales:
                         - ticks:
-                            width: !lambda return 1;
+                            width: 1
                             count: 61
                             length: 20%
                             color: 0xFFFFFF
@@ -1033,13 +1033,13 @@ lvgl:
                                 end_value: 60
                                 color_start: 0x0000bd
                                 color_end: 0xbd0000
-                                width: !lambda return 1;
+                                width: 1
                             - line:
                                 opa: 50%
                                 id: minute_hand
                                 color: 0xFF0000
                                 r_mod: -1
-                                width: !lambda return 3;
+                                width: 1
                         -
                           angle_range: 330
                           rotation: 300

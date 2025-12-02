@@ -24,7 +24,7 @@ from .defines import (
     PARTS,
     StaticCastExpression,
 )
-from .lv_validation import LV_OPA, lv_bool, lv_milliseconds
+from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
@@ -103,7 +103,7 @@ async def lvgl_update(lv_component, config):
     )
     # Preserve default opacity from 8.x
     if CONF_BG_OPA not in bottom:
-        bottom[CONF_BG_OPA] = LV_OPA.COVER
+        bottom[CONF_BG_OPA] = 1.0
     await layers_to_code(lv_component, {CONF_BOTTOM_LAYER: bottom})
 
 

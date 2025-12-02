@@ -362,9 +362,13 @@ def _scale_map(config):
     return config
 
 
+def _get_prop_validator(prop):
+    return STYLE_PROPS.get(f"transform_{remap_property(prop)}") or STYLE_PROPS.get(prop)
+
+
 def _prop_validator(prop):
     def validator(value):
-        return STYLE_PROPS[f"transform_{remap_property(prop)}"](value)
+        return _get_prop_validator(prop)(value)
 
     return validator
 
@@ -403,7 +407,13 @@ async def canvas_draw_image(config, action_id, template_arg, args):
             lv.draw_image(layer, addr(dsc), addr(area))
 
     return await draw_to_code(
-        config, "image", IMG_PROPS, do_draw_image, action_id, template_arg, args
+        config,
+        "image",
+        {prop: _get_prop_validator(prop) for prop in IMG_PROPS},
+        do_draw_image,
+        action_id,
+        template_arg,
+        args,
     )
 
 
