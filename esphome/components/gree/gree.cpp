@@ -1,8 +1,5 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
-#ifdef USE_SWITCH
-#include "esphome/components/switch/switch.h"
-#endif
 
 namespace esphome {
 namespace gree {
@@ -19,65 +16,39 @@ void GreeClimate::set_model(Model model) {
   this->model_ = model;
 }
 
-#ifdef USE_SWITCH
-void GreeClimate::set_turbo_switch(switch_::Switch *sw) { this->turbo_switch_ = sw; }
-
-void GreeClimate::set_light_switch(switch_::Switch *sw) { this->light_switch_ = sw; }
-
-void GreeClimate::set_health_switch(switch_::Switch *sw) { this->health_switch_ = sw; }
-
-void GreeClimate::set_xfan_switch(switch_::Switch *sw) { this->xfan_switch_ = sw; }
-#endif
-
 void GreeClimate::set_turbo_mode(bool enabled) {
-  if (this->turbo_mode_ == enabled)
-    return;
-
-  this->turbo_mode_ = enabled;
-#ifdef USE_SWITCH
-  if (this->turbo_switch_ != nullptr) {
-    this->turbo_switch_->publish_state(enabled);
+  if (enabled) {
+    this->mode_bits_ |= GREE_MODE_BIT_TURBO;
+  } else {
+    this->mode_bits_ &= ~GREE_MODE_BIT_TURBO;
   }
-#endif
   this->transmit_state();
 }
 
 void GreeClimate::set_light_mode(bool enabled) {
-  if (this->light_mode_ == enabled)
-    return;
-
-  this->light_mode_ = enabled;
-#ifdef USE_SWITCH
-  if (this->light_switch_ != nullptr) {
-    this->light_switch_->publish_state(enabled);
+  if (enabled) {
+    this->mode_bits_ |= GREE_MODE_BIT_LIGHT;
+  } else {
+    this->mode_bits_ &= ~GREE_MODE_BIT_LIGHT;
   }
-#endif
   this->transmit_state();
 }
 
 void GreeClimate::set_health_mode(bool enabled) {
-  if (this->health_mode_ == enabled)
-    return;
-
-  this->health_mode_ = enabled;
-#ifdef USE_SWITCH
-  if (this->health_switch_ != nullptr) {
-    this->health_switch_->publish_state(enabled);
+  if (enabled) {
+    this->mode_bits_ |= GREE_MODE_BIT_HEALTH;
+  } else {
+    this->mode_bits_ &= ~GREE_MODE_BIT_HEALTH;
   }
-#endif
   this->transmit_state();
 }
 
 void GreeClimate::set_xfan_mode(bool enabled) {
-  if (this->xfan_mode_ == enabled)
-    return;
-
-  this->xfan_mode_ = enabled;
-#ifdef USE_SWITCH
-  if (this->xfan_switch_ != nullptr) {
-    this->xfan_switch_->publish_state(enabled);
+  if (enabled) {
+    this->mode_bits_ |= GREE_MODE_BIT_XFAN;
+  } else {
+    this->mode_bits_ &= ~GREE_MODE_BIT_XFAN;
   }
-#endif
   this->transmit_state();
 }
 
@@ -125,30 +96,9 @@ void GreeClimate::transmit_state() {
 
   if (this->model_ == GREE_YAN || this->model_ == GREE_YAA || this->model_ == GREE_YAC ||
       this->model_ == GREE_YAC1FB9) {
-    // Mirror the persisted switch states into the feature bitfield for supported models.
-    if (this->turbo_mode_) {
-      remote_state[2] |= (1 << 4);  // Set bit 4 (TURBO ON)
-    } else {
-      remote_state[2] &= ~(1 << 4);  // Clear bit 4 (TURBO OFF)
-    }
-
-    if (this->light_mode_) {
-      remote_state[2] |= (1 << 5);  // Set bit 5 (LIGHT ON)
-    } else {
-      remote_state[2] &= ~(1 << 5);  // Clear bit 5 (LIGHT OFF)
-    }
-
-    if (this->health_mode_) {
-      remote_state[2] |= (1 << 6);  // Set bit 6 (HEALTH ON)
-    } else {
-      remote_state[2] &= ~(1 << 6);  // Clear bit 6 (HEALTH OFF)
-    }
-
-    if (this->xfan_mode_) {
-      remote_state[2] |= (1 << 7);  // Set bit 7 (X-FAN ON)
-    } else {
-      remote_state[2] &= ~(1 << 7);  // Clear bit 7 (X-FAN OFF)
-    }
+    // Merge the mode bits into remote_state[2]
+    // Clear the mode bits (bits 4-7) and OR in the current mode_bits_
+    remote_state[2] = (remote_state[2] & 0x0F) | this->mode_bits_;
   }
 
   if (this->model_ == GREE_YX1FF) {

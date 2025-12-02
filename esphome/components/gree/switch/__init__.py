@@ -94,19 +94,15 @@ async def to_code(config):
         turbo_switch = await switch.new_switch(turbo_conf)
         await cg.register_component(turbo_switch, turbo_conf)
         await cg.register_parented(turbo_switch, parent)
-        cg.add(parent.set_turbo_switch(turbo_switch))
     if light_conf := config.get(CONF_LIGHT):
         light_switch = await switch.new_switch(light_conf)
         await cg.register_component(light_switch, light_conf)
         await cg.register_parented(light_switch, parent)
-        cg.add(parent.set_light_switch(light_switch))
     if health_conf := config.get(CONF_HEALTH):
         health_switch = await switch.new_switch(health_conf)
         await cg.register_component(health_switch, health_conf)
         await cg.register_parented(health_switch, parent)
-        cg.add(parent.set_health_switch(health_switch))
     if xfan_conf := config.get(CONF_XFAN):
         xfan_switch = await switch.new_switch(xfan_conf)
         await cg.register_component(xfan_switch, xfan_conf)
         await cg.register_parented(xfan_switch, parent)
-        cg.add(parent.set_xfan_switch(xfan_switch))
