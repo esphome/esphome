@@ -54,7 +54,15 @@ bool WiFiComponent::wifi_apply_power_save_() {
       break;
   }
   int ret = cyw43_wifi_pm(&cyw43_state, pm);
-  return ret == 0;
+  bool success = ret == 0;
+  if (success) {
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->power_save_listeners_) {
+      listener->on_wifi_power_save(this->power_save_);
+    }
+#endif
+  }
+  return success;
 }
 
 // TODO: The driver doesn't seem to have an API for this

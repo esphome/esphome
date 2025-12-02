@@ -273,6 +273,16 @@ class WiFiConnectStateListener {
   virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
 };
 
+/** Listener interface for WiFi power save mode changes.
+ *
+ * Components can implement this interface to receive power save mode updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiPowerSaveListener {
+ public:
+  virtual void on_wifi_power_save(WiFiPowerSaveMode mode) = 0;
+};
+
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent : public Component {
  public:
@@ -419,6 +429,10 @@ class WiFiComponent : public Component {
   void add_connect_state_listener(WiFiConnectStateListener *listener) {
     this->connect_state_listeners_.push_back(listener);
   }
+  /** Add a listener for WiFi power save mode changes.
+   * Listener receives: WiFiPowerSaveMode
+   */
+  void add_power_save_listener(WiFiPowerSaveListener *listener) { this->power_save_listeners_.push_back(listener); }
 #endif  // USE_WIFI_LISTENERS
 
 #ifdef USE_WIFI_RUNTIME_POWER_SAVE
@@ -581,6 +595,7 @@ class WiFiComponent : public Component {
   std::vector<WiFiIPStateListener *> ip_state_listeners_;
   std::vector<WiFiScanResultsListener *> scan_results_listeners_;
   std::vector<WiFiConnectStateListener *> connect_state_listeners_;
+  std::vector<WiFiPowerSaveListener *> power_save_listeners_;
 #endif  // USE_WIFI_LISTENERS
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT

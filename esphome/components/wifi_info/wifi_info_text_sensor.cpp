@@ -6,29 +6,6 @@ namespace esphome::wifi_info {
 
 static const char *const TAG = "wifi_info";
 
-#ifdef USE_ESP32
-/// @brief Helper function to convert ESP32 WiFi power save mode to string
-/// @param ps_mode WiFi power save mode from esp_wifi_get_ps()
-/// @return const char pointer to the readable power save mode
-///
-/// Maps ESP32 WiFi power save modes to user-friendly strings:
-/// - WIFI_PS_NONE (no power saving) -> "NONE"
-/// - WIFI_PS_MIN_MODEM (minimal modem sleep) -> "LIGHT"
-/// - WIFI_PS_MAX_MODEM (maximum modem sleep) -> "HIGH"
-static const char *wifi_ps_mode_to_string(wifi_ps_type_t ps_mode) {
-  switch (ps_mode) {
-    case WIFI_PS_NONE:
-      return "NONE";
-    case WIFI_PS_MIN_MODEM:
-      return "LIGHT";
-    case WIFI_PS_MAX_MODEM:
-      return "HIGH";
-    default:
-      return "UNKNOWN";
-  }
-}
-#endif  // USE_ESP32
-
 #ifdef USE_WIFI_LISTENERS
 
 static constexpr size_t MAX_STATE_LENGTH = 255;
@@ -123,6 +100,32 @@ void BSSIDWiFiInfo::on_wifi_connect_state(const std::string &ssid, const wifi::b
   this->publish_state(buf);
 }
 
+/************************
+ * PowerSaveModeWiFiInfo
+ ***********************/
+
+void PowerSaveModeWiFiInfo::setup() { wifi::global_wifi_component->add_power_save_listener(this); }
+
+void PowerSaveModeWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "WiFi Power Save Mode", this); }
+
+void PowerSaveModeWiFiInfo::on_wifi_power_save(wifi::WiFiPowerSaveMode mode) {
+  const char *mode_str;
+  switch (mode) {
+    case wifi::WIFI_POWER_SAVE_NONE:
+      mode_str = "NONE";
+      break;
+    case wifi::WIFI_POWER_SAVE_LIGHT:
+      mode_str = "LIGHT";
+      break;
+    case wifi::WIFI_POWER_SAVE_HIGH:
+      mode_str = "HIGH";
+      break;
+    default:
+      mode_str = "UNKNOWN";
+      break;
+  }
+  this->publish_state(mode_str);
+}
 #endif
 
 /*********************
@@ -130,21 +133,6 @@ void BSSIDWiFiInfo::on_wifi_connect_state(const std::string &ssid, const wifi::b
  ********************/
 
 void MacAddressWifiInfo::dump_config() { LOG_TEXT_SENSOR("", "MAC Address", this); }
-
-#ifdef USE_ESP32
-void PowerSaveModeWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "WiFi Power Save Mode", this); }
-
-void PowerSaveModeWiFiInfo::update() {
-  wifi_ps_type_t power_save_mode;
-  if (esp_wifi_get_ps(&power_save_mode) == ESP_OK) {
-    // Publish if the state has changed or if this is the first read
-    if (this->last_power_save_mode_ != power_save_mode || !this->has_state()) {
-      this->publish_state(wifi_ps_mode_to_string(power_save_mode));
-      this->last_power_save_mode_ = power_save_mode;
-    }
-  }
-}
-#endif  // USE_ESP32
 
 }  // namespace esphome::wifi_info
 #endif

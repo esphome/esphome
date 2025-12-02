@@ -32,7 +32,7 @@ DNSAddressWifiInfo = wifi_info_ns.class_(
     "DNSAddressWifiInfo", text_sensor.TextSensor, cg.Component
 )
 PowerSaveModeWiFiInfo = wifi_info_ns.class_(
-    "PowerSaveModeWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
+    "PowerSaveModeWiFiInfo", text_sensor.TextSensor, cg.Component
 )
 
 CONFIG_SCHEMA = cv.Schema(
@@ -62,12 +62,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_DNS_ADDRESS): text_sensor.text_sensor_schema(
             DNSAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
-        cv.Optional(CONF_POWER_SAVE_MODE): cv.All(
-            text_sensor.text_sensor_schema(
-                PowerSaveModeWiFiInfo,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ).extend(cv.polling_component_schema("60s")),
-            cv.only_on(["esp32"]),
+        cv.Optional(CONF_POWER_SAVE_MODE): text_sensor.text_sensor_schema(
+            PowerSaveModeWiFiInfo,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }
 )
@@ -79,6 +76,7 @@ _NETWORK_INFO_KEYS = {
     CONF_IP_ADDRESS,
     CONF_DNS_ADDRESS,
     CONF_SCAN_RESULTS,
+    CONF_POWER_SAVE_MODE,
 }
 
 
