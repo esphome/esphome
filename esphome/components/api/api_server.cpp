@@ -107,12 +107,7 @@ void APIServer::setup() {
 
 #ifdef USE_CAMERA
   if (camera::Camera::instance() != nullptr && !camera::Camera::instance()->is_internal()) {
-    camera::Camera::instance()->add_image_callback([this](const std::shared_ptr<camera::CameraImage> &image) {
-      for (auto &c : this->clients_) {
-        if (!c->flags_.remove)
-          c->set_camera_state(image);
-      }
-    });
+    camera::Camera::instance()->add_listener(this);
   }
 #endif
 }
@@ -540,6 +535,15 @@ void APIServer::on_log(uint8_t level, const char *tag, const char *message, size
   for (auto &c : this->clients_) {
     if (!c->flags_.remove && c->get_log_subscription_level() >= level)
       c->try_send_log_message(level, tag, message, message_len);
+  }
+}
+#endif
+
+#ifdef USE_CAMERA
+void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
+  for (auto &c : this->clients_) {
+    if (!c->flags_.remove)
+      c->set_camera_state(image);
   }
 }
 #endif

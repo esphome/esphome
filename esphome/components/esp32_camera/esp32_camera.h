@@ -165,9 +165,8 @@ class ESP32Camera : public camera::Camera {
   void request_image(camera::CameraRequester requester) override;
   void update_camera_parameters();
 
-  void add_image_callback(std::function<void(std::shared_ptr<camera::CameraImage>)> &&callback) override;
-  void add_stream_start_callback(std::function<void()> &&callback);
-  void add_stream_stop_callback(std::function<void()> &&callback);
+  /// Add a listener to receive camera events
+  void add_listener(camera::CameraListener *listener) override { this->listeners_.push_back(listener); }
   camera::CameraImageReader *create_image_reader() override;
 
  protected:
@@ -210,9 +209,7 @@ class ESP32Camera : public camera::Camera {
   uint8_t stream_requesters_{0};
   QueueHandle_t framebuffer_get_queue_;
   QueueHandle_t framebuffer_return_queue_;
-  CallbackManager<void(std::shared_ptr<camera::CameraImage>)> new_image_callback_{};
-  CallbackManager<void()> stream_start_callback_{};
-  CallbackManager<void()> stream_stop_callback_{};
+  std::vector<camera::CameraListener *> listeners_;
 
   uint32_t last_idle_request_{0};
   uint32_t last_update_{0};
@@ -221,33 +218,27 @@ class ESP32Camera : public camera::Camera {
 #endif  // USE_I2C
 };
 
-class ESP32CameraImageTrigger : public Trigger<CameraImageData> {
+class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::CameraListener {
  public:
-  explicit ESP32CameraImageTrigger(ESP32Camera *parent) {
-    parent->add_image_callback([this](const std::shared_ptr<camera::CameraImage> &image) {
-      CameraImageData camera_image_data{};
-      camera_image_data.length = image->get_data_length();
-      camera_image_data.data = image->get_data_buffer();
-      this->trigger(camera_image_data);
-    });
+  explicit ESP32CameraImageTrigger(ESP32Camera *parent) { parent->add_listener(this); }
+  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override {
+    CameraImageData camera_image_data{};
+    camera_image_data.length = image->get_data_length();
+    camera_image_data.data = image->get_data_buffer();
+    this->trigger(camera_image_data);
   }
 };
 
-class ESP32CameraStreamStartTrigger : public Trigger<> {
+class ESP32CameraStreamStartTrigger : public Trigger<>, public camera::CameraListener {
  public:
-  explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) {
-    parent->add_stream_start_callback([this]() { this->trigger(); });
-  }
-
- protected:
+  explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) { parent->add_listener(this); }
+  void on_stream_start() override { this->trigger(); }
 };
-class ESP32CameraStreamStopTrigger : public Trigger<> {
- public:
-  explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) {
-    parent->add_stream_stop_callback([this]() { this->trigger(); });
-  }
 
- protected:
+class ESP32CameraStreamStopTrigger : public Trigger<>, public camera::CameraListener {
+ public:
+  explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) { parent->add_listener(this); }
+  void on_stream_stop() override { this->trigger(); }
 };
 
 }  // namespace esp32_camera
