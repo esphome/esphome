@@ -16,38 +16,11 @@ void GreeClimate::set_model(Model model) {
   this->model_ = model;
 }
 
-void GreeClimate::set_turbo_mode(bool enabled) {
+void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
   if (enabled) {
-    this->mode_bits_ |= GREE_MODE_BIT_TURBO;
+    this->mode_bits_ |= bit_mask;
   } else {
-    this->mode_bits_ &= ~GREE_MODE_BIT_TURBO;
-  }
-  this->transmit_state();
-}
-
-void GreeClimate::set_light_mode(bool enabled) {
-  if (enabled) {
-    this->mode_bits_ |= GREE_MODE_BIT_LIGHT;
-  } else {
-    this->mode_bits_ &= ~GREE_MODE_BIT_LIGHT;
-  }
-  this->transmit_state();
-}
-
-void GreeClimate::set_health_mode(bool enabled) {
-  if (enabled) {
-    this->mode_bits_ |= GREE_MODE_BIT_HEALTH;
-  } else {
-    this->mode_bits_ &= ~GREE_MODE_BIT_HEALTH;
-  }
-  this->transmit_state();
-}
-
-void GreeClimate::set_xfan_mode(bool enabled) {
-  if (enabled) {
-    this->mode_bits_ |= GREE_MODE_BIT_XFAN;
-  } else {
-    this->mode_bits_ &= ~GREE_MODE_BIT_XFAN;
+    this->mode_bits_ &= ~bit_mask;
   }
   this->transmit_state();
 }

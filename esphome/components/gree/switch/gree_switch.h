@@ -7,32 +7,17 @@
 namespace esphome {
 namespace gree {
 
-class GreeTurboSwitch : public switch_::Switch, public Component, public Parented<GreeClimate> {
+class GreeModeBitSwitch : public switch_::Switch, public Component, public Parented<GreeClimate> {
  public:
-  void setup() override;
-  void dump_config() override;
-  void write_state(bool state) override;
-};
+  GreeModeBitSwitch(const char *name, uint8_t bit_mask) : name_(name), bit_mask_(bit_mask) {}
 
-class GreeLightSwitch : public switch_::Switch, public Component, public Parented<GreeClimate> {
- public:
   void setup() override;
   void dump_config() override;
   void write_state(bool state) override;
-};
 
-class GreeHealthSwitch : public switch_::Switch, public Component, public Parented<GreeClimate> {
- public:
-  void setup() override;
-  void dump_config() override;
-  void write_state(bool state) override;
-};
-
-class GreeXfanSwitch : public switch_::Switch, public Component, public Parented<GreeClimate> {
- public:
-  void setup() override;
-  void dump_config() override;
-  void write_state(bool state) override;
+ protected:
+  const char *name_;
+  uint8_t bit_mask_;
 };
 
 }  // namespace gree

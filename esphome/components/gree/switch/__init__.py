@@ -5,51 +5,44 @@ from esphome.const import CONF_LIGHT
 import esphome.final_validate as fv
 
 from .. import gree_ns
-from ..climate import CONF_MODEL, GreeClimate, Model
+from ..climate import CONF_MODEL, MODELS, GreeClimate, Model
 
-CODEOWNERS = ["@orestismers"]
+CODEOWNERS = ["@nagyrobi"]
 
-GreeTurboSwitch = gree_ns.class_("GreeTurboSwitch", switch.Switch, cg.Component)
-GreeLightSwitch = gree_ns.class_("GreeLightSwitch", switch.Switch, cg.Component)
-GreeHealthSwitch = gree_ns.class_("GreeHealthSwitch", switch.Switch, cg.Component)
-GreeXfanSwitch = gree_ns.class_("GreeXfanSwitch", switch.Switch, cg.Component)
+GreeModeBitSwitch = gree_ns.class_("GreeModeBitSwitch", switch.Switch, cg.Component)
 
 CONF_TURBO = "turbo"
 CONF_HEALTH = "health"
 CONF_XFAN = "xfan"
 CONF_GREE_ID = "gree_id"
 
-SUPPORTED_MODELS = [
-    Model.GREE_YAN,
-    Model.GREE_YAA,
-    Model.GREE_YAC,
-    Model.GREE_YAC1FB9,
-]
-SUPPORTED_MODEL_NAMES = ["yan", "yaa", "yac", "yac1fb9"]
+# Switch configurations: (config_key, display_name, bit_mask, icon)
+SWITCH_CONFIGS = (
+    (CONF_TURBO, "Gree Turbo Switch", 0x10, "mdi:car-turbocharger"),
+    (CONF_LIGHT, "Gree Light Switch", 0x20, "mdi:led-outline"),
+    (CONF_HEALTH, "Gree Health Switch", 0x40, "mdi:pine-tree"),
+    (CONF_XFAN, "Gree X-FAN Switch", 0x80, "mdi:wall-sconce-flat"),
+)
+
+SUPPORTED_MODELS = {
+    str(x)
+    for x in (
+        Model.GREE_YAN,
+        Model.GREE_YAA,
+        Model.GREE_YAC,
+        Model.GREE_YAC1FB9,
+    )
+}
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_GREE_ID): cv.use_id(GreeClimate),
-        cv.Optional(CONF_TURBO): switch.switch_schema(
-            GreeTurboSwitch,
-            icon="mdi:car-turbocharger",
-            default_restore_mode="RESTORE_DEFAULT_OFF",
-        ).extend(cv.COMPONENT_SCHEMA),
-        cv.Optional(CONF_LIGHT): switch.switch_schema(
-            GreeLightSwitch,
-            icon="mdi:led-outline",
-            default_restore_mode="RESTORE_DEFAULT_OFF",
-        ).extend(cv.COMPONENT_SCHEMA),
-        cv.Optional(CONF_HEALTH): switch.switch_schema(
-            GreeHealthSwitch,
-            icon="mdi:pine-tree",
-            default_restore_mode="RESTORE_DEFAULT_OFF",
-        ).extend(cv.COMPONENT_SCHEMA),
-        cv.Optional(CONF_XFAN): switch.switch_schema(
-            GreeXfanSwitch,
-            icon="mdi:wall-sconce-flat",
-            default_restore_mode="RESTORE_DEFAULT_OFF",
-        ).extend(cv.COMPONENT_SCHEMA),
+        **{
+            cv.Optional(key): switch.switch_schema(
+                GreeModeBitSwitch, icon=icon, default_restore_mode="RESTORE_DEFAULT_OFF"
+            )
+            for key, _, _, icon in SWITCH_CONFIGS
+        },
     }
 )
 
@@ -58,30 +51,13 @@ def _validate_model(config):
     full_config = fv.full_config.get()
     climate_path = full_config.get_path_for_id(config[CONF_GREE_ID])[:-1]
     climate_conf = full_config.get_config_for_path(climate_path)
-    if climate_conf is None:
-        raise cv.Invalid("Gree climate reference is invalid")
-    model = climate_conf.get(CONF_MODEL)
-    if model is None:
-        raise cv.Invalid("Gree climate model is not configured")
-
-    def normalize_model(value):
-        # Accept Model enums, strings, and expressions; reduce to a lower-case name without the GREE_ prefix.
-        if hasattr(value, "name"):
-            value = value.name
-        text = str(value)
-        if "." in text:
-            text = text.rsplit(".", 1)[-1]
-        if text.upper().startswith("GREE_"):
-            text = text[5:]
-        return text.casefold()
-
-    normalized_model = normalize_model(model)
-    if normalized_model not in SUPPORTED_MODEL_NAMES:
+    print(climate_conf[CONF_MODEL])
+    if str(MODELS[climate_conf[CONF_MODEL]]) not in SUPPORTED_MODELS:
         raise cv.Invalid(
-            "Gree switches are only supported for the yan, yaa, yac and yac1fb9 models"
+            "Gree switches are only supported for the "
+            + ", ".join(SUPPORTED_MODELS)
+            + " models"
         )
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _validate_model
@@ -90,19 +66,9 @@ FINAL_VALIDATE_SCHEMA = _validate_model
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_GREE_ID])
 
-    if turbo_conf := config.get(CONF_TURBO):
-        turbo_switch = await switch.new_switch(turbo_conf)
-        await cg.register_component(turbo_switch, turbo_conf)
-        await cg.register_parented(turbo_switch, parent)
-    if light_conf := config.get(CONF_LIGHT):
-        light_switch = await switch.new_switch(light_conf)
-        await cg.register_component(light_switch, light_conf)
-        await cg.register_parented(light_switch, parent)
-    if health_conf := config.get(CONF_HEALTH):
-        health_switch = await switch.new_switch(health_conf)
-        await cg.register_component(health_switch, health_conf)
-        await cg.register_parented(health_switch, parent)
-    if xfan_conf := config.get(CONF_XFAN):
-        xfan_switch = await switch.new_switch(xfan_conf)
-        await cg.register_component(xfan_switch, xfan_conf)
-        await cg.register_parented(xfan_switch, parent)
+    for conf_key, name, bit_mask, _ in SWITCH_CONFIGS:
+        if switch_conf := config.get(conf_key):
+            sw = cg.new_Pvariable(switch_conf[cv.CONF_ID], name, bit_mask)
+            await switch.register_switch(sw, switch_conf)
+            await cg.register_component(sw, switch_conf)
+            await cg.register_parented(sw, parent)

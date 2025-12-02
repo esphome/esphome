@@ -82,12 +82,6 @@ static constexpr uint8_t GREE_PRESET_NONE = 0x00;
 static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
-// Mode bit masks for remote_state[2]
-static constexpr uint8_t GREE_MODE_BIT_TURBO = 0x10;   // Bit 4
-static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;   // Bit 5
-static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;  // Bit 6
-static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;    // Bit 7
-
 // Model codes
 enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
 
@@ -101,10 +95,7 @@ class GreeClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
-  void set_turbo_mode(bool enabled);
-  void set_light_mode(bool enabled);
-  void set_health_mode(bool enabled);
-  void set_xfan_mode(bool enabled);
+  void set_mode_bit(uint8_t bit_mask, bool enabled);
 
  protected:
   // Transmit via IR the state of this climate controller.

@@ -6,59 +6,17 @@ namespace gree {
 
 static const char *const TAG = "gree.switch";
 
-void GreeTurboSwitch::setup() {
+void GreeModeBitSwitch::setup() {
   auto initial = this->get_initial_state_with_restore_mode();
   if (initial.has_value()) {
     this->write_state(*initial);
   }
 }
 
-void GreeTurboSwitch::dump_config() { LOG_SWITCH("  ", "Gree Turbo Switch", this); }
+void GreeModeBitSwitch::dump_config() { log_switch(TAG, "  ", this->name_, this); }
 
-void GreeTurboSwitch::write_state(bool state) {
-  this->parent_->set_turbo_mode(state);
-  this->publish_state(state);
-}
-
-void GreeLightSwitch::setup() {
-  auto initial = this->get_initial_state_with_restore_mode();
-  if (initial.has_value()) {
-    this->write_state(*initial);
-  }
-}
-
-void GreeLightSwitch::dump_config() { LOG_SWITCH("  ", "Gree Light Switch", this); }
-
-void GreeLightSwitch::write_state(bool state) {
-  this->parent_->set_light_mode(state);
-  this->publish_state(state);
-}
-
-void GreeHealthSwitch::setup() {
-  auto initial = this->get_initial_state_with_restore_mode();
-  if (initial.has_value()) {
-    this->write_state(*initial);
-  }
-}
-
-void GreeHealthSwitch::dump_config() { LOG_SWITCH("  ", "Gree Health Switch", this); }
-
-void GreeHealthSwitch::write_state(bool state) {
-  this->parent_->set_health_mode(state);
-  this->publish_state(state);
-}
-
-void GreeXfanSwitch::setup() {
-  auto initial = this->get_initial_state_with_restore_mode();
-  if (initial.has_value()) {
-    this->write_state(*initial);
-  }
-}
-
-void GreeXfanSwitch::dump_config() { LOG_SWITCH("  ", "Gree X-FAN Switch", this); }
-
-void GreeXfanSwitch::write_state(bool state) {
-  this->parent_->set_xfan_mode(state);
+void GreeModeBitSwitch::write_state(bool state) {
+  this->parent_->set_mode_bit(this->bit_mask_, state);
   this->publish_state(state);
 }
 
