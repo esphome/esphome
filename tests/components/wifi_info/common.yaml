@@ -13,6 +13,6 @@ text_sensor:
     bssid:
       name: BSSID
     mac_address:
-      name: Mac Address
+      name: MAC Address
     dns_address:
       name: DNS ADdress

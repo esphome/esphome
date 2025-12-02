@@ -14,8 +14,8 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
+
 static const char *const TAG = "uart.idf";
 
 uart_config_t IDFUARTComponent::get_config_() {
@@ -405,7 +405,5 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
 }
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_ESP32
