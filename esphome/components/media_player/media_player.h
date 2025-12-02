@@ -58,6 +58,12 @@ enum MediaPlayerCommand : uint8_t {
   MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 11,
   MEDIA_PLAYER_COMMAND_TURN_ON = 12,
   MEDIA_PLAYER_COMMAND_TURN_OFF = 13,
+  MEDIA_PLAYER_COMMAND_NEXT = 14,
+  MEDIA_PLAYER_COMMAND_PREVIOUS = 15,
+  MEDIA_PLAYER_COMMAND_REPEAT_ALL = 16,
+  MEDIA_PLAYER_COMMAND_SHUFFLE = 17,
+  MEDIA_PLAYER_COMMAND_UNSHUFFLE = 18,
+  MEDIA_PLAYER_COMMAND_GROUP_JOIN = 19,
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
@@ -86,6 +92,22 @@ class MediaPlayerTraits {
   void set_supports_turn_off_on(bool supports_turn_off_on) { this->supports_turn_off_on_ = supports_turn_off_on; }
   bool get_supports_turn_off_on() const { return this->supports_turn_off_on_; }
 
+  void set_supports_next_previous(bool supports_next_previous) {
+    this->supports_next_previous_ = supports_next_previous;
+  }
+  bool get_supports_next_previous() const { return this->supports_next_previous_; }
+
+  void set_supports_repeat(bool supports_repeat) { this->supports_repeat_ = supports_repeat; }
+  bool get_supports_repeat() const { return this->supports_repeat_; }
+
+  void set_supports_shuffle(bool supports_shuffle) { this->supports_shuffle_ = supports_shuffle; }
+  bool get_supports_shuffle() const { return this->supports_shuffle_; }
+
+  void set_supports_clear_playlist(bool supports_clear_playlist) {
+    this->supports_clear_playlist_ = supports_clear_playlist;
+  }
+  bool get_supports_clear_playlist() const { return this->supports_clear_playlist_; }
+
   std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
 
   uint32_t get_feature_flags() const {
@@ -99,6 +121,18 @@ class MediaPlayerTraits {
     if (this->get_supports_turn_off_on()) {
       flags |= MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON;
     }
+    if (this->get_supports_next_previous()) {
+      flags |= MediaPlayerEntityFeature::NEXT_TRACK | MediaPlayerEntityFeature::PREVIOUS_TRACK;
+    }
+    if (this->get_supports_repeat()) {
+      flags |= MediaPlayerEntityFeature::REPEAT_SET;
+    }
+    if (this->get_supports_shuffle()) {
+      flags |= MediaPlayerEntityFeature::SHUFFLE_SET;
+    }
+    if (this->get_supports_clear_playlist()) {
+      flags |= MediaPlayerEntityFeature::CLEAR_PLAYLIST;
+    }
     return flags;
   }
 
@@ -106,6 +140,10 @@ class MediaPlayerTraits {
   std::vector<MediaPlayerSupportedFormat> supported_formats_{};
   bool supports_pause_{false};
   bool supports_turn_off_on_{false};
+  bool supports_next_previous_{false};
+  bool supports_repeat_{false};
+  bool supports_shuffle_{false};
+  bool supports_clear_playlist_{false};
 };
 
 class MediaPlayerCall {

@@ -66,6 +66,36 @@ TurnOnAction = media_player_ns.class_(
 TurnOffAction = media_player_ns.class_(
     "TurnOffAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
+NextAction = media_player_ns.class_(
+    "NextAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+PreviousAction = media_player_ns.class_(
+    "PreviousAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+MuteAction = media_player_ns.class_(
+    "MuteAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+UnmuteAction = media_player_ns.class_(
+    "UnmuteAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+RepeatOffAction = media_player_ns.class_(
+    "RepeatOffAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+RepeatOneAction = media_player_ns.class_(
+    "RepeatOneAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+RepeatAllAction = media_player_ns.class_(
+    "RepeatAllAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+ShuffleAction = media_player_ns.class_(
+    "ShuffleAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+UnshuffleAction = media_player_ns.class_(
+    "UnshuffleAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+GroupJoinAction = media_player_ns.class_(
+    "GroupJoinAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ON_PLAY = "on_play"
@@ -247,6 +277,32 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "media_player.turn_off", TurnOffAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action("media_player.next", NextAction, MEDIA_PLAYER_ACTION_SCHEMA)
+@automation.register_action(
+    "media_player.previous", PreviousAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action("media_player.mute", MuteAction, MEDIA_PLAYER_ACTION_SCHEMA)
+@automation.register_action(
+    "media_player.unmute", UnmuteAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.repeat_off", RepeatOffAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.repeat_one", RepeatOneAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.repeat_all", RepeatAllAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.shuffle", ShuffleAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.unshuffle", UnshuffleAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.group_join", GroupJoinAction, MEDIA_PLAYER_ACTION_SCHEMA
 )
 async def media_player_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

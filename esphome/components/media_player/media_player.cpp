@@ -60,6 +60,18 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "TURN_ON";
     case MEDIA_PLAYER_COMMAND_TURN_OFF:
       return "TURN_OFF";
+    case MEDIA_PLAYER_COMMAND_NEXT:
+      return "NEXT";
+    case MEDIA_PLAYER_COMMAND_PREVIOUS:
+      return "PREVIOUS";
+    case MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+      return "REPEAT_ALL";
+    case MEDIA_PLAYER_COMMAND_SHUFFLE:
+      return "SHUFFLE";
+    case MEDIA_PLAYER_COMMAND_UNSHUFFLE:
+      return "UNSHUFFLE";
+    case MEDIA_PLAYER_COMMAND_GROUP_JOIN:
+      return "GROUP_JOIN";
     default:
       return "UNKNOWN";
   }
