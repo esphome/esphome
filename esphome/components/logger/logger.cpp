@@ -288,7 +288,10 @@ void Logger::set_log_level(uint8_t level) {
     ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]));
   }
   this->current_level_ = level;
-  this->level_callback_.call(level);
+#ifdef USE_LOGGER_LEVEL_LISTENERS
+  for (auto *listener : this->level_listeners_)
+    listener->on_log_level_change(level);
+#endif
 }
 
 Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
