@@ -3,8 +3,7 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
 #ifdef USE_ESP32
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 static const char *const TAG = "ble_binary_output";
 
@@ -75,6 +74,5 @@ void BLEBinaryOutput::write_state(bool state) {
     ESP_LOGW(TAG, "[%s] Write error, err=%d", this->char_uuid_.to_string().c_str(), err);
 }
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 #endif

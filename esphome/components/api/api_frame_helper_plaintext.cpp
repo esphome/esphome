@@ -210,8 +210,7 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
     return aerr;
   }
 
-  buffer->container = std::move(this->rx_buf_);
-  buffer->data_offset = 0;
+  buffer->data = this->rx_buf_.data();
   buffer->data_len = this->rx_header_parsed_len_;
   buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
