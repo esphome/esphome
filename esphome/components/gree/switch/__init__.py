@@ -5,7 +5,7 @@ from esphome.const import CONF_LIGHT
 import esphome.final_validate as fv
 
 from .. import gree_ns
-from ..climate import CONF_MODEL, MODELS, GreeClimate, Model
+from ..climate import CONF_MODEL, GreeClimate
 
 CODEOWNERS = ["@nagyrobi"]
 
@@ -25,13 +25,10 @@ SWITCH_CONFIGS = (
 )
 
 SUPPORTED_MODELS = {
-    str(x)
-    for x in (
-        Model.GREE_YAN,
-        Model.GREE_YAA,
-        Model.GREE_YAC,
-        Model.GREE_YAC1FB9,
-    )
+    "yan",
+    "yaa",
+    "yac",
+    "yac1fb9",
 }
 
 CONFIG_SCHEMA = cv.Schema(
@@ -51,8 +48,7 @@ def _validate_model(config):
     full_config = fv.full_config.get()
     climate_path = full_config.get_path_for_id(config[CONF_GREE_ID])[:-1]
     climate_conf = full_config.get_config_for_path(climate_path)
-    print(climate_conf[CONF_MODEL])
-    if str(MODELS[climate_conf[CONF_MODEL]]) not in SUPPORTED_MODELS:
+    if climate_conf[CONF_MODEL] not in SUPPORTED_MODELS:
         raise cv.Invalid(
             "Gree switches are only supported for the "
             + ", ".join(SUPPORTED_MODELS)
