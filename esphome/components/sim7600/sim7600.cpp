@@ -203,7 +203,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5'  || message[9] == '6');     
       if (registered) {
         if (!this->registered_) {
-          ESP_LOGD(TAG, "GSM Registered OK");
+          ESP_LOGD(TAG, "GSM registered OK");
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
@@ -217,7 +217,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
 #endif
       } else {
        		if (message[7] == '0') {           // Network registration is disabled, enable it   
-                ESP_LOGD(TAG, " GSM Registration is disabled, enable it");
+                ESP_LOGD(TAG, " GSM registration is disabled, enable it");
                 send_cmd_("AT+CREG=1");                        
                 this->expect_ack_ = true;
                 LAST_CxREG = STATE_CREG;
@@ -229,7 +229,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
                 this->expect_ack_ = true;
               //  break;			
           } else {
-            ESP_LOGD(TAG, "network Registration failed, trying LTE from the beginning");
+            ESP_LOGD(TAG, "network registration failed, trying LTE from the beginning");
             // Keep waiting registration
             LAST_CxREG = STATE_CEREG;                                                 // DCO 20251202
             this->state_ = STATE_INIT;
@@ -251,7 +251,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       bool registered = message.compare(0, 7, "+CEREG:") == 0 && (message[10] == '1' || message[10] == '5'  ||  message[10] == '6');       // DCO 20251202
       if (registered) {
         if (!this->registered_) {
-          ESP_LOGD(TAG, "LTE Registered OK");
+          ESP_LOGD(TAG, "LTE registered OK");
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true,
@@ -265,16 +265,16 @@ void Sim7600Component::parse_cmd_(std::string message) {
 #endif
       } else {
        		if (message[8] == '0') {           // LTE Network registration is disabled, enable it   
-                ESP_LOGD(TAG, "LTE Registration is disabled, enable it");
+                ESP_LOGD(TAG, "LTE registration is disabled, enable it");
                 send_cmd_("AT+CEREG=1");                        
                 this->expect_ack_ = true;
           		  LAST_CxREG = STATE_CEREG;
                 this->state_ = STATE_SETUP_CMGF;
       		//  break;
       		} else if (message[10] == '4')  {          //LTE not available, 
-              //  ESP_LOGD(TAG, "LTE Registration not available (4), trying GPRS mode" ); //trying GSM
+              //  ESP_LOGD(TAG, "LTE registration not available (4), trying GPRS mode" ); //trying GSM
               //  this->state_ = STATE_CREG;
-                ESP_LOGD(TAG, "LTE tegistration not available (4), trying GPRS mode");   //trying GPRS
+                ESP_LOGD(TAG, "LTE registration not available (4), trying GPRS mode");   //trying GPRS
                 this->state_ = STATE_CGREG;
                 this->expect_ack_ = true;
               //  break;			
@@ -303,7 +303,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       bool registered = message.compare(0, 7, "+CGREG:") == 0 && (message[10] == '1' || message[10] == '5' ||  message[10] == '6' );            //  DCO 20251202
       if (registered) {
         if (!this->registered_) {
-          ESP_LOGD(TAG, "GPRS Registered OK");
+          ESP_LOGD(TAG, "GPRS registered OK");
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
@@ -325,9 +325,9 @@ void Sim7600Component::parse_cmd_(std::string message) {
                 this->state_ = STATE_SETUP_CMGF;			
       		//  break;
               } else if (message[10] == '4')  {                               //GPRS not available, trying GSM
-                 ESP_LOGD(TAG, "LTE Registration failed, trying GSM");        //trying GSM
+                 ESP_LOGD(TAG, "LTE registration failed, trying GSM");        //trying GSM
                  this->state_ = STATE_CREG;
-              //   ESP_LOGD(TAG, "GPRS Registration failed, trying LTE");
+              //   ESP_LOGD(TAG, "GPRS registration failed, trying LTE");
               //   this->state_ = STATE_CEREG;
                  this->expect_ack_ = true;
               //  break;
