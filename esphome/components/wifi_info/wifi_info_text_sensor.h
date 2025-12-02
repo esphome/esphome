@@ -6,9 +6,6 @@
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
 #include <array>
-#ifdef USE_ESP32
-#include <esp_wifi.h>
-#endif  // USE_ESP32
 
 namespace esphome::wifi_info {
 
