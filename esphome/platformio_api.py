@@ -114,11 +114,15 @@ FILTER_PLATFORMIO_LINES = [
 class PlatformioLogFilter(logging.Filter):
     """Filter to suppress noisy platformio log messages."""
 
+    _PATTERN = re.compile(
+        r"|".join(r"(?:" + pattern + r")" for pattern in FILTER_PLATFORMIO_LINES)
+    )
+
     def filter(self, record: logging.LogRecord) -> bool:
         # Only filter messages from platformio-related loggers
         if "platformio" not in record.name.lower():
             return True
-        return not any(msg in record.getMessage() for msg in FILTER_PLATFORMIO_LINES)
+        return self._PATTERN.match(record.getMessage()) is None
 
 
 def patch_platformio_logging() -> None:
