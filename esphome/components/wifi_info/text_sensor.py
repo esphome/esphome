@@ -6,9 +6,11 @@ from esphome.const import (
     CONF_DNS_ADDRESS,
     CONF_IP_ADDRESS,
     CONF_MAC_ADDRESS,
+    CONF_POWER_SAVE_MODE,
     CONF_SCAN_RESULTS,
     CONF_SSID,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_WIFI,
 )
 
 DEPENDENCIES = ["wifi"]
@@ -29,6 +31,9 @@ MacAddressWifiInfo = wifi_info_ns.class_(
 )
 DNSAddressWifiInfo = wifi_info_ns.class_(
     "DNSAddressWifiInfo", text_sensor.TextSensor, cg.Component
+)
+PowerSaveModeWiFiInfo = wifi_info_ns.class_(
+    "PowerSaveModeWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
 )
 
 CONFIG_SCHEMA = cv.Schema(
@@ -57,6 +62,14 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_DNS_ADDRESS): text_sensor.text_sensor_schema(
             DNSAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        ).extend(cv.polling_component_schema("1s")),
+        cv.Optional(CONF_POWER_SAVE_MODE): cv.All(
+            text_sensor.text_sensor_schema(
+                PowerSaveModeWiFiInfo,
+                icon=ICON_WIFI,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ).extend(cv.polling_component_schema("1s")),
+            cv.only_on(["esp32"]),
         ),
     }
 )
@@ -90,6 +103,7 @@ async def to_code(config):
         await setup_conf(config, CONF_SCAN_RESULTS)
         wifi.request_wifi_scan_results()
     await setup_conf(config, CONF_DNS_ADDRESS)
+    await setup_conf(config, CONF_POWER_SAVE_MODE)
     if conf := config.get(CONF_IP_ADDRESS):
         wifi_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])
         await cg.register_component(wifi_info, config[CONF_IP_ADDRESS])

@@ -10,9 +10,6 @@
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
-#if defined(USE_WIFI) && defined(USE_ESP32)
-#include <esp_wifi.h>
-#endif
 #endif  // USE_TEXT_SENSOR
 
 namespace esphome {
@@ -28,7 +25,6 @@ class DebugComponent : public PollingComponent {
 #ifdef USE_TEXT_SENSOR
   void set_device_info_sensor(text_sensor::TextSensor *device_info) { device_info_ = device_info; }
   void set_reset_reason_sensor(text_sensor::TextSensor *reset_reason) { reset_reason_ = reset_reason; }
-  void set_wifi_power_save_sensor(text_sensor::TextSensor *wifi_power_save) { wifi_power_save_ = wifi_power_save; }
 #endif  // USE_TEXT_SENSOR
 #ifdef USE_SENSOR
   void set_free_sensor(sensor::Sensor *free_sensor) { free_sensor_ = free_sensor; }
@@ -83,10 +79,6 @@ class DebugComponent : public PollingComponent {
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *device_info_{nullptr};
   text_sensor::TextSensor *reset_reason_{nullptr};
-  text_sensor::TextSensor *wifi_power_save_{nullptr};
-#if defined(USE_WIFI) && defined(USE_ESP32)
-  wifi_ps_type_t last_wifi_ps_mode_{};
-#endif
 #endif  // USE_TEXT_SENSOR
 
   std::string get_reset_reason_();

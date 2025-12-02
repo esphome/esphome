@@ -3,11 +3,9 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE,
-    CONF_POWER_SAVE_MODE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CHIP,
     ICON_RESTART,
-    ICON_WIFI,
 )
 
 from . import CONF_DEBUG_ID, DebugComponent
@@ -27,14 +25,6 @@ CONFIG_SCHEMA = cv.Schema(
             icon=ICON_RESTART,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
-        cv.Optional(CONF_POWER_SAVE_MODE): cv.All(
-            text_sensor.text_sensor_schema(
-                icon=ICON_WIFI,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.only_on(["esp32"]),
-            cv.requires_component("wifi"),
-        ),
     }
 )
 
@@ -48,6 +38,3 @@ async def to_code(config):
     if CONF_RESET_REASON in config:
         sens = await text_sensor.new_text_sensor(config[CONF_RESET_REASON])
         cg.add(debug_component.set_reset_reason_sensor(sens))
-    if CONF_POWER_SAVE_MODE in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_POWER_SAVE_MODE])
-        cg.add(debug_component.set_wifi_power_save_sensor(sens))

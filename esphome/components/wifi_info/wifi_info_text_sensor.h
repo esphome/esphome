@@ -6,6 +6,9 @@
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
 #include <array>
+#ifdef USE_ESP32
+#include <esp_wifi.h>
+#endif  // USE_ESP32
 
 namespace esphome::wifi_info {
 
@@ -73,6 +76,18 @@ class MacAddressWifiInfo final : public Component, public text_sensor::TextSenso
   }
   void dump_config() override;
 };
+
+#ifdef USE_ESP32
+class PowerSaveModeWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
+ public:
+  void update() override;
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  void dump_config() override;
+
+ protected:
+  wifi_ps_type_t last_power_save_mode_{};
+};
+#endif  // USE_ESP32
 
 }  // namespace esphome::wifi_info
 #endif
