@@ -3,8 +3,7 @@
 #include "esphome/components/micronova/micronova.h"
 #include "esphome/components/number/number.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 class MicroNovaNumber : public number::Number, public MicroNovaSensorListener {
  public:
@@ -24,5 +23,4 @@ class MicroNovaNumber : public number::Number, public MicroNovaSensorListener {
   uint8_t memory_write_location_ = 0;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

@@ -19,11 +19,10 @@ constexpr int LOG_LEVEL_TO_SYSLOG_SEVERITY[] = {
     7   // VERY_VERBOSE
 };
 
-void Syslog::setup() {
-  logger::global_logger->add_on_log_callback(
-      [this](int level, const char *tag, const char *message, size_t message_len) {
-        this->log_(level, tag, message, message_len);
-      });
+void Syslog::setup() { logger::global_logger->add_log_listener(this); }
+
+void Syslog::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  this->log_(level, tag, message, message_len);
 }
 
 void Syslog::log_(const int level, const char *tag, const char *message, size_t message_len) const {
