@@ -218,6 +218,10 @@ enum class HystLevel : uint8_t {
 };
 
 struct __attribute__((packed)) CC1101State {
+  // Byte array accessors for bulk SPI transfers
+  uint8_t *regs() { return reinterpret_cast<uint8_t *>(this); }
+  const uint8_t *regs() const { return reinterpret_cast<const uint8_t *>(this); }
+
   // 0x00
   union {
     uint8_t IOCFG2;

@@ -71,10 +71,7 @@ class CC1101Component : public Component,
   float output_power_effective_{10.0f};
   uint8_t pa_table_[8]{};
 
-  union {
-    struct CC1101State state_;
-    uint8_t regs_[sizeof(struct CC1101State)];
-  };
+  CC1101State state_;
 
   // Low-level Helpers
   uint8_t strobe_(Command cmd);

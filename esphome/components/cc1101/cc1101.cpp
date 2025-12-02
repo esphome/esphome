@@ -242,13 +242,13 @@ void CC1101Component::write_(Register reg) {
   uint8_t index = static_cast<uint8_t>(reg);
   this->enable();
   this->write_byte(index);
-  this->transfer_array(&this->regs_[index], 1);
+  this->transfer_array(&this->state_.regs()[index], 1);
   this->disable();
 }
 
 void CC1101Component::write_(Register reg, uint8_t value) {
   uint8_t index = static_cast<uint8_t>(reg);
-  this->regs_[index] = value;
+  this->state_.regs()[index] = value;
   this->write_(reg);
 }
 
@@ -264,7 +264,7 @@ void CC1101Component::read_(Register reg) {
   uint8_t index = static_cast<uint8_t>(reg);
   this->enable();
   this->write_byte(index | BUS_READ | BUS_BURST);
-  this->regs_[index] = this->transfer_byte(0);
+  this->state_.regs()[index] = this->transfer_byte(0);
   this->disable();
 }
 
