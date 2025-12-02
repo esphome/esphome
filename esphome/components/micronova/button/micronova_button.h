@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 class MicroNovaButton : public Component, public button::Button, public MicroNovaButtonListener {
  public:
@@ -19,5 +18,4 @@ class MicroNovaButton : public Component, public button::Button, public MicroNov
   void press_action() override;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

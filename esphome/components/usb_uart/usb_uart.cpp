@@ -2,6 +2,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "usb_uart.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/components/uart/uart_debugger.h"
 
 #include <cinttypes>
@@ -262,6 +263,11 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       // Push to lock-free queue for main loop processing
       // Push always succeeds because pool size == queue size
       this->usb_data_queue_.push(chunk);
+
+      // Wake main loop immediately to process USB data instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+      App.wake_loop_threadsafe();
+#endif
     }
 
     // On success, restart input immediately from USB task for performance

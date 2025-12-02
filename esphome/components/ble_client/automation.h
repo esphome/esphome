@@ -9,8 +9,7 @@
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 // placeholder class for static TAG .
 class Automation {
@@ -198,7 +197,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
         esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
-                   ble_client_->address_str().c_str());
+                   ble_client_->address_str());
         break;
       }
       default:
@@ -391,7 +390,6 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
   BLEClient *ble_client_;
   std::tuple<Ts...> var_{};
 };
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif

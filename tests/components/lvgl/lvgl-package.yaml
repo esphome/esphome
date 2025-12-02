@@ -16,6 +16,18 @@ binary_sensor:
     platform: template
   - id: left_sensor
     platform: template
+  - platform: lvgl
+    id: button_checker
+    name: LVGL button
+    widget: button_button
+    on_state:
+      then:
+        - lvgl.checkbox.update:
+            id: checkbox_id
+            state:
+              checked: !lambda |-
+                  auto y = x; // block inlining of one line return
+                  return y;
 
 lvgl:
   log_level: debug
@@ -415,6 +427,14 @@ lvgl:
               - buttons:
                   - id: button_e
         - button:
+            id: button_with_text
+            text: Button
+            on_click:
+              lvgl.button.update:
+                id: button_with_text
+                text: Clicked
+
+        - button:
             layout: 2x1
             id: button_button
             width: 20%
@@ -537,6 +557,9 @@ lvgl:
         - tileview:
             id: tileview_id
             scrollbar_mode: active
+            scroll_dir: all
+            scroll_elastic: true
+            scroll_momentum: true
             on_value:
               then:
                 - if:
@@ -546,7 +569,10 @@ lvgl:
                       - logger.log: "tile 1 is now showing"
             tiles:
               - id: tile_1
+                scroll_snap_y: center
+                scroll_snap_x: start
                 layout: vertical
+                pad_all: 6px
                 row: 0
                 column: 0
                 dir: ALL
@@ -1044,6 +1070,7 @@ lvgl:
                                 opa: 0%
     - id: page3
       layout: Horizontal
+      pad_all: 6px
       widgets:
         - keyboard:
             id: lv_keyboard
