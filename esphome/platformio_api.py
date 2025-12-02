@@ -125,23 +125,6 @@ class PlatformioLogFilter(logging.Filter):
         return self._PATTERN.match(record.getMessage()) is None
 
 
-def patch_platformio_logging() -> None:
-    """Add filter to root logger handlers to suppress noisy platformio messages."""
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers:
-        if not any(isinstance(f, PlatformioLogFilter) for f in handler.filters):
-            handler.addFilter(PlatformioLogFilter())
-
-
-def unpatch_platformio_logging() -> None:
-    """Remove platformio log filter from root logger handlers."""
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers:
-        for f in handler.filters[:]:  # Copy list to avoid mutation during iteration
-            if isinstance(f, PlatformioLogFilter):
-                handler.removeFilter(f)
-
-
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
@@ -162,13 +145,18 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
 
     patch_structhash()
     patch_file_downloader()
-    if not CORE.verbose:
-        patch_platformio_logging()
+
+    # Add log filter to suppress noisy platformio messages
+    log_filter = PlatformioLogFilter() if not CORE.verbose else None
+    if log_filter:
+        for handler in logging.getLogger().handlers:
+            handler.addFilter(log_filter)
     try:
         return run_external_command(platformio.__main__.main, *cmd, **kwargs)
     finally:
-        if not CORE.verbose:
-            unpatch_platformio_logging()
+        if log_filter:
+            for handler in logging.getLogger().handlers:
+                handler.removeFilter(log_filter)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
