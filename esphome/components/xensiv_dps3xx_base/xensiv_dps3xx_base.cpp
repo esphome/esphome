@@ -57,6 +57,41 @@ void XensivDPS3xx::setup() {
     this->mark_failed();
     return;
   }
+
+  // Configure interrupts if pin is provided
+  if (this->interrupt_pin_ != nullptr) {
+    // Setup GPIO interrupt pin first
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+    this->interrupt_pin_->attach_interrupt(XensivDPS3xx::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+
+    // Get current configuration
+    xensiv_dps3xx_config_t config;
+    result = xensiv_dps3xx_get_config(&this->dps_obj_, &config);
+
+    if (result == CY_RSLT_SUCCESS) {
+      ESP_LOGD(TAG, "Current mode: 0x%02X, interrupts: 0x%02X", config.dev_mode, config.interrupt_triggers);
+
+      // Enable interrupts for both pressure and temperature measurements
+      // SDO pin is pulled high (for I2C address 0x77), so interrupt is active LOW
+      // XENSIV_DPS3XX_INT_HL bit should be 0 for active low (default)
+      config.interrupt_triggers = static_cast<xensiv_dps3xx_interrupt_t>(XENSIV_DPS3XX_INT_PRS | XENSIV_DPS3XX_INT_TMP);
+      // Keep the sensor in idle mode for single-shot measurements
+      config.dev_mode = XENSIV_DPS3XX_MODE_IDLE;
+
+      result = xensiv_dps3xx_set_config(&this->dps_obj_, &config);
+
+      if (result != CY_RSLT_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to configure interrupts: 0x%08X", result);
+        this->failure_reason_ += "Failed to configure interrupts;";
+        this->mark_failed();
+        return;
+      }
+      ESP_LOGD(TAG, "Interrupts enabled: PRS | TMP (active LOW)");
+    } else {
+      ESP_LOGE(TAG, "Failed to get config: 0x%08X", result);
+    }
+  }
 }
 
 void XensivDPS3xx::loop() {
@@ -64,6 +99,7 @@ void XensivDPS3xx::loop() {
   if (this->data_ready_) {
     this->data_ready_ = false;  // Clear flag
     // TODO: Read sensor data
+    ESP_LOGW(TAG, "Data ready interrupt received - reading sensor data not yet implemented");
   }
 }
 
@@ -76,9 +112,29 @@ bool XensivDPS3xx::test_scratch_register_() {
 }
 
 bool XensivDPS3xx::measure_now() {
-  // TODO: Implement measurement trigger
-  ESP_LOGD(TAG, "Starting measurement");
-  return true;
+  // Get current configuration
+  xensiv_dps3xx_config_t config;
+  cy_rslt_t result = xensiv_dps3xx_get_config(&this->dps_obj_, &config);
+
+  if (result != CY_RSLT_SUCCESS) {
+    ESP_LOGE(TAG, "Failed to get config in measure_now: 0x%08X", result);
+    return false;
+  }
+
+  ESP_LOGD(TAG, "Starting single-shot measurement (current interrupts: 0x%02X)", config.interrupt_triggers);
+
+  // Trigger single-shot pressure measurement
+  // Note: The interrupt configuration is preserved when changing the mode
+  config.dev_mode = XENSIV_DPS3XX_MODE_COMMAND_PRESSURE;
+  result = xensiv_dps3xx_set_config(&this->dps_obj_, &config);
+
+  if (result == CY_RSLT_SUCCESS) {
+    ESP_LOGD(TAG, "Single-shot pressure measurement triggered successfully");
+  } else {
+    ESP_LOGE(TAG, "Failed to start pressure measurement: 0x%08X", result);
+  }
+
+  return result == CY_RSLT_SUCCESS;
 }
 
 void XensivDPS3xx::dump_config() {
