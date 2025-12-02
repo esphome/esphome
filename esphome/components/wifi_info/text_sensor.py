@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_SCAN_RESULTS,
     CONF_SSID,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_WIFI,
 )
 
 DEPENDENCIES = ["wifi"]
@@ -66,7 +65,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_POWER_SAVE_MODE): cv.All(
             text_sensor.text_sensor_schema(
                 PowerSaveModeWiFiInfo,
-                icon=ICON_WIFI,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ).extend(cv.polling_component_schema("60s")),
             cv.only_on(["esp32"]),
