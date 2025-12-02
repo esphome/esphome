@@ -104,6 +104,9 @@ void SPS30Component::dump_config() {
                 "  Serial number: %s\n"
                 "  Firmware version v%0d.%0d",
                 this->serial_number_, this->raw_firmware_version_ >> 8, this->raw_firmware_version_ & 0xFF);
+  if (this->idle_interval_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Idle interval: %us", this->idle_interval_.value() / 1000);
+  }
   LOG_SENSOR("  ", "PM1.0 Weight Concentration", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5 Weight Concentration", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM4 Weight Concentration", this->pm_4_0_sensor_);
@@ -148,7 +151,8 @@ void SPS30Component::update() {
       this->start_measurement();
       return;
     case IDLE:
-    // Idle happens at the end of reading, so go through another read.
+    // IDLE only occurs at the top of the update loop if a previous READ returned without finishing a reading,
+    // so fall into the same logic as READ.
     case READ:
       if (this->idle_interval_.has_value()) {
         this->next_state_ = IDLE;
@@ -265,6 +269,7 @@ bool SPS30Component::start_measurement() { return start_continuous_measurement_(
 bool SPS30Component::stop_measurement() {
   if (!write_command(SPS30_CMD_STOP_MEASUREMENTS)) {
     ESP_LOGE(TAG, "Error stopping measurements");
+    return false;
   } else {
     ESP_LOGD(TAG, "Stopped measurements");
     // Exit the state machine if measurement is stopped.
