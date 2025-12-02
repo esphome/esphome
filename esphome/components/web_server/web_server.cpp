@@ -41,6 +41,10 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
+// Longest: HORIZONTAL (10 chars + null terminator, rounded up)
+static constexpr size_t PSTR_LOCAL_SIZE = 16;
+#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
+
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
 static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
@@ -908,7 +912,8 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
   set_json_icon_state_value(root, obj, "cover", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
+  char buf[PSTR_LOCAL_SIZE];
+  root["current_operation"] = PSTR_LOCAL(cover::cover_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root["position"] = obj->position;
@@ -1271,9 +1276,6 @@ std::string WebServer::select_json(select::Select *obj, const char *value, JsonD
   return builder.serialize();
 }
 #endif
-
-// Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), 15)
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
