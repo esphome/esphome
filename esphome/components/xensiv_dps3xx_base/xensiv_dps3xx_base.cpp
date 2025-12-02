@@ -38,27 +38,11 @@ cy_rslt_t XensivDPS3xx::i2c_write_wrapper(void *context, uint16_t timeout, uint8
 
 // Static delay wrapper
 cy_rslt_t XensivDPS3xx::delay_wrapper(uint32_t ms) {
-  // Use yield() to prevent watchdog timeouts during delays
-  // uint32_t start = millis();
-  // while (millis() - start < ms) {
-  //   yield();
-  // }
   delay(ms);
   return CY_RSLT_SUCCESS;
 }
 
 void XensivDPS3xx::setup() {
-  // Test basic I2C communication first
-  uint8_t test_data;
-  if (!this->read_bytes(0x0D, &test_data, 1)) {  // Try reading Product ID register
-    this->failure_reason_ += "I2C communication failed;";
-    this->mark_failed();
-    return;
-  }
-
-  // Initialize dps_obj_ structure to zero
-  memset(&this->dps_obj_, 0, sizeof(this->dps_obj_));
-
   // Setup I2C communication functions
   xensiv_dps3xx_i2c_comm_t comm = {.read = XensivDPS3xx::i2c_read_wrapper,
                                    .write = XensivDPS3xx::i2c_write_wrapper,
