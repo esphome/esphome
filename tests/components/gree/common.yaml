@@ -2,7 +2,7 @@ climate:
   - platform: gree
     name: GREE
     id: my_gree_ac
-    model: yan
+    model: YAN
     transmitter_id: xmitr
 
 switch:

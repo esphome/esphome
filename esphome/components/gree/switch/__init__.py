@@ -1,9 +1,7 @@
-from const import DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
-
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_LIGHT
+from esphome.const import CONF_LIGHT, DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
 import esphome.final_validate as fv
 
 from .. import gree_ns
