@@ -62,7 +62,8 @@ void HistoryData::recalc_minmax() {
 void HistoryData::set_sample_at_index(int idx, float value) {
   if (idx >= 0 && idx < this->length_) {
     this->samples_[idx] = value;
-    ESP_LOGI(TAG, "Set sample at index %d to value: %f", idx, value);
+    ESP_LOGD(TAG, "Set sample at index %d to value: %f", idx, value);
+    this->recalc_minmax();
   }
 }
 
