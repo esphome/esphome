@@ -25,6 +25,7 @@ from .const import (
     CHIP_800KBPS,
     CHIP_APA106,
     CHIP_DOTSTAR,
+    CHIP_HD108,
     CHIP_LC8812,
     CHIP_LPD6803,
     CHIP_LPD8806,
@@ -336,6 +337,7 @@ def _spi_to_code(config, chip: str, inverted: bool):
         CHIP_LPD8806: neo_ns.Lpd8806MethodBase,
         CHIP_WS2801: neo_ns.Ws2801MethodBase,
         CHIP_P9813: neo_ns.P9813MethodBase,
+        CHIP_HD108: neo_ns.Hd108MethodBase,
     }[chip]
     return chip_method_base.template(spi_imple.template(spi_speed))
 
