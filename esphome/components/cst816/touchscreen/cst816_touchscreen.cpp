@@ -22,7 +22,7 @@ void CST816Touchscreen::continue_setup_() {
         if (this->read_byte(REG_CHIP_TYPE, &this->chip_type_)) {
           switch (this->chip_type_) {
             case CST826_CHIP_ID:
-            case CST846_CHIP_ID:
+            case CST836_CHIP_ID:
               break;
             default:
               ESP_LOGE(TAG, "Unknown chip type: 0x%02X", this->chip_type_);
@@ -122,7 +122,7 @@ void CST816Touchscreen::dump_config() {
           case CST826_CHIP_ID:
             name = "CST826";
             break;
-          case CST846_CHIP_ID:
+          case CST836_CHIP_ID:
             name = "CST836";
             break;
         }
