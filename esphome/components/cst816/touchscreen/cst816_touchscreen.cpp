@@ -9,14 +9,32 @@ void CST816Touchscreen::continue_setup_() {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
+
   if (this->read_byte(REG_CHIP_ID, &this->chip_id_)) {
     switch (this->chip_id_) {
       case CST820_CHIP_ID:
-      case CST826_CHIP_ID:
       case CST716_CHIP_ID:
       case CST816S_CHIP_ID:
       case CST816D_CHIP_ID:
       case CST816T_CHIP_ID:
+        break;
+      case 0x00:
+        if (this->read_byte(REG_CHIP_TYPE, &this->chip_type_)) {
+          switch (this->chip_type_) {
+            case CST826_CHIP_ID:
+            case CST846_CHIP_ID:
+              break;
+            default:
+              ESP_LOGE(TAG, "Unknown chip type: 0x%02X", this->chip_type_);
+              this->status_set_error(LOG_STR("Unknown chip type"));
+              this->mark_failed();
+              return;
+          }
+        } else if (!this->skip_probe_) {
+          this->status_set_error(LOG_STR("Failed to read chip type"));
+          this->mark_failed();
+          return;
+        }
         break;
       default:
         ESP_LOGE(TAG, "Unknown chip ID: 0x%02X", this->chip_id_);
@@ -97,6 +115,18 @@ void CST816Touchscreen::dump_config() {
       break;
     case CST816T_CHIP_ID:
       name = "CST816T";
+      break;
+    case 0x00:
+      if (this->chip_type_) {
+        switch (this->chip_type_) {
+          case CST826_CHIP_ID:
+            name = "CST826";
+            break;
+          case CST846_CHIP_ID:
+            name = "CST836";
+            break;
+        }
+      }
       break;
     default:
       name = "Unknown";
