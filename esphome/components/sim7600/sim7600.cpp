@@ -206,7 +206,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       this->state_ = STATE_CREG_WAIT;
       break;
     
-    case STATE_CREG_WAIT:
+    case STATE_CREG_WAIT:{
       // Response: "+CREG: 0,1" -- the one there means registered ok
       //           "+CREG: *,4" means LTE (4G/5G) not available, try GPRS (3G)
       //           "+CREG: -,-" means not registered ok
