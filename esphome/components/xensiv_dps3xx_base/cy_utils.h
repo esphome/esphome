@@ -66,6 +66,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+namespace esphome {
+namespace xensiv_dps3xx_base {
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -498,5 +501,8 @@ void CY_ASSERT_HANDLER(void);
 #ifdef __cplusplus
 }
 #endif
+
+}  // namespace xensiv_dps3xx_base
+}  // namespace esphome
 
 /** \} group_utils */

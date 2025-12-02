@@ -1,5 +1,6 @@
 #include "esphome/core/log.h"
 #include "xensiv_dps3xx_base.h"
+#include <cstring>
 
 namespace esphome {
 namespace xensiv_dps3xx_base {
@@ -12,7 +13,7 @@ cy_rslt_t XensivDPS3xx::i2c_read_wrapper(void *context, uint16_t timeout, uint8_
   if (self->read_bytes(reg_adr, data, length)) {
     return CY_RSLT_SUCCESS;
   }
-  return CY_RSLT_TYPE_ERROR;
+  return CY_RSLT_CREATE(CY_RSLT_TYPE_ERROR, CY_RSLT_MODULE_BOARD_HARDWARE_DPS3XX, 1);
 }
 
 // Static I2C write wrapper
@@ -27,22 +28,36 @@ cy_rslt_t XensivDPS3xx::i2c_write_wrapper(void *context, uint16_t timeout, uint8
     // For multi-byte writes, write each byte individually
     for (uint8_t i = 0; i < length; i++) {
       if (!self->write_byte(reg_adr + i, data[i])) {
-        return CY_RSLT_TYPE_ERROR;
+        return CY_RSLT_CREATE(CY_RSLT_TYPE_ERROR, CY_RSLT_MODULE_BOARD_HARDWARE_DPS3XX, 2);
       }
     }
     return CY_RSLT_SUCCESS;
   }
-  return CY_RSLT_TYPE_ERROR;
+  return CY_RSLT_CREATE(CY_RSLT_TYPE_ERROR, CY_RSLT_MODULE_BOARD_HARDWARE_DPS3XX, 2);
 }
 
 // Static delay wrapper
 cy_rslt_t XensivDPS3xx::delay_wrapper(uint32_t ms) {
+  // Use yield() to prevent watchdog timeouts during delays
+  // uint32_t start = millis();
+  // while (millis() - start < ms) {
+  //   yield();
+  // }
   delay(ms);
   return CY_RSLT_SUCCESS;
 }
 
 void XensivDPS3xx::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up XensivDPS3xx component");
+  // Test basic I2C communication first
+  uint8_t test_data;
+  if (!this->read_bytes(0x0D, &test_data, 1)) {  // Try reading Product ID register
+    this->failure_reason_ += "I2C communication failed;";
+    this->mark_failed();
+    return;
+  }
+
+  // Initialize dps_obj_ structure to zero
+  memset(&this->dps_obj_, 0, sizeof(this->dps_obj_));
 
   // Setup I2C communication functions
   xensiv_dps3xx_i2c_comm_t comm = {.read = XensivDPS3xx::i2c_read_wrapper,
@@ -52,14 +67,12 @@ void XensivDPS3xx::setup() {
 
   // Initialize the DPS3xx sensor
   cy_rslt_t result = xensiv_dps3xx_init_i2c(&this->dps_obj_, &comm, this->i2c_addr_);
+
   if (result != CY_RSLT_SUCCESS) {
-    ESP_LOGE(TAG, "Failed to initialize DPS3xx sensor: 0x%08X", result);
     this->failure_reason_ += "Failed to initialize DPS3xx sensor;";
     this->mark_failed();
     return;
   }
-
-  ESP_LOGCONFIG(TAG, "Sensor initialized successfully");
 }
 
 void XensivDPS3xx::loop() {

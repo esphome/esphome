@@ -24,7 +24,7 @@ class XensivDPS3xx : public Component {
   uint16_t version_{2};
   // int16_t sensor_rate_{10};               // Default rate in seconds
 
-  xensiv_dps3xx_t dps_obj_;  // DPS3xx sensor object
+  xensiv_dps3xx_t dps_obj_{};  // DPS3xx sensor object (zero-initialized)
   xensiv_dps3xx_i2c_addr_t i2c_addr_{XENSIV_DPS3XX_I2C_ADDR_DEFAULT};
 
   static void gpio_intr(XensivDPS3xx *arg);

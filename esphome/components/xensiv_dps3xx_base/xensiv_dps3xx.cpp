@@ -276,7 +276,7 @@ cy_float32_t _xensiv_dps3xx_calc_pressure(xensiv_dps3xx_t *obj, int32_t press_ra
     press_raw -= POW_2_24;
   }
 
-  cy_float32_t press_scaled = (cy_float32_t) press_raw / obj->prs_osr_scale_coeff;
+  cy_float32_t press_scaled = (cy_float32_t) press_raw / (cy_float32_t) obj->prs_osr_scale_coeff;
   int64_t c00 = obj->calib_coeffs.C00;
   int64_t c10 = obj->calib_coeffs.C10;
   int64_t c20 = obj->calib_coeffs.C20;
@@ -543,7 +543,7 @@ cy_rslt_t xensiv_dps3xx_init_i2c(xensiv_dps3xx_t *obj, const xensiv_dps3xx_i2c_c
     }
     obj->comm.delay(10);
     timeout -= 10;
-  } while (0L >= timeout);
+  } while (0L < timeout);
 
   // read calibration coefficients
   if (rc == CY_RSLT_SUCCESS) {

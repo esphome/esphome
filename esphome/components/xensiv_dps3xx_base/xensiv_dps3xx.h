@@ -89,6 +89,9 @@
 #include "cy_result.h"
 #include "cy_utils.h"
 
+namespace esphome {
+namespace xensiv_dps3xx_base {
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -109,16 +112,15 @@ typedef cy_rslt_t (*xensiv_dps3xx_i2c_write_t)(void *context, uint16_t timeout, 
 /** Function pointer for delay operations */
 typedef cy_rslt_t (*xensiv_dps3xx_delay_t)(uint32_t ms);
 
-#ifdef __cplusplus
-}
-#endif
+// this is old and backup
+//   #ifdef __cplusplus
+// }
+// #endif
+// and here the namespaces
 
-namespace esphome {
-namespace xensiv_dps3xx_base {
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
 
 /** Possible I2C addresses to communicate with the device */
 typedef enum {
