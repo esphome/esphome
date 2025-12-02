@@ -5,8 +5,7 @@
 #include <vector>
 #include "../uart.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 /**
  * A transport protocol for sending and receiving packets over a UART connection.
@@ -37,5 +36,4 @@ class UARTTransport : public packet_transport::PacketTransport, public UARTDevic
   bool rx_control_{};
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

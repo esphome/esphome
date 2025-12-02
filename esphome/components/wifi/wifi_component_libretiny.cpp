@@ -50,7 +50,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
 
   if (!ret) {
     ESP_LOGW(TAG, "Setting mode failed");
+    return false;
   }
+
+  this->ap_started_ = enable_ap;
 
   return ret;
 }
