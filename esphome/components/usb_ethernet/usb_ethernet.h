@@ -27,6 +27,7 @@ class USBEthernetComponent : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
+  float get_setup_priority() const override;
 
   // "Network backend" interface, modeled after EthernetComponent
   bool is_connected();
@@ -53,7 +54,7 @@ class USBEthernetComponent : public Component {
   void set_link_up(bool up) { this->link_up_ = up; }
   void set_has_ip(bool has_ip);
   void set_primary_ip(const network::IPAddress &ip);
-
+  
   /// Apply manual IP configuration (called from event handler)
   void apply_manual_ip();
 
