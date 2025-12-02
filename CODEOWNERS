@@ -21,6 +21,7 @@ esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
 esphome/components/ade7880/* @kpfleming
 esphome/components/ade7953/* @angelnu
+esphome/components/ade7953_base/* @angelnu
 esphome/components/ade7953_i2c/* @angelnu
 esphome/components/ade7953_spi/* @angelnu
 esphome/components/ads1118/* @solomondg1
@@ -484,6 +485,7 @@ esphome/components/template/datetime/* @rfdarter
 esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
+esphome/components/thermopro_ble/* @sittner
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @esphome/core
 esphome/components/tinyusb/* @kbx81

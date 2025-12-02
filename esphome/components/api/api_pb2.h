@@ -51,6 +51,7 @@ enum SensorStateClass : uint32_t {
   STATE_CLASS_MEASUREMENT = 1,
   STATE_CLASS_TOTAL_INCREASING = 2,
   STATE_CLASS_TOTAL = 3,
+  STATE_CLASS_MEASUREMENT_ANGLE = 4,
 };
 #endif
 enum LogLevel : uint32_t {
@@ -793,7 +794,7 @@ class ListEntitiesLightResponse final : public InfoResponseProtoMessage {
   const light::ColorModeMask *supported_color_modes{};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
-  std::vector<std::string> effects{};
+  const FixedVector<const char *> *effects{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

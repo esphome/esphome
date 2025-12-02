@@ -242,6 +242,9 @@ template<typename T> class FixedVector {
     other.reset_();
   }
 
+  // Allow conversion to std::vector
+  operator std::vector<T>() const { return {data_, data_ + size_}; }
+
   FixedVector &operator=(FixedVector &&other) noexcept {
     if (this != &other) {
       // Delete our current data
@@ -511,6 +514,17 @@ std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, .
 /// @param suffix_len Length of the suffix
 /// @return The concatenated string: name + sep + suffix
 std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len);
+
+/// Optimized string concatenation: name + separator + suffix (const char* overload)
+/// Uses a fixed stack buffer to avoid heap allocations.
+/// @param name The base name string
+/// @param name_len Length of the name
+/// @param sep Single character separator
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return The concatenated string: name + sep + suffix
+std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
+                                  size_t suffix_len);
 
 ///@}
 

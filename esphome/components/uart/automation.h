@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Parented<UARTComponent> {
  public:
@@ -41,5 +40,4 @@ template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Pa
   } code_;
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

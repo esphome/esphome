@@ -179,6 +179,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_TOTAL_INCREASING";
     case enums::STATE_CLASS_TOTAL:
       return "STATE_CLASS_TOTAL";
+    case enums::STATE_CLASS_MEASUREMENT_ANGLE:
+      return "STATE_CLASS_MEASUREMENT_ANGLE";
     default:
       return "UNKNOWN";
   }
@@ -924,7 +926,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "min_mireds", this->min_mireds);
   dump_field(out, "max_mireds", this->max_mireds);
-  for (const auto &it : this->effects) {
+  for (const auto &it : *this->effects) {
     dump_field(out, "effects", it, 4);
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);

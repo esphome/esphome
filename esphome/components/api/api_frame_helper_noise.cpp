@@ -407,8 +407,7 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
     return APIError::BAD_DATA_PACKET;
   }
 
-  buffer->container = std::move(this->rx_buf_);
-  buffer->data_offset = 4;
+  buffer->data = msg_data + 4;  // Skip 4-byte header (type + length)
   buffer->data_len = data_len;
   buffer->type = type;
   return APIError::OK;
@@ -528,7 +527,7 @@ APIError APINoiseFrameHelper::init_handshake_() {
   if (aerr != APIError::OK)
     return aerr;
 
-  const auto &psk = ctx_->get_psk();
+  const auto &psk = this->ctx_.get_psk();
   err = noise_handshakestate_set_pre_shared_key(handshake_, psk.data(), psk.size());
   aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_set_pre_shared_key"),
                              APIError::HANDSHAKESTATE_SETUP_FAILED);
