@@ -691,27 +691,21 @@ def test_platformio_log_filter_allows_non_platformio_messages() -> None:
 @pytest.mark.parametrize(
     "msg",
     [
-        pytest.param(
-            "Verbose mode can be enabled via `-v, --verbose` option", id="verbose_mode"
-        ),
-        pytest.param("Found 5 compatible libraries", id="found_5_libs"),
-        pytest.param("Found 123 compatible libraries", id="found_123_libs"),
-        pytest.param("Building in release mode", id="release_mode"),
-        pytest.param("Building in debug mode", id="debug_mode"),
-        pytest.param("Merged 2 ELF section", id="merged_elf"),
-        pytest.param("esptool.py v4.7.0", id="esptool_py"),
-        pytest.param("esptool v4.8.1", id="esptool"),
-        pytest.param("PLATFORM: espressif32 @ 6.4.0", id="platform"),
-        pytest.param("Using cache: /path/to/cache", id="cache"),
-        pytest.param("Package configuration completed successfully", id="pkg_config"),
-        pytest.param("Scanning dependencies...", id="scanning_deps"),
-        pytest.param("Installing dependencies", id="installing_deps"),
-        pytest.param(
-            "Library Manager: Already installed, built-in library", id="lib_manager"
-        ),
-        pytest.param(
-            "Memory Usage -> https://bit.ly/pio-memory-usage", id="memory_usage"
-        ),
+        "Verbose mode can be enabled via `-v, --verbose` option",
+        "Found 5 compatible libraries",
+        "Found 123 compatible libraries",
+        "Building in release mode",
+        "Building in debug mode",
+        "Merged 2 ELF section",
+        "esptool.py v4.7.0",
+        "esptool v4.8.1",
+        "PLATFORM: espressif32 @ 6.4.0",
+        "Using cache: /path/to/cache",
+        "Package configuration completed successfully",
+        "Scanning dependencies...",
+        "Installing dependencies",
+        "Library Manager: Already installed, built-in library",
+        "Memory Usage -> https://bit.ly/pio-memory-usage",
     ],
 )
 def test_platformio_log_filter_blocks_noisy_messages(msg: str) -> None:
@@ -732,10 +726,10 @@ def test_platformio_log_filter_blocks_noisy_messages(msg: str) -> None:
 @pytest.mark.parametrize(
     "msg",
     [
-        pytest.param("Compiling .pio/build/test/src/main.cpp.o", id="compiling"),
-        pytest.param("Linking .pio/build/test/firmware.elf", id="linking"),
-        pytest.param("Error: something went wrong", id="error"),
-        pytest.param("warning: unused variable", id="warning"),
+        "Compiling .pio/build/test/src/main.cpp.o",
+        "Linking .pio/build/test/firmware.elf",
+        "Error: something went wrong",
+        "warning: unused variable",
     ],
 )
 def test_platformio_log_filter_allows_other_platformio_messages(msg: str) -> None:
@@ -756,9 +750,9 @@ def test_platformio_log_filter_allows_other_platformio_messages(msg: str) -> Non
 @pytest.mark.parametrize(
     "logger_name",
     [
-        pytest.param("PLATFORMIO.builder", id="upper"),
-        pytest.param("PlatformIO.core", id="mixed"),
-        pytest.param("platformio.run", id="lower"),
+        "PLATFORMIO.builder",
+        "PlatformIO.core",
+        "platformio.run",
     ],
 )
 def test_platformio_log_filter_case_insensitive_logger_name(logger_name: str) -> None:
