@@ -365,8 +365,10 @@ async def to_code(config):
     if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
     try:
         uart_selection(USB_SERIAL_JTAG)
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
@@ -403,6 +405,8 @@ async def to_code(config):
             ],
             conf,
         )
+
+    CORE.add_job(final_step)
 
 
 def validate_printf(value):
@@ -504,3 +508,24 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# Keys for CORE.data storage
+DOMAIN = "logger"
+KEY_LEVEL_LISTENERS = "level_listeners"
+
+
+def request_logger_level_listeners() -> None:
+    """Request that logger level listeners be compiled in.
+
+    Components that need to be notified about log level changes should call this
+    function during their code generation. This enables the add_level_listener()
+    method and compiles in the listener vector.
+    """
+    CORE.data.setdefault(DOMAIN, {})[KEY_LEVEL_LISTENERS] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional logger features."""
+    if CORE.data.get(DOMAIN, {}).get(KEY_LEVEL_LISTENERS, False):
+        cg.add_define("USE_LOGGER_LEVEL_LISTENERS")

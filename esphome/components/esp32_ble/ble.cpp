@@ -256,29 +256,38 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-  std::string name;
-  if (this->name_.has_value()) {
-    name = this->name_.value();
+  const char *device_name;
+  std::string name_with_suffix;
+
+  if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
+      // MAC address length: 12 hex chars + null terminator
+      constexpr size_t mac_address_len = 13;
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
       constexpr size_t mac_address_suffix_len = 6;
-      const std::string mac_addr = get_mac_address();
-      const char *mac_suffix_ptr = mac_addr.c_str() + mac_address_suffix_len;
-      name = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
+      char mac_addr[mac_address_len];
+      get_mac_address_into_buffer(mac_addr);
+      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
+      name_with_suffix =
+          make_name_with_suffix(this->name_, strlen(this->name_), '-', mac_suffix_ptr, mac_address_suffix_len);
+      device_name = name_with_suffix.c_str();
+    } else {
+      device_name = this->name_;
     }
   } else {
-    name = App.get_name();
-    if (name.length() > 20) {
+    name_with_suffix = App.get_name();
+    if (name_with_suffix.length() > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
         // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
-        name.erase(13, name.length() - 20);
+        name_with_suffix.erase(13, name_with_suffix.length() - 20);
       } else {
-        name.resize(20);
+        name_with_suffix.resize(20);
       }
     }
+    device_name = name_with_suffix.c_str();
   }
 
-  err = esp_ble_gap_set_device_name(name.c_str());
+  err = esp_ble_gap_set_device_name(device_name);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
     return false;
@@ -634,11 +643,13 @@ void ESP32BLE::dump_config() {
         io_capability_s = "invalid";
         break;
     }
+    char mac_s[18];
+    format_mac_addr_upper(mac_address, mac_s);
     ESP_LOGCONFIG(TAG,
                   "BLE:\n"
                   "  MAC address: %s\n"
                   "  IO Capability: %s",
-                  format_mac_address_pretty(mac_address).c_str(), io_capability_s);
+                  mac_s, io_capability_s);
   } else {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
