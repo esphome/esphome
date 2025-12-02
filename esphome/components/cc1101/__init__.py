@@ -201,7 +201,7 @@ async def to_code(config):
 
 # Actions
 BeginTxAction = ns.class_("BeginTxAction", automation.Action)
-EndTxAction = ns.class_("EndTxAction", automation.Action)
+BeginRxAction = ns.class_("BeginRxAction", automation.Action)
 ResetAction = ns.class_("ResetAction", automation.Action)
 SetIdleAction = ns.class_("SetIdleAction", automation.Action)
 
@@ -211,7 +211,7 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action("cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.end_tx", EndTxAction, CC1101_ACTION_SCHEMA)
+@automation.register_action("cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA)
 @automation.register_action("cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA)
 @automation.register_action("cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA)
 async def cc1101_action_to_code(config, action_id, template_arg, args):

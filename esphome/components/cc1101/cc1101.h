@@ -19,7 +19,7 @@ class CC1101Component : public Component,
 
   // Actions
   void begin_tx();
-  void end_tx();
+  void begin_rx();
   void reset();
   void set_idle();
 
@@ -92,9 +92,9 @@ template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Pare
   void play(Ts... x) override { this->parent_->begin_tx(); }
 };
 
-template<typename... Ts> class EndTxAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class BeginRxAction : public Action<Ts...>, public Parented<CC1101Component> {
  public:
-  void play(Ts... x) override { this->parent_->end_tx(); }
+  void play(Ts... x) override { this->parent_->begin_rx(); }
 };
 
 template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<CC1101Component> {

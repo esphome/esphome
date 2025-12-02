@@ -177,7 +177,7 @@ void CC1101Component::begin_tx() {
   }
 }
 
-void CC1101Component::end_tx() {
+void CC1101Component::begin_rx() {
   ESP_LOGV(TAG, "Ending TX sequence");
 
   // 1. Return to RX Mode
