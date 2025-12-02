@@ -1,10 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.esp32 import get_esp32_variant, gpio
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    get_esp32_variant,
+    gpio,
 )
 import esphome.config_validation as cv
 from esphome.const import (

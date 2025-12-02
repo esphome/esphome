@@ -6,7 +6,7 @@ import pytest
 import voluptuous as vol
 
 from esphome import config_validation
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
@@ -221,7 +221,7 @@ def hex_int__valid(value):
     ],
 )
 def test_split_default(framework, platform, variant, full, idf, arduino, simple):
-    from esphome.components.esp32.const import KEY_ESP32
+    from esphome.components.esp32 import KEY_ESP32
     from esphome.const import (
         KEY_CORE,
         KEY_TARGET_FRAMEWORK,
