@@ -20,17 +20,17 @@ from esphome.const import (
     CONF_MINUTE,
     CONF_MODE,
     CONF_NUMBER,
-    CONF_PINS,
     CONF_PIN,
+    CONF_PINS,
     CONF_RUN_DURATION,
     CONF_SECOND,
     CONF_SLEEP_DURATION,
     CONF_TIME_ID,
     CONF_WAKEUP_PIN,
     CONF_WAKEUP_PINS,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
     PlatformFramework,
 )
 
@@ -221,7 +221,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.Schema(
                     {
                         cv.Required(CONF_PINS): cv.ensure_list(
-                            pins.internal_gpio_input_pin_schema, validate_pin_number_esp32
+                            pins.internal_gpio_input_pin_schema,
+                            validate_pin_number_esp32,
                         ),
                         cv.Required(CONF_MODE): cv.All(
                             cv.enum(EXT1_WAKEUP_MODES, upper=True),
