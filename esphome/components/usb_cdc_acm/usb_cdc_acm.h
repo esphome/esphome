@@ -51,9 +51,8 @@ struct CDCEvent {
 class USBCDCACMComponent;
 
 /// Represents a single CDC ACM interface instance
-class USBCDCACMInstance : public uart::UARTComponent {
+class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
  public:
-  void set_parent(USBCDCACMComponent *parent) { this->parent_ = parent; }
   void set_interface_number(uint8_t itf) { this->itf_ = static_cast<tinyusb_cdcacm_itf_t>(itf); }
 
   void setup();
@@ -93,7 +92,6 @@ class USBCDCACMInstance : public uart::UARTComponent {
   // Process queued events and invoke callbacks (called from main loop)
   void process_events_();
 
-  USBCDCACMComponent *parent_{nullptr};
   TaskHandle_t usb_tx_task_handle_{nullptr};
   tinyusb_cdcacm_itf_t itf_{TINYUSB_CDC_ACM_0};
 
