@@ -138,9 +138,11 @@ def test_substitutions_fixtures(
     # Load using ESPHome's YAML loader
     config = yaml_util.load_yaml(source_path)
 
+    command_line_substitutions = config.pop("command_line_substitutions", None)
+
     config = do_packages_pass(config)
 
-    substitutions.do_substitution_pass(config, None)
+    substitutions.do_substitution_pass(config, command_line_substitutions)
 
     resolve_extend_remove(config)
     verify_database_result = verify_database(config)
