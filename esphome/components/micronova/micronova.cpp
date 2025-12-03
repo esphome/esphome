@@ -79,19 +79,6 @@ void MicroNova::loop() {
   }
 }
 
-void MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t data) {
-  MicroNovaCommand cmd;
-  cmd.type = MicroNovaCommandType::WRITE;
-  cmd.memory_location = location | WRITE_BIT;
-  cmd.memory_address = address;
-  cmd.data = data;
-
-  this->command_queue_.push_front(cmd);
-  ESP_LOGD(TAG, "Queued write [%02X,%02X] at front (queue size: %zu)", location, address, this->command_queue_.size());
-  // Automatically queue sensor updates after write commands
-  this->request_update_listeners_();
-}
-
 void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
   MicroNovaCommand cmd;
   cmd.type = MicroNovaCommandType::READ;
@@ -160,6 +147,19 @@ int MicroNova::read_stove_reply_() {
     return -1;
   }
   return ((int) reply_data[1]);
+}
+
+void MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t data) {
+  MicroNovaCommand cmd;
+  cmd.type = MicroNovaCommandType::WRITE;
+  cmd.memory_location = location | WRITE_BIT;
+  cmd.memory_address = address;
+  cmd.data = data;
+
+  this->command_queue_.push_front(cmd);
+  ESP_LOGD(TAG, "Queued write [%02X,%02X] at front (queue size: %zu)", location, address, this->command_queue_.size());
+  // Automatically queue sensor updates after write commands
+  this->request_update_listeners_();
 }
 
 }  // namespace micronova
