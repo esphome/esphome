@@ -352,23 +352,6 @@ def _final_validate(config: dict) -> dict:
 FINAL_VALIDATE_SCHEMA = cv.Schema(_final_validate)
 
 
-# Mapping of config keys to C++ struct field names
-STRUCT_FIELDS = [
-    (CONF_PANEL_WIDTH, "panel_width"),
-    (CONF_PANEL_HEIGHT, "panel_height"),
-    (CONF_SCAN_WIRING, "scan_wiring"),
-    (CONF_SHIFT_DRIVER, "shift_driver"),
-    (CONF_LAYOUT_ROWS, "layout_rows"),
-    (CONF_LAYOUT_COLS, "layout_cols"),
-    (CONF_LAYOUT, "layout"),
-    (CONF_CLOCK_SPEED, "output_clock_speed"),
-    (CONF_LATCH_BLANKING, "latch_blanking"),
-    (CONF_DOUBLE_BUFFER, "double_buffer"),
-    (CONF_CLOCK_PHASE, "clk_phase_inverted"),
-    (CONF_BRIGHTNESS, "brightness"),
-]
-
-
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -482,13 +465,47 @@ def _build_pins_struct(pin_expressions: dict, e_pin_num):
 
 
 def _build_config_struct(config: dict, pins_struct, min_refresh: int):
-    """Build Hub75Config struct from config."""
-    config_fields = [
-        ("pins", pins_struct),
-        ("min_refresh_rate", min_refresh),
+    """Build Hub75Config struct from config.
+
+    Fields must be added in declaration order (see hub75_types.h) to satisfy
+    C++ designated initializer requirements. The order is:
+      1. fields_before_pins (panel_width through layout)
+      2. pins
+      3. output_clock_speed
+      4. min_refresh_rate
+      5. fields_after_min_refresh (latch_blanking through brightness)
+    """
+    fields_before_pins = [
+        (CONF_PANEL_WIDTH, "panel_width"),
+        (CONF_PANEL_HEIGHT, "panel_height"),
+        # scan_pattern - auto-calculated, not set
+        (CONF_SCAN_WIRING, "scan_wiring"),
+        (CONF_SHIFT_DRIVER, "shift_driver"),
+        (CONF_LAYOUT_ROWS, "layout_rows"),
+        (CONF_LAYOUT_COLS, "layout_cols"),
+        (CONF_LAYOUT, "layout"),
+    ]
+    fields_after_min_refresh = [
+        (CONF_LATCH_BLANKING, "latch_blanking"),
+        (CONF_DOUBLE_BUFFER, "double_buffer"),
+        (CONF_CLOCK_PHASE, "clk_phase_inverted"),
+        (CONF_BRIGHTNESS, "brightness"),
     ]
 
-    for conf_key, struct_field in STRUCT_FIELDS:
+    config_fields = []
+
+    for conf_key, struct_field in fields_before_pins:
+        if conf_key in config:
+            config_fields.append((struct_field, config[conf_key]))
+
+    config_fields.append(("pins", pins_struct))
+
+    if CONF_CLOCK_SPEED in config:
+        config_fields.append(("output_clock_speed", config[CONF_CLOCK_SPEED]))
+
+    config_fields.append(("min_refresh_rate", min_refresh))
+
+    for conf_key, struct_field in fields_after_min_refresh:
         if conf_key in config:
             config_fields.append((struct_field, config[conf_key]))
 
