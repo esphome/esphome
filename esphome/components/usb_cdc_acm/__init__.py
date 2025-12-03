@@ -8,14 +8,15 @@ from esphome.components.esp32.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 AUTO_LOAD = ["uart"]
 DEPENDENCIES = ["tinyusb"]
 
 CONF_INTERFACES = "interfaces"
-CONF_USB_RX_BUFFER_SIZE = "usb_rx_buffer_size"
-CONF_USB_TX_BUFFER_SIZE = "usb_tx_buffer_size"
+CONF_RX_BUFFER_SIZE = "rx_buffer_size"
+CONF_TX_BUFFER_SIZE = "tx_buffer_size"
 
 usb_cdc_acm_ns = cg.esphome_ns.namespace("usb_cdc_acm")
 USBCDCACMComponent = usb_cdc_acm_ns.class_("USBCDCACMComponent", cg.Component)
@@ -34,10 +35,10 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(USBCDCACMComponent),
-            cv.Optional(CONF_USB_RX_BUFFER_SIZE, default=256): cv.All(
+            cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.All(
                 cv.validate_bytes, cv.uint16_t
             ),
-            cv.Optional(CONF_USB_TX_BUFFER_SIZE, default=256): cv.All(
+            cv.Optional(CONF_TX_BUFFER_SIZE, default=256): cv.All(
                 cv.validate_bytes, cv.uint16_t
             ),
             cv.Optional(CONF_INTERFACES, default=[{}]): cv.All(
@@ -68,8 +69,8 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_TINYUSB_CDC_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_TINYUSB_CDC_COUNT", num_interfaces)
     add_idf_sdkconfig_option(
-        "CONFIG_TINYUSB_CDC_RX_BUFSIZE", config[CONF_USB_RX_BUFFER_SIZE]
+        "CONFIG_TINYUSB_CDC_RX_BUFSIZE", config[CONF_RX_BUFFER_SIZE]
     )
     add_idf_sdkconfig_option(
-        "CONFIG_TINYUSB_CDC_TX_BUFSIZE", config[CONF_USB_TX_BUFFER_SIZE]
+        "CONFIG_TINYUSB_CDC_TX_BUFSIZE", config[CONF_TX_BUFFER_SIZE]
     )
