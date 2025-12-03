@@ -10,12 +10,10 @@ void CST816Touchscreen::continue_setup_() {
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
 
-  if (!this->read_byte(REG_CHIP_ID, &this->chip_id_)) {
-    if (!this->skip_probe_) {
-      this->status_set_error(LOG_STR("Failed to read chip ID"));
-      this->mark_failed();
-      return;
-    }
+  if (!this->read_byte(REG_CHIP_ID, &this->chip_id_) && !this->skip_probe_) {
+    this->status_set_error(LOG_STR("Failed to read chip ID"));
+    this->mark_failed();
+    return;
   }
 
   // CST826/CST836 return 0 for chip ID, need to read from factory ID register
