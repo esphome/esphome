@@ -144,9 +144,15 @@ void Sim7600Component::parse_cmd_(std::string message) {
     case STATE_SETUP_CMGF:
       send_cmd_("AT+CMGF=1");
       //this->state_ = STATE_SETUP_CLIP;  // skip setup clip not supported on 7670G
-      this->state_ = LAST_CxREG;
+      //this->state_ = LAST_CxREG;
+      this->state_ = STATE_SETUP_COPS;
       this->expect_ack_ = true;
       break;
+    case STATE_SETUP_COPS:
+      send_cmd_("AT+COPS=0");
+      this->state_ = LAST_CxREG;
+      this->expect_ack_ = true;
+      break;    
     case STATE_SETUP_CLIP:  // skip setup clip not supported on 7670G
       send_cmd_("AT+CLIP=1");
       this->state_ = LAST_CxREG;
@@ -193,10 +199,10 @@ void Sim7600Component::parse_cmd_(std::string message) {
         this->state_ = STATE_INIT;
       break;
 
-
-//    https://onomondo.com/blog/at-command-cereg/#defined-values
 //    +CREG vs. +CGREG vs. +CEREG
-//    /What are the differences between +CREG, +CGREG, and +CEREG?
+//    What are the differences between +CREG, +CGREG, and +CEREG?
+//
+//    https://onomondo.com/blog/at-command-cereg/#defined-values
 //
 //    +CREG queries the registration to the circuit switched network, aka GSM networks.
 //    +CGREG and +CEREG query registration to the packet switched networks, aka networks which allow access to the internet.
