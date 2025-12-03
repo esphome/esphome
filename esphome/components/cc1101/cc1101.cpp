@@ -9,7 +9,7 @@ namespace esphome::cc1101 {
 static const char *const TAG = "cc1101";
 
 CC1101Component::CC1101Component() {
-  // datasheet defaults
+  // Datasheet defaults
   memset(&this->state_, 0, sizeof(this->state_));
   this->state_.GDO2_CFG = 0x0D;  // Serial Data (for RX on GDO2)
   this->state_.GDO1_CFG = 0x2E;
@@ -129,11 +129,11 @@ void CC1101Component::setup() {
 
   this->initialized_ = true;
 
-  for (uint8_t i = 0; i <= 0x2E; i++) {
-    if (i == 0x29 || i == 0x2B) {
+  for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
+    if (i == static_cast<uint8_t>(Register::FSTEST) || i == static_cast<uint8_t>(Register::AGCTEST)) {
       continue;
     }
-    this->write_((Register) i);
+    this->write_(static_cast<Register>(i));
   }
   this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
   this->strobe_(Command::RX);
@@ -204,7 +204,7 @@ bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
   uint32_t start = millis();
   while (millis() - start < timeout_ms) {
     this->read_(Register::MARCSTATE);
-    State s = (State) (this->state_.MARC_STATE & 0x1F);
+    State s = static_cast<State>(this->state_.MARC_STATE);
     if (s == target_state) {
       return true;
     }

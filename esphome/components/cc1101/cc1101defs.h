@@ -10,6 +10,7 @@ static constexpr uint8_t BUS_BURST = 0x40;
 static constexpr uint8_t BUS_READ = 0x80;
 static constexpr uint8_t BUS_WRITE = 0x00;
 static constexpr uint8_t BYTES_IN_RXFIFO = 0x7F;  // byte number in RXfifo
+static constexpr size_t PA_TABLE_SIZE = 8;
 
 enum class Register : uint8_t {
   IOCFG2 = 0x00,    // GDO2 output pin configuration

@@ -69,7 +69,7 @@ class CC1101Component : public Component,
 
   float output_power_requested_{10.0f};
   float output_power_effective_{10.0f};
-  uint8_t pa_table_[8]{};
+  uint8_t pa_table_[PA_TABLE_SIZE]{};
 
   CC1101State state_;
 
