@@ -51,8 +51,10 @@ CONFIG_SCHEMA = cv.Schema(
             icon=ICON_FLASH,
         )
         .extend(
-            MICRONOVA_LISTENER_POLLING_SCHEMA(
-                default_memory_location=0x20, default_memory_address=0x7F
+            MICRONOVA_ADDRESS_SCHEMA(
+                default_memory_location=0x20, 
+                default_memory_address=0x7F,
+                is_polling_component=True,
             )
         )
         .extend(
