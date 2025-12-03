@@ -82,11 +82,10 @@ class ComponentManifest:
         return getattr(self.module, "CONFLICTS_WITH", [])
 
     @property
-    def auto_load(self) -> list[str]:
-        al = getattr(self.module, "AUTO_LOAD", [])
-        if callable(al):
-            return al()
-        return al
+    def auto_load(
+        self,
+    ) -> list[str] | Callable[[], list[str]] | Callable[[ConfigType], list[str]]:
+        return getattr(self.module, "AUTO_LOAD", [])
 
     @property
     def codeowners(self) -> list[str]:

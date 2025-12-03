@@ -81,7 +81,7 @@ const LogString *api_error_to_logstr(APIError err) {
 
 // Default implementation for loop - handles sending buffered data
 APIError APIFrameHelper::loop() {
-  if (!this->tx_buf_.empty()) {
+  if (this->tx_buf_count_ > 0) {
     APIError err = try_send_tx_buf_();
     if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
       return err;
@@ -103,9 +103,20 @@ APIError APIFrameHelper::handle_socket_write_error_() {
 // Helper method to buffer data from IOVs
 void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len,
                                            uint16_t offset) {
-  SendBuffer buffer;
-  buffer.size = total_write_len - offset;
-  buffer.data = std::make_unique<uint8_t[]>(buffer.size);
+  // Check if queue is full
+  if (this->tx_buf_count_ >= API_MAX_SEND_QUEUE) {
+    HELPER_LOG("Send queue full (%u buffers), dropping connection", this->tx_buf_count_);
+    this->state_ = State::FAILED;
+    return;
+  }
+
+  uint16_t buffer_size = total_write_len - offset;
+  auto &buffer = this->tx_buf_[this->tx_buf_tail_];
+  buffer = std::make_unique<SendBuffer>(SendBuffer{
+      .data = std::make_unique<uint8_t[]>(buffer_size),
+      .size = buffer_size,
+      .offset = 0,
+  });
 
   uint16_t to_skip = offset;
   uint16_t write_pos = 0;
@@ -118,12 +129,15 @@ void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, 
       // Include this segment (partially or fully)
       const uint8_t *src = reinterpret_cast<uint8_t *>(iov[i].iov_base) + to_skip;
       uint16_t len = static_cast<uint16_t>(iov[i].iov_len) - to_skip;
-      std::memcpy(buffer.data.get() + write_pos, src, len);
+      std::memcpy(buffer->data.get() + write_pos, src, len);
       write_pos += len;
       to_skip = 0;
     }
   }
-  this->tx_buf_.push_back(std::move(buffer));
+
+  // Update circular buffer tracking
+  this->tx_buf_tail_ = (this->tx_buf_tail_ + 1) % API_MAX_SEND_QUEUE;
+  this->tx_buf_count_++;
 }
 
 // This method writes data to socket or buffers it
@@ -141,7 +155,7 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
 #endif
 
   // Try to send any existing buffered data first if there is any
-  if (!this->tx_buf_.empty()) {
+  if (this->tx_buf_count_ > 0) {
     APIError send_result = try_send_tx_buf_();
     // If real error occurred (not just WOULD_BLOCK), return it
     if (send_result != APIError::OK && send_result != APIError::WOULD_BLOCK) {
@@ -150,7 +164,7 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
 
     // If there is still data in the buffer, we can't send, buffer
     // the new data and return
-    if (!this->tx_buf_.empty()) {
+    if (this->tx_buf_count_ > 0) {
       this->buffer_data_from_iov_(iov, iovcnt, total_write_len, 0);
       return APIError::OK;  // Success, data buffered
     }
@@ -178,32 +192,31 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
 }
 
 // Common implementation for trying to send buffered data
-// IMPORTANT: Caller MUST ensure tx_buf_ is not empty before calling this method
+// IMPORTANT: Caller MUST ensure tx_buf_count_ > 0 before calling this method
 APIError APIFrameHelper::try_send_tx_buf_() {
   // Try to send from tx_buf - we assume it's not empty as it's the caller's responsibility to check
-  bool tx_buf_empty = false;
-  while (!tx_buf_empty) {
+  while (this->tx_buf_count_ > 0) {
     // Get the first buffer in the queue
-    SendBuffer &front_buffer = this->tx_buf_.front();
+    SendBuffer *front_buffer = this->tx_buf_[this->tx_buf_head_].get();
 
     // Try to send the remaining data in this buffer
-    ssize_t sent = this->socket_->write(front_buffer.current_data(), front_buffer.remaining());
+    ssize_t sent = this->socket_->write(front_buffer->current_data(), front_buffer->remaining());
 
     if (sent == -1) {
       return this->handle_socket_write_error_();
     } else if (sent == 0) {
       // Nothing sent but not an error
       return APIError::WOULD_BLOCK;
-    } else if (static_cast<uint16_t>(sent) < front_buffer.remaining()) {
+    } else if (static_cast<uint16_t>(sent) < front_buffer->remaining()) {
       // Partially sent, update offset
       // Cast to ensure no overflow issues with uint16_t
-      front_buffer.offset += static_cast<uint16_t>(sent);
+      front_buffer->offset += static_cast<uint16_t>(sent);
       return APIError::WOULD_BLOCK;  // Stop processing more buffers if we couldn't send a complete buffer
     } else {
       // Buffer completely sent, remove it from the queue
-      this->tx_buf_.pop_front();
-      // Update empty status for the loop condition
-      tx_buf_empty = this->tx_buf_.empty();
+      this->tx_buf_[this->tx_buf_head_].reset();
+      this->tx_buf_head_ = (this->tx_buf_head_ + 1) % API_MAX_SEND_QUEUE;
+      this->tx_buf_count_--;
       // Continue loop to try sending the next buffer
     }
   }

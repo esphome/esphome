@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/filter.h"
 
-#include <vector>
+#include <initializer_list>
 #include <memory>
 
 namespace esphome {
@@ -37,10 +37,10 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void add_filter(Filter *filter);
 
   /// Add a list of vectors to the back of the filter chain.
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the filters and replace them by filters.
-  void set_filters(const std::vector<Filter *> &filters);
+  void set_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the entire filter chain.
   void clear_filters();
@@ -50,7 +50,13 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void add_on_raw_state_callback(std::function<void(std::string)> callback);
 
   std::string state;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  /// @deprecated Use get_raw_state() instead. This member will be removed in ESPHome 2026.6.0.
+  ESPDEPRECATED("Use get_raw_state() instead of .raw_state. Will be removed in 2026.6.0", "2025.12.0")
   std::string raw_state;
+#pragma GCC diagnostic pop
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

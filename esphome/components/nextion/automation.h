@@ -55,7 +55,7 @@ template<typename... Ts> class NextionSetBrightnessAction : public Action<Ts...>
 
   TEMPLATABLE_VALUE(float, brightness)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->component_->set_brightness(this->brightness_.value(x...));
     this->component_->set_backlight_brightness(this->brightness_.value(x...));
   }
@@ -74,7 +74,7 @@ template<typename... Ts> class NextionPublishFloatAction : public Action<Ts...> 
   TEMPLATABLE_VALUE(bool, publish_state)
   TEMPLATABLE_VALUE(bool, send_to_nextion)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->component_->set_state(this->state_.value(x...), this->publish_state_.value(x...),
                                 this->send_to_nextion_.value(x...));
   }
@@ -97,7 +97,7 @@ template<typename... Ts> class NextionPublishTextAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(bool, publish_state)
   TEMPLATABLE_VALUE(bool, send_to_nextion)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->component_->set_state(this->state_.value(x...), this->publish_state_.value(x...),
                                 this->send_to_nextion_.value(x...));
   }
@@ -120,7 +120,7 @@ template<typename... Ts> class NextionPublishBoolAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(bool, publish_state)
   TEMPLATABLE_VALUE(bool, send_to_nextion)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->component_->set_state(this->state_.value(x...), this->publish_state_.value(x...),
                                 this->send_to_nextion_.value(x...));
   }

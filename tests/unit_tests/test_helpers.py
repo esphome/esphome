@@ -454,9 +454,27 @@ def test_resolve_ip_address_mixed_list() -> None:
         # Mix of IP and hostname - should use async resolver
         result = helpers.resolve_ip_address(["192.168.1.100", "test.local"], 6053)
 
+        assert len(result) == 2
+        assert result[0][4][0] == "192.168.1.100"
+        assert result[1][4][0] == "192.168.1.200"
+        MockResolver.assert_called_once_with(["test.local"], 6053)
+        mock_resolver.resolve.assert_called_once()
+
+
+def test_resolve_ip_address_mixed_list_fail() -> None:
+    """Test resolving a mix of IPs and hostnames with resolve failed."""
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.side_effect = EsphomeError(
+            "Error resolving IP address: [test.local]"
+        )
+
+        # Mix of IP and hostname - should use async resolver
+        result = helpers.resolve_ip_address(["192.168.1.100", "test.local"], 6053)
+
         assert len(result) == 1
-        assert result[0][4][0] == "192.168.1.200"
-        MockResolver.assert_called_once_with(["192.168.1.100", "test.local"], 6053)
+        assert result[0][4][0] == "192.168.1.100"
+        MockResolver.assert_called_once_with(["test.local"], 6053)
         mock_resolver.resolve.assert_called_once()
 
 

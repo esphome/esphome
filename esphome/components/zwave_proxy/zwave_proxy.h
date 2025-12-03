@@ -8,8 +8,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace zwave_proxy {
+namespace esphome::zwave_proxy {
 
 static constexpr size_t MAX_ZWAVE_FRAME_SIZE = 257;  // Maximum Z-Wave frame size
 
@@ -49,6 +48,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   float get_setup_priority() const override;
   bool can_proceed() override;
 
+  void api_connection_authenticated(api::APIConnection *conn);
   void zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
 
@@ -61,6 +61,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   void send_frame(const uint8_t *data, size_t length);
 
  protected:
+  void send_homeid_changed_msg_(api::APIConnection *conn = nullptr);
   void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
   void parse_start_(uint8_t byte);
@@ -87,5 +88,4 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace zwave_proxy
-}  // namespace esphome
+}  // namespace esphome::zwave_proxy

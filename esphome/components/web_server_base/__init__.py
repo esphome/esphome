@@ -9,10 +9,10 @@ DEPENDENCIES = ["network"]
 
 
 def AUTO_LOAD():
+    if CORE.is_esp32:
+        return ["web_server_idf"]
     if CORE.using_arduino:
         return ["async_tcp"]
-    if CORE.using_esp_idf:
-        return ["web_server_idf"]
     return []
 
 
@@ -32,6 +32,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(cg.RawExpression(f"{web_server_base_ns}::global_web_server_base = {var}"))
+
+    if CORE.is_esp32:
+        return
 
     if CORE.using_arduino:
         if CORE.is_esp32:

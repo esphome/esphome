@@ -20,6 +20,23 @@ bool MCP2515::setup_internal() {
     return false;
   if (this->set_bitrate_(this->bit_rate_, this->mcp_clock_) != canbus::ERROR_OK)
     return false;
+
+  // setup hardware filter RXF0 accepting all standard CAN IDs
+  if (this->set_filter_(RXF::RXF0, false, 0) != canbus::ERROR_OK) {
+    return false;
+  }
+  if (this->set_filter_mask_(MASK::MASK0, false, 0) != canbus::ERROR_OK) {
+    return false;
+  }
+
+  // setup hardware filter RXF1 accepting all extended CAN IDs
+  if (this->set_filter_(RXF::RXF1, true, 0) != canbus::ERROR_OK) {
+    return false;
+  }
+  if (this->set_filter_mask_(MASK::MASK1, true, 0) != canbus::ERROR_OK) {
+    return false;
+  }
+
   if (this->set_mode_(this->mcp_mode_) != canbus::ERROR_OK)
     return false;
   uint8_t err_flags = this->get_error_flags_();

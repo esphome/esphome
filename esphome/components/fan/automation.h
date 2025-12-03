@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "fan_state.h"
+#include "esphome/core/component.h"
+#include "fan.h"
 
 namespace esphome {
 namespace fan {
@@ -15,7 +15,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(int, speed)
   TEMPLATABLE_VALUE(FanDirection, direction)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->state_->turn_on();
     if (this->oscillating_.has_value()) {
       call.set_oscillating(this->oscillating_.value(x...));
@@ -36,7 +36,7 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
  public:
   explicit TurnOffAction(Fan *state) : state_(state) {}
 
-  void play(Ts... x) override { this->state_->turn_off().perform(); }
+  void play(const Ts &...x) override { this->state_->turn_off().perform(); }
 
   Fan *state_;
 };
@@ -45,7 +45,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(Fan *state) : state_(state) {}
 
-  void play(Ts... x) override { this->state_->toggle().perform(); }
+  void play(const Ts &...x) override { this->state_->toggle().perform(); }
 
   Fan *state_;
 };
@@ -56,7 +56,7 @@ template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(bool, no_off_cycle)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     // check to see if fan supports speeds and is on
     if (this->state_->get_traits().supported_speed_count()) {
       if (this->state_->state) {
@@ -97,7 +97,7 @@ template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
 template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
  public:
   explicit FanIsOnCondition(Fan *state) : state_(state) {}
-  bool check(Ts... x) override { return this->state_->state; }
+  bool check(const Ts &...x) override { return this->state_->state; }
 
  protected:
   Fan *state_;
@@ -105,7 +105,7 @@ template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
 template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
  public:
   explicit FanIsOffCondition(Fan *state) : state_(state) {}
-  bool check(Ts... x) override { return !this->state_->state; }
+  bool check(const Ts &...x) override { return !this->state_->state; }
 
  protected:
   Fan *state_;
@@ -212,18 +212,19 @@ class FanPresetSetTrigger : public Trigger<std::string> {
  public:
   FanPresetSetTrigger(Fan *state) {
     state->add_on_state_callback([this, state]() {
-      auto preset_mode = state->preset_mode;
+      const auto *preset_mode = state->get_preset_mode();
       auto should_trigger = preset_mode != this->last_preset_mode_;
       this->last_preset_mode_ = preset_mode;
       if (should_trigger) {
-        this->trigger(preset_mode);
+        // Trigger with empty string when nullptr to maintain backward compatibility
+        this->trigger(preset_mode != nullptr ? preset_mode : "");
       }
     });
-    this->last_preset_mode_ = state->preset_mode;
+    this->last_preset_mode_ = state->get_preset_mode();
   }
 
  protected:
-  std::string last_preset_mode_;
+  const char *last_preset_mode_{nullptr};
 };
 
 }  // namespace fan

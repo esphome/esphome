@@ -23,7 +23,7 @@ jobs:
         with:
           debug-only: ${{ github.ref != 'refs/heads/dev' }} # Dry-run when not run on dev branch
           remove-stale-when-updated: true
-          operations-per-run: 150
+          operations-per-run: 400
 
           # The 90 day stale policy for PRs
           # - PRs

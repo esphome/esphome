@@ -47,14 +47,13 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   bool handle_auth_send_();
   bool handle_auth_read_();
   bool select_auth_type_();
-  bool prepare_auth_nonce_(HashBase *hasher);
-  bool verify_hash_auth_(HashBase *hasher, size_t hex_size);
   size_t get_auth_hex_size_() const;
   void cleanup_auth_();
   void log_auth_warning_(const LogString *msg);
 #endif  // USE_OTA_PASSWORD
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
+  inline bool write_byte_(uint8_t byte) { return this->writeall_(&byte, 1); }
 
   bool try_read_(size_t to_read, const LogString *desc);
   bool try_write_(size_t to_write, const LogString *desc);

@@ -66,7 +66,7 @@ static void dump_field(std::string &out, const char *field_name, float value, in
 static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%llu", value);
+  snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 
@@ -85,6 +85,12 @@ static void dump_field(std::string &out, const char *field_name, const std::stri
 static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   append_quoted_string(out, value);
+  out.append("\n");
+}
+
+static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
   out.append("\n");
 }
 
@@ -173,6 +179,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_TOTAL_INCREASING";
     case enums::STATE_CLASS_TOTAL:
       return "STATE_CLASS_TOTAL";
+    case enums::STATE_CLASS_MEASUREMENT_ANGLE:
+      return "STATE_CLASS_MEASUREMENT_ANGLE";
     default:
       return "UNKNOWN";
   }
@@ -200,7 +208,7 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "UNKNOWN";
   }
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
     case enums::SERVICE_ARG_TYPE_BOOL:
@@ -918,7 +926,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "min_mireds", this->min_mireds);
   dump_field(out, "max_mireds", this->max_mireds);
-  for (const auto &it : this->effects) {
+  for (const auto &it : *this->effects) {
     dump_field(out, "effects", it, 4);
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
@@ -1122,6 +1130,28 @@ void HomeassistantActionRequest::dump_to(std::string &out) const {
     out.append("\n");
   }
   dump_field(out, "is_event", this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  dump_field(out, "call_id", this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_field(out, "wants_response", this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_field(out, "response_template", this->response_template);
+#endif
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void HomeassistantActionResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "HomeassistantActionResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  out.append("  response_data: ");
+  out.append(format_hex_pretty(this->response_data, this->response_data_len));
+  out.append("\n");
+#endif
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -1149,7 +1179,7 @@ void GetTimeResponse::dump_to(std::string &out) const {
   out.append(format_hex_pretty(this->timezone, this->timezone_len));
   out.append("\n");
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesArgument");
   dump_field(out, "name", this->name_ref_);
@@ -1270,6 +1300,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "feature_flags", this->feature_flags);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ClimateStateResponse");
@@ -2024,7 +2055,7 @@ void ListEntitiesEventResponse::dump_to(std::string &out) const {
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "device_class", this->device_class_ref_);
-  for (const auto &it : this->event_types) {
+  for (const auto &it : *this->event_types) {
     dump_field(out, "event_types", it, 4);
   }
 #ifdef USE_DEVICES

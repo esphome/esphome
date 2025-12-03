@@ -6,14 +6,14 @@
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
-void MDNSComponent::setup() { this->compile_records_(); }
+void MDNSComponent::setup() {
+  // Host platform doesn't have actual mDNS implementation
+}
 
 void MDNSComponent::on_shutdown() {}
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif

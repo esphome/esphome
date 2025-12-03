@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.10.0-dev"
+__version__ = "2025.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -36,7 +36,30 @@ class Framework(StrEnum):
 
 
 class ThreadModel(StrEnum):
-    """Threading model identifiers for ESPHome scheduler."""
+    """Threading model identifiers for ESPHome scheduler.
+
+    ESPHome currently uses three threading models based on platform capabilities:
+
+    SINGLE:
+        - Single-threaded platforms (ESP8266, RP2040)
+        - No RTOS task switching
+        - No concurrent access to scheduler data structures
+        - No atomics or locks required
+        - Minimal overhead
+
+    MULTI_NO_ATOMICS:
+        - Multi-threaded platforms without hardware atomic RMW support (e.g. LibreTiny BK7231N)
+        - Uses FreeRTOS or another RTOS with multiple tasks
+        - CPU lacks exclusive load/store instructions (ARM968E-S has no LDREX/STREX)
+        - std::atomic cannot provide lock-free RMW; libatomic is avoided to save flash (4–8 KB)
+        - Scheduler uses explicit FreeRTOS mutexes for synchronization
+
+    MULTI_ATOMICS:
+        - Multi-threaded platforms with hardware atomic RMW support (ESP32, Cortex-M, Host)
+        - CPU provides native atomic instructions (ESP32 S32C1I, ARM LDREX/STREX)
+        - std::atomic is used for lock-free synchronization
+        - Reduced contention and better performance
+    """
 
     SINGLE = "ESPHOME_THREAD_SINGLE"
     MULTI_NO_ATOMICS = "ESPHOME_THREAD_MULTI_NO_ATOMICS"
@@ -174,6 +197,7 @@ CONF_CALIBRATE_LINEAR = "calibrate_linear"
 CONF_CALIBRATION = "calibration"
 CONF_CAPACITANCE = "capacitance"
 CONF_CAPACITY = "capacity"
+CONF_CAPTURE_RESPONSE = "capture_response"
 CONF_CARBON_MONOXIDE = "carbon_monoxide"
 CONF_CARRIER_DUTY_PERCENT = "carrier_duty_percent"
 CONF_CARRIER_FREQUENCY = "carrier_frequency"
@@ -335,6 +359,7 @@ CONF_ENERGY = "energy"
 CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
 CONF_ENUM_DATAPOINT = "enum_datapoint"
+CONF_ENVIRONMENT_VARIABLES = "environment_variables"
 CONF_EQUATION = "equation"
 CONF_ESP8266_DISABLE_SSL_SUPPORT = "esp8266_disable_ssl_support"
 CONF_ESPHOME = "esphome"
@@ -470,6 +495,7 @@ CONF_IMPORT_REACTIVE_ENERGY = "import_reactive_energy"
 CONF_INC_PIN = "inc_pin"
 CONF_INCLUDE_INTERNAL = "include_internal"
 CONF_INCLUDES = "includes"
+CONF_INCLUDES_C = "includes_c"
 CONF_INDEX = "index"
 CONF_INDOOR = "indoor"
 CONF_INFRARED = "infrared"
@@ -676,6 +702,7 @@ CONF_ON_RESPONSE = "on_response"
 CONF_ON_SHUTDOWN = "on_shutdown"
 CONF_ON_SPEED_SET = "on_speed_set"
 CONF_ON_STATE = "on_state"
+CONF_ON_SUCCESS = "on_success"
 CONF_ON_TAG = "on_tag"
 CONF_ON_TAG_REMOVED = "on_tag_removed"
 CONF_ON_TIME = "on_time"
@@ -694,6 +721,7 @@ CONF_OPEN_DRAIN = "open_drain"
 CONF_OPEN_DRAIN_INTERRUPT = "open_drain_interrupt"
 CONF_OPEN_DURATION = "open_duration"
 CONF_OPEN_ENDSTOP = "open_endstop"
+CONF_OPENTHREAD = "openthread"
 CONF_OPERATION = "operation"
 CONF_OPTIMISTIC = "optimistic"
 CONF_OPTION = "option"
@@ -818,6 +846,7 @@ CONF_RESET_DURATION = "reset_duration"
 CONF_RESET_PIN = "reset_pin"
 CONF_RESIZE = "resize"
 CONF_RESOLUTION = "resolution"
+CONF_RESPONSE_TEMPLATE = "response_template"
 CONF_RESTART = "restart"
 CONF_RESTORE = "restore"
 CONF_RESTORE_MODE = "restore_mode"
@@ -1295,6 +1324,7 @@ DEVICE_CLASS_SULPHUR_DIOXIDE = "sulphur_dioxide"
 DEVICE_CLASS_SWITCH = "switch"
 DEVICE_CLASS_TAMPER = "tamper"
 DEVICE_CLASS_TEMPERATURE = "temperature"
+DEVICE_CLASS_TEMPERATURE_DELTA = "temperature_delta"
 DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_UPDATE = "update"
 DEVICE_CLASS_VIBRATION = "vibration"
@@ -1315,6 +1345,9 @@ STATE_CLASS_NONE = ""
 
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
+
+# The state represents a measurement in present time for angles measured in degrees (°)
+STATE_CLASS_MEASUREMENT_ANGLE = "measurement_angle"
 
 # The state represents a total that only increases, a decrease is considered a reset.
 STATE_CLASS_TOTAL_INCREASING = "total_increasing"
