@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import contextlib
+from functools import reduce
 import logging
 from pathlib import Path
 from typing import Any
@@ -300,7 +301,7 @@ def do_packages_pass(
     """
     if CONF_PACKAGES not in config:
         return config
-    substitutions = config.pop(CONF_SUBSTITUTIONS, {})
+    merge_list = [config.pop(CONF_SUBSTITUTIONS, {})]
 
     def process_package_callback(package_config, context_vars):
         """This will be called for each package found in the config."""
@@ -308,7 +309,6 @@ def do_packages_pass(
             package_config, context_vars
         )
 
-        nonlocal substitutions
         package_config = PACKAGE_SCHEMA(package_config)
         if isinstance(package_config, str):
             return package_config  # Jinja string, skip processing
@@ -316,9 +316,7 @@ def do_packages_pass(
             # This is a remote package definition. Replace it with the actual package contents:
             package_config = _process_remote_package(package_config, skip_update)
         # Extract substitutions from the package and merge them into the main substitutions:
-        substitutions = merge_config(
-            package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions
-        )
+        merge_list.append(package_config.pop(CONF_SUBSTITUTIONS, {}))
 
         if CONF_PACKAGES not in package_config:
             # This package has no nested packages, so we're done.
@@ -330,6 +328,9 @@ def do_packages_pass(
 
     context_vars = push_context(config[CONF_PACKAGES], ContextVars())
     _walk_packages(config, process_package_callback, context_vars)
+
+    substitutions = reduce(merge_config, reversed(merge_list), {})
+
     if substitutions:
         config[CONF_SUBSTITUTIONS] = substitutions
 
@@ -341,12 +342,13 @@ def merge_packages(config: dict) -> dict:
     if CONF_PACKAGES not in config:
         return config
 
+    merge_list = [config]
+
     def process_package_callback(package_config, context):
-        nonlocal config
-        config = merge_config(package_config, config)
+        merge_list.append(package_config)
         return _walk_packages(package_config, process_package_callback)
 
     _walk_packages(config, process_package_callback)
-
+    config = reduce(merge_config, reversed(merge_list), {})
     del config[CONF_PACKAGES]
     return config
