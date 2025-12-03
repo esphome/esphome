@@ -18,7 +18,9 @@ CONF_INTERFACES = "interfaces"
 
 usb_cdc_acm_ns = cg.esphome_ns.namespace("usb_cdc_acm")
 USBCDCACMComponent = usb_cdc_acm_ns.class_("USBCDCACMComponent", cg.Component)
-USBCDCACMInstance = usb_cdc_acm_ns.class_("USBCDCACMInstance", uart.UARTComponent)
+USBCDCACMInstance = usb_cdc_acm_ns.class_(
+    "USBCDCACMInstance", uart.UARTComponent, cg.Parented.template(USBCDCACMComponent)
+)
 
 
 # Schema for individual CDC ACM interface instances
