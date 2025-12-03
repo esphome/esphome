@@ -8,6 +8,22 @@ namespace esphome::cc1101 {
 
 static const char *const TAG = "cc1101";
 
+static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
+  int e_tmp;
+  float m_tmp = std::frexp(value, &e_tmp);
+  if (e_tmp <= mbits) {
+    e = 0;
+    m = 0;
+    return;
+  }
+  e = static_cast<uint8_t>(e_tmp - mbits - 1);
+  m = static_cast<uint32_t>(((m_tmp * 2 - 1) * (1 << (mbits + 1))) + 1) >> 1;
+  if (m == (1UL << mbits)) {
+    e = e + 1;
+    m = 0;
+  }
+}
+
 CC1101Component::CC1101Component() {
   // Datasheet defaults
   memset(&this->state_, 0, sizeof(this->state_));
@@ -265,22 +281,6 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
   this->write_byte(index | BUS_READ | BUS_BURST);
   this->read_array(buffer, length);
   this->disable();
-}
-
-static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
-  int e_tmp;
-  float m_tmp = std::frexp(value, &e_tmp);
-  if (e_tmp <= mbits) {
-    e = 0;
-    m = 0;
-    return;
-  }
-  e = static_cast<uint8_t>(e_tmp - mbits - 1);
-  m = static_cast<uint32_t>(((m_tmp * 2 - 1) * (1 << (mbits + 1))) + 1) >> 1;
-  if (m == (1UL << mbits)) {
-    e = e + 1;
-    m = 0;
-  }
 }
 
 // Setters
