@@ -16,17 +16,16 @@ void MicroNovaListener::dump_base_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void MicroNovaListener::request_value_from_stove() {
+  this->micronova_->queue_read_request(this->memory_location_, this->memory_address_);
+}
+
 void MicroNova::setup() {
   if (this->enable_rx_pin_ != nullptr) {
     this->enable_rx_pin_->setup();
     this->enable_rx_pin_->pin_mode(gpio::FLAG_OUTPUT);
     this->enable_rx_pin_->digital_write(false);
   }
-  this->current_transmission_.request_transmission_time = millis();
-  this->current_transmission_.memory_location = 0;
-  this->current_transmission_.memory_address = 0;
-  this->current_transmission_.reply_pending = false;
-  this->current_transmission_.initiating_listener = nullptr;
 }
 
 void MicroNova::dump_config() {
@@ -36,118 +35,127 @@ void MicroNova::dump_config() {
   }
 }
 
-void MicroNova::request_update_listeners() {
-  ESP_LOGD(TAG, "Schedule listener update");
-  for (auto &mv_listener : this->micronova_listeners_) {
-    mv_listener->set_needs_update(true);
+void MicroNova::register_micronova_listener(MicroNovaListener *listener) {
+  MicroNovaAddress addr = {listener->get_memory_location(), listener->get_memory_address()};
+  this->listeners_[addr].push_back(listener);
+}
+
+void MicroNova::request_update_listeners_() {
+  ESP_LOGD(TAG, "Requesting update from all listeners");
+  for (auto &entry : this->listeners_) {
+    this->queue_read_request(entry.first.first, entry.first.second);
   }
 }
 
 void MicroNova::loop() {
-  // Only read one sensor that needs update per loop
-  // If STOVE_REPLY_DELAY time has passed since last loop()
-  // check for a reply from the stove
-  if ((this->current_transmission_.reply_pending) &&
-      (millis() - this->current_transmission_.request_transmission_time > STOVE_REPLY_DELAY)) {
-    int stove_reply_value = this->read_stove_reply();
-    if (this->current_transmission_.initiating_listener != nullptr) {
-      this->current_transmission_.initiating_listener->process_value_from_stove(stove_reply_value);
-      this->current_transmission_.initiating_listener = nullptr;
-    }
-    this->current_transmission_.reply_pending = false;
-    return;
-  } else if (!this->current_transmission_.reply_pending) {
-    for (auto &mv_listener : this->micronova_listeners_) {
-      if (mv_listener->get_needs_update()) {
-        mv_listener->set_needs_update(false);
-        this->current_transmission_.initiating_listener = mv_listener;
-        mv_listener->request_value_from_stove();
-        return;
+  // Check if we're processing a command and waiting for reply
+  if (this->current_command_.has_value()) {
+    if (millis() - this->current_command_->transmission_time > STOVE_REPLY_DELAY) {
+      int stove_reply_value = this->read_stove_reply_();
+      // For READ commands, notify all listeners registered for this address
+      if (this->current_command_->type == MicroNovaCommandType::READ) {
+        MicroNovaAddress addr = {this->current_command_->memory_location, this->current_command_->memory_address};
+        auto it = this->listeners_.find(addr);
+        if (it != this->listeners_.end()) {
+          for (auto *listener : it->second) {
+            listener->process_value_from_stove(stove_reply_value);
+          }
+        }
       }
+      this->current_command_.reset();
     }
+    return;
+  }
+
+  // No reply pending - process next command from queue
+  if (!this->command_queue_.empty()) {
+    this->current_command_ = std::move(this->command_queue_.front());
+    this->command_queue_.pop_front();
+    this->send_current_command_();
   }
 }
 
-void MicroNova::request_address(uint8_t location, uint8_t address, MicroNovaListener *listener) {
-  uint8_t write_data[2] = {0, 0};
+void MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t data) {
+  MicroNovaCommand cmd;
+  cmd.type = MicroNovaCommandType::WRITE;
+  cmd.memory_location = location;
+  cmd.memory_address = address;
+  cmd.data = data;
+
+  this->command_queue_.push_front(cmd);
+  ESP_LOGD(TAG, "Queued write [%02X,%02X] at front (queue size: %zu)", location, address, this->command_queue_.size());
+  // Automatically queue sensor updates after write commands
+  this->request_update_listeners_();
+}
+
+void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
+  MicroNovaCommand cmd;
+  cmd.type = MicroNovaCommandType::READ;
+  cmd.memory_location = location;
+  cmd.memory_address = address;
+  cmd.data = 0;
+
+  // Check if this read is already queued
+  for (const auto &queued : this->command_queue_) {
+    if (queued == cmd) {
+      ESP_LOGV(TAG, "Read [%02X,%02X] already queued, ignoring", location, address);
+      return;
+    }
+  }
+
+  this->command_queue_.push_back(cmd);
+  ESP_LOGV(TAG, "Queued read [%02X,%02X] at back (queue size: %zu)", location, address, this->command_queue_.size());
+}
+
+void MicroNova::send_current_command_() {
   uint8_t trash_rx;
 
-  if (this->reply_pending_mutex_.try_lock()) {
-    // clear rx buffer.
-    // Stove hickups may cause late replies in the rx
-    while (this->available()) {
-      this->read_byte(&trash_rx);
-      ESP_LOGW(TAG, "Reading excess byte 0x%02X", trash_rx);
-    }
-
-    write_data[0] = location;
-    write_data[1] = address;
-    ESP_LOGV(TAG, "Request from stove [%02X,%02X]", write_data[0], write_data[1]);
-
-    this->enable_rx_pin_->digital_write(true);
-    this->write_array(write_data, 2);
-    this->flush();
-    this->enable_rx_pin_->digital_write(false);
-
-    this->current_transmission_.request_transmission_time = millis();
-    this->current_transmission_.memory_location = location;
-    this->current_transmission_.memory_address = address;
-    this->current_transmission_.reply_pending = true;
-    this->current_transmission_.initiating_listener = listener;
-  } else {
-    ESP_LOGE(TAG, "Reply is pending, skipping read request");
+  // Clear rx buffer - stove hiccups may cause late replies in the rx
+  while (this->available()) {
+    this->read_byte(&trash_rx);
+    ESP_LOGW(TAG, "Reading excess byte 0x%02X", trash_rx);
   }
+
+  uint8_t write_data[4] = {this->current_command_->memory_location, this->current_command_->memory_address, 0, 0};
+  size_t write_len;
+
+  if (this->current_command_->type == MicroNovaCommandType::READ) {
+    write_len = 2;
+    ESP_LOGV(TAG, "Request from stove [%02X,%02X]", write_data[0], write_data[1]);
+  } else {
+    write_len = 4;
+    write_data[2] = this->current_command_->data;
+    // calculate checksum
+    write_data[3] =
+        ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
+    ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
+  }
+
+  this->enable_rx_pin_->digital_write(true);
+  this->write_array(write_data, write_len);
+  this->flush();
+  this->enable_rx_pin_->digital_write(false);
+
+  this->current_command_->transmission_time = millis();
 }
 
-int MicroNova::read_stove_reply() {
+int MicroNova::read_stove_reply_() {
   uint8_t reply_data[2] = {0, 0};
-  uint8_t checksum = 0;
 
-  // assert enable_rx_pin is false
   this->read_array(reply_data, 2);
 
-  this->reply_pending_mutex_.unlock();
   ESP_LOGV(TAG, "Reply from stove [%02X,%02X]", reply_data[0], reply_data[1]);
 
-  checksum = ((uint16_t) this->current_transmission_.memory_location +
-              (uint16_t) this->current_transmission_.memory_address + (uint16_t) reply_data[1]) &
-             0xFF;
+  uint8_t checksum = ((uint16_t) this->current_command_->memory_location +
+                      (uint16_t) this->current_command_->memory_address + (uint16_t) reply_data[1]) &
+                     0xFF;
   if (reply_data[0] != checksum) {
-    ESP_LOGE(TAG, "Checksum missmatch! From [0x%02X:0x%02X] received [0x%02X,0x%02X]. Expected 0x%02X, got 0x%02X",
-             this->current_transmission_.memory_location, this->current_transmission_.memory_address, reply_data[0],
+    ESP_LOGE(TAG, "Checksum mismatch! From [0x%02X:0x%02X] received [0x%02X,0x%02X]. Expected 0x%02X, got 0x%02X",
+             this->current_command_->memory_location, this->current_command_->memory_address, reply_data[0],
              reply_data[1], checksum, reply_data[0]);
     return -1;
   }
   return ((int) reply_data[1]);
-}
-
-void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
-  uint8_t write_data[4] = {0, 0, 0, 0};
-  uint16_t checksum = 0;
-
-  if (this->reply_pending_mutex_.try_lock()) {
-    write_data[0] = location;
-    write_data[1] = address;
-    write_data[2] = data;
-
-    checksum = ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
-    write_data[3] = checksum;
-
-    ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
-
-    this->enable_rx_pin_->digital_write(true);
-    this->write_array(write_data, 4);
-    this->flush();
-    this->enable_rx_pin_->digital_write(false);
-
-    this->current_transmission_.request_transmission_time = millis();
-    this->current_transmission_.memory_location = location;
-    this->current_transmission_.memory_address = address;
-    this->current_transmission_.reply_pending = true;
-    this->current_transmission_.initiating_listener = nullptr;
-  } else {
-    ESP_LOGE(TAG, "Reply is pending, skipping write");
-  }
 }
 
 }  // namespace micronova

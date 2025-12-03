@@ -7,9 +7,9 @@
 namespace esphome {
 namespace micronova {
 
-class MicroNovaButton : public Component, public button::Button, public MicroNovaButtonListener {
+class MicroNovaButton : public Component, public button::Button, public MicroNovaBaseListener {
  public:
-  MicroNovaButton(MicroNova *m) : MicroNovaButtonListener(m) {}
+  MicroNovaButton(MicroNova *m) : MicroNovaBaseListener(m) {}
   void dump_config() override {
     LOG_BUTTON("", "Micronova button", this);
     this->dump_base_config();
@@ -20,6 +20,8 @@ class MicroNovaButton : public Component, public button::Button, public MicroNov
 
  protected:
   void press_action() override;
+
+  uint8_t memory_data_ = 0;
 };
 
 }  // namespace micronova

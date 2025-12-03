@@ -6,6 +6,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <deque>
+#include <map>
+#include <optional>
 #include <vector>
 
 namespace esphome {
@@ -42,6 +45,29 @@ enum class MicroNovaFunctions {
   STOVE_FUNCTION_CUSTOM = 12
 };
 
+
+enum class MicroNovaCommandType : uint8_t {
+  READ = 0,
+  WRITE = 1,
+};
+
+/// Key for listener map: (memory_location, memory_address)
+using MicroNovaAddress = std::pair<uint8_t, uint8_t>;
+
+/// Represents a command to be sent to the stove
+struct MicroNovaCommand {
+  MicroNovaCommandType type;
+  uint8_t memory_location;
+  uint8_t memory_address;
+  uint8_t data;                ///< Only used for WRITE commands
+  uint32_t transmission_time;  ///< Time when command was sent
+
+  bool operator==(const MicroNovaCommand &other) const {
+    return type == other.type && memory_location == other.memory_location && memory_address == other.memory_address &&
+           data == other.data;
+  }
+};
+
 class MicroNova;
 
 //////////////////////////////////////////////////////////////////////
@@ -75,37 +101,15 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
  public:
   MicroNovaListener() {}
   MicroNovaListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void request_value_from_stove() = 0;
+
+  void update() override { this->request_value_from_stove(); }
+
   virtual void process_value_from_stove(int value_from_stove) = 0;
-
-  void set_needs_update(bool u) { this->needs_update_ = u; }
-  bool get_needs_update() { return this->needs_update_; }
-
-  void update() override { this->set_needs_update(true); }
 
   void dump_base_config();
 
  protected:
-  bool needs_update_ = false;
-};
-
-class MicroNovaSwitchListener : public MicroNovaBaseListener {
- public:
-  MicroNovaSwitchListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void set_stove_state(bool v) = 0;
-  virtual bool get_stove_state() = 0;
-
- protected:
-  uint8_t memory_data_on_ = 0;
-  uint8_t memory_data_off_ = 0;
-};
-
-class MicroNovaButtonListener : public MicroNovaBaseListener {
- public:
-  MicroNovaButtonListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-
- protected:
-  uint8_t memory_data_ = 0;
+  void request_value_from_stove();
 };
 
 /////////////////////////////////////////////////////////////////////
@@ -117,39 +121,38 @@ class MicroNova : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void register_micronova_listener(MicroNovaListener *l) { this->micronova_listeners_.push_back(l); }
-  void request_update_listeners();
+  void register_micronova_listener(MicroNovaListener *listener);
 
-  void request_address(uint8_t location, uint8_t address, MicroNovaListener *listener);
-  void write_address(uint8_t location, uint8_t address, uint8_t data);
-  int read_stove_reply();
+  /// Queue a read request to the stove (low priority - added at back)
+  /// All listeners registered for this address will be notified with the result
+  /// @param location Memory location on the stove
+  /// @param address Memory address on the stove
+  void queue_read_request(uint8_t location, uint8_t address);
+
+  /// Queue a write command to the stove (high priority - inserted at front)
+  /// @param location Memory location on the stove
+  /// @param address Memory address on the stove
+  /// @param data Data to write
+  void queue_write_command(uint8_t location, uint8_t address, uint8_t data);
 
   void set_enable_rx_pin(GPIOPin *enable_rx_pin) { this->enable_rx_pin_ = enable_rx_pin; }
 
-  void set_current_stove_state(uint8_t s) { this->current_stove_state_ = s; }
-  uint8_t get_current_stove_state() { return this->current_stove_state_; }
-
-  void set_stove(MicroNovaSwitchListener *s) { this->stove_switch_ = s; }
-  MicroNovaSwitchListener *get_stove_switch() { return this->stove_switch_; }
-
  protected:
-  uint8_t current_stove_state_ = 0;
+  void send_current_command_();
+
+  int read_stove_reply_();
+
+  void request_update_listeners_();
 
   GPIOPin *enable_rx_pin_{nullptr};
 
-  struct MicroNovaSerialTransmission {
-    uint32_t request_transmission_time;
-    uint8_t memory_location;
-    uint8_t memory_address;
-    bool reply_pending;
-    MicroNovaListener *initiating_listener;
-  };
+  std::deque<MicroNovaCommand> command_queue_;
 
-  Mutex reply_pending_mutex_;
-  MicroNovaSerialTransmission current_transmission_;
+  std::optional<MicroNovaCommand> current_command_;
 
-  std::vector<MicroNovaListener *> micronova_listeners_{};
-  MicroNovaSwitchListener *stove_switch_{nullptr};
+  /// Registered listeners grouped by memory address
+  /// Key: (memory_location, memory_address), Value: list of listeners for that address
+  std::map<MicroNovaAddress, std::vector<MicroNovaListener *>> listeners_;
 };
 
 }  // namespace micronova

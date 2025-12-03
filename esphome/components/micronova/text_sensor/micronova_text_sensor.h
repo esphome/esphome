@@ -13,9 +13,6 @@ class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaList
     LOG_TEXT_SENSOR("", "Micronova text sensor", this);
     this->dump_base_config();
   }
-  void request_value_from_stove() override {
-    this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
-  }
   void process_value_from_stove(int value_from_stove) override;
 };
 

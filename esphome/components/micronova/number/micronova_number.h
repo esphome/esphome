@@ -15,9 +15,6 @@ class MicroNovaNumber : public number::Number, public MicroNovaListener {
     this->dump_base_config();
   }
   void control(float value) override;
-  void request_value_from_stove() override {
-    this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
-  }
   void process_value_from_stove(int value_from_stove) override;
 
   void set_memory_write_location(uint8_t l) { this->memory_write_location_ = l; }
