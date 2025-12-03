@@ -74,10 +74,7 @@ class MicroNova;
 // Interface classes.
 class MicroNovaBaseListener {
  public:
-  MicroNovaBaseListener() {}
   MicroNovaBaseListener(MicroNova *m) { this->micronova_ = m; }
-
-  void set_micronova_object(MicroNova *m) { this->micronova_ = m; }
 
   void set_function(MicroNovaFunctions f) { this->function_ = f; }
   MicroNovaFunctions get_function() { return this->function_; }
@@ -91,7 +88,7 @@ class MicroNovaBaseListener {
   void dump_base_config();
 
  protected:
-  MicroNova *micronova_{nullptr};
+  MicroNova *micronova_;
   MicroNovaFunctions function_ = MicroNovaFunctions::STOVE_FUNCTION_VOID;
   uint8_t memory_location_ = 0;
   uint8_t memory_address_ = 0;
@@ -99,7 +96,6 @@ class MicroNovaBaseListener {
 
 class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent {
  public:
-  MicroNovaListener() {}
   MicroNovaListener(MicroNova *m) : MicroNovaBaseListener(m) {}
 
   void update() override { this->request_value_from_stove(); }
