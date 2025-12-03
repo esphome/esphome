@@ -229,6 +229,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Pierre (@bemble)](https://github.com/bemble)
 - [Ben-Schwabe (@Ben-Schwabe)](https://github.com/Ben-Schwabe)
 - [Benas09 (@Benas09)](https://github.com/Benas09)
+- [Benjamin Choy (@bench2012)](https://github.com/bench2012)
 - [Ben Kristinsson (@benediktkr)](https://github.com/benediktkr)
 - [Ben Hoff (@benhoff)](https://github.com/benhoff)
 - [Benoît Leforestier (@Benichou34)](https://github.com/Benichou34)
@@ -562,6 +563,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [djwlindenaar (@djwlindenaar)](https://github.com/djwlindenaar)
 - [Marcos Pérez Ferro (@djwmarcx)](https://github.com/djwmarcx)
 - [Dmitry Ketov (@dketov)](https://github.com/dketov)
+- [Darsey Litzenberger (@dlitz)](https://github.com/dlitz)
 - [Dan Mannock (@dmannock)](https://github.com/dmannock)
 - [Dmitriy Lopatko (@dmitriy5181)](https://github.com/dmitriy5181)
 - [dmkif (@dmkif)](https://github.com/dmkif)
@@ -960,6 +962,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Jonathan Kollasch (@jakllsch)](https://github.com/jakllsch)
 - [Jakob Reiter (@jakommo)](https://github.com/jakommo)
 - [jakub-medrzak (@jakub-medrzak)](https://github.com/jakub-medrzak)
+- [Jakub Čermák (@jakubcermak)](https://github.com/jakubcermak)
 - [James Braid (@jamesbraid)](https://github.com/jamesbraid)
 - [James Duke (@jamesduke)](https://github.com/jamesduke)
 - [James Gao (@jamesgao)](https://github.com/jamesgao)
@@ -2276,4 +2279,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated November 27, 2025.*
+*This page was last updated December 3, 2025.*
