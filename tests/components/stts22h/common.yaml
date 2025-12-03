@@ -1,4 +1,5 @@
 sensor:
   - platform: stts22h
+    i2c_id: i2c_bus
     name: Temperature
     update_interval: 15s

@@ -7,7 +7,7 @@
 #include "esphome/core/automation.h"
 #include "api_pb2.h"
 
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 namespace esphome::api {
 
 class UserServiceDescriptor {
@@ -51,13 +51,14 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
       return false;
     if (req.args.size() != sizeof...(Ts))
       return false;
-    this->execute_(req.args, typename gens<sizeof...(Ts)>::type());
+    this->execute_(req.args, std::make_index_sequence<sizeof...(Ts)>{});
     return true;
   }
 
  protected:
   virtual void execute(Ts... x) = 0;
-  template<typename ArgsContainer, int... S> void execute_(const ArgsContainer &args, seq<S...> type) {
+  template<typename ArgsContainer, size_t... S>
+  void execute_(const ArgsContainer &args, std::index_sequence<S...> type) {
     this->execute((get_execute_arg_value<Ts>(args[S]))...);
   }
 
@@ -95,13 +96,14 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
       return false;
     if (req.args.size() != sizeof...(Ts))
       return false;
-    this->execute_(req.args, typename gens<sizeof...(Ts)>::type());
+    this->execute_(req.args, std::make_index_sequence<sizeof...(Ts)>{});
     return true;
   }
 
  protected:
   virtual void execute(Ts... x) = 0;
-  template<typename ArgsContainer, int... S> void execute_(const ArgsContainer &args, seq<S...> type) {
+  template<typename ArgsContainer, size_t... S>
+  void execute_(const ArgsContainer &args, std::index_sequence<S...> type) {
     this->execute((get_execute_arg_value<Ts>(args[S]))...);
   }
 
@@ -122,4 +124,4 @@ template<typename... Ts> class UserServiceTrigger : public UserServiceBase<Ts...
 };
 
 }  // namespace esphome::api
-#endif  // USE_API_SERVICES
+#endif  // USE_API_USER_DEFINED_ACTIONS

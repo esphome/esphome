@@ -114,6 +114,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 bk72xx="1000b",
                 ln882x="1000b",
                 rtl87xx="1000b",
+                rp2040="1000b",
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
@@ -213,6 +214,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
         },
     }
 )
