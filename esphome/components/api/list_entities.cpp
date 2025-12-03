@@ -82,7 +82,7 @@ bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(
 
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
 
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
   return this->client_->send_message(resp, ListEntitiesServicesResponse::MESSAGE_TYPE);

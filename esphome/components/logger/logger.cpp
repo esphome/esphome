@@ -65,7 +65,9 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
     uint16_t buffer_at = 0;                         // Initialize buffer position
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
                                                 MAX_CONSOLE_LOG_MSG_SIZE);
-    this->write_msg_(console_buffer);
+    // Add newline if platform needs it (ESP32 doesn't add via write_msg_)
+    this->add_newline_to_buffer_if_needed_(console_buffer, &buffer_at, MAX_CONSOLE_LOG_MSG_SIZE);
+    this->write_msg_(console_buffer, buffer_at);
   }
 
   // Reset the recursion guard for this task
@@ -131,17 +133,19 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 
   // Save the offset before calling format_log_to_buffer_with_terminator_
   // since it will increment tx_buffer_at_ to the end of the formatted string
-  uint32_t msg_start = this->tx_buffer_at_;
+  uint16_t msg_start = this->tx_buffer_at_;
   this->format_log_to_buffer_with_terminator_(level, tag, line, this->tx_buffer_, args, this->tx_buffer_,
                                               &this->tx_buffer_at_, this->tx_buffer_size_);
 
-  // Write to console and send callback starting at the msg_start
-  if (this->baud_rate_ > 0) {
-    this->write_msg_(this->tx_buffer_ + msg_start);
-  }
-  size_t msg_length =
+  uint16_t msg_length =
       this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
-  this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start, msg_length);
+
+  // Listeners get message first (before console write)
+  for (auto *listener : this->log_listeners_)
+    listener->on_log(level, tag, this->tx_buffer_ + msg_start, msg_length);
+
+  // Write to console starting at the msg_start
+  this->write_tx_buffer_to_console_(msg_start, &msg_length);
 
   global_recursion_guard_ = false;
 }
@@ -200,7 +204,8 @@ void Logger::process_messages_() {
       this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
       this->tx_buffer_[this->tx_buffer_at_] = '\0';
       size_t msg_len = this->tx_buffer_at_;  // We already know the length from tx_buffer_at_
-      this->log_callback_.call(message->level, message->tag, this->tx_buffer_, msg_len);
+      for (auto *listener : this->log_listeners_)
+        listener->on_log(message->level, message->tag, this->tx_buffer_, msg_len);
       // At this point all the data we need from message has been transferred to the tx_buffer
       // so we can release the message to allow other tasks to use it as soon as possible.
       this->log_buffer_->release_message_main_loop(received_token);
@@ -209,9 +214,7 @@ void Logger::process_messages_() {
       // This ensures all log messages appear on the console in a clean, serialized manner
       // Note: Messages may appear slightly out of order due to async processing, but
       // this is preferred over corrupted/interleaved console output
-      if (this->baud_rate_ > 0) {
-        this->write_msg_(this->tx_buffer_);
-      }
+      this->write_tx_buffer_to_console_();
     }
   } else {
     // No messages to process, disable loop if appropriate
@@ -230,9 +233,6 @@ void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_level
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
-void Logger::add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback) {
-  this->log_callback_.add(std::move(callback));
-}
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
@@ -288,7 +288,10 @@ void Logger::set_log_level(uint8_t level) {
     ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]));
   }
   this->current_level_ = level;
-  this->level_callback_.call(level);
+#ifdef USE_LOGGER_LEVEL_LISTENERS
+  for (auto *listener : this->level_listeners_)
+    listener->on_log_level_change(level);
+#endif
 }
 
 Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
