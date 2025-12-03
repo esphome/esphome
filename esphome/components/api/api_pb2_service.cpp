@@ -13,7 +13,7 @@ void APIServerConnectionBase::log_send_message_(const char *name, const std::str
 }
 #endif
 
-void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
+void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
   switch (msg_type) {
     case HelloRequest::MESSAGE_TYPE: {
       HelloRequest msg;
@@ -827,7 +827,7 @@ void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) { th
 void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) { this->zwave_proxy_request(msg); }
 #endif
 
-void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
+void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
   // Check authentication/connection requirements for messages
   switch (msg_type) {
     case HelloRequest::MESSAGE_TYPE:  // No setup required

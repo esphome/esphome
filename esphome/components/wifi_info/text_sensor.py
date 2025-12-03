@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-# Keys that require WiFi callbacks
+# Keys that require WiFi listeners
 _NETWORK_INFO_KEYS = {
     CONF_SSID,
     CONF_BSSID,
@@ -79,9 +79,9 @@ async def setup_conf(config, key):
 
 
 async def to_code(config):
-    # Request WiFi callbacks for any sensor that needs them
+    # Request WiFi listeners for any sensor that needs them
     if _NETWORK_INFO_KEYS.intersection(config):
-        wifi.request_wifi_callbacks()
+        wifi.request_wifi_listeners()
 
     await setup_conf(config, CONF_SSID)
     await setup_conf(config, CONF_BSSID)
