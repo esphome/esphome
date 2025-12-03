@@ -243,7 +243,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
 def _walk_packages(
     config: dict, callback: Callable[[dict, Any], dict], context: Any = None
 ) -> dict:
-    """Walks the packages structure, calling `callback` on each package definition found."""
+    """Walks the packages structure in priority order, invoking `callback` on each package definition found."""
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
@@ -301,7 +301,7 @@ def do_packages_pass(
     """
     if CONF_PACKAGES not in config:
         return config
-    merge_list = [config.pop(CONF_SUBSTITUTIONS, {})]
+    merge_list = []
 
     def process_package_callback(package_config, context_vars):
         """This will be called for each package found in the config."""
@@ -315,7 +315,7 @@ def do_packages_pass(
         if CONF_URL in package_config:
             # This is a remote package definition. Replace it with the actual package contents:
             package_config = _process_remote_package(package_config, skip_update)
-        # Extract substitutions from the package and merge them into the main substitutions:
+        # Extract substitutions from the package and add to the list to merge later:
         merge_list.append(package_config.pop(CONF_SUBSTITUTIONS, {}))
 
         if CONF_PACKAGES not in package_config:
@@ -329,7 +329,12 @@ def do_packages_pass(
     context_vars = push_context(config[CONF_PACKAGES], ContextVars())
     _walk_packages(config, process_package_callback, context_vars)
 
-    substitutions = reduce(merge_config, reversed(merge_list), {})
+    # Merge all substitutions found in packages into the main config substitutions:
+    substitutions = reduce(
+        lambda new, old: merge_config(old, new),
+        merge_list,
+        config.pop(CONF_SUBSTITUTIONS, {}),
+    )
 
     if substitutions:
         config[CONF_SUBSTITUTIONS] = substitutions
@@ -342,13 +347,15 @@ def merge_packages(config: dict) -> dict:
     if CONF_PACKAGES not in config:
         return config
 
-    merge_list = [config]
+    # Build flat list of all package configs to merge in priority order:
+    merge_list = []
 
     def process_package_callback(package_config, context):
         merge_list.append(package_config)
         return _walk_packages(package_config, process_package_callback)
 
     _walk_packages(config, process_package_callback)
-    config = reduce(merge_config, reversed(merge_list), {})
+    # Merge all packages into the main config:
+    config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]
     return config
