@@ -466,10 +466,9 @@ void USBCDCACMComponent::add_interface(USBCDCACMInstance *interface) {
 }
 
 USBCDCACMInstance *USBCDCACMComponent::get_interface_by_number(uint8_t itf) {
-  for (uint8_t i = 0; i < MAX_USB_CDC_INSTANCES; i++) {
-    if ((this->interfaces_[i] != nullptr) &&
-        (this->interfaces_[i]->get_itf() == static_cast<tinyusb_cdcacm_itf_t>(itf))) {
-      return this->interfaces_[i];
+  for (auto interface : this->interfaces_) {
+    if ((interface != nullptr) && (interface->get_itf() == static_cast<tinyusb_cdcacm_itf_t>(itf))) {
+      return interface;
     }
   }
   return nullptr;
