@@ -8,3 +8,13 @@ cc1101:
   channel_spacing: 200
   symbol_rate: 5000
   modulation_type: ASK/OOK
+
+button:
+  - platform: template
+    name: "CC1101 Button"
+    on_press:
+      then:
+        - cc1101.begin_tx: transceiver
+        - cc1101.begin_rx: transceiver
+        - cc1101.set_idle: transceiver
+        - cc1101.reset: transceiver

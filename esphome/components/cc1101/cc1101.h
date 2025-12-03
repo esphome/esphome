@@ -89,22 +89,22 @@ class CC1101Component : public Component,
 // Action Wrappers
 template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Parented<CC1101Component> {
  public:
-  void play(Ts... x) override { this->parent_->begin_tx(); }
+  void play(const Ts &...x) override { this->parent_->begin_tx(); }
 };
 
 template<typename... Ts> class BeginRxAction : public Action<Ts...>, public Parented<CC1101Component> {
  public:
-  void play(Ts... x) override { this->parent_->begin_rx(); }
+  void play(const Ts &...x) override { this->parent_->begin_rx(); }
 };
 
 template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<CC1101Component> {
  public:
-  void play(Ts... x) override { this->parent_->reset(); }
+  void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
 template<typename... Ts> class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {
  public:
-  void play(Ts... x) override { this->parent_->set_idle(); }
+  void play(const Ts &...x) override { this->parent_->set_idle(); }
 };
 
 }  // namespace esphome::cc1101
