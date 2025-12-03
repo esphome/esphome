@@ -36,5 +36,5 @@ test_list:
   - '{{{"AA"}}}'
   - '"HELLO"'
   - '{ 79, 82 }'
-  - a: 15 should be 15, overriden from command line
-    b: 20 should stay as 20, not overriden
+  - a: 15 should be 15, overridden from command line
+    b: 20 should stay as 20, not overridden
