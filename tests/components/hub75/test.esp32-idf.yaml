@@ -1,16 +1,29 @@
 esp32:
-  board: esp32-s3-devkitc-1
+  board: esp32dev
   framework:
-    type: arduino
+    type: esp-idf
 
 display:
   - platform: hub75
-    id: hub75_display_board
-    board: adafruit-matrix-portal-s3
+    id: my_hub75
     panel_width: 64
     panel_height: 32
     double_buffer: true
     brightness: 128
+    r1_pin: GPIO25
+    g1_pin: GPIO26
+    b1_pin: GPIO27
+    r2_pin: GPIO14
+    g2_pin: GPIO12
+    b2_pin: GPIO13
+    a_pin: GPIO23
+    b_pin: GPIO19
+    c_pin: GPIO5
+    d_pin: GPIO17
+    e_pin: GPIO21
+    lat_pin: GPIO4
+    oe_pin: GPIO15
+    clk_pin: GPIO16
     pages:
       - id: page1
         lambda: |-

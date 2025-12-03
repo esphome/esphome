@@ -37,26 +37,36 @@ void HUB75Display::setup() {
 void HUB75Display::dump_config() {
   LOG_DISPLAY("", "HUB75", this);
 
-  ESP_LOGCONFIG(TAG, "  Panel: %dx%d pixels", config_.panel_width, config_.panel_height);
-  ESP_LOGCONFIG(TAG, "  Layout: %dx%d panels", config_.layout_cols, config_.layout_rows);
-  ESP_LOGCONFIG(TAG, "  Virtual Display: %dx%d pixels", config_.panel_width * config_.layout_cols,
-                config_.panel_height * config_.layout_rows);
+  ESP_LOGCONFIG(TAG,
+                "  Panel: %dx%d pixels\n"
+                "  Layout: %dx%d panels\n"
+                "  Virtual Display: %dx%d pixels",
+                config_.panel_width, config_.panel_height, config_.layout_cols, config_.layout_rows,
+                config_.panel_width * config_.layout_cols, config_.panel_height * config_.layout_rows);
 
-  ESP_LOGCONFIG(TAG, "  Scan Wiring: %d", static_cast<int>(config_.scan_wiring));
-  ESP_LOGCONFIG(TAG, "  Shift Driver: %d", static_cast<int>(config_.shift_driver));
+  ESP_LOGCONFIG(TAG,
+                "  Scan Wiring: %d\n"
+                "  Shift Driver: %d",
+                static_cast<int>(config_.scan_wiring), static_cast<int>(config_.shift_driver));
 
-  ESP_LOGCONFIG(TAG, "  Pins: R1:%i, G1:%i, B1:%i, R2:%i, G2:%i, B2:%i", config_.pins.r1, config_.pins.g1,
-                config_.pins.b1, config_.pins.r2, config_.pins.g2, config_.pins.b2);
-  ESP_LOGCONFIG(TAG, "  Pins: A:%i, B:%i, C:%i, D:%i, E:%i", config_.pins.a, config_.pins.b, config_.pins.c,
-                config_.pins.d, config_.pins.e);
-  ESP_LOGCONFIG(TAG, "  Pins: LAT:%i, OE:%i, CLK:%i", config_.pins.lat, config_.pins.oe, config_.pins.clk);
+  ESP_LOGCONFIG(TAG,
+                "  Pins: R1:%i, G1:%i, B1:%i, R2:%i, G2:%i, B2:%i\n"
+                "  Pins: A:%i, B:%i, C:%i, D:%i, E:%i\n"
+                "  Pins: LAT:%i, OE:%i, CLK:%i",
+                config_.pins.r1, config_.pins.g1, config_.pins.b1, config_.pins.r2, config_.pins.g2, config_.pins.b2,
+                config_.pins.a, config_.pins.b, config_.pins.c, config_.pins.d, config_.pins.e, config_.pins.lat,
+                config_.pins.oe, config_.pins.clk);
 
-  ESP_LOGCONFIG(TAG, "  Clock Speed: %u MHz", static_cast<uint32_t>(config_.output_clock_speed) / 1000000);
-  ESP_LOGCONFIG(TAG, "  Latch Blanking: %i", config_.latch_blanking);
-  ESP_LOGCONFIG(TAG, "  Clock Phase: %s", TRUEFALSE(config_.clk_phase_inverted));
-  ESP_LOGCONFIG(TAG, "  Min Refresh Rate: %i Hz", config_.min_refresh_rate);
-  ESP_LOGCONFIG(TAG, "  Bit Depth: %i", HUB75_BIT_DEPTH);
-  ESP_LOGCONFIG(TAG, "  Double Buffer: %s", YESNO(config_.double_buffer));
+  ESP_LOGCONFIG(TAG,
+                "  Clock Speed: %u MHz\n"
+                "  Latch Blanking: %i\n"
+                "  Clock Phase: %s\n"
+                "  Min Refresh Rate: %i Hz\n"
+                "  Bit Depth: %i\n"
+                "  Double Buffer: %s",
+                static_cast<uint32_t>(config_.output_clock_speed) / 1000000, config_.latch_blanking,
+                TRUEFALSE(config_.clk_phase_inverted), config_.min_refresh_rate, HUB75_BIT_DEPTH,
+                YESNO(config_.double_buffer));
 }
 
 // ========================================

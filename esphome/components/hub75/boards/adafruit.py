@@ -19,5 +19,5 @@ BoardConfig(
     lat_pin=47,
     oe_pin=14,
     clk_pin=2,
-    a_pin_ignore_strapping=True,  # GPIO45 is a strapping pin
+    ignore_strapping_pins=("a_pin",),  # GPIO45 is a strapping pin
 )
