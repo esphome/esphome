@@ -9,12 +9,25 @@ import pkgutil
 from typing import ClassVar
 
 
+class BoardRegistry:
+    """Global registry for board configurations."""
+
+    _boards: ClassVar[dict[str, "BoardConfig"]] = {}
+
+    @classmethod
+    def register(cls, board: "BoardConfig") -> None:
+        """Register a board configuration."""
+        cls._boards[board.name] = board
+
+    @classmethod
+    def get_boards(cls) -> dict[str, "BoardConfig"]:
+        """Return all registered boards."""
+        return cls._boards
+
+
 @dataclass
 class BoardConfig:
-    """Board configuration storing HUB75 pin mappings.
-
-    Boards are automatically registered in the class-level boards dict when instantiated.
-    """
+    """Board configuration storing HUB75 pin mappings."""
 
     name: str
     r1_pin: int
@@ -55,16 +68,7 @@ class BoardConfig:
             "oe": self.oe_pin,
             "clk": self.clk_pin,
         }
-        # Auto-register this board
-        BoardConfig._boards[self.name] = self
-
-    # Class variable for the registry (ClassVar excludes it from dataclass fields)
-    _boards: ClassVar[dict[str, "BoardConfig"]] = {}
-
-    @classmethod
-    def get_boards(cls) -> dict[str, "BoardConfig"]:
-        """Return all registered boards."""
-        return cls._boards
+        BoardRegistry.register(self)
 
     def get_pin(self, pin_name: str) -> int | None:
         """Get pin number for a given pin name."""

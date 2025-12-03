@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
@@ -16,6 +18,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import boards, hub75_ns
 
@@ -23,7 +26,7 @@ DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@stuartparmenter"]
 
 # Load all board presets
-BOARDS = boards.BoardConfig.get_boards()
+BOARDS = boards.BoardRegistry.get_boards()
 
 # Constants
 CONF_HUB75_ID = "hub75_id"
@@ -134,7 +137,7 @@ Hub75Config = cg.global_ns.struct("Hub75Config")
 Hub75Pins = cg.global_ns.struct("Hub75Pins")
 
 
-def _merge_board_pins(config: dict) -> dict:
+def _merge_board_pins(config: ConfigType) -> ConfigType:
     """Merge board preset pins with explicit pin overrides."""
     board_name = config.get(CONF_BOARD)
 
@@ -181,9 +184,9 @@ def _merge_board_pins(config: dict) -> dict:
     return config
 
 
-def _validate_config(config: dict) -> dict:
+def _validate_config(config: ConfigType) -> ConfigType:
     """Validate driver and layout requirements."""
-    errs = []
+    errs: list[cv.Invalid] = []
 
     # MBI5124 requires inverted clock phase
     driver = config.get(CONF_SHIFT_DRIVER, "GENERIC")
@@ -280,7 +283,7 @@ def _validate_config(config: dict) -> dict:
     return config
 
 
-def _final_validate(config: dict) -> dict:
+def _final_validate(config: ConfigType) -> ConfigType:
     """Validate requirements when using HUB75 display."""
     # Local imports to avoid circular dependencies
     from esphome.components.esp32 import get_esp32_variant
@@ -289,7 +292,7 @@ def _final_validate(config: dict) -> dict:
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
     full_config = fv.full_config.get()
-    errs = []
+    errs: list[cv.Invalid] = []
 
     # ESP32-P4 requires PSRAM
     variant = get_esp32_variant()
@@ -409,7 +412,7 @@ CONFIG_SCHEMA = cv.All(
 DEFAULT_REFRESH_RATE = 60  # Hz
 
 
-def _calculate_min_refresh_rate(config: dict) -> int:
+def _calculate_min_refresh_rate(config: ConfigType) -> int:
     """Calculate minimum refresh rate for the display.
 
     Priority:
@@ -439,7 +442,9 @@ def _calculate_min_refresh_rate(config: dict) -> int:
     return max(40, min(200, int(round(1000 / interval_ms))))
 
 
-def _build_pins_struct(pin_expressions: dict, e_pin_num):
+def _build_pins_struct(
+    pin_expressions: dict[str, Any], e_pin_num: int | cg.RawExpression
+) -> cg.StructInitializer:
     """Build Hub75Pins struct from pin expressions."""
 
     def pin_cast(pin):
@@ -464,7 +469,20 @@ def _build_pins_struct(pin_expressions: dict, e_pin_num):
     )
 
 
-def _build_config_struct(config: dict, pins_struct, min_refresh: int):
+def _append_config_fields(
+    config: ConfigType,
+    field_mapping: list[tuple[str, str]],
+    config_fields: list[tuple[str, Any]],
+) -> None:
+    """Append config fields from mapping if present in config."""
+    for conf_key, struct_field in field_mapping:
+        if conf_key in config:
+            config_fields.append((struct_field, config[conf_key]))
+
+
+def _build_config_struct(
+    config: ConfigType, pins_struct: cg.StructInitializer, min_refresh: int
+) -> cg.StructInitializer:
     """Build Hub75Config struct from config.
 
     Fields must be added in declaration order (see hub75_types.h) to satisfy
@@ -492,11 +510,9 @@ def _build_config_struct(config: dict, pins_struct, min_refresh: int):
         (CONF_BRIGHTNESS, "brightness"),
     ]
 
-    config_fields = []
+    config_fields: list[tuple[str, Any]] = []
 
-    for conf_key, struct_field in fields_before_pins:
-        if conf_key in config:
-            config_fields.append((struct_field, config[conf_key]))
+    _append_config_fields(config, fields_before_pins, config_fields)
 
     config_fields.append(("pins", pins_struct))
 
@@ -505,14 +521,12 @@ def _build_config_struct(config: dict, pins_struct, min_refresh: int):
 
     config_fields.append(("min_refresh_rate", min_refresh))
 
-    for conf_key, struct_field in fields_after_min_refresh:
-        if conf_key in config:
-            config_fields.append((struct_field, config[conf_key]))
+    _append_config_fields(config, fields_after_min_refresh, config_fields)
 
     return cg.StructInitializer(Hub75Config, *config_fields)
 
 
-async def to_code(config: dict):
+async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="stuartparmenter/esp-hub75",
         ref="0.1.4",
