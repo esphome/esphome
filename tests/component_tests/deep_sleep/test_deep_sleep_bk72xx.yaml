@@ -6,6 +6,6 @@ bk72xx:
   board: cbu
 
 deep_sleep:
-  id: deep_sleep_lt
+  id: deep_sleep
   run_duration: 30s
   sleep_duration: 12h
