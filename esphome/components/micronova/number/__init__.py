@@ -5,7 +5,7 @@ from esphome.const import CONF_STEP, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
 
 from .. import (
     CONF_MICRONOVA_ID,
-    MICRONOVA_LISTENER_POLLING_SCHEMA,
+    MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
     MicroNovaListener,
@@ -32,8 +32,8 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_TEMPERATURE,
         )
         .extend(
-            MICRONOVA_LISTENER_POLLING_SCHEMA(
-                default_memory_location=0x20, default_memory_address=0x7D
+            MICRONOVA_ADDRESS_SCHEMA(
+                default_memory_location=0x20, default_memory_address=0x7D, is_polling_component=True
             )
         )
         .extend(

@@ -43,8 +43,8 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(uart.UART_DEVICE_SCHEMA)
 
 
-def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
-    return cv.Schema(
+def MICRONOVA_ADDRESS_SCHEMA(*, default_memory_location: int, default_memory_address: int, is_polling_component: bool):
+    schema = cv.Schema(
         {
             cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
             cv.Optional(
@@ -55,12 +55,9 @@ def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
             ): cv.hex_int_range(),
         }
     )
-
-
-def MICRONOVA_LISTENER_POLLING_SCHEMA(default_memory_location, default_memory_address):
-    return MICRONOVA_LISTENER_SCHEMA(
-        default_memory_location, default_memory_address
-    ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
+    if is_polling_component:
+        schema = schema.extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
+    return schema
 
 
 async def to_code_micronova_listener(mv, var, config, micronova_function):

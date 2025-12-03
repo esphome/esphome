@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 
 from .. import (
     CONF_MICRONOVA_ID,
-    MICRONOVA_LISTENER_POLLING_SCHEMA,
+    MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
     MicroNovaListener,
@@ -24,8 +24,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_STOVE_STATE): text_sensor.text_sensor_schema(
             MicroNovaTextSensor
         ).extend(
-            MICRONOVA_LISTENER_POLLING_SCHEMA(
-                default_memory_location=0x00, default_memory_address=0x21
+            MICRONOVA_ADDRESS_SCHEMA(
+                default_memory_location=0x00, default_memory_address=0x21, is_polling_component=True
             )
         ),
     }
