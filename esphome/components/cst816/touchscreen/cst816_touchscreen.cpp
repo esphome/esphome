@@ -18,8 +18,8 @@ void CST816Touchscreen::continue_setup_() {
     }
   }
 
+  // CST826/CST836 return 0 for chip ID, need to read from factory ID register
   if (this->chip_id_ == 0) {
-    // CST826/CST836 return 0 for chip ID, need to read from factory ID register
     if (!this->read_byte(REG_FACTORY_ID, &this->chip_id_) && !this->skip_probe_) {
       this->status_set_error(LOG_STR("Failed to read chip ID"));
       this->mark_failed();
