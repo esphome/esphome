@@ -12,7 +12,7 @@
 
 namespace esphome::usb_cdc_acm {
 
-static const uint8_t EVENT_QUEUE_SIZE = 8;
+static const uint8_t EVENT_QUEUE_SIZE = 12;
 static const uint8_t MAX_USB_CDC_INSTANCES = 2;
 
 // Callback types for line coding and line state changes
