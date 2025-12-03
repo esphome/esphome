@@ -136,7 +136,6 @@ void USBCDCACMInstance::setup() {
   const tinyusb_config_cdcacm_t acm_cfg = {
       .usb_dev = TINYUSB_USBDEV_0,
       .cdc_port = this->itf_,
-      .rx_unread_buf_sz = CONFIG_TINYUSB_CDC_RX_BUFSIZE,
       .callback_rx = &tinyusb_cdc_rx_callback,
       .callback_rx_wanted_char = NULL,
       .callback_line_state_changed = &tinyusb_cdc_line_state_changed_callback,
@@ -151,7 +150,7 @@ void USBCDCACMInstance::setup() {
   }
 
   // Use a larger stack size for (very) verbose logging
-  size_t stack_size = esp_log_level_get(TAG) > ESP_LOG_DEBUG ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE;
+  const size_t stack_size = esp_log_level_get(TAG) > ESP_LOG_DEBUG ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE;
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
