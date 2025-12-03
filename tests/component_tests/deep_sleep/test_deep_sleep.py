@@ -67,7 +67,7 @@ def test_deep_sleep_bk72xx_sleep_duration(generate_main):
     assert "deepsleep->set_sleep_duration(60000);" in main_cpp
 
 
-def test_deep_sleep_run_duration(generate_main):
+def test_deep_sleep_bk72xx_run_duration(generate_main):
     """
     When deep sleep is configured with run duration, it should be set.
     """
@@ -76,3 +76,4 @@ def test_deep_sleep_run_duration(generate_main):
     )
 
     assert "deepsleep->set_run_duration(10000);" in main_cpp
+
