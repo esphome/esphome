@@ -67,10 +67,11 @@ def MICRONOVA_ADDRESS_SCHEMA(
 
 async def to_code_micronova_listener(mv, var, config, micronova_function):
     await cg.register_component(var, config)
-    cg.add(mv.register_micronova_listener(var))
     cg.add(var.set_memory_location(config[CONF_MEMORY_LOCATION]))
     cg.add(var.set_memory_address(config[CONF_MEMORY_ADDRESS]))
     cg.add(var.set_function(micronova_function))
+    # Register listener as last step as we need all properties set before registering
+    cg.add(mv.register_micronova_listener(var))
 
 
 async def to_code(config):
