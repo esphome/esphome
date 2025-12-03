@@ -76,4 +76,3 @@ def test_deep_sleep_bk72xx_run_duration(generate_main):
     )
 
     assert "deepsleep->set_run_duration(30000);" in main_cpp
-
