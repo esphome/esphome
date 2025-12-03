@@ -5,7 +5,7 @@ from esphome import platformio_api
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD
 
-from .const import KEY_FCPU, KEY_MCU, KEY_MCU_SERIES, KEY_RAM, KEY_ROM
+from .const import CONF_FCPU, CONF_MCU, CONF_MCU_SERIES, CONF_RAM, CONF_ROM
 
 STM32_BASE_PINS = {
     "LED": 5,
@@ -13,7 +13,7 @@ STM32_BASE_PINS = {
 
 STM32_BOARD_PINS = {}
 
-MCU_RE = re.compile("stm32([fghlu][0-9])(.*)", re.IGNORECASE)
+MCU_RE = re.compile("STM32([FGHLU][0-9])(.*)", re.IGNORECASE)
 
 
 def platformio_get_board_details(board):
@@ -28,21 +28,22 @@ def platformio_get_board_details(board):
     return boards_data[0]
 
 
-def get_board_details(platform):
+def validate_board_details(platform):
+    def set_if_empty(key, value_factory):
+        if not platform.get(key):
+            platform[key] = value_factory()
+
     board = platform[CONF_BOARD]
     board_details = platformio_get_board_details(board)
 
-    details = {k: board_details[k] for k in (KEY_FCPU, KEY_MCU, KEY_RAM, KEY_ROM)}
+    set_if_empty(CONF_MCU, lambda: board_details["mcu"])
+    match = MCU_RE.match(platform[CONF_MCU])
+    if not match:
+        raise cv.Invalid(f"invalid MCU: {platform[CONF_MCU]}")
+    platform[CONF_MCU] = platform[CONF_MCU].upper()
+    set_if_empty(CONF_MCU_SERIES, lambda: match.group(1).upper())
+    set_if_empty(CONF_FCPU, lambda: board_details["fcpu"])
+    set_if_empty(CONF_RAM, lambda: board_details["ram"])
+    set_if_empty(CONF_ROM, lambda: board_details["rom"])
 
-    if match := MCU_RE.match(details[KEY_MCU]):
-        mcu_series, _ = match.groups()
-    else:
-        raise cv.Invalid(f"Can't detect board series for '{board}'")
-
-    details.update(
-        {
-            KEY_MCU_SERIES: mcu_series,
-        }
-    )
-
-    return details
+    return platform
