@@ -7,7 +7,7 @@
 namespace esphome {
 namespace micronova {
 
-class MicroNovaSwitch : public Component, public switch_::Switch, public MicroNovaListener {
+class MicroNovaSwitch : public switch_::Switch, public MicroNovaListener {
  public:
   MicroNovaSwitch(MicroNova *m) : MicroNovaListener(m) {}
   void dump_config() override {

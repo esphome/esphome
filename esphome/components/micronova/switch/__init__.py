@@ -4,13 +4,12 @@ import esphome.config_validation as cv
 from esphome.const import ICON_POWER
 
 from .. import (
-    CONF_MEMORY_ADDRESS,
-    CONF_MEMORY_LOCATION,
     CONF_MICRONOVA_ID,
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
     micronova_ns,
+    to_code_micronova_listener,
 )
 
 CONF_STOVE = "stove"
@@ -48,9 +47,8 @@ async def to_code(config):
 
     if stove_config := config.get(CONF_STOVE):
         sw = await switch.new_switch(stove_config, mv)
-        cg.add(mv.set_stove(sw))
-        cg.add(sw.set_memory_location(stove_config[CONF_MEMORY_LOCATION]))
-        cg.add(sw.set_memory_address(stove_config[CONF_MEMORY_ADDRESS]))
+        await to_code_micronova_listener(
+            mv, sw, stove_config, MicroNovaFunctions.STOVE_FUNCTION_SWITCH
+        )
         cg.add(sw.set_memory_data_on(stove_config[CONF_MEMORY_DATA_ON]))
         cg.add(sw.set_memory_data_off(stove_config[CONF_MEMORY_DATA_OFF]))
-        cg.add(sw.set_function(MicroNovaFunctions.STOVE_FUNCTION_SWITCH))
