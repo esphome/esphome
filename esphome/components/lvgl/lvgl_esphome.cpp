@@ -341,7 +341,6 @@ void IndicatorLine::update_length_() {
   this->points_[0].y = radius;
   this->points_[1].x = lv_trigo_cos(this->angle_) / 32768.0f * actual_needle_length + radius;
   this->points_[1].y = lv_trigo_sin(this->angle_) / 32768.0f * actual_needle_length + radius;
-  ESP_LOGD(TAG, "Points are %d/%d", this->points_[1].x, this->points_[1].y);
   lv_obj_refresh_self_size(this->obj);
   lv_obj_invalidate(this->obj);
 }
