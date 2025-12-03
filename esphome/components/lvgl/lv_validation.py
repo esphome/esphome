@@ -269,7 +269,7 @@ def pixels_or_percent_validator(value):
     if value == SCHEMA_EXTRACT:
         return ["pixels", "..%"]
     if isinstance(value, str) and value.lower().endswith("px"):
-        value = cv.int_(value[:-2])
+        return cv.int_(value[:-2])
     if isinstance(value, str) and re.match(r"^lv_pct\((\d+)\)$", value):
         return int(value[6:-1]) / 100.0
     return cv.Any(cv.int_, cv.percentage)(value)

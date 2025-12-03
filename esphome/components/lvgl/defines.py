@@ -404,6 +404,7 @@ OBJ_FLAGS = (
     "overflow_visible",
     "layout_1",
     "layout_2",
+    "send_draw_task_events",
     "widget_1",
     "widget_2",
     "user_1",
@@ -621,8 +622,6 @@ CONF_UPDATE_WHEN_DISPLAY_IDLE = "update_when_display_idle"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
-CONF_X = "x"
-CONF_Y = "y"
 CONF_ZOOM = "zoom"
 
 # Keypad keys

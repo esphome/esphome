@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.image import DOMAIN as IMAGE_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
@@ -15,18 +16,19 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_X,
 )
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import nullptr
 
-from .. import set_obj_properties
+from .. import REMAPPED_USES, set_obj_properties
 from ..automation import action_to_code
 from ..defines import (
     CHILD_ALIGNMENTS,
     CONF_ALIGN,
-    CONF_BG_OPA,
     CONF_CONTAINER,
     CONF_END_VALUE,
     CONF_INDICATOR,
+    CONF_LINE_WIDTH,
     CONF_MAIN,
     CONF_OPA,
     CONF_PIVOT_X,
@@ -34,10 +36,9 @@ from ..defines import (
     CONF_SRC,
     CONF_START_VALUE,
     CONF_TICKS,
-    CONF_TRANSFORM_ROTATION,
+    LV_OBJ_FLAG,
     LV_PART,
     LV_SCALE_MODE,
-    StaticCastExpression,
     literal,
 )
 from ..helpers import add_lv_use, lvgl_components_required
@@ -52,18 +53,26 @@ from ..lv_validation import (
     lv_image,
     lv_int,
     opacity,
+    padding,
     pixels,
     pixels_or_percent,
     pixels_or_percent_validator,
     requires_component,
     size,
 )
-from ..lvcode import LambdaContext, LocalVariable, lv, lv_expr, lv_obj
+from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
 from ..styles import LVStyle, style_set
-from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_event_t, lv_img_t, lv_obj_t
-from . import Widget, WidgetType, get_widgets
+from ..types import (
+    LV_EVENT,
+    LvCompound,
+    LvType,
+    ObjUpdateAction,
+    lv_event_t,
+    lv_img_t,
+    lv_obj_t,
+)
+from . import Widget, WidgetType, get_widgets, widget_to_code
 from .arc import CONF_ARC
-from .container import container_spec
 from .img import CONF_IMAGE, img_spec
 from .line import CONF_LINE
 from .scale import lv_scale_section_t, scale_spec, section_spec
@@ -101,7 +110,13 @@ lv_meter_indicator_ticks_t = LvType(
     "lv_scale_section_t", parents=(lv_meter_indicator_t,)
 )
 lv_meter_indicator_arc_t = LvType("lv_scale_section_t", parents=(lv_meter_indicator_t,))
-lv_meter_indicator_line_t = LvType("lv_obj_t", parents=(lv_meter_indicator_t,))
+lv_meter_indicator_line_t = LvType(
+    "IndicatorLine",
+    parents=(
+        LvCompound,
+        lv_meter_indicator_t,
+    ),
+)
 lv_meter_indicator_image_t = LvType("lv_image_t", parents=(lv_meter_indicator_t,))
 
 
@@ -109,10 +124,10 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_R_MOD): cv.int_,
-        cv.Optional(CONF_LENGTH, default="100%"): pixels_or_percent_validator,
+        cv.Exclusive(CONF_R_MOD, CONF_LENGTH): padding,
+        cv.Exclusive(CONF_LENGTH, CONF_LENGTH): pixels_or_percent_validator,
         cv.Optional(CONF_VALUE): lv_float,
-        cv.Optional(CONF_OPA, default="COVER"): opacity,
+        cv.Optional(CONF_OPA, default=1.0): opacity,
     }
 )
 INDICATOR_IMG_SCHEMA = cv.Schema(
@@ -121,14 +136,14 @@ INDICATOR_IMG_SCHEMA = cv.Schema(
         cv.Required(CONF_PIVOT_X): pixels,
         cv.Required(CONF_PIVOT_Y): pixels,
         cv.Optional(CONF_VALUE): lv_float,
-        cv.Optional(CONF_OPA): opacity,
+        cv.Optional(CONF_OPA, default=1.0): opacity,
     }
 )
 INDICATOR_ARC_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_R_MOD, default=0): size,
+        cv.Optional(CONF_R_MOD, default=0): padding,
         cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
         cv.Exclusive(CONF_START_VALUE, CONF_VALUE): lv_float,
         cv.Optional(CONF_END_VALUE): lv_float,
@@ -219,6 +234,20 @@ LIGHT_STYLE = LVStyle(
         "radius": "LV_RADIUS_CIRCLE",
     },
 )
+
+
+class IndicatorType(WidgetType):
+    def __init__(self):
+        super().__init__(
+            CONF_INDICATOR,
+            lv_meter_indicator_line_t,
+            (CONF_MAIN,),
+            lv_name=CONF_LINE,
+            is_mock=True,
+        )
+
+
+indicator_type = IndicatorType()
 
 
 class MeterType(WidgetType):
@@ -399,52 +428,49 @@ class MeterType(WidgetType):
                                 nullptr,
                             )
                             lv.obj_add_flag(
-                                scale_var, literal("LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS")
+                                scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS
                             )
 
                     if t == CONF_LINE:
                         add_lv_use(CONF_LINE)
-                        # Needle represented by a container
-                        line = cg.Pvariable(iid, lv_expr.container_create(scale_var))
-                        lw = Widget.create(iid, line, container_spec, v)
-                        lw.set_style("line_rounded", True)
-                        lw.set_style("bg_color", await lv_color.process(v[CONF_COLOR]))
-                        lw.set_style(CONF_ALIGN, CHILD_ALIGNMENTS.CENTER)
-                        width = v[CONF_WIDTH]
-                        length = v[CONF_LENGTH]
-                        if isinstance(length, float):
-                            length = length * 0.5
-                        x = await pixels_or_percent.process(length / 2)
-                        length = await pixels_or_percent.process(length)
-                        lv_obj.set_size(line, length, width)
-                        lw.set_style(CONF_X, x)
-                        lw.set_style("transform_pivot_y", literal("lv_pct(50)"))
-                        lw.set_style(
-                            "transform_pivot_x",
-                            StaticCastExpression(cg.uint16, width // 2),
-                        )
-                        lw.set_style(CONF_BG_OPA, await opacity.process(v[CONF_OPA]))
-                        lw.set_style(CONF_TRANSFORM_ROTATION, MockObj(rotation) * 10)
-                        if r_mode := v.get(CONF_R_MOD):
-                            lw.set_style("pad_right", -r_mode)
-                        # Set up linear equation for needle rotation. Value will be in 1/10 degrees
-                        lw.slope = MockObj(angle_range) / (
-                            MockObj(range_to) - MockObj(range_from)
-                        )
-                        lw.y_int = -lw.slope * range_from + rotation
+                        # Needle represented by a line
+                        if CONF_LENGTH in v:
+                            length = v[CONF_LENGTH]
+                        elif CONF_R_MOD in v:
+                            REMAPPED_USES.add(CONF_R_MOD)
+                            length = -abs(v[CONF_R_MOD])
+                        else:
+                            length = 1.0
+                        props = {
+                            CONF_ID: v[CONF_ID],
+                            CONF_OPA: v[CONF_OPA],
+                            CONF_LINE_WIDTH: v[CONF_WIDTH],
+                            "line_color": v[CONF_COLOR],
+                            "line_rounded": True,
+                            CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
+                            CONF_LENGTH: length,
+                        }
+                        lw = await widget_to_code(props, indicator_type, scale_var)
+                        await set_indicator_values(lw, v)
 
                     # Note: Image indicators (needles) are not directly supported by scale widget
                     # They would need to be implemented as separate image objects positioned over the scale
                     if t == CONF_IMAGE:
                         add_lv_use(CONF_IMAGE)
-                        line = cg.Pvariable(
-                            v[CONF_IMAGE_ID], lv_expr.image_create(scale_var)
-                        )
-                        lw = Widget(line, img_spec, v)
-                        lw.set_style(CONF_ALIGN, CHILD_ALIGNMENTS.CENTER)
-                        width = await size.process(v[CONF_WIDTH])
-                        lw.set_style(CONF_X, x)
-                        lw.set_style(CONF_BG_OPA, await opacity.process(v[CONF_OPA]))
+                        src = v[CONF_SRC]
+                        pivot_x = await pixels.process(v[CONF_PIVOT_X])
+                        pivot_y = await pixels.process(v[CONF_PIVOT_Y])
+                        src_data = CORE.data[IMAGE_DOMAIN][str(src)]
+                        props = {
+                            CONF_X: src_data[CONF_WIDTH] / 2 - pivot_x,
+                            CONF_PIVOT_X: pivot_x,
+                            CONF_PIVOT_Y: pivot_y,
+                            CONF_SRC: src,
+                            CONF_OPA: v[CONF_OPA],
+                            CONF_ID: v[CONF_ID],
+                        }
+                        iw = await widget_to_code(props, img_spec, scale_var)
+                        await set_indicator_values(iw, v)
 
 
 meter_spec = MeterType()
@@ -475,6 +501,7 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
 
 
 async def set_indicator_values(indicator: Widget, config):
+    print(indicator, config)
     """Update scale section values (replaces meter indicator values)"""
     start_value = await get_start_value(config)
     end_value = await get_end_value(config)
@@ -488,10 +515,18 @@ async def set_indicator_values(indicator: Widget, config):
         elif end_value is not None:
             # If only end value, assume range from 0 to end_value
             lv.scale_section_set_range(indicator.obj, 0, end_value)
-    if indicator.type is container_spec:
+        return
+
+    if start_value is None:
+        return
+    if indicator.type is indicator_type:
         # Line needle
-        angle = start_value * indicator.slope + indicator.y_int
-        indicator.set_style(CONF_TRANSFORM_ROTATION, angle * 10)
+        lv_add(indicator.var.set_value(start_value))
+        return
+    print(indicator.type, img_spec)
+    if indicator.type is img_spec:
+        # Needle represented by an image
+        lv.image_set_needle_value(indicator.obj, start_value)
 
     # Note: Opacity for sections would need to be handled through style properties
     # This is more complex in LVGL 9.4 scale sections

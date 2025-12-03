@@ -289,6 +289,26 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 };
 #endif  // USE_LVGL_TOUCHSCREEN
 
+#ifdef USE_LVGL_METER
+
+void lv_image_set_needle_value(lv_obj_t *obj, int value);
+
+class IndicatorLine : public LvCompound {
+ public:
+  IndicatorLine() = default;
+
+  void set_obj(lv_obj_t *lv_obj) override;
+
+  void set_value(int value);
+
+ private:
+  void update_length_();
+
+  int16_t angle_{};
+  lv_point_precise_t points_[2]{};
+};
+#endif
+
 #ifdef USE_LVGL_KEY_LISTENER
 class LVEncoderListener : public Parented<LvglComponent> {
  public:

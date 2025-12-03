@@ -288,6 +288,62 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 }
 #endif  // USE_LVGL_TOUCHSCREEN
 
+#ifdef USE_LVGL_METER
+
+void lv_image_set_needle_value(lv_obj_t *obj, int value) {
+  auto *scale = lv_obj_get_parent(obj);
+  auto min_value = lv_scale_get_range_min_value(scale);
+  int16_t angle =
+      ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
+       lv_scale_get_rotation((scale))) %
+      360;
+  lv_obj_set_style_transform_rotation(obj, angle * 10, LV_PART_MAIN);
+}
+void IndicatorLine::set_obj(lv_obj_t *lv_obj) {
+  LvCompound::set_obj(lv_obj);
+  lv_line_set_points(lv_obj, this->points_, 2);
+  lv_obj_add_event_cb(
+      lv_obj_get_parent(obj),
+      [](lv_event_t *e) {
+        auto *indicator = static_cast<IndicatorLine *>(lv_event_get_user_data(e));
+        indicator->update_length_();
+        ESP_LOGD(TAG, "Updated length, value = %d", indicator->angle_);
+      },
+      LV_EVENT_SIZE_CHANGED, this);
+}
+
+void IndicatorLine::set_value(int value) {
+  auto *scale = lv_obj_get_parent(this->obj);
+  auto min_value = lv_scale_get_range_min_value(scale);
+  int16_t angle =
+      ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
+       lv_scale_get_rotation((scale))) %
+      360;
+  if (angle != this->angle_) {
+    this->angle_ = angle;
+    this->update_length_();
+  }
+}
+
+void IndicatorLine::update_length_() {
+  uint32_t actual_needle_length;
+  auto radius = lv_obj_get_width(lv_obj_get_parent(this->obj)) / 2;
+  auto length = lv_obj_get_style_length(this->obj, LV_PART_MAIN);
+  if (LV_COORD_IS_PCT(length)) {
+    actual_needle_length = radius * LV_COORD_GET_PCT(length) / 100;
+  } else if (length < 0) {
+    actual_needle_length = radius + length;
+  } else {
+    actual_needle_length = length;
+  }
+  this->points_[0].x = radius;
+  this->points_[0].y = radius;
+  this->points_[1].x = lv_trigo_cos(this->angle_) / 32768.0f * actual_needle_length + radius;
+  this->points_[1].y = lv_trigo_sin(this->angle_) / 32768.0f * actual_needle_length + radius;
+  lv_obj_invalidate(this->obj);
+}
+#endif
+
 #ifdef USE_LVGL_KEY_LISTENER
 LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time) {
   this->drv_ = lv_indev_create();

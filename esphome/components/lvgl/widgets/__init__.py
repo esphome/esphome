@@ -644,7 +644,7 @@ async def add_widgets(parent: Widget, config: dict):
         await widget_to_code(w_cnfig, w_type, parent.obj)
 
 
-async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent):
+async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent) -> Widget:
     from ..schemas import WIDGET_TYPES
 
     """
@@ -657,7 +657,7 @@ async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent):
     spec: WidgetType = (
         w_type if isinstance(w_type, WidgetType) else WIDGET_TYPES[w_type]
     )
-    await spec.create_to_code(w_cnfig, parent)
+    return await spec.create_to_code(w_cnfig, parent)
 
 
 class NumberType(WidgetType):

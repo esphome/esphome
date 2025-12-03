@@ -189,6 +189,7 @@ STYLE_PROPS = {
     "outline_opa": lvalid.opacity,
     "outline_pad": lvalid.padding,
     "outline_width": lvalid.pixels,
+    "length": lvalid.pixels_or_percent,
     "pad_all": lvalid.padding,
     "pad_bottom": lvalid.padding,
     "pad_left": lvalid.padding,
@@ -242,6 +243,7 @@ STYLE_REMAP = {
     "angle": "rotation",
     "shadow_ofs_x": "shadow_offset_x",
     "shadow_ofs_y": "shadow_offset_y",
+    "r_mod": "length",
 }
 
 # Log use of deprecated properties here
