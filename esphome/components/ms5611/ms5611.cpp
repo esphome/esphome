@@ -19,13 +19,14 @@ void MS5611Component::setup() {
     this->mark_failed();
     return;
   }
-  delay(100);  // NOLINT
-  for (uint8_t offset = 0; offset < 6; offset++) {
-    if (!this->read_byte_16(MS5611_CMD_READ_PROM + (offset * 2), &this->prom_[offset])) {
-      this->mark_failed();
-      return;
+  this->set_timeout(100, [this]() {
+    for (uint8_t offset = 0; offset < 6; offset++) {
+      if (!this->read_byte_16(MS5611_CMD_READ_PROM + (offset * 2), &this->prom_[offset])) {
+        this->mark_failed();
+        return;
+      }
     }
-  }
+  });
 }
 void MS5611Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS5611:");

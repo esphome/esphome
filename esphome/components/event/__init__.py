@@ -17,7 +17,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MOTION,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -85,11 +85,6 @@ def event_schema(
     return _EVENT_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-EVENT_SCHEMA = event_schema()
-EVENT_SCHEMA.add_extra(cv.deprecated_schema_constant("event"))
-
-
 async def setup_event_core_(var, config, *, event_types: list[str]):
     await setup_entity(var, config, "event")
 
@@ -143,6 +138,6 @@ async def event_fire_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(event_ns.using)

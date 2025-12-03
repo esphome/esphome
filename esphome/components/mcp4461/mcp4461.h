@@ -96,6 +96,7 @@ class Mcp4461Component : public Component, public i2c::I2CDevice {
 
  protected:
   friend class Mcp4461Wiper;
+  bool read_16_(uint8_t address, uint16_t *buf);
   void update_write_protection_status_();
   uint8_t get_wiper_address_(uint8_t wiper);
   uint16_t read_wiper_level_(uint8_t wiper);

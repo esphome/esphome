@@ -1,6 +1,12 @@
-packages:
-  base: !include common.yaml
-
 sensor:
-  - id: !extend my_sensor
-    pin: GPIO50
+  - id: my_sensor
+    platform: adc
+    pin: GPIO16
+    name: ADC Test sensor
+    update_interval: "1:01"
+    attenuation: 2.5db
+    unit_of_measurement: "°C"
+    icon: "mdi:water-percent"
+    accuracy_decimals: 5
+    setup_priority: -100
+    force_update: true

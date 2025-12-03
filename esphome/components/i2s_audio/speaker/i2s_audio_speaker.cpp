@@ -377,7 +377,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             this_speaker->current_stream_info_.get_bits_per_sample() <= 16) {
           size_t len = bytes_read / sizeof(int16_t);
           int16_t *tmp_buf = (int16_t *) new_data;
-          for (int i = 0; i < len; i += 2) {
+          for (size_t i = 0; i < len; i += 2) {
             int16_t tmp = tmp_buf[i];
             tmp_buf[i] = tmp_buf[i + 1];
             tmp_buf[i + 1] = tmp;

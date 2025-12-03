@@ -151,7 +151,7 @@ void StatsdComponent::send_(std::string *out) {
 
   int n_bytes = this->sock_->sendto(out->c_str(), out->length(), 0, reinterpret_cast<sockaddr *>(&this->destination_),
                                     sizeof(this->destination_));
-  if (n_bytes != out->length()) {
+  if (n_bytes != static_cast<int>(out->length())) {
     ESP_LOGE(TAG, "Failed to send UDP packed (%d of %d)", n_bytes, out->length());
   }
 #endif
