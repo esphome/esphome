@@ -107,6 +107,7 @@
 #define USE_TIME
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
+#define USE_UART_WAKE_LOOP_ON_RX
 #define USE_UPDATE
 #define USE_VALVE
 #define USE_ZWAVE_PROXY

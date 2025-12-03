@@ -107,7 +107,22 @@ FILTER_PLATFORMIO_LINES = [
     r"Warning: DEPRECATED: 'esptool.py' is deprecated. Please use 'esptool' instead. The '.py' suffix will be removed in a future major release.",
     r"Warning: esp-idf-size exited with code 2",
     r"esp_idf_size: error: unrecognized arguments: --ng",
+    r"Package configuration completed successfully",
 ]
+
+
+class PlatformioLogFilter(logging.Filter):
+    """Filter to suppress noisy platformio log messages."""
+
+    _PATTERN = re.compile(
+        r"|".join(r"(?:" + pattern + r")" for pattern in FILTER_PLATFORMIO_LINES)
+    )
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Only filter messages from platformio-related loggers
+        if "platformio" not in record.name.lower():
+            return True
+        return self._PATTERN.match(record.getMessage()) is None
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
@@ -130,7 +145,18 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
 
     patch_structhash()
     patch_file_downloader()
-    return run_external_command(platformio.__main__.main, *cmd, **kwargs)
+
+    # Add log filter to suppress noisy platformio messages
+    log_filter = PlatformioLogFilter() if not CORE.verbose else None
+    if log_filter:
+        for handler in logging.getLogger().handlers:
+            handler.addFilter(log_filter)
+    try:
+        return run_external_command(platformio.__main__.main, *cmd, **kwargs)
+    finally:
+        if log_filter:
+            for handler in logging.getLogger().handlers:
+                handler.removeFilter(log_filter)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:

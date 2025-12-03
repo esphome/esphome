@@ -10,8 +10,7 @@
 
 #include "datetime_base.h"
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 #define LOG_DATETIME_TIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -125,7 +124,6 @@ class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEn
 };
 #endif
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_TIME

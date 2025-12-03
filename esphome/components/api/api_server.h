@@ -18,6 +18,9 @@
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
+#ifdef USE_CAMERA
+#include "esphome/components/camera/camera.h"
+#endif
 
 #include <map>
 #include <vector>
@@ -36,6 +39,10 @@ class APIServer : public Component,
     ,
                   public logger::LogListener
 #endif
+#ifdef USE_CAMERA
+    ,
+                  public camera::CameraListener
+#endif
 {
  public:
   APIServer();
@@ -48,6 +55,9 @@ class APIServer : public Component,
   bool teardown() override;
 #ifdef USE_LOGGER
   void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+#endif
+#ifdef USE_CAMERA
+  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
 #endif
 #ifdef USE_API_PASSWORD
   bool check_password(const uint8_t *password_data, size_t password_len) const;
