@@ -52,7 +52,7 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend(
             MICRONOVA_ADDRESS_SCHEMA(
-                default_memory_location=0x20, 
+                default_memory_location=0x20,
                 default_memory_address=0x7F,
                 is_polling_component=True,
             )
