@@ -9,8 +9,7 @@
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 // placeholder class for static TAG .
 class Automation {
@@ -391,7 +390,6 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
   BLEClient *ble_client_;
   std::tuple<Ts...> var_{};
 };
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif
