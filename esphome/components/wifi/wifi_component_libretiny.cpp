@@ -69,7 +69,17 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
   delay(10);
   return true;
 }
-bool WiFiComponent::wifi_apply_power_save_() { return WiFi.setSleep(this->power_save_ != WIFI_POWER_SAVE_NONE); }
+bool WiFiComponent::wifi_apply_power_save_() {
+  bool success = WiFi.setSleep(this->power_save_ != WIFI_POWER_SAVE_NONE);
+#ifdef USE_WIFI_LISTENERS
+  if (success) {
+    for (auto *listener : this->power_save_listeners_) {
+      listener->on_wifi_power_save(this->power_save_);
+    }
+  }
+#endif
+  return success;
+}
 bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
