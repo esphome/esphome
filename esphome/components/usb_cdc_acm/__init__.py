@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import esp32
+from esphome.components import esp32, uart
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32.const import (
     VARIANT_ESP32P4,
@@ -7,9 +7,10 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NUMBER
+from esphome.const import CONF_ID
 
 CODEOWNERS = ["@kbx81"]
+AUTO_LOAD = ["uart"]
 DEPENDENCIES = ["tinyusb"]
 
 CONF_INTERFACES = "interfaces"
@@ -18,30 +19,13 @@ CONF_USB_TX_BUFFER_SIZE = "usb_tx_buffer_size"
 
 usb_cdc_acm_ns = cg.esphome_ns.namespace("usb_cdc_acm")
 USBCDCACMComponent = usb_cdc_acm_ns.class_("USBCDCACMComponent", cg.Component)
-USBCDCACMInstance = usb_cdc_acm_ns.class_("USBCDCACMInstance")
-
-
-def validate_interfaces(config):
-    int_set = set()
-    for item in config:
-        if item[CONF_NUMBER] > len(config) - 1:
-            raise cv.Invalid(
-                f"{CONF_NUMBER} must be less than the number of configured {CONF_INTERFACES}"
-            )
-        int_set.add(item[CONF_NUMBER])
-    if len(int_set) != len(config):
-        raise cv.Invalid(f"{CONF_NUMBER} must be unique across all {CONF_INTERFACES}")
-
-    return config
+USBCDCACMInstance = usb_cdc_acm_ns.class_("USBCDCACMInstance", uart.UARTComponent)
 
 
 # Schema for individual CDC ACM interface instances
 INTERFACE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(USBCDCACMInstance),
-        cv.Required(CONF_NUMBER): cv.int_range(
-            min=0, max=1
-        ),  # Support up to 2 interfaces (0, 1)
     }
 )
 
@@ -52,10 +36,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(USBCDCACMComponent),
             cv.Optional(CONF_USB_RX_BUFFER_SIZE, default=256): cv.uint16_t,
             cv.Optional(CONF_USB_TX_BUFFER_SIZE, default=256): cv.uint16_t,
-            cv.Required(CONF_INTERFACES): cv.All(
+            cv.Optional(CONF_INTERFACES, default=[{}]): cv.All(
                 cv.ensure_list(INTERFACE_SCHEMA),
                 cv.Length(min=1, max=2),  # At least 1, at most 2 interfaces
-                validate_interfaces,
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -70,10 +53,10 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # Create and register interface instances
-    for interface_conf in config[CONF_INTERFACES]:
+    for interface_index, interface_conf in enumerate(config[CONF_INTERFACES]):
         interface = cg.new_Pvariable(interface_conf[CONF_ID])
         cg.add(interface.set_parent(var))
-        cg.add(interface.set_interface_number(interface_conf[CONF_NUMBER]))
+        cg.add(interface.set_interface_number(interface_index))
         cg.add(var.add_interface(interface))
 
     # Configure TinyUSB with the correct number of CDC interfaces

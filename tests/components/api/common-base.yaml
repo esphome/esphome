@@ -1,6 +1,10 @@
 esphome:
   on_boot:
     then:
+      - wait_until:
+          condition:
+            api.connected:
+              state_subscription_only: true
       - homeassistant.event:
           event: esphome.button_pressed
           data:
@@ -177,6 +181,14 @@ api:
             else:
               - logger.log: "Skipped loops"
         - logger.log: "After combined test"
+
+event:
+  - platform: template
+    name: Test Event
+    id: test_event
+    event_types:
+      - single_click
+      - double_click
 
 globals:
   - id: api_continuation_test_counter

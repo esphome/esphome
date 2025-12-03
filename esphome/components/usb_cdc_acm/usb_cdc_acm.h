@@ -2,6 +2,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 
 #include "esphome/core/component.h"
+#include "esphome/components/uart/uart_component.h"
 
 #include <array>
 #include <functional>
@@ -20,7 +21,7 @@ using LineStateCallback = std::function<void(bool dtr, bool rts)>;
 class USBCDCACMComponent;
 
 /// Represents a single CDC ACM interface instance
-class USBCDCACMInstance {
+class USBCDCACMInstance : public uart::UARTComponent {
  public:
   void set_parent(USBCDCACMComponent *parent) { this->parent_ = parent; }
   void set_interface_number(uint8_t itf) { this->itf_ = static_cast<tinyusb_cdcacm_itf_t>(itf); }
@@ -48,7 +49,16 @@ class USBCDCACMInstance {
   static void usb_tx_task_fn(void *arg);
   void usb_tx_task();
 
+  // UARTComponent interface implementation
+  void write_array(const uint8_t *data, size_t len) override;
+  bool peek_byte(uint8_t *data) override;
+  bool read_array(uint8_t *data, size_t len) override;
+  int available() override;
+  void flush() override;
+
  protected:
+  void check_logger_conflict() override {}
+
   USBCDCACMComponent *parent_{nullptr};
   TaskHandle_t usb_tx_task_handle_{nullptr};
   tinyusb_cdcacm_itf_t itf_{TINYUSB_CDC_ACM_0};
@@ -61,6 +71,10 @@ class USBCDCACMInstance {
   // User-registered callbacks
   LineCodingCallback line_coding_callback_{nullptr};
   LineStateCallback line_state_callback_{nullptr};
+
+  // RX buffer for peek functionality
+  uint8_t peek_buffer_{0};
+  bool has_peek_{false};
 };
 
 /// Main USB CDC ACM component that manages the USB device and all CDC interfaces

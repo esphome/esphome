@@ -1,4 +1,6 @@
 #include "text_sensor.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -23,7 +25,11 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
 }
 
 void TextSensor::publish_state(const std::string &state) {
-  this->raw_state = state;
+  // Only store raw_state_ separately when filters exist
+  // When no filters, raw_state == state, so we avoid the duplicate storage
+  if (this->filter_list_ != nullptr) {
+    this->raw_state_ = state;
+  }
   if (this->raw_callback_) {
     this->raw_callback_->call(state);
   }
@@ -78,12 +84,19 @@ void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> call
 }
 
 std::string TextSensor::get_state() const { return this->state; }
-std::string TextSensor::get_raw_state() const { return this->raw_state; }
+std::string TextSensor::get_raw_state() const {
+  // When no filters exist, raw_state == state, so return state to avoid
+  // requiring separate storage
+  return this->filter_list_ != nullptr ? this->raw_state_ : this->state;
+}
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = state;
   this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
   this->callback_.call(state);
+#if defined(USE_TEXT_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_text_sensor_update(this);
+#endif
 }
 
 }  // namespace text_sensor

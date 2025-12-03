@@ -3,6 +3,8 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -38,6 +40,10 @@ namespace esphome {
 namespace web_server {
 
 static const char *const TAG = "web_server";
+
+// Longest: HORIZONTAL (10 chars + null terminator, rounded up)
+static constexpr size_t PSTR_LOCAL_SIZE = 16;
+#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
@@ -294,17 +300,12 @@ std::string WebServer::get_config_json() {
 }
 
 void WebServer::setup() {
-  this->setup_controller(this->include_internal_);
+  ControllerRegistry::register_controller(this);
   this->base_->init();
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
-    logger::global_logger->add_on_log_callback(
-        // logs are not deferred, the memory overhead would be too large
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          (void) message_len;
-          this->events_.try_send_nodefer(message, "log", millis());
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
@@ -320,6 +321,16 @@ void WebServer::setup() {
   this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
 }
 void WebServer::loop() { this->events_.loop(); }
+
+#ifdef USE_LOGGER
+void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) level;
+  (void) tag;
+  (void) message_len;
+  this->events_.try_send_nodefer(message, "log", millis());
+}
+#endif
+
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
@@ -357,8 +368,8 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse(200, "");
   response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
   response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
-  std::string mac = get_mac_address_pretty();
-  response->addHeader(HEADER_PNA_ID, mac.c_str());
+  char mac_s[18];
+  response->addHeader(HEADER_PNA_ID, get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
 #endif
@@ -430,7 +441,9 @@ static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
 }
 
 #ifdef USE_SENSOR
-void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
+void WebServer::on_sensor_update(sensor::Sensor *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", sensor_state_json_generator);
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -473,7 +486,9 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
+void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", text_sensor_state_json_generator);
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -513,7 +528,9 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 #endif
 
 #ifdef USE_SWITCH
-void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
+void WebServer::on_switch_update(switch_::Switch *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", switch_state_json_generator);
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -625,6 +642,8 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", binary_sensor_state_json_generator);
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -664,6 +683,8 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 
 #ifdef USE_FAN
 void WebServer::on_fan_update(fan::Fan *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", fan_state_json_generator);
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -678,8 +699,14 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method_equals("turn_on") || match.method_equals("turn_off")) {
-      auto call = match.method_equals("turn_on") ? obj->turn_on() : obj->turn_off();
+    } else {
+      bool is_on = match.method_equals("turn_on");
+      bool is_off = match.method_equals("turn_off");
+      if (!is_on && !is_off) {
+        request->send(404);
+        return;
+      }
+      auto call = is_on ? obj->turn_on() : obj->turn_off();
 
       parse_int_param_(request, "speed_level", call, &decltype(call)::set_speed);
 
@@ -703,8 +730,6 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       }
       this->defer([call]() mutable { call.perform(); });
       request->send(200);
-    } else {
-      request->send(404);
     }
     return;
   }
@@ -738,6 +763,8 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
 
 #ifdef USE_LIGHT
 void WebServer::on_light_update(light::LightState *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", light_state_json_generator);
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -752,32 +779,35 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method_equals("turn_on")) {
-      auto call = obj->turn_on();
-
-      // Parse color parameters
-      parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
-      parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
-      parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
-      parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
-      parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
-      parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
-
-      // Parse timing parameters
-      parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
-
-      parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
-
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
-    } else if (match.method_equals("turn_off")) {
-      auto call = obj->turn_off();
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
     } else {
-      request->send(404);
+      bool is_on = match.method_equals("turn_on");
+      bool is_off = match.method_equals("turn_off");
+      if (!is_on && !is_off) {
+        request->send(404);
+        return;
+      }
+      auto call = is_on ? obj->turn_on() : obj->turn_off();
+
+      if (is_on) {
+        // Parse color parameters
+        parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
+        parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
+        parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
+        parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
+        parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
+        parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
+
+        // Parse timing parameters
+        parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
+      }
+      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
+
+      if (is_on) {
+        parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
+      }
+
+      this->defer([call]() mutable { call.perform(); });
+      request->send(200);
     }
     return;
   }
@@ -811,6 +841,8 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
 #ifdef USE_COVER
 void WebServer::on_cover_update(cover::Cover *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", cover_state_json_generator);
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -880,7 +912,8 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
   set_json_icon_state_value(root, obj, "cover", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
+  char buf[PSTR_LOCAL_SIZE];
+  root["current_operation"] = PSTR_LOCAL(cover::cover_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root["position"] = obj->position;
@@ -895,7 +928,9 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 #endif
 
 #ifdef USE_NUMBER
-void WebServer::on_number_update(number::Number *obj, float state) {
+void WebServer::on_number_update(number::Number *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", number_state_json_generator);
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -961,6 +996,8 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 
 #ifdef USE_DATETIME_DATE
 void WebServer::on_date_update(datetime::DateEntity *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", date_state_json_generator);
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1016,6 +1053,8 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_TIME
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", time_state_json_generator);
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1070,6 +1109,8 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_DATETIME
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", datetime_state_json_generator);
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1124,7 +1165,9 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
 #endif  // USE_DATETIME_DATETIME
 
 #ifdef USE_TEXT
-void WebServer::on_text_update(text::Text *obj, const std::string &state) {
+void WebServer::on_text_update(text::Text *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", text_state_json_generator);
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1178,7 +1221,9 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 #endif
 
 #ifdef USE_SELECT
-void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
+void WebServer::on_select_update(select::Select *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", select_state_json_generator);
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1232,11 +1277,10 @@ std::string WebServer::select_json(select::Select *obj, const char *value, JsonD
 }
 #endif
 
-// Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), 15)
-
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", climate_state_json_generator);
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1378,6 +1422,8 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 
 #ifdef USE_LOCK
 void WebServer::on_lock_update(lock::Lock *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", lock_state_json_generator);
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1449,6 +1495,8 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
 
 #ifdef USE_VALVE
 void WebServer::on_valve_update(valve::Valve *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", valve_state_json_generator);
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1530,6 +1578,8 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", alarm_control_panel_state_json_generator);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1607,7 +1657,9 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 #endif
 
 #ifdef USE_EVENT
-void WebServer::on_event(event::Event *obj, const std::string &event_type) {
+void WebServer::on_event(event::Event *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
   this->events_.deferrable_send_state(obj, "state", event_state_json_generator);
 }
 
@@ -1628,13 +1680,15 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
 }
 
 static std::string get_event_type(event::Event *event) {
-  return (event && event->last_event_type) ? *event->last_event_type : "";
+  const char *last_type = event ? event->get_last_event_type() : nullptr;
+  return last_type ? last_type : "";
 }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json(event, get_event_type(event), DETAIL_STATE);
 }
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json(event, get_event_type(event), DETAIL_ALL);
@@ -1649,7 +1703,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
   }
   if (start_config == DETAIL_ALL) {
     JsonArray event_types = root["event_types"].to<JsonArray>();
-    for (auto const &event_type : obj->get_event_types()) {
+    for (const char *event_type : obj->get_event_types()) {
       event_types.add(event_type);
     }
     root["device_class"] = obj->get_device_class_ref();
@@ -1658,6 +1712,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 
   return builder.serialize();
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 #endif
 
 #ifdef USE_UPDATE
@@ -1894,83 +1949,110 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   // Parse URL for component routing
   UrlMatch match = match_url(url.c_str(), url.length(), false);
 
-  // Component routing using minimal code repetition
-  struct ComponentRoute {
-    const char *domain;
-    void (WebServer::*handler)(AsyncWebServerRequest *, const UrlMatch &);
-  };
-
-  static const ComponentRoute ROUTES[] = {
+  // Route to appropriate handler based on domain
+  // NOLINTNEXTLINE(readability-simplify-boolean-expr)
+  if (false) {  // Start chain for else-if macro pattern
+  }
 #ifdef USE_SENSOR
-      {"sensor", &WebServer::handle_sensor_request},
+  else if (match.domain_equals("sensor")) {
+    this->handle_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_SWITCH
-      {"switch", &WebServer::handle_switch_request},
+  else if (match.domain_equals("switch")) {
+    this->handle_switch_request(request, match);
+  }
 #endif
 #ifdef USE_BUTTON
-      {"button", &WebServer::handle_button_request},
+  else if (match.domain_equals("button")) {
+    this->handle_button_request(request, match);
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
-      {"binary_sensor", &WebServer::handle_binary_sensor_request},
+  else if (match.domain_equals("binary_sensor")) {
+    this->handle_binary_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_FAN
-      {"fan", &WebServer::handle_fan_request},
+  else if (match.domain_equals("fan")) {
+    this->handle_fan_request(request, match);
+  }
 #endif
 #ifdef USE_LIGHT
-      {"light", &WebServer::handle_light_request},
+  else if (match.domain_equals("light")) {
+    this->handle_light_request(request, match);
+  }
 #endif
 #ifdef USE_TEXT_SENSOR
-      {"text_sensor", &WebServer::handle_text_sensor_request},
+  else if (match.domain_equals("text_sensor")) {
+    this->handle_text_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_COVER
-      {"cover", &WebServer::handle_cover_request},
+  else if (match.domain_equals("cover")) {
+    this->handle_cover_request(request, match);
+  }
 #endif
 #ifdef USE_NUMBER
-      {"number", &WebServer::handle_number_request},
+  else if (match.domain_equals("number")) {
+    this->handle_number_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_DATE
-      {"date", &WebServer::handle_date_request},
+  else if (match.domain_equals("date")) {
+    this->handle_date_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_TIME
-      {"time", &WebServer::handle_time_request},
+  else if (match.domain_equals("time")) {
+    this->handle_time_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_DATETIME
-      {"datetime", &WebServer::handle_datetime_request},
+  else if (match.domain_equals("datetime")) {
+    this->handle_datetime_request(request, match);
+  }
 #endif
 #ifdef USE_TEXT
-      {"text", &WebServer::handle_text_request},
+  else if (match.domain_equals("text")) {
+    this->handle_text_request(request, match);
+  }
 #endif
 #ifdef USE_SELECT
-      {"select", &WebServer::handle_select_request},
+  else if (match.domain_equals("select")) {
+    this->handle_select_request(request, match);
+  }
 #endif
 #ifdef USE_CLIMATE
-      {"climate", &WebServer::handle_climate_request},
+  else if (match.domain_equals("climate")) {
+    this->handle_climate_request(request, match);
+  }
 #endif
 #ifdef USE_LOCK
-      {"lock", &WebServer::handle_lock_request},
+  else if (match.domain_equals("lock")) {
+    this->handle_lock_request(request, match);
+  }
 #endif
 #ifdef USE_VALVE
-      {"valve", &WebServer::handle_valve_request},
+  else if (match.domain_equals("valve")) {
+    this->handle_valve_request(request, match);
+  }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-      {"alarm_control_panel", &WebServer::handle_alarm_control_panel_request},
+  else if (match.domain_equals("alarm_control_panel")) {
+    this->handle_alarm_control_panel_request(request, match);
+  }
 #endif
 #ifdef USE_UPDATE
-      {"update", &WebServer::handle_update_request},
-#endif
-  };
-
-  // Check each route
-  for (const auto &route : ROUTES) {
-    if (match.domain_equals(route.domain)) {
-      (this->*route.handler)(request, match);
-      return;
-    }
+  else if (match.domain_equals("update")) {
+    this->handle_update_request(request, match);
   }
-
-  // No matching handler found - send 404
-  ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-  request->send(404, "text/plain", "Not Found");
+#endif
+  else {
+    // No matching handler found - send 404
+    ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
+    request->send(404, "text/plain", "Not Found");
+  }
 }
 
 bool WebServer::isRequestHandlerTrivial() const { return false; }

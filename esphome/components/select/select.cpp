@@ -1,9 +1,10 @@
 #include "select.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 #include <cstring>
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 static const char *const TAG = "select";
 
@@ -33,6 +34,9 @@ void Select::publish_state(size_t index) {
   ESP_LOGD(TAG, "'%s': Sending state %s (index %zu)", this->get_name().c_str(), option, index);
   // Callback signature requires std::string, create temporary for compatibility
   this->state_callback_.call(std::string(option), index);
+#if defined(USE_SELECT) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_select_update(this);
+#endif
 }
 
 const char *Select::current_option() const { return this->has_state() ? this->option_at(this->active_index_) : ""; }
@@ -81,5 +85,4 @@ optional<std::string> Select::at(size_t index) const {
 
 const char *Select::option_at(size_t index) const { return traits.get_options().at(index); }
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select
