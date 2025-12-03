@@ -616,6 +616,7 @@ class WiFiComponent : public Component {
   bool error_from_callback_{false};
   bool scan_done_{false};
   bool ap_setup_{false};
+  bool ap_started_{false};
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT

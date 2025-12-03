@@ -2,13 +2,16 @@ import glob
 import logging
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
+from esphome.components.packages import do_packages_pass
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import merge_config
-from esphome.const import CONF_PACKAGES, CONF_SUBSTITUTIONS
+from esphome.const import CONF_SUBSTITUTIONS
 from esphome.core import CORE
 from esphome.util import OrderedDict
 
@@ -91,13 +94,22 @@ REMOTES = {
     ("https://github.com/esphome/repo2", "main"): "remotes/repo2/main",
 }
 
+# Collect all input YAML files for test_substitutions_fixtures parametrized tests:
+HERE = Path(__file__).parent
+BASE_DIR = HERE / "fixtures" / "substitutions"
+SOURCES = sorted(glob.glob(str(BASE_DIR / "*.input.yaml")))
+assert SOURCES, f"test_substitutions_fixtures: No input YAML files found in {BASE_DIR}"
 
+
+@pytest.mark.parametrize(
+    "source_path",
+    [Path(p) for p in SOURCES],
+    ids=lambda p: p.name,
+)
 @patch("esphome.git.clone_or_update")
-def test_substitutions_fixtures(mock_clone_or_update, fixture_path):
-    base_dir = fixture_path / "substitutions"
-    sources = sorted(glob.glob(str(base_dir / "*.input.yaml")))
-    assert sources, f"No input YAML files found in {base_dir}"
-
+def test_substitutions_fixtures(
+    mock_clone_or_update: MagicMock, source_path: Path
+) -> None:
     def fake_clone_or_update(
         *,
         url: str,
@@ -116,72 +128,59 @@ def test_substitutions_fixtures(mock_clone_or_update, fixture_path):
                 raise RuntimeError(
                     f"Cannot find test repository for {url} @ {ref}. Check the REMOTES mapping in test_substitutions.py"
                 )
-        return base_dir / path, None
+        return BASE_DIR / path, None
 
     mock_clone_or_update.side_effect = fake_clone_or_update
 
-    failures = []
-    for source_path in sources:
-        source_path = Path(source_path)
-        try:
-            expected_path = source_path.with_suffix("").with_suffix(".approved.yaml")
-            test_case = source_path.with_suffix("").stem
+    expected_path = source_path.with_suffix("").with_suffix(".approved.yaml")
+    test_case = source_path.with_suffix("").stem
 
-            # Load using ESPHome's YAML loader
-            config = yaml_util.load_yaml(source_path)
+    # Load using ESPHome's YAML loader
+    config = yaml_util.load_yaml(source_path)
 
-            if CONF_PACKAGES in config:
-                from esphome.components.packages import do_packages_pass
+    config = do_packages_pass(config)
 
-                config = do_packages_pass(config)
+    substitutions.do_substitution_pass(config, None)
 
-            substitutions.do_substitution_pass(config, None)
+    resolve_extend_remove(config)
+    verify_database_result = verify_database(config)
+    if verify_database_result is not None:
+        raise AssertionError(verify_database_result)
 
-            resolve_extend_remove(config)
-            verify_database_result = verify_database(config)
-            if verify_database_result is not None:
-                raise AssertionError(verify_database_result)
+    # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
+    if expected_path.is_file():
+        expected = yaml_util.load_yaml(expected_path)
+    elif DEV_MODE:
+        expected = {}
+    else:
+        assert expected_path.is_file(), f"Expected file missing: {expected_path}"
 
-            # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
-            if expected_path.is_file():
-                expected = yaml_util.load_yaml(expected_path)
-            elif DEV_MODE:
-                expected = {}
-            else:
-                assert expected_path.is_file(), (
-                    f"Expected file missing: {expected_path}"
-                )
+    # Sort dicts only (not lists) for comparison
+    got_sorted = sort_dicts(config)
+    expected_sorted = sort_dicts(expected)
 
-            # Sort dicts only (not lists) for comparison
-            got_sorted = sort_dicts(config)
-            expected_sorted = sort_dicts(expected)
-
-            if got_sorted != expected_sorted:
-                diff = "\n".join(dict_diff(got_sorted, expected_sorted))
-                msg = (
-                    f"Substitution result mismatch for {source_path.name}\n"
-                    f"Diff:\n{diff}\n\n"
-                    f"Got:      {got_sorted}\n"
-                    f"Expected: {expected_sorted}"
-                )
-                # Write out the received file when test fails
-                if DEV_MODE:
-                    received_path = source_path.with_name(f"{test_case}.received.yaml")
-                    write_yaml(received_path, config)
-                    print(msg)
-                    failures.append(msg)
-                else:
-                    raise AssertionError(msg)
-        except Exception as err:
-            _LOGGER.error("Error in test file %s", source_path)
-            raise err
-
-    if DEV_MODE and failures:
-        print(f"\n{len(failures)} substitution test case(s) failed.")
+    if got_sorted != expected_sorted:
+        diff = "\n".join(dict_diff(got_sorted, expected_sorted))
+        msg = (
+            f"Substitution result mismatch for {source_path.name}\n"
+            f"Diff:\n{diff}\n\n"
+            f"Got:      {got_sorted}\n"
+            f"Expected: {expected_sorted}"
+        )
+        # Write out the received file when test fails
+        if DEV_MODE:
+            received_path = source_path.with_name(f"{test_case}.received.yaml")
+            write_yaml(received_path, config)
+            msg += f"\nWrote received file to {received_path}."
+        raise AssertionError(msg)
 
     if DEV_MODE:
         _LOGGER.error("Tests passed, but Dev mode is enabled.")
-    assert not DEV_MODE  # make sure DEV_MODE is disabled after you are finished.
+    assert (
+        not DEV_MODE  # make sure DEV_MODE is disabled after you are finished.
+    ), (
+        "Test passed but DEV_MODE must be disabled when running tests. Please set DEV_MODE=False."
+    )
 
 
 def test_substitutions_with_command_line_maintains_ordered_dict() -> None:
