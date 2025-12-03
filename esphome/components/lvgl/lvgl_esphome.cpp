@@ -319,6 +319,7 @@ void IndicatorLine::set_value(int value) {
       ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
        lv_scale_get_rotation((scale))) %
       360;
+  ESP_LOGD(TAG, "Angle calculated as %d", angle);
   if (angle != this->angle_) {
     this->angle_ = angle;
     this->update_length_();
@@ -340,6 +341,8 @@ void IndicatorLine::update_length_() {
   this->points_[0].y = radius;
   this->points_[1].x = lv_trigo_cos(this->angle_) / 32768.0f * actual_needle_length + radius;
   this->points_[1].y = lv_trigo_sin(this->angle_) / 32768.0f * actual_needle_length + radius;
+  ESP_LOGD(TAG, "Points are %d/%d", this->points_[1].x, this->points_[1].y);
+  lv_obj_refresh_self_size(this->obj);
   lv_obj_invalidate(this->obj);
 }
 #endif

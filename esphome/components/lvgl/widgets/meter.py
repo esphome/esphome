@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
     CONF_COUNT,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_ITEMS,
     CONF_LENGTH,
@@ -133,8 +134,8 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
 INDICATOR_IMG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SRC): lv_image,
-        cv.Required(CONF_PIVOT_X): pixels,
-        cv.Required(CONF_PIVOT_Y): pixels,
+        cv.Optional(CONF_PIVOT_X, default=0): pixels,
+        cv.Optional(CONF_PIVOT_Y): pixels,
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
@@ -436,9 +437,9 @@ class MeterType(WidgetType):
                         # Needle represented by a line
                         if CONF_LENGTH in v:
                             length = v[CONF_LENGTH]
-                        elif CONF_R_MOD in v:
+                        elif r_mod := v.get(CONF_R_MOD):
                             REMAPPED_USES.add(CONF_R_MOD)
-                            length = -abs(v[CONF_R_MOD])
+                            length = -abs(r_mod)
                         else:
                             length = 1.0
                         props = {
@@ -458,16 +459,19 @@ class MeterType(WidgetType):
                     if t == CONF_IMAGE:
                         add_lv_use(CONF_IMAGE)
                         src = v[CONF_SRC]
-                        pivot_x = await pixels.process(v[CONF_PIVOT_X])
-                        pivot_y = await pixels.process(v[CONF_PIVOT_Y])
                         src_data = CORE.data[IMAGE_DOMAIN][str(src)]
+                        pivot_x = await pixels.process(v[CONF_PIVOT_X])
+                        pivot_y = await pixels.process(
+                            v.get(CONF_PIVOT_Y, src_data[CONF_HEIGHT] // 2)
+                        )
                         props = {
-                            CONF_X: src_data[CONF_WIDTH] / 2 - pivot_x,
-                            CONF_PIVOT_X: pivot_x,
-                            CONF_PIVOT_Y: pivot_y,
+                            CONF_X: src_data[CONF_WIDTH] // 2 - pivot_x,
+                            "transform_pivot_x": pivot_x,
+                            "transform_pivot_y": pivot_y,
                             CONF_SRC: src,
                             CONF_OPA: v[CONF_OPA],
                             CONF_ID: v[CONF_ID],
+                            CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
                         }
                         iw = await widget_to_code(props, img_spec, scale_var)
                         await set_indicator_values(iw, v)
@@ -501,7 +505,6 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
 
 
 async def set_indicator_values(indicator: Widget, config):
-    print(indicator, config)
     """Update scale section values (replaces meter indicator values)"""
     start_value = await get_start_value(config)
     end_value = await get_end_value(config)
@@ -523,7 +526,6 @@ async def set_indicator_values(indicator: Widget, config):
         # Line needle
         lv_add(indicator.var.set_value(start_value))
         return
-    print(indicator.type, img_spec)
     if indicator.type is img_spec:
         # Needle represented by an image
         lv.image_set_needle_value(indicator.obj, start_value)
