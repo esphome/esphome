@@ -132,7 +132,7 @@ void USBCDCACMInstance::setup() {
   }
 
   // Configure this CDC interface
-  this->acm_cfg_ = {
+  const tinyusb_config_cdcacm_t acm_cfg = {
       .usb_dev = TINYUSB_USBDEV_0,
       .cdc_port = this->itf_,
       .rx_unread_buf_sz = CONFIG_TINYUSB_CDC_RX_BUFSIZE,
@@ -142,7 +142,7 @@ void USBCDCACMInstance::setup() {
       .callback_line_coding_changed = &tinyusb_cdc_line_coding_changed_callback,
   };
 
-  esp_err_t result = tusb_cdc_acm_init(&this->acm_cfg_);
+  esp_err_t result = tusb_cdc_acm_init(&acm_cfg);
   if (result != ESP_OK) {
     ESP_LOGE(TAG, "tusb_cdc_acm_init failed: %d", result);
     this->parent_->mark_failed();

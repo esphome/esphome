@@ -66,8 +66,6 @@ class USBCDCACMInstance : public uart::UARTComponent {
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
 
-  tinyusb_config_cdcacm_t acm_cfg_{};
-
   // User-registered callbacks
   LineCodingCallback line_coding_callback_{nullptr};
   LineStateCallback line_state_callback_{nullptr};
