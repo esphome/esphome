@@ -136,7 +136,6 @@ void USBCDCACMInstance::setup() {
   const tinyusb_config_cdcacm_t acm_cfg = {
       .usb_dev = TINYUSB_USBDEV_0,
       .cdc_port = this->itf_,
-      .rx_unread_buf_sz = CONFIG_TINYUSB_CDC_RX_BUFSIZE,
       .callback_rx = &tinyusb_cdc_rx_callback,
       .callback_rx_wanted_char = NULL,
       .callback_line_state_changed = &tinyusb_cdc_line_state_changed_callback,
