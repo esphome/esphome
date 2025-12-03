@@ -275,8 +275,8 @@ static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
     m = 0;
     return;
   }
-  e = (uint8_t) (e_tmp - mbits - 1);
-  m = (uint32_t) (((m_tmp * 2 - 1) * (1 << (mbits + 1))) + 1) >> 1;
+  e = static_cast<uint8_t>(e_tmp - mbits - 1);
+  m = static_cast<uint32_t>(((m_tmp * 2 - 1) * (1 << (mbits + 1))) + 1) >> 1;
   if (m == (1UL << mbits)) {
     e = e + 1;
     m = 0;
@@ -299,7 +299,7 @@ void CC1101Component::set_output_power(float value) {
     a = PowerTableItem::find(PA_TABLE_915, sizeof(PA_TABLE_915) / sizeof(PA_TABLE_915[0]), value);
   }
 
-  if ((Modulation) this->state_.MOD_FORMAT == Modulation::MODULATION_ASK_OOK) {
+  if (static_cast<Modulation>(this->state_.MOD_FORMAT) == Modulation::MODULATION_ASK_OOK) {
     this->pa_table_[0] = 0;
     this->pa_table_[1] = a;
   } else {
@@ -313,7 +313,7 @@ void CC1101Component::set_output_power(float value) {
 }
 
 void CC1101Component::set_rx_attenuation(RxAttenuation value) {
-  this->state_.CLOSE_IN_RX = (uint8_t) value;
+  this->state_.CLOSE_IN_RX = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::FIFOTHR);
   }
@@ -327,10 +327,10 @@ void CC1101Component::set_dc_blocking_filter(bool value) {
 }
 
 void CC1101Component::set_frequency(float value) {
-  int32_t freq = (int32_t) (value * (1 << 16) / XTAL_FREQUENCY);
-  this->state_.FREQ2 = (uint8_t) (freq >> 16);
-  this->state_.FREQ1 = (uint8_t) (freq >> 8);
-  this->state_.FREQ0 = (uint8_t) freq;
+  int32_t freq = static_cast<int32_t>(value * (1 << 16) / XTAL_FREQUENCY);
+  this->state_.FREQ2 = static_cast<uint8_t>(freq >> 16);
+  this->state_.FREQ1 = static_cast<uint8_t>(freq >> 8);
+  this->state_.FREQ0 = static_cast<uint8_t>(freq);
   if (this->initialized_) {
     this->enter_idle_();
     this->write_(Register::FREQ2);
@@ -351,8 +351,8 @@ void CC1101Component::set_filter_bandwidth(float value) {
   uint8_t e;
   uint32_t m;
   split_float(XTAL_FREQUENCY / (value * 8), 2, e, m);
-  this->state_.CHANBW_E = (uint8_t) e;
-  this->state_.CHANBW_M = (uint8_t) m;
+  this->state_.CHANBW_E = e;
+  this->state_.CHANBW_M = static_cast<uint8_t>(m);
   if (this->initialized_) {
     this->write_(Register::MDMCFG4);
   }
@@ -371,8 +371,8 @@ void CC1101Component::set_channel_spacing(float value) {
   uint8_t e;
   uint32_t m;
   split_float(value * (1 << 18) / XTAL_FREQUENCY, 8, e, m);
-  this->state_.CHANSPC_E = (uint8_t) e;
-  this->state_.CHANSPC_M = (uint8_t) m;
+  this->state_.CHANSPC_E = e;
+  this->state_.CHANSPC_M = static_cast<uint8_t>(m);
   if (this->initialized_) {
     this->write_(Register::MDMCFG1);
     this->write_(Register::MDMCFG0);
@@ -383,8 +383,8 @@ void CC1101Component::set_fsk_deviation(float value) {
   uint8_t e;
   uint32_t m;
   split_float(value * (1 << 17) / XTAL_FREQUENCY, 3, e, m);
-  this->state_.DEVIATION_E = (uint8_t) e;
-  this->state_.DEVIATION_M = (uint8_t) m;
+  this->state_.DEVIATION_E = e;
+  this->state_.DEVIATION_M = static_cast<uint8_t>(m);
   if (this->initialized_) {
     this->write_(Register::DEVIATN);
   }
@@ -402,8 +402,8 @@ void CC1101Component::set_symbol_rate(float value) {
   uint8_t e;
   uint32_t m;
   split_float(value * (1 << 28) / (XTAL_FREQUENCY * 1000), 8, e, m);
-  this->state_.DRATE_E = (uint8_t) e;
-  this->state_.DRATE_M = (uint8_t) m;
+  this->state_.DRATE_E = e;
+  this->state_.DRATE_M = static_cast<uint8_t>(m);
   if (this->initialized_) {
     this->write_(Register::MDMCFG4);
     this->write_(Register::MDMCFG3);
@@ -411,7 +411,7 @@ void CC1101Component::set_symbol_rate(float value) {
 }
 
 void CC1101Component::set_sync_mode(SyncMode value) {
-  this->state_.SYNC_MODE = (uint8_t) value;
+  this->state_.SYNC_MODE = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::MDMCFG2);
   }
@@ -425,7 +425,7 @@ void CC1101Component::set_carrier_sense_above_threshold(bool value) {
 }
 
 void CC1101Component::set_modulation_type(Modulation value) {
-  this->state_.MOD_FORMAT = (uint8_t) value;
+  this->state_.MOD_FORMAT = static_cast<uint8_t>(value);
   this->state_.PA_POWER = value == Modulation::MODULATION_ASK_OOK ? 1 : 0;
   if (this->initialized_) {
     this->enter_idle_();
@@ -471,35 +471,35 @@ void CC1101Component::set_pktlen(uint8_t value) {
 }
 
 void CC1101Component::set_magn_target(MagnTarget value) {
-  this->state_.MAGN_TARGET = (uint8_t) value;
+  this->state_.MAGN_TARGET = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL2);
   }
 }
 
 void CC1101Component::set_max_lna_gain(MaxLnaGain value) {
-  this->state_.MAX_LNA_GAIN = (uint8_t) value;
+  this->state_.MAX_LNA_GAIN = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL2);
   }
 }
 
 void CC1101Component::set_max_dvga_gain(MaxDvgaGain value) {
-  this->state_.MAX_DVGA_GAIN = (uint8_t) value;
+  this->state_.MAX_DVGA_GAIN = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL2);
   }
 }
 
 void CC1101Component::set_carrier_sense_abs_thr(int8_t value) {
-  this->state_.CARRIER_SENSE_ABS_THR = (uint8_t) (value & 0b1111);
+  this->state_.CARRIER_SENSE_ABS_THR = static_cast<uint8_t>(value & 0b1111);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL1);
   }
 }
 
 void CC1101Component::set_carrier_sense_rel_thr(CarrierSenseRelThr value) {
-  this->state_.CARRIER_SENSE_REL_THR = (uint8_t) value;
+  this->state_.CARRIER_SENSE_REL_THR = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL1);
   }
@@ -513,35 +513,35 @@ void CC1101Component::set_lna_priority(bool value) {
 }
 
 void CC1101Component::set_filter_length_fsk_msk(FilterLengthFskMsk value) {
-  this->state_.FILTER_LENGTH = (uint8_t) value;
+  this->state_.FILTER_LENGTH = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL0);
   }
 }
 
 void CC1101Component::set_filter_length_ask_ook(FilterLengthAskOok value) {
-  this->state_.FILTER_LENGTH = (uint8_t) value;
+  this->state_.FILTER_LENGTH = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL0);
   }
 }
 
 void CC1101Component::set_freeze(Freeze value) {
-  this->state_.AGC_FREEZE = (uint8_t) value;
+  this->state_.AGC_FREEZE = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL0);
   }
 }
 
 void CC1101Component::set_wait_time(WaitTime value) {
-  this->state_.WAIT_TIME = (uint8_t) value;
+  this->state_.WAIT_TIME = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL0);
   }
 }
 
 void CC1101Component::set_hyst_level(HystLevel value) {
-  this->state_.HYST_LEVEL = (uint8_t) value;
+  this->state_.HYST_LEVEL = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL0);
   }
