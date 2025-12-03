@@ -119,10 +119,32 @@ def validate_raw_data(value):
     )
 
 
+def validate_stm32_af(value, dir_str):
+    from esphome.components.stm32.const import KEY_MCU_SERIES, KEY_STM32
+
+    if "af" not in value:
+        if CORE.data[KEY_STM32][KEY_MCU_SERIES] == "F1":
+            value["af"] = 0
+        else:
+            raise cv.Invalid(
+                f"on STM32 {dir_str} pin needs to have AlternateFunction defined ('af' key)"
+            )
+    return value
+
+
+def validate_tx_pin(value):
+    value = pins.internal_gpio_input_pin_schema(value)
+    if CORE.is_stm32:
+        value = validate_stm32_af(value, "TX")
+    return value
+
+
 def validate_rx_pin(value):
     value = pins.internal_gpio_input_pin_schema(value)
     if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
         raise cv.Invalid("Pins GPIO16 and GPIO17 cannot be used as RX pins on ESP8266.")
+    if CORE.is_stm32:
+        value = validate_stm32_af(value, "RX")
     return value
 
 
@@ -256,7 +278,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): _uart_declare_type,
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
-            cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_TX_PIN): validate_tx_pin,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
             cv.Optional(CONF_FLOW_CONTROL_PIN): cv.All(
                 cv.only_on_esp32, pins.internal_gpio_output_pin_schema
