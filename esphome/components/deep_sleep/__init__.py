@@ -21,13 +21,16 @@ from esphome.const import (
     CONF_MODE,
     CONF_NUMBER,
     CONF_PINS,
+    CONF_PIN,
     CONF_RUN_DURATION,
     CONF_SECOND,
     CONF_SLEEP_DURATION,
     CONF_TIME_ID,
     CONF_WAKEUP_PIN,
+    CONF_WAKEUP_PINS,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
     PlatformFramework,
 )
 
@@ -107,7 +110,7 @@ WAKEUP_PINS = {
 }
 
 
-def validate_pin_number(value):
+def validate_pin_number_esp32(value):
     valid_pins = WAKEUP_PINS.get(get_esp32_variant(), WAKEUP_PINS[VARIANT_ESP32])
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
@@ -177,6 +180,17 @@ WAKEUP_CAUSES_SCHEMA = cv.Schema(
     }
 )
 
+WAKEUP_PINS_SCHEMA_BK72XX = cv.ensure_list(
+    cv.Schema(
+        {
+            cv.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
+                cv.enum(WAKEUP_PIN_MODES), upper=True
+            ),
+        }
+    ),
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -189,7 +203,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WAKEUP_PIN): cv.All(
                 cv.only_on_esp32,
                 pins.internal_gpio_input_pin_schema,
-                validate_pin_number,
+                validate_pin_number_esp32,
+            ),
+            cv.Optional(CONF_WAKEUP_PINS): cv.All(
+                cv.only_on(["libretiny", "bk72xx"]),
+                WAKEUP_PINS_SCHEMA_BK72XX,
             ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on_esp32, cv.enum(WAKEUP_PIN_MODES), upper=True
@@ -203,7 +221,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Schema(
                     {
                         cv.Required(CONF_PINS): cv.ensure_list(
-                            pins.internal_gpio_input_pin_schema, validate_pin_number
+                            pins.internal_gpio_input_pin_schema, validate_pin_number_esp32
                         ),
                         cv.Required(CONF_MODE): cv.All(
                             cv.enum(EXT1_WAKEUP_MODES, upper=True),
@@ -227,7 +245,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
 )
 
 
@@ -237,6 +255,17 @@ async def to_code(config):
 
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
+    if CONF_WAKEUP_PINS in config:
+        conf = config[CONF_WAKEUP_PINS]
+        for item in conf:
+            cg.add(
+                var.add_wakeup_pin(
+                    await cg.gpio_pin_expression(item[CONF_PIN]),
+                    item.get(
+                        CONF_WAKEUP_PIN_MODE, WakeupPinMode.WAKEUP_PIN_MODE_IGNORE
+                    ),
+                )
+            )
     if CONF_WAKEUP_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
         cg.add(var.set_wakeup_pin(pin))
@@ -352,5 +381,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "deep_sleep_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "deep_sleep_bk72xx.cpp": {PlatformFramework.BK72XX_ARDUINO},
     }
 )
