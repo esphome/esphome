@@ -68,10 +68,7 @@ struct MicroNovaCommand {
   uint8_t data;                ///< Only used for WRITE commands
   uint32_t transmission_time;  ///< Time when command was sent
 
-  bool operator==(const MicroNovaCommand &other) const {
-    return type == other.type && memory_location == other.memory_location && memory_address == other.memory_address &&
-           data == other.data;
-  }
+  auto operator<=>(const MicroNovaCommand &) const = default;
 };
 
 class MicroNova;
