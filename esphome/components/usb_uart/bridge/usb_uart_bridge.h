@@ -12,7 +12,6 @@ namespace esphome::usb_uart_bridge {
 class USBUARTBridge : public Component {
  public:
   void setup() override;
-  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
@@ -24,8 +23,6 @@ class USBUARTBridge : public Component {
 
   uart::IDFUARTComponent *get_uart_parent() const { return this->uart_parent_; }
   usb_cdc_acm::USBCDCACMInstance *get_usb_cdc_parent() const { return this->usb_cdc_parent_; }
-
-  void request_uart_settings_reload() { this->reload_uart_settings_ = millis(); }
 
   void set_line_coding(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
   void set_line_state(bool dtr, bool rts);
@@ -41,13 +38,13 @@ class USBUARTBridge : public Component {
   } uart_rx_task_param_t;
 
  protected:
+  void uart_settings_reload_();
+
   TaskHandle_t uart_rx_task_handle_{nullptr};
   TaskHandle_t uart_tx_task_handle_{nullptr};
 
   GPIOPin *dtr_pin_{nullptr};
   GPIOPin *rts_pin_{nullptr};
-
-  uint32_t reload_uart_settings_{0};
 
   uart_rx_task_param_t uart_rx_task_param_{};
 

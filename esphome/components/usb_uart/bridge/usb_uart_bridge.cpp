@@ -30,7 +30,8 @@ namespace esphome::usb_uart_bridge {
 
 static const char *TAG = "usb_uart_bridge";
 
-static const uint8_t UART_RELOAD_DEBOUNCE_MS = 100;
+static constexpr size_t USB_TASK_STACK_SIZE = 4096;
+static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
 
 static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
                                     TickType_t xTicksToWait) {
@@ -80,17 +81,14 @@ void USBUARTBridge::setup() {
   }
 
   // Register line state and line coding callbacks with the USB CDC ACM component
+  this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
   this->usb_cdc_parent_->set_line_coding_callback(
       [this](uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits) {
         this->set_line_coding(bit_rate, stop_bits, parity, data_bits);
       });
 
-  this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
-
-  size_t stack_size = 4096;
-  if (esp_log_level_get(TAG) > ESP_LOG_DEBUG) {
-    stack_size = 8192;  // Increase stack size for debug logging
-  }
+  // Use a larger stack size for (very) verbose logging
+  const size_t stack_size = esp_log_level_get(TAG) > ESP_LOG_DEBUG ? USB_TASK_STACK_SIZE_VV : USB_TASK_STACK_SIZE;
 
   // Create task that reads from USB CDC RX buffer and writes to UART
   xTaskCreate(uart_tx_task_fn, "usb_uart_tx", stack_size, this, 4, &this->uart_tx_task_handle_);
@@ -112,21 +110,6 @@ void USBUARTBridge::setup() {
     ESP_LOGE(TAG, "Failed to create UART RX task");
     this->mark_failed();
     return;
-  }
-}
-
-void USBUARTBridge::loop() {
-  // UART settings changed only from main application task/context
-  if (this->reload_uart_settings_ && this->uart_parent_ != nullptr) {
-    // Debounce: only reload if at least UART_RELOAD_DEBOUNCE_MS since the request
-    if (App.get_loop_component_start_time() - this->reload_uart_settings_ >= UART_RELOAD_DEBOUNCE_MS) {
-      vTaskSuspend(this->uart_rx_task_handle_);
-      vTaskSuspend(this->uart_tx_task_handle_);
-      this->uart_parent_->load_settings(false);
-      vTaskResume(this->uart_rx_task_handle_);
-      vTaskResume(this->uart_tx_task_handle_);
-      this->reload_uart_settings_ = 0;
-    }
   }
 }
 
@@ -175,7 +158,7 @@ void USBUARTBridge::set_line_coding(uint32_t bit_rate, uint8_t stop_bits, uint8_
   }
 
   if (changed) {
-    this->request_uart_settings_reload();
+    this->uart_settings_reload_();
   }
 }
 
@@ -273,6 +256,19 @@ void USBUARTBridge::uart_tx_task() {
     if (result != ESP_OK) {
       ESP_LOGE(TAG, "uart_wait_tx_done failed: %d", result);
     }
+  }
+}
+
+void USBUARTBridge::uart_settings_reload_() {
+  if (this->uart_parent_ != nullptr) {
+    vTaskSuspend(this->uart_rx_task_handle_);
+    vTaskSuspend(this->uart_tx_task_handle_);
+    this->uart_parent_->load_settings(false);
+    this->uart_rx_task_param_ = {
+        .uart_queue = *this->uart_parent_->get_uart_event_queue(),  // in case it changed during reload...
+    };
+    vTaskResume(this->uart_rx_task_handle_);
+    vTaskResume(this->uart_tx_task_handle_);
   }
 }
 
