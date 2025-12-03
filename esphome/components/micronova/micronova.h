@@ -46,7 +46,6 @@ enum class MicroNovaFunctions {
   STOVE_FUNCTION_CUSTOM = 12
 };
 
-
 enum class MicroNovaCommandType : uint8_t {
   READ = 0,
   WRITE = 1,
@@ -101,14 +100,14 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
  public:
   MicroNovaListener(MicroNova *m) : MicroNovaBaseListener(m) {}
 
-  void update() override { this->request_value_from_stove(); }
+  void update() override { this->request_value_from_stove_(); }
 
   virtual void process_value_from_stove(int value_from_stove) = 0;
 
   void dump_base_config();
 
  protected:
-  void request_value_from_stove();
+  void request_value_from_stove_();
 };
 
 /////////////////////////////////////////////////////////////////////

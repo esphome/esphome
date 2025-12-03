@@ -16,7 +16,7 @@ void MicroNovaListener::dump_base_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void MicroNovaListener::request_value_from_stove() {
+void MicroNovaListener::request_value_from_stove_() {
   this->micronova_->queue_read_request(this->memory_location_, this->memory_address_);
 }
 
@@ -75,7 +75,7 @@ void MicroNova::loop() {
 
   // No reply pending - process next command from queue
   if (!this->command_queue_.empty()) {
-    this->current_command_ = std::move(this->command_queue_.front());
+    this->current_command_ = this->command_queue_.front();
     this->command_queue_.pop_front();
     this->send_current_command_();
   }
@@ -119,8 +119,7 @@ void MicroNova::send_current_command_() {
     write_len = 4;
     write_data[2] = this->current_command_->data;
     // calculate checksum
-    write_data[3] =
-        ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
+    write_data[3] = ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
     ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
   }
 
