@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 from esphome import git, yaml_util
 from esphome.components.substitutions.jinja import has_jinja
@@ -28,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = CONF_PACKAGES
 
 
-def validate_has_jinja(value):
+def validate_has_jinja(value: Any):
     if not isinstance(value, str) or not has_jinja(value):
         raise cv.Invalid("string does not contain Jinja syntax")
     return value
@@ -284,7 +285,7 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
     return config
 
 
-def merge_packages(config: dict):
+def merge_packages(config: dict) -> dict:
     if CONF_PACKAGES not in config:
         return config
 
