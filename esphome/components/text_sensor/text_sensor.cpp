@@ -25,11 +25,11 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
 }
 
 void TextSensor::publish_state(const std::string &state) {
-  // Only store raw_state_ separately when filters exist
-  // When no filters, raw_state == state, so we avoid the duplicate storage
-  if (this->filter_list_ != nullptr) {
-    this->raw_state_ = state;
-  }
+// Suppress deprecation warning - we need to populate raw_state for backwards compatibility
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  this->raw_state = state;
+#pragma GCC diagnostic pop
   if (this->raw_callback_) {
     this->raw_callback_->call(state);
   }
@@ -85,9 +85,11 @@ void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> call
 
 std::string TextSensor::get_state() const { return this->state; }
 std::string TextSensor::get_raw_state() const {
-  // When no filters exist, raw_state == state, so return state to avoid
-  // requiring separate storage
-  return this->filter_list_ != nullptr ? this->raw_state_ : this->state;
+// Suppress deprecation warning - get_raw_state() is the replacement API
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  return this->raw_state;
+#pragma GCC diagnostic pop
 }
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = state;

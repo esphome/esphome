@@ -2,20 +2,50 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 
 #include "esphome/core/component.h"
+#include "esphome/core/event_pool.h"
+#include "esphome/core/lock_free_queue.h"
 #include "esphome/components/uart/uart_component.h"
 
-#include <array>
 #include <functional>
 #include "freertos/ringbuf.h"
 #include "tusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
+static const uint8_t EVENT_QUEUE_SIZE = 8;
 static const uint8_t MAX_USB_CDC_INSTANCES = 2;
 
 // Callback types for line coding and line state changes
 using LineCodingCallback = std::function<void(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits)>;
 using LineStateCallback = std::function<void(bool dtr, bool rts)>;
+
+// Event types
+enum CDCEventType : uint8_t {
+  CDC_EVENT_LINE_STATE_CHANGED,
+  CDC_EVENT_LINE_CODING_CHANGED,
+};
+
+// Event structure for the queue
+struct CDCEvent {
+  CDCEventType type;
+  union {
+    struct {
+      bool dtr;
+      bool rts;
+    } line_state;
+    struct {
+      uint32_t bit_rate;
+      uint8_t stop_bits;
+      uint8_t parity;
+      uint8_t data_bits;
+    } line_coding;
+  } data;
+
+  // Required by EventPool - called before returning to pool
+  void release() {
+    // No dynamic memory to clean up, data is stored inline
+  }
+};
 
 // Forward declaration
 class USBCDCACMComponent;
@@ -27,6 +57,7 @@ class USBCDCACMInstance : public uart::UARTComponent {
   void set_interface_number(uint8_t itf) { this->itf_ = static_cast<tinyusb_cdcacm_itf_t>(itf); }
 
   void setup();
+  void loop();
 
   // Get the CDC port number for this instance
   tinyusb_cdcacm_itf_t get_itf() const { return this->itf_; }
@@ -42,9 +73,9 @@ class USBCDCACMInstance : public uart::UARTComponent {
   void set_line_coding_callback(LineCodingCallback callback) { this->line_coding_callback_ = std::move(callback); }
   void set_line_state_callback(LineStateCallback callback) { this->line_state_callback_ = std::move(callback); }
 
-  // Internal methods to invoke callbacks
-  void invoke_line_coding_callback(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
-  void invoke_line_state_callback(bool dtr, bool rts);
+  // Called from TinyUSB task context (SPSC producer) - queues event for processing in main loop
+  void queue_line_coding_event(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
+  void queue_line_state_event(bool dtr, bool rts);
 
   static void usb_tx_task_fn(void *arg);
   void usb_tx_task();
@@ -59,6 +90,9 @@ class USBCDCACMInstance : public uart::UARTComponent {
  protected:
   void check_logger_conflict() override {}
 
+  // Process queued events and invoke callbacks (called from main loop)
+  void process_events_();
+
   USBCDCACMComponent *parent_{nullptr};
   TaskHandle_t usb_tx_task_handle_{nullptr};
   tinyusb_cdcacm_itf_t itf_{TINYUSB_CDC_ACM_0};
@@ -66,9 +100,13 @@ class USBCDCACMInstance : public uart::UARTComponent {
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
 
-  // User-registered callbacks
+  // User-registered callbacks (called from main loop)
   LineCodingCallback line_coding_callback_{nullptr};
   LineStateCallback line_state_callback_{nullptr};
+
+  // Lock-free queue and event pool for cross-task event passing
+  EventPool<CDCEvent, EVENT_QUEUE_SIZE> event_pool_;
+  LockFreeQueue<CDCEvent, EVENT_QUEUE_SIZE> event_queue_;
 
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
@@ -81,6 +119,7 @@ class USBCDCACMComponent : public Component {
   USBCDCACMComponent();
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::IO; }
 
