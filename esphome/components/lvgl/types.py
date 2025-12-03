@@ -45,7 +45,6 @@ lv_coord_t = cg.global_ns.namespace("lv_coord_t")
 lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 lv_key_t = cg.global_ns.enum("lv_key_t")
-FontEngine = lvgl_ns.class_("FontEngine")
 PlainTrigger = esphome_ns.class_("Trigger<>", automation.Trigger.template())
 DrawEndTrigger = esphome_ns.class_(
     "Trigger<uint32_t, uint32_t>", automation.Trigger.template(cg.uint32, cg.uint32)
@@ -153,18 +152,18 @@ class WidgetType:
 
         # Local import to avoid circular import
         from .automation import update_to_code
-        from .schemas import WIDGET_TYPES, create_modify_schema
+        from .schemas import WIDGET_TYPES, base_update_schema
 
         if not is_mock:
             if self.name in WIDGET_TYPES:
                 raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
             WIDGET_TYPES[self.name] = self
 
-            # Register the update action automatically
+            # Register the update action automatically, adding widget-specific properties
             register_action(
                 f"lvgl.{self.name}.update",
                 ObjUpdateAction,
-                create_modify_schema(self),
+                base_update_schema(self, self.parts).extend(self.modify_schema),
             )(update_to_code)
 
     @property
@@ -183,7 +182,6 @@ class WidgetType:
         Generate code for a given widget
         :param w: The widget
         :param config: Its configuration
-        :return: Generated code as a list of text lines
         """
 
     async def obj_creator(self, parent: MockObjClass, config: dict):
@@ -228,6 +226,15 @@ class WidgetType:
         :return:
         """
         return value
+
+    def final_validate(self, widget, update_config, widget_config, path):
+        """
+        Allow final validation for a given widget type update action
+        :param widget: A widget
+        :param update_config: The configuration for the update action
+        :param widget_config: The configuration for the widget itself
+        :param path: The path to the widget, for error reporting
+        """
 
 
 class NumberType(WidgetType):

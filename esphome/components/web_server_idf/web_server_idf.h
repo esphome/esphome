@@ -199,12 +199,17 @@ class AsyncWebServer {
     return *handler;
   }
 
+  void set_lru_purge_enable(bool enable);
+  httpd_handle_t get_server() { return this->server_; }
+
  protected:
   uint16_t port_{};
   httpd_handle_t server_{};
+  bool lru_purge_enable_{false};
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
+  static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
 #ifdef USE_WEBSERVER_OTA
   esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
 #endif
