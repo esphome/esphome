@@ -86,7 +86,9 @@ class DeepSleepComponent : public Component {
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
-  void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {this->wakeup_pins_.emplace_back(std::move(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()})); }
+  void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
+    this->wakeup_pins_.emplace_back(std::move(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()}));
+  }
 #endif  // USE_BK72XX
 
 #if defined(USE_ESP32)
@@ -129,11 +131,8 @@ class DeepSleepComponent : public Component {
   void deep_sleep_();
 
 #ifdef USE_BK72XX
-  bool pin_prevents_sleep_(WakeUpPinItem& pinItem) const;
-  bool get_real_pin_state_(InternalGPIOPin& pin) const
-  {
-    return (pin.digital_read() ^ pin.is_inverted());
-  }
+  bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
+  bool get_real_pin_state_(InternalGPIOPin &pin) const { return (pin.digital_read() ^ pin.is_inverted()); }
 #endif  // USE_BK72XX
 
   optional<uint64_t> sleep_duration_;
