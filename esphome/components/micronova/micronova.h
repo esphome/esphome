@@ -109,7 +109,7 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
   void dump_base_config();
 
  protected:
-  void request_value_from_stove();
+  virtual void request_value_from_stove();
 };
 
 /////////////////////////////////////////////////////////////////////

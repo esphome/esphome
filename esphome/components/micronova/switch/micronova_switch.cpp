@@ -34,5 +34,9 @@ void MicroNovaSwitch::process_value_from_stove(int value_from_stove) {
   }
 }
 
+void MicroNovaSwitch::request_value_from_stove() {
+  this->micronova_->queue_read_request(this->memory_location_-0x80, this->memory_address_);
+}
+
 }  // namespace micronova
 }  // namespace esphome
