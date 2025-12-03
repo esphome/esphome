@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -9,6 +10,22 @@
 
 namespace esphome {
 namespace i2c {
+
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+ public:
+  uint8_t *get(size_t size) {
+    if (size <= STACK_SIZE) {
+      return this->stack_buffer_;
+    }
+    this->heap_buffer_ = std::unique_ptr<uint8_t[]>(new uint8_t[size]);
+    return this->heap_buffer_.get();
+  }
+
+ private:
+  uint8_t stack_buffer_[STACK_SIZE];
+  std::unique_ptr<uint8_t[]> heap_buffer_;
+};
 
 /// @brief Error codes returned by I2CBus and I2CDevice methods
 enum ErrorCode {
@@ -74,14 +91,17 @@ class I2CBus {
     for (size_t i = 0; i != count; i++) {
       total_len += read_buffers[i].len;
     }
-    std::vector<uint8_t> buffer(total_len);
-    auto err = this->write_readv(address, nullptr, 0, buffer.data(), total_len);
+
+    SmallBufferWithHeapFallback<128> buffer_alloc;  // Most I2C reads are small
+    uint8_t *buffer = buffer_alloc.get(total_len);
+
+    auto err = this->write_readv(address, nullptr, 0, buffer, total_len);
     if (err != ERROR_OK)
       return err;
     size_t pos = 0;
     for (size_t i = 0; i != count; i++) {
       if (read_buffers[i].len != 0) {
-        std::memcpy(read_buffers[i].data, buffer.data() + pos, read_buffers[i].len);
+        std::memcpy(read_buffers[i].data, buffer + pos, read_buffers[i].len);
         pos += read_buffers[i].len;
       }
     }
@@ -91,11 +111,21 @@ class I2CBus {
   ESPDEPRECATED("This method is deprecated and will be removed in ESPHome 2026.3.0. Use write_readv() instead.",
                 "2025.9.0")
   ErrorCode writev(uint8_t address, const WriteBuffer *write_buffers, size_t count, bool stop = true) {
-    std::vector<uint8_t> buffer{};
+    size_t total_len = 0;
     for (size_t i = 0; i != count; i++) {
-      buffer.insert(buffer.end(), write_buffers[i].data, write_buffers[i].data + write_buffers[i].len);
+      total_len += write_buffers[i].len;
     }
-    return this->write_readv(address, buffer.data(), buffer.size(), nullptr, 0);
+
+    SmallBufferWithHeapFallback<128> buffer_alloc;  // Most I2C writes are small
+    uint8_t *buffer = buffer_alloc.get(total_len);
+
+    size_t pos = 0;
+    for (size_t i = 0; i != count; i++) {
+      std::memcpy(buffer + pos, write_buffers[i].data, write_buffers[i].len);
+      pos += write_buffers[i].len;
+    }
+
+    return this->write_readv(address, buffer, total_len, nullptr, 0);
   }
 
  protected:

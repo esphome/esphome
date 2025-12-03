@@ -1,9 +1,3 @@
-uart:
-  - id: uart_vbus
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 vbus:
 
 binary_sensor:

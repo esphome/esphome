@@ -1,6 +1,7 @@
 #include "i2c.h"
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <memory>
 
@@ -23,6 +24,8 @@ void I2CBus::i2c_scan_() {
     } else if (err == ERROR_UNKNOWN) {
       scan_results_.emplace_back(address, false);
     }
+    // it takes 16sec to scan on nrf52. It prevents board reset.
+    arch_feed_wdt();
   }
 #if defined(USE_ESP32) && defined(USE_LOGGER)
   esp_log_level_set("*", previous);
@@ -39,18 +42,22 @@ ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t 
 }
 
 ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
-  std::vector<uint8_t> v{};
-  v.push_back(a_register);
-  v.insert(v.end(), data, data + len);
-  return bus_->write_readv(this->address_, v.data(), v.size(), nullptr, 0);
+  SmallBufferWithHeapFallback<17> buffer_alloc;  // Most I2C writes are <= 16 bytes
+  uint8_t *buffer = buffer_alloc.get(len + 1);
+
+  buffer[0] = a_register;
+  std::copy(data, data + len, buffer + 1);
+  return this->bus_->write_readv(this->address_, buffer, len + 1, nullptr, 0);
 }
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
-  std::vector<uint8_t> v(len + 2);
-  v.push_back(a_register >> 8);
-  v.push_back(a_register);
-  v.insert(v.end(), data, data + len);
-  return bus_->write_readv(this->address_, v.data(), v.size(), nullptr, 0);
+  SmallBufferWithHeapFallback<18> buffer_alloc;  // Most I2C writes are <= 16 bytes + 2 for register
+  uint8_t *buffer = buffer_alloc.get(len + 2);
+
+  buffer[0] = a_register >> 8;
+  buffer[1] = a_register;
+  std::copy(data, data + len, buffer + 2);
+  return this->bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
 }
 
 bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {

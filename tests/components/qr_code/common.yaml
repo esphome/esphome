@@ -1,11 +1,6 @@
-spi:
-  - id: spi_main_lcd
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-
 display:
   - platform: ili9xxx
-    id: main_lcd
+    id: qr_code_main_lcd
     model: ili9342
     cs_pin: ${cs_pin}
     dc_pin: ${dc_pin}
@@ -14,11 +9,11 @@ display:
     lambda: |-
       // Draw a QR code in the center of the screen
       auto scale = 2;
-      auto size = id(homepage_qr).get_size() * scale;
+      auto size = id(qr_code_homepage_qr).get_size() * scale;
       auto x = (it.get_width() / 2) - (size / 2);
       auto y = (it.get_height() / 2) - (size / 2);
-      it.qr_code(x, y, id(homepage_qr), Color(255,255,255), scale);
+      it.qr_code(x, y, id(qr_code_homepage_qr), Color(255,255,255), scale);
 
 qr_code:
-  - id: homepage_qr
+  - id: qr_code_homepage_qr
     value: https://esphome.io/index.html

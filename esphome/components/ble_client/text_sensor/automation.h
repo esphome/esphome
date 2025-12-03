@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 class BLETextSensorNotifyTrigger : public Trigger<std::string>, public BLETextSensor {
  public:
@@ -33,7 +32,6 @@ class BLETextSensorNotifyTrigger : public Trigger<std::string>, public BLETextSe
   BLETextSensor *sensor_;
 };
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif

@@ -211,7 +211,7 @@ void SGP4xComponent::measure_raw_() {
 
   if (!this->write_command(command, data, 2)) {
     ESP_LOGD(TAG, "write error (%d)", this->last_error_);
-    this->status_set_warning("measurement request failed");
+    this->status_set_warning(LOG_STR("measurement request failed"));
     return;
   }
 
@@ -220,7 +220,7 @@ void SGP4xComponent::measure_raw_() {
     raw_data[1] = 0;
     if (!this->read_data(raw_data, response_words)) {
       ESP_LOGD(TAG, "read error (%d)", this->last_error_);
-      this->status_set_warning("measurement read failed");
+      this->status_set_warning(LOG_STR("measurement read failed"));
       this->voc_index_ = this->nox_index_ = UINT16_MAX;
       return;
     }

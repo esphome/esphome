@@ -11,7 +11,8 @@ from esphome.const import (
     CONF_OUTPUT,
 )
 
-CODEOWNERS = ["@hwstar", "@clydebarrow"]
+CODEOWNERS = ["@hwstar", "@clydebarrow", "@bdraco"]
+AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 CONF_PIN_COUNT = "pin_count"

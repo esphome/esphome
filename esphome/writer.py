@@ -1,8 +1,12 @@
+from collections.abc import Callable
 import importlib
 import logging
 import os
 from pathlib import Path
 import re
+import shutil
+import stat
+from types import TracebackType
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
@@ -15,6 +19,8 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
+    get_str_env,
+    is_ha_addon,
     read_file,
     walk_files,
     write_file_if_changed,
@@ -119,7 +125,7 @@ def update_storage_json() -> None:
             )
         else:
             _LOGGER.info("Core config or version changed, cleaning build files...")
-        clean_build()
+        clean_build(clear_pio_cache=False)
     elif storage_should_update_cmake_cache(old, new):
         _LOGGER.info("Integrations changed, cleaning cmake cache...")
         clean_cmake_cache()
@@ -266,7 +272,7 @@ def generate_version_h():
 
 def write_cpp(code_s):
     path = CORE.relative_src_path("main.cpp")
-    if os.path.isfile(path):
+    if path.is_file():
         text = read_file(path)
         code_format = find_begin_end(
             text, CPP_AUTO_GENERATE_BEGIN, CPP_AUTO_GENERATE_END
@@ -292,24 +298,104 @@ def write_cpp(code_s):
 
 def clean_cmake_cache():
     pioenvs = CORE.relative_pioenvs_path()
-    if os.path.isdir(pioenvs):
-        pioenvs_cmake_path = CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt")
-        if os.path.isfile(pioenvs_cmake_path):
+    if pioenvs.is_dir():
+        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
+        if pioenvs_cmake_path.is_file():
             _LOGGER.info("Deleting %s", pioenvs_cmake_path)
-            os.remove(pioenvs_cmake_path)
+            pioenvs_cmake_path.unlink()
 
 
-def clean_build():
-    import shutil
+def _rmtree_error_handler(
+    func: Callable[[str], object],
+    path: str,
+    exc_info: tuple[type[BaseException], BaseException, TracebackType | None],
+) -> None:
+    """Error handler for shutil.rmtree to handle read-only files on Windows.
+
+    On Windows, git pack files and other files may be marked read-only,
+    causing shutil.rmtree to fail with "Access is denied". This handler
+    removes the read-only flag and retries the deletion.
+    """
+    if os.access(path, os.W_OK):
+        raise exc_info[1].with_traceback(exc_info[2])
+    os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+    func(path)
+
+
+def clean_build(clear_pio_cache: bool = True):
+    # Allow skipping cache cleaning for integration tests
+    if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
+        _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
+        return
 
     pioenvs = CORE.relative_pioenvs_path()
-    if os.path.isdir(pioenvs):
+    if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
-        shutil.rmtree(pioenvs)
+        shutil.rmtree(pioenvs, onerror=_rmtree_error_handler)
     piolibdeps = CORE.relative_piolibdeps_path()
-    if os.path.isdir(piolibdeps):
+    if piolibdeps.is_dir():
         _LOGGER.info("Deleting %s", piolibdeps)
-        shutil.rmtree(piolibdeps)
+        shutil.rmtree(piolibdeps, onerror=_rmtree_error_handler)
+    dependencies_lock = CORE.relative_build_path("dependencies.lock")
+    if dependencies_lock.is_file():
+        _LOGGER.info("Deleting %s", dependencies_lock)
+        dependencies_lock.unlink()
+
+    if not clear_pio_cache:
+        return
+
+    # Clean PlatformIO cache to resolve CMake compiler detection issues
+    # This helps when toolchain paths change or get corrupted
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cache cleaning
+        pass
+    else:
+        config = ProjectConfig.get_instance()
+        cache_dir = Path(config.get("platformio", "cache_dir"))
+        if cache_dir.is_dir():
+            _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
+            shutil.rmtree(cache_dir, onerror=_rmtree_error_handler)
+
+
+def clean_all(configuration: list[str]):
+    data_dirs = []
+    for config in configuration:
+        item = Path(config)
+        if item.is_file() and item.suffix in (".yaml", ".yml"):
+            data_dirs.append(item.parent / ".esphome")
+        else:
+            data_dirs.append(item / ".esphome")
+    if is_ha_addon():
+        data_dirs.append(Path("/data"))
+    if "ESPHOME_DATA_DIR" in os.environ:
+        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+
+    # Clean build dir
+    for dir in data_dirs:
+        if dir.is_dir():
+            _LOGGER.info("Cleaning %s", dir)
+            # Don't remove storage or .json files which are needed by the dashboard
+            for item in dir.iterdir():
+                if item.is_file() and not item.name.endswith(".json"):
+                    item.unlink()
+                elif item.is_dir() and item.name != "storage":
+                    shutil.rmtree(item, onerror=_rmtree_error_handler)
+
+    # Clean PlatformIO project files
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cleaning
+        pass
+    else:
+        config = ProjectConfig.get_instance()
+        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
+            path = Path(config.get("platformio", pio_dir))
+            if path.is_dir():
+                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
+                shutil.rmtree(path, onerror=_rmtree_error_handler)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
@@ -322,6 +408,5 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 
 def write_gitignore():
     path = CORE.relative_config_path(".gitignore")
-    if not os.path.isfile(path):
-        with open(file=path, mode="w", encoding="utf-8") as f:
-            f.write(GITIGNORE_CONTENT)
+    if not path.is_file():
+        path.write_text(GITIGNORE_CONTENT, encoding="utf-8")
