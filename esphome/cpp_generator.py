@@ -659,7 +659,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 async def process_lambda(
     value: Lambda,
     parameters: TemplateArgsType,
-    capture: str = "=",
+    capture: str = "",
     return_type: SafeExpType = None,
 ) -> LambdaExpression | None:
     """Process the given lambda value into a LambdaExpression.
@@ -701,12 +701,6 @@ async def process_lambda(
         else:
             parts[i * 3 + 1] = var
         parts[i * 3 + 2] = ""
-
-    # All id() references are global variables in generated C++ code.
-    # Global variables should not be captured - they're accessible everywhere.
-    # Use empty capture instead of capture-by-value.
-    if capture == "=":
-        capture = ""
 
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
         location = value.esp_range.start_mark

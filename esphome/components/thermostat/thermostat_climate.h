@@ -207,6 +207,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   void validate_target_temperature_high();
   void validate_target_humidity();
 
+  /// The current humidification action
+  HumidificationAction humidification_action{THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE};
+
  protected:
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
@@ -300,9 +303,6 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// The current supplemental action
   climate::ClimateAction supplemental_action_{climate::CLIMATE_ACTION_OFF};
-
-  /// The current humidification action
-  HumidificationAction humidification_action_{THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE};
 
   /// Default standard preset to use on start up
   climate::ClimatePreset default_preset_{};

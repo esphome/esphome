@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 
 #include "cover_traits.h"
@@ -86,7 +87,7 @@ enum CoverOperation : uint8_t {
   COVER_OPERATION_CLOSING,
 };
 
-const char *cover_operation_to_str(CoverOperation op);
+const LogString *cover_operation_to_str(CoverOperation op);
 
 /** Base class for all cover devices.
  *
