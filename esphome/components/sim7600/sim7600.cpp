@@ -192,6 +192,39 @@ void Sim7600Component::parse_cmd_(std::string message) {
       if (message == "OK")
         this->state_ = STATE_INIT;
       break;
+
+
+//    https://onomondo.com/blog/at-command-cereg/#defined-values
+//    +CREG vs. +CGREG vs. +CEREG
+//    /What are the differences between +CREG, +CGREG, and +CEREG?
+//
+//    +CREG queries the registration to the circuit switched network, aka GSM networks.
+//    +CGREG and +CEREG query registration to the packet switched networks, aka networks which allow access to the internet.
+//    +CGREG queries the registration to GPRS network.
+//    +CEREG queries the registration to LTE or newer network technologies.
+//    If you are using modems with both GPRS and LTE technologies, use both AT+CGREG? and AT+CEREG?. The modem will report x,4 to the technology that is currently not active.
+//    Defined values
+//    <n> = Network registration unsolicited result code mode.
+//    
+//    0 = Unsubscribe unsolicited result codes
+//    1 = Subscribe unsolicited result codes +CEREG:<stat>
+//    2 = Subscribe unsolicited result codes +CEREG:<stat>[,<tac>,<ci>,<AcT>]
+//    3 = Subscribe unsolicited result codes +CEREG:<stat>[,<tac>,<ci>,<AcT>[,<cause_type>,<reject_cause>]]
+//    4 = Subscribe unsolicited result codes +CEREG: <stat>[,[<tac>],[<ci>],[<AcT>][,,[,[<Active-Time>],[<Periodic-TAU>]]]]
+//    5 = Subscribe unsolicited result codes +CEREG: <stat>[,[<tac>],[<ci>],[<AcT>][,[<cause_type>],[<reject_cause>][,[<Active-Time>],[<Periodic-TAU>]]]]
+//    
+//    <stat> = Current network registration status.
+//    
+//    0 = Not registered. User Equipment (UE) is not currently searching for an operator to register to.
+//    1 = Registered, home network
+//    2 = Not registered, but UE is currently trying to attach or searching an operator to register to
+//    3 = Registration denied
+//    4 = Unknown (for example, out of Evolved Terrestrial Radio Access Network (E-UTRAN) coverage)
+//    5 = Registered, roaming
+//    90 = Not registered due to Universal Integrated Circuit Card (UICC) failure
+//    
+
+    
     case STATE_CREG:
       send_cmd_("AT+CREG?");                    
       this->state_ = STATE_CREG_WAIT;
@@ -229,7 +262,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
                 this->expect_ack_ = true;
               //  break;			
           } else {
-            ESP_LOGD(TAG, "network registration failed, trying LTE from the beginning");
+            ESP_LOGD(TAG, "GSM network registration failed, trying LTE");
             // Keep waiting registration
             LAST_CxREG = STATE_CEREG;                                                 // DCO 20251202
             this->state_ = STATE_INIT;
@@ -272,14 +305,14 @@ void Sim7600Component::parse_cmd_(std::string message) {
                 this->state_ = STATE_SETUP_CMGF;
       		//  break;
       		} else if (message[10] == '4')  {          //LTE not available, 
-              //  ESP_LOGD(TAG, "LTE registration not available (4), trying GPRS mode" ); //trying GSM
+              //  ESP_LOGD(TAG, "LTE registration not available, trying GSM mode" ); //trying GSM
               //  this->state_ = STATE_CREG;
-                ESP_LOGD(TAG, "LTE registration not available (4), trying GPRS mode");   //trying GPRS
+                ESP_LOGD(TAG, "LTE registration not available, trying GPRS mode");   //trying GPRS
                 this->state_ = STATE_CGREG;
                 this->expect_ack_ = true;
               //  break;			
           } else {
-            ESP_LOGD(TAG, "LTE registration failed, trying again from the beginning in GPRS mode");
+            ESP_LOGD(TAG, "LTE registration failed, trying in GPRS mode");
             // Keep waiting registration
             LAST_CxREG = STATE_CGREG;                                                                                                  // DCO 20251202
             this->state_ = STATE_INIT;
@@ -324,15 +357,15 @@ void Sim7600Component::parse_cmd_(std::string message) {
                 LAST_CxREG = STATE_CGREG;
                 this->state_ = STATE_SETUP_CMGF;			
       		//  break;
-              } else if (message[10] == '4')  {                               //GPRS not available, trying GSM
-                 ESP_LOGD(TAG, "LTE registration failed, trying GSM");        //trying GSM
+              } else if (message[10] == '4')  {                                       //GPRS not available
+                 ESP_LOGD(TAG, "GPRS registration not avaialble, trying GSM");        //trying GSM
                  this->state_ = STATE_CREG;
-              //   ESP_LOGD(TAG, "GPRS registration failed, trying LTE");
+              //   ESP_LOGD(TAG, "GPRS registration not avaialble, trying LTE");
               //   this->state_ = STATE_CEREG;
                  this->expect_ack_ = true;
               //  break;
               } else {
-                ESP_LOGD(TAG, "GPRS registration failed, trying again from the beginning in another mode");
+                ESP_LOGD(TAG, "GPRS registration failed, trying in GSM mode");
                 // Keep waiting registration
                 LAST_CxREG = STATE_CREG;                                                       //  DCO 20251202
                 this->state_ = STATE_INIT;
