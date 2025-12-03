@@ -57,9 +57,13 @@ void MicroNova::loop() {
         MicroNovaAddress addr = {this->current_command_->memory_location, this->current_command_->memory_address};
         auto it = this->listeners_.find(addr);
         if (it != this->listeners_.end()) {
+          ESP_LOGV(TAG, "Found %zu listeners for [%02X,%02X], dispatching value %d", it->second.size(), addr.first,
+                   addr.second, stove_reply_value);
           for (auto *listener : it->second) {
             listener->process_value_from_stove(stove_reply_value);
           }
+        } else {
+          ESP_LOGW(TAG, "No listeners found for [%02X,%02X]", addr.first, addr.second);
         }
       }
       this->current_command_.reset();
