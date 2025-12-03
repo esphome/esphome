@@ -213,41 +213,57 @@ def substitute(
     strict_undefined: bool,
 ) -> Any | None:
     """Applies substitutions in-place to the given item.
-    If a substitution was made to `item` itself, the new value is returned.
+    If a substitution was made to `item` itself, the new value is returned so that
+    it can be replaced by the caller in the original container (e.g., for list elements or dict values).
     Returns None if no substitution was made to `item` itself."""
+
     if isinstance(item, ESPLiteralValue):
         return None  # do not substitute inside literal blocks
+
+    # Push the current item's context onto the context stack
     context_vars = push_context(item, parent_context)
+
+    # If the item is a list, iterate over its elements and substitute recursively
     if isinstance(item, list):
         for i, it in enumerate(item):
             sub = substitute(it, path + [i], context_vars, strict_undefined)
             if sub is not None:
-                item[i] = sub
+                item[i] = sub  # Update the list element if substitution occurred
+
+    # If the item is a dictionary, substitute keys and values recursively
     elif isinstance(item, dict):
-        replace_keys = []
+        replace_keys = []  # Track keys that need to be replaced
         for k, v in item.items():
+            # Substitute keys if not at the root or not the CONF_SUBSTITUTIONS key
             if path or k != CONF_SUBSTITUTIONS:
                 sub = substitute(k, path + [k], context_vars, strict_undefined)
                 if sub is not None:
-                    replace_keys.append((k, sub))
-                sub = substitute(v, path + [k], context_vars, strict_undefined)
-                if sub is not None:
-                    item[k] = sub
+                    replace_keys.append((k, sub))  # Mark key for replacement
+            sub = substitute(v, path + [k], context_vars, strict_undefined)
+            if sub is not None:
+                item[k] = sub  # Update the value if substitution occurred
+        # Replace keys in the dictionary after processing all items
         for old, new in replace_keys:
             if str(new) == str(old):
-                item[new] = item[old]
+                item[new] = item[old]  # Direct replacement if keys are identical
             else:
+                # Merge configurations if keys differ
                 item[new] = merge_config(item.get(old), item.get(new))
-                del item[old]
+                del item[old]  # Remove the old key
+
+    # If the item is a string, attempt to expand substitutions
     elif isinstance(item, str):
         sub = _expand_substitutions(item, path, context_vars, strict_undefined)
         if sub != item:
-            return sub
+            return sub  # Return the substituted value if it changed
+
+    # If the item is a special type (Lambda, Extend, Remove) with a value, substitute its value
     elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
         sub = _expand_substitutions(item.value, path, context_vars, strict_undefined)
         if sub != item:
-            item.value = sub
+            item.value = sub  # Update the value if substitution occurred
 
+    # Return None if no substitution was made to the item itself
     return None
 
 

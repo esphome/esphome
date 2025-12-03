@@ -1,5 +1,4 @@
 from ast import literal_eval
-from collections import ChainMap
 from collections.abc import Iterator
 from itertools import chain, islice
 import logging
@@ -140,7 +139,7 @@ class Jinja(jinja.Environment):
     code_generator_class = NativeCodeGenerator
     concat = staticmethod(_concat_nodes_override)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             trim_blocks=True,
             lstrip_blocks=True,
@@ -157,10 +156,7 @@ class Jinja(jinja.Environment):
         self.context_trace = {}
         self.strict_undefined = False
 
-        self.globals = ChainMap(
-            SAFE_GLOBALS,
-            {**self.globals},
-        )
+        self.globals = {**self.globals, **SAFE_GLOBALS}
 
     def expand(
         self, content_str: str, context_vars: dict, strict_undefined: bool = False

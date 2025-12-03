@@ -89,8 +89,13 @@ def make_data_base(
 
 
 class ConfigContext:
-    """Holds substitution vars that should be applied
-    to the tagged node and its children."""
+    """This is a mixin class that holds substitution vars that should be applied
+    to the tagged node and its children. During configuration loading, context vars can
+    be added to nodes using `add_context` function, which applies the mixin storing
+    the captured values and unevaluated expressions.
+    The substitution pass then recreates the effective context by merging the context vars
+    from this node and parent nodes.
+    """
 
     @property
     def vars(self) -> dict[str, Any]:
@@ -103,7 +108,10 @@ class ConfigContext:
 
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     """Tags a value with context vars that must be applied to it and its children
-    during the substitution pass"""
+    during the substitution pass. If no vars are given, no tagging is done.
+    If the value is already tagged, the new context vars are merged with existing ones,
+    with new vars taking precedence. Returns the value tagged with ConfigContext.
+    """
     if isinstance(value, dict) and CONF_DEFAULTS in value:
         context_vars = {
             **value.pop(CONF_DEFAULTS),
