@@ -34,8 +34,8 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(USBCDCACMComponent),
-            cv.Optional(CONF_USB_RX_BUFFER_SIZE, default=256): cv.uint16_t,
-            cv.Optional(CONF_USB_TX_BUFFER_SIZE, default=256): cv.uint16_t,
+            cv.Optional(CONF_USB_RX_BUFFER_SIZE, default=256): cv.All(cv.validate_bytes, cv.uint16_t),
+            cv.Optional(CONF_USB_TX_BUFFER_SIZE, default=256): cv.All(cv.validate_bytes, cv.uint16_t),
             cv.Optional(CONF_INTERFACES, default=[{}]): cv.All(
                 cv.ensure_list(INTERFACE_SCHEMA),
                 cv.Length(min=1, max=2),  # At least 1, at most 2 interfaces
@@ -48,14 +48,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     # Create and register interface instances
     for interface_index, interface_conf in enumerate(config[CONF_INTERFACES]):
         interface = cg.new_Pvariable(interface_conf[CONF_ID])
-        cg.add(interface.set_parent(var))
+        await cg.register_parented(interface, var)
         cg.add(interface.set_interface_number(interface_index))
         cg.add(var.add_interface(interface))
 
