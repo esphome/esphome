@@ -12,7 +12,7 @@
 namespace esphome {
 namespace remote_receiver {
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
@@ -64,6 +64,8 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   void set_filter_symbols(uint32_t filter_symbols) { this->filter_symbols_ = filter_symbols; }
   void set_receive_symbols(uint32_t receive_symbols) { this->receive_symbols_ = receive_symbols; }
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
+  void set_carrier_duty_percent(uint8_t carrier_duty_percent) { this->carrier_duty_percent_ = carrier_duty_percent; }
+  void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
 #endif
   void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
@@ -76,11 +78,13 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   uint32_t filter_symbols_{0};
   uint32_t receive_symbols_{0};
   bool with_dma_{false};
+  uint32_t carrier_frequency_{0};
+  uint8_t carrier_duty_percent_{100};
   esp_err_t error_code_{ESP_OK};
   std::string error_string_{""};
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_ESP32) || defined(USE_RP2040)
   RemoteReceiverComponentStore store_;
   HighFrequencyLoopRequester high_freq_;
 #endif

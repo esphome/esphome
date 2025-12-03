@@ -29,7 +29,8 @@ static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
-  this->credentials_.client_id = App.get_name() + "-" + get_mac_address();
+  const std::string mac_addr = get_mac_address();
+  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr.c_str(), mac_addr.size());
 }
 
 // Connection
@@ -56,15 +57,7 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          if (level <= this->log_level_ && this->is_connected()) {
-            this->publish({.topic = this->log_message_.topic,
-                           .payload = std::string(message, message_len),
-                           .qos = this->log_message_.qos,
-                           .retain = this->log_message_.retain});
-          }
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
@@ -139,16 +132,25 @@ void MQTTClientComponent::send_device_info_() {
 #endif
 
 #ifdef USE_API_NOISE
-        if (api::global_api_server->get_noise_ctx()->has_psk()) {
-          root["api_encryption"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-        } else {
-          root["api_encryption_supported"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-        }
+        root[api::global_api_server->get_noise_ctx().has_psk() ? "api_encryption" : "api_encryption_supported"] =
+            "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
 #endif
       },
       2, this->discovery_info_.retain);
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
+
+#ifdef USE_LOGGER
+void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) tag;
+  if (level <= this->log_level_ && this->is_connected()) {
+    this->publish({.topic = this->log_message_.topic,
+                   .payload = std::string(message, message_len),
+                   .qos = this->log_message_.qos,
+                   .retain = this->log_message_.retain});
+  }
+}
+#endif
 
 void MQTTClientComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -491,7 +493,7 @@ bool MQTTClientComponent::publish(const std::string &topic, const std::string &p
 
 bool MQTTClientComponent::publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
-  return publish({.topic = topic, .payload = payload, .qos = qos, .retain = retain});
+  return publish({.topic = topic, .payload = std::string(payload, payload_length), .qos = qos, .retain = retain});
 }
 
 bool MQTTClientComponent::publish(const MQTTMessage &message) {

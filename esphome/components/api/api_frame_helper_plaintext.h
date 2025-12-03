@@ -24,7 +24,7 @@ class APIPlaintextFrameHelper final : public APIFrameHelper {
   APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
 
  protected:
-  APIError try_read_frame_(std::vector<uint8_t> *frame);
+  APIError try_read_frame_();
 
   // Group 2-byte aligned types
   uint16_t rx_header_parsed_type_ = 0;

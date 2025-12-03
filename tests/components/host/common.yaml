@@ -15,3 +15,10 @@ esphome:
         static const uint8_t my_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
         if (!mac_address_is_valid(my_addr))
           ESP_LOGD("test", "Invalid mac address %X", my_addr[0]); // etc.
+        int x = 100;
+        x = clamp(x, 50, 90);
+        assert(x == 90);
+        x = clamp_at_least(x, 95);
+        assert(x == 95);
+        x = clamp_at_most(x, 40);
+        assert(x == 40);

@@ -10,7 +10,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["md5", "safe_mode"]
@@ -82,12 +83,9 @@ BASE_OTA_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(CoroPriority.COMMUNICATION)
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
     cg.add_define("USE_OTA")
-
-    if CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("Update", None)
 
     if CORE.is_rp2040 and CORE.using_arduino:
         cg.add_library("Updater", None)
@@ -126,8 +124,10 @@ async def ota_to_code(var, config):
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "ota_backend_arduino_esp32.cpp": {PlatformFramework.ESP32_ARDUINO},
-        "ota_backend_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "ota_backend_esp_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
         "ota_backend_arduino_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
         "ota_backend_arduino_libretiny.cpp": {

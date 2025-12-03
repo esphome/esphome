@@ -25,8 +25,11 @@ void MQTTJSONLightComponent::setup() {
     call.perform();
   });
 
-  auto f = std::bind(&MQTTJSONLightComponent::publish_state_, this);
-  this->state_->add_new_remote_values_callback([this, f]() { this->defer("send", f); });
+  this->state_->add_remote_values_listener(this);
+}
+
+void MQTTJSONLightComponent::on_light_remote_values_update() {
+  this->defer("send", [this]() { this->publish_state_(); });
 }
 
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}
@@ -68,6 +71,12 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   // legacy API
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
     root["brightness"] = true;
+
+  if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
+      traits.supports_color_mode(ColorMode::COLD_WARM_WHITE)) {
+    root[MQTT_MIN_MIREDS] = traits.get_min_mireds();
+    root[MQTT_MAX_MIREDS] = traits.get_max_mireds();
+  }
 
   if (this->state_->supports_effects()) {
     root["effect"] = true;

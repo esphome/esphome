@@ -1,4 +1,0 @@
-<<: !include common.yaml
-
-esp32:
-  cpu_frequency: 80MHz
