@@ -6,6 +6,7 @@ Each board preset defines standard pin mappings for HUB75 controller boards.
 from dataclasses import dataclass, field
 import importlib
 import pkgutil
+from typing import ClassVar
 
 
 @dataclass
@@ -57,8 +58,8 @@ class BoardConfig:
         # Auto-register this board
         BoardConfig._boards[self.name] = self
 
-    # Use a private class variable for the registry (avoids dataclass field issues)
-    _boards: dict[str, "BoardConfig"] = {}
+    # Class variable for the registry (ClassVar excludes it from dataclass fields)
+    _boards: ClassVar[dict[str, "BoardConfig"]] = {}
 
     @classmethod
     def get_boards(cls) -> dict[str, "BoardConfig"]:
