@@ -42,5 +42,5 @@ test_list:
   - ${ '{{{"AA"}}}' }
   - ${ '"HELLO"' }
   - '{ ${position.x}, ${position.y} }'
-  - a: ${a} should be 15, overriden from command line
-    b: ${b} should stay as 20, not overriden
+  - a: ${a} should be 15, overridden from command line
+    b: ${b} should stay as 20, not overridden
