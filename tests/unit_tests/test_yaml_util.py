@@ -97,13 +97,15 @@ def test_construct_secret_missing(fixture_path: Path, tmp_path: Path) -> None:
     """Test that missing secrets raise proper errors."""
     # Create a YAML file with a secret that doesn't exist
     test_yaml = tmp_path / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 esphome:
   name: test
 
 wifi:
   password: !secret nonexistent_secret
-""")
+"""
+    )
 
     # Create an empty secrets file
     secrets_yaml = tmp_path / "secrets.yaml"
@@ -117,10 +119,12 @@ def test_construct_secret_no_secrets_file(tmp_path: Path) -> None:
     """Test that missing secrets.yaml file raises proper error."""
     # Create a YAML file with a secret but no secrets.yaml
     test_yaml = tmp_path / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 wifi:
   password: !secret some_secret
-""")
+"""
+    )
 
     # Mock CORE.config_path to avoid NoneType error
     with (
@@ -139,10 +143,12 @@ def test_construct_secret_fallback_to_main_config_dir(
     subdir.mkdir()
 
     test_yaml = subdir / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 wifi:
   password: !secret test_secret
-""")
+"""
+    )
 
     # Create secrets.yaml in the main directory
     main_secrets = tmp_path / "secrets.yaml"
@@ -163,9 +169,11 @@ def test_construct_include_dir_named(fixture_path: Path, tmp_path: Path) -> None
 
     # Create test YAML that uses include_dir_named
     test_yaml = dst_dir / "test_include_named.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 sensor: !include_dir_named named_dir
-""")
+"""
+    )
 
     actual = yaml_util.load_yaml(test_yaml)
     actual_sensor = actual["sensor"]
@@ -198,9 +206,11 @@ def test_construct_include_dir_named_empty_dir(tmp_path: Path) -> None:
     empty_dir.mkdir()
 
     test_yaml = tmp_path / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 sensor: !include_dir_named empty_dir
-""")
+"""
+    )
 
     actual = yaml_util.load_yaml(test_yaml)
 
@@ -230,9 +240,11 @@ def test_construct_include_dir_named_with_dots(tmp_path: Path) -> None:
     hidden_subfile.write_text("key: hidden_subfile_value")
 
     test_yaml = tmp_path / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 test: !include_dir_named test_dir
-""")
+"""
+    )
 
     actual = yaml_util.load_yaml(test_yaml)
 
@@ -254,9 +266,11 @@ def test_find_files_recursive(fixture_path: Path, tmp_path: Path) -> None:
 
     # This indirectly tests _find_files by using include_dir_named
     test_yaml = dst_dir / "test_include_recursive.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 all_sensors: !include_dir_named named_dir
-""")
+"""
+    )
 
     actual = yaml_util.load_yaml(test_yaml)
 
@@ -278,3 +292,98 @@ def test_secret_values_tracking(fixture_path: Path) -> None:
     assert yaml_util._SECRET_VALUES["super_secret_wifi"] == "wifi_password"
     assert "0123456789abcdef" in yaml_util._SECRET_VALUES
     assert yaml_util._SECRET_VALUES["0123456789abcdef"] == "api_key"
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {
+            "key1": "value1",
+            "key2": 42,
+        },
+        [1, 2, 3],
+        "simple string",
+    ],
+)
+def test_config_context_mixin(data) -> None:
+    """Test that ConfigContext mixin correctly stores and retrieves context vars in a dict."""
+
+    context_vars = {
+        "var1": "context_value1",
+        "var2": 100,
+    }
+
+    # Add context to the data
+    tagged_data = yaml_util.add_context(data, context_vars)
+
+    # Check that tagged_data has ConfigContext and correct vars
+    assert isinstance(tagged_data, type(data))
+    assert isinstance(tagged_data, yaml_util.ConfigContext)
+    assert tagged_data.vars == context_vars
+
+    # Check that original data is preserved
+    assert tagged_data == data
+
+
+def test_config_context_mixin_no_context() -> None:
+    """Test that add_context does not tag data when no context vars are provided."""
+    data = {"key": "value"}
+
+    # Add context with None
+    tagged_data = yaml_util.add_context(data, None)
+
+    # Should return original data without tagging
+    assert tagged_data is data
+    assert not isinstance(tagged_data, yaml_util.ConfigContext)
+
+
+def test_config_context_mixin_merge_contexts() -> None:
+    """Test that add_context merges new context vars with existing ones."""
+    data = {"key": "value"}
+
+    initial_context = {
+        "var1": "initial_value",
+    }
+
+    # First, add initial context
+    tagged_data = yaml_util.add_context(data, initial_context)
+
+    assert isinstance(tagged_data, yaml_util.ConfigContext)
+    assert tagged_data.vars == initial_context
+
+    # Now, add more context vars
+    new_context = {
+        "var2": "new_value",
+        "var1": "overridden_value",  # This should override the initial var1
+    }
+
+    merged_tagged_data = yaml_util.add_context(tagged_data, new_context)
+
+    # Check that merged_tagged_data has merged context vars
+    expected_context = {
+        "var1": "overridden_value",
+        "var2": "new_value",
+    }
+    assert isinstance(merged_tagged_data, yaml_util.ConfigContext)
+    assert merged_tagged_data.vars == expected_context
+
+    # Check that original data is preserved
+    assert merged_tagged_data == data
+
+
+@pytest.mark.parametrize("data", [42, 3.14, True, None])
+def test_config_context_non_taggable(data) -> None:
+    """Test that add_context ignores non-string scalar values."""
+
+    context_vars = {
+        "var1": "context_value",
+    }
+
+    # Add context to the scalar data
+    tagged_data = yaml_util.add_context(data, context_vars)
+
+    # Check that tagged_data has ConfigContext and correct vars
+    assert not isinstance(tagged_data, yaml_util.ConfigContext)
+
+    # Check that original data is preserved
+    assert tagged_data == data
