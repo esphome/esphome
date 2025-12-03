@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = CONF_PACKAGES
 
 
-def validate_has_jinja(value):
+def validate_has_jinja(value: Any):
     if not isinstance(value, str) or not has_jinja(value):
         raise cv.Invalid("string does not contain Jinja syntax")
     return value
@@ -336,7 +336,7 @@ def do_packages_pass(
     return config
 
 
-def merge_packages(config: dict):
+def merge_packages(config: dict) -> dict:
     """Merges all packages into the main config and removes the `packages:` key."""
     if CONF_PACKAGES not in config:
         return config
