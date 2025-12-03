@@ -1,0 +1,11 @@
+---
+esphome:
+  name: test
+
+bk72xx:
+  board: cbu
+
+deep_sleep:
+  id: deep_sleep_lt
+  run_duration: 30s
+  sleep_duration: 12h

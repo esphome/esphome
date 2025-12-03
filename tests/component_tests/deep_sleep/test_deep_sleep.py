@@ -42,3 +42,31 @@ def test_deep_sleep_run_duration_dictionary(generate_main):
         "    .gpio_cause = 30000,\n"
         "});"
     ) in main_cpp
+
+
+def test_deep_sleep_bk72xx_setup(generate_main):
+    """
+    When deep sleep is configured for bk72xx it should be registered in main
+    """
+    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep_bk72xx.yaml")
+
+    assert "deepsleep = new deep_sleep::DeepSleepComponent();" in main_cpp
+    assert "App.register_component(deepsleep);" in main_cpp
+
+
+def test_deep_sleep_bk72xx_sleep_duration(generate_main):
+    """
+    When deep sleep is configured with sleep duration, it should be set.
+    """
+    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep_bk72xx.yaml")
+
+    assert "deepsleep->set_sleep_duration(60000);" in main_cpp
+
+
+def test_deep_sleep_run_duration(generate_main):
+    """
+    When deep sleep is configured with run duration, it should be set.
+    """
+    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep_bk72xx.yaml")
+
+    assert "deepsleep->set_run_duration(10000);" in main_cpp
