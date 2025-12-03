@@ -1042,6 +1042,7 @@ Used for creating infrared (IR) or radio frequency (RF) remote control transmitt
 ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 
 {{< imgtable >}}
+"CC1101","components/cc1101","cc1101.webp",""
 "IR Remote Climate","components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"
 "Remote Receiver","components/remote_receiver","remote.svg","dark-invert"
 "Remote Transmitter","components/remote_transmitter","remote.svg","dark-invert"
