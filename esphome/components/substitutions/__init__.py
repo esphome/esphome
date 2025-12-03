@@ -11,7 +11,6 @@ from esphome.yaml_util import (
     ConfigContext,
     ESPHomeDataBase,
     ESPLiteralValue,
-    add_context,
     make_data_base,
 )
 
@@ -170,18 +169,16 @@ def _expand_substitutions(
     return value
 
 
-def push_context(config_node: Any, parent_context: ContextVars) -> ContextVars:
-    """Returns the context_vars this config node must be evaluated with.
+def _push_context(
+    local_vars: dict[str, Any], parent_context: ContextVars
+) -> ContextVars:
+    """Returns a new context vars mapping with the given vars added on top of the parent context.
     If any var definition contains substitutions itself, those are resolved first using
     the values from parent_context.
     """
-    if not isinstance(config_node, ConfigContext):
-        # This node does not define any vars itself, so just return parent context
-        return parent_context
-    vars = config_node.vars
-    unresolved_vars = vars.copy()
-    vars.clear()
-    context_vars = parent_context.new_child(vars)
+    unresolved_vars = local_vars.copy()
+    local_vars.clear()
+    context_vars = parent_context.new_child(local_vars)
     # below loops iterate exactly once if vars are already sorted in dependency order, i.e.,
     # no var depends on another var defined later. If there are dependency cycles or
     # unresolved vars, multiple passes are done until no progress is made.
@@ -193,12 +190,20 @@ def push_context(config_node: Any, parent_context: ContextVars) -> ContextVars:
             except UndefinedError:  # try to resolve in next pass
                 new_unresolved_vars[k] = value
                 continue
-            vars[k] = value if result is None else result
+            local_vars[k] = value if result is None else result
         if len(unresolved_vars) == len(new_unresolved_vars):
-            vars.update(unresolved_vars)
+            local_vars.update(unresolved_vars)
             break
         unresolved_vars = new_unresolved_vars
     return context_vars
+
+
+def push_context(config_node: Any, parent_context: ContextVars) -> ContextVars:
+    """Returns the context vars this config node must be evaluated with."""
+    if not isinstance(config_node, ConfigContext):
+        # This node does not define any vars itself, so just return parent context
+        return parent_context
+    return _push_context(config_node.vars, parent_context)
 
 
 def substitute(
@@ -274,5 +279,5 @@ def do_substitution_pass(
     if CONF_SUBSTITUTIONS in config:
         config[CONF_SUBSTITUTIONS] = substitutions
         config.move_to_end(CONF_SUBSTITUTIONS, last=False)
-    config = add_context(config, substitutions)
-    substitute(config, [], ContextVars(), False)
+    parent_context = _push_context(substitutions, ContextVars())
+    substitute(config, [], parent_context, False)
