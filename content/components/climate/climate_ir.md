@@ -131,7 +131,7 @@ The Daikin ARC remotes (`daikin_arc` climate, `daikin_arc417`, `daikin_arc480` p
 
 ### `gree`
 
-- **model** (**Required**, string): GREE has a few different protocols depending on model. One of these will work for you.
+- **model** (**Required**, string): GREE has a few different protocols depending on model. One of these will likely work for you:
 
   - `generic`
   - `yan`
@@ -142,12 +142,36 @@ The Daikin ARC remotes (`daikin_arc` climate, `daikin_arc417`, `daikin_arc480` p
   - `yag`
 
 ```yaml
-# Example configuration entry
+# Example configuration entry for climate only
 climate:
   - platform: gree
     name: "AC"
+    id: my_gree_ac
     sensor: room_temperature
     model: yan
+```
+
+Models `yan`, `yaa`, `yac` and `yac1fb9` support a couple of additional features which can be controlled with switches:
+
+- **gree_id** (**Required**, [ID](/guides/configuration-types#id)): Specify the ID of the `gree` climate to which these swicthes should belong.
+- **light** (*Optional*, [Switch](/components/switch#config-switch)): To turn off indoor unit display/LED at night for complete room darkness.
+- **turbo** (*Optional*, [Switch](/components/switch#config-switch)): For maximum fan speed and fastest results.
+- **health** (*Optional*, [Switch](/components/switch#config-switch)): Removal of dust and germs from the environment by ionizing the air flowing through the blades.
+- **xfan** (*Optional*, [Switch](/components/switch#config-switch)): Prevention of excess moisture in the machine that cause mold, mildew, and unpleasant odors. Indoor fan will keep running for short period after turning turn off the AC, to dry the blades.
+
+```yaml
+# Example configuration entry for switches of the climate
+switch:
+  - platform: gree
+    gree_id: my_gree_ac
+    light:
+      name: "AC Lights"
+    turbo:
+      name: "AC Turbo"
+    health:
+      name: "AC Health"
+    xfan:
+      name: "AC X-Fan"
 ```
 
 {{< anchor "midea_ir" >}}
