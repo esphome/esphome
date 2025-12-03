@@ -1,5 +1,6 @@
 #ifdef USE_ARDUINO
 
+#include "esphome/core/helpers.h"
 #include "optolink_select.h"
 #include "../optolink.h"
 
@@ -7,6 +8,17 @@ namespace esphome {
 namespace optolink {
 
 static const char *const TAG = "optolink.select";
+
+void OptolinkSelect::set_map(std::map<std::string, std::string> *mapping) {
+  mapping_ = mapping;
+  FixedVector<const char *> values;
+  values.init(mapping->size());
+
+  for (auto &it : *mapping) {
+    values.push_back(it.second.c_str());
+  }
+  traits.set_options(values);
+};
 
 void OptolinkSelect::control(const std::string &value) {
   for (auto it = mapping_->begin(); it != mapping_->end(); ++it) {
