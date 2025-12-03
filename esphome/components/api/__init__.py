@@ -32,8 +32,8 @@ from esphome.const import (
     CONF_VARIABLES,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import TemplateArgsType
-from esphome.types import ConfigType
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigFragmentType, ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,14 +71,14 @@ APIUnregisterServiceCallAction = api_ns.class_(
 
 UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
-SERVICE_ARG_NATIVE_TYPES = {
-    "bool": bool,
+SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
+    "bool": cg.bool_,
     "int": cg.int32,
-    "float": float,
+    "float": cg.float_,
     "string": cg.std_string,
-    "bool[]": cg.FixedVector.template(bool).operator("const").operator("ref"),
+    "bool[]": cg.FixedVector.template(cg.bool_).operator("const").operator("ref"),
     "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
-    "float[]": cg.FixedVector.template(float).operator("const").operator("ref"),
+    "float[]": cg.FixedVector.template(cg.float_).operator("const").operator("ref"),
     "string[]": cg.FixedVector.template(cg.std_string)
     .operator("const")
     .operator("ref"),
@@ -119,7 +119,7 @@ SUPPORTS_RESPONSE_OPTIONS = {
 }
 
 
-def _auto_detect_supports_response(config):
+def _auto_detect_supports_response(config: ConfigType) -> ConfigType:
     """Auto-detect supports_response based on api.respond usage in the action's then block.
 
     - If api.respond with data found: set to "optional" (unless user explicitly set)
@@ -127,7 +127,7 @@ def _auto_detect_supports_response(config):
     - If no api.respond found: set to "none" (unless user explicitly set)
     """
 
-    def scan_actions(items):
+    def scan_actions(items: ConfigFragmentType) -> tuple[bool, bool]:
         """Recursively scan actions for api.respond.
 
         Returns: (found, has_data) tuple - has_data is True if ANY api.respond has data
@@ -336,7 +336,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 @coroutine_with_priority(CoroPriority.WEB)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -373,8 +373,8 @@ async def to_code(config):
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.Pvariable] = []
         for conf in actions:
-            func_args = []
-            service_template_args = []  # User service argument types
+            func_args: list[tuple[MockObj, str]] = []
+            service_template_args: list[MockObj] = []  # User service argument types
 
             # Determine supports_response mode
             # cv.enum returns the key with enum_value attribute containing the MockObj
@@ -396,7 +396,7 @@ async def to_code(config):
                 if is_optional:
                     func_args.append((cg.bool_, "return_response"))
 
-            service_arg_names = []
+            service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
                 native = SERVICE_ARG_NATIVE_TYPES[var_]
                 service_template_args.append(native)
@@ -702,7 +702,12 @@ API_RESPOND_ACTION_SCHEMA = cv.All(
     APIRespondAction,
     API_RESPOND_ACTION_SCHEMA,
 )
-async def api_respond_to_code(config, action_id, template_arg, args):
+async def api_respond_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+):
     cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv)
@@ -712,7 +717,7 @@ async def api_respond_to_code(config, action_id, template_arg, args):
     if is_optional:
         cg.add(var.set_is_optional_mode(True))
 
-    templ = await cg.templatable(config[CONF_SUCCESS], args, bool)
+    templ = await cg.templatable(config[CONF_SUCCESS], args, cg.bool_)
     cg.add(var.set_success(templ))
 
     templ = await cg.templatable(config[CONF_ERROR_MESSAGE], args, cg.std_string)
