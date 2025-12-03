@@ -22,7 +22,6 @@ class MicroNovaSwitch : public switch_::Switch, public MicroNovaListener {
 
  protected:
   void write_state(bool state) override;
-  void request_value_from_stove() override;
 
   uint8_t memory_data_on_ = 0;
   uint8_t memory_data_off_ = 0;

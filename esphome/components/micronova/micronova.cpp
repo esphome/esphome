@@ -82,7 +82,7 @@ void MicroNova::loop() {
 void MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t data) {
   MicroNovaCommand cmd;
   cmd.type = MicroNovaCommandType::WRITE;
-  cmd.memory_location = location;
+  cmd.memory_location = location | WRITE_BIT;
   cmd.memory_address = address;
   cmd.data = data;
 

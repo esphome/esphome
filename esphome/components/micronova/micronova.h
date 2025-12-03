@@ -16,6 +16,7 @@ namespace micronova {
 
 static const char *const TAG = "micronova";
 static const int STOVE_REPLY_DELAY = 60;
+static const uint8_t WRITE_BIT = 1 << 7;  // 0x80
 
 static const std::string STOVE_STATES[11] = {"Off",
                                              "Start",
@@ -105,7 +106,7 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
   void dump_base_config();
 
  protected:
-  virtual void request_value_from_stove();
+  void request_value_from_stove();
 };
 
 /////////////////////////////////////////////////////////////////////
