@@ -38,12 +38,14 @@ void MicroNova::dump_config() {
 void MicroNova::register_micronova_listener(MicroNovaListener *listener) {
   MicroNovaAddress addr = {listener->get_memory_location(), listener->get_memory_address()};
   this->listeners_[addr].push_back(listener);
+  // Request initial value
+  this->queue_read_request(addr.memory_location, addr.memory_address);
 }
 
 void MicroNova::request_update_listeners_() {
   ESP_LOGD(TAG, "Requesting update from all listeners");
   for (auto &entry : this->listeners_) {
-    this->queue_read_request(entry.first.first, entry.first.second);
+    this->queue_read_request(entry.first.memory_location, entry.first.memory_address);
   }
 }
 
@@ -57,13 +59,13 @@ void MicroNova::loop() {
         MicroNovaAddress addr = {this->current_command_->memory_location, this->current_command_->memory_address};
         auto it = this->listeners_.find(addr);
         if (it != this->listeners_.end()) {
-          ESP_LOGV(TAG, "Found %zu listeners for [%02X,%02X], dispatching value %d", it->second.size(), addr.first,
-                   addr.second, stove_reply_value);
+          ESP_LOGV(TAG, "Found %zu listeners for [%02X,%02X], dispatching value %d", it->second.size(),
+                   addr.memory_location, addr.memory_address, stove_reply_value);
           for (auto *listener : it->second) {
             listener->process_value_from_stove(stove_reply_value);
           }
         } else {
-          ESP_LOGW(TAG, "No listeners found for [%02X,%02X]", addr.first, addr.second);
+          ESP_LOGW(TAG, "No listeners found for [%02X,%02X]", addr.memory_location, addr.memory_address);
         }
       }
       this->current_command_.reset();

@@ -53,7 +53,12 @@ enum class MicroNovaCommandType : uint8_t {
 };
 
 /// Key for listener map: (memory_location, memory_address)
-using MicroNovaAddress = std::pair<uint8_t, uint8_t>;
+struct MicroNovaAddress {
+  uint8_t memory_location;
+  uint8_t memory_address;
+
+  auto operator<=>(const MicroNovaAddress &) const = default;
+};
 
 /// Represents a command to be sent to the stove
 struct MicroNovaCommand {
