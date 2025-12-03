@@ -16,7 +16,9 @@
 
 #include "bluetooth_connection.h"
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#endif
 #include <esp_bt_device.h>
 
 namespace esphome::bluetooth_proxy {
@@ -128,9 +130,13 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
     return flags;
   }
 
-  std::string get_bluetooth_mac_address_pretty() {
+  void get_bluetooth_mac_address_pretty(std::span<char, 18> output) {
     const uint8_t *mac = esp_bt_dev_get_address();
-    return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    if (mac != nullptr) {
+      format_mac_addr_upper(mac, output.data());
+    } else {
+      output[0] = '\0';
+    }
   }
 
  protected:

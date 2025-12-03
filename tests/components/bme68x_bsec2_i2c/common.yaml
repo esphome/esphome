@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_bme68x
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 bme68x_bsec2_i2c:
+  i2c_id: i2c_bus
   address: 0x76
   model: bme688
   algorithm_output: classification

@@ -19,6 +19,9 @@ using climate::ClimateTraits;
 using climate::ClimateMode;
 using climate::ClimateSwingMode;
 using climate::ClimateFanMode;
+using climate::ClimateModeMask;
+using climate::ClimateSwingModeMask;
+using climate::ClimatePresetMask;
 
 class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>, public climate::Climate {
  public:
@@ -40,20 +43,20 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   void do_power_on() { this->base_.setPowerState(true); }
   void do_power_off() { this->base_.setPowerState(false); }
   void do_power_toggle() { this->base_.setPowerState(this->mode == ClimateMode::CLIMATE_MODE_OFF); }
-  void set_supported_modes(const std::set<ClimateMode> &modes) { this->supported_modes_ = modes; }
-  void set_supported_swing_modes(const std::set<ClimateSwingMode> &modes) { this->supported_swing_modes_ = modes; }
-  void set_supported_presets(const std::set<ClimatePreset> &presets) { this->supported_presets_ = presets; }
-  void set_custom_presets(const std::set<std::string> &presets) { this->supported_custom_presets_ = presets; }
-  void set_custom_fan_modes(const std::set<std::string> &modes) { this->supported_custom_fan_modes_ = modes; }
+  void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
+  void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
+  void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
+  void set_custom_presets(std::initializer_list<const char *> presets) { this->supported_custom_presets_ = presets; }
+  void set_custom_fan_modes(std::initializer_list<const char *> modes) { this->supported_custom_fan_modes_ = modes; }
 
  protected:
   void control(const ClimateCall &call) override;
   ClimateTraits traits() override;
-  std::set<ClimateMode> supported_modes_{};
-  std::set<ClimateSwingMode> supported_swing_modes_{};
-  std::set<ClimatePreset> supported_presets_{};
-  std::set<std::string> supported_custom_presets_{};
-  std::set<std::string> supported_custom_fan_modes_{};
+  ClimateModeMask supported_modes_{};
+  ClimateSwingModeMask supported_swing_modes_{};
+  ClimatePresetMask supported_presets_{};
+  std::vector<const char *> supported_custom_presets_{};
+  std::vector<const char *> supported_custom_fan_modes_{};
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};

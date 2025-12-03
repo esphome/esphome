@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.packages import do_packages_pass
+from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass
+from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
 from esphome.const import (
@@ -64,13 +65,20 @@ def fixture_basic_esphome():
     return {CONF_NAME: TEST_DEVICE_NAME, CONF_PLATFORM: TEST_PLATFORM}
 
 
+def packages_pass(config):
+    """Wrapper around packages_pass that also resolves Extend and Remove."""
+    config = do_packages_pass(config)
+    resolve_extend_remove(config)
+    return config
+
+
 def test_package_unused(basic_esphome, basic_wifi):
     """
     Ensures do_package_pass does not change a config if packages aren't used.
     """
     config = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == config
 
 
@@ -83,7 +91,51 @@ def test_package_invalid_dict(basic_esphome, basic_wifi):
     config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: basic_wifi | {CONF_URL: ""}}
 
     with pytest.raises(cv.Invalid):
-        do_packages_pass(config)
+        packages_pass(config)
+
+
+@pytest.mark.parametrize(
+    "packages",
+    [
+        {"package1": "github://esphome/non-existant-repo/file1.yml@main"},
+        {"package2": "github://esphome/non-existant-repo/file1.yml"},
+        {"package3": "github://esphome/non-existant-repo/other-folder/file1.yml"},
+        [
+            "github://esphome/non-existant-repo/file1.yml@main",
+            "github://esphome/non-existant-repo/file1.yml",
+            "github://esphome/non-existant-repo/other-folder/file1.yml",
+        ],
+    ],
+)
+def test_package_shorthand(packages):
+    CONFIG_SCHEMA(packages)
+
+
+@pytest.mark.parametrize(
+    "packages",
+    [
+        # not github
+        {"package1": "someplace://esphome/non-existant-repo/file1.yml@main"},
+        # missing repo
+        {"package2": "github://esphome/file1.yml"},
+        # missing file
+        {"package3": "github://esphome/non-existant-repo/@main"},
+        {"a": "invalid string, not shorthand"},
+        "some string",
+        3,
+        False,
+        {"a": 8},
+        ["someplace://esphome/non-existant-repo/file1.yml@main"],
+        ["github://esphome/file1.yml"],
+        ["github://esphome/non-existant-repo/@main"],
+        ["some string"],
+        [True],
+        [3],
+    ],
+)
+def test_package_invalid(packages):
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA(packages)
 
 
 def test_package_include(basic_wifi, basic_esphome):
@@ -99,8 +151,35 @@ def test_package_include(basic_wifi, basic_esphome):
 
     expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
+
+
+def test_single_package(
+    basic_esphome,
+    basic_wifi,
+    caplog: pytest.LogCaptureFixture,
+):
+    """
+    Tests the simple case where a single package is added to the top-level config as is.
+    In this test, the CONF_WIFI config is expected to be simply added to the top-level config.
+    This tests the case where the user just put packages: !include package.yaml, not
+    part of a list or mapping of packages.
+    This behavior is deprecated, the test also checks if a warning is issued.
+    """
+    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: {CONF_WIFI: basic_wifi}}
+
+    expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
+
+    with caplog.at_level("WARNING"):
+        actual = packages_pass(config)
+
+    assert actual == expected
+
+    assert (
+        "Including a single package under `packages:` is deprecated. Use a list instead."
+        in caplog.text
+    )
 
 
 def test_package_append(basic_wifi, basic_esphome):
@@ -124,7 +203,7 @@ def test_package_append(basic_wifi, basic_esphome):
         },
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -148,7 +227,7 @@ def test_package_override(basic_wifi, basic_esphome):
         },
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -177,7 +256,7 @@ def test_multiple_package_order():
         },
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -233,7 +312,7 @@ def test_package_list_merge():
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -311,7 +390,7 @@ def test_package_list_merge_by_id():
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -350,13 +429,13 @@ def test_package_merge_by_id_with_list():
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
 def test_package_merge_by_missing_id():
     """
-    Ensures that components with missing IDs are not merged.
+    Ensures that a validation error is thrown when trying to extend a missing ID.
     """
 
     config = {
@@ -379,25 +458,15 @@ def test_package_merge_by_missing_id():
         ],
     }
 
-    expected = {
-        CONF_SENSOR: [
-            {
-                CONF_ID: TEST_SENSOR_ID_1,
-                CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
-            },
-            {
-                CONF_ID: TEST_SENSOR_ID_1,
-                CONF_FILTERS: [{CONF_MULTIPLY: 10.0}],
-            },
-            {
-                CONF_ID: Extend(TEST_SENSOR_ID_2),
-                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
-            },
-        ]
-    }
+    error_raised = False
+    try:
+        packages_pass(config)
+        assert False, "Expected validation error for missing ID"
+    except cv.Invalid as err:
+        error_raised = True
+        assert err.path == [CONF_SENSOR, 2]
 
-    actual = do_packages_pass(config)
-    assert actual == expected
+    assert error_raised
 
 
 def test_package_list_remove_by_id():
@@ -447,7 +516,7 @@ def test_package_list_remove_by_id():
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -493,7 +562,7 @@ def test_multiple_package_list_remove_by_id():
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -514,7 +583,7 @@ def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
         CONF_ESPHOME: basic_esphome,
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -545,7 +614,6 @@ def test_package_remove_by_missing_id():
     }
 
     expected = {
-        "missing_key": Remove(),
         CONF_SENSOR: [
             {
                 CONF_ID: TEST_SENSOR_ID_1,
@@ -555,14 +623,10 @@ def test_package_remove_by_missing_id():
                 CONF_ID: TEST_SENSOR_ID_1,
                 CONF_FILTERS: [{CONF_MULTIPLY: 10.0}],
             },
-            {
-                CONF_ID: Remove(TEST_SENSOR_ID_2),
-                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
-            },
         ],
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -634,7 +698,7 @@ def test_remote_packages_with_files_list(
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -730,5 +794,5 @@ def test_remote_packages_with_files_and_vars(
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected

@@ -16,18 +16,18 @@
 #endif
 
 #ifdef USE_ARDUINO
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#if defined(USE_ESP8266)
 #include <HardwareSerial.h>
-#endif  // USE_ESP8266 || USE_ESP32
+#endif  // USE_ESP8266
 #ifdef USE_RP2040
 #include <HardwareSerial.h>
 #include <SerialUSB.h>
 #endif  // USE_RP2040
 #endif  // USE_ARDUINO
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include <driver/uart.h>
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
 
 #ifdef USE_ZEPHYR
 #include <zephyr/kernel.h>
@@ -36,28 +36,51 @@ struct device;
 
 namespace esphome::logger {
 
-// Color and letter constants for log levels
-static const char *const LOG_LEVEL_COLORS[] = {
-    "",                                            // NONE
-    ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),       // ERROR
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),   // WARNING
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GREEN),    // INFO
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_MAGENTA),  // CONFIG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_CYAN),     // DEBUG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY),     // VERBOSE
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+// Comparison function for const char* keys in log_levels_ map
+struct CStrCompare {
+  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+};
+#endif
+
+// ANSI color code last digit (30-38 range, store only last digit to save RAM)
+static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
+    '\0',  // NONE
+    '1',   // ERROR (31 = red)
+    '3',   // WARNING (33 = yellow)
+    '2',   // INFO (32 = green)
+    '5',   // CONFIG (35 = magenta)
+    '6',   // DEBUG (36 = cyan)
+    '7',   // VERBOSE (37 = gray)
+    '8',   // VERY_VERBOSE (38 = white)
 };
 
-static const char *const LOG_LEVEL_LETTERS[] = {
-    "",    // NONE
-    "E",   // ERROR
-    "W",   // WARNING
-    "I",   // INFO
-    "C",   // CONFIG
-    "D",   // DEBUG
-    "V",   // VERBOSE
-    "VV",  // VERY_VERBOSE
+static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
+    '\0',  // NONE
+    'E',   // ERROR
+    'W',   // WARNING
+    'I',   // INFO
+    'C',   // CONFIG
+    'D',   // DEBUG
+    'V',   // VERBOSE (VERY_VERBOSE uses two 'V's)
 };
+
+// Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
+static constexpr uint16_t MAX_HEADER_SIZE = 128;
+
+// "0x" + 2 hex digits per byte + '\0'
+static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
+
+// Platform-specific: does write_msg_ add its own newline?
+// false: Caller must add newline to buffer before calling write_msg_ (ESP32, ESP8266, LibreTiny)
+//        Allows single write call with newline included for efficiency
+// true:  write_msg_ adds newline itself via puts()/println() (other platforms)
+//        Newline should NOT be added to buffer
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_LIBRETINY)
+static constexpr bool WRITE_MSG_ADDS_NEWLINE = false;
+#else
+static constexpr bool WRITE_MSG_ADDS_NEWLINE = true;
+#endif
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
@@ -110,19 +133,17 @@ class Logger : public Component {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   void init_log_buffer(size_t total_buffer_size);
 #endif
-#if defined(USE_LOGGER_USB_CDC) || defined(USE_ESP32) || defined(USE_ZEPHYR)
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *get_hw_serial() const { return hw_serial_; }
 #endif
-#ifdef USE_ESP_IDF
-  uart_port_t get_uart_num() const { return uart_num_; }
-#endif
 #ifdef USE_ESP32
+  uart_port_t get_uart_num() const { return uart_num_; }
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
@@ -133,8 +154,10 @@ class Logger : public Component {
 
   /// Set the default log level for this logger.
   void set_log_level(uint8_t level);
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   /// Set the log level of the specified tag.
-  void set_log_level(const std::string &tag, uint8_t log_level);
+  void set_log_level(const char *tag, uint8_t log_level);
+#endif
   uint8_t get_log_level() { return this->current_level_; }
 
   // ========== INTERNAL METHODS ==========
@@ -161,15 +184,18 @@ class Logger : public Component {
 
  protected:
   void process_messages_();
-  void write_msg_(const char *msg);
+  void write_msg_(const char *msg, size_t len);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
   // It's the caller's responsibility to initialize buffer_at (typically to 0)
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
                                                         va_list args, char *buffer, uint16_t *buffer_at,
                                                         uint16_t buffer_size) {
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
     this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
+#elif defined(USE_ZEPHYR)
+    char buff[MAX_POINTER_REPRESENTATION];
+    this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(buff), buffer, buffer_at, buffer_size);
 #else
     this->write_header_to_buffer_(level, tag, line, nullptr, buffer, buffer_at, buffer_size);
 #endif
@@ -185,6 +211,35 @@ class Logger : public Component {
     }
   }
 
+  // Helper to add newline to buffer for platforms that need it
+  // Modifies buffer_at to include the newline
+  inline void HOT add_newline_to_buffer_if_needed_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
+    if constexpr (!WRITE_MSG_ADDS_NEWLINE) {
+      // Add newline - don't need to maintain null termination
+      // write_msg_ now always receives explicit length, so we can safely overwrite the null terminator
+      // This is safe because:
+      // 1. Callbacks already received the message (before we add newline)
+      // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
+      if (*buffer_at < buffer_size) {
+        buffer[(*buffer_at)++] = '\n';
+      } else if (buffer_size > 0) {
+        // Buffer was full - replace last char with newline to ensure it's visible
+        buffer[buffer_size - 1] = '\n';
+        *buffer_at = buffer_size;
+      }
+    }
+  }
+
+  // Helper to write tx_buffer_ to console if logging is enabled
+  // INTERNAL USE ONLY - offset > 0 requires length parameter to be non-null
+  inline void HOT write_tx_buffer_to_console_(uint16_t offset = 0, uint16_t *length = nullptr) {
+    if (this->baud_rate_ > 0) {
+      uint16_t *len_ptr = length ? length : &this->tx_buffer_at_;
+      this->add_newline_to_buffer_if_needed_(this->tx_buffer_ + offset, len_ptr, this->tx_buffer_size_ - offset);
+      this->write_msg_(this->tx_buffer_ + offset, *len_ptr);
+    }
+  }
+
   // Helper to format and send a log message to both console and callbacks
   inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
                                                   va_list args) {
@@ -193,10 +248,11 @@ class Logger : public Component {
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, this->tx_buffer_, &this->tx_buffer_at_,
                                                 this->tx_buffer_size_);
 
-    if (this->baud_rate_ > 0) {
-      this->write_msg_(this->tx_buffer_);  // If logging is enabled, write to console
-    }
+    // Callbacks get message WITHOUT newline (for API/MQTT/syslog)
     this->log_callback_.call(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+
+    // Console gets message WITH newline (if platform needs it)
+    this->write_tx_buffer_to_console_();
   }
 
   // Write the body of the log message to the buffer
@@ -217,22 +273,14 @@ class Logger : public Component {
     }
   }
 
-  // Format string to explicit buffer with varargs
-  inline void printf_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format, ...) {
-    va_list arg;
-    va_start(arg, format);
-    this->format_body_to_buffer_(buffer, buffer_at, buffer_size, format, arg);
-    va_end(arg);
-  }
-
 #ifndef USE_HOST
-  const char *get_uart_selection_();
+  const LogString *get_uart_selection_();
 #endif
 
   // Group 4-byte aligned members first
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *hw_serial_{nullptr};
 #endif
 #if defined(USE_ZEPHYR)
@@ -246,13 +294,13 @@ class Logger : public Component {
   // - Main task uses a dedicated member variable for efficiency
   // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
   pthread_key_t log_recursion_key_;  // 4 bytes
-#endif
-#ifdef USE_ESP_IDF
-  uart_port_t uart_num_;  // 4 bytes (enum defaults to int size)
+  uart_port_t uart_num_;             // 4 bytes (enum defaults to int size)
 #endif
 
   // Large objects (internally aligned)
-  std::map<std::string, uint8_t> log_levels_{};
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+  std::map<const char *, uint8_t, CStrCompare> log_levels_{};
+#endif
   CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
   CallbackManager<void(uint8_t)> level_callback_{};
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
@@ -276,7 +324,11 @@ class Logger : public Component {
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  const char *HOT get_thread_name_() {
+  const char *HOT get_thread_name_(
+#ifdef USE_ZEPHYR
+      char *buff
+#endif
+  ) {
 #ifdef USE_ZEPHYR
     k_tid_t current_task = k_current_get();
 #else
@@ -290,7 +342,13 @@ class Logger : public Component {
 #elif defined(USE_LIBRETINY)
       return pcTaskGetTaskName(current_task);
 #elif defined(USE_ZEPHYR)
-      return k_thread_name_get(current_task);
+      const char *name = k_thread_name_get(current_task);
+      if (name) {
+        // zephyr print task names only if debug component is present
+        return name;
+      }
+      std::snprintf(buff, MAX_POINTER_REPRESENTATION, "%p", current_task);
+      return buff;
 #endif
     }
   }
@@ -322,26 +380,76 @@ class Logger : public Component {
   }
 #endif
 
+  static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
+    const size_t len = strlen(str);
+    // Intentionally no null terminator, building larger string
+    memcpy(buffer + pos, str, len);  // NOLINT(bugprone-not-null-terminated-result)
+    pos += len;
+  }
+
+  static inline void write_ansi_color_for_level(char *buffer, uint16_t &pos, uint8_t level) {
+    if (level == 0)
+      return;
+    // Construct ANSI escape sequence: "\033[{bold};3{color}m"
+    // Example: "\033[1;31m" for ERROR (bold red)
+    buffer[pos++] = '\033';
+    buffer[pos++] = '[';
+    buffer[pos++] = (level == 1) ? '1' : '0';  // Only ERROR is bold
+    buffer[pos++] = ';';
+    buffer[pos++] = '3';
+    buffer[pos++] = LOG_LEVEL_COLOR_DIGIT[level];
+    buffer[pos++] = 'm';
+  }
+
   inline void HOT write_header_to_buffer_(uint8_t level, const char *tag, int line, const char *thread_name,
                                           char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    // Format header
-    // uint8_t level is already bounded 0-255, just ensure it's <= 7
-    if (level > 7)
-      level = 7;
+    uint16_t pos = *buffer_at;
+    // Early return if insufficient space - intentionally don't update buffer_at to prevent partial writes
+    if (pos + MAX_HEADER_SIZE > buffer_size)
+      return;
 
-    const char *color = esphome::logger::LOG_LEVEL_COLORS[level];
-    const char *letter = esphome::logger::LOG_LEVEL_LETTERS[level];
+    // Construct: <color>[LEVEL][tag:line]:
+    write_ansi_color_for_level(buffer, pos, level);
+    buffer[pos++] = '[';
+    if (level != 0) {
+      if (level >= 7) {
+        buffer[pos++] = 'V';  // VERY_VERBOSE = "VV"
+        buffer[pos++] = 'V';
+      } else {
+        buffer[pos++] = LOG_LEVEL_LETTER_CHARS[level];
+      }
+    }
+    buffer[pos++] = ']';
+    buffer[pos++] = '[';
+    copy_string(buffer, pos, tag);
+    buffer[pos++] = ':';
+    // Format line number without modulo operations (passed by value, safe to mutate)
+    if (line > 999) [[unlikely]] {
+      int thousands = line / 1000;
+      buffer[pos++] = '0' + thousands;
+      line -= thousands * 1000;
+    }
+    int hundreds = line / 100;
+    int remainder = line - hundreds * 100;
+    int tens = remainder / 10;
+    buffer[pos++] = '0' + hundreds;
+    buffer[pos++] = '0' + tens;
+    buffer[pos++] = '0' + (remainder - tens * 10);
+    buffer[pos++] = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
     if (thread_name != nullptr) {
-      // Non-main task with thread name
-      this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
-                              ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), thread_name, color);
-      return;
+      write_ansi_color_for_level(buffer, pos, 1);  // Always use bold red for thread name
+      buffer[pos++] = '[';
+      copy_string(buffer, pos, thread_name);
+      buffer[pos++] = ']';
+      write_ansi_color_for_level(buffer, pos, level);  // Restore original color
     }
 #endif
-    // Main task or non ESP32/LibreTiny platform
-    this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]: ", color, letter, tag, line);
+
+    buffer[pos++] = ':';
+    buffer[pos++] = ' ';
+    *buffer_at = pos;
   }
 
   inline void HOT format_body_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format,
@@ -358,7 +466,9 @@ class Logger : public Component {
     }
 
     // Update buffer_at with the formatted length (handle truncation)
-    uint16_t formatted_len = (ret >= remaining) ? remaining : ret;
+    // When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
+    // When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
+    uint16_t formatted_len = (ret >= remaining) ? (remaining - 1) : ret;
     *buffer_at += formatted_len;
 
     // Remove all trailing newlines right after formatting
@@ -380,15 +490,7 @@ class Logger : public Component {
     // will be processed on the next main loop iteration since:
     // - disable_loop() takes effect immediately
     // - enable_loop_soon_any_context() sets a pending flag that's checked at loop start
-#if defined(USE_LOGGER_USB_CDC) && defined(USE_ARDUINO)
-    // Only disable if not using USB CDC (which needs loop for connection detection)
-    if (this->uart_ != UART_SELECTION_USB_CDC) {
-      this->disable_loop();
-    }
-#else
-    // No USB CDC support, always safe to disable
     this->disable_loop();
-#endif
   }
 #endif
 };

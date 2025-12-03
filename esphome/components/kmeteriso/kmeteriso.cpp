@@ -33,7 +33,7 @@ void KMeterISOComponent::setup() {
   }
 
   uint8_t read_buf[4] = {1};
-  if (!this->read_register(KMETER_ERROR_STATUS_REG, read_buf, 1)) {
+  if (!this->read_bytes(KMETER_ERROR_STATUS_REG, read_buf, 1)) {
     ESP_LOGCONFIG(TAG, "Could not read from the device.");
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
