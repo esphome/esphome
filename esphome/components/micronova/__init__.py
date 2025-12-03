@@ -43,7 +43,12 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(uart.UART_DEVICE_SCHEMA)
 
 
-def MICRONOVA_ADDRESS_SCHEMA(*, default_memory_location: int, default_memory_address: int, is_polling_component: bool):
+def MICRONOVA_ADDRESS_SCHEMA(
+    *,
+    default_memory_location: int,
+    default_memory_address: int,
+    is_polling_component: bool,
+):
     schema = cv.Schema(
         {
             cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),

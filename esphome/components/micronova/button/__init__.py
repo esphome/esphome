@@ -25,7 +25,9 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend(
             MICRONOVA_ADDRESS_SCHEMA(
-                default_memory_location=0xA0, default_memory_address=0x7D, is_polling_component=False
+                default_memory_location=0xA0,
+                default_memory_address=0x7D,
+                is_polling_component=False,
             )
         )
         .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range()}),

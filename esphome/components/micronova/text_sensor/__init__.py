@@ -25,7 +25,9 @@ CONFIG_SCHEMA = cv.Schema(
             MicroNovaTextSensor
         ).extend(
             MICRONOVA_ADDRESS_SCHEMA(
-                default_memory_location=0x00, default_memory_address=0x21, is_polling_component=True
+                default_memory_location=0x00,
+                default_memory_address=0x21,
+                is_polling_component=True,
             )
         ),
     }
