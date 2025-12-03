@@ -47,7 +47,6 @@ button:
 
         - logger.log: "This message should be not displayed (reboot)"
 
-update:
   - platform: coap_client
     name: OTA Update
     id: ota_update
