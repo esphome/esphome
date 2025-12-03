@@ -160,6 +160,7 @@ class APIServer : public Component,
   // Returns server-generated action_call_id to avoid collisions when clients use same call_id
   uint32_t register_active_action_call(uint32_t client_call_id, APIConnection *conn);
   void unregister_active_action_call(uint32_t action_call_id);
+  void unregister_active_action_calls_for_connection(APIConnection *conn);
   // Send response for a specific action call (uses action_call_id, sends client_call_id in response)
   void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON

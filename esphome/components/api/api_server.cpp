@@ -4,8 +4,8 @@
 #include "api_connection.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -185,6 +185,9 @@ void APIServer::loop() {
     // Rare case: handle disconnection
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
     this->client_disconnected_trigger_->trigger(client->client_info_.name, client->client_info_.peername);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+    this->unregister_active_action_calls_for_connection(client.get());
 #endif
     ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name.c_str());
 
@@ -601,6 +604,19 @@ void APIServer::unregister_active_action_call(uint32_t action_call_id) {
       std::swap(this->active_action_calls_[i], this->active_action_calls_.back());
       this->active_action_calls_.pop_back();
       return;
+    }
+  }
+}
+
+void APIServer::unregister_active_action_calls_for_connection(APIConnection *conn) {
+  // Remove all active action calls for disconnected connection using swap-and-pop
+  for (size_t i = 0; i < this->active_action_calls_.size();) {
+    if (this->active_action_calls_[i].connection == conn) {
+      std::swap(this->active_action_calls_[i], this->active_action_calls_.back());
+      this->active_action_calls_.pop_back();
+      // Don't increment i - need to check the swapped element
+    } else {
+      i++;
     }
   }
 }
