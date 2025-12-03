@@ -2,13 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-#ifdef USE_SWITCH
-namespace switch_ {
-class Switch;
-}
-#endif
-namespace gree {
+namespace esphome::gree {
 
 // Values for GREE IR Controllers
 // Temperature
@@ -112,5 +106,4 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t mode_bits_{0};  // Combined mode bits for remote_state[2]
 };
 
-}  // namespace gree
-}  // namespace esphome
+}  // namespace esphome::gree
