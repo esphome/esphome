@@ -63,6 +63,17 @@ class BSSIDWiFiInfo final : public Component, public text_sensor::TextSensor, pu
   // WiFiConnectStateListener interface
   void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override;
 };
+
+class PowerSaveModeWiFiInfo final : public Component,
+                                    public text_sensor::TextSensor,
+                                    public wifi::WiFiPowerSaveListener {
+ public:
+  void setup() override;
+  void dump_config() override;
+
+  // WiFiPowerSaveListener interface
+  void on_wifi_power_save(wifi::WiFiPowerSaveMode mode) override;
+};
 #endif
 
 class MacAddressWifiInfo final : public Component, public text_sensor::TextSensor {

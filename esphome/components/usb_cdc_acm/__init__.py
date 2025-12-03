@@ -7,7 +7,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_RX_BUFFER_SIZE, CONF_TX_BUFFER_SIZE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -15,8 +15,6 @@ AUTO_LOAD = ["uart"]
 DEPENDENCIES = ["tinyusb"]
 
 CONF_INTERFACES = "interfaces"
-CONF_RX_BUFFER_SIZE = "rx_buffer_size"
-CONF_TX_BUFFER_SIZE = "tx_buffer_size"
 
 usb_cdc_acm_ns = cg.esphome_ns.namespace("usb_cdc_acm")
 USBCDCACMComponent = usb_cdc_acm_ns.class_("USBCDCACMComponent", cg.Component)
