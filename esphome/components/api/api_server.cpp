@@ -108,6 +108,10 @@ void APIServer::setup() {
 
   // Initialize last_connected_ for reboot timeout tracking
   this->last_connected_ = App.get_loop_component_start_time();
+  // Set warning status if reboot timeout is enabled
+  if (this->reboot_timeout_ != 0) {
+    this->status_set_warning();
+  }
 }
 
 void APIServer::loop() {
