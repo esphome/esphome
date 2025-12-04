@@ -373,7 +373,9 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 
 void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_ = state;
-  this->scanner_state_callbacks_.call(state);
+  for (auto *listener : this->scanner_state_listeners_) {
+    listener->on_scanner_state(state);
+  }
 }
 
 #ifdef USE_ESP32_BLE_DEVICE

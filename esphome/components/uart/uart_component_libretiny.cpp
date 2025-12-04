@@ -14,8 +14,7 @@
 #include <SoftwareSerial.h>
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.lt";
 
@@ -187,7 +186,5 @@ void LibreTinyUARTComponent::check_logger_conflict() {
 #endif
 }
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_LIBRETINY
