@@ -11,7 +11,7 @@ static const char *const TAG = "sendspin.text_sensor";
 
 void SendspinTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Sendspin", this); }
 
-void SendspinTextSensor::publish_if_changed(const std::string &value) {
+void SendspinTextSensor::publish_if_changed_(const std::string &value) {
   if (this->get_raw_state() != value) {
     this->publish_state(value);
   }
@@ -22,7 +22,7 @@ void SendspinTextSensor::setup() {
     case SendspinMetadataTypes::TITLE: {
       this->parent_->add_metadata_callback([this](const ServerMetadataStateObject &metadata) {
         if (metadata.title.has_value()) {
-          this->publish_if_changed(metadata.title.value());
+          this->publish_if_changed_(metadata.title.value());
         }
       });
       break;
@@ -30,7 +30,7 @@ void SendspinTextSensor::setup() {
     case SendspinMetadataTypes::ARTIST: {
       this->parent_->add_metadata_callback([this](const ServerMetadataStateObject &metadata) {
         if (metadata.artist.has_value()) {
-          this->publish_if_changed(metadata.artist.value());
+          this->publish_if_changed_(metadata.artist.value());
         }
       });
       break;
@@ -38,7 +38,7 @@ void SendspinTextSensor::setup() {
     case SendspinMetadataTypes::ALBUM: {
       this->parent_->add_metadata_callback([this](const ServerMetadataStateObject &metadata) {
         if (metadata.album.has_value()) {
-          this->publish_if_changed(metadata.album.value());
+          this->publish_if_changed_(metadata.album.value());
         }
       });
       break;
@@ -46,7 +46,7 @@ void SendspinTextSensor::setup() {
     case SendspinMetadataTypes::ALBUM_ARTIST: {
       this->parent_->add_metadata_callback([this](const ServerMetadataStateObject &metadata) {
         if (metadata.album_artist.has_value()) {
-          this->publish_if_changed(metadata.album_artist.value());
+          this->publish_if_changed_(metadata.album_artist.value());
         }
       });
       break;
@@ -54,7 +54,7 @@ void SendspinTextSensor::setup() {
     case SendspinMetadataTypes::YEAR: {
       this->parent_->add_metadata_callback([this](const ServerMetadataStateObject &metadata) {
         if (metadata.year.has_value()) {
-          this->publish_if_changed(std::to_string(metadata.year.value()));
+          this->publish_if_changed_(std::to_string(metadata.year.value()));
         }
       });
       break;
@@ -62,7 +62,7 @@ void SendspinTextSensor::setup() {
     case SendspinMetadataTypes::TRACK: {
       this->parent_->add_metadata_callback([this](const ServerMetadataStateObject &metadata) {
         if (metadata.track.has_value()) {
-          this->publish_if_changed(std::to_string(metadata.track.value()));
+          this->publish_if_changed_(std::to_string(metadata.track.value()));
         }
       });
       break;

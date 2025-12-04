@@ -29,7 +29,7 @@ class SendspinTextSensor : public Component, public text_sensor::TextSensor, pub
   void set_metadata_string_type(SendspinMetadataTypes metadata_type) { this->metadata_type_ = metadata_type; }
 
  protected:
-  void publish_if_changed(const std::string &value);
+  void publish_if_changed_(const std::string &value);
 
   SendspinMetadataTypes metadata_type_;
 };
