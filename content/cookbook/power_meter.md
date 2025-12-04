@@ -130,7 +130,7 @@ api:
       variables:
         new_total: int
       then:
-        - pulse_counter.set_total_pulses:
+        - pulse_meter.set_total_pulses:
             id: sensor_pulse_meter
             value: !lambda 'return new_total * 1000;'
 ```
@@ -146,7 +146,7 @@ sensor:
   - platform: total_daily_energy
     name: 'Total Daily Energy'
     id: sensor_total_daily_energy
-    power_id: sensor_energy_pulse_meter
+    power_id: sensor_pulse_meter
     unit_of_measurement: 'kWh'
     state_class: total_increasing
     device_class: energy
