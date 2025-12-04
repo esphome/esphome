@@ -348,6 +348,18 @@
         alt="Olimex ESP32 Power-over-Ethernet ISO"
       />
     </label>
+    <label>
+      <input
+        type="radio"
+        name="bluetooth-device"
+        class="device-option"
+        value="seeed-esp32-poe"
+      />
+      <img
+        src="/projects/bluetooth-proxy/seeed-esp32-poe.png"
+        alt="Seeed Studio XIAO W5500 Ethernet Adapter V1.2"
+      />
+    </label>
     <label class="diy">
       <input
         type="radio"
@@ -502,6 +514,28 @@
     </ul>
   </div>
 
+  <div class="hidden info seeed-esp32-poe">
+    <h3>Seeed Studio XIAO W5500 Ethernet Adapter V1.2</h3>
+    <p>
+      The development board based on the ESP32-S3-Plus XIAO, equipped with the W5500 Ethernet chip, provides wired network connectivity and supports Power over Ethernet (PoE). Please note that after installation via this website, Wi-Fi will be disabled, and the device must be connected via Ethernet.
+    </p>
+    <p>
+      <b>Note:</b> Only V1.2 boards (produced after November 1, 2025) are supported.
+      Earlier versions were never originally intended for use as active Bluetooth proxies
+      and are not compatible due to a missing interrupt pin connection for the W5500
+      Ethernet chip and Bluetooth RF performance issues.
+      See the <a href="https://community.home-assistant.io/t/great-esp32-board-for-an-esphome-bluetooth-proxy/916767/22">forum post</a> for more details and support options for early-batch units.
+    </p>
+    <p>Buy</p>
+    <ul>
+      <li>
+        <a href="https://www.seeedstudio.com/XIAO-W5500-Ethernet-Adapter-p-6472.html">
+          Seeed Studio
+        </a>
+      </li>
+    </ul>
+  </div>
+
   <div class="hidden info lilygo-t-eth-poe">
     <h3>LilyGO T-ETH-POE ESP32-WROOM</h3>
     <p>
@@ -542,6 +576,9 @@
     <li>
       The YAML configuration is on
       <a href="https://github.com/esphome/bluetooth-proxies">GitHub</a>
+    </li>
+    <li>
+      <a href="?type=bluetooth&diy">Show DIY devices</a> that require extra setup
     </li>
   </ul>
 </div>
@@ -895,7 +932,7 @@
     })
   );
 
-  // Check URL for type
+  // Check URL for type and diy
   if (window.location.search) {
     const params = new URLSearchParams(window.location.search);
     const type = params.get("type");
@@ -903,6 +940,9 @@
       document.querySelector(
         `input[name="type"][value="${type}"]`
       ).checked = true;
+    }
+    if (params.has("diy")) {
+      document.body.classList.add("show-diy");
     }
   }
 
