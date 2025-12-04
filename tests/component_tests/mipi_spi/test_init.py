@@ -304,14 +304,14 @@ def test_all_predefined_models(
         config = {"model": name}
 
         # Get the pins required by this model and find a compatible variant
-        pins = [
-            pin
-            for pin in [
-                model.get_default(pin, None)
-                for pin in ("dc_pin", "reset_pin", "cs_pin")
-            ]
-            if pin is not None
-        ]
+        pins = []
+        for pin_name in ("dc_pin", "reset_pin", "cs_pin", "enable_pin"):
+            pin_value = model.get_default(pin_name, None)
+            if pin_value is not None:
+                if isinstance(pin_value, list):
+                    pins.extend(pin_value)
+                else:
+                    pins.append(pin_value)
         choose_variant_with_pins(pins)
 
         # Add required fields that don't have defaults
