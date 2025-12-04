@@ -170,16 +170,15 @@ def _merge_board_pins(config: ConfigType) -> ConfigType:
     # Merge board pins with explicit overrides
     # Explicit pins in config take precedence over board defaults
     for conf_key, board_key in PIN_MAPPING.items():
-        if conf_key not in config:  # Only use board default if not explicitly set
-            board_pin = board.get_pin(board_key)
-            if board_pin is not None:
-                # Create pin config
-                pin_config = {"number": board_pin}
-                if conf_key in board.ignore_strapping_pins:
-                    pin_config["ignore_strapping_warning"] = True
+        if conf_key in config or (board_pin := board.get_pin(board_key)) is None:
+            continue
+        # Create pin config
+        pin_config = {"number": board_pin}
+        if conf_key in board.ignore_strapping_pins:
+            pin_config["ignore_strapping_warning"] = True
 
-                # Validate through pin schema to add required fields (id, etc.)
-                config[conf_key] = pins.gpio_output_pin_schema(pin_config)
+        # Validate through pin schema to add required fields (id, etc.)
+        config[conf_key] = pins.gpio_output_pin_schema(pin_config)
 
     return config
 
