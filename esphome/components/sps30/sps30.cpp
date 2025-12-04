@@ -243,7 +243,7 @@ void SPS30Component::update() {
     this->skipped_data_read_cycles_ = 0;
 
     // Idle if we got a reading and our next state is to idle
-    if (this->next_state_ == IDLE && millis() >= this->next_state_ms_) {
+    if (this->next_state_ == IDLE && ((int32_t) (this->next_state_ms_ - millis()) <= 0)) {
       this->stop_measurement();
       this->next_state_ms_ = millis() + this->idle_interval_.value();
       this->next_state_ = WAKE;
