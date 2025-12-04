@@ -343,7 +343,7 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
             cv.Schema(
                 {
                     cv.Exclusive(CONF_SLEEP_DURATION, "time"): cv.templatable(
-                        cv.all(
+                        cv.All(
                             cv.positive_time_period_milliseconds,
                             _validate_sleep_duration,
                         )
