@@ -1,22 +1,17 @@
 #ifdef USE_BK72XX
 
 #include "deep_sleep_component.h"
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
 
-namespace esphome {
-namespace deep_sleep {
+namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep";
+static const char *const TAG = "deep_sleep.bk72xx";
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
 void DeepSleepComponent::dump_config_platform_() {
-  if (wakeup_pins_.size() > 0) {
-    for (WakeUpPinItem item : this->wakeup_pins_) {
-      LOG_PIN("  Wakeup Pin: ", item.wakeup_pin);
-    }
+  for (const WakeUpPinItem item : this->wakeup_pins_) {
+    LOG_PIN("  Wakeup Pin: ", item.wakeup_pin);
   }
 }
 
@@ -64,7 +59,6 @@ void DeepSleepComponent::deep_sleep_() {
   lt_deep_sleep_enter();
 }
 
-}  // namespace deep_sleep
-}  // namespace esphome
+}  // namespace esphome::deep_sleep
 
 #endif  // USE_BK72XX

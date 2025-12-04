@@ -27,12 +27,14 @@ from esphome.const import (
     CONF_SLEEP_DURATION,
     CONF_TIME_ID,
     CONF_WAKEUP_PIN,
-    CONF_WAKEUP_PINS,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PlatformFramework,
 )
+
+# to be moved later
+CONF_WAKEUP_PINS = "wakeup_pins"
 
 WAKEUP_PINS = {
     VARIANT_ESP32: [
@@ -206,7 +208,7 @@ CONFIG_SCHEMA = cv.All(
                 validate_pin_number_esp32,
             ),
             cv.Optional(CONF_WAKEUP_PINS): cv.All(
-                cv.only_on(["libretiny", "bk72xx"]),
+                cv.only_on(PLATFORM_BK72XX),
                 WAKEUP_PINS_SCHEMA_BK72XX,
             ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
@@ -258,6 +260,7 @@ async def to_code(config):
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PINS in config:
         conf = config[CONF_WAKEUP_PINS]
+        cg.add(var.init_wakeup_pins_(len(conf)))
         for item in conf:
             cg.add(
                 var.add_wakeup_pin(
