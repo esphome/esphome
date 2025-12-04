@@ -527,8 +527,8 @@ def _build_config_struct(
 
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
-        name="stuartparmenter/esp-hub75",
-        ref="0.1.4",
+        name="esphome/esp-hub75",
+        ref="0.1.6",
     )
 
     # Set compile-time configuration via defines
