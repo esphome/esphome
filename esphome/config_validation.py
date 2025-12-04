@@ -742,7 +742,7 @@ def has_at_most_one_key(*keys):
 
         used = set(obj) & set(keys)
         if len(used) > 1:
-            msg = f"Cannot specify more than one of {', '.join(used)}."
+            msg = "Cannot specify more than one of '" + "', '".join(used) + "'."
             raise MultipleInvalid([Invalid(msg, path=[k]) for k in used])
         return obj
 
