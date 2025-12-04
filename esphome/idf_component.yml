@@ -27,7 +27,7 @@ dependencies:
     version: 1.0.1
   micro-opus:
     git: https://github.com/esphome-libs/micro-opus.git
-    version: 0.1.0
+    version: v0.1.0
   espressif/lan867x:
     version: "2.0.0"
     rules:
