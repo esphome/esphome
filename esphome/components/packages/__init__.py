@@ -1,3 +1,4 @@
+from functools import reduce
 import logging
 from pathlib import Path
 from typing import Any
@@ -262,23 +263,34 @@ def _walk_packages(config: dict, callback: callable) -> dict:
 
 
 def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
+    """Processes, downloads and validates all packages in the config.
+    Also extracts and merges all substitutions found in packages into the main config substitutions.
+    """
     if CONF_PACKAGES not in config:
         return config
-    substitutions = config.pop(CONF_SUBSTITUTIONS, {})
+
+    merge_list = []
 
     def process_package_callback(package_config):
-        nonlocal substitutions
+        """This will be called for each package found in the config."""
         package_config = PACKAGE_SCHEMA(package_config)
         if isinstance(package_config, str):
             return package_config  # Jinja string, skip processing
         if CONF_URL in package_config:
             package_config = _process_remote_package(package_config, skip_update)
-        substitutions = merge_config(
-            package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions
-        )
+        # Extract substitutions from the package and add to the list to merge later:
+        merge_list.append(package_config.pop(CONF_SUBSTITUTIONS, {}))
         return package_config
 
     _walk_packages(config, process_package_callback)
+
+    # Merge all substitutions found in packages into the main config substitutions:
+    substitutions = reduce(
+        lambda new, old: merge_config(old, new),
+        merge_list,
+        config.pop(CONF_SUBSTITUTIONS, {}),
+    )
+
     if substitutions:
         config[CONF_SUBSTITUTIONS] = substitutions
 
@@ -286,15 +298,20 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
 
 
 def merge_packages(config: dict) -> dict:
+    """Merges all packages into the main config and removes the `packages:` key."""
     if CONF_PACKAGES not in config:
         return config
 
+    # Build flat list of all package configs to merge in priority order:
+    merge_list = []
+
     def process_package_callback(package_config):
-        nonlocal config
-        config = merge_config(package_config, config)
+        """This will be called for each package found in the config."""
+        merge_list.append(package_config)
         return package_config
 
     _walk_packages(config, process_package_callback)
-
+    # Merge all packages into the main config:
+    config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]
     return config
