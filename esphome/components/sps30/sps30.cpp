@@ -150,14 +150,6 @@ void SPS30Component::update() {
     case WAKE:
       this->start_measurement();
       return;
-    case IDLE:
-    // IDLE only occurs at the top of the update loop if a previous READ returned without finishing a reading,
-    // so fall into the same logic as READ.
-    case READ:
-      if (this->idle_interval_.has_value()) {
-        this->next_state_ = IDLE;
-      }
-      break;
     case NONE:
       return;
   }
@@ -242,9 +234,9 @@ void SPS30Component::update() {
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
 
-    // Idle if we got a reading and our next state is to idle.  If not using idle mode, let the next state just execute
+    // Stop measurements and wait if we have an idle interval.  If not using idle mode, let the next state just execute
     // on next update.
-    if (this->next_state_ == IDLE) {
+    if (this->idle_interval_.has_value()) {
       this->stop_measurement();
       this->next_state_ms_ = millis() + this->idle_interval_.value();
       this->next_state_ = WAKE;
