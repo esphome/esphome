@@ -107,6 +107,17 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         4: adc_channel_t.ADC_CHANNEL_3,
         5: adc_channel_t.ADC_CHANNEL_4,
     },
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32p4/include/soc/adc_channel.h
+    VARIANT_ESP32P4: {
+        16: adc_channel_t.ADC_CHANNEL_0,
+        17: adc_channel_t.ADC_CHANNEL_1,
+        18: adc_channel_t.ADC_CHANNEL_2,
+        19: adc_channel_t.ADC_CHANNEL_3,
+        20: adc_channel_t.ADC_CHANNEL_4,
+        21: adc_channel_t.ADC_CHANNEL_5,
+        22: adc_channel_t.ADC_CHANNEL_6,
+        23: adc_channel_t.ADC_CHANNEL_7,
+    },
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32s2/include/soc/adc_channel.h
     VARIANT_ESP32S2: {
         1: adc_channel_t.ADC_CHANNEL_0,
@@ -132,16 +143,6 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         8: adc_channel_t.ADC_CHANNEL_7,
         9: adc_channel_t.ADC_CHANNEL_8,
         10: adc_channel_t.ADC_CHANNEL_9,
-    },
-    VARIANT_ESP32P4: {
-        16: adc_channel_t.ADC_CHANNEL_0,
-        17: adc_channel_t.ADC_CHANNEL_1,
-        18: adc_channel_t.ADC_CHANNEL_2,
-        19: adc_channel_t.ADC_CHANNEL_3,
-        20: adc_channel_t.ADC_CHANNEL_4,
-        21: adc_channel_t.ADC_CHANNEL_5,
-        22: adc_channel_t.ADC_CHANNEL_6,
-        23: adc_channel_t.ADC_CHANNEL_7,
     },
 }
 
@@ -175,6 +176,15 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
     VARIANT_ESP32C6: {},  # no ADC2
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     VARIANT_ESP32H2: {},  # no ADC2
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32p4/include/soc/adc_channel.h
+    VARIANT_ESP32P4: {
+        49: adc_channel_t.ADC_CHANNEL_0,
+        50: adc_channel_t.ADC_CHANNEL_1,
+        51: adc_channel_t.ADC_CHANNEL_2,
+        52: adc_channel_t.ADC_CHANNEL_3,
+        53: adc_channel_t.ADC_CHANNEL_4,
+        54: adc_channel_t.ADC_CHANNEL_5,
+    },
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32s2/include/soc/adc_channel.h
     VARIANT_ESP32S2: {
         11: adc_channel_t.ADC_CHANNEL_0,
@@ -200,14 +210,6 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
         18: adc_channel_t.ADC_CHANNEL_7,
         19: adc_channel_t.ADC_CHANNEL_8,
         20: adc_channel_t.ADC_CHANNEL_9,
-    },
-    VARIANT_ESP32P4: {
-        49: adc_channel_t.ADC_CHANNEL_0,
-        50: adc_channel_t.ADC_CHANNEL_1,
-        51: adc_channel_t.ADC_CHANNEL_2,
-        52: adc_channel_t.ADC_CHANNEL_3,
-        53: adc_channel_t.ADC_CHANNEL_4,
-        54: adc_channel_t.ADC_CHANNEL_5,
     },
 }
 
