@@ -91,7 +91,7 @@ Configuration options:
 > This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
-> id(rf_bridge).send_code(0x700, 0x800, 0x1000, 0xABC123);
+> id(my_rf_bridge).send_code(0x700, 0x800, 0x1000, 0xABC123);
 > ```
 
 {{< anchor "rf_bridge-beep_action" >}}
@@ -116,7 +116,7 @@ Configuration options:
 > This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
-> id(rf_bridge).beep(100);
+> id(my_rf_bridge).beep(100);
 > ```
 
 {{< anchor "rf_bridge-learn_action" >}}
@@ -140,7 +140,7 @@ Configuration options:
 > This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
-> id(rf_bridge).learn();
+> id(my_rf_bridge).learn();
 > ```
 
 {{< anchor "rf_bridge-send_raw_action" >}}
@@ -170,7 +170,7 @@ Configuration options:
 > This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
-> id(rf_bridge).send_raw("AAA5070008001000ABC12355");
+> id(my_rf_bridge).send_raw("AAA5070008001000ABC12355");
 > ```
 
 ## Portisch firmware
@@ -225,7 +225,7 @@ Configuration options:
 > This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
-> id(rf_bridge).send_advanced_code(0x04, 0x01, "ABC123");
+> id(my_rf_bridge).send_advanced_code({0x04, 0x01, "ABC123"});
 > ```
 
 {{< anchor "rf_bridge-start_advanced_sniffing_action" >}}
@@ -249,7 +249,7 @@ Configuration options:
 > This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
-> id(rf_bridge).start_advanced_sniffing();
+> id(my_rf_bridge).start_advanced_sniffing();
 > ```
 
 {{< anchor "rf_bridge-stop_advanced_sniffing_action" >}}
@@ -272,7 +272,7 @@ Configuration options:
 > This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
-> id(rf_bridge).stop_advanced_sniffing();
+> id(my_rf_bridge).stop_advanced_sniffing();
 > ```
 
 {{< anchor "rf_bridge-start_bucket_sniffing_action" >}}
@@ -304,7 +304,7 @@ Configuration options:
 > This action can also be written in [lambdas](/automations/templates#config-lambda):
 >
 > ```cpp
-> id(rf_bridge).start_bucket_sniffing();
+> id(my_rf_bridge).start_bucket_sniffing();
 > ```
 
 {{< anchor "rf_bridge-restart_radio_controller" >}}
