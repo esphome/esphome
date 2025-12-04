@@ -272,7 +272,7 @@ def pixels_or_percent_validator(value):
         return cv.int_(value[:-2])
     if isinstance(value, str) and re.match(r"^lv_pct\((\d+)\)$", value):
         return int(value[6:-1]) / 100.0
-    return cv.Any(cv.int_, cv.percentage)(value)
+    return cv.Any(cv.int_, cv.possibly_negative_percentage)(value)
 
 
 pixels_or_percent = LValidator(

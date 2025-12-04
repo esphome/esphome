@@ -319,7 +319,6 @@ void IndicatorLine::set_value(int value) {
       ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
        lv_scale_get_rotation((scale))) %
       360;
-  ESP_LOGD(TAG, "Angle calculated as %d", angle);
   if (angle != this->angle_) {
     this->angle_ = angle;
     this->update_length_();
@@ -331,6 +330,9 @@ void IndicatorLine::update_length_() {
   auto radius = lv_obj_get_width(lv_obj_get_parent(this->obj)) / 2;
   auto length = lv_obj_get_style_length(this->obj, LV_PART_MAIN);
   auto radial_offset = lv_obj_get_style_radial_offset(this->obj, LV_PART_MAIN);
+  if (LV_COORD_IS_PCT(radial_offset)) {
+    radial_offset = radius * LV_COORD_GET_PCT(radial_offset) / 100;
+  }
   if (LV_COORD_IS_PCT(length)) {
     actual_needle_length = radius * LV_COORD_GET_PCT(length) / 100;
   } else if (length < 0) {
