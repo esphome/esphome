@@ -327,6 +327,7 @@ def do_packages_pass(
         return _walk_packages(package_config, process_package_callback, context_vars)
 
     context_vars = push_context(config[CONF_PACKAGES], ContextVars())
+
     _walk_packages(config, process_package_callback, context_vars)
 
     # Merge all substitutions found in packages into the main config substitutions:
@@ -351,6 +352,7 @@ def merge_packages(config: dict) -> dict:
     merge_list = []
 
     def process_package_callback(package_config, context):
+        """This will be called for each package found in the config."""
         merge_list.append(package_config)
         return _walk_packages(package_config, process_package_callback)
 
