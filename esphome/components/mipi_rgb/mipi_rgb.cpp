@@ -58,6 +58,7 @@ void MipiRgbSpi::sleep() {
 void MipiRgbSpi::wakeup() {
   this->spi_setup();
   this->write_command_(SLEEP_OUT);
+  delay(10);
   this->write_command_(DISPLAY_ON);
   this->spi_teardown();
   delay(10);

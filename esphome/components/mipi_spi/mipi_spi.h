@@ -102,6 +102,7 @@ class MipiSpi : public display::Display,
   void sleep() override { this->write_command_(SLEEP_IN); };
   void wakeup() override {
     this->write_command_(SLEEP_OUT);
+    delay(10);
     this->write_command_(DISPLAY_ON);
   };
   void draw_pixel_at(int x, int y, Color color) override {}
