@@ -140,7 +140,7 @@ void SPS30Component::update() {
   }
 
   // If its not time to take an action, do nothing.
-  if (millis() < this->next_state_ms_) {
+  if ((int32_t) (this->next_state_ms_ - millis()) > 0) {
     ESP_LOGD(TAG, "Sensor waiting for %ums before transitioning to state %d.", (this->next_state_ms_ - millis()),
              this->next_state_);
     return;
