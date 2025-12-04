@@ -1,4 +1,5 @@
 from io import StringIO
+from pathlib import Path
 
 from esphome.yaml_util import parse_yaml
 
@@ -124,4 +125,4 @@ CONFIG = """
 
 def get_hello_world():
     with StringIO(CONFIG) as fp:
-        return parse_yaml("hello_world", fp)
+        return parse_yaml(Path("hello_world"), fp)
