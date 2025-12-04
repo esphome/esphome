@@ -192,7 +192,8 @@ template<typename T> class DisplayWriter {
 
   // For stateless lambdas (convertible to function pointer): use function pointer (4 bytes)
   template<typename F>
-  DisplayWriter(F f) requires std::invocable<F, T &> && std::convertible_to<F, void (*)(T &)>
+  DisplayWriter(F f)
+    requires std::invocable<F, T &> && std::convertible_to<F, void (*)(T &)>
       : type_(STATELESS_LAMBDA) {
     this->stateless_f_ = f;  // Implicit conversion to function pointer
   }
@@ -200,7 +201,9 @@ template<typename T> class DisplayWriter {
   // For stateful lambdas and std::function (not convertible to function pointer): use std::function* (heap allocated)
   // This handles backwards compatibility with external components
   template<typename F>
-  DisplayWriter(F f) requires std::invocable<F, T &> &&(!std::convertible_to<F, void (*)(T &)>) : type_(LAMBDA) {
+  DisplayWriter(F f)
+    requires std::invocable<F, T &> && (!std::convertible_to<F, void (*)(T &)>)
+      : type_(LAMBDA) {
     this->f_ = new std::function<void(T &)>(std::move(f));
   }
 
@@ -848,26 +851,6 @@ template<typename... Ts> class DisplayPageShowPrevAction final : public Action<T
   void play(const Ts &...x) override { this->buffer_->show_prev_page(); }
 
   Display *buffer_;
-};
-
-template<typename... Ts> class DisplaySleepAction : public Action<Ts...> {
- public:
-  explicit DisplaySleepAction(Display *buffer) : display_(buffer) {}
-
-  void play(const Ts &...x) override { this->display_->sleep(); }
-
- protected:
-  Display *display_;
-};
-
-template<typename... Ts> class DisplayWakeupAction : public Action<Ts...> {
- public:
-  explicit DisplayWakeupAction(Display *buffer) : display_(buffer) {}
-
-  void play(const Ts &...x) override { this->display_->wakeup(); }
-
- protected:
-  Display *display_;
 };
 
 template<typename... Ts> class DisplayIsDisplayingPageCondition final : public Condition<Ts...> {
