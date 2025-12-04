@@ -6,9 +6,10 @@ Tests the supports_response modes: none, status, optional, only.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 
-from aioesphomeapi import UserService, UserServiceArgType
+from aioesphomeapi import SupportsResponseType, UserService, UserServiceArgType
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -105,6 +106,37 @@ async def test_api_action_responses(
         assert action_only_response is not None, "action_only_response not found"
         assert action_nested_json is not None, "action_nested_json not found"
 
+        # Verify supports_response modes
+        assert action_no_response.supports_response is None or (
+            action_no_response.supports_response == SupportsResponseType.NONE
+        ), (
+            f"action_no_response should have supports_response=NONE, got {action_no_response.supports_response}"
+        )
+
+        assert (
+            action_status_response.supports_response == SupportsResponseType.STATUS
+        ), (
+            f"action_status_response should have supports_response=STATUS, "
+            f"got {action_status_response.supports_response}"
+        )
+
+        assert (
+            action_optional_response.supports_response == SupportsResponseType.OPTIONAL
+        ), (
+            f"action_optional_response should have supports_response=OPTIONAL, "
+            f"got {action_optional_response.supports_response}"
+        )
+
+        assert action_only_response.supports_response == SupportsResponseType.ONLY, (
+            f"action_only_response should have supports_response=ONLY, "
+            f"got {action_only_response.supports_response}"
+        )
+
+        assert action_nested_json.supports_response == SupportsResponseType.ONLY, (
+            f"action_nested_json should have supports_response=ONLY, "
+            f"got {action_nested_json.supports_response}"
+        )
+
         # Verify argument types
         # action_no_response: string message
         assert len(action_no_response.args) == 1
@@ -130,29 +162,97 @@ async def test_api_action_responses(
         assert len(action_nested_json.args) == 0
 
         # Test action_no_response (supports_response: none)
-        client.execute_service(action_no_response, {"message": "test_message"})
+        # No response expected for this action
+        response = await client.execute_service(
+            action_no_response, {"message": "test_message"}
+        )
+        assert response is None, "action_no_response should not return a response"
         await asyncio.wait_for(no_response_future, timeout=5.0)
 
         # Test action_status_response with success (supports_response: status)
-        client.execute_service(action_status_response, {"should_succeed": True})
+        response = await client.execute_service(
+            action_status_response,
+            {"should_succeed": True},
+            return_response=True,
+        )
         await asyncio.wait_for(status_success_future, timeout=5.0)
+        assert response is not None, "Expected response for status action"
+        assert response.success is True, (
+            f"Expected success=True, got {response.success}"
+        )
+        assert response.error_message == "", (
+            f"Expected empty error_message, got '{response.error_message}'"
+        )
 
         # Test action_status_response with error
-        client.execute_service(action_status_response, {"should_succeed": False})
+        response = await client.execute_service(
+            action_status_response,
+            {"should_succeed": False},
+            return_response=True,
+        )
         await asyncio.wait_for(status_error_future, timeout=5.0)
+        assert response is not None, "Expected response for status action"
+        assert response.success is False, (
+            f"Expected success=False, got {response.success}"
+        )
+        assert "Intentional failure" in response.error_message, (
+            f"Expected error message containing 'Intentional failure', "
+            f"got '{response.error_message}'"
+        )
 
         # Test action_optional_response (supports_response: optional)
-        client.execute_service(action_optional_response, {"value": 42})
+        response = await client.execute_service(
+            action_optional_response,
+            {"value": 42},
+            return_response=True,
+        )
         await asyncio.wait_for(optional_response_future, timeout=5.0)
+        assert response is not None, "Expected response for optional action"
+        assert response.success is True, (
+            f"Expected success=True, got {response.success}"
+        )
+        # Parse response data as JSON
+        response_json = json.loads(response.response_data.decode("utf-8"))
+        assert response_json["input"] == 42, (
+            f"Expected input=42, got {response_json.get('input')}"
+        )
+        assert response_json["doubled"] == 84, (
+            f"Expected doubled=84, got {response_json.get('doubled')}"
+        )
 
         # Test action_only_response (supports_response: only)
-        client.execute_service(action_only_response, {"name": "World"})
+        response = await client.execute_service(
+            action_only_response,
+            {"name": "World"},
+            return_response=True,
+        )
         await asyncio.wait_for(only_response_future, timeout=5.0)
+        assert response is not None, "Expected response for only action"
+        assert response.success is True, (
+            f"Expected success=True, got {response.success}"
+        )
+        response_json = json.loads(response.response_data.decode("utf-8"))
+        assert response_json["greeting"] == "Hello, World!", (
+            f"Expected greeting='Hello, World!', got {response_json.get('greeting')}"
+        )
+        assert response_json["length"] == 5, (
+            f"Expected length=5, got {response_json.get('length')}"
+        )
 
         # Test action_nested_json
-        client.execute_service(action_nested_json, {})
+        response = await client.execute_service(
+            action_nested_json,
+            {},
+            return_response=True,
+        )
         await asyncio.wait_for(nested_json_future, timeout=5.0)
-
-        # All services were called successfully and produced expected log output
-        # Note: Response data verification requires aioesphomeapi to be updated
-        # to support the supports_response field and response callbacks
+        assert response is not None, "Expected response for nested json action"
+        assert response.success is True, (
+            f"Expected success=True, got {response.success}"
+        )
+        response_json = json.loads(response.response_data.decode("utf-8"))
+        # Verify nested structure
+        assert response_json["config"]["wifi"]["connected"] is True
+        assert response_json["config"]["api"]["port"] == 6053
+        assert response_json["items"][0] == "first"
+        assert response_json["items"][1] == "second"
