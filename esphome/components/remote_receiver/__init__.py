@@ -131,13 +131,13 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
-                esp32_s2=192,
-                esp32_s3=192,
-                esp32_p4=192,
                 esp32_c3=96,
                 esp32_c5=96,
                 esp32_c6=96,
                 esp32_h2=96,
+                esp32_p4=192,
+                esp32_s2=192,
+                esp32_s3=192,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_FILTER_SYMBOLS): cv.All(
                 cv.only_on_esp32, cv.int_range(min=0)
@@ -148,7 +148,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_USE_DMA): cv.All(
                 esp32.only_on_variant(
-                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+                    supported=[esp32.const.VARIANT_ESP32P4, esp32.const.VARIANT_ESP32S3]
                 ),
                 cv.boolean,
             ),

@@ -541,8 +541,22 @@ class EsphomeCore:
         self.friendly_name: str | None = None
         # The area / zone of the node
         self.area: str | None = None
-        # Additional data components can store temporary data in
-        # The first key to this dict should always be the integration name
+        # Additional data components can store temporary data in.
+        # This dict is cleared between compilation runs.
+        #
+        # Usage pattern (use @dataclass for type safety):
+        #   DOMAIN = "my_component"
+        #
+        #   @dataclass
+        #   class MyComponentData:
+        #       feature_enabled: bool = False
+        #
+        #   def _get_data() -> MyComponentData:
+        #       if DOMAIN not in CORE.data:
+        #           CORE.data[DOMAIN] = MyComponentData()
+        #       return CORE.data[DOMAIN]
+        #
+        # The first key should always be the component domain name (DOMAIN constant).
         self.data = {}
         # The relative path to the configuration YAML
         self.config_path: Path | None = None

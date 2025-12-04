@@ -1,5 +1,6 @@
 import importlib
 import logging
+from pathlib import Path
 import pkgutil
 
 from esphome.automation import build_automation, validate_automation
@@ -26,6 +27,7 @@ from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
+from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import disp_update, focused_widgets, refreshed_widgets
@@ -37,7 +39,6 @@ from .encoders import (
     initial_focus_to_code,
 )
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
-from .hello_world import get_hello_world
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent, lvgl_static
@@ -84,6 +85,7 @@ DEPENDENCIES = ["display"]
 AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
 LOGGER = logging.getLogger(__name__)
+HELLO_WORLD_FILE = "hello_world.yaml"
 
 
 SIMPLE_TRIGGERS = (
@@ -354,7 +356,8 @@ def display_schema(config):
 def add_hello_world(config):
     if df.CONF_WIDGETS not in config and CONF_PAGES not in config:
         LOGGER.info("No pages or widgets configured, creating default hello_world page")
-        config[df.CONF_WIDGETS] = any_widget_schema()(get_hello_world())
+        hello_world_path = Path(__file__).parent / HELLO_WORLD_FILE
+        config[df.CONF_WIDGETS] = any_widget_schema()(load_yaml(hello_world_path))
     return config
 
 
