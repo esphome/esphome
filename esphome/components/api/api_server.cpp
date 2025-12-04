@@ -101,30 +101,13 @@ void APIServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          if (this->shutting_down_) {
-            // Don't try to send logs during shutdown
-            // as it could result in a recursion and
-            // we would be filling a buffer we are trying to clear
-            return;
-          }
-          for (auto &c : this->clients_) {
-            if (!c->flags_.remove && c->get_log_subscription_level() >= level)
-              c->try_send_log_message(level, tag, message, message_len);
-          }
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
 #ifdef USE_CAMERA
   if (camera::Camera::instance() != nullptr && !camera::Camera::instance()->is_internal()) {
-    camera::Camera::instance()->add_image_callback([this](const std::shared_ptr<camera::CameraImage> &image) {
-      for (auto &c : this->clients_) {
-        if (!c->flags_.remove)
-          c->set_camera_state(image);
-      }
-    });
+    camera::Camera::instance()->add_listener(this);
   }
 #endif
 }
@@ -540,6 +523,30 @@ bool APIServer::is_connected(bool state_subscription_only) const {
   }
   return false;
 }
+
+#ifdef USE_LOGGER
+void APIServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  if (this->shutting_down_) {
+    // Don't try to send logs during shutdown
+    // as it could result in a recursion and
+    // we would be filling a buffer we are trying to clear
+    return;
+  }
+  for (auto &c : this->clients_) {
+    if (!c->flags_.remove && c->get_log_subscription_level() >= level)
+      c->try_send_log_message(level, tag, message, message_len);
+  }
+}
+#endif
+
+#ifdef USE_CAMERA
+void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
+  for (auto &c : this->clients_) {
+    if (!c->flags_.remove)
+      c->set_camera_state(image);
+  }
+}
+#endif
 
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;
