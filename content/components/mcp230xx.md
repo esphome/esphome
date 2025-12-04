@@ -19,7 +19,7 @@ The Microchip MCP230xx series of general purpose, parallel I/O expansion for I²
 
 ## MCP23008 Component
 
-The MCP23008 component ([datasheet](http://ww1.microchip.com/downloads/en/devicedoc/21919e.pdf),
+The MCP23008 component ([datasheet](https://ww1.microchip.com/downloads/aemDocuments/documents/APID/ProductDocuments/DataSheets/MCP23008-MCP23S08-Data-Sheet-DS20001919.pdf),
 [Adafruit](https://www.adafruit.com/product/593)) has 8 GPIOs that can be configured independently.
 
 ```yaml
@@ -78,7 +78,7 @@ binary_sensor:
 
 ## MCP23016 Component
 
-The MCP23016 component ([datasheet](http://ww1.microchip.com/downloads/en/devicedoc/20090c.pdf))
+The MCP23016 component ([datasheet](https://ww1.microchip.com/downloads/aemDocuments/documents/APID/ProductDocuments/DataSheets/20090C.pdf))
 has 16 GPIOs and can be configured the same way than the other variants.
 
 > [!NOTE]
@@ -131,7 +131,7 @@ binary_sensor:
 ## MCP23017 Component
 
 The MCP23017 component allows you to use MCP23017 I/O expanders
-([datasheet](http://ww1.microchip.com/downloads/en/devicedoc/20001952c.pdf),
+([datasheet](https://ww1.microchip.com/downloads/aemDocuments/documents/APID/ProductDocuments/DataSheets/MCP23017-Data-Sheet-DS20001952.pdf),
 [Adafruit](https://www.adafruit.com/product/732)) in ESPHome.
 It uses the [I²C Bus](/components/i2c) for communication.
 
