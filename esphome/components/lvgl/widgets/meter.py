@@ -21,7 +21,7 @@ from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import nullptr
 
-from .. import REMAPPED_USES, set_obj_properties
+from .. import REMAPPED_USES, obj_spec, set_obj_properties
 from ..automation import action_to_code
 from ..defines import (
     CHILD_ALIGNMENTS,
@@ -45,6 +45,7 @@ from ..defines import (
 from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import (
     LV_OPA,
+    LV_RADIUS,
     get_end_value,
     get_start_value,
     lv_angle_degrees,
@@ -127,7 +128,7 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_COLOR, default=0): lv_color,
         cv.Exclusive(CONF_R_MOD, CONF_LENGTH): padding,
         cv.Exclusive(CONF_LENGTH, CONF_LENGTH): pixels_or_percent_validator,
-        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_VALUE, default=0.0): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
 )
@@ -236,6 +237,15 @@ LIGHT_STYLE = LVStyle(
     },
 )
 
+PIVOT_STYLE = {
+    "radius": LV_RADIUS.CIRCLE,
+    "align": CHILD_ALIGNMENTS.CENTER,
+    "bg_color": lv_color.black,
+    "bg_opa": 1.0,
+    "width": 15,
+    "height": 15,
+}
+
 
 class IndicatorType(WidgetType):
     def __init__(self):
@@ -278,15 +288,6 @@ class MeterType(WidgetType):
 
         # LVGL 9.4 scale widget setup
         # Background style will be applied.
-        # Add a pivot
-        with LocalVariable("pivot", lv_obj_t, lv_expr.container_create(var)) as pivot:
-            lv_obj.set_style_radius(pivot, literal("LV_RADIUS_CIRCLE"), LV_PART.MAIN)
-            lv_obj.set_style_align(pivot, literal("LV_ALIGN_CENTER"), LV_PART.MAIN)
-            lv_obj.set_style_bg_color(pivot, lv_color.black, LV_PART.MAIN)
-            lv_obj.set_style_bg_opa(pivot, literal("LV_OPA_COVER"), LV_PART.MAIN)
-            lv_obj.set_style_width(pivot, 15, 0)
-            lv_obj.set_style_height(pivot, 15, 0)
-
         for scale_conf in config.get(CONF_SCALES, ()):
             with LocalVariable(
                 "scale", lv_obj_t, lv_expr.scale_create(var)
@@ -475,6 +476,12 @@ class MeterType(WidgetType):
                         }
                         iw = await widget_to_code(props, img_spec, scale_var)
                         await set_indicator_values(iw, v)
+        # Add a pivot
+        pivot_style = PIVOT_STYLE.copy()
+        pivot_style.update(config.get(CONF_INDICATOR, {}))
+        with LocalVariable("pivot", lv_obj_t, lv_expr.container_create(var)) as pivot:
+            pw = Widget(pivot, obj_spec, pivot_style)
+            await set_obj_properties(pw, pivot_style)
 
 
 meter_spec = MeterType()

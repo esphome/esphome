@@ -10,7 +10,8 @@ from esphome.const import (
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
 
-from .defines import CONF_GRADIENTS, CONF_OPA, add_define
+from . import LOGGER
+from .defines import CONF_GRADIENTS, CONF_OPA, LV_DITHER, add_define
 from .lv_validation import lv_color, lv_percentage, opacity
 from .lvcode import lv
 from .types import lv_color_t, lv_gradient_t, lv_opa_t
@@ -31,9 +32,7 @@ GRADIENT_SCHEMA = cv.ensure_list(
             cv.Required(CONF_DIRECTION): cv.one_of(
                 "HOR", "HORIZONTAL", "VER", "VERTICAL", upper=True
             ),
-            cv.Optional(CONF_DITHER): cv.invalid(
-                f"'{CONF_DITHER}' is not supported by LVGL 9.x"
-            ),
+            cv.Optional(CONF_DITHER, default="NONE"): LV_DITHER.one_of,
             cv.Required(CONF_STOPS): cv.All(
                 [
                     cv.Schema(
@@ -53,6 +52,10 @@ GRADIENT_SCHEMA = cv.ensure_list(
 
 async def gradients_to_code(config):
     max_stops = 2
+    if any(CONF_DITHER in x for x in config.get(CONF_GRADIENTS, ())):
+        LOGGER.warning(
+            "The 'dither' option for gradients is not supported by LVGL 9.x and will be ignored"
+        )
     for gradient in config.get(CONF_GRADIENTS, ()):
         var = MockObj(cg.new_Pvariable(gradient[CONF_ID]), "->")
         idbase = gradient[CONF_ID].id

@@ -344,14 +344,14 @@ size = LValidator(
 )
 
 
-radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
+LV_RADIUS = LvConstant("LV_RADIUS_", "CIRCLE")
 
 
 @schema_extractor("one_of")
 def fraction_validator(value):
     if value == SCHEMA_EXTRACT:
-        return radius_consts.choices
-    value = cv.Any(size, cv.percentage, radius_consts.one_of)(value)
+        return LV_RADIUS.choices
+    value = cv.Any(size, cv.percentage, LV_RADIUS.one_of)(value)
     if isinstance(value, float):
         return int(value * 255)
     return value
