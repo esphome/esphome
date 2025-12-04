@@ -152,6 +152,9 @@ void SPS30Component::update() {
       return;
     case NONE:
       return;
+    case READ:
+      // Read logic continues below
+      break;
   }
 
   /// Check if measurement is ready before reading the value
