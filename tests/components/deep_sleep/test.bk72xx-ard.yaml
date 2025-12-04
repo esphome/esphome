@@ -1,0 +1,5 @@
+deep_sleep:
+  run_duration: 30s
+  sleep_duration: 12h
+
+<<: !include common.yaml
