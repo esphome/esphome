@@ -16,9 +16,9 @@ from ..defines import (
     CONF_MSGBOXES,
     CONF_SRC,
     CONF_TITLE,
-    LOGGER,
     LV_OBJ_FLAG,
     TYPE_FLEX,
+    add_warning,
     literal,
 )
 from ..helpers import add_lv_use
@@ -116,7 +116,7 @@ async def msgbox_to_code(top_layer, conf):
         *button_spec.get_uses(),
     )
     if CONF_BUTTON_STYLE in conf:
-        LOGGER.warning(
+        add_warning(
             "'button_style' for msgbox is deprecated - style the buttons directly."
         )
     messagebox_id = conf[CONF_ID]

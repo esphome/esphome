@@ -34,6 +34,7 @@ from ..defines import (
     CONF_OPA,
     CONF_PIVOT_X,
     CONF_PIVOT_Y,
+    CONF_RADIUS,
     CONF_SRC,
     CONF_START_VALUE,
     CONF_TICKS,
@@ -63,6 +64,7 @@ from ..lv_validation import (
     size,
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
+from ..schemas import STATE_SCHEMA
 from ..styles import LVStyle, style_set
 from ..types import (
     LV_EVENT,
@@ -86,7 +88,9 @@ CONF_INDICATORS = "indicators"
 CONF_LABEL_GAP = "label_gap"
 CONF_MAJOR = "major"
 CONF_METER = "meter"
+CONF_PIVOT = "pivot"
 CONF_R_MOD = "r_mod"
+CONF_RADIAL_OFFSET = "radial_offset"
 CONF_SCALES = "scales"
 CONF_STRIDE = "stride"
 CONF_TICK_STYLE = "tick_style"
@@ -121,6 +125,7 @@ lv_meter_indicator_line_t = LvType(
 )
 lv_meter_indicator_image_t = LvType("lv_image_t", parents=(lv_meter_indicator_t,))
 
+DEFAULT_LABEL_GAP = 10  # Default label gap for major ticks added by LVGL
 
 INDICATOR_LINE_SCHEMA = cv.Schema(
     {
@@ -128,6 +133,7 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_COLOR, default=0): lv_color,
         cv.Exclusive(CONF_R_MOD, CONF_LENGTH): padding,
         cv.Exclusive(CONF_LENGTH, CONF_LENGTH): pixels_or_percent_validator,
+        cv.Optional(CONF_RADIAL_OFFSET, 0): pixels_or_percent_validator,
         cv.Optional(CONF_VALUE, default=0.0): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
@@ -199,12 +205,14 @@ SCALE_SCHEMA = cv.Schema(
                 cv.Optional(CONF_COUNT, default=12): cv.positive_int,
                 cv.Optional(CONF_WIDTH, default=2): cv.positive_int,
                 cv.Optional(CONF_LENGTH, default=10): size,
+                cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
                 cv.Optional(CONF_COLOR, default=0x808080): lv_color,
                 cv.Optional(CONF_MAJOR): cv.Schema(
                     {
                         cv.Optional(CONF_STRIDE, default=3): cv.positive_int,
                         cv.Optional(CONF_WIDTH, default=5): size,
                         cv.Optional(CONF_LENGTH, default="15%"): size,
+                        cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
                         cv.Optional(CONF_COLOR, default=0): lv_color,
                         cv.Optional(CONF_LABEL_GAP, default=4): size,
                     }
@@ -216,6 +224,8 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_ANGLE_RANGE, default=270): lv_angle_degrees,
         cv.Optional(CONF_ROTATION, default=0): lv_angle_degrees,
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
+        cv.Exclusive(CONF_PIVOT, CONF_PIVOT): STATE_SCHEMA,
+        cv.Exclusive(CONF_INDICATOR, CONF_PIVOT): STATE_SCHEMA,
     }
 )
 
@@ -238,12 +248,12 @@ LIGHT_STYLE = LVStyle(
 )
 
 PIVOT_STYLE = {
-    "radius": LV_RADIUS.CIRCLE,
-    "align": CHILD_ALIGNMENTS.CENTER,
+    CONF_RADIUS: LV_RADIUS.CIRCLE,
+    CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
     "bg_color": lv_color.black,
     "bg_opa": 1.0,
-    "width": 15,
-    "height": 15,
+    CONF_WIDTH: 15,
+    CONF_HEIGHT: 15,
 }
 
 
@@ -337,6 +347,11 @@ class MeterType(WidgetType):
                     lv_obj.set_style_line_width(
                         scale_var, await size.process(ticks[CONF_WIDTH]), LV_PART.ITEMS
                     )
+                    lv_obj.set_style_radial_offset(
+                        scale_var,
+                        await size.process(ticks[CONF_RADIAL_OFFSET]),
+                        LV_PART.ITEMS,
+                    )
                     lv_obj.set_style_line_color(
                         scale_var,
                         await lv_color.process(ticks[CONF_COLOR]),
@@ -359,6 +374,11 @@ class MeterType(WidgetType):
                             await size.process(major[CONF_LENGTH]),
                             LV_PART.INDICATOR,
                         )
+                        lv_obj.set_style_radial_offset(
+                            scale_var,
+                            await size.process(ticks[CONF_RADIAL_OFFSET]),
+                            LV_PART.INDICATOR,
+                        )
                         lv_obj.set_style_line_width(
                             scale_var,
                             await size.process(major[CONF_WIDTH]),
@@ -371,9 +391,12 @@ class MeterType(WidgetType):
                         )
 
                         # Set label gap (padding)
+                        label_gap = await size.process(major[CONF_LABEL_GAP])
+                        if isinstance(label_gap, int):
+                            label_gap -= DEFAULT_LABEL_GAP
                         lv_obj.set_style_pad_radial(
                             scale_var,
-                            await size.process(major[CONF_LABEL_GAP]),
+                            label_gap,
                             LV_PART.INDICATOR,
                         )
                     else:
@@ -451,6 +474,7 @@ class MeterType(WidgetType):
                             "line_rounded": True,
                             CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
                             CONF_LENGTH: length,
+                            CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
                         }
                         lw = await widget_to_code(props, indicator_type, scale_var)
                         await set_indicator_values(lw, v)
@@ -477,8 +501,9 @@ class MeterType(WidgetType):
                         iw = await widget_to_code(props, img_spec, scale_var)
                         await set_indicator_values(iw, v)
         # Add a pivot
+        # Get the default style
         pivot_style = PIVOT_STYLE.copy()
-        pivot_style.update(config.get(CONF_INDICATOR, {}))
+        pivot_style.update(config.get(CONF_INDICATOR, config.get(CONF_PIVOT, {})))
         with LocalVariable("pivot", lv_obj_t, lv_expr.container_create(var)) as pivot:
             pw = Widget(pivot, obj_spec, pivot_style)
             await set_obj_properties(pw, pivot_style)

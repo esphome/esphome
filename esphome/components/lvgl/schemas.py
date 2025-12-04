@@ -195,6 +195,7 @@ STYLE_PROPS = {
     "pad_left": lvalid.padding,
     "pad_right": lvalid.padding,
     "pad_top": lvalid.padding,
+    "radial_offset": lvalid.size,
     "shadow_color": lvalid.lv_color,
     "shadow_offset_x": lvalid.lv_int,
     "shadow_offset_y": lvalid.lv_int,

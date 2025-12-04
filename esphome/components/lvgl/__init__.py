@@ -32,7 +32,6 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
-from .defines import LOGGER, add_define
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -168,7 +167,7 @@ def final_validation(config_list):
                 )
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
-            LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
+            df.LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
         for image_id in lv_images_used:
             path = global_config.get_path_for_id(image_id)[:-1]
             image_conf = global_config.get_config_for_path(path)
@@ -210,31 +209,31 @@ async def to_code(configs):
     cg.add_library("lvgl/lvgl", "9.4.0")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
-    add_define("_LV_KCONFIG_PRESENT")
+    df.add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
-    add_define("LV_DRAW_COMPLEX", "1")
-    add_define("LV_DRAW_BUF_ALIGN", "1")
-    add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
+    df.add_define("LV_DRAW_COMPLEX", "1")
+    df.add_define("LV_DRAW_BUF_ALIGN", "1")
+    df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
 
-    add_define(
+    df.add_define(
         "LV_LOG_LEVEL",
         f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[CONF_LOG_LEVEL]]}",
     )
-    add_define("LV_USE_LOG", "1")
+    df.add_define("LV_USE_LOG", "1")
     cg.add_define(
         "LVGL_LOG_LEVEL",
         cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
     )
-    add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
+    df.add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
     for font in helpers.lv_fonts_used:
-        add_define(f"LV_FONT_{font.upper()}")
+        df.add_define(f"LV_FONT_{font.upper()}")
 
     if config_0[CONF_COLOR_DEPTH] == 16:
-        add_define(
+        df.add_define(
             "LV_COLOR_16_SWAP",
             "1" if config_0[CONF_BYTE_ORDER] == "big_endian" else "0",
         )
-    add_define(
+    df.add_define(
         "LV_COLOR_CHROMA_KEY",
         await lvalid.lv_color.process(config_0[df.CONF_TRANSPARENCY_KEY]),
     )
@@ -245,7 +244,7 @@ async def to_code(configs):
         await cg.get_variable(font)
     default_font = config_0[df.CONF_DEFAULT_FONT]
     if not lvalid.is_lv_font(default_font):
-        add_define(
+        df.add_define(
             "LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{df.DEFAULT_ESPHOME_FONT})"
         )
         globfont_id = ID(
@@ -257,9 +256,9 @@ async def to_code(configs):
             globfont_id,
             MockObj(await lvalid.lv_font.process(default_font), "->").get_lv_font(),
         )
-        add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
+        df.add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
     else:
-        add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
+        df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
     default_group = get_default_group(config_0)
 
@@ -339,9 +338,9 @@ async def to_code(configs):
         "transform_scale_x",
         "transform_scale_y",
     } & styles_used:
-        add_define("LV_COLOR_SCREEN_TRANSP", "1")
+        df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
     for use in helpers.lv_uses:
-        add_define(f"LV_USE_{use.upper()}")
+        df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
@@ -349,9 +348,11 @@ async def to_code(configs):
     cg.add_build_flag(f'-DLV_CONF_PATH=\\"{LV_CONF_FILENAME}\\"')
 
     for prop in REMAPPED_USES:
-        LOGGER.warning(
+        df.LOGGER.warning(
             "Property '%s' is deprecated, use '%s' instead", prop, STYLE_REMAP[prop]
         )
+    for warning in df.get_warnings():
+        df.LOGGER.warning(warning)
 
 
 def display_schema(config):
@@ -364,7 +365,9 @@ def display_schema(config):
 
 def add_hello_world(config):
     if df.CONF_WIDGETS not in config and CONF_PAGES not in config:
-        LOGGER.info("No pages or widgets configured, creating default hello_world page")
+        df.LOGGER.info(
+            "No pages or widgets configured, creating default hello_world page"
+        )
         config[df.CONF_WIDGETS] = any_widget_schema()(get_hello_world())
     return config
 

@@ -20,9 +20,9 @@ from .defines import (
     CONF_SCROLLBAR,
     CONF_SHOW_SNOW,
     CONF_TOP_LAYER,
-    LOGGER,
     PARTS,
     StaticCastExpression,
+    add_warning,
 )
 from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import (
@@ -92,7 +92,7 @@ async def lvgl_update(lv_component, config):
     if not bottom:
         return
     plural = len(bottom) != 1
-    LOGGER.warning(
+    add_warning(
         "The propert"
         + ("ies " if plural else "y ")
         + "'"

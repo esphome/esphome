@@ -330,6 +330,7 @@ void IndicatorLine::update_length_() {
   uint32_t actual_needle_length;
   auto radius = lv_obj_get_width(lv_obj_get_parent(this->obj)) / 2;
   auto length = lv_obj_get_style_length(this->obj, LV_PART_MAIN);
+  auto radial_offset = lv_obj_get_style_radial_offset(this->obj, LV_PART_MAIN);
   if (LV_COORD_IS_PCT(length)) {
     actual_needle_length = radius * LV_COORD_GET_PCT(length) / 100;
   } else if (length < 0) {
@@ -337,10 +338,12 @@ void IndicatorLine::update_length_() {
   } else {
     actual_needle_length = length;
   }
-  this->points_[0].x = radius;
-  this->points_[0].y = radius;
-  this->points_[1].x = lv_trigo_cos(this->angle_) / 32768.0f * actual_needle_length + radius;
-  this->points_[1].y = lv_trigo_sin(this->angle_) / 32768.0f * actual_needle_length + radius;
+  auto x = lv_trigo_cos(this->angle_) / 32768.0f;
+  auto y = lv_trigo_sin(this->angle_) / 32768.0f;
+  this->points_[0].x = radius + radial_offset * x;
+  this->points_[0].y = radius + radial_offset * y;
+  this->points_[1].x = x * actual_needle_length + radius;
+  this->points_[1].y = y * actual_needle_length + radius;
   lv_obj_refresh_self_size(this->obj);
   lv_obj_invalidate(this->obj);
 }

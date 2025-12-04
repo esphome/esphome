@@ -38,6 +38,7 @@ from ..defines import (
     CONF_PIVOT_X,
     CONF_PIVOT_Y,
     CONF_POINTS,
+    CONF_RADIUS,
     CONF_SRC,
     CONF_START_ANGLE,
     addr,
@@ -64,7 +65,6 @@ CONF_CANVAS = "canvas"
 CONF_BUFFER_ID = "buffer_id"
 CONF_MAX_WIDTH = "max_width"
 CONF_TRANSPARENT = "transparent"
-CONF_RADIUS = "radius"
 CONF_DRAW_BUF_ID = "draw_buf_id"
 
 lv_canvas_t = LvType("lv_canvas_t")

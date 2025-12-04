@@ -27,6 +27,7 @@ lvgl_ns = cg.esphome_ns.namespace("lvgl")
 DOMAIN = "lvgl"
 KEY_LV_DEFINES = "lv_defines"
 KEY_UPDATED_WIDGETS = "updated_widgets"
+KEY_WARNINGS = "warnings"
 
 
 def get_data(key, default=None):
@@ -37,8 +38,16 @@ def get_data(key, default=None):
     :return:
     """
     return CORE.data.setdefault(DOMAIN, {}).setdefault(
-        key, default if default is not None else {}
+        key, {} if default is None else default
     )
+
+
+def get_warnings():
+    return get_data(KEY_WARNINGS, set())
+
+
+def add_warning(msg: str):
+    get_warnings().add(msg)
 
 
 class StaticCastExpression(Expression):
