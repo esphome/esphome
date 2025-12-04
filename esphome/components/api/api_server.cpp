@@ -105,6 +105,9 @@ void APIServer::setup() {
     camera::Camera::instance()->add_listener(this);
   }
 #endif
+
+  // Initialize last_connected_ for reboot timeout tracking
+  this->last_connected_ = millis();
 }
 
 void APIServer::loop() {
