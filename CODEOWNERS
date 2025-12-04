@@ -186,6 +186,7 @@ esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
 esphome/components/gdk101/* @Szewcson
+esphome/components/generic_image/* @kahrendt
 esphome/components/gl_r01_i2c/* @pkejval
 esphome/components/globals/* @esphome/core
 esphome/components/gp2y1010au0f/* @zry98
@@ -428,6 +429,10 @@ esphome/components/select/* @esphome/core
 esphome/components/sen0321/* @notjj
 esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
+esphome/components/sendspin/* @kahrendt
+esphome/components/sendspin/media_player/* @kahrendt
+esphome/components/sendspin/sensor/* @kahrendt
+esphome/components/sendspin/text_sensor/* @kahrendt
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/sfa30/* @ghsensdev
