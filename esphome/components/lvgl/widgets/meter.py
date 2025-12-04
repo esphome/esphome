@@ -132,13 +132,14 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Exclusive(CONF_R_MOD, CONF_LENGTH): padding,
-        cv.Exclusive(CONF_LENGTH, CONF_LENGTH): pixels_or_percent_validator,
+        cv.Optional(CONF_R_MOD): padding,
+        cv.Optional(CONF_LENGTH): pixels_or_percent_validator,
         cv.Optional(CONF_RADIAL_OFFSET, 0): pixels_or_percent_validator,
         cv.Optional(CONF_VALUE, default=0.0): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
-)
+).add_extra(cv.has_at_most_one_key(CONF_R_MOD, CONF_LENGTH))
+
 INDICATOR_IMG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SRC): lv_image,
@@ -225,12 +226,14 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_ANGLE_RANGE, default=270): lv_angle_degrees,
         cv.Optional(CONF_ROTATION, default=0): lv_angle_degrees,
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
-        cv.Exclusive(CONF_PIVOT, CONF_PIVOT): STATE_SCHEMA,
-        cv.Exclusive(CONF_INDICATOR, CONF_PIVOT): STATE_SCHEMA,
     }
 )
 
-METER_SCHEMA = {cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA)}
+METER_SCHEMA = {
+    cv.Optional(CONF_PIVOT): STATE_SCHEMA,
+    cv.Optional(CONF_INDICATOR): STATE_SCHEMA,
+    cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA),
+}
 
 LIGHT_STYLE = LVStyle(
     "lv_meter_light",
@@ -251,7 +254,7 @@ LIGHT_STYLE = LVStyle(
 PIVOT_STYLE = {
     CONF_RADIUS: LV_RADIUS.CIRCLE,
     CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
-    "bg_color": lv_color.black,
+    "bg_color": 0x000000,
     "bg_opa": 1.0,
     CONF_WIDTH: 15,
     CONF_HEIGHT: 15,
@@ -283,6 +286,9 @@ class MeterType(WidgetType):
             METER_SCHEMA,
             lv_name=CONF_CONTAINER,
         )
+
+    def validate(self, value):
+        return cv.has_at_most_one_key(CONF_INDICATOR, CONF_PIVOT)(value)
 
     async def on_create(self, var: MockObj, config: dict):
         # Remove theme styling from outer container

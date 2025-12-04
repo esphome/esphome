@@ -511,9 +511,9 @@ def any_widget_schema(extras=None):
                     container_validator, requires_component(required)
                 )
             # Apply custom validation
-            value = widget_type.validate(value or {})
             path = [key] if is_dict else [index, key]
             with prepend_path(path):
+                value = widget_type.validate(value or {})
                 result.append({key: container_validator(value)})
         return result
 
