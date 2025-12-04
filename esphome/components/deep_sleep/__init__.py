@@ -1,4 +1,5 @@
-from esphome import automation, pins
+from esphome import automation, pins, core
+from esphome.core import CORE
 import esphome.codegen as cg
 from esphome.components import esp32, time
 from esphome.components.esp32 import get_esp32_variant
@@ -27,6 +28,8 @@ from esphome.const import (
     CONF_SLEEP_DURATION,
     CONF_TIME_ID,
     CONF_WAKEUP_PIN,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -136,6 +139,14 @@ def _validate_ex1_wakeup_mode(value):
         )(value)
     return value
 
+def _validate_sleep_duration(value):
+    variant = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
+    if variant != PLATFORM_BK72XX:
+        return value
+    max_duration = core.TimePeriod(hours=36)
+    if value > max_duration:
+        raise cv.Invalid("sleep duration cannot be more than 36 hours on BK72XX")
+    return value
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
@@ -201,7 +212,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.All(cv.only_on_esp32, WAKEUP_CAUSES_SCHEMA),
                 cv.positive_time_period_milliseconds,
             ),
-            cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_SLEEP_DURATION): cv.All(
+                cv.positive_time_period_milliseconds,
+                _validate_sleep_duration,
+            ),
             cv.Optional(CONF_WAKEUP_PIN): cv.All(
                 cv.only_on_esp32,
                 pins.internal_gpio_input_pin_schema,
@@ -327,7 +341,7 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
             cv.Schema(
                 {
                     cv.Exclusive(CONF_SLEEP_DURATION, "time"): cv.templatable(
-                        cv.positive_time_period_milliseconds
+                        cv.all(cv.positive_time_period_milliseconds, _validate_sleep_duration)
                     ),
                     # Only on ESP32 due to how long the RTC on ESP8266 can stay asleep
                     cv.Exclusive(CONF_UNTIL, "time"): cv.All(
