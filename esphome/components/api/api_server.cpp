@@ -107,7 +107,7 @@ void APIServer::setup() {
 #endif
 
   // Initialize last_connected_ for reboot timeout tracking
-  this->last_connected_ = millis();
+  this->last_connected_ = App.get_loop_component_start_time();
 }
 
 void APIServer::loop() {
@@ -149,7 +149,7 @@ void APIServer::loop() {
     if (this->reboot_timeout_ != 0) {
       const uint32_t now = App.get_loop_component_start_time();
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "No client connected; rebooting");
+        ESP_LOGE(TAG, "No clients; rebooting");
         App.reboot();
       }
     }
