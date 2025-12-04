@@ -1,5 +1,4 @@
-from esphome import automation, pins, core
-from esphome.core import CORE
+from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import esp32, time
 from esphome.components.esp32 import get_esp32_variant
@@ -35,6 +34,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PlatformFramework,
 )
+from esphome.core import CORE
 
 # to be moved later
 CONF_WAKEUP_PINS = "wakeup_pins"
@@ -139,6 +139,7 @@ def _validate_ex1_wakeup_mode(value):
         )(value)
     return value
 
+
 def _validate_sleep_duration(value):
     variant = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
     if variant != PLATFORM_BK72XX:
@@ -147,6 +148,7 @@ def _validate_sleep_duration(value):
     if value > max_duration:
         raise cv.Invalid("sleep duration cannot be more than 36 hours on BK72XX")
     return value
+
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
@@ -341,7 +343,10 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
             cv.Schema(
                 {
                     cv.Exclusive(CONF_SLEEP_DURATION, "time"): cv.templatable(
-                        cv.all(cv.positive_time_period_milliseconds, _validate_sleep_duration)
+                        cv.all(
+                            cv.positive_time_period_milliseconds,
+                            _validate_sleep_duration,
+                        )
                     ),
                     # Only on ESP32 due to how long the RTC on ESP8266 can stay asleep
                     cv.Exclusive(CONF_UNTIL, "time"): cv.All(
