@@ -21,7 +21,7 @@ from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import nullptr
 
-from .. import REMAPPED_USES, obj_spec, set_obj_properties
+from .. import obj_spec, set_obj_properties
 from ..automation import action_to_code
 from ..defines import (
     CHILD_ALIGNMENTS,
@@ -41,6 +41,7 @@ from ..defines import (
     LV_OBJ_FLAG,
     LV_PART,
     LV_SCALE_MODE,
+    get_remapped_uses,
     literal,
 )
 from ..helpers import add_lv_use, lvgl_components_required
@@ -462,7 +463,7 @@ class MeterType(WidgetType):
                         if CONF_LENGTH in v:
                             length = v[CONF_LENGTH]
                         elif r_mod := v.get(CONF_R_MOD):
-                            REMAPPED_USES.add(CONF_R_MOD)
+                            get_remapped_uses().add(CONF_R_MOD)
                             length = -abs(r_mod)
                         else:
                             length = 1.0

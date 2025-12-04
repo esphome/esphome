@@ -29,6 +29,7 @@ from .defines import (
     CONF_SCROLLBAR_MODE,
     CONF_TIME_FORMAT,
     LV_GRAD_DIR,
+    get_remapped_uses,
 )
 from .helpers import CONF_IF_NAN, requires_component, validate_printf
 from .layout import (
@@ -247,13 +248,10 @@ STYLE_REMAP = {
     "r_mod": "length",
 }
 
-# Log use of deprecated properties here
-REMAPPED_USES = set()
-
 
 def remap_property(prop):
     if prop in STYLE_REMAP:
-        REMAPPED_USES.add(prop)
+        get_remapped_uses().add(prop)
         return STYLE_REMAP[prop]
     return prop
 

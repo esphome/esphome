@@ -28,6 +28,7 @@ DOMAIN = "lvgl"
 KEY_LV_DEFINES = "lv_defines"
 KEY_UPDATED_WIDGETS = "updated_widgets"
 KEY_WARNINGS = "warnings"
+KEY_REMAPPED_USES = "remapped_uses"
 
 
 def get_data(key, default=None):
@@ -44,6 +45,10 @@ def get_data(key, default=None):
 
 def get_warnings():
     return get_data(KEY_WARNINGS, set())
+
+
+def get_remapped_uses():
+    return get_data(KEY_REMAPPED_USES, set())
 
 
 def add_warning(msg: str):

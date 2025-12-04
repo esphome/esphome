@@ -46,7 +46,6 @@ from .lvcode import LvContext, LvglComponent, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
-    REMAPPED_USES,
     STYLE_REMAP,
     WIDGET_TYPES,
     any_widget_schema,
@@ -347,7 +346,7 @@ async def to_code(configs):
     cg.add_build_flag("-DLV_CONF_H=1")
     cg.add_build_flag(f'-DLV_CONF_PATH=\\"{LV_CONF_FILENAME}\\"')
 
-    for prop in REMAPPED_USES:
+    for prop in df.get_remapped_uses():
         df.LOGGER.warning(
             "Property '%s' is deprecated, use '%s' instead", prop, STYLE_REMAP[prop]
         )
