@@ -202,6 +202,7 @@ INDICATOR_SCHEMA = cv.Schema(
 
 SCALE_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(lv_obj_t),
         cv.Optional(CONF_TICKS): cv.Schema(
             {
                 cv.Optional(CONF_COUNT, default=12): cv.positive_int,
@@ -306,207 +307,194 @@ class MeterType(WidgetType):
         # LVGL 9.4 scale widget setup
         # Background style will be applied.
         for scale_conf in config.get(CONF_SCALES, ()):
-            with LocalVariable(
-                "scale", lv_obj_t, lv_expr.scale_create(var)
-            ) as scale_var:
-                percent100 = await pixels_or_percent.process(1.0)
-                lv_obj.set_style_height(scale_var, percent100, LV_PART.MAIN)
-                lv_obj.set_style_width(scale_var, percent100, LV_PART.MAIN)
-                lv_obj.set_style_align(
-                    scale_var, literal("LV_ALIGN_CENTER"), LV_PART.MAIN
-                )
-                lv_obj.set_style_bg_opa(
-                    scale_var, literal("LV_OPA_TRANSP"), LV_PART.MAIN
-                )
-                lv_obj.set_style_radius(scale_var, literal("LV_RADIUS_CIRCLE"), 0)
-                await set_obj_properties(
-                    Widget(scale_var, scale_spec), indicator_config
-                )
+            scale_var = cg.Pvariable(scale_conf[CONF_ID], lv_expr.scale_create(var))
+            percent100 = await pixels_or_percent.process(1.0)
+            lv_obj.set_style_height(scale_var, percent100, LV_PART.MAIN)
+            lv_obj.set_style_width(scale_var, percent100, LV_PART.MAIN)
+            lv_obj.set_style_align(scale_var, literal("LV_ALIGN_CENTER"), LV_PART.MAIN)
+            lv_obj.set_style_bg_opa(scale_var, literal("LV_OPA_TRANSP"), LV_PART.MAIN)
+            lv_obj.set_style_radius(scale_var, literal("LV_RADIUS_CIRCLE"), 0)
+            await set_obj_properties(Widget(scale_var, scale_spec), indicator_config)
 
-                lv.scale_set_mode(scale_var, LV_SCALE_MODE.ROUND_INNER)
-                # Set the scale range
-                range_from = await lv_int.process(scale_conf[CONF_RANGE_FROM])
-                range_to = await lv_int.process(scale_conf[CONF_RANGE_TO])
-                lv.scale_set_range(scale_var, range_from, range_to)
+            lv.scale_set_mode(scale_var, LV_SCALE_MODE.ROUND_INNER)
+            # Set the scale range
+            range_from = await lv_int.process(scale_conf[CONF_RANGE_FROM])
+            range_to = await lv_int.process(scale_conf[CONF_RANGE_TO])
+            lv.scale_set_range(scale_var, range_from, range_to)
 
-                angle_range = await lv_angle_degrees.process(
-                    scale_conf[CONF_ANGLE_RANGE]
+            angle_range = await lv_angle_degrees.process(scale_conf[CONF_ANGLE_RANGE])
+            rotation = await lv_angle_degrees.process(scale_conf[CONF_ROTATION])
+            # Set angle range
+            lv.scale_set_angle_range(
+                scale_var,
+                angle_range,
+            )
+
+            # Set rotation if specified
+            if rotation:
+                lv.scale_set_rotation(scale_var, rotation)
+
+            if ticks := scale_conf.get(CONF_TICKS):
+                # Set total tick count
+                lv.scale_set_total_tick_count(scale_var, ticks[CONF_COUNT])
+
+                # Set tick styling
+                lv_obj.set_style_length(
+                    scale_var, await size.process(ticks[CONF_LENGTH]), LV_PART.ITEMS
                 )
-                rotation = await lv_angle_degrees.process(scale_conf[CONF_ROTATION])
-                # Set angle range
-                lv.scale_set_angle_range(
+                lv_obj.set_style_line_width(
+                    scale_var, await size.process(ticks[CONF_WIDTH]), LV_PART.ITEMS
+                )
+                lv_obj.set_style_radial_offset(
                     scale_var,
-                    angle_range,
+                    await size.process(ticks[CONF_RADIAL_OFFSET]),
+                    LV_PART.ITEMS,
+                )
+                lv_obj.set_style_line_color(
+                    scale_var,
+                    await lv_color.process(ticks[CONF_COLOR]),
+                    LV_PART.ITEMS,
                 )
 
-                # Set rotation if specified
-                if rotation:
-                    lv.scale_set_rotation(scale_var, rotation)
+                # Hide the scale line
+                lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
+                if CONF_MAJOR in ticks:
+                    major = ticks[CONF_MAJOR]
+                    # Set major tick frequency
+                    lv.scale_set_major_tick_every(scale_var, major[CONF_STRIDE])
 
-                if ticks := scale_conf.get(CONF_TICKS):
-                    # Set total tick count
-                    lv.scale_set_total_tick_count(scale_var, ticks[CONF_COUNT])
+                    # Enable labels for major ticks
+                    lv.scale_set_label_show(scale_var, True)
 
-                    # Set tick styling
+                    # Set major tick styling
                     lv_obj.set_style_length(
-                        scale_var, await size.process(ticks[CONF_LENGTH]), LV_PART.ITEMS
-                    )
-                    lv_obj.set_style_line_width(
-                        scale_var, await size.process(ticks[CONF_WIDTH]), LV_PART.ITEMS
+                        scale_var,
+                        await size.process(major[CONF_LENGTH]),
+                        LV_PART.INDICATOR,
                     )
                     lv_obj.set_style_radial_offset(
                         scale_var,
                         await size.process(ticks[CONF_RADIAL_OFFSET]),
-                        LV_PART.ITEMS,
+                        LV_PART.INDICATOR,
+                    )
+                    lv_obj.set_style_line_width(
+                        scale_var,
+                        await size.process(major[CONF_WIDTH]),
+                        LV_PART.INDICATOR,
                     )
                     lv_obj.set_style_line_color(
                         scale_var,
-                        await lv_color.process(ticks[CONF_COLOR]),
-                        LV_PART.ITEMS,
+                        await lv_color.process(major[CONF_COLOR]),
+                        LV_PART.INDICATOR,
                     )
 
-                    # Hide the scale line
-                    lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
-                    if CONF_MAJOR in ticks:
-                        major = ticks[CONF_MAJOR]
-                        # Set major tick frequency
-                        lv.scale_set_major_tick_every(scale_var, major[CONF_STRIDE])
-
-                        # Enable labels for major ticks
-                        lv.scale_set_label_show(scale_var, True)
-
-                        # Set major tick styling
-                        lv_obj.set_style_length(
-                            scale_var,
-                            await size.process(major[CONF_LENGTH]),
-                            LV_PART.INDICATOR,
-                        )
-                        lv_obj.set_style_radial_offset(
-                            scale_var,
-                            await size.process(ticks[CONF_RADIAL_OFFSET]),
-                            LV_PART.INDICATOR,
-                        )
-                        lv_obj.set_style_line_width(
-                            scale_var,
-                            await size.process(major[CONF_WIDTH]),
-                            LV_PART.INDICATOR,
-                        )
-                        lv_obj.set_style_line_color(
-                            scale_var,
-                            await lv_color.process(major[CONF_COLOR]),
-                            LV_PART.INDICATOR,
-                        )
-
-                        # Set label gap (padding)
-                        label_gap = await size.process(major[CONF_LABEL_GAP])
-                        if isinstance(label_gap, int):
-                            label_gap -= DEFAULT_LABEL_GAP
-                        lv_obj.set_style_pad_radial(
-                            scale_var,
-                            label_gap,
-                            LV_PART.INDICATOR,
-                        )
-                    else:
-                        lv.scale_set_major_tick_every(scale_var, 0)
+                    # Set label gap (padding)
+                    label_gap = await size.process(major[CONF_LABEL_GAP])
+                    if isinstance(label_gap, int):
+                        label_gap -= DEFAULT_LABEL_GAP
+                    lv_obj.set_style_pad_radial(
+                        scale_var,
+                        label_gap,
+                        LV_PART.INDICATOR,
+                    )
                 else:
-                    lv.scale_set_total_tick_count(scale_var, 0)
+                    lv.scale_set_major_tick_every(scale_var, 0)
+            else:
+                lv.scale_set_total_tick_count(scale_var, 0)
 
-                # Handle indicators as sections
-                for indicator in scale_conf.get(CONF_INDICATORS, ()):
-                    (t, v) = next(iter(indicator.items()))
-                    iid = v[CONF_ID]
+            # Handle indicators as sections
+            for indicator in scale_conf.get(CONF_INDICATORS, ()):
+                (t, v) = next(iter(indicator.items()))
+                iid = v[CONF_ID]
 
-                    # Enable getting the meter to which this belongs.
+                # Enable getting the meter to which this belongs.
 
-                    # Set section range based on indicator values
-                    start_value = (
-                        await get_start_value(v) or scale_conf[CONF_RANGE_FROM]
+                # Set section range based on indicator values
+                start_value = await get_start_value(v) or scale_conf[CONF_RANGE_FROM]
+                end_value = await get_end_value(v) or scale_conf[CONF_RANGE_TO]
+
+                # Create and apply styles based on indicator type
+                if t == CONF_ARC:
+                    section_widget = Widget.create(iid, var, section_spec, v)
+                    # Create a section for this indicator
+                    section_var = cg.Pvariable(
+                        iid, lv_expr.scale_add_section(scale_var)
                     )
-                    end_value = await get_end_value(v) or scale_conf[CONF_RANGE_TO]
+                    section_widget.obj = section_var
+                    lv.scale_section_set_range(section_var, start_value, end_value)
+                    style_var = await LVStyle.get_style(iid.id).get_var()
+                    await style_set(style_var, v)
 
-                    # Create and apply styles based on indicator type
-                    if t == CONF_ARC:
-                        section_widget = Widget.create(iid, var, section_spec, v)
-                        # Create a section for this indicator
-                        section_var = cg.Pvariable(
-                            iid, lv_expr.scale_add_section(scale_var)
-                        )
-                        section_widget.obj = section_var
-                        lv.scale_section_set_range(section_var, start_value, end_value)
-                        style_var = await LVStyle.get_style(iid.id).get_var()
-                        await style_set(style_var, v)
-
-                    if t == CONF_TICK_STYLE:
-                        # No object created for this
-                        color_start = await lv_color.process(v[CONF_COLOR_START])
-                        color_end = await lv_color.process(v[CONF_COLOR_END])
-                        local = v[CONF_LOCAL]
-                        if color_start and color_end:
-                            async with LambdaContext(
-                                [(lv_event_t.operator("ptr"), "e")]
-                            ) as lambda_:
-                                lv.scale_draw_event_cb(
-                                    literal("e"),
-                                    start_value,
-                                    end_value,
-                                    color_start,
-                                    color_end,
-                                    local,
-                                )
-                            lv_obj.add_event_cb(
-                                scale_var,
-                                await lambda_.get_lambda(),
-                                LV_EVENT.DRAW_TASK_ADDED,
-                                nullptr,
+                if t == CONF_TICK_STYLE:
+                    # No object created for this
+                    color_start = await lv_color.process(v[CONF_COLOR_START])
+                    color_end = await lv_color.process(v[CONF_COLOR_END])
+                    local = v[CONF_LOCAL]
+                    if color_start and color_end:
+                        async with LambdaContext(
+                            [(lv_event_t.operator("ptr"), "e")]
+                        ) as lambda_:
+                            lv.scale_draw_event_cb(
+                                literal("e"),
+                                start_value,
+                                end_value,
+                                color_start,
+                                color_end,
+                                local,
                             )
-                            lv.obj_add_flag(
-                                scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS
-                            )
-
-                    if t == CONF_LINE:
-                        add_lv_use(CONF_LINE)
-                        # Needle represented by a line
-                        if CONF_LENGTH in v:
-                            length = v[CONF_LENGTH]
-                        elif r_mod := v.get(CONF_R_MOD):
-                            get_remapped_uses().add(CONF_R_MOD)
-                            length = -abs(r_mod)
-                        else:
-                            length = 1.0
-                        props = {
-                            CONF_ID: v[CONF_ID],
-                            CONF_OPA: v[CONF_OPA],
-                            CONF_LINE_WIDTH: v[CONF_WIDTH],
-                            "line_color": v[CONF_COLOR],
-                            "line_rounded": True,
-                            CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
-                            CONF_LENGTH: length,
-                            CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
-                        }
-                        lw = await widget_to_code(props, indicator_type, scale_var)
-                        await set_indicator_values(lw, v)
-
-                    # Note: Image indicators (needles) are not directly supported by scale widget
-                    # They would need to be implemented as separate image objects positioned over the scale
-                    if t == CONF_IMAGE:
-                        add_lv_use(CONF_IMAGE)
-                        src = v[CONF_SRC]
-                        src_data = CORE.data[IMAGE_DOMAIN][str(src)]
-                        pivot_x = await pixels.process(v[CONF_PIVOT_X])
-                        pivot_y = await pixels.process(
-                            v.get(CONF_PIVOT_Y, src_data[CONF_HEIGHT] // 2)
+                        lv_obj.add_event_cb(
+                            scale_var,
+                            await lambda_.get_lambda(),
+                            LV_EVENT.DRAW_TASK_ADDED,
+                            nullptr,
                         )
-                        props = {
-                            CONF_X: src_data[CONF_WIDTH] // 2 - pivot_x,
-                            "transform_pivot_x": pivot_x,
-                            "transform_pivot_y": pivot_y,
-                            CONF_SRC: src,
-                            CONF_OPA: v[CONF_OPA],
-                            CONF_ID: v[CONF_ID],
-                            CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
-                        }
-                        iw = await widget_to_code(props, img_spec, scale_var)
-                        await set_indicator_values(iw, v)
+                        lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
+
+                if t == CONF_LINE:
+                    add_lv_use(CONF_LINE)
+                    # Needle represented by a line
+                    if CONF_LENGTH in v:
+                        length = v[CONF_LENGTH]
+                    elif r_mod := v.get(CONF_R_MOD):
+                        get_remapped_uses().add(CONF_R_MOD)
+                        length = -abs(r_mod)
+                    else:
+                        length = 1.0
+                    props = {
+                        CONF_ID: v[CONF_ID],
+                        CONF_OPA: v[CONF_OPA],
+                        CONF_LINE_WIDTH: v[CONF_WIDTH],
+                        "line_color": v[CONF_COLOR],
+                        "line_rounded": True,
+                        CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
+                        CONF_LENGTH: length,
+                        CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
+                    }
+                    lw = await widget_to_code(props, indicator_type, scale_var)
+                    await set_indicator_values(lw, v)
+
+                # Note: Image indicators (needles) are not directly supported by scale widget
+                # They would need to be implemented as separate image objects positioned over the scale
+                if t == CONF_IMAGE:
+                    add_lv_use(CONF_IMAGE)
+                    src = v[CONF_SRC]
+                    src_data = CORE.data[IMAGE_DOMAIN][str(src)]
+                    pivot_x = await pixels.process(v[CONF_PIVOT_X])
+                    pivot_y = await pixels.process(
+                        v.get(CONF_PIVOT_Y, src_data[CONF_HEIGHT] // 2)
+                    )
+                    props = {
+                        CONF_X: src_data[CONF_WIDTH] // 2 - pivot_x,
+                        "transform_pivot_x": pivot_x,
+                        "transform_pivot_y": pivot_y,
+                        CONF_SRC: src,
+                        CONF_OPA: v[CONF_OPA],
+                        CONF_ID: v[CONF_ID],
+                        CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
+                    }
+                    iw = await widget_to_code(props, img_spec, scale_var)
+                    await set_indicator_values(iw, v)
+
         # Add a pivot
         # Get the default style
         pivot_style = PIVOT_STYLE.copy()
