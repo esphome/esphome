@@ -742,7 +742,9 @@ def has_at_most_one_key(*keys):
 
         number = sum(k in keys for k in obj)
         if number > 1:
-            raise Invalid(f"Cannot specify more than one of {', '.join(keys)}.")
+            raise Invalid(
+                f"Cannot specify more than one of {', '.join(keys)}.", path=[keys[0]]
+            )
         return obj
 
     return validate
