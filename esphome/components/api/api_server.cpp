@@ -587,8 +587,11 @@ bool APIServer::teardown() {
 }
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-// Timeout for action calls - matches aioesphomeapi client timeout
-static const uint32_t ACTION_CALL_TIMEOUT_MS = 30000;
+// Timeout for action calls - matches aioesphomeapi client timeout (default 30s)
+// Can be overridden via USE_API_ACTION_CALL_TIMEOUT_MS define for testing
+#ifndef USE_API_ACTION_CALL_TIMEOUT_MS
+#define USE_API_ACTION_CALL_TIMEOUT_MS 30000  // NOLINT
+#endif
 
 uint32_t APIServer::register_active_action_call(uint32_t client_call_id, APIConnection *conn) {
   uint32_t action_call_id = this->next_action_call_id_++;
@@ -601,7 +604,7 @@ uint32_t APIServer::register_active_action_call(uint32_t client_call_id, APIConn
   // Schedule automatic cleanup after timeout (client will have given up by then)
   char timeout_name[32];
   snprintf(timeout_name, sizeof(timeout_name), "action_call_%u", action_call_id);
-  this->set_timeout(timeout_name, ACTION_CALL_TIMEOUT_MS, [this, action_call_id]() {
+  this->set_timeout(timeout_name, USE_API_ACTION_CALL_TIMEOUT_MS, [this, action_call_id]() {
     ESP_LOGD(TAG, "Action call %u timed out", action_call_id);
     this->unregister_active_action_call(action_call_id);
   });
