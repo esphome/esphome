@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import esp32, uart
-from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
