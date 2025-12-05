@@ -100,14 +100,14 @@ CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
-    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
-    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
+    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
+    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -238,12 +238,12 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
-                esp32_s2=USB_CDC,
-                esp32_s3=USB_SERIAL_JTAG,
                 esp32_c3=USB_SERIAL_JTAG,
                 esp32_c5=USB_SERIAL_JTAG,
                 esp32_c6=USB_SERIAL_JTAG,
                 esp32_p4=USB_SERIAL_JTAG,
+                esp32_s2=USB_CDC,
+                esp32_s3=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
@@ -365,8 +365,10 @@ async def to_code(config):
     if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
     try:
         uart_selection(USB_SERIAL_JTAG)
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
@@ -403,6 +405,8 @@ async def to_code(config):
             ],
             conf,
         )
+
+    CORE.add_job(final_step)
 
 
 def validate_printf(value):
@@ -504,3 +508,24 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# Keys for CORE.data storage
+DOMAIN = "logger"
+KEY_LEVEL_LISTENERS = "level_listeners"
+
+
+def request_logger_level_listeners() -> None:
+    """Request that logger level listeners be compiled in.
+
+    Components that need to be notified about log level changes should call this
+    function during their code generation. This enables the add_level_listener()
+    method and compiles in the listener vector.
+    """
+    CORE.data.setdefault(DOMAIN, {})[KEY_LEVEL_LISTENERS] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional logger features."""
+    if CORE.data.get(DOMAIN, {}).get(KEY_LEVEL_LISTENERS, False):
+        cg.add_define("USE_LOGGER_LEVEL_LISTENERS")

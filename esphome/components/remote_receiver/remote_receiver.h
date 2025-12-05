@@ -11,7 +11,7 @@
 
 namespace esphome::remote_receiver {
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
@@ -90,7 +90,7 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   std::string error_string_{""};
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_ESP32) || defined(USE_RP2040)
   RemoteReceiverComponentStore store_;
   HighFrequencyLoopRequester high_freq_;
 #endif

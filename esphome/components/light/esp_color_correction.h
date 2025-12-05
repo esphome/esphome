@@ -2,8 +2,7 @@
 
 #include "esphome/core/color.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class ESPColorCorrection {
  public:
@@ -73,5 +72,4 @@ class ESPColorCorrection {
   uint8_t local_brightness_{255};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
