@@ -4,13 +4,13 @@
 
 #if defined(USE_ESP_IDF) && defined(USE_MEDIA_PLAYER)
 
-#include "esphome/components/sendspin/sendspin_audio_chunk.h"
 #include "esphome/components/sendspin/sendspin_hub.h"
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_chunk_queue.h"
 #include "esphome/components/media_player/media_player.h"
 #if defined(USE_SENDSPIN_AUDIO)
+#include "esphome/components/sendspin/sendspin_audio_chunk.h"
 #include "esphome/components/speaker/speaker.h"
 #endif
 
