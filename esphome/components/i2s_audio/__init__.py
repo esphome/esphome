@@ -68,13 +68,13 @@ I2S_ROLE_OPTIONS = {
 # https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h (SOC_I2S_NUM)
 I2S_PORTS = {
     VARIANT_ESP32: 2,
-    VARIANT_ESP32S2: 1,
-    VARIANT_ESP32S3: 2,
     VARIANT_ESP32C3: 1,
     VARIANT_ESP32C5: 1,
     VARIANT_ESP32C6: 1,
     VARIANT_ESP32H2: 1,
     VARIANT_ESP32P4: 3,
+    VARIANT_ESP32S2: 1,
+    VARIANT_ESP32S3: 2,
 }
 
 i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")

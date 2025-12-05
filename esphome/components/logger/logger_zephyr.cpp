@@ -80,7 +80,7 @@ void Logger::pre_setup() {
 #endif
 }
 
-void HOT Logger::write_msg_(const char *msg) {
+void HOT Logger::write_msg_(const char *msg, size_t) {
 #ifdef CONFIG_PRINTK
   printk("%s\n", msg);
 #endif
