@@ -35,11 +35,11 @@ void BinarySensor::send_state_internal(bool new_state) {
   // copy the new state to the visible property for backwards compatibility, before any callbacks
   this->state = new_state;
   // Note that set_state_ de-dups and will only trigger callbacks if the state has actually changed
-  this->set_state_(new_state);
+  this->set_state(new_state);
 }
 
-bool BinarySensor::set_state_(const optional<bool> &state_) {
-  if (StatefulEntityBase::set_state_(state_)) {
+bool BinarySensor::set_state(const optional<bool> &state_) {
+  if (StatefulEntityBase::set_state(state_)) {
 #ifdef USE_CONTROLLER_REGISTRY
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
