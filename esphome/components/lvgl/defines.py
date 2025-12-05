@@ -155,6 +155,8 @@ class LValidator:
             value = [
                 await cg.get_variable(x) if isinstance(x, ID) else x for x in value
             ]
+        if self.rtype == cg.int_:
+            value = int(value)
         return cg.safe_exp(value)
 
 

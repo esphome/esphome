@@ -95,8 +95,11 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
   }
   lv_animimg_set_src(img, (const void **) dsc->data(), dsc->size());
 }
-
 #endif  // USE_LVGL_ANIMIMG
+
+#ifdef USE_LVGL_METER
+int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value);
+#endif
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {
@@ -185,6 +188,7 @@ class LvglComponent : public PollingComponent {
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3);
+
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
@@ -292,6 +296,7 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 #ifdef USE_LVGL_METER
 
 void lv_image_set_needle_value(lv_obj_t *obj, int value);
+void lv_arc_set_needle_value(lv_obj_t *obj, int value);
 
 class IndicatorLine : public LvCompound {
  public:

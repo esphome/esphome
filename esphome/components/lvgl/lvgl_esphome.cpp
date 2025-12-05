@@ -290,15 +290,14 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 
 #ifdef USE_LVGL_METER
 
-void lv_image_set_needle_value(lv_obj_t *obj, int value) {
+int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value) {
   auto *scale = lv_obj_get_parent(obj);
   auto min_value = lv_scale_get_range_min_value(scale);
-  int16_t angle =
-      ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
-       lv_scale_get_rotation((scale))) %
-      360;
-  lv_obj_set_style_transform_rotation(obj, angle * 10, LV_PART_MAIN);
+  return ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
+          lv_scale_get_rotation((scale))) %
+         360;
 }
+
 void IndicatorLine::set_obj(lv_obj_t *lv_obj) {
   LvCompound::set_obj(lv_obj);
   lv_line_set_points(lv_obj, this->points_, 2);
@@ -313,12 +312,7 @@ void IndicatorLine::set_obj(lv_obj_t *lv_obj) {
 }
 
 void IndicatorLine::set_value(int value) {
-  auto *scale = lv_obj_get_parent(this->obj);
-  auto min_value = lv_scale_get_range_min_value(scale);
-  int16_t angle =
-      ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
-       lv_scale_get_rotation((scale))) %
-      360;
+  auto angle = lv_get_needle_angle_for_value(this->obj, value);
   if (angle != this->angle_) {
     this->angle_ = angle;
     this->update_length_();
@@ -684,7 +678,6 @@ lv_obj_t *lv_container_create(lv_obj_t *parent) {
   lv_obj_class_init_obj(obj);
   return obj;
 }
-
 }  // namespace esphome::lvgl
 
 lv_result_t lv_mem_test_core() { return LV_RESULT_OK; }
