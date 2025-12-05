@@ -281,6 +281,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Bob Kersten (@bobkersten)](https://github.com/bobkersten)
 - [Bodmer (@Bodmer)](https://github.com/Bodmer)
 - [Anthony Todd (@bohregard)](https://github.com/bohregard)
+- [Bohrium332 (@Bohrium332)](https://github.com/Bohrium332)
 - [Bomaker (@Bomaker)](https://github.com/Bomaker)
 - [Mauricio Bonani (@bonanitech)](https://github.com/bonanitech)
 - [Casey Olson (@bookcasey)](https://github.com/bookcasey)
@@ -617,6 +618,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [dyarkovoy (@dyarkovoy)](https://github.com/dyarkovoy)
 - [Janez Troha (@dz0ny)](https://github.com/dz0ny)
 - [Dimitris Zervas (@dzervas)](https://github.com/dzervas)
+- [Dziban303 (@dziban303)](https://github.com/dziban303)
 - [dziobson (@dziobson)](https://github.com/dziobson)
 - [Dan Jackson (@e28eta)](https://github.com/e28eta)
 - [Ettore Beltrame (@E440QF)](https://github.com/E440QF)
@@ -671,6 +673,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [ervede (@ervede)](https://github.com/ervede)
 - [escoand (@escoand)](https://github.com/escoand)
 - [Eric Severance (@esev)](https://github.com/esev)
+- [esphome[bot] (@esphome[bot])](https://github.com/esphome[bot])
 - [esphomebot (@esphomebot)](https://github.com/esphomebot)
 - [espressif2022 (@espressif2022)](https://github.com/espressif2022)
 - [Daniel Dunn (@EternityForest)](https://github.com/EternityForest)
@@ -909,6 +912,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Jan Pobořil (@iBobik)](https://github.com/iBobik)
 - [icarome (@icarome)](https://github.com/icarome)
 - [icefest (@icefest)](https://github.com/icefest)
+- [Igor Cicimov (@icicimov)](https://github.com/icicimov)
 - [ChenHsingYu (@idreamshen)](https://github.com/idreamshen)
 - [igg (@igg)](https://github.com/igg)
 - [Ignacio Hernandez-Ros (@IgnacioHR)](https://github.com/IgnacioHR)
@@ -1384,6 +1388,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [mhentschke (@mhentschke)](https://github.com/mhentschke)
 - [Marcel Hetzendorfer (@mhetzi)](https://github.com/mhetzi)
 - [M Hightower (@mhightower83)](https://github.com/mhightower83)
+- [Michael (@mib1185)](https://github.com/mib1185)
 - [Jörg Thalheim (@Mic92)](https://github.com/Mic92)
 - [Michaël Arnauts (@michaelarnauts)](https://github.com/michaelarnauts)
 - [michaelmeller (@michaelmeller)](https://github.com/michaelmeller)
@@ -2279,4 +2284,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated December 3, 2025.*
+*This page was last updated December 4, 2025.*
