@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
     CONF_NAME,
+    CONF_NUMBER,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
@@ -515,14 +516,29 @@ def _detect_variant(value):
 
 def _config_mentions_rf_switch(config_obj):
     """Check whether the config references the XIAO ESP32C6 RF switch pins."""
+    rf_pin_numbers = {3, 14}
+    rf_pin_names = {"RF_SWITCH_EN", "RF_ANT_SELECT", "GPIO3", "GPIO14"}
+
+    def _matches_pin(value):
+        if isinstance(value, str):
+            return value.upper() in rf_pin_names
+        if isinstance(value, dict):
+            # Pin schemas are normalized to include the pin number.
+            number = value.get(CONF_NUMBER)
+            if isinstance(number, int) and number in rf_pin_numbers:
+                return True
+            if "pin" in value and _matches_pin(value["pin"]):
+                return True
+        number_attr = getattr(value, "number", None)
+        return isinstance(number_attr, int) and number_attr in rf_pin_numbers
+
     if isinstance(config_obj, dict):
+        if _matches_pin(config_obj):
+            return True
         return any(_config_mentions_rf_switch(value) for value in config_obj.values())
     if isinstance(config_obj, list):
         return any(_config_mentions_rf_switch(item) for item in config_obj)
-    if isinstance(config_obj, str):
-        upper = config_obj.upper()
-        return upper in {"RF_SWITCH_EN", "RF_ANT_SELECT", "GPIO3", "GPIO14"}
-    return False
+    return _matches_pin(config_obj)
 
 
 def final_validate(config):
@@ -591,23 +607,24 @@ def final_validate(config):
     ):
         _LOGGER.warning(
             "Seeed Studio XIAO ESP32C6 ships with its RF switch off by default. "
-            "Enable the radio early in your config by driving RF_SWITCH_EN (GPIO3) low "
-            "(use inverted: true) and selecting the antenna with RF_ANT_SELECT (GPIO14, low selects on-board). "
-            "Example:\n"
-            "  output:\n"
-            "    - platform: gpio\n"
-            "      id: rf_switch_enable\n"
-            "      pin:\n"
-            "        number: GPIO3\n"
-            "        inverted: true\n"
-            "    - platform: gpio\n"
-            "      id: rf_antenna_select\n"
-            "      pin: GPIO14\n"
+            "Make sure to drive the RF_SWITCH_EN (GPIO3) low to improve signal strength. "
+            "Drive the antenna selection pin RF_ANT_SELECT (GPIO14) low to select the on-board ceramic antenna. "
+            "Example:\n\n"
+            "output:\n"
+            "  - platform: gpio\n"
+            "    id: rf_switch_enable\n"
+            "    pin: RF_SWITCH_EN\n"
+            "    inverted: true\n"
+            "  - platform: gpio\n"
+            "    id: rf_antenna_select\n"
+            "    pin: RF_ANT_SELECT\n"
+            "\n"
+            "esphome:\n"
             "  on_boot:\n"
             "    - priority: 800\n"
             "      then:\n"
-            "        - output.turn_on: rf_switch_enable\n"
-            "        - output.turn_off: rf_antenna_select"
+            "        - output.turn_on: rf_switch_enable # Enable RF switch to connect any antenna\n"
+            "        - output.turn_off: rf_antenna_select # Select the on-board ceramic antenna\n"
         )
     if errs:
         raise cv.MultipleInvalid(errs)
