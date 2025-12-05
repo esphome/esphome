@@ -12,7 +12,7 @@ const char ASCII_LF = 0x0A;
 
 using namespace std;
 string CxREG_MODE[3] = {"CREG", "CEREG", "CGREG"};
-uint8_t CxREG_INDEX = 0;          // can be initialized with anothe rvalue if anothe rmode is preferred 0=GSM, 1=LTE, 2=GPRS
+uint8_t CxREG_INDEX = 0;          // can be initialized with another value if another mode is preferred : 0=GSM, 1=LTE, 2=GPRS
 
 void Sim7600Component::update() {
   if (this->watch_dog_++ == 2) {
