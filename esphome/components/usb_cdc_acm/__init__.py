@@ -1,10 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import esp32, uart
 from esphome.components.esp32 import (
-    add_idf_sdkconfig_option,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_sdkconfig_option,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RX_BUFFER_SIZE, CONF_TX_BUFFER_SIZE
