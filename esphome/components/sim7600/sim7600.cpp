@@ -243,12 +243,13 @@ void Sim7600Component::parse_cmd_(std::string message) {
       //           "+CxREG: *,4"  means technology not available, try another one
       //           "+CxREG: -,-"  means not registered ok
 
-      uint8_t INDEX_SHIFT = (CxREG_INDEX == 0) ? 0 : 1 ;
+    //  uint8_t INDEX_SHIFT = (CxREG_INDEX == 0) ? 0 : 1 ;
+        uint8_t INDEX_SHIFT = CxREG_MODE[CxREG_INDEX].length()-4;
     //  bool registered = message.compare(0, 6+INDEX_SHIFT, "+" + CxREG_MODE[CxREG_INDEX] + ":") == 0 && (message[9+INDEX_SHIFT] == '1' || message[9+INDEX_SHIFT] == '5'  || message[9+INDEX_SHIFT] == '6');
       bool registered = message.compare(1, 5+INDEX_SHIFT, CxREG_MODE[CxREG_INDEX]) == 0 && (message[9+INDEX_SHIFT] == '1' || message[9+INDEX_SHIFT] == '5'  || message[9+INDEX_SHIFT] == '6');     
       if (registered) {
         if (!this->registered_) {
-          ESP_LOGD(TAG,  "%s registered OK",  CxREG_MODE[CxREG_INDEX].c_str() );
+          ESP_LOGD(TAG,  "%s registered OK", CxREG_MODE[CxREG_INDEX].c_str() );
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
@@ -261,20 +262,20 @@ void Sim7600Component::parse_cmd_(std::string message) {
 #endif
       } else {
        		if (message[7+INDEX_SHIFT] == '0') {           // Network registration is disabled, enable it   
-                ESP_LOGD(TAG, " %s registration is disabled, enable it", CxREG_MODE[CxREG_INDEX].c_str() );
+                ESP_LOGD(TAG, "%s network registration is disabled, enable it", CxREG_MODE[CxREG_INDEX].c_str() );
                 send_cmd_("AT+" + CxREG_MODE[CxREG_INDEX] + "=1");                        
                 this->expect_ack_ = true;
                 this->state_ = STATE_SETUP_CMGF;
       		//  break;
       		} else if (message[9+INDEX_SHIFT] == '4')  {          // not available, trying next one
-                ESP_LOGD(TAG, "%s  network registration not available, trying next %s", CxREG_MODE[CxREG_INDEX].c_str() , CxREG_MODE[(CxREG_INDEX+1) % 3].c_str() );
+                ESP_LOGD(TAG, "%s network registration is not available, trying %s", CxREG_MODE[CxREG_INDEX].c_str() , CxREG_MODE[(CxREG_INDEX+1) % 3].c_str() );
                 CxREG_INDEX = (CxREG_INDEX + 1) % 3;
                 this->state_ = STATE_CxREG;
                 this->expect_ack_ = true;
               //  break;			
           } else {
             // Keep waiting registration           
-                ESP_LOGD(TAG, "%s  network registration failed, trying %s", CxREG_MODE[CxREG_INDEX].c_str(), CxREG_MODE[(CxREG_INDEX+1) % 3].c_str() );
+                ESP_LOGD(TAG, "%s network registration failed, trying %s", CxREG_MODE[CxREG_INDEX].c_str(), CxREG_MODE[(CxREG_INDEX+1) % 3].c_str() );
                 CxREG_INDEX = (CxREG_INDEX + 1) % 3;
                 this->state_ = STATE_INIT;
           }
