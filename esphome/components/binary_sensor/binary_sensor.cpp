@@ -35,20 +35,23 @@ void BinarySensor::send_state_internal(bool new_state) {
   // copy the new state to the visible property for backwards compatibility, before any callbacks
   this->state = new_state;
   // Note that set_state_ de-dups and will only trigger callbacks if the state has actually changed
-  if (this->set_state_(new_state)) {
-    ESP_LOGD(TAG, "'%s': New state is %s", this->get_name().c_str(), ONOFF(new_state));
-  }
+  this->set_state_(new_state);
 }
 
-#if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
 bool BinarySensor::set_state_(const optional<bool> &state_) {
   if (StatefulEntityBase::set_state_(state_)) {
+#ifdef USE_CONTROLLER_REGISTRY
     ControllerRegistry::notify_binary_sensor_update(this);
+#endif
+    if (state_.has_value()) {
+      ESP_LOGD(TAG, "'%s': %s ", this->get_name().c_str(), ONOFF(state_));
+    } else {
+      ESP_LOGD(TAG, "'%s': unknown", this->get_name().c_str());
+    }
     return true;
   }
   return false;
 }
-#endif
 
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;
