@@ -239,7 +239,11 @@ template<typename... Ts> class Action {
   template<typename... Us> friend class ContinuationAction;
 
   virtual void play(const Ts &...x) = 0;
-  void play_next_(const Ts &...x) {
+
+  /// Continue to the next action in the chain.
+  /// Marked noinline to prevent compiler from inlining this into every play_complex caller,
+  /// which can cause significant code bloat when templates are instantiated many times.
+  void __attribute__((noinline)) play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
       if (this->next_ != nullptr) {
@@ -255,13 +259,19 @@ template<typename... Ts> class Action {
   }
 
   virtual void stop() {}
-  void stop_next_() {
+
+  /// Stop the next action in the chain.
+  /// Marked noinline to prevent compiler from unrolling the recursive chain traversal,
+  /// which can cause massive code bloat (500+ bytes per template instantiation).
+  void __attribute__((noinline)) stop_next_() {
     if (this->next_ != nullptr) {
       this->next_->stop_complex();
     }
   }
 
-  bool is_running_next_() {
+  /// Check if next action in chain is running.
+  /// Marked noinline to prevent compiler from unrolling the recursive chain traversal.
+  bool __attribute__((noinline)) is_running_next_() {
     if (this->next_ == nullptr)
       return false;
     return this->next_->is_running();
