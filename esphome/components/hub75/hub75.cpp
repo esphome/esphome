@@ -3,7 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome::hub75_display {
+namespace esphome::hub75 {
 
 static const char *const TAG = "hub75";
 
@@ -187,6 +187,6 @@ void HUB75Display::set_brightness(int brightness) {
   }
 }
 
-}  // namespace esphome::hub75_display
+}  // namespace esphome::hub75
 
 #endif

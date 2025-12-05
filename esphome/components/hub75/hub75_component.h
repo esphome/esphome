@@ -10,7 +10,7 @@
 #include "esphome/core/log.h"
 #include "hub75.h"  // hub75 library
 
-namespace esphome::hub75_display {
+namespace esphome::hub75 {
 
 using esphome::display::ColorBitness;
 using esphome::display::ColorOrder;
@@ -50,6 +50,6 @@ class HUB75Display : public display::Display {
   bool enabled_{false};
 };
 
-}  // namespace esphome::hub75_display
+}  // namespace esphome::hub75
 
 #endif
