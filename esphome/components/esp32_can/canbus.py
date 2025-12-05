@@ -4,8 +4,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import canbus
 from esphome.components.canbus import CONF_BIT_RATE, CanbusComponent, CanSpeed
-from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
@@ -13,6 +12,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    get_esp32_variant,
 )
 import esphome.config_validation as cv
 from esphome.const import (
