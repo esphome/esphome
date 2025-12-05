@@ -52,11 +52,6 @@ void APIServer::setup() {
 #endif
 #endif
 
-  // Schedule reboot if no clients connect within timeout
-  if (this->reboot_timeout_ != 0) {
-    this->schedule_reboot_timeout_();
-  }
-
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
   if (this->socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket");
@@ -110,16 +105,13 @@ void APIServer::setup() {
     camera::Camera::instance()->add_listener(this);
   }
 #endif
-}
 
-void APIServer::schedule_reboot_timeout_() {
-  this->status_set_warning();
-  this->set_timeout("api_reboot", this->reboot_timeout_, []() {
-    if (!global_api_server->is_connected()) {
-      ESP_LOGE(TAG, "No clients; rebooting");
-      App.reboot();
-    }
-  });
+  // Initialize last_connected_ for reboot timeout tracking
+  this->last_connected_ = App.get_loop_component_start_time();
+  // Set warning status if reboot timeout is enabled
+  if (this->reboot_timeout_ != 0) {
+    this->status_set_warning();
+  }
 }
 
 void APIServer::loop() {
@@ -147,15 +139,24 @@ void APIServer::loop() {
       this->clients_.emplace_back(conn);
       conn->start();
 
-      // Clear warning status and cancel reboot when first client connects
+      // First client connected - clear warning and update timestamp
       if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
         this->status_clear_warning();
-        this->cancel_timeout("api_reboot");
+        this->last_connected_ = App.get_loop_component_start_time();
       }
     }
   }
 
   if (this->clients_.empty()) {
+    // Check reboot timeout - done in loop to avoid scheduler heap churn
+    // (cancelled scheduler items sit in heap memory until their scheduled time)
+    if (this->reboot_timeout_ != 0) {
+      const uint32_t now = App.get_loop_component_start_time();
+      if (now - this->last_connected_ > this->reboot_timeout_) {
+        ESP_LOGE(TAG, "No clients; rebooting");
+        App.reboot();
+      }
+    }
     return;
   }
 
@@ -194,9 +195,10 @@ void APIServer::loop() {
     }
     this->clients_.pop_back();
 
-    // Schedule reboot when last client disconnects
+    // Last client disconnected - set warning and start tracking for reboot timeout
     if (this->clients_.empty() && this->reboot_timeout_ != 0) {
-      this->schedule_reboot_timeout_();
+      this->status_set_warning();
+      this->last_connected_ = App.get_loop_component_start_time();
     }
     // Don't increment client_index since we need to process the swapped element
   }
