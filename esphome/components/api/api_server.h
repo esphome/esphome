@@ -202,7 +202,6 @@ class APIServer : public Component,
 #endif
 
  protected:
-  void schedule_reboot_timeout_();
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
@@ -218,6 +217,7 @@ class APIServer : public Component,
 
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
+  uint32_t last_connected_{0};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
