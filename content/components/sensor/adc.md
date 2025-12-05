@@ -86,6 +86,7 @@ To simplify this, we provide the setting `attenuation: auto` for an automatic/se
 | ESP32-C3 | GPIO0 - GPIO4 | GPIO5 |
 | ESP32-C5 | GPIO1 - GPIO6 | no `ADC2`                                             |
 | ESP32-C6 | GPIO0 - GPIO6 | no `ADC2`                                             |
+| ESP32-C61 | GPIO1, GPIO3 - GPIO5 | no `ADC2`                                      |
 | ESP32-H2 | GPIO1 - GPIO5 | no `ADC2`                                             |
 | ESP32-S2 | GPIO1 - GPIO10 | GPIO11 - GPIO20 |
 | ESP32-S3 | GPIO1 - GPIO10 | GPIO11 - GPIO20 |
@@ -94,7 +95,7 @@ To simplify this, we provide the setting `attenuation: auto` for an automatic/se
 Different ESP32 variants use different ADC calibration methods:
 
 - Original ESP32 (non-variant) & ESP32-S2: Use line-fitting calibration
-- ESP32-C3, ESP32-C5, ESP32-C6, ESP32-H2, ESP32-S3 & ESP32-P4: Use curve-fitting calibration
+- ESP32-C3, ESP32-C5, ESP32-C6, ESP32-C61, ESP32-H2, ESP32-S3 & ESP32-P4: Use curve-fitting calibration
 
 This is handled automatically by the code, but it's worth noting if you're debugging ADC readings or need to understand the calibration process.
 
