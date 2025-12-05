@@ -37,9 +37,7 @@ class CoapClientUpdate : public update::UpdateEntity, public PollingComponent {
                               size_t total, void *context);
 
  protected:
-  void get_(std::string &url, std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
-                                                 size_t offset, size_t total, void *context)>
-                                  callback);
+  void get_(std::string &url);
 
   CoapClientComponent *request_parent_;
   OtaCoapClientComponent *ota_parent_;

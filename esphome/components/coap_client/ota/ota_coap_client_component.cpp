@@ -121,7 +121,7 @@ uint8_t OtaCoapClientComponent::do_ota_() {
     return error_code;
   }
 
-  this->get_(this->url_, OtaCoapClientComponent::image_callback);
+  this->get_(this->url_, 2);
   while (!this->image_download_ready_) {
     App.feed_wdt();
     yield();
@@ -169,7 +169,7 @@ bool OtaCoapClientComponent::get_md5_expected_() {
     return false;
   }
   ESP_LOGI(TAG, "Get: %s", this->md5_url_.c_str());
-  this->get_(this->md5_url_, OtaCoapClientComponent::md5_callback);
+  this->get_(this->md5_url_, 1);
   while (!this->md5_url_ready_) {
     App.feed_wdt();
     yield();
@@ -244,13 +244,16 @@ void OtaCoapClientComponent::image_callback(uint16_t response_code, const unsign
   }
 }
 
-void OtaCoapClientComponent::get_(std::string &url,
-                                  std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
-                                                     size_t offset, size_t total, void *context)> &callback) {
+void OtaCoapClientComponent::get_(std::string &url, uint8_t callback_code) {
   std::unique_ptr<CoapClientRequestData> tx_request = std::make_unique<CoapClientRequestData>();
   tx_request->method = CoapMethod::GET;
   tx_request->uri = url;
-  tx_request->callback = callback;
+
+  if (callback_code == 1) {
+    tx_request->callback = OtaCoapClientComponent::md5_callback;
+  } else if (callback_code == 2) {
+    tx_request->callback = OtaCoapClientComponent::image_callback;
+  }
   tx_request->callback_context = this;
   this->parent_->process_request(std::move(tx_request));
 }

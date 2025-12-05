@@ -57,9 +57,7 @@ class OtaCoapClientComponent : public ota::OTAComponent, public Parented<CoapCli
   uint8_t do_ota_();
   bool get_md5_expected_();
   bool validate_url_(const std::string &url);
-  void get_(std::string &url, std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
-                                                 size_t offset, size_t total, void *context)>
-                                  callback);
+  void get_(std::string &url, uint8_t callback_code);
 
   bool md5_url_ready_{false};
   std::string md5_computed_{};

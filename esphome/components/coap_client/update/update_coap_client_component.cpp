@@ -27,7 +27,7 @@ void CoapClientUpdate::setup() {
       this->publish_state();
     } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
       this->state_ = update::UPDATE_STATE_AVAILABLE;
-      this->status_set_error("Failed to install firmware");
+      this->status_set_error(LOG_STR("Failed to install firmware"));
       this->publish_state();
     }
   });
@@ -48,7 +48,7 @@ void CoapClientUpdate::update_task(void *params) {
   this_update->set_update_response_ready(false);
   this_update->set_update_response_has_error(false);
   ESP_LOGI(TAG, "Get: %s", this_update->source_url_.c_str());
-  this_update->get_(this_update->source_url_, CoapClientUpdate::update_callback);
+  this_update->get_(this_update->source_url_);
   auto start_time = millis();
   while ((!this_update->is_update_response_ready()) && (millis() - start_time < 20000)) {
     yield();
@@ -57,7 +57,7 @@ void CoapClientUpdate::update_task(void *params) {
   if (!this_update->is_update_response_ready() || this_update->update_response_has_error_) {
     std::string msg = str_sprintf("Failed to retrieve %s", this_update->source_url_.c_str());
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
+    this_update->defer([this_update, msg]() { this_update->status_set_error(LOG_STR(msg.c_str())); });
     UPDATE_RETURN;
   }
 
@@ -200,13 +200,11 @@ void CoapClientUpdate::update_callback(uint16_t response_code, const unsigned ch
   }
 }
 
-void CoapClientUpdate::get_(std::string &url,
-                            std::function<void(uint16_t response_code, const unsigned char *data, size_t data_len,
-                                               size_t offset, size_t total, void *context)> &callback) {
+void CoapClientUpdate::get_(std::string &url) {
   std::unique_ptr<CoapClientRequestData> tx_request = std::make_unique<CoapClientRequestData>();
   tx_request->method = CoapMethod::GET;
   tx_request->uri = url;
-  tx_request->callback = callback;
+  tx_request->callback = CoapClientUpdate::update_callback;
   tx_request->callback_context = this;
   this->request_parent_->process_request(std::move(tx_request));
 }

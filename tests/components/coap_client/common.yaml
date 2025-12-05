@@ -30,31 +30,19 @@ ota:
       then:
         lambda: 'ESP_LOGD("ota", "State %d", state);'
 
+update:
+  - platform: coap_client
+    id: update_coap_client_id
+    name: Firmware Update
+    source: coap://[fde0:982b:d0e4:a66f:726b:fff:fe36:9916]/manifest.json
+    update_interval: 6h
+
 button:
   - platform: template
-    name: Firmware update
+    name: "00 - Update"
     on_press:
       then:
-        - ota.coap_client.flash:
-            id: coap_client_ota
-            md5_url: coap://sample.net/local/esphome/firmware.md5
-            url: coap://sample.net/local/esphome/firmware.bin
-
-        - ota.coap_client.flash:
-            id: coap_client_ota
-            md5: 0123456789abcdef0123456789abcdef
-            url: coap://sample.net/local/esphome/firmware.bin
-
-        - logger.log: "This message should be not displayed (reboot)"
-
-  - platform: coap_client
-    name: OTA Update
-    id: ota_update
-    ota_id: coap_client_ota
-    source: coap://sample.net/local/esphome/manifest.json
-    on_update_available:
-      - logger.log: "A new update is available"
-
+        - update.perform
   - platform: template
     name: "01 - short form call to californium/test"
     on_press:
@@ -66,6 +54,7 @@ button:
     on_press:
       then:
         - coap_client.get:
+            request_name: "Test"
             url: coap://californium.eclipseprojects.io/test
             capture_response: true
             on_response:
@@ -88,7 +77,7 @@ button:
             on_response:
               then:
                 - logger.log:
-                    format: '%s Response status: %d, Duration: %u, ms'
+                    format: '%s Response status: %d, Duration: %u ms'
                     args:
                       - request_name.c_str()
                       - response->status_code
@@ -98,6 +87,7 @@ button:
     name: 04 - call to californium/obs
     on_press:
       then:
+        - delay: 5 sec
         - coap_client.get:
             request_name: "TestObserve"
             url: coap://californium.eclipseprojects.io/obs
@@ -115,8 +105,30 @@ button:
                       - payload.c_str()
 
   - platform: template
-    name: "05 - remove TestObserve"
+    name: "05 - stop TestObserve"
     on_press:
       then:
-        - coap_client.remove:
+        - coap_client.stop:
             request_name: "TestObserve"
+            pause: true
+
+  - platform: template
+    name: "06 - resume TestObserve"
+    on_press:
+      then:
+        - coap_client.resume: "TestObserve"
+
+  - platform: template
+    name: "07 - remove TestObserve"
+    on_press:
+      then:
+        - coap_client.remove: "TestObserve"
+
+  - platform: template
+    name: "00 - OTA Coap Update"
+    on_press:
+      then:
+        - logger.log: "Begin OTA Flash"
+        - ota.coap_client.flash:
+            md5_url: coap://[fde0:982b:d0e4:a66f:726b:fff:fe36:9916]/test-esp32-1/.pioenvs/test-esp32-1/firmware.md5
+            url: coap://[fde0:982b:d0e4:a66f:726b:fff:fe36:9916]/test-esp32-1/.pioenvs/test-esp32-1/firmware.ota.bin
