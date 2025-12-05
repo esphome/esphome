@@ -43,7 +43,7 @@ bool BinarySensor::set_state_(const optional<bool> &state_) {
 #ifdef USE_CONTROLLER_REGISTRY
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
-    ESP_LOGD(TAG, "'%s': %s ", this->get_name().c_str(), ONOFFMAYBE(state_));
+    ESP_LOGD(TAG, "'%s': %s", this->get_name().c_str(), ONOFFMAYBE(state_));
     return true;
   }
   return false;
