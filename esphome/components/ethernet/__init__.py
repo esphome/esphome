@@ -3,16 +3,14 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
-    add_idf_component,
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
-)
-from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
 )
 from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
@@ -383,6 +381,7 @@ async def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_MANUAL_IP in config:
+        cg.add_define("USE_ETHERNET_MANUAL_IP")
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     # Add compile-time define for PHY types with specific code

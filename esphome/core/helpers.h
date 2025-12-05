@@ -111,6 +111,23 @@ template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); 
 /// @name Container utilities
 ///@{
 
+/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory)
+/// Avoids copying data from flash to RAM by keeping a pointer to the flash data.
+/// Similar to std::span but with minimal overhead for embedded systems.
+
+template<typename T> class ConstVector {
+ public:
+  constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+
+  const constexpr T &operator[](size_t i) const { return data_[i]; }
+  constexpr size_t size() const { return size_; }
+  constexpr bool empty() const { return size_ == 0; }
+
+ protected:
+  const T *data_;
+  size_t size_;
+};
+
 /// Minimal static vector - saves memory by avoiding std::vector overhead
 template<typename T, size_t N> class StaticVector {
  public:
@@ -224,6 +241,9 @@ template<typename T> class FixedVector {
   FixedVector(FixedVector &&other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
     other.reset_();
   }
+
+  // Allow conversion to std::vector
+  operator std::vector<T>() const { return {data_, data_ + size_}; }
 
   FixedVector &operator=(FixedVector &&other) noexcept {
     if (this != &other) {
@@ -494,6 +514,17 @@ std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, .
 /// @param suffix_len Length of the suffix
 /// @return The concatenated string: name + sep + suffix
 std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len);
+
+/// Optimized string concatenation: name + separator + suffix (const char* overload)
+/// Uses a fixed stack buffer to avoid heap allocations.
+/// @param name The base name string
+/// @param name_len Length of the name
+/// @param sep Single character separator
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return The concatenated string: name + sep + suffix
+std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
+                                  size_t suffix_len);
 
 ///@}
 
@@ -1034,6 +1065,11 @@ std::string get_mac_address_pretty();
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
 /// Assumes buffer length is 13 (12 digits for hexadecimal representation followed by null terminator).
 void get_mac_address_into_buffer(std::span<char, 13> buf);
+
+/// Get the device MAC address into the given buffer, in colon-separated uppercase hex notation.
+/// Buffer must be exactly 18 bytes (17 for "XX:XX:XX:XX:XX:XX" + null terminator).
+/// Returns pointer to the buffer for convenience.
+const char *get_mac_address_pretty_into_buffer(std::span<char, 18> buf);
 
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).

@@ -8,8 +8,7 @@
 #include "esphome/components/time/real_time_clock.h"
 #endif
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 class DateTimeBase : public EntityBase {
  public:
@@ -37,5 +36,4 @@ class DateTimeStateTrigger : public Trigger<ESPTime> {
   }
 };
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime

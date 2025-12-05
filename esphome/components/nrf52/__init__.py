@@ -103,6 +103,7 @@ nrf52_ns = cg.esphome_ns.namespace("nrf52")
 DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
+CONF_DCDC = "dcdc"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
 
@@ -121,6 +122,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
                 }
             ),
+            cv.Optional(CONF_DCDC, default=True): cv.boolean,
             cv.Optional(CONF_REG0): cv.Schema(
                 {
                     cv.Required(CONF_VOLTAGE): cv.All(
@@ -196,6 +198,7 @@ async def to_code(config: ConfigType) -> None:
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
+    zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
 
     if reg0_config := config.get(CONF_REG0):
         value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
