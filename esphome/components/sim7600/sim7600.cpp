@@ -242,7 +242,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       //           "+CxREG: *,4"  means technology not available, try another one
       //           "+CxREG: -,-"  means not registered ok
 
-      uint8 INDEX_SHIFT = (CxREG_INDEX == 0) ? 0 : 1 ;
+      uint8_t INDEX_SHIFT = (CxREG_INDEX == 0) ? 0 : 1 ;
     //  bool registered = message.compare(0, 6+INDEX_SHIFT, "+" + CxREG_MODE[CxREG_INDEX] + ":") == 0 && (message[9+INDEX_SHIFT] == '1' || message[9+INDEX_SHIFT] == '5'  || message[9+INDEX_SHIFT] == '6');
       bool registered = message.compare(1, 5+INDEX_SHIFT, CxREG_MODE[CxREG_INDEX]) == 0 && (message[9+INDEX_SHIFT] == '1' || message[9+INDEX_SHIFT] == '5'  || message[9+INDEX_SHIFT] == '6');     
       if (registered) {
