@@ -58,7 +58,12 @@ api:
   > The defaults are set to balance memory usage with allowing multiple simultaneous connections.
 
 - **max_send_queue** (*Optional*, int): The maximum number of messages that can be queued for sending per connection before the connection is dropped. Must be between 1 and 64.
-  Defaults to `5` for ESP8266/RP2040, `8` for ESP32/BK72xx/RTL87xx/LN882x, `16` for host platform. This prevents memory exhaustion when a client is slow or network-stalled.
+  Defaults to:
+  - `5` for ESP8266/RP2040,
+  - `8` for ESP32/BK72xx/LN882x/nRF52/RTL87xx,
+  - `16` for host platform.
+  
+  This prevents memory exhaustion when a client is slow or network-stalled.
   Each queued message uses approximately 8-12 bytes of overhead plus the message size.
 
   > [!NOTE]
