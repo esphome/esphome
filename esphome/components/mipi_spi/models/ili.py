@@ -153,6 +153,8 @@ ILI9341 = DriverChip(
 # M5Stack Core2 uses ILI9341 chip - mirror_x disabled for correct orientation
 ILI9341.extend(
     "M5CORE2",
+    width=320,
+    height=240,
     mirror_x=False,
     cs_pin=5,
     dc_pin=15,
