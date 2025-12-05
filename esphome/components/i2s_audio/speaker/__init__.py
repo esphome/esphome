@@ -62,7 +62,7 @@ I2C_COMM_FMT_OPTIONS = {
     "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG,
 }
 
-INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32]
+INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32]
 
 
 def _set_num_channels_from_config(config):
