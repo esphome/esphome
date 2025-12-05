@@ -5,8 +5,7 @@
 
 #if defined(USE_LIBRETINY) || defined(USE_ESP8266)
 
-namespace esphome {
-namespace remote_receiver {
+namespace esphome::remote_receiver {
 
 static const char *const TAG = "remote_receiver";
 
@@ -19,14 +18,14 @@ static void IRAM_ATTR HOT write_value(RemoteReceiverComponentStore *arg, uint32_
     buffer_write = 0;
   }
 
-  // detect overflow and reset write pointer
+  // detect overflow and reset the write pointer
   if (buffer_write == arg->buffer_read) {
     buffer_write = arg->buffer_start;
     arg->overflow = true;
   }
 
   // detect idle and start a new sequence unless there is only idle in
-  // which case reset write pointer instead
+  // which case reset the write pointer instead
   if (delta >= arg->idle_us) {
     if (arg->buffer_write == arg->buffer_start) {
       buffer_write = arg->buffer_start;
@@ -38,7 +37,7 @@ static void IRAM_ATTR HOT write_value(RemoteReceiverComponentStore *arg, uint32_
 }
 
 static void IRAM_ATTR HOT commit_value(RemoteReceiverComponentStore *arg, uint32_t micros, bool level) {
-  // commit value if level is different from the last commit level
+  // commit value if the level is different from the last commit level
   if (level != arg->commit_level) {
     write_value(arg, micros - arg->commit_micros, level);
     arg->commit_micros = micros;
@@ -47,13 +46,13 @@ static void IRAM_ATTR HOT commit_value(RemoteReceiverComponentStore *arg, uint32
 }
 
 void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverComponentStore *arg) {
-  // invert level so it matches the level of the signal before the edge
+  // invert the level so it matches the level of the signal before the edge
   const bool curr_level = !arg->pin.digital_read();
   const uint32_t curr_micros = micros();
   const bool prev_level = arg->prev_level;
   const uint32_t prev_micros = arg->prev_micros;
 
-  // commit prev if pulse not filtered and the level is different
+  // commit the previous value if the pulse is not filtered and the level is different
   if (curr_micros - prev_micros >= arg->filter_us && prev_level != curr_level) {
     commit_value(arg, prev_micros, prev_level);
   }
@@ -97,8 +96,8 @@ void RemoteReceiverComponent::loop() {
     s.overflow = false;
   }
 
-  // if no data is available, check for data stuck in the buffer and commit the
-  // previous value if needed
+  // if no data is available check for uncommitted data stuck in the buffer and commit
+  // the previous value if needed
   uint32_t last_index = s.buffer_start;
   if (last_index == s.buffer_read) {
     InterruptLock lock;
@@ -138,7 +137,6 @@ void RemoteReceiverComponent::loop() {
   this->call_listeners_dumpers_();
 }
 
-}  // namespace remote_receiver
-}  // namespace esphome
+}  // namespace esphome::remote_receiver
 
 #endif

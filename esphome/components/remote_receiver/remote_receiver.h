@@ -9,8 +9,7 @@
 #include <driver/rmt_rx.h>
 #endif
 
-namespace esphome {
-namespace remote_receiver {
+namespace esphome::remote_receiver {
 
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
 struct RemoteReceiverComponentStore {
@@ -101,5 +100,4 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   uint32_t idle_us_{10000};
 };
 
-}  // namespace remote_receiver
-}  // namespace esphome
+}  // namespace esphome::remote_receiver
