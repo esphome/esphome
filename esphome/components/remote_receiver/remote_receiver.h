@@ -15,9 +15,9 @@ namespace esphome::remote_receiver {
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
-  /// Stores the time (in micros) that the leading/falling edge happened at
-  ///  * An even index means a falling edge appeared at the time stored at the index
-  ///  * An uneven index means a rising edge appeared at the time stored at the index
+  /// Stores pulse durations in microseconds as signed integers
+  ///  * Positive values indicate high pulses (marks)
+  ///  * Negative values indicate low pulses (spaces)
   volatile int32_t *buffer{nullptr};
   /// The position last written to
   volatile uint32_t buffer_write{0};
