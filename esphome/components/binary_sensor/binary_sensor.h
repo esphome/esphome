@@ -60,8 +60,11 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
   bool state{};
 
  protected:
-  bool set_state_(const optional<bool> &state_) override;
   Filter *filter_list_{nullptr};
+
+#if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
+  bool set_state_(const optional<bool> &state_) override;
+#endif
 };
 
 class BinarySensorInitiallyOff : public BinarySensor {
