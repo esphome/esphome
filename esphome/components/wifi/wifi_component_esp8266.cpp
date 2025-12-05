@@ -104,7 +104,15 @@ bool WiFiComponent::wifi_apply_power_save_() {
       break;
   }
   wifi_fpm_auto_sleep_set_in_null_mode(1);
-  return wifi_set_sleep_type(power_save);
+  bool success = wifi_set_sleep_type(power_save);
+#ifdef USE_WIFI_LISTENERS
+  if (success) {
+    for (auto *listener : this->power_save_listeners_) {
+      listener->on_wifi_power_save(this->power_save_);
+    }
+  }
+#endif
+  return success;
 }
 
 #if LWIP_VERSION_MAJOR != 1
