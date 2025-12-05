@@ -90,11 +90,13 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   std::string error_string_{""};
 #endif
 
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || defined(USE_ESP32)
+  RemoteReceiverComponentStore store_;
+#endif
+
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
   HighFrequencyLoopRequester high_freq_;
 #endif
-
-  RemoteReceiverComponentStore store_;
 
   uint32_t buffer_size_{};
   uint32_t filter_us_{10};
