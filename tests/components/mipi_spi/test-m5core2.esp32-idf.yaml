@@ -1,0 +1,7 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-ard.yaml
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: M5CORE2
