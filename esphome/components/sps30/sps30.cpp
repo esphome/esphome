@@ -141,7 +141,7 @@ void SPS30Component::update() {
 
   // If its not time to take an action, do nothing.
   const uint32_t update_start_ms = millis();
-  if ((int32_t) (this->next_state_ms_ - update_start_ms) > 0) {
+  if (this->next_state_ != NONE && (int32_t) (this->next_state_ms_ - update_start_ms) > 0) {
     ESP_LOGD(TAG, "Sensor waiting for %ums before transitioning to state %d.", (this->next_state_ms_ - update_start_ms),
              this->next_state_);
     return;
