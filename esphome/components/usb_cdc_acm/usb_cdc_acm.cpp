@@ -43,7 +43,7 @@ static void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event) {
   esp_err_t ret =
       tinyusb_cdcacm_read(static_cast<tinyusb_cdcacm_itf_t>(itf), rx_buf, CONFIG_TINYUSB_CDC_RX_BUFSIZE, &rx_size);
   ESP_LOGV(TAG, "tinyusb_cdc_rx_callback itf=%d (size: %u)", itf, rx_size);
-  ESP_LOG_BUFFER_HEXDUMP(TAG, rx_buf, rx_size, ESP_LOG_VERBOSE);
+  ESP_LOGVV(TAG, "rx_buf = %s", format_hex_pretty(rx_buf, rx_size).c_str());
 
   if (ret == ESP_OK && rx_size > 0) {
     RingbufHandle_t rx_ringbuf = instance->get_rx_ringbuf();
@@ -154,7 +154,7 @@ void USBCDCACMInstance::setup() {
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
-  task_name[sizeof(task_name) - 1] = static_cast<char>(this->itf_) + '0';
+  task_name[sizeof(task_name) - 1] = format_hex_char(static_cast<char>(this->itf_));
   xTaskCreate(usb_tx_task_fn, task_name, stack_size, this, 4, &this->usb_tx_task_handle_);
 
   if (this->usb_tx_task_handle_ == nullptr) {
@@ -304,7 +304,7 @@ void USBCDCACMInstance::usb_tx_task() {
     }
 
     ESP_LOGV(TAG, "USB TX itf=%d: Read %d bytes from buffer", this->itf_, tx_data_size);
-    ESP_LOG_BUFFER_HEXDUMP(TAG, data, tx_data_size, ESP_LOG_VERBOSE);
+    ESP_LOGVV(TAG, "data = %s", format_hex_pretty(data, tx_data_size).c_str());
 
     // Serial data will be split up into 64 byte chunks to be sent over USB so this
     // usually will take multiple iterations
