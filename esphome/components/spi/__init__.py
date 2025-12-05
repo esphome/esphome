@@ -3,8 +3,7 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import only_on_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     KEY_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
@@ -13,6 +12,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    only_on_variant,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
