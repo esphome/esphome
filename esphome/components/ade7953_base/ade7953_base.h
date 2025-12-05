@@ -46,7 +46,12 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   void set_pga_ib(uint8_t pga_ib) { pga_ib_ = pga_ib; }
 
   // Set input gains
-  void set_vgain(uint32_t vgain) { vgain_ = vgain; }
+  void set_vgain(uint32_t vgain) {
+    // Datasheet says: "to avoid discrepancies in other registers,
+    // if AVGAIN is set then BVGAIN should be set to the same value."
+    avgain_ = vgain;
+    bvgain_ = vgain;
+  }
   void set_aigain(uint32_t aigain) { aigain_ = aigain; }
   void set_bigain(uint32_t bigain) { bigain_ = bigain; }
   void set_awgain(uint32_t awgain) { awgain_ = awgain; }
@@ -100,7 +105,8 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   uint8_t pga_v_;
   uint8_t pga_ia_;
   uint8_t pga_ib_;
-  uint32_t vgain_;
+  uint32_t avgain_;
+  uint32_t bvgain_;
   uint32_t aigain_;
   uint32_t bigain_;
   uint32_t awgain_;

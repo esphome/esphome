@@ -29,7 +29,7 @@ void HttpRequestUpdate::setup() {
       this->publish_state();
     } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
       this->state_ = update::UPDATE_STATE_AVAILABLE;
-      this->status_set_error("Failed to install firmware");
+      this->status_set_error(LOG_STR("Failed to install firmware"));
       this->publish_state();
     }
   });
@@ -51,7 +51,7 @@ void HttpRequestUpdate::update_task(void *params) {
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
     ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error("Failed to fetch manifest"); });
+    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to fetch manifest")); });
     UPDATE_RETURN;
   }
 
@@ -60,7 +60,8 @@ void HttpRequestUpdate::update_task(void *params) {
   if (data == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error("Failed to allocate memory for manifest"); });
+    this_update->defer(
+        [this_update]() { this_update->status_set_error(LOG_STR("Failed to allocate memory for manifest")); });
     container->end();
     UPDATE_RETURN;
   }
@@ -123,7 +124,7 @@ void HttpRequestUpdate::update_task(void *params) {
   if (!valid) {
     ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error("Failed to parse manifest JSON"); });
+    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to parse manifest JSON")); });
     UPDATE_RETURN;
   }
 
