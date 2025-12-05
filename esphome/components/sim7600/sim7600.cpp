@@ -145,13 +145,14 @@ void Sim7600Component::parse_cmd_(std::string message) {
     case STATE_SETUP_CMGF:
       send_cmd_("AT+CMGF=1");
       //this->state_ = STATE_SETUP_CLIP;  // skip setup clip not supported on 7670G
-      //this->state_ = STATE_SETUP_COPS;;  // maybe not needed
-      this->state_ = STATE_CxREG;
+      this->state_ = STATE_SETUP_COPS;;  // maybe not needed
+      //this->state_ = STATE_CxREG;
       this->expect_ack_ = true;
       break;
     case STATE_SETUP_COPS:
       send_cmd_("AT+COPS=0");
-      this->state_ = STATE_CxREG;
+      //this->state_ = STATE_CxREG;
+      this->state_ = STATE_CSQ;
       this->expect_ack_ = true;
       break;    
     case STATE_SETUP_CLIP:  // skip setup clip not supported on 7670G
