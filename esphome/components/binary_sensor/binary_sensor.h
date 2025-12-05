@@ -60,6 +60,7 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
   bool state{};
 
  protected:
+  bool set_state_(const optional<bool> &state_) override;
   Filter *filter_list_{nullptr};
 };
 

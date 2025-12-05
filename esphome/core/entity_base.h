@@ -230,7 +230,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    * @param state The new state.
    * @return True if the state was changed, false if it was the same as before.
    */
-  bool set_state_(const optional<T> &state) {
+  virtual bool set_state_(const optional<T> &state) {
     if (this->state_ != state) {
       // call the full state callbacks with the previous and new state
       if (this->full_state_callbacks_ != nullptr)
