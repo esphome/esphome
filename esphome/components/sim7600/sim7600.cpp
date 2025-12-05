@@ -13,6 +13,13 @@ enum State LAST_CxREG = PREF_CxREG;
 const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 
+uint8_t CxREG_INDEX_PREF = 0;
+uint8_t CxREG_INDEX = CxREG_INDEX_PREF;
+
+using namespace std;
+
+string CxREG_MODE[3] = {"CREG", "CEREG", "CGREG"};
+
 void Sim7600Component::update() {
   if (this->watch_dog_++ == 2) {
     this->state_ = STATE_INIT;
@@ -145,17 +152,19 @@ void Sim7600Component::parse_cmd_(std::string message) {
       send_cmd_("AT+CMGF=1");
       //this->state_ = STATE_SETUP_CLIP;  // skip setup clip not supported on 7670G
       //this->state_ = LAST_CxREG;
+      this->state_ = STATE_CxREG;
       this->state_ = STATE_SETUP_COPS;
       this->expect_ack_ = true;
       break;
     case STATE_SETUP_COPS:
       send_cmd_("AT+COPS=0");
-      this->state_ = LAST_CxREG;
+      //this->state_ = LAST_CxREG;
+      this->state_ = STATE_CxREG;
       this->expect_ack_ = true;
       break;    
     case STATE_SETUP_CLIP:  // skip setup clip not supported on 7670G
       send_cmd_("AT+CLIP=1");
-      this->state_ = LAST_CxREG;
+      this->state_ = STATE_CxREG;
       this->expect_ack_ = true;
       break;
     case STATE_SETUP_USSD:
@@ -230,6 +239,70 @@ void Sim7600Component::parse_cmd_(std::string message) {
 //    90 = Not registered due to Universal Integrated Circuit Card (UICC) failure
 //    
 
+
+    
+    
+    
+    case STATE_CxREG:
+      send_cmd_("AT" + CxREG_MODE[CxREG_INDEX] + "?");                    
+      this->state_ = STATE_CxREG_WAIT;
+      break;
+        
+    case STATE_CxREG_WAIT:{
+      // Response: "+CxREG: 0,1"  means registered ok
+      //           "+CxREG: *,4"  means technology not available, try another one
+      //           "+CxREG: -,-"  means not registered ok
+
+      uint8 INDEX_SHIFT = (CxREG_INDEX == 0) ? 0 : 1 ;
+      bool registered = message.compare(0, 6+INDEX_SHIFT, "+" + CxREG_MODE[CxREG_INDEX] + ":") == 0 && (message[9+INDEX_SHIFT] == '1' || message[9+INDEX_SHIFT] == '5'  || message[9+INDEX_SHIFT] == '6');     
+      if (registered) {
+        if (!this->registered_) {
+          ESP_LOGD(TAG,  "%s registered OK",  CxREG_MODE[CxREG_INDEX] );
+        }
+        this->state_ = STATE_CSQ;
+        this->expect_ack_ = true;
+		   // LAST_CxREG = STATE_CREG;
+		
+#ifdef USE_SENSOR
+        if (this->network_sensor_ != nullptr) {
+          this->network_sensor_->publish_state(CxREG_INDEX);
+	    	}
+        ESP_LOGD(TAG, "network registration: %d (%s) ",   CxREG_INDEX,  CxREG_MODE[CxREG_INDEX] );
+#endif
+      } else {
+       		if (message[7+INDEX_SHIFT] == '0') {           // Network registration is disabled, enable it   
+                ESP_LOGD(TAG, " %s registration is disabled, enable it", CxREG_MODE[CxREG_INDEX] );
+                send_cmd_("AT" + CxREG_MODE[CxREG_INDEX] + "=1");                        
+                this->expect_ack_ = true;
+               //  LAST_CxREG = STATE_CREG;
+                this->state_ = STATE_SETUP_CMGF;
+      		//  break;
+      		} else if (message[9+INDEX_SHIFT] == '4')  {          // not available, trying next one
+                ESP_LOGD(TAG, "%s  network registration not available, trying %s", CxREG_MODE[CxREG_INDEX] , CxREG_MODE[(CxREG_INDEX+1) % 3] );
+                CxREG_INDEX = (CxREG_INDEX + 1) % 3;
+                this->state_ = STATE_CxREG;
+                this->expect_ack_ = true;
+              //  break;			
+          } else {
+            // Keep waiting registration           
+                ESP_LOGD(TAG, "%s  network registration failed, trying %s", CxREG_MODE[CxREG_INDEX] , CxREG_MODE[(CxREG_INDEX+1) % 3] );
+                CxREG_INDEX = (CxREG_INDEX + 1) % 3;
+                //LAST_CxREG = STATE_CEREG;                                                 // DCO 20251202
+                this->state_ = STATE_INIT;
+          }
+      }
+      set_registered_(registered);
+      break;
+    }
+
+
+
+
+    
+
+
+
+    
     
     case STATE_CREG:
       send_cmd_("AT+CREG?");                    
@@ -277,6 +350,10 @@ void Sim7600Component::parse_cmd_(std::string message) {
       set_registered_(registered);
       break;
     }
+
+
+
+    
     case STATE_CEREG:
       send_cmd_("AT+CEREG?");                    
       this->state_ = STATE_CEREG_WAIT;
