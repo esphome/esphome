@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "abstract_aqi_calculator.h"
 
-namespace esphome {
-namespace aqi {
+namespace esphome::aqi {
 
 class CAQICalculator : public AbstractAQICalculator {
  public:
@@ -48,5 +47,4 @@ class CAQICalculator : public AbstractAQICalculator {
   }
 };
 
-}  // namespace aqi
-}  // namespace esphome
+}  // namespace esphome::aqi

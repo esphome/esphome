@@ -3,8 +3,7 @@
 #include "caqi_calculator.h"
 #include "aqi_calculator.h"
 
-namespace esphome {
-namespace aqi {
+namespace esphome::aqi {
 
 enum AQICalculatorType { CAQI_TYPE = 0, AQI_TYPE = 1 };
 
@@ -25,5 +24,4 @@ class AQICalculatorFactory {
   AQICalculator aqi_calculator_;
 };
 
-}  // namespace aqi
-}  // namespace esphome
+}  // namespace esphome::aqi

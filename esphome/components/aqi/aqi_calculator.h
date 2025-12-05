@@ -5,8 +5,7 @@
 
 // https://document.airnow.gov/technical-assistance-document-for-the-reporting-of-daily-air-quailty.pdf
 
-namespace esphome {
-namespace aqi {
+namespace esphome::aqi {
 
 class AQICalculator : public AbstractAQICalculator {
  public:
@@ -48,5 +47,4 @@ class AQICalculator : public AbstractAQICalculator {
   }
 };
 
-}  // namespace aqi
-}  // namespace esphome
+}  // namespace esphome::aqi
