@@ -1,8 +1,7 @@
 #include "button.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace button {
+namespace esphome::button {
 
 static const char *const TAG = "button";
 
@@ -26,5 +25,4 @@ void Button::press() {
 }
 void Button::add_on_press_callback(std::function<void()> &&callback) { this->press_callback_.add(std::move(callback)); }
 
-}  // namespace button
-}  // namespace esphome
+}  // namespace esphome::button
