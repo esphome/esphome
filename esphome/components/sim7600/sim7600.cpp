@@ -266,7 +266,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
                 this->state_ = STATE_SETUP_CMGF;
       		//  break;
       		} else if (message[9+INDEX_SHIFT] == '4')  {          // not available, trying next one
-                ESP_LOGD(TAG, "%s  network registration not available, trying next %s", CxREG_MODE[CxREG_INDEX].c_str() , CxREG_MODE[(CxREG_INDEX+1) % 3].c_srt() );
+                ESP_LOGD(TAG, "%s  network registration not available, trying next %s", CxREG_MODE[CxREG_INDEX].c_str() , CxREG_MODE[(CxREG_INDEX+1) % 3].c_str() );
                 CxREG_INDEX = (CxREG_INDEX + 1) % 3;
                 this->state_ = STATE_CxREG;
                 this->expect_ack_ = true;
