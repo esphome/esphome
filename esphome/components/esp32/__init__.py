@@ -122,14 +122,14 @@ def get_cpu_frequencies(*frequencies):
 
 CPU_FREQUENCIES = {
     VARIANT_ESP32: get_cpu_frequencies(80, 160, 240),
-    VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
-    VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C2: get_cpu_frequencies(80, 120),
     VARIANT_ESP32C3: get_cpu_frequencies(80, 160),
     VARIANT_ESP32C5: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
     VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
+    VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
 }
 
 # Make sure not missed here if a new variant added.
