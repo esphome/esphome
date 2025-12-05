@@ -506,7 +506,7 @@ class APIConnection final : public APIServerConnection {
   class MessageCreator {
    public:
     MessageCreator(MessageCreatorPtr ptr) { data_.function_ptr = ptr; }
-    MessageCreator(const char *str_value) { data_.const_char_ptr = str_value; }
+    explicit MessageCreator(const char *str_value) { data_.const_char_ptr = str_value; }
 
     // Call operator - uses message_type to determine union type
     uint16_t operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single,
