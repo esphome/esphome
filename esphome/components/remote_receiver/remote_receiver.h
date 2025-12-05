@@ -27,13 +27,13 @@ struct RemoteReceiverComponentStore {
   uint32_t buffer_read{0};
   volatile uint32_t commit_micros{0};
   volatile uint32_t prev_micros{0};
-  volatile bool commit_level{false};
-  volatile bool prev_level{false};
-  volatile bool overflow{false};
   uint32_t buffer_size{1000};
   uint32_t filter_us{10};
   uint32_t idle_us{10000};
   ISRInternalGPIOPin pin;
+  volatile bool commit_level{false};
+  volatile bool prev_level{false};
+  volatile bool overflow{false};
 };
 #elif defined(USE_ESP32)
 struct RemoteReceiverComponentStore {
@@ -90,10 +90,11 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   std::string error_string_{""};
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_ESP32) || defined(USE_RP2040)
-  RemoteReceiverComponentStore store_;
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
   HighFrequencyLoopRequester high_freq_;
 #endif
+
+  RemoteReceiverComponentStore store_;
 
   uint32_t buffer_size_{};
   uint32_t filter_us_{10};
