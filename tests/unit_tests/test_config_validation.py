@@ -251,15 +251,6 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
         "host": "24",
     }
 
-    idf_mappings = {
-        "esp32_idf": "4",
-        "esp32_s2_idf": "7",
-        "esp32_s3_idf": "10",
-        "esp32_c3_idf": "13",
-        "esp32_c6_idf": "16",
-        "esp32_h2_idf": "19",
-    }
-
     arduino_mappings = {
         "esp32_arduino": "3",
         "esp32_s2_arduino": "6",
@@ -267,6 +258,15 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
         "esp32_c3_arduino": "12",
         "esp32_c6_arduino": "15",
         "esp32_h2_arduino": "18",
+    }
+
+    idf_mappings = {
+        "esp32_idf": "4",
+        "esp32_s2_idf": "7",
+        "esp32_s3_idf": "10",
+        "esp32_c3_idf": "13",
+        "esp32_c6_idf": "16",
+        "esp32_h2_idf": "19",
     }
 
     schema = config_validation.Schema(
@@ -293,8 +293,8 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
 @pytest.mark.parametrize(
     "framework, platform, message",
     [
-        ("esp-idf", PLATFORM_ESP32, "ESP32 using esp-idf framework"),
         ("arduino", PLATFORM_ESP32, "ESP32 using arduino framework"),
+        ("esp-idf", PLATFORM_ESP32, "ESP32 using esp-idf framework"),
         ("arduino", PLATFORM_ESP8266, "ESP8266 using arduino framework"),
         ("arduino", PLATFORM_RP2040, "RP2040 using arduino framework"),
         ("arduino", PLATFORM_BK72XX, "BK72XX using arduino framework"),
