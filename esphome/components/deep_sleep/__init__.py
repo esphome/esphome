@@ -5,9 +5,11 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     get_esp32_variant,
@@ -55,9 +57,11 @@ WAKEUP_PINS = {
     ],
     VARIANT_ESP32C2: [0, 1, 2, 3, 4, 5],
     VARIANT_ESP32C3: [0, 1, 2, 3, 4, 5],
+    VARIANT_ESP32C5: [0, 1, 2, 3, 4, 5, 6, 7],
     VARIANT_ESP32C6: [0, 1, 2, 3, 4, 5, 6, 7],
     VARIANT_ESP32C61: [0, 1, 2, 3, 4, 5, 6],
     VARIANT_ESP32H2: [7, 8, 9, 10, 11, 12, 13, 14],
+    VARIANT_ESP32P4: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     VARIANT_ESP32S2: [
         0,
         1,
@@ -124,9 +128,11 @@ def _validate_ex1_wakeup_mode(value):
     if value == "ANY_LOW":
         esp32.only_on_variant(
             supported=[
+                VARIANT_ESP32C5,
                 VARIANT_ESP32C6,
                 VARIANT_ESP32C61,
                 VARIANT_ESP32H2,
+                VARIANT_ESP32P4,
                 VARIANT_ESP32S2,
                 VARIANT_ESP32S3,
             ],
@@ -221,6 +227,7 @@ CONFIG_SCHEMA = cv.All(
                     unsupported=[
                         VARIANT_ESP32C2,
                         VARIANT_ESP32C3,
+                        VARIANT_ESP32C5,
                         VARIANT_ESP32C6,
                         VARIANT_ESP32C61,
                         VARIANT_ESP32H2,

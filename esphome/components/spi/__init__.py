@@ -7,6 +7,7 @@ from esphome.components.esp32 import (
     KEY_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
@@ -129,6 +130,7 @@ def get_hw_interface_list():
         if get_target_variant() in [
             VARIANT_ESP32C2,
             VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
             VARIANT_ESP32C6,
             VARIANT_ESP32C61,
             VARIANT_ESP32H2,

@@ -5,6 +5,9 @@ import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -301,7 +304,14 @@ def _final_validate_spi(config):
         return
     if spi_configs := fv.full_config.get().get(CONF_SPI):
         variant = get_esp32_variant()
-        if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
+        if variant in (
+            VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32C61,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+        ):
             spi_host = "SPI2_HOST"
         else:
             spi_host = "SPI3_HOST"
