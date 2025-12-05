@@ -205,7 +205,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   virtual bool has_state() const { return this->state_.has_value(); }
   virtual const T &get_state() const { return this->state_.value(); }
   virtual T get_state_default(T default_value) const { return this->state_.value_or(default_value); }
-  void invalidate_state() { this->set_state({}); }
+  void invalidate_state() { this->set_new_state({}); }
 
   void add_full_state_callback(std::function<void(optional<T> previous, optional<T> current)> &&callback) {
     if (this->full_state_callbacks_ == nullptr)
@@ -230,7 +230,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    * @param new_state The new state.
    * @return True if the state was changed, false if it was the same as before.
    */
-  virtual bool set_state(const optional<T> &new_state) {
+  virtual bool set_new_state(const optional<T> &new_state) {
     if (this->state_ != new_state) {
       // call the full state callbacks with the previous and new state
       if (this->full_state_callbacks_ != nullptr)
