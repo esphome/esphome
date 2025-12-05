@@ -36,7 +36,6 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-# to be moved later
 CONF_WAKEUP_PINS = "wakeup_pins"
 
 WAKEUP_PINS = {
