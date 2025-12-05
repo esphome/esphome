@@ -40,7 +40,8 @@ void BinarySensor::send_state_internal(bool new_state) {
 
 bool BinarySensor::set_new_state(const optional<bool> &new_state) {
   if (StatefulEntityBase::set_new_state(new_state)) {
-#ifdef USE_CONTROLLER_REGISTRY
+    // weirdly, this file could be compiled even without USE_BINARY_SENSOR defined
+#if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
     ESP_LOGD(TAG, "'%s': %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
