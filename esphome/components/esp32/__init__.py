@@ -513,6 +513,18 @@ def _detect_variant(value):
     return value
 
 
+def _config_mentions_rf_switch(config_obj):
+    """Check whether the config references the XIAO ESP32C6 RF switch pins."""
+    if isinstance(config_obj, dict):
+        return any(_config_mentions_rf_switch(value) for value in config_obj.values())
+    if isinstance(config_obj, list):
+        return any(_config_mentions_rf_switch(item) for item in config_obj)
+    if isinstance(config_obj, str):
+        upper = config_obj.upper()
+        return upper in {"RF_SWITCH_EN", "RF_ANT_SELECT", "GPIO3", "GPIO14"}
+    return False
+
+
 def final_validate(config):
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -521,6 +533,7 @@ def final_validate(config):
     conf_fw = config[CONF_FRAMEWORK]
     advanced = conf_fw[CONF_ADVANCED]
     full_config = fv.full_config.get()
+    board = config[CONF_BOARD]
     if pio_options := full_config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS):
         pio_flash_size_key = "board_upload.flash_size"
         pio_partitions_key = "board_build.partitions"
@@ -569,6 +582,32 @@ def final_validate(config):
                 f"OTA with 32MB flash requires '{CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES}' to be set in the '{CONF_ADVANCED}' section of the esp32 configuration",
                 path=[CONF_FLASH_SIZE],
             )
+        )
+
+    if (
+        board == "seeed_xiao_esp32c6"
+        and "wifi" in full_config
+        and not _config_mentions_rf_switch(full_config.get("output", []))
+    ):
+        _LOGGER.warning(
+            "Seeed Studio XIAO ESP32C6 ships with its RF switch off by default. "
+            "Enable the radio early in your config by driving RF_SWITCH_EN (GPIO3) low "
+            "(use inverted: true) and selecting the antenna with RF_ANT_SELECT (GPIO14, low selects on-board). "
+            "Example:\n"
+            "  output:\n"
+            "    - platform: gpio\n"
+            "      id: rf_switch_enable\n"
+            "      pin:\n"
+            "        number: GPIO3\n"
+            "        inverted: true\n"
+            "    - platform: gpio\n"
+            "      id: rf_antenna_select\n"
+            "      pin: GPIO14\n"
+            "  on_boot:\n"
+            "    - priority: 800\n"
+            "      then:\n"
+            "        - output.turn_on: rf_switch_enable\n"
+            "        - output.turn_off: rf_antenna_select"
         )
     if errs:
         raise cv.MultipleInvalid(errs)
