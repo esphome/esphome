@@ -17,7 +17,7 @@ namespace sendspin {
 
 static const char *const TAG = "sendspin.media_player";
 
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
 static const uint32_t DECODED_CHUNK_QUEUE_SIZE = 10;
 
 static const size_t SYNC_TASK_STACK_SIZE = 5 * 1024;
@@ -57,7 +57,7 @@ void SendspinMediaPlayer::setup() {
         xQueueSend(this->sendspin_controls_queue_, &control_type, 0);
         break;
       }
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
       case SendspinControls::VOLUME_UPDATE: {
         // Process immediately
         this->volume_ = this->parent_->get_volume();
@@ -78,7 +78,7 @@ void SendspinMediaPlayer::setup() {
     }
   });
 
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
   // Apply inverse remap to get unbounded volume from speaker's bounded volume
   this->sync_speaker_volume();
 
@@ -130,7 +130,7 @@ void SendspinMediaPlayer::setup() {
         xQueueSend(this->sendspin_controls_queue_, &control_type, 0);
         break;
       }
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
       case SendspinControls::VOLUME_UPDATE: {
         // Process immediately
         this->volume_ = this->parent_->get_volume();
@@ -186,7 +186,7 @@ void SendspinMediaPlayer::loop() {
   if (xQueuePeek(this->sendspin_controls_queue_, &incoming_control, 0)) {
     switch (incoming_control) {
       case SendspinControls::START: {
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
         if (this->sync_task_handle_ == nullptr) {
           // The task is not running in any state
           if (xQueueReceive(this->sendspin_controls_queue_, &incoming_control, 0)) {
@@ -209,7 +209,7 @@ void SendspinMediaPlayer::loop() {
         break;
       }
       case SendspinControls::STOP: {
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
         if (this->sync_task_handle_ == nullptr) {
           // The task is not running in any state - discard the control message
           xQueueReceive(this->sendspin_controls_queue_, &incoming_control, 0);
@@ -235,7 +235,7 @@ void SendspinMediaPlayer::loop() {
     }
   }
 
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
   // Handle the task's state
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
   if (event_group_bits & EventGroupBits::TASK_STARTING) {
@@ -289,7 +289,7 @@ void SendspinMediaPlayer::loop() {
   }
 
   if (this->volume_.has_value()) {
-    // TODO: If USE_SENDSPIN_AUDIO isn't defined, the volume command should be sent to the server
+    // TODO: If USE_SENDSPIN_PLAYER isn't defined, the volume command should be sent to the server
     float unbounded_volume = static_cast<float>(this->volume_.value()) / 100.0f;
     // Apply forward remap to convert unbounded volume to bounded volume for the speaker
     float bounded_volume = this->volume_min_ + unbounded_volume * (this->volume_max_ - this->volume_min_);
@@ -344,7 +344,7 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     return;
   }
 
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
   if (call.get_volume().has_value()) {
     this->volume_ = std::roundf(call.get_volume().value() * 100.0f);
     this->parent_->update_volume(this->volume_.value());
@@ -393,7 +393,7 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
         this->parent_->send_client_command(SendspinCommandType::SWITCH);
         break;
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
       // TODO: Send volume commands to server if we aren't a player
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->is_muted_ = true;
@@ -414,7 +414,7 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   }
 }
 
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
 void SendspinMediaPlayer::sync_speaker_volume() {
   float bounded_volume = this->speaker_->get_volume();
   float unbounded_volume = (bounded_volume - this->volume_min_) / (this->volume_max_ - this->volume_min_);

@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_IMAGE)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_ARTWORK)
 
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/sendspin/sendspin_protocol.h"

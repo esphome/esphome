@@ -7,7 +7,7 @@
 #include "esphome/components/sendspin/sendspin_hub.h"
 
 #include "esphome/components/media_player/media_player.h"
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_chunk_queue.h"
 #include "esphome/components/sendspin/sendspin_audio_chunk.h"
@@ -18,7 +18,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
 #endif
@@ -26,7 +26,7 @@
 namespace esphome {
 namespace sendspin {
 
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
 // Stores the timing information of audio played received from the speaker
 struct PlaybackProgress {
   uint32_t frames_played;    // Number of audio frames played since last progress update
@@ -50,7 +50,7 @@ class SendspinMediaPlayer : public Component, public media_player::MediaPlayer, 
   // MediaPlayer implementations
   media_player::MediaPlayerTraits get_traits() override;
 
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
   bool is_muted() const override { return this->is_muted_; }
 
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
@@ -68,7 +68,7 @@ class SendspinMediaPlayer : public Component, public media_player::MediaPlayer, 
   QueueHandle_t sendspin_controls_queue_;
 
   bool force_publish_state_{false};
-#if defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_SENDSPIN_PLAYER)
   static void sync_task(void *params);
   TaskHandle_t sync_task_handle_{nullptr};
   StaticTask_t sync_task_stack_;

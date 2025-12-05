@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_PLAYER)
 
 #include "sendspin_audio_chunk.h"
 #include "sendspin_protocol.h"

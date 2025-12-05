@@ -114,7 +114,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    cg.add_define("USE_SENDSPIN_IMAGE", True)
+    cg.add_define("USE_SENDSPIN_ARTWORK", True)
 
     # Use the enhanced helper function to get all runtime image parameters
     (

@@ -8,14 +8,14 @@
 #include "sendspin_time_filter.h"
 #include "sendspin_websocket.h"
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
 #include "sendspin_audio_chunk.h"
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_chunk_queue.h"
 #include <vector>
 #endif
 
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
 #include <vector>
 #endif
 
@@ -49,7 +49,7 @@ struct SendspinSensorUpdate {
 };
 #endif
 
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
 struct ImageSlotPreference {
   uint8_t slot;
   SendspinImageSource source;
@@ -103,7 +103,7 @@ class SendspinHub : public Component {
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
   void set_buffer_size(size_t buffer_size) { this->buffer_size_ = buffer_size; }
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
   // Simple audio chunk callback registration
   void add_audio_chunk_callback(
       std::function<bool(std::shared_ptr<SendspinAudioChunk>, TickType_t, const audio::AudioStreamInfo &)> &&callback) {
@@ -153,7 +153,7 @@ class SendspinHub : public Component {
   void set_kalman_process_error(double process_error) { this->kalman_process_error_ = process_error; }
   void set_kalman_forget_factor(double forget_factor) { this->kalman_forget_factor_ = forget_factor; }
 
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
   void add_image_slot_callback(uint8_t slot,
                                std::function<void(const uint8_t *, size_t, SendspinImageFormat)> &&callback) {
     // Linear search for existing slot
@@ -174,7 +174,7 @@ class SendspinHub : public Component {
 #endif
 
  protected:
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
   bool send_audio_chunk_(std::shared_ptr<SendspinAudioChunk> audio_chunk, TickType_t ticks_to_wait,
                          const audio::AudioStreamInfo &stream_info);
 
@@ -242,7 +242,7 @@ class SendspinHub : public Component {
   CallbackManager<void(const SendspinControls &)> controls_callbacks_{};
   CallbackManager<void(const GroupUpdateObject &)> group_update_callbacks_{};
 
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
   std::vector<ImageSlotCallback> image_slot_callbacks_;
   std::vector<ImageSlotPreference> preferred_image_formats_;
 #endif

@@ -1,6 +1,6 @@
 #include "sendspin_audio_chunk.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_PLAYER)
 
 namespace esphome {
 namespace sendspin {

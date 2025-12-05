@@ -176,7 +176,7 @@ void apply_group_update_deltas(GroupUpdateObject *current, const GroupUpdateObje
   }
 }
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
 static bool process_player_stream_object(const JsonObject player_object, ServerPlayerStreamObject *player_obj,
                                          bool require_all_fields) {
   if (player_obj == nullptr) {
@@ -222,6 +222,44 @@ static bool process_player_stream_object(const JsonObject player_object, ServerP
 
   return true;
 }
+#endif
+
+#ifdef USE_SENDSPIN_ARTWORK
+static bool process_artwork_channel_object(const JsonObject channel_object, ServerArtworkChannelObject *channel,
+                                           bool require_all_fields) {
+  if (channel == nullptr) {
+    return false;
+  }
+
+  if (require_all_fields) {
+    if (!channel_object["source"].is<JsonVariant>() || !channel_object["format"].is<JsonVariant>() ||
+        !channel_object["width"].is<JsonVariant>() || !channel_object["height"].is<JsonVariant>()) {
+      ESP_LOGE(TAG, "Invalid artwork channel: missing required fields");
+      return false;
+    }
+  }
+
+  if (channel_object["source"].is<const char *>()) {
+    std::string source_str = channel_object["source"].as<std::string>();
+    channel->source = image_source_from_string(source_str);
+  }
+
+  if (channel_object["format"].is<const char *>()) {
+    std::string format_str = channel_object["format"].as<std::string>();
+    channel->format = image_format_from_string(format_str);
+  }
+
+  if (channel_object["width"].is<JsonVariant>()) {
+    channel->width = channel_object["width"].as<uint16_t>();
+  }
+
+  if (channel_object["height"].is<JsonVariant>()) {
+    channel->height = channel_object["height"].as<uint16_t>();
+  }
+
+  return true;
+}
+#endif
 
 bool process_stream_start_message(const std::string &message, StreamStartMessage *stream_msg) {
   return (json::parse_json(message, [stream_msg](JsonObject root) -> bool {
@@ -229,6 +267,7 @@ bool process_stream_start_message(const std::string &message, StreamStartMessage
       return true;
     }
 
+#ifdef USE_SENDSPIN_PLAYER
     if (root["payload"]["player"].is<JsonObject>()) {
       ServerPlayerStreamObject player_obj;
       if (process_player_stream_object(root["payload"]["player"], &player_obj, true)) {
@@ -241,8 +280,9 @@ bool process_stream_start_message(const std::string &message, StreamStartMessage
         return false;
       }
     }
+#endif
 
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
     if (root["payload"]["artwork"]["channels"].is<JsonArray>()) {
       ServerArtworkStreamObject artwork_obj;
       std::vector<ServerArtworkChannelObject> channels;
@@ -320,32 +360,7 @@ bool process_stream_clear_message(const std::string &message, StreamClearMessage
   }));
 }
 
-void apply_player_stream_deltas(ServerPlayerStreamObject *current, const ServerPlayerStreamObject &updates) {
-  if (current == nullptr) {
-    return;
-  }
-
-  if (updates.codec.has_value()) {
-    current->codec = updates.codec;
-  }
-
-  if (updates.sample_rate.has_value()) {
-    current->sample_rate = updates.sample_rate;
-  }
-
-  if (updates.channels.has_value()) {
-    current->channels = updates.channels;
-  }
-
-  if (updates.bit_depth.has_value()) {
-    current->bit_depth = updates.bit_depth;
-  }
-
-  if (updates.codec_header.has_value()) {
-    current->codec_header = updates.codec_header;
-  }
-}
-
+#ifdef USE_SENDSPIN_PLAYER
 static bool process_server_player_command_object(const JsonObject player_object,
                                                  ServerPlayerCommandObject *player_cmd) {
   if (player_cmd == nullptr || !player_object["command"].is<JsonVariant>()) {
@@ -374,6 +389,7 @@ static bool process_server_player_command_object(const JsonObject player_object,
 
   return true;
 }
+#endif
 
 bool process_server_command_message(const std::string &message, ServerCommandMessage *cmd_msg) {
   return (json::parse_json(message, [cmd_msg](JsonObject root) -> bool {
@@ -382,6 +398,7 @@ bool process_server_command_message(const std::string &message, ServerCommandMes
       return false;
     }
 
+#ifdef USE_SENDSPIN_PLAYER
     if (cmd_msg != nullptr && root["payload"]["player"].is<JsonObject>()) {
       ServerPlayerCommandObject player_cmd;
       if (process_server_player_command_object(root["payload"]["player"], &player_cmd)) {
@@ -390,86 +407,10 @@ bool process_server_command_message(const std::string &message, ServerCommandMes
       }
       return false;
     }
-
+#endif
     return true;
   }));
 }
-#endif
-
-#ifdef USE_SENDSPIN_IMAGE
-static bool process_artwork_channel_object(const JsonObject channel_object, ServerArtworkChannelObject *channel,
-                                           bool require_all_fields) {
-  if (channel == nullptr) {
-    return false;
-  }
-
-  if (require_all_fields) {
-    if (!channel_object["source"].is<JsonVariant>() || !channel_object["format"].is<JsonVariant>() ||
-        !channel_object["width"].is<JsonVariant>() || !channel_object["height"].is<JsonVariant>()) {
-      ESP_LOGE(TAG, "Invalid artwork channel: missing required fields");
-      return false;
-    }
-  }
-
-  if (channel_object["source"].is<const char *>()) {
-    std::string source_str = channel_object["source"].as<std::string>();
-    channel->source = image_source_from_string(source_str);
-  }
-
-  if (channel_object["format"].is<const char *>()) {
-    std::string format_str = channel_object["format"].as<std::string>();
-    channel->format = image_format_from_string(format_str);
-  }
-
-  if (channel_object["width"].is<JsonVariant>()) {
-    channel->width = channel_object["width"].as<uint16_t>();
-  }
-
-  if (channel_object["height"].is<JsonVariant>()) {
-    channel->height = channel_object["height"].as<uint16_t>();
-  }
-
-  return true;
-}
-
-void apply_artwork_stream_deltas(ServerArtworkStreamObject *current, const ServerArtworkStreamObject &updates) {
-  if (current == nullptr || !updates.channels.has_value()) {
-    return;
-  }
-
-  if (!current->channels.has_value()) {
-    current->channels = updates.channels;
-    return;
-  }
-
-  auto &current_channels = current->channels.value();
-  const auto &update_channels = updates.channels.value();
-
-  // Ensure current has enough channels
-  while (current_channels.size() < update_channels.size()) {
-    current_channels.push_back(ServerArtworkChannelObject{});
-  }
-
-  // Apply deltas to each channel
-  for (size_t i = 0; i < update_channels.size(); i++) {
-    const auto &update = update_channels[i];
-    auto &curr = current_channels[i];
-
-    if (update.source.has_value()) {
-      curr.source = update.source;
-    }
-    if (update.format.has_value()) {
-      curr.format = update.format;
-    }
-    if (update.width.has_value()) {
-      curr.width = update.width;
-    }
-    if (update.height.has_value()) {
-      curr.height = update.height;
-    }
-  }
-}
-#endif
 
 #ifdef USE_SENDSPIN_METADATA
 static bool process_server_metadata_state_object(const JsonObject metadata_object,
@@ -562,30 +503,6 @@ static bool process_server_metadata_state_object(const JsonObject metadata_objec
   return true;
 }
 
-bool process_server_state_message(const std::string &message, ServerStateMessage *state_msg) {
-  return (json::parse_json(message, [state_msg](JsonObject root) -> bool {
-    if (root["type"].as<std::string>() != "server/state") {
-      ESP_LOGE(TAG, "Invalid server/state message");
-      return false;
-    }
-
-    if (state_msg != nullptr) {
-      // Parse optional metadata object
-      if (root["payload"]["metadata"].is<JsonObject>()) {
-        ServerMetadataStateObject metadata_state;
-        if (process_server_metadata_state_object(root["payload"]["metadata"], &metadata_state)) {
-          state_msg->metadata = metadata_state;
-        }
-      }
-
-      // Parse optional controller object (for future use)
-      // TODO: Implement controller state parsing when needed
-    }
-
-    return true;
-  }));
-}
-
 void apply_metadata_state_deltas(ServerMetadataStateObject *current, const ServerMetadataStateObject &updates) {
   if (current == nullptr) {
     return;
@@ -637,6 +554,32 @@ void apply_metadata_state_deltas(ServerMetadataStateObject *current, const Serve
 }
 #endif
 
+bool process_server_state_message(const std::string &message, ServerStateMessage *state_msg) {
+  return (json::parse_json(message, [state_msg](JsonObject root) -> bool {
+    if (root["type"].as<std::string>() != "server/state") {
+      ESP_LOGE(TAG, "Invalid server/state message");
+      return false;
+    }
+
+#ifdef USE_SENDSPIN_METADATA
+    if (state_msg != nullptr) {
+      // Parse optional metadata object
+      if (root["payload"]["metadata"].is<JsonObject>()) {
+        ServerMetadataStateObject metadata_state;
+        if (process_server_metadata_state_object(root["payload"]["metadata"], &metadata_state)) {
+          state_msg->metadata = metadata_state;
+        }
+      }
+#endif
+
+      // Parse optional controller object (for future use)
+      // TODO: Implement controller state parsing when needed
+    }
+
+    return true;
+  }));
+}
+
 std::string format_client_hello_message(const ClientHelloMessage *msg) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([msg](JsonObject root) {
@@ -660,7 +603,7 @@ std::string format_client_hello_message(const ClientHelloMessage *msg) {
     for (const auto &role : msg->supported_roles) {
       supported_roles_list.add(to_string(role));
     }
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
     if (msg->player_v1_support.has_value()) {
       JsonArray formats_list = root["payload"]["player_support"]["supported_formats"].to<JsonArray>();
       for (const auto &format : msg->player_v1_support.value().supported_formats) {
@@ -677,7 +620,7 @@ std::string format_client_hello_message(const ClientHelloMessage *msg) {
       }
     }
 #endif
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
     if (msg->artwork_v1_support.has_value()) {
       JsonArray channels_list = root["payload"]["artwork_support"]["channels"].to<JsonArray>();
       for (const auto &channel : msg->artwork_v1_support.value().channels) {
@@ -697,14 +640,14 @@ std::string format_client_state_message(const ClientStateMessage *msg) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([msg](JsonObject root) {
     root["type"] = "client/state";
+#ifdef USE_SENDSPIN_PLAYER
     if (msg->player.has_value()) {
-#ifdef USE_SENDSPIN_AUDIO
       const ClientPlayerStateObject &player_state = msg->player.value();
       root["payload"]["player"]["state"] = to_string(player_state.state);
       root["payload"]["player"]["volume"] = player_state.volume;
       root["payload"]["player"]["muted"] = player_state.muted;
-#endif
     }
+#endif
   });
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
@@ -713,7 +656,7 @@ std::string format_stream_request_format_message(const StreamRequestFormatMessag
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([msg](JsonObject root) {
     root["type"] = "stream/request-format";
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
     if (msg->player.has_value()) {
       const auto &player = msg->player.value();
       if (player.codec.has_value()) {
@@ -730,7 +673,7 @@ std::string format_stream_request_format_message(const StreamRequestFormatMessag
       }
     }
 #endif
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
     if (msg->artwork.has_value()) {
       const auto &artwork = msg->artwork.value();
       root["payload"]["artwork"]["channel"] = artwork.channel;

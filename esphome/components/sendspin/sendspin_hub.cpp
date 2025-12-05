@@ -1,7 +1,7 @@
 #include "sendspin_hub.h"
 
 #if defined(USE_ESP_IDF)
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
 #include "sendspin_decoder.h"
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_chunk.h"
@@ -26,7 +26,7 @@ static const char *const TAG = "sendspin.hub";
 
 static const size_t SENDSPIN_BINARY_CHUNK_HEADER_SIZE = 9;
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
 static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 200;
 
 static const size_t DECODE_TASK_STACK_SIZE = 6 * 1024;
@@ -80,7 +80,7 @@ void SendspinHub::setup() {
     this->mark_failed();
   }
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
   this->encoded_chunk_queue_ = audio::AudioChunkQueue::create(ENCODED_CHUNK_QUEUE_SIZE, 2000000, true);
   if (this->encoded_chunk_queue_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create encoded chunk data queue.");
@@ -134,7 +134,7 @@ void SendspinHub::loop() {
                                             this->task_stack_in_psram_, WEBSOCKET_TASK_PRIORITY);
   }
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
   EventBits_t event_bits = xEventGroupGetBits(this->event_group_);
 
   if (event_bits & EventGroupBits::COMMAND_START) {
@@ -221,7 +221,7 @@ void SendspinHub::start() {
   // TODO: Don't hardcode controller role
   supported_roles.push_back(SendspinRole::CONTROLLER);
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
   supported_roles.push_back(SendspinRole::PLAYER);
   std::vector<AudioSupportedFormatObject> supported_formats;
   supported_formats.push_back({SendspinCodecFormat::FLAC, 2, 48000, 16});
@@ -243,7 +243,7 @@ void SendspinHub::start() {
   supported_roles.push_back(SendspinRole::METADATA);
 #endif
 
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
   if (!this->preferred_image_formats_.empty()) {
     supported_roles.push_back(SendspinRole::ARTWORK);
 
@@ -417,7 +417,7 @@ bool SendspinHub::process_binary_message_(uint8_t *payload, size_t len) {
 
   switch (role) {
     case SENDSPIN_ROLE_PLAYER: {
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
       if (slot == 0) {
         // Audio data (slot 0)
         // Create a shared_ptr chunk that takes ownership of the payload
@@ -448,7 +448,7 @@ bool SendspinHub::process_binary_message_(uint8_t *payload, size_t len) {
       return false;  // deallocate payload
     }
     case SENDSPIN_ROLE_ARTWORK: {
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
       // Find the format preference for this slot
       SendspinImageFormat image_format = SendspinImageFormat::JPEG;  // default fallback
       for (const auto &pref : this->preferred_image_formats_) {
@@ -497,7 +497,7 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
     case SendspinServerToClientMessageType::STREAM_START: {
       ESP_LOGD(TAG, "Stream Started");
       xEventGroupSetBits(this->event_group_, COMMAND_START);
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
 #ifdef USE_WIFI
       ESP_LOGI(TAG, "Requesting high performance networking for playback");
       if (!this->high_performance_networking_requested_for_playback_ &&
@@ -597,7 +597,7 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
         if (end_player) {
           xEventGroupSetBits(this->event_group_, COMMAND_STOP);
           this->controls_callbacks_.call(SendspinControls::STOP);
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
 #ifdef USE_WIFI
           if (this->high_performance_networking_requested_for_playback_ &&
               wifi::global_wifi_component->release_high_performance()) {
@@ -633,7 +633,7 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
         ESP_LOGD(TAG, "Stream clear - player:%d visualizer:%d", clear_player, clear_visualizer);
 
         if (clear_player) {
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
           this->encoded_chunk_queue_->reset();
 #endif
         }
@@ -650,7 +650,7 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
                  this->server_information_.server_id.c_str());
 
         // Send client state so server knows our current volume
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
         this->publish_client_state();
 #endif
       }
@@ -699,7 +699,7 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
       break;
     }
     case SendspinServerToClientMessageType::SERVER_COMMAND: {
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
       ServerCommandMessage cmd_msg;
       if (process_server_command_message(message, &cmd_msg)) {
         if (!cmd_msg.player.has_value()) {
@@ -766,7 +766,7 @@ void SendspinHub::deallocate_websocket_payload_() {
   this->websocket_len_ = 0;
 }
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
 void SendspinHub::update_muted(bool is_muted) {
   this->muted_ = is_muted;
   this->publish_client_state();

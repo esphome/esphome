@@ -76,7 +76,7 @@ async def to_code(config):
     await media_player.register_media_player(var, config)
 
     if not config.get(CONF_CONTROL_ONLY, False):
-        cg.add_define("USE_SENDSPIN_AUDIO")
+        cg.add_define("USE_SENDSPIN_PLAYER")
 
         spkr = await cg.get_variable(config[CONF_SPEAKER])
         cg.add(var.set_speaker(spkr))

@@ -15,7 +15,7 @@
 namespace esphome {
 namespace sendspin {
 
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
 enum class SendspinCodecFormat {
   FLAC,
   OPUS,
@@ -60,7 +60,287 @@ inline const char *to_string(SendspinPlayerState state) {
       return "error";
   }
 }
+
+struct AudioSupportedFormatObject {
+  SendspinCodecFormat codec;
+  uint8_t channels;
+  uint32_t sample_rate;
+  uint8_t bit_depth;
+};
+
+enum class SendspinPlayerCommand {
+  VOLUME,
+  MUTE,
+};
+
+inline const char *to_string(SendspinPlayerCommand cmd) {
+  switch (cmd) {
+    case SendspinPlayerCommand::VOLUME:
+      return "volume";
+    case SendspinPlayerCommand::MUTE:
+      return "mute";
+    default:
+      return "unknown";
+  }
+}
+
+struct PlayerSupportObject {
+  std::vector<AudioSupportedFormatObject> supported_formats;
+  size_t buffer_capacity;
+  std::vector<SendspinPlayerCommand> supported_commands;
+};
+
+struct ClientPlayerStateObject {
+  SendspinPlayerState state;
+  uint8_t volume;
+  bool muted;
+};
+#endif  // USE_SENDSPIN_PLAYER
+
+#ifdef USE_SENDSPIN_ARTWORK
+enum class SendspinImageFormat {
+  JPEG,
+  PNG,
+  BMP,
+};
+
+inline const char *to_string(SendspinImageFormat format) {
+  switch (format) {
+    case SendspinImageFormat::JPEG:
+      return "jpeg";
+    case SendspinImageFormat::PNG:
+      return "png";
+    case SendspinImageFormat::BMP:
+      return "bmp";
+    default:
+      return "jpeg";
+  }
+}
+
+inline std::optional<SendspinImageFormat> image_format_from_string(const std::string &str) {
+  if (str == "jpeg")
+    return SendspinImageFormat::JPEG;
+  if (str == "png")
+    return SendspinImageFormat::PNG;
+  if (str == "bmp")
+    return SendspinImageFormat::BMP;
+  return std::nullopt;
+}
+
+enum class SendspinImageSource {
+  ALBUM,
+  ARTIST,
+  NONE,
+};
+
+inline const char *to_string(SendspinImageSource source) {
+  switch (source) {
+    case SendspinImageSource::ALBUM:
+      return "album";
+    case SendspinImageSource::ARTIST:
+      return "artist";
+    case SendspinImageSource::NONE:
+      return "none";
+    default:
+      return "none";
+  }
+}
+
+inline std::optional<SendspinImageSource> image_source_from_string(const std::string &str) {
+  if (str == "album")
+    return SendspinImageSource::ALBUM;
+  if (str == "artist")
+    return SendspinImageSource::ARTIST;
+  if (str == "none")
+    return SendspinImageSource::NONE;
+  return std::nullopt;
+}
+
+struct ArtworkChannelFormatObject {
+  SendspinImageSource source;
+  SendspinImageFormat format;
+  uint16_t media_width;
+  uint16_t media_height;
+};
+
+struct ArtworkSupportObject {
+  std::vector<ArtworkChannelFormatObject> channels;
+};
+
+struct ServerArtworkChannelObject {
+  std::optional<SendspinImageSource> source;
+  std::optional<SendspinImageFormat> format;
+  std::optional<uint16_t> width;
+  std::optional<uint16_t> height;
+
+  bool is_complete() const {
+    return source.has_value() && format.has_value() && width.has_value() && height.has_value();
+  }
+};
+
+struct ServerArtworkStreamObject {
+  std::optional<std::vector<ServerArtworkChannelObject>> channels;
+};
+
+struct ClientArtworkRequestObject {
+  uint8_t channel;
+  std::optional<SendspinImageSource> source;
+  std::optional<SendspinImageFormat> format;
+  std::optional<uint16_t> media_width;
+  std::optional<uint16_t> media_height;
+};
+#endif  // USE_SENDSPIN_ARTWORK
+
+#ifdef USE_SENDSPIN_VISUALIZER
+struct VisualizerSupportObject {
+  size_t buffer_capacity;
+  // TODO: FFT details (to be determined in spec)
+};
 #endif
+
+#ifdef USE_SENDSPIN_CONTROLLER
+enum class SendspinCommandType {
+  PLAY,
+  PAUSE,
+  STOP,
+  NEXT,
+  PREVIOUS,
+  VOLUME,
+  MUTE,
+  REPEAT_OFF,
+  REPEAT_ONE,
+  REPEAT_ALL,
+  SHUFFLE,
+  UNSHUFFLE,
+  SWITCH,
+};
+
+inline const char *to_string(SendspinCommandType cmd) {
+  switch (cmd) {
+    case SendspinCommandType::PLAY:
+      return "play";
+    case SendspinCommandType::PAUSE:
+      return "pause";
+    case SendspinCommandType::STOP:
+      return "stop";
+    case SendspinCommandType::NEXT:
+      return "next";
+    case SendspinCommandType::PREVIOUS:
+      return "previous";
+    case SendspinCommandType::VOLUME:
+      return "volume";
+    case SendspinCommandType::MUTE:
+      return "mute";
+    case SendspinCommandType::REPEAT_OFF:
+      return "repeat_off";
+    case SendspinCommandType::REPEAT_ONE:
+      return "repeat_one";
+    case SendspinCommandType::REPEAT_ALL:
+      return "repeat_all";
+    case SendspinCommandType::SHUFFLE:
+      return "shuffle";
+    case SendspinCommandType::UNSHUFFLE:
+      return "unshuffle";
+    case SendspinCommandType::SWITCH:
+      return "switch";
+    default:
+      return "unknown";
+  }
+}
+
+inline std::optional<SendspinCommandType> command_type_from_string(const std::string &str) {
+  if (str == "play")
+    return SendspinCommandType::PLAY;
+  if (str == "pause")
+    return SendspinCommandType::PAUSE;
+  if (str == "stop")
+    return SendspinCommandType::STOP;
+  if (str == "next")
+    return SendspinCommandType::NEXT;
+  if (str == "previous")
+    return SendspinCommandType::PREVIOUS;
+  if (str == "volume")
+    return SendspinCommandType::VOLUME;
+  if (str == "mute")
+    return SendspinCommandType::MUTE;
+  if (str == "repeat_off")
+    return SendspinCommandType::REPEAT_OFF;
+  if (str == "repeat_one")
+    return SendspinCommandType::REPEAT_ONE;
+  if (str == "repeat_all")
+    return SendspinCommandType::REPEAT_ALL;
+  if (str == "shuffle")
+    return SendspinCommandType::SHUFFLE;
+  if (str == "unshuffle")
+    return SendspinCommandType::UNSHUFFLE;
+  if (str == "switch")
+    return SendspinCommandType::SWITCH;
+  return std::nullopt;
+}
+
+struct ClientCommandControllerObject {
+  SendspinCommandType command;
+  std::optional<uint8_t> volume;
+  std::optional<bool> mute;
+};
+
+struct ServerStateControllerObject {
+  std::vector<SendspinCommandType> supported_commands;
+  uint8_t volume;
+  bool muted;
+};
+#endif
+
+#ifdef USE_SENDSPIN_METADATA
+struct MetadataProgressObject {
+  uint32_t track_progress;
+  uint32_t track_duration;
+  uint32_t playback_speed;
+};
+
+enum class SendspinRepeatMode {
+  OFF,
+  ONE,
+  ALL,
+};
+
+inline const char *to_string(SendspinRepeatMode mode) {
+  switch (mode) {
+    case SendspinRepeatMode::OFF:
+      return "off";
+    case SendspinRepeatMode::ONE:
+      return "one";
+    case SendspinRepeatMode::ALL:
+      return "all";
+    default:
+      return "off";
+  }
+}
+
+inline std::optional<SendspinRepeatMode> repeat_mode_from_string(const std::string &str) {
+  if (str == "off")
+    return SendspinRepeatMode::OFF;
+  if (str == "one")
+    return SendspinRepeatMode::ONE;
+  if (str == "all")
+    return SendspinRepeatMode::ALL;
+  return std::nullopt;
+}
+
+struct ServerMetadataStateObject {
+  int64_t timestamp;
+  std::optional<std::string> title;
+  std::optional<std::string> artist;
+  std::optional<std::string> album_artist;
+  std::optional<std::string> album;
+  std::optional<std::string> artwork_url;
+  std::optional<uint16_t> year;
+  std::optional<uint16_t> track;
+  std::optional<MetadataProgressObject> progress;
+  std::optional<SendspinRepeatMode> repeat;
+  std::optional<bool> shuffle;
+};
+#endif  // USE_SENDSPIN_METADATA
 
 // Binary message ID structure:
 // Typically bits 7-2 for role type, bits 1-0 for message slot (4 IDs per role)
@@ -129,35 +409,6 @@ inline const char *to_string(SendspinRole role) {
   }
 }
 
-enum class SendspinRepeatMode {
-  OFF,
-  ONE,
-  ALL,
-};
-
-inline const char *to_string(SendspinRepeatMode mode) {
-  switch (mode) {
-    case SendspinRepeatMode::OFF:
-      return "off";
-    case SendspinRepeatMode::ONE:
-      return "one";
-    case SendspinRepeatMode::ALL:
-      return "all";
-    default:
-      return "off";
-  }
-}
-
-inline std::optional<SendspinRepeatMode> repeat_mode_from_string(const std::string &str) {
-  if (str == "off")
-    return SendspinRepeatMode::OFF;
-  if (str == "one")
-    return SendspinRepeatMode::ONE;
-  if (str == "all")
-    return SendspinRepeatMode::ALL;
-  return std::nullopt;
-}
-
 enum class SendspinConnectionReason {
   DISCOVERY,
   PLAYBACK,
@@ -222,269 +473,46 @@ struct DeviceInfoObject {
   std::optional<std::string> software_version;
 };
 
-struct AudioSupportedFormatObject {
-#ifdef USE_SENDSPIN_AUDIO
-  SendspinCodecFormat codec;
-  uint8_t channels;
-  uint32_t sample_rate;
-  uint8_t bit_depth;
-#endif
-};
-
-enum class SendspinPlayerCommand {
-  VOLUME,
-  MUTE,
-};
-
-inline const char *to_string(SendspinPlayerCommand cmd) {
-  switch (cmd) {
-    case SendspinPlayerCommand::VOLUME:
-      return "volume";
-    case SendspinPlayerCommand::MUTE:
-      return "mute";
-    default:
-      return "unknown";
-  }
-}
-
-struct PlayerSupportObject {
-  std::vector<AudioSupportedFormatObject> supported_formats;
-  size_t buffer_capacity;
-  std::vector<SendspinPlayerCommand> supported_commands;
-};
-
-#ifdef USE_SENDSPIN_IMAGE
-enum class SendspinImageFormat {
-  JPEG,
-  PNG,
-  BMP,
-};
-
-inline const char *to_string(SendspinImageFormat format) {
-  switch (format) {
-    case SendspinImageFormat::JPEG:
-      return "jpeg";
-    case SendspinImageFormat::PNG:
-      return "png";
-    case SendspinImageFormat::BMP:
-      return "bmp";
-    default:
-      return "jpeg";
-  }
-}
-
-inline std::optional<SendspinImageFormat> image_format_from_string(const std::string &str) {
-  if (str == "jpeg")
-    return SendspinImageFormat::JPEG;
-  if (str == "png")
-    return SendspinImageFormat::PNG;
-  if (str == "bmp")
-    return SendspinImageFormat::BMP;
-  return std::nullopt;
-}
-
-enum class SendspinImageSource {
-  ALBUM,
-  ARTIST,
-  NONE,
-};
-
-inline const char *to_string(SendspinImageSource source) {
-  switch (source) {
-    case SendspinImageSource::ALBUM:
-      return "album";
-    case SendspinImageSource::ARTIST:
-      return "artist";
-    case SendspinImageSource::NONE:
-      return "none";
-    default:
-      return "none";
-  }
-}
-
-inline std::optional<SendspinImageSource> image_source_from_string(const std::string &str) {
-  if (str == "album")
-    return SendspinImageSource::ALBUM;
-  if (str == "artist")
-    return SendspinImageSource::ARTIST;
-  if (str == "none")
-    return SendspinImageSource::NONE;
-  return std::nullopt;
-}
-#endif
-
-struct ArtworkChannelFormatObject {
-#ifdef USE_SENDSPIN_IMAGE
-  SendspinImageSource source;
-  SendspinImageFormat format;
-  uint16_t media_width;
-  uint16_t media_height;
-#endif
-};
-struct ArtworkSupportObject {
-  std::vector<ArtworkChannelFormatObject> channels;
-};
-
-struct VisualizerSupportObject {
-  size_t buffer_capacity;
-  // TODO: FFT details (to be determined in spec)
-};
-
 struct ClientHelloMessage {
   std::string client_id;
   std::string name;
   std::optional<DeviceInfoObject> device_info;
   uint8_t version;
   std::vector<SendspinRole> supported_roles;
+#ifdef USE_SENDSPIN_PLAYER
   std::optional<PlayerSupportObject> player_v1_support;
+#endif
+#ifdef USE_SENDSPIN_ARTWORK
   std::optional<ArtworkSupportObject> artwork_v1_support;
+#endif
+#ifdef USE_SENDSPIN_VISUALIZER
   std::optional<VisualizerSupportObject> visualizer_v1_support;
-};
-
-struct ClientPlayerStateObject {
-#ifdef USE_SENDSPIN_AUDIO
-  SendspinPlayerState state;
-  uint8_t volume;
-  bool muted;
 #endif
 };
 
 struct ClientStateMessage {
+#ifdef USE_SENDSPIN_PLAYER
   std::optional<ClientPlayerStateObject> player;
-};
-
-enum class SendspinCommandType {
-#ifdef USE_SENDSPIN_CONTROLLER
-  PLAY,
-  PAUSE,
-  STOP,
-  NEXT,
-  PREVIOUS,
-  VOLUME,
-  MUTE,
-  REPEAT_OFF,
-  REPEAT_ONE,
-  REPEAT_ALL,
-  SHUFFLE,
-  UNSHUFFLE,
-  SWITCH,
-#endif
-};
-
-#ifdef USE_SENDSPIN_CONTROLLER
-inline const char *to_string(SendspinCommandType cmd) {
-  switch (cmd) {
-    case SendspinCommandType::PLAY:
-      return "play";
-    case SendspinCommandType::PAUSE:
-      return "pause";
-    case SendspinCommandType::STOP:
-      return "stop";
-    case SendspinCommandType::NEXT:
-      return "next";
-    case SendspinCommandType::PREVIOUS:
-      return "previous";
-    case SendspinCommandType::VOLUME:
-      return "volume";
-    case SendspinCommandType::MUTE:
-      return "mute";
-    case SendspinCommandType::REPEAT_OFF:
-      return "repeat_off";
-    case SendspinCommandType::REPEAT_ONE:
-      return "repeat_one";
-    case SendspinCommandType::REPEAT_ALL:
-      return "repeat_all";
-    case SendspinCommandType::SHUFFLE:
-      return "shuffle";
-    case SendspinCommandType::UNSHUFFLE:
-      return "unshuffle";
-    case SendspinCommandType::SWITCH:
-      return "switch";
-    default:
-      return "unknown";
-  }
-}
-
-inline std::optional<SendspinCommandType> command_type_from_string(const std::string &str) {
-  if (str == "play")
-    return SendspinCommandType::PLAY;
-  if (str == "pause")
-    return SendspinCommandType::PAUSE;
-  if (str == "stop")
-    return SendspinCommandType::STOP;
-  if (str == "next")
-    return SendspinCommandType::NEXT;
-  if (str == "previous")
-    return SendspinCommandType::PREVIOUS;
-  if (str == "volume")
-    return SendspinCommandType::VOLUME;
-  if (str == "mute")
-    return SendspinCommandType::MUTE;
-  if (str == "repeat_off")
-    return SendspinCommandType::REPEAT_OFF;
-  if (str == "repeat_one")
-    return SendspinCommandType::REPEAT_ONE;
-  if (str == "repeat_all")
-    return SendspinCommandType::REPEAT_ALL;
-  if (str == "shuffle")
-    return SendspinCommandType::SHUFFLE;
-  if (str == "unshuffle")
-    return SendspinCommandType::UNSHUFFLE;
-  if (str == "switch")
-    return SendspinCommandType::SWITCH;
-  return std::nullopt;
-}
-#endif
-
-struct ClientCommandControllerObject {
-#ifdef USE_SENDSPIN_CONTROLLER
-  SendspinCommandType command;
-  std::optional<uint8_t> volume;
-  std::optional<bool> mute;
 #endif
 };
 
 struct ClientCommandMessage {
+#ifdef USE_SENDSPIN_CONTROLLER
   std::optional<ClientCommandControllerObject> controller;
+#endif
 };
 
 struct ClientGoodbyeMessage {
   SendspinGoodbyeReason reason;
 };
 
-struct ServerStateControllerObject {
-#ifdef USE_SENDSPIN_CONTROLLER
-  std::vector<SendspinCommandType> supported_commands;
-  uint8_t volume;
-  bool muted;
-#endif
-};
-
-struct MetadataProgressObject {
-  uint32_t track_progress;
-  uint32_t track_duration;
-  uint32_t playback_speed;
-};
-
-struct ServerMetadataStateObject {
-#ifdef USE_SENDSPIN_METADATA
-  int64_t timestamp;
-  std::optional<std::string> title;
-  std::optional<std::string> artist;
-  std::optional<std::string> album_artist;
-  std::optional<std::string> album;
-  std::optional<std::string> artwork_url;
-  std::optional<uint16_t> year;
-  std::optional<uint16_t> track;
-  std::optional<MetadataProgressObject> progress;
-  std::optional<SendspinRepeatMode> repeat;
-  std::optional<bool> shuffle;
-#endif
-};
-
 struct ServerStateMessage {
+#ifdef USE_SENDSPIN_CONTROLLER
   std::optional<ServerStateControllerObject> controller;
+#endif
+#ifdef USE_SENDSPIN_METADATA
   std::optional<ServerMetadataStateObject> metadata;
+#endif
 };
 
 struct ServerInformationObject {
@@ -538,59 +566,20 @@ struct GroupUpdateMessage {
   GroupUpdateObject group;
 };
 
-#ifdef USE_SENDSPIN_AUDIO
-struct ServerPlayerStreamObject {
-  std::optional<SendspinCodecFormat> codec;
-  std::optional<uint32_t> sample_rate;
-  std::optional<uint8_t> channels;
-  std::optional<uint8_t> bit_depth;
-  std::optional<std::string> codec_header;
-
-  bool is_complete() const {
-    return codec.has_value() && sample_rate.has_value() && channels.has_value() && bit_depth.has_value();
-  }
-};
-#endif
-
-#ifdef USE_SENDSPIN_IMAGE
-struct ServerArtworkChannelObject {
-  std::optional<SendspinImageSource> source;
-  std::optional<SendspinImageFormat> format;
-  std::optional<uint16_t> width;
-  std::optional<uint16_t> height;
-
-  bool is_complete() const {
-    return source.has_value() && format.has_value() && width.has_value() && height.has_value();
-  }
-};
-
-struct ServerArtworkStreamObject {
-  std::optional<std::vector<ServerArtworkChannelObject>> channels;
-};
-
-struct ClientArtworkRequestObject {
-  uint8_t channel;
-  std::optional<SendspinImageSource> source;
-  std::optional<SendspinImageFormat> format;
-  std::optional<uint16_t> media_width;
-  std::optional<uint16_t> media_height;
-};
-#endif
-
 struct StreamStartMessage {
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
   std::optional<ServerPlayerStreamObject> player;
 #endif
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
   std::optional<ServerArtworkStreamObject> artwork;
 #endif
 };
 
 struct StreamRequestFormatMessage {
-#ifdef USE_SENDSPIN_AUDIO
+#ifdef USE_SENDSPIN_PLAYER
   std::optional<ServerPlayerStreamObject> player;
 #endif
-#ifdef USE_SENDSPIN_IMAGE
+#ifdef USE_SENDSPIN_ARTWORK
   std::optional<ClientArtworkRequestObject> artwork;
 #endif
 };
@@ -625,22 +614,15 @@ bool process_server_time_message(const std::string &message, int64_t timestamp,
 bool process_group_update_message(const std::string &message, GroupUpdateMessage *group_msg);
 void apply_group_update_deltas(GroupUpdateObject *current, const GroupUpdateObject &updates);
 
-#ifdef USE_SENDSPIN_AUDIO
-bool process_stream_start_message(const std::string &message, StreamStartMessage *stream_msg);
-void apply_player_stream_deltas(ServerPlayerStreamObject *current, const ServerPlayerStreamObject &updates);
 bool process_server_command_message(const std::string &message, ServerCommandMessage *cmd_msg);
-#endif
+bool process_server_state_message(const std::string &message, ServerStateMessage *state_msg);
 
+bool process_stream_start_message(const std::string &message, StreamStartMessage *stream_msg);
 bool process_stream_end_message(const std::string &message, StreamEndMessage *end_msg);
 bool process_stream_clear_message(const std::string &message, StreamClearMessage *clear_msg);
 
 #ifdef USE_SENDSPIN_METADATA
-bool process_server_state_message(const std::string &message, ServerStateMessage *state_msg);
 void apply_metadata_state_deltas(ServerMetadataStateObject *current, const ServerMetadataStateObject &updates);
-#endif
-
-#ifdef USE_SENDSPIN_IMAGE
-void apply_artwork_stream_deltas(ServerArtworkStreamObject *current, const ServerArtworkStreamObject &updates);
 #endif
 
 /// @brief Formats a client hello message as a JSON string for sending to the server.

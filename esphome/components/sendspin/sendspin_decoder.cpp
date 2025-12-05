@@ -1,6 +1,6 @@
 #include "sendspin_decoder.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_AUDIO)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_PLAYER)
 
 #include "esphome/core/log.h"
 
