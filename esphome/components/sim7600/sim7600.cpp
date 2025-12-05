@@ -13,12 +13,9 @@ enum State LAST_CxREG = PREF_CxREG;
 const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 
-uint8_t CxREG_INDEX_PREF = 0;
-uint8_t CxREG_INDEX = CxREG_INDEX_PREF;
-
 using namespace std;
-
 string CxREG_MODE[3] = {"CREG", "CEREG", "CGREG"};
+uint8_t CxREG_INDEX = 0;
 
 void Sim7600Component::update() {
   if (this->watch_dog_++ == 2) {
@@ -153,7 +150,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
       //this->state_ = STATE_SETUP_CLIP;  // skip setup clip not supported on 7670G
       //this->state_ = LAST_CxREG;
       this->state_ = STATE_CxREG;
-      this->state_ = STATE_SETUP_COPS;
+      //this->state_ = STATE_SETUP_COPS;
       this->expect_ack_ = true;
       break;
     case STATE_SETUP_COPS:
@@ -278,7 +275,7 @@ void Sim7600Component::parse_cmd_(std::string message) {
                 this->state_ = STATE_SETUP_CMGF;
       		//  break;
       		} else if (message[9+INDEX_SHIFT] == '4')  {          // not available, trying next one
-                ESP_LOGD(TAG, "%s  network registration not available, trying %s", CxREG_MODE[CxREG_INDEX] , CxREG_MODE[(CxREG_INDEX+1) % 3] );
+                ESP_LOGD(TAG, "%s  network registration not available, trying next %s", CxREG_MODE[CxREG_INDEX] , CxREG_MODE[(CxREG_INDEX+1) % 3] );
                 CxREG_INDEX = (CxREG_INDEX + 1) % 3;
                 this->state_ = STATE_CxREG;
                 this->expect_ack_ = true;
