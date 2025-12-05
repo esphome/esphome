@@ -45,7 +45,7 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
   std::string buffer_[NUM_BUFFERS];
   int buffer_index_write_ = 0;
   int buffer_index_read_ = 0;
-  bool has_tlow_id = false;
+  bool has_tlow_id_ = false;
 
   std::vector<PylontechListener *> listeners_{};
 };

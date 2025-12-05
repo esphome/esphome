@@ -8,7 +8,7 @@
     get_token(token_buf); \
     auto val = parse_number<int>(token_buf); \
     if (val.has_value()) { \
-      field = val.value(); \
+      (field) = val.value(); \
     } else { \
       ESP_LOGD(TAG, "invalid " field_name " in line %s", buffer.substr(0, buffer.size() - 2).c_str()); \
       return; \
@@ -123,8 +123,8 @@ void PylontechComponent::process_line_(std::string &buffer) {
       l.bat_num = val.value();
     } else if (strcmp(token_buf, "Power") == 0) {
       // header line i.e. "Power Volt   Curr" and so on
-      this->has_tlow_id = buffer.find("Tlow.Id") != std::string::npos;
-      ESP_LOGD(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id ? "with" : "without",
+      this->has_tlow_id_ = buffer.find("Tlow.Id") != std::string::npos;
+      ESP_LOGD(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id_ ? "with" : "without",
                buffer.substr(0, buffer.size() - 2).c_str());
       return;
     } else {
@@ -136,19 +136,19 @@ void PylontechComponent::process_line_(std::string &buffer) {
   PARSE_INT(l.curr, "Curr");
   PARSE_INT(l.tempr, "Tempr");
   PARSE_INT(l.tlow, "Tlow");
-  if (this->has_tlow_id) {
+  if (this->has_tlow_id_) {
     get_token(token_buf);  // Skip Tlow.Id
   }
   PARSE_INT(l.thigh, "Thigh");
-  if (this->has_tlow_id) {
+  if (this->has_tlow_id_) {
     get_token(token_buf);  // Skip Thigh.Id
   }
   PARSE_INT(l.vlow, "Vlow");
-  if (this->has_tlow_id) {
+  if (this->has_tlow_id_) {
     get_token(token_buf);  // Skip Vlow.Id
   }
   PARSE_INT(l.vhigh, "Vhigh");
-  if (this->has_tlow_id) {
+  if (this->has_tlow_id_) {
     get_token(token_buf);  // Skip Vhigh.Id
   }
   PARSE_STR(l.base_st, "Base.St");
@@ -157,9 +157,9 @@ void PylontechComponent::process_line_(std::string &buffer) {
   PARSE_STR(l.temp_st, "Temp.St");
   {
     get_token(token_buf);
-    for (int i = 0; i < TEXT_SENSOR_MAX_LEN; i++) {
-      if (token_buf[i] == '%') {
-        token_buf[i] = 0;
+    for (char &i : token_buf) {
+      if (i == '%') {
+        i = 0;
         break;
       }
     }
