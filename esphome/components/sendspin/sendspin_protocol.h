@@ -95,6 +95,19 @@ struct ClientPlayerStateObject {
   uint8_t volume;
   bool muted;
 };
+
+struct ServerPlayerStreamObject {
+  std::optional<SendspinCodecFormat> codec;
+  std::optional<uint32_t> sample_rate;
+  std::optional<uint8_t> channels;
+  std::optional<uint8_t> bit_depth;
+  std::optional<std::string> codec_header;
+
+  bool is_complete() const {
+    return codec.has_value() && sample_rate.has_value() && channels.has_value() && bit_depth.has_value();
+  }
+};
+
 #endif  // USE_SENDSPIN_PLAYER
 
 #ifdef USE_SENDSPIN_ARTWORK

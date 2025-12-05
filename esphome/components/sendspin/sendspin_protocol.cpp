@@ -570,11 +570,10 @@ bool process_server_state_message(const std::string &message, ServerStateMessage
           state_msg->metadata = metadata_state;
         }
       }
-#endif
-
       // Parse optional controller object (for future use)
       // TODO: Implement controller state parsing when needed
     }
+#endif
 
     return true;
   }));
