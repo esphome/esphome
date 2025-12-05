@@ -7,7 +7,7 @@ esp32:
     components:
       - espressif/mdns^1.8.2
       - name: espressif/esp_hosted
-        ref: 2.6.6
+        ref: 2.7.0
     advanced:
       enable_idf_experimental_features: yes
 

@@ -310,7 +310,7 @@ def spi_mode_schema(mode):
     if pin_count == 8:
         onlys.append(
             only_on_variant(
-                supported=[VARIANT_ESP32S3, VARIANT_ESP32S2, VARIANT_ESP32P4]
+                supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3]
             )
         )
     return cv.All(

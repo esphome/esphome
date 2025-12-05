@@ -740,9 +740,10 @@ def has_at_most_one_key(*keys):
         if not isinstance(obj, dict):
             raise Invalid("expected dictionary")
 
-        number = sum(k in keys for k in obj)
-        if number > 1:
-            raise Invalid(f"Cannot specify more than one of {', '.join(keys)}.")
+        used = set(obj) & set(keys)
+        if len(used) > 1:
+            msg = "Cannot specify more than one of '" + "', '".join(used) + "'."
+            raise MultipleInvalid([Invalid(msg, path=[k]) for k in used])
         return obj
 
     return validate
