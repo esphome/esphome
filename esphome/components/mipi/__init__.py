@@ -371,9 +371,9 @@ class DriverChip:
         transform = config.get(
             CONF_TRANSFORM,
             {
-                CONF_MIRROR_X: self.get_default(CONF_MIRROR_X),
-                CONF_MIRROR_Y: self.get_default(CONF_MIRROR_Y),
-                CONF_SWAP_XY: self.get_default(CONF_SWAP_XY),
+                CONF_MIRROR_X: self.get_default(CONF_MIRROR_X, False),
+                CONF_MIRROR_Y: self.get_default(CONF_MIRROR_Y, False),
+                CONF_SWAP_XY: self.get_default(CONF_SWAP_XY, False),
             },
         )
         if not isinstance(transform, dict):
