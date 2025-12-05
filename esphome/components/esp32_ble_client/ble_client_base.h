@@ -10,7 +10,6 @@
 #endif
 
 #include <array>
-#include <string>
 #include <vector>
 
 #include <esp_bt_defs.h>
@@ -23,6 +22,7 @@ namespace esphome::esp32_ble_client {
 namespace espbt = esphome::esp32_ble_tracker;
 
 static const int UNSET_CONN_ID = 0xFFFF;
+static constexpr size_t MAC_ADDR_STR_LEN = 18;  // "AA:BB:CC:DD:EE:FF\0"
 
 class BLEClientBase : public espbt::ESPBTClient, public Component {
  public:
@@ -58,14 +58,12 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
     this->remote_bda_[4] = (address >> 8) & 0xFF;
     this->remote_bda_[5] = (address >> 0) & 0xFF;
     if (address == 0) {
-      this->address_str_ = "";
+      this->address_str_[0] = '\0';
     } else {
-      char buf[18];
-      format_mac_addr_upper(this->remote_bda_, buf);
-      this->address_str_ = buf;
+      format_mac_addr_upper(this->remote_bda_, this->address_str_);
     }
   }
-  const std::string &address_str() const { return this->address_str_; }
+  const char *address_str() const { return this->address_str_; }
 
 #ifdef USE_ESP32_BLE_DEVICE
   BLEService *get_service(espbt::ESPBTUUID uuid);
@@ -104,7 +102,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint64_t address_{0};
 
   // Group 2: Container types (grouped for memory optimization)
-  std::string address_str_{};
 #ifdef USE_ESP32_BLE_DEVICE
   std::vector<BLEService *> services_;
 #endif
@@ -113,8 +110,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   int gattc_if_;
   esp_gatt_status_t status_{ESP_GATT_OK};
 
-  // Group 4: Arrays (6 bytes)
-  esp_bd_addr_t remote_bda_;
+  // Group 4: Arrays
+  char address_str_[MAC_ADDR_STR_LEN]{};  // 18 bytes: "AA:BB:CC:DD:EE:FF\0"
+  esp_bd_addr_t remote_bda_;              // 6 bytes
 
   // Group 5: 2-byte types
   uint16_t conn_id_{UNSET_CONN_ID};
