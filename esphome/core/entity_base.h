@@ -227,20 +227,20 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   /**
    * Set a new state for this entity. This will trigger callbacks only if the new state is different from the previous.
    *
-   * @param state The new state.
+   * @param new_state The new state.
    * @return True if the state was changed, false if it was the same as before.
    */
-  virtual bool set_state(const optional<T> &state) {
-    if (this->state_ != state) {
+  virtual bool set_state(const optional<T> &new_state) {
+    if (this->state_ != new_state) {
       // call the full state callbacks with the previous and new state
       if (this->full_state_callbacks_ != nullptr)
-        this->full_state_callbacks_->call(this->state_, state);
+        this->full_state_callbacks_->call(this->state_, new_state);
       // trigger legacy callbacks only if the new state is valid and either the trigger on initial state is enabled or
       // the previous state was valid
       auto had_state = this->has_state();
-      this->state_ = state;
-      if (this->state_callbacks_ != nullptr && state.has_value() && (this->trigger_on_initial_state_ || had_state))
-        this->state_callbacks_->call(state.value());
+      this->state_ = new_state;
+      if (this->state_callbacks_ != nullptr && new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
+        this->state_callbacks_->call(new_state.value());
       return true;
     }
     return false;

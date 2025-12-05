@@ -38,12 +38,12 @@ void BinarySensor::send_state_internal(bool new_state) {
   this->set_state(new_state);
 }
 
-bool BinarySensor::set_state(const optional<bool> &state_) {
-  if (StatefulEntityBase::set_state(state_)) {
+bool BinarySensor::set_state(const optional<bool> &new_state) {
+  if (StatefulEntityBase::set_state(new_state)) {
 #ifdef USE_CONTROLLER_REGISTRY
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
-    ESP_LOGD(TAG, "'%s': %s", this->get_name().c_str(), ONOFFMAYBE(state_));
+    ESP_LOGD(TAG, "'%s': %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
     return true;
   }
   return false;
