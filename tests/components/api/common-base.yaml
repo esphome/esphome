@@ -181,6 +181,10 @@ api:
             else:
               - logger.log: "Skipped loops"
         - logger.log: "After combined test"
+    - action: disconnect_clients
+      then:
+        - logger.log: "Requested to disconnect all api clients"
+        - api.disconnect_clients:
 
 event:
   - platform: template

@@ -80,6 +80,8 @@ class APIServer : public Component,
   APINoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
 
+  void disconnect_clients();
+
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
   void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
@@ -256,6 +258,11 @@ class APIServer : public Component,
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+template<typename... Ts> class APIDisconnectClientsAction : public Action<Ts...> {
+ public:
+  void play(const Ts &...x) override { global_api_server->disconnect_clients(); }
+};
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)

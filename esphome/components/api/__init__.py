@@ -55,6 +55,9 @@ def AUTO_LOAD(config: ConfigType) -> list[str]:
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
+APIDiconnectClientsAction = api_ns.class_(
+    "APIDiconnectClientsAction", automation.Action
+)
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
 )
@@ -536,6 +539,25 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
     cg.add(var.add_data("tag_id", templ))
     return var
+
+
+API_DISCONNECT_CLIENTS_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(APIServer),
+        cv.Optional(CONF_STATE_SUBSCRIPTION_ONLY, default=False): cv.templatable(
+            cv.boolean
+        ),
+    }
+)
+
+
+@automation.register_action(
+    "api.disconnect_clients",
+    APIDiconnectClientsAction,
+    API_DISCONNECT_CLIENTS_ACTION_SCHEMA,
+)
+async def api_disconnect_clients_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
 
 
 API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
