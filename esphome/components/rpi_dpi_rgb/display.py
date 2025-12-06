@@ -1,7 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
-from esphome.components.esp32 import const, only_on_variant
+from esphome.components.esp32 import VARIANT_ESP32S3, only_on_variant
 from esphome.components.mipi import (
     CONF_DE_PIN,
     CONF_HSYNC_BACK_PORCH,
@@ -121,7 +121,7 @@ CONFIG_SCHEMA = cv.All(
             }
         )
     ),
-    only_on_variant(supported=[const.VARIANT_ESP32S3]),
+    only_on_variant(supported=[VARIANT_ESP32S3]),
     cv.only_with_esp_idf,
 )
 
