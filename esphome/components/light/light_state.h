@@ -277,6 +277,12 @@ class LightState : public EntityBase, public Component {
   /// Disable loop if neither transformer nor effect is active
   void disable_loop_if_idle_();
 
+  /// Schedule a write to the light output and enable the loop to process it
+  void schedule_write_() {
+    this->next_write_ = true;
+    this->enable_loop();
+  }
+
   /// Store the output to allow effects to have more access.
   LightOutput *output_;
   /// The currently active transformer for this light (transition/flash).

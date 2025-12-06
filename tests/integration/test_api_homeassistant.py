@@ -163,7 +163,7 @@ async def test_api_homeassistant(
         assert trigger_service is not None, "trigger_all_tests service not found"
 
         # Execute all tests
-        client.execute_service(trigger_service, {})
+        await client.execute_service(trigger_service, {})
 
         # Wait for all tests to complete with appropriate timeouts
         try:

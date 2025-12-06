@@ -1,0 +1,45 @@
+esphome:
+  name: api-action-timeout-test
+  # Use a short timeout for testing (500ms instead of 30s)
+  platformio_options:
+    build_flags:
+      - "-DUSE_API_ACTION_CALL_TIMEOUT_MS=500"
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  actions:
+    # Action that responds immediately - should work fine
+    - action: action_immediate
+      supports_response: only
+      then:
+        - logger.log: "ACTION_IMMEDIATE responding"
+        - api.respond:
+            data: !lambda |-
+              root["status"] = "immediate";
+
+    # Action that delays 200ms before responding - should work (within 500ms timeout)
+    - action: action_short_delay
+      supports_response: only
+      then:
+        - logger.log: "ACTION_SHORT_DELAY starting"
+        - delay: 200ms
+        - logger.log: "ACTION_SHORT_DELAY responding"
+        - api.respond:
+            data: !lambda |-
+              root["status"] = "short_delay";
+
+    # Action that delays 1s before responding - should fail (exceeds 500ms timeout)
+    # The api.respond will log a warning because the action call was already cleaned up
+    - action: action_long_delay
+      supports_response: only
+      then:
+        - logger.log: "ACTION_LONG_DELAY starting"
+        - delay: 1s
+        - logger.log: "ACTION_LONG_DELAY responding (after timeout)"
+        - api.respond:
+            data: !lambda |-
+              root["status"] = "long_delay";
