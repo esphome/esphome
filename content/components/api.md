@@ -443,6 +443,10 @@ It is also possible to get data from Home Assistant to ESPHome with user-defined
 When you declare actions in your ESPHome YAML file, they will automatically show up in
 Home Assistant and you can call them directly.
 
+> [!NOTE]
+> User-defined actions can also send responses back to the calling client using the `api.respond` action.
+> See [Action Responses](#action-responses) for details.
+
 ```yaml
 # Example configuration entry
 api:
@@ -501,6 +505,144 @@ Each of these also exist in array form:
 
 - bool[]: An array of boolean values. C++ type: `std::vector<bool>`
 - ... - Same for other types.
+
+### Action Responses
+
+User-defined actions can send responses back to the calling client (such as Home Assistant). This enables
+bidirectional communication where actions can report success/error status or return structured JSON data.
+
+#### Response Modes
+
+The response behavior is controlled by the `supports_response` option, which can be set explicitly or
+auto-detected based on your action configuration:
+
+- **none** (default): No response is sent. The action is "fire and forget".
+- **status**: Reports success/error status without data. Auto-detected when `api.respond` is used without `data:`.
+- **optional**: Returns JSON data when the client requests it. Auto-detected when `api.respond` is used with `data:`.
+- **only**: Always returns JSON data. Must be set explicitly. Use this for query-type actions.
+
+#### Configuration variables
+
+- **supports_response** (*Optional*, string): The response mode for this action. One of `none`, `status`,
+  `optional`, or `only`. If not specified, the mode is auto-detected based on `api.respond` usage in the action.
+
+#### Trigger variables
+
+When `supports_response` is not `none`, the following variables are available in the action:
+
+- **call_id** (`uint32_t`): A unique identifier for this action call. Used internally by `api.respond`.
+- **return_response** (`bool`): Only available in `optional` mode. Indicates whether the client requested
+  a response. You don't typically need to check this - `api.respond` handles it automatically.
+
+### `api.respond` Action
+
+This action sends a response back to the client that called the user-defined action. It can report
+success/error status and optionally include JSON data.
+
+#### Configuration variables
+
+- **success** (*Optional*, boolean, [templatable](/automations/templates)): Whether the action succeeded.
+  Defaults to `true`.
+- **error_message** (*Optional*, string, [templatable](/automations/templates)): An error message to include
+  when `success` is `false`. Defaults to an empty string.
+- **data** (*Optional*, [lambda](/automations/templates#config-lambda)): A lambda that populates a JSON object
+  with response data. The lambda receives a `root` variable of type [`JsonObject`](https://arduinojson.org/v7/api/jsonobject/)
+  that you can populate with key-value pairs.
+
+#### Status Response Example
+
+Report success or error without returning data:
+
+```yaml
+api:
+  actions:
+    - action: validate_input
+      variables:
+        value: int
+      then:
+        - if:
+            condition:
+              lambda: 'return value < 0;'
+            then:
+              - api.respond:
+                  success: false
+                  error_message: "Value must be positive"
+            else:
+              - api.respond:
+                  success: true
+```
+
+#### Data Response Example
+
+Return structured JSON data to the caller:
+
+```yaml
+api:
+  actions:
+    - action: get_sensor_data
+      variables:
+        sensor_name: string
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["sensor"] = sensor_name;
+              root["value"] = id(my_sensor).state;
+              root["unit"] = "°C";
+              root["timestamp"] = id(homeassistant_time).now().timestamp;
+```
+
+This action will be auto-detected as `optional` mode because it uses `api.respond` with `data:`.
+
+#### Query Action Example
+
+For actions that always return data (like queries), explicitly set `supports_response: only`:
+
+```yaml
+api:
+  actions:
+    - action: get_device_info
+      supports_response: only
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["hostname"] = App.get_name();
+              root["version"] = ESPHOME_VERSION;
+              root["uptime"] = millis() / 1000;
+```
+
+#### Nested JSON Data
+
+You can create complex nested JSON structures:
+
+```yaml
+api:
+  actions:
+    - action: get_full_status
+      supports_response: only
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["device"]["name"] = "living_room";
+              root["device"]["version"] = 1;
+              root["sensors"]["temperature"] = id(temp_sensor).state;
+              root["sensors"]["humidity"] = id(humidity_sensor).state;
+```
+
+#### Calling from Home Assistant
+
+Actions with response support appear in Home Assistant with their response mode indicated. You can call
+them and receive the response data:
+
+```yaml
+# Home Assistant automation example
+action: esphome.device_get_sensor_data
+data:
+  sensor_name: "living_room"
+response_variable: sensor_response
+```
+
+The response will be available in the `sensor_response` variable with the structure you defined in the
+`data:` lambda.
 
 ## Advantages over MQTT
 
