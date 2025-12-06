@@ -49,6 +49,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
 )
 
+
 def validate_memory_location(value: int) -> int:
     # check if write bit is set
     if value & WRITE_BIT:
@@ -57,7 +58,9 @@ def validate_memory_location(value: int) -> int:
         _LOGGER.warning(
             "Setting the write bit (0x80) in memory_location is not necessary. It will be added automatically."
             " Please set the memory_location to the read address (without write bit)."
-            " Recommended change: 0x%02X -> 0x%02X", value, new_value
+            " Recommended change: 0x%02X -> 0x%02X",
+            value,
+            new_value,
         )
         return new_value
     return value
@@ -67,9 +70,9 @@ def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
     return cv.Schema(
         {
             cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
-            cv.Optional(
-                CONF_MEMORY_LOCATION, default=default_memory_location
-            ): cv.All(cv.hex_int_range(), validate_memory_location),
+            cv.Optional(CONF_MEMORY_LOCATION, default=default_memory_location): cv.All(
+                cv.hex_int_range(), validate_memory_location
+            ),
             cv.Optional(
                 CONF_MEMORY_ADDRESS, default=default_memory_address
             ): cv.hex_int_range(),
