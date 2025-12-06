@@ -35,7 +35,7 @@ from esphome.__main__ import (
     upload_program,
     upload_using_esptool,
 )
-from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
     CONF_BROKER,
@@ -265,6 +265,16 @@ def mock_memory_analyzer_cli() -> Generator[Mock]:
     with patch("esphome.analyze_memory.cli.MemoryAnalyzerCLI") as mock_class:
         mock_analyzer = MagicMock()
         mock_analyzer.generate_report.return_value = "Mock Memory Report"
+        mock_class.return_value = mock_analyzer
+        yield mock_class
+
+
+@pytest.fixture
+def mock_ram_strings_analyzer() -> Generator[Mock]:
+    """Mock RamStringsAnalyzer for testing."""
+    with patch("esphome.analyze_memory.ram_strings.RamStringsAnalyzer") as mock_class:
+        mock_analyzer = MagicMock()
+        mock_analyzer.generate_report.return_value = "Mock RAM Strings Report"
         mock_class.return_value = mock_analyzer
         yield mock_class
 
@@ -2424,6 +2434,7 @@ def test_command_analyze_memory_success(
     mock_get_idedata: Mock,
     mock_get_esphome_components: Mock,
     mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
 ) -> None:
     """Test command_analyze_memory with successful compilation and analysis."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
@@ -2471,9 +2482,20 @@ def test_command_analyze_memory_success(
     mock_analyzer.analyze.assert_called_once()
     mock_analyzer.generate_report.assert_called_once()
 
-    # Verify report was printed
+    # Verify RAM strings analyzer was created and run
+    mock_ram_strings_analyzer.assert_called_once_with(
+        str(firmware_elf),
+        objdump_path="/path/to/objdump",
+        platform="esp32",
+    )
+    mock_ram_analyzer = mock_ram_strings_analyzer.return_value
+    mock_ram_analyzer.analyze.assert_called_once()
+    mock_ram_analyzer.generate_report.assert_called_once()
+
+    # Verify reports were printed
     captured = capfd.readouterr()
     assert "Mock Memory Report" in captured.out
+    assert "Mock RAM Strings Report" in captured.out
 
 
 def test_command_analyze_memory_with_external_components(
@@ -2483,6 +2505,7 @@ def test_command_analyze_memory_with_external_components(
     mock_get_idedata: Mock,
     mock_get_esphome_components: Mock,
     mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
 ) -> None:
     """Test command_analyze_memory detects external components."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")

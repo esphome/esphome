@@ -339,20 +339,43 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
   this->phi_.initialize(parent, nullptr);
 }
 
-// TimeoutFilter
-optional<float> TimeoutFilter::new_value(float value) {
-  if (this->value_.has_value()) {
-    this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_.value().value()); });
-  } else {
-    this->set_timeout("timeout", this->time_period_, [this, value]() { this->output(value); });
+// TimeoutFilterBase - shared loop logic
+void TimeoutFilterBase::loop() {
+  // Check if timeout period has elapsed
+  // Use cached loop start time to avoid repeated millis() calls
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->timeout_start_time_ >= this->time_period_) {
+    // Timeout fired - get output value from derived class and output it
+    this->output(this->get_output_value());
+
+    // Disable loop until next value arrives
+    this->disable_loop();
   }
+}
+
+float TimeoutFilterBase::get_setup_priority() const { return setup_priority::HARDWARE; }
+
+// TimeoutFilterLast - "last" mode implementation
+optional<float> TimeoutFilterLast::new_value(float value) {
+  // Store the value to output when timeout fires
+  this->pending_value_ = value;
+
+  // Record when timeout started and enable loop
+  this->timeout_start_time_ = millis();
+  this->enable_loop();
+
   return value;
 }
 
-TimeoutFilter::TimeoutFilter(uint32_t time_period) : time_period_(time_period) {}
-TimeoutFilter::TimeoutFilter(uint32_t time_period, const TemplatableValue<float> &new_value)
-    : time_period_(time_period), value_(new_value) {}
-float TimeoutFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+// TimeoutFilterConfigured - configured value mode implementation
+optional<float> TimeoutFilterConfigured::new_value(float value) {
+  // Record when timeout started and enable loop
+  // Note: we don't store the incoming value since we have a configured value
+  this->timeout_start_time_ = millis();
+  this->enable_loop();
+
+  return value;
+}
 
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {

@@ -369,11 +369,11 @@ void Component::status_clear_error() {
   this->component_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
-void Component::status_momentary_warning(const std::string &name, uint32_t length) {
+void Component::status_momentary_warning(const char *name, uint32_t length) {
   this->status_set_warning();
   this->set_timeout(name, length, [this]() { this->status_clear_warning(); });
 }
-void Component::status_momentary_error(const std::string &name, uint32_t length) {
+void Component::status_momentary_error(const char *name, uint32_t length) {
   this->status_set_error();
   this->set_timeout(name, length, [this]() { this->status_clear_error(); });
 }

@@ -7,7 +7,7 @@ This directory contains end-to-end integration tests for ESPHome, focusing on te
 - `conftest.py` - Common fixtures and utilities
 - `const.py` - Constants used throughout the integration tests
 - `types.py` - Type definitions for fixtures and functions
-- `state_utils.py` - State handling utilities (e.g., `InitialStateHelper`, `build_key_to_entity_mapping`)
+- `state_utils.py` - State handling utilities (e.g., `InitialStateHelper`, `find_entity`, `require_entity`)
 - `fixtures/` - YAML configuration files for tests
 - `test_*.py` - Individual test files
 
@@ -52,6 +52,28 @@ The `InitialStateHelper` class solves a common problem in integration tests: whe
 
 **Future work:**
 Consider converting existing integration tests to use `InitialStateHelper` for more reliable state tracking and to eliminate race conditions related to initial state broadcasts.
+
+#### Entity Lookup Helpers (`state_utils.py`)
+
+Two helper functions simplify finding entities in test code:
+
+**`find_entity(entities, object_id_substring, entity_type=None)`**
+- Finds an entity by searching for a substring in its `object_id` (case-insensitive)
+- Optionally filters by entity type (e.g., `BinarySensorInfo`)
+- Returns `None` if not found
+
+**`require_entity(entities, object_id_substring, entity_type=None, description=None)`**
+- Same as `find_entity` but raises `AssertionError` if not found
+- Use `description` parameter for clearer error messages
+
+```python
+from aioesphomeapi import BinarySensorInfo
+from .state_utils import require_entity
+
+# Find entities with clear error messages
+binary_sensor = require_entity(entities, "test_sensor", BinarySensorInfo)
+button = require_entity(entities, "set_true", description="Set True button")
+```
 
 ### Writing Tests
 

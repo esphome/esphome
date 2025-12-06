@@ -52,11 +52,6 @@ void APIServer::setup() {
 #endif
 #endif
 
-  // Schedule reboot if no clients connect within timeout
-  if (this->reboot_timeout_ != 0) {
-    this->schedule_reboot_timeout_();
-  }
-
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
   if (this->socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket");
@@ -101,42 +96,22 @@ void APIServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          if (this->shutting_down_) {
-            // Don't try to send logs during shutdown
-            // as it could result in a recursion and
-            // we would be filling a buffer we are trying to clear
-            return;
-          }
-          for (auto &c : this->clients_) {
-            if (!c->flags_.remove && c->get_log_subscription_level() >= level)
-              c->try_send_log_message(level, tag, message, message_len);
-          }
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
 #ifdef USE_CAMERA
   if (camera::Camera::instance() != nullptr && !camera::Camera::instance()->is_internal()) {
-    camera::Camera::instance()->add_image_callback([this](const std::shared_ptr<camera::CameraImage> &image) {
-      for (auto &c : this->clients_) {
-        if (!c->flags_.remove)
-          c->set_camera_state(image);
-      }
-    });
+    camera::Camera::instance()->add_listener(this);
   }
 #endif
-}
 
-void APIServer::schedule_reboot_timeout_() {
-  this->status_set_warning();
-  this->set_timeout("api_reboot", this->reboot_timeout_, []() {
-    if (!global_api_server->is_connected()) {
-      ESP_LOGE(TAG, "No clients; rebooting");
-      App.reboot();
-    }
-  });
+  // Initialize last_connected_ for reboot timeout tracking
+  this->last_connected_ = App.get_loop_component_start_time();
+  // Set warning status if reboot timeout is enabled
+  if (this->reboot_timeout_ != 0) {
+    this->status_set_warning();
+  }
 }
 
 void APIServer::loop() {
@@ -164,15 +139,24 @@ void APIServer::loop() {
       this->clients_.emplace_back(conn);
       conn->start();
 
-      // Clear warning status and cancel reboot when first client connects
+      // First client connected - clear warning and update timestamp
       if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
         this->status_clear_warning();
-        this->cancel_timeout("api_reboot");
+        this->last_connected_ = App.get_loop_component_start_time();
       }
     }
   }
 
   if (this->clients_.empty()) {
+    // Check reboot timeout - done in loop to avoid scheduler heap churn
+    // (cancelled scheduler items sit in heap memory until their scheduled time)
+    if (this->reboot_timeout_ != 0) {
+      const uint32_t now = App.get_loop_component_start_time();
+      if (now - this->last_connected_ > this->reboot_timeout_) {
+        ESP_LOGE(TAG, "No clients; rebooting");
+        App.reboot();
+      }
+    }
     return;
   }
 
@@ -211,9 +195,10 @@ void APIServer::loop() {
     }
     this->clients_.pop_back();
 
-    // Schedule reboot when last client disconnects
+    // Last client disconnected - set warning and start tracking for reboot timeout
     if (this->clients_.empty() && this->reboot_timeout_ != 0) {
-      this->schedule_reboot_timeout_();
+      this->status_set_warning();
+      this->last_connected_ = App.get_loop_component_start_time();
     }
     // Don't increment client_index since we need to process the swapped element
   }
@@ -540,6 +525,30 @@ bool APIServer::is_connected(bool state_subscription_only) const {
   }
   return false;
 }
+
+#ifdef USE_LOGGER
+void APIServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  if (this->shutting_down_) {
+    // Don't try to send logs during shutdown
+    // as it could result in a recursion and
+    // we would be filling a buffer we are trying to clear
+    return;
+  }
+  for (auto &c : this->clients_) {
+    if (!c->flags_.remove && c->get_log_subscription_level() >= level)
+      c->try_send_log_message(level, tag, message, message_len);
+  }
+}
+#endif
+
+#ifdef USE_CAMERA
+void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
+  for (auto &c : this->clients_) {
+    if (!c->flags_.remove)
+      c->set_camera_state(image);
+  }
+}
+#endif
 
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;
