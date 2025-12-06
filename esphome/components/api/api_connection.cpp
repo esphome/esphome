@@ -90,8 +90,8 @@ static const int CAMERA_STOP_STREAM = 5000;
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
     : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
-  auto noise_ctx = parent->get_noise_ctx();
-  if (noise_ctx->has_psk()) {
+  auto &noise_ctx = parent->get_noise_ctx();
+  if (noise_ctx.has_psk()) {
     this->helper_ =
         std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, &this->client_info_)};
   } else {
@@ -169,8 +169,7 @@ void APIConnection::loop() {
       } else {
         this->last_traffic_ = now;
         // read a packet
-        this->read_message(buffer.data_len, buffer.type,
-                           buffer.data_len > 0 ? &buffer.container[buffer.data_offset] : nullptr);
+        this->read_message(buffer.data_len, buffer.type, buffer.data);
         if (this->flags_.remove)
           return;
       }
@@ -195,6 +194,9 @@ void APIConnection::loop() {
       }
       // Now that everything is sent, enable immediate sending for future state changes
       this->flags_.should_try_send_immediately = true;
+      // Release excess memory from buffers that grew during initial sync
+      this->deferred_batch_.release_buffer();
+      this->helper_->release_buffers();
     }
   }
 
@@ -484,12 +486,16 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
+  FixedVector<const char *> effects_list;
   if (light->supports_effects()) {
-    msg.effects.emplace_back("None");
-    for (auto *effect : light->get_effects()) {
-      msg.effects.emplace_back(effect->get_name());
+    auto &light_effects = light->get_effects();
+    effects_list.init(light_effects.size() + 1);
+    effects_list.push_back("None");
+    for (auto *effect : light_effects) {
+      effects_list.push_back(effect->get_name());
     }
   }
+  msg.effects = &effects_list;
   return fill_and_encode_entity_info(light, msg, ListEntitiesLightResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -1451,8 +1457,11 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_AREAS
   resp.set_suggested_area(StringRef(App.get_area()));
 #endif
-  // mac_address must store temporary string - will be valid during send_message call
-  std::string mac_address = get_mac_address_pretty();
+  // Stack buffer for MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
+  char mac_address[18];
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  format_mac_addr_upper(mac, mac_address);
   resp.set_mac_address(StringRef(mac_address));
 
   resp.set_esphome_version(ESPHOME_VERSION_REF);
@@ -1493,8 +1502,9 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
-  // bt_mac must store temporary string - will be valid during send_message call
-  std::string bluetooth_mac = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty();
+  // Stack buffer for Bluetooth MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
+  char bluetooth_mac[18];
+  bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
   resp.set_bluetooth_mac_address(StringRef(bluetooth_mac));
 #endif
 #ifdef USE_VOICE_ASSISTANT
@@ -1541,7 +1551,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   }
 }
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
   for (auto *service : this->parent_->get_user_services()) {
@@ -1652,13 +1662,13 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
   for (auto &item : items) {
     if (item.entity == entity && item.message_type == message_type) {
       // Replace with new creator
-      item.creator = std::move(creator);
+      item.creator = creator;
       return;
     }
   }
 
   // No existing item found, add new one
-  items.emplace_back(entity, std::move(creator), message_type, estimated_size);
+  items.emplace_back(entity, creator, message_type, estimated_size);
 }
 
 void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCreator creator, uint8_t message_type,
@@ -1667,7 +1677,7 @@ void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCre
   // This avoids expensive vector::insert which shifts all elements
   // Note: We only ever have one high-priority message at a time (ping OR disconnect)
   // If we're disconnecting, pings are blocked, so this simple swap is sufficient
-  items.emplace_back(entity, std::move(creator), message_type, estimated_size);
+  items.emplace_back(entity, creator, message_type, estimated_size);
   if (items.size() > 1) {
     // Swap the new high-priority item to the front
     std::swap(items.front(), items.back());
