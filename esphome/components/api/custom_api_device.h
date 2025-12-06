@@ -16,7 +16,10 @@ template<typename T, typename... Ts> class CustomAPIDeviceService : public UserS
       : UserServiceDynamic<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
 
  protected:
-  void execute(Ts... x) override { (this->obj_->*this->callback_)(x...); }  // NOLINT
+  // CustomAPIDevice services don't support action responses - ignore call_id and return_response
+  void execute(uint32_t /*call_id*/, bool /*return_response*/, Ts... x) override {
+    (this->obj_->*this->callback_)(x...);  // NOLINT
+  }
 
   T *obj_;
   void (T::*callback_)(Ts...);
