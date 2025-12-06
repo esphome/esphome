@@ -117,7 +117,7 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype, retmapper=None, requires=None):
+    def __init__(self, validator, rtype: MockObj, retmapper=None, requires=None):
         self.validator = validator
         self.rtype = rtype
         self.retmapper = retmapper
@@ -155,7 +155,7 @@ class LValidator:
             value = [
                 await cg.get_variable(x) if isinstance(x, ID) else x for x in value
             ]
-        if self.rtype == cg.int_:
+        if self.rtype is cg.int_:
             value = int(value)
         return cg.safe_exp(value)
 
