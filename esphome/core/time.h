@@ -84,6 +84,9 @@ struct ESPTime {
    */
   static ESPTime from_epoch_local(time_t epoch) {
     struct tm *c_tm = ::localtime(&epoch);
+    if (c_tm == nullptr) {
+      return ESPTime{};  // Return an invalid ESPTime
+    }
     return ESPTime::from_c_tm(c_tm, epoch);
   }
   /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.
@@ -93,6 +96,9 @@ struct ESPTime {
    */
   static ESPTime from_epoch_utc(time_t epoch) {
     struct tm *c_tm = ::gmtime(&epoch);
+    if (c_tm == nullptr) {
+      return ESPTime{};  // Return an invalid ESPTime
+    }
     return ESPTime::from_c_tm(c_tm, epoch);
   }
 

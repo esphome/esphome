@@ -14,7 +14,7 @@ enum TemplateCoverRestoreMode {
   COVER_RESTORE_AND_CALL,
 };
 
-class TemplateCover : public cover::Cover, public Component {
+class TemplateCover final : public cover::Cover, public Component {
  public:
   TemplateCover();
 

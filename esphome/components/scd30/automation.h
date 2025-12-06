@@ -9,7 +9,7 @@ namespace scd30 {
 
 template<typename... Ts> class ForceRecalibrationWithReference : public Action<Ts...>, public Parented<SCD30Component> {
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->value_.has_value()) {
       this->parent_->force_recalibration_with_reference(this->value_.value(x...));
     }

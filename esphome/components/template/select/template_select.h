@@ -9,7 +9,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateSelect : public select::Select, public PollingComponent {
+class TemplateSelect final : public select::Select, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
@@ -24,7 +24,7 @@ class TemplateSelect : public select::Select, public PollingComponent {
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
   bool optimistic_ = false;
   size_t initial_option_index_{0};
   bool restore_value_ = false;

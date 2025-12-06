@@ -8,7 +8,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateLock : public lock::Lock, public Component {
+class TemplateLock final : public lock::Lock, public Component {
  public:
   TemplateLock();
 

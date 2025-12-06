@@ -9,6 +9,7 @@
 #include "esphome/components/uart/uart.h"
 #include "nextion_base.h"
 #include "nextion_component.h"
+#include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
@@ -31,7 +32,7 @@ namespace nextion {
 class Nextion;
 class NextionComponentBase;
 
-using nextion_writer_t = std::function<void(Nextion &)>;
+using nextion_writer_t = display::DisplayWriter<Nextion>;
 
 static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<char>(255), static_cast<char>(255)};
 
@@ -1471,7 +1472,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void(uint8_t, uint8_t, bool)> touch_callback_{};
   CallbackManager<void()> buffer_overflow_callback_{};
 
-  optional<nextion_writer_t> writer_;
+  nextion_writer_t writer_;
   optional<float> brightness_;
 
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO

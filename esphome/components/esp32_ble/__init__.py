@@ -22,6 +22,7 @@ from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
+AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
 
@@ -482,13 +483,10 @@ async def to_code(config):
         cg.add(var.set_name(name))
     await cg.register_component(var, config)
 
-    # BLE uses 1 UDP socket for event notification to wake up main loop from select()
+    # BLE uses the socket wake_loop_threadsafe() mechanism to wake the main loop from BLE tasks
     # This enables low-latency (~12μs) BLE event processing instead of waiting for
-    # select() timeout (0-16ms). The socket is created in ble_setup_() and used to
-    # wake lwip_select() when BLE events arrive from the BLE thread.
-    # Note: Called during config generation, socket is created at runtime. In practice,
-    # always used since esp32_ble only runs on ESP32 which always has USE_SOCKET_SELECT_SUPPORT.
-    socket.consume_sockets(1, "esp32_ble")(config)
+    # select() timeout (0-16ms). The wake socket is shared across all components.
+    socket.require_wake_loop_threadsafe()
 
     # Define max connections for use in C++ code (e.g., ble_server.h)
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)

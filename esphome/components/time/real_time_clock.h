@@ -52,6 +52,8 @@ class RealTimeClock : public PollingComponent {
     this->time_sync_callback_.add(std::move(callback));
   };
 
+  void dump_config() override;
+
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
@@ -67,7 +69,7 @@ class RealTimeClock : public PollingComponent {
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
  public:
   TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
-  bool check(Ts... x) override { return this->parent_->now().is_valid(); }
+  bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
 
  protected:
   RealTimeClock *parent_;

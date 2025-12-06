@@ -122,6 +122,11 @@ void Application::setup() {
   // Clear setup priority overrides to free memory
   clear_setup_priority_overrides();
 
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Set up wake socket for waking main loop from tasks
+  this->setup_wake_loop_threadsafe_();
+#endif
+
   this->schedule_dump_config();
 }
 void Application::loop() {
@@ -472,6 +477,11 @@ void Application::enable_pending_loops_() {
 }
 
 void Application::before_loop_tasks_(uint32_t loop_start_time) {
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Drain wake notifications first to clear socket for next wake
+  this->drain_wake_notifications_();
+#endif
+
   // Process scheduled tasks
   this->scheduler.call(loop_start_time);
 
@@ -624,5 +634,74 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 }
 
 Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+void Application::setup_wake_loop_threadsafe_() {
+  // Create UDP socket for wake notifications
+  this->wake_socket_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (this->wake_socket_fd_ < 0) {
+    ESP_LOGW(TAG, "Wake socket create failed: %d", errno);
+    return;
+  }
+
+  // Bind to loopback with auto-assigned port
+  struct sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = lwip_htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;  // Auto-assign port
+
+  if (lwip_bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+    ESP_LOGW(TAG, "Wake socket bind failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Get the assigned address and connect to it
+  // Connecting a UDP socket allows using send() instead of sendto() for better performance
+  struct sockaddr_in wake_addr;
+  socklen_t len = sizeof(wake_addr);
+  if (lwip_getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
+    ESP_LOGW(TAG, "Wake socket address failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Connect to self (loopback) - allows using send() instead of sendto()
+  // After connect(), no need to store wake_addr - the socket remembers it
+  if (lwip_connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
+    ESP_LOGW(TAG, "Wake socket connect failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Set non-blocking mode
+  int flags = lwip_fcntl(this->wake_socket_fd_, F_GETFL, 0);
+  lwip_fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
+
+  // Register with application's select() loop
+  if (!this->register_socket_fd(this->wake_socket_fd_)) {
+    ESP_LOGW(TAG, "Wake socket register failed");
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+}
+
+void Application::wake_loop_threadsafe() {
+  // Called from FreeRTOS task context when events need immediate processing
+  // Wakes up lwip_select() in main loop by writing to connected loopback socket
+  if (this->wake_socket_fd_ >= 0) {
+    const char dummy = 1;
+    // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
+    // No error checking needed: we control both ends of this loopback socket.
+    // This is safe to call from FreeRTOS tasks - send() is thread-safe in lwip
+    // Socket is already connected to loopback address, so send() is faster than sendto()
+    lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
+  }
+}
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
 }  // namespace esphome

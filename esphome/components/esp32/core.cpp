@@ -1,5 +1,6 @@
 #ifdef USE_ESP32
 
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -97,9 +98,9 @@ void loop_task(void *pv_params) {
 extern "C" void app_main() {
   esp32::setup_preferences();
 #if CONFIG_FREERTOS_UNICORE
-  xTaskCreate(loop_task, "loopTask", 8192, nullptr, 1, &loop_task_handle);
+  xTaskCreate(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle);
 #else
-  xTaskCreatePinnedToCore(loop_task, "loopTask", 8192, nullptr, 1, &loop_task_handle, 1);
+  xTaskCreatePinnedToCore(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle, 1);
 #endif
 }
 #endif  // USE_ESP_IDF

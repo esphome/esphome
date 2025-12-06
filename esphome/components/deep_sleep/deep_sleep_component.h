@@ -81,7 +81,7 @@ class DeepSleepComponent : public Component {
 #endif
 
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32H2)
+    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
   void set_touch_wakeup(bool touch_wakeup);
 #endif
 
@@ -148,7 +148,7 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
   void set_time(time::RealTimeClock *time) { this->time_ = time; }
 #endif
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->sleep_duration_.has_value()) {
       this->deep_sleep_->set_sleep_duration(this->sleep_duration_.value(x...));
     }
@@ -207,12 +207,12 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
 
 template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
-  void play(Ts... x) override { this->parent_->prevent_deep_sleep(); }
+  void play(const Ts &...x) override { this->parent_->prevent_deep_sleep(); }
 };
 
 template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
-  void play(Ts... x) override { this->parent_->allow_deep_sleep(); }
+  void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
 
 }  // namespace deep_sleep

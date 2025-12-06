@@ -10,7 +10,6 @@
 #endif
 #include "esphome/components/network/util.h"
 #include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_arduino_esp32.h"
 #include "esphome/components/ota/ota_backend_arduino_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_libretiny.h"
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
@@ -94,7 +93,7 @@ void ESPHomeOTAComponent::dump_config() {
                 "Over-The-Air updates:\n"
                 "  Address: %s:%u\n"
                 "  Version: %d",
-                network::get_use_address().c_str(), this->port_, USE_OTA_VERSION);
+                network::get_use_address(), this->port_, USE_OTA_VERSION);
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Password configured");
@@ -402,7 +401,7 @@ error:
     this->backend_->abort();
   }
 
-  this->status_momentary_error("onerror", 5000);
+  this->status_momentary_error("err", 5000);
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif

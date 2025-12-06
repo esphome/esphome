@@ -12,7 +12,7 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import const, only_on_variant
+from esphome.components.esp32 import VARIANT_ESP32P4, only_on_variant
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_COLOR_DEPTH,
@@ -165,7 +165,7 @@ def model_schema(config):
     )
     return cv.All(
         schema,
-        only_on_variant(supported=[const.VARIANT_ESP32P4]),
+        only_on_variant(supported=[VARIANT_ESP32P4]),
         cv.only_with_esp_idf,
     )
 

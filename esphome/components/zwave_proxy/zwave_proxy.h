@@ -8,8 +8,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace zwave_proxy {
+namespace esphome::zwave_proxy {
 
 static constexpr size_t MAX_ZWAVE_FRAME_SIZE = 257;  // Maximum Z-Wave frame size
 
@@ -89,5 +88,4 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace zwave_proxy
-}  // namespace esphome
+}  // namespace esphome::zwave_proxy
