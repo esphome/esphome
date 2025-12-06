@@ -3,9 +3,7 @@
 #include "esphome/core/log.h"
 #include <zephyr/pm/pm.h>
 #include <zephyr/pm/policy.h>
-#include <zephyr/pm/device.h>
 #include <zephyr/kernel.h>
-#include <zephyr/drivers/counter.h>
 #include <hal/nrf_rtc.h>
 
 namespace esphome::deep_sleep {
