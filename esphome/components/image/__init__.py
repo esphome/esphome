@@ -90,7 +90,7 @@ class ImageEncoder:
         self.index = 0
         self.invert_alpha = invert_alpha
         self.path = ""
-        self.big_endian = True
+        self.big_endian = False
 
     def convert(self, image, path):
         """
@@ -126,7 +126,7 @@ class ImageEncoder:
         """
         Check if the image encoder supports endianness configuration
         """
-        return getattr(cls, "set_big_endian", None) is not None
+        return False
 
     @classmethod
     def get_options(cls) -> list[str]:
@@ -222,7 +222,13 @@ class ImageRGB565(ImageEncoder):
             invert_alpha,
         )
         self.alpha = [0] * width * height
-        self.big_endian = True
+
+    @classmethod
+    def is_endian(cls) -> bool:
+        """
+        Check if the image encoder supports endianness configuration
+        """
+        return True
 
     def convert(self, image, path):
         return image.convert("RGBA")
