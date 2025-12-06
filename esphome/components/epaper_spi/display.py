@@ -93,7 +93,7 @@ def model_schema(config):
                 cv.Optional(
                     CONF_UPDATE_INTERVAL,
                     default="5min",
-                ): update_interval,
+                ): cv.All(update_interval, cv.Range(min=core.TimePeriod(seconds=30))),
                 cv.Optional(CONF_TRANSFORM): cv.Schema(
                     {
                         cv.Required(CONF_MIRROR_X): cv.boolean,
