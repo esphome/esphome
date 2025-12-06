@@ -2,7 +2,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "lvgl_hal.h"
 #include "lvgl_esphome.h"
 
 #include "core/lv_obj_class_private.h"
@@ -744,10 +743,3 @@ void *lv_realloc_core(void *ptr, size_t size) {
   return heap_caps_realloc(ptr, size, cap_bits);
 }
 #endif
-
-EXTERNC void logd(const char *fmt, ...) {
-  va_list arg;
-  va_start(arg, fmt);
-  esphome::esp_log_vprintf_(ESPHOME_LOG_LEVEL_DEBUG, "lvgl", __LINE__, fmt, arg);
-  va_end(arg);
-}
