@@ -61,7 +61,7 @@ static const char *const EVENT_NAMES[] = {
     "GET_SELF_SIZE",
 };
 
-static unsigned log_level_map[] = {
+static const unsigned LOG_LEVEL_MAP[] = {
     ESPHOME_LOG_LEVEL_DEBUG, ESPHOME_LOG_LEVEL_INFO,  ESPHOME_LOG_LEVEL_WARN,
     ESPHOME_LOG_LEVEL_ERROR, ESPHOME_LOG_LEVEL_ERROR, ESPHOME_LOG_LEVEL_NONE,
 
@@ -591,9 +591,9 @@ void LvglComponent::setup() {
       buf = next + 1;
     while (isspace(*buf))
       buf++;
-    if (level >= sizeof(log_level_map) / sizeof(log_level_map[0]))
-      level = sizeof(log_level_map) / sizeof(log_level_map[0]) - 1;
-    esp_log_printf_(log_level_map[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
+    if (level >= sizeof(LOG_LEVEL_MAP) / sizeof(LOG_LEVEL_MAP[0]))
+      level = sizeof(LOG_LEVEL_MAP) / sizeof(LOG_LEVEL_MAP[0]) - 1;
+    esp_log_printf_(LOG_LEVEL_MAP[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
 #endif
   // Rotation will be handled by our drawing function, so reset the display rotation.
