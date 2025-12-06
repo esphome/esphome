@@ -48,6 +48,9 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
+KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
+
 
 class EsphomeError(Exception):
     """General ESPHome exception occurred."""
@@ -538,8 +541,22 @@ class EsphomeCore:
         self.friendly_name: str | None = None
         # The area / zone of the node
         self.area: str | None = None
-        # Additional data components can store temporary data in
-        # The first key to this dict should always be the integration name
+        # Additional data components can store temporary data in.
+        # This dict is cleared between compilation runs.
+        #
+        # Usage pattern (use @dataclass for type safety):
+        #   DOMAIN = "my_component"
+        #
+        #   @dataclass
+        #   class MyComponentData:
+        #       feature_enabled: bool = False
+        #
+        #   def _get_data() -> MyComponentData:
+        #       if DOMAIN not in CORE.data:
+        #           CORE.data[DOMAIN] = MyComponentData()
+        #       return CORE.data[DOMAIN]
+        #
+        # The first key should always be the component domain name (DOMAIN constant).
         self.data = {}
         # The relative path to the configuration YAML
         self.config_path: Path | None = None
@@ -909,6 +926,11 @@ class EsphomeCore:
         :param var: The variable (component) being registered (currently unused but kept for future use)
         """
         self.platform_counts[platform_name] += 1
+
+    def register_controller(self) -> None:
+        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
+        controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
+        self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
 
     @property
     def cpp_main_section(self):

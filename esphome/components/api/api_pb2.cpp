@@ -355,8 +355,8 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(10, this->icon_ref_);
 #endif
   buffer.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
-  for (const auto &it : *this->supported_preset_modes) {
-    buffer.encode_string(12, it, true);
+  for (const char *it : *this->supported_preset_modes) {
+    buffer.encode_string(12, it, strlen(it), true);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(13, this->device_id);
@@ -376,8 +376,8 @@ void ListEntitiesFanResponse::calculate_size(ProtoSize &size) const {
 #endif
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
   if (!this->supported_preset_modes->empty()) {
-    for (const auto &it : *this->supported_preset_modes) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->supported_preset_modes) {
+      size.add_length_force(1, strlen(it));
     }
   }
 #ifdef USE_DEVICES
@@ -476,8 +476,8 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_float(9, this->min_mireds);
   buffer.encode_float(10, this->max_mireds);
-  for (auto &it : this->effects) {
-    buffer.encode_string(11, it, true);
+  for (const char *it : *this->effects) {
+    buffer.encode_string(11, it, strlen(it), true);
   }
   buffer.encode_bool(13, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -499,9 +499,9 @@ void ListEntitiesLightResponse::calculate_size(ProtoSize &size) const {
   }
   size.add_float(1, this->min_mireds);
   size.add_float(1, this->max_mireds);
-  if (!this->effects.empty()) {
-    for (const auto &it : this->effects) {
-      size.add_length_force(1, it.size());
+  if (!this->effects->empty()) {
+    for (const char *it : *this->effects) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->disabled_by_default);
@@ -995,7 +995,7 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name_ref_);
   buffer.encode_uint32(2, static_cast<uint32_t>(this->type));
@@ -1010,11 +1010,13 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->args) {
     buffer.encode_message(3, it, true);
   }
+  buffer.encode_uint32(4, static_cast<uint32_t>(this->supports_response));
 }
 void ListEntitiesServicesResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name_ref_.size());
   size.add_fixed32(1, this->key);
   size.add_repeated_message(1, this->args);
+  size.add_uint32(1, static_cast<uint32_t>(this->supports_response));
 }
 bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -1075,6 +1077,23 @@ void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
   this->string_array.init(count_string_array);
   ProtoDecodableMessage::decode(buffer, length);
 }
+bool ExecuteServiceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+    case 3:
+      this->call_id = value.as_uint32();
+      break;
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+    case 4:
+      this->return_response = value.as_bool();
+      break;
+#endif
+    default:
+      return false;
+  }
+  return true;
+}
 bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2:
@@ -1100,6 +1119,24 @@ void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
   uint32_t count_args = ProtoDecodableMessage::count_repeated_field(buffer, length, 2);
   this->args.init(count_args);
   ProtoDecodableMessage::decode(buffer, length);
+}
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void ExecuteServiceResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->call_id);
+  buffer.encode_bool(2, this->success);
+  buffer.encode_string(3, this->error_message_ref_);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  buffer.encode_bytes(4, this->response_data, this->response_data_len);
+#endif
+}
+void ExecuteServiceResponse::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, this->call_id);
+  size.add_bool(1, this->success);
+  size.add_length(1, this->error_message_ref_.size());
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  size.add_length(4, this->response_data_len);
+#endif
 }
 #endif
 #ifdef USE_CAMERA
@@ -1179,14 +1216,14 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   for (const auto &it : *this->supported_swing_modes) {
     buffer.encode_uint32(14, static_cast<uint32_t>(it), true);
   }
-  for (const auto &it : *this->supported_custom_fan_modes) {
-    buffer.encode_string(15, it, true);
+  for (const char *it : *this->supported_custom_fan_modes) {
+    buffer.encode_string(15, it, strlen(it), true);
   }
   for (const auto &it : *this->supported_presets) {
     buffer.encode_uint32(16, static_cast<uint32_t>(it), true);
   }
-  for (const auto &it : *this->supported_custom_presets) {
-    buffer.encode_string(17, it, true);
+  for (const char *it : *this->supported_custom_presets) {
+    buffer.encode_string(17, it, strlen(it), true);
   }
   buffer.encode_bool(18, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -1229,8 +1266,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
     }
   }
   if (!this->supported_custom_fan_modes->empty()) {
-    for (const auto &it : *this->supported_custom_fan_modes) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->supported_custom_fan_modes) {
+      size.add_length_force(1, strlen(it));
     }
   }
   if (!this->supported_presets->empty()) {
@@ -1239,8 +1276,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
     }
   }
   if (!this->supported_custom_presets->empty()) {
-    for (const auto &it : *this->supported_custom_presets) {
-      size.add_length_force(2, it.size());
+    for (const char *it : *this->supported_custom_presets) {
+      size.add_length_force(2, strlen(it));
     }
   }
   size.add_bool(2, this->disabled_by_default);
@@ -1475,8 +1512,8 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon_ref_);
 #endif
-  for (const auto &it : *this->options) {
-    buffer.encode_string(6, it, true);
+  for (const char *it : *this->options) {
+    buffer.encode_string(6, it, strlen(it), true);
   }
   buffer.encode_bool(7, this->disabled_by_default);
   buffer.encode_uint32(8, static_cast<uint32_t>(this->entity_category));
@@ -1492,8 +1529,8 @@ void ListEntitiesSelectResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->icon_ref_.size());
 #endif
   if (!this->options->empty()) {
-    for (const auto &it : *this->options) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->options) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->disabled_by_default);
@@ -2877,8 +2914,8 @@ void ListEntitiesEventResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->disabled_by_default);
   buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
   buffer.encode_string(8, this->device_class_ref_);
-  for (auto &it : this->event_types) {
-    buffer.encode_string(9, it, true);
+  for (const char *it : *this->event_types) {
+    buffer.encode_string(9, it, strlen(it), true);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
@@ -2894,9 +2931,9 @@ void ListEntitiesEventResponse::calculate_size(ProtoSize &size) const {
   size.add_bool(1, this->disabled_by_default);
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
   size.add_length(1, this->device_class_ref_.size());
-  if (!this->event_types.empty()) {
-    for (const auto &it : this->event_types) {
-      size.add_length_force(1, it.size());
+  if (!this->event_types->empty()) {
+    for (const char *it : *this->event_types) {
+      size.add_length_force(1, strlen(it));
     }
   }
 #ifdef USE_DEVICES

@@ -35,7 +35,7 @@ from esphome.__main__ import (
     upload_program,
     upload_using_esptool,
 )
-from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
     CONF_BROKER,
@@ -265,6 +265,16 @@ def mock_memory_analyzer_cli() -> Generator[Mock]:
     with patch("esphome.analyze_memory.cli.MemoryAnalyzerCLI") as mock_class:
         mock_analyzer = MagicMock()
         mock_analyzer.generate_report.return_value = "Mock Memory Report"
+        mock_class.return_value = mock_analyzer
+        yield mock_class
+
+
+@pytest.fixture
+def mock_ram_strings_analyzer() -> Generator[Mock]:
+    """Mock RamStringsAnalyzer for testing."""
+    with patch("esphome.analyze_memory.ram_strings.RamStringsAnalyzer") as mock_class:
+        mock_analyzer = MagicMock()
+        mock_analyzer.generate_report.return_value = "Mock RAM Strings Report"
         mock_class.return_value = mock_analyzer
         yield mock_class
 
@@ -744,7 +754,7 @@ def test_choose_upload_log_host_ota_local_all_options() -> None:
         check_default=None,
         purpose=Purpose.UPLOADING,
     )
-    assert result == ["MQTTIP", "test.local"]
+    assert result == ["MQTTIP"]
 
 
 @pytest.mark.usefixtures("mock_serial_ports")
@@ -794,7 +804,7 @@ def test_choose_upload_log_host_ota_local_all_options_logging() -> None:
         check_default=None,
         purpose=Purpose.LOGGING,
     )
-    assert result == ["MQTTIP", "MQTT", "test.local"]
+    assert result == ["MQTTIP", "MQTT"]
 
 
 @pytest.mark.usefixtures("mock_no_mqtt_logging")
@@ -1164,6 +1174,56 @@ def test_upload_program_ota_with_mqtt_resolution(
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100"], 3232, None, expected_firmware
     )
+
+
+def test_upload_program_ota_with_mqtt_empty_broker(
+    mock_mqtt_get_ip: Mock,
+    mock_is_ip_address: Mock,
+    mock_run_ota: Mock,
+    tmp_path: Path,
+    caplog: CaptureFixture,
+) -> None:
+    """Test upload_program with OTA when MQTT broker is empty (issue #11653)."""
+    setup_core(address="192.168.1.50", platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_is_ip_address.return_value = True
+    mock_mqtt_get_ip.side_effect = EsphomeError(
+        "Cannot discover IP via MQTT as the broker is not configured"
+    )
+    mock_run_ota.return_value = (0, "192.168.1.50")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ],
+        CONF_MQTT: {
+            CONF_BROKER: "",
+        },
+        CONF_MDNS: {
+            CONF_DISABLED: True,
+        },
+    }
+    args = MockArgs(username="user", password="pass", client_id="client")
+    devices = ["MQTTIP", "192.168.1.50"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.50"
+    # Verify MQTT was attempted but failed gracefully
+    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    # Verify we fell back to the IP address
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.50"], 3232, None, expected_firmware
+    )
+    # Verify warning was logged
+    assert "MQTT IP discovery failed" in caplog.text
 
 
 @patch("esphome.__main__.importlib.import_module")
@@ -1564,7 +1624,7 @@ def test_has_resolvable_address() -> None:
     setup_core(
         config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
     )
-    assert has_resolvable_address() is True
+    assert has_resolvable_address() is False
 
     # Test with mDNS disabled and regular DNS hostname (resolvable)
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address="device.example.com")
@@ -2374,6 +2434,7 @@ def test_command_analyze_memory_success(
     mock_get_idedata: Mock,
     mock_get_esphome_components: Mock,
     mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
 ) -> None:
     """Test command_analyze_memory with successful compilation and analysis."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
@@ -2421,9 +2482,20 @@ def test_command_analyze_memory_success(
     mock_analyzer.analyze.assert_called_once()
     mock_analyzer.generate_report.assert_called_once()
 
-    # Verify report was printed
+    # Verify RAM strings analyzer was created and run
+    mock_ram_strings_analyzer.assert_called_once_with(
+        str(firmware_elf),
+        objdump_path="/path/to/objdump",
+        platform="esp32",
+    )
+    mock_ram_analyzer = mock_ram_strings_analyzer.return_value
+    mock_ram_analyzer.analyze.assert_called_once()
+    mock_ram_analyzer.generate_report.assert_called_once()
+
+    # Verify reports were printed
     captured = capfd.readouterr()
     assert "Mock Memory Report" in captured.out
+    assert "Mock RAM Strings Report" in captured.out
 
 
 def test_command_analyze_memory_with_external_components(
@@ -2433,6 +2505,7 @@ def test_command_analyze_memory_with_external_components(
     mock_get_idedata: Mock,
     mock_get_esphome_components: Mock,
     mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
 ) -> None:
     """Test command_analyze_memory detects external components."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")

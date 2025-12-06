@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_DEBUG_SCHEDULER,
     CONF_DEVICES,
+    CONF_ENVIRONMENT_VARIABLES,
     CONF_ESPHOME,
     CONF_FRIENDLY_NAME,
     CONF_ID,
@@ -40,7 +41,12 @@ from esphome.const import (
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    KEY_CONTROLLER_REGISTRY_COUNT,
+    CoroPriority,
+    coroutine_with_priority,
+)
 from esphome.helpers import (
     copy_file_if_changed,
     fnv1a_32bit_hash,
@@ -208,6 +214,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
                     cv.string_strict: cv.Any([cv.string], cv.string),
+                }
+            ),
+            cv.Optional(CONF_ENVIRONMENT_VARIABLES, default={}): cv.Schema(
+                {
+                    cv.string_strict: cv.string,
                 }
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
@@ -421,6 +432,12 @@ async def _add_platformio_options(pio_options):
         cg.add_platformio_option(key, val)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_environment_variables(env_vars: dict[str, str]) -> None:
+    # Set environment variables for the build process
+    os.environ.update(env_vars)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
     for conf in config.get(CONF_ON_BOOT, []):
@@ -462,6 +479,15 @@ async def _add_platform_defines() -> None:
             cg.add_define(f"USE_{platform_name.upper()}")
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_controller_registry_define() -> None:
+    # Generate StaticVector size for ControllerRegistry
+    controller_count = CORE.data.get(KEY_CONTROLLER_REGISTRY_COUNT, 0)
+    if controller_count > 0:
+        cg.add_define("USE_CONTROLLER_REGISTRY")
+        cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
@@ -483,6 +509,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
     CORE.add_job(_add_platform_defines)
+    CORE.add_job(_add_controller_registry_define)
 
     CORE.add_job(_add_automations, config)
 
@@ -547,6 +574,9 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
+
+    if config[CONF_ENVIRONMENT_VARIABLES]:
+        CORE.add_job(_add_environment_variables, config[CONF_ENVIRONMENT_VARIABLES])
 
     # Process areas
     all_areas: list[dict[str, str | core.ID]] = []

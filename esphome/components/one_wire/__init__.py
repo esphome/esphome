@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS
+from esphome.const import CONF_ADDRESS, CONF_INDEX
 
 CODEOWNERS = ["@ssieb"]
 
@@ -21,7 +21,8 @@ def one_wire_device_schema():
     return cv.Schema(
         {
             cv.GenerateID(CONF_ONE_WIRE_ID): cv.use_id(OneWireBus),
-            cv.Optional(CONF_ADDRESS): cv.hex_uint64_t,
+            cv.Exclusive(CONF_ADDRESS, "index_or_address"): cv.hex_uint64_t,
+            cv.Exclusive(CONF_INDEX, "index_or_address"): cv.uint8_t,
         }
     )
 
@@ -37,3 +38,5 @@ async def register_one_wire_device(var, config):
     cg.add(var.set_one_wire_bus(parent))
     if (address := config.get(CONF_ADDRESS)) is not None:
         cg.add(var.set_address(address))
+    if (index := config.get(CONF_INDEX)) is not None:
+        cg.add(var.set_index(index))

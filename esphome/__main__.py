@@ -207,14 +207,14 @@ def choose_upload_log_host(
                     if has_mqtt_logging():
                         resolved.append("MQTT")
 
-                    if has_api() and has_non_ip_address():
+                    if has_api() and has_non_ip_address() and has_resolvable_address():
                         resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
-                    if has_ota() and has_non_ip_address():
+                    if has_ota() and has_non_ip_address() and has_resolvable_address():
                         resolved.extend(_resolve_with_cache(CORE.address, purpose))
             else:
                 resolved.append(device)
@@ -318,7 +318,17 @@ def has_resolvable_address() -> bool:
     """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
     # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
     # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
-    return CORE.address is not None
+    if CORE.address is None:
+        return False
+
+    if has_ip_address():
+        return True
+
+    if has_mdns():
+        return True
+
+    # .local mDNS hostnames are only resolvable if mDNS is enabled
+    return not CORE.address.endswith(".local")
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
@@ -934,6 +944,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     """
     from esphome import platformio_api
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
+    from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
@@ -956,7 +967,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     external_components = detect_external_components(config)
     _LOGGER.debug("Detected external components: %s", external_components)
 
-    # Perform memory analysis
+    # Perform component memory analysis
     _LOGGER.info("Analyzing memory usage...")
     analyzer = MemoryAnalyzerCLI(
         str(firmware_elf),
@@ -966,10 +977,27 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     )
     analyzer.analyze()
 
-    # Generate and display report
+    # Generate and display component report
     report = analyzer.generate_report()
     print()
     print(report)
+
+    # Perform RAM strings analysis
+    _LOGGER.info("Analyzing RAM strings...")
+    try:
+        ram_analyzer = RamStringsAnalyzer(
+            str(firmware_elf),
+            objdump_path=idedata.objdump_path,
+            platform=CORE.target_platform,
+        )
+        ram_analyzer.analyze()
+
+        # Generate and display RAM strings report
+        ram_report = ram_analyzer.generate_report()
+        print()
+        print(ram_report)
+    except Exception as e:  # pylint: disable=broad-except
+        _LOGGER.warning("RAM strings analysis failed: %s", e)
 
     return 0
 
@@ -1309,7 +1337,7 @@ def parse_args(argv):
         "clean-all", help="Clean all build and platform files."
     )
     parser_clean_all.add_argument(
-        "configuration", help="Your YAML configuration directory.", nargs="*"
+        "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
 
     parser_dashboard = subparsers.add_parser(
