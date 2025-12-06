@@ -4,7 +4,7 @@
 
 namespace esphome::cc1101 {
 
-static constexpr float XTAL_FREQUENCY = 26000;
+static constexpr float XTAL_FREQUENCY = 26000000;
 
 static constexpr uint8_t BUS_BURST = 0x40;
 static constexpr uint8_t BUS_READ = 0x80;
