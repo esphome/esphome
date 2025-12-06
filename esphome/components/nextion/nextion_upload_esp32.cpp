@@ -14,7 +14,7 @@
 
 namespace esphome {
 namespace nextion {
-static const char *const TAG = "nextion.upload";
+static const char *const TAG = "nextion.upload.esp32";
 
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
