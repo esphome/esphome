@@ -7,7 +7,7 @@ import esphome.config_validation as cv
 
 from ..defines import CONF_WIDGET
 from ..lvcode import EVENT_ARG, LambdaContext, LvContext, lvgl_static
-from ..types import LV_EVENT, lv_pseudo_button_t
+from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t
 from ..widgets import Widget, get_widgets, wait_for_widgets
 
 CONFIG_SCHEMA = binary_sensor_schema(BinarySensor).extend(
@@ -23,10 +23,11 @@ async def to_code(config):
     widget = widget[0]
     assert isinstance(widget, Widget)
     await wait_for_widgets()
+    is_pressed = widget.has_state(LV_STATE.PRESSED)
     async with LambdaContext(EVENT_ARG) as pressed_ctx:
-        pressed_ctx.add(sensor.publish_state(widget.is_pressed()))
+        pressed_ctx.add(sensor.publish_state(is_pressed))
     async with LvContext() as ctx:
-        ctx.add(sensor.publish_initial_state(widget.is_pressed()))
+        ctx.add(sensor.publish_initial_state(is_pressed))
         ctx.add(
             lvgl_static.add_event_cb(
                 widget.obj,

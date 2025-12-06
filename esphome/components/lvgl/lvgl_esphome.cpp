@@ -350,7 +350,7 @@ LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t long_press_t
   this->drv_ = lv_indev_create();
   lv_indev_set_type(this->drv_, type);
   lv_indev_set_long_press_time(this->drv_, long_press_time);
-  // long press repeat time TBD
+  lv_indev_set_long_press_repeat_time(this->drv_, long_press_repeat_time);
   lv_indev_set_user_data(this->drv_, this);
   lv_indev_set_read_cb(this->drv_, [](lv_indev_t *d, lv_indev_data_t *data) {
     auto *l = static_cast<LVEncoderListener *>(lv_indev_get_user_data(d));
@@ -667,14 +667,15 @@ static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *ob
   LV_UNUSED(class_p);
 }
 
-const lv_obj_class_t lv_container_class = {
+// Container class. Name is based on LVGL naming convention but upper case to keep ESPHome clang-tidy happy
+const lv_obj_class_t LV_CONTAINER_CLASS = {
     .base_class = &lv_obj_class,
     .constructor_cb = lv_container_constructor,
     .name = "lv_container",
 };
 
 lv_obj_t *lv_container_create(lv_obj_t *parent) {
-  lv_obj_t *obj = lv_obj_class_create_obj(&lv_container_class, parent);
+  lv_obj_t *obj = lv_obj_class_create_obj(&LV_CONTAINER_CLASS, parent);
   lv_obj_class_init_obj(obj);
   return obj;
 }

@@ -317,7 +317,7 @@ class IndicatorLine : public LvCompound {
 #ifdef USE_LVGL_KEY_LISTENER
 class LVEncoderListener : public Parented<LvglComponent> {
  public:
-  LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt);
+  LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time);
 
 #ifdef USE_BINARY_SENSOR
   void add_button(binary_sensor::BinarySensor *button, lv_key_t key) {

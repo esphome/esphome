@@ -93,7 +93,7 @@ class LvBoolean(LvType):
         super().__init__(
             *args,
             largs=[(cg.bool_, "x")],
-            lvalue=lambda w: w.is_checked(),
+            lvalue=lambda w: w.has_state(LV_STATE.CHECKED),
             has_on_value=True,
             **kwargs,
         )

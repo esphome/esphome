@@ -77,7 +77,7 @@ class HeaderButtonType(WidgetType):
             is_mock=True,
         )
 
-    def obj_creator(self, parent: MockObjClass, config: dict):
+    async def obj_creator(self, parent: MockObjClass, config: dict):
         return lv_expr.msgbox_add_header_button(parent, config[CONF_SRC])
 
 

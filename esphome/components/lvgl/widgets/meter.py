@@ -486,8 +486,8 @@ class MeterType(WidgetType):
                         "id": iid,
                         CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
                     }
-                    if padding := v.get(CONF_PADDING, v.get(CONF_R_MOD, 0)):
-                        props["pad_all"] = padding
+                    if pad_all := v.get(CONF_PADDING, v.get(CONF_R_MOD, 0)):
+                        props["pad_all"] = pad_all
                     lw = await widget_to_code(props, arc_indicator_type, scale_var)
                     await set_indicator_values(lw, v)
 

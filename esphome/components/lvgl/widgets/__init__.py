@@ -1,6 +1,8 @@
 import sys
 from typing import Any
 
+from core import EsphomeError
+
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
 from esphome.config_validation import Invalid, Schema
@@ -114,7 +116,7 @@ class WidgetType:
 
         if not is_mock:
             if self.name in WIDGET_TYPES:
-                raise Exception(f"Duplicate definition of widget type '{self.name}'")
+                raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
             WIDGET_TYPES[self.name] = self
 
             # Register the update action automatically, adding widget-specific properties
@@ -278,12 +280,6 @@ class Widget:
     def has_state(self, state):
         return (lv_expr.obj_get_state(self.obj) & literal(state)) != 0
 
-    def is_pressed(self):
-        return self.has_state(LV_STATE.PRESSED)
-
-    def is_checked(self):
-        return self.has_state(LV_STATE.CHECKED)
-
     def add_flag(self, flag):
         if "|" in flag:
             flag = f"(lv_obj_flag_t)({flag})"
@@ -398,15 +394,6 @@ class Widget:
         """
         return
 
-    def get_max(self):
-        return self.type.get_max(self.config)
-
-    def get_min(self):
-        return self.type.get_min(self.config)
-
-    def get_step(self):
-        return self.type.get_step(self.config)
-
     def get_scale(self):
         return self.type.get_scale(self.config)
 
@@ -475,13 +462,14 @@ async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
 
 
 def collect_props(config):
-    from ..schemas import ALL_STYLES
-
     """
     Collect all properties from a configuration
     :param config:
     :return:
     """
+
+    from ..schemas import ALL_STYLES
+
     props = {}
     for prop in [*ALL_STYLES, *OBJ_FLAGS, CONF_STYLES, CONF_GROUP]:
         if prop in config:
@@ -520,9 +508,10 @@ def collect_parts(config):
 
 
 async def set_obj_properties(w: Widget, config):
+    """Generate a list of C++ statements to apply properties to an lv_obj_t"""
+
     from ..schemas import ALL_STYLES, OBJ_PROPERTIES, remap_property
 
-    """Generate a list of C++ statements to apply properties to an lv_obj_t"""
     if layout := config.get(CONF_LAYOUT):
         layout_type: str = layout[CONF_TYPE]
         add_lv_use(layout_type)
@@ -645,8 +634,6 @@ async def add_widgets(parent: Widget, config: dict):
 
 
 async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent) -> Widget:
-    from ..schemas import WIDGET_TYPES
-
     """
     Converts a Widget definition to C code.
     :param w_cnfig: The widget configuration
@@ -654,6 +641,9 @@ async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent) -> Widget:
     :param parent: The parent to which the widget should be added
     :return:
     """
+
+    from ..schemas import WIDGET_TYPES
+
     spec: WidgetType = (
         w_type if isinstance(w_type, WidgetType) else WIDGET_TYPES[w_type]
     )
