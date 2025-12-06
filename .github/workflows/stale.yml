@@ -18,6 +18,7 @@ jobs:
     steps:
       - uses: actions/stale@997185467fa4f803885201cee163a9f38240193d # v10
         with:
+          operations-per-run: 400
           days-before-pr-stale: 60
           days-before-pr-close: 7
           days-before-issue-stale: -1
