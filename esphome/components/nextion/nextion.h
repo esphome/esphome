@@ -171,9 +171,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the image of the component `pic` to the image with ID `4`.
    */
-  void set_component_picture(const char *component, uint8_t picture_id) {
-    set_component_picc(component, picture_id);
-  };
+  void set_component_picture(const char *component, uint8_t picture_id) { set_component_picc(component, picture_id); };
 
   /**
    * Set the background color of a component.
