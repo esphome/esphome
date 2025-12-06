@@ -54,7 +54,7 @@ class LVStyle:
     A class to lazily create a named style
     """
 
-    named_styles = dict()
+    named_styles = {}
 
     def __init__(self, id_name, style=None):
         self.id_name = id_name

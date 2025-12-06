@@ -488,7 +488,7 @@ lv_percentage = LValidator(
 lv_gradient = LValidator(
     validator=cv.use_id(lv_gradient_t),
     rtype=lv_gradient_t,
-    retmapper=lambda x: MockObj(x),
+    retmapper=MockObj,
 )
 
 

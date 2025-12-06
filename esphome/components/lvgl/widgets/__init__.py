@@ -296,8 +296,6 @@ class Widget:
     async def set_property(
         self, prop, value, animated: bool = None, lv_name=None, processor=None
     ):
-        from ..schemas import ALL_STYLES, remap_property
-
         """
         Set a property of the widget.
         :param prop:  The property name
@@ -305,6 +303,9 @@ class Widget:
         :param animated:  If the change should be animated
         :param lv_name:  The base type of the widget e.g. "obj"
         """
+
+        from ..schemas import ALL_STYLES, remap_property
+
         if isinstance(value, dict):
             value = value.get(prop)
             if value is None:
