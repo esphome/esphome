@@ -15,6 +15,12 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
+#ifdef USE_CAMERA
+#include "esphome/components/camera/camera.h"
+#endif
 
 #include <map>
 #include <vector>
@@ -27,7 +33,17 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component, public Controller {
+class APIServer : public Component,
+                  public Controller
+#ifdef USE_LOGGER
+    ,
+                  public logger::LogListener
+#endif
+#ifdef USE_CAMERA
+    ,
+                  public camera::CameraListener
+#endif
+{
  public:
   APIServer();
   void setup() override;
@@ -37,6 +53,12 @@ class APIServer : public Component, public Controller {
   void dump_config() override;
   void on_shutdown() override;
   bool teardown() override;
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+#endif
+#ifdef USE_CAMERA
+  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
+#endif
 #ifdef USE_API_PASSWORD
   bool check_password(const uint8_t *password_data, size_t password_len) const;
   void set_password(const std::string &password);
@@ -180,7 +202,6 @@ class APIServer : public Component, public Controller {
 #endif
 
  protected:
-  void schedule_reboot_timeout_();
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
@@ -196,6 +217,7 @@ class APIServer : public Component, public Controller {
 
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
+  uint32_t last_connected_{0};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;

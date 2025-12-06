@@ -219,7 +219,9 @@ class Scheduler {
   // Returns the number of items remaining after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
   size_t cleanup_();
-  void pop_raw_();
+  // Remove and return the front item from the heap
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  std::unique_ptr<SchedulerItem> pop_raw_locked_();
 
  private:
   // Helper to cancel items by name - must be called with lock held
@@ -270,8 +272,10 @@ class Scheduler {
     return is_item_removed_(item) || (item->component != nullptr && item->component->is_failed());
   }
 
-  // Helper to recycle a SchedulerItem
-  void recycle_item_(std::unique_ptr<SchedulerItem> item);
+  // Helper to recycle a SchedulerItem back to the pool.
+  // IMPORTANT: Only call from main loop context! Recycling clears the callback,
+  // so calling from another thread while the callback is executing causes use-after-free.
+  void recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item);
 
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
@@ -327,7 +331,7 @@ class Scheduler {
         now = this->execute_item_(item.get(), now);
       }
       // Recycle the defer item after execution
-      this->recycle_item_(std::move(item));
+      this->recycle_item_main_loop_(std::move(item));
     }
 
     // If we've consumed all items up to the snapshot point, clean up the dead space

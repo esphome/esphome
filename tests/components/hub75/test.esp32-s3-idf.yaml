@@ -1,0 +1,39 @@
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+display:
+  - platform: hub75
+    id: my_hub75
+    panel_width: 64
+    panel_height: 32
+    double_buffer: true
+    brightness: 128
+    r1_pin: GPIO42
+    g1_pin: GPIO41
+    b1_pin: GPIO40
+    r2_pin: GPIO38
+    g2_pin: GPIO39
+    b2_pin: GPIO37
+    a_pin: GPIO45
+    b_pin: GPIO36
+    c_pin: GPIO48
+    d_pin: GPIO35
+    e_pin: GPIO21
+    lat_pin: GPIO47
+    oe_pin: GPIO14
+    clk_pin: GPIO2
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: page2
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");

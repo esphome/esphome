@@ -9,8 +9,7 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.arduino_esp8266";
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -331,6 +330,5 @@ int ESP8266SoftwareSerial::available() {
   return avail;
 }
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart
 #endif  // USE_ESP8266

@@ -169,8 +169,7 @@ void APIConnection::loop() {
       } else {
         this->last_traffic_ = now;
         // read a packet
-        this->read_message(buffer.data_len, buffer.type,
-                           buffer.data_len > 0 ? &buffer.container[buffer.data_offset] : nullptr);
+        this->read_message(buffer.data_len, buffer.type, buffer.data);
         if (this->flags_.remove)
           return;
       }
@@ -195,6 +194,9 @@ void APIConnection::loop() {
       }
       // Now that everything is sent, enable immediate sending for future state changes
       this->flags_.should_try_send_immediately = true;
+      // Release excess memory from buffers that grew during initial sync
+      this->deferred_batch_.release_buffer();
+      this->helper_->release_buffers();
     }
   }
 
@@ -1660,13 +1662,13 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
   for (auto &item : items) {
     if (item.entity == entity && item.message_type == message_type) {
       // Replace with new creator
-      item.creator = std::move(creator);
+      item.creator = creator;
       return;
     }
   }
 
   // No existing item found, add new one
-  items.emplace_back(entity, std::move(creator), message_type, estimated_size);
+  items.emplace_back(entity, creator, message_type, estimated_size);
 }
 
 void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCreator creator, uint8_t message_type,
@@ -1675,7 +1677,7 @@ void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCre
   // This avoids expensive vector::insert which shifts all elements
   // Note: We only ever have one high-priority message at a time (ping OR disconnect)
   // If we're disconnecting, pings are blocked, so this simple swap is sufficient
-  items.emplace_back(entity, std::move(creator), message_type, estimated_size);
+  items.emplace_back(entity, creator, message_type, estimated_size);
   if (items.size() > 1) {
     // Swap the new high-priority item to the front
     std::swap(items.front(), items.back());
