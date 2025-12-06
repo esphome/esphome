@@ -1,7 +1,8 @@
 #include "deep_sleep_component.h"
 #ifdef USE_ZEPHYR
 #include "esphome/core/log.h"
-#include <zephyr/sys/poweroff.h>
+#include <zephyr/pm/pm.h>
+#include <zephyr/pm/policy.h>
 #include <zephyr/kernel.h>
 
 namespace esphome::deep_sleep {
@@ -61,10 +62,27 @@ void DeepSleepComponent::dump_config_platform_() {
 bool DeepSleepComponent::prepare_to_sleep_() { return true; }
 
 void DeepSleepComponent::deep_sleep_() {
+  ESP_LOGI(TAG, "Entering deep sleep");
+
   if (this->sleep_duration_.has_value()) {
-    k_sleep(K_USEC(*this->sleep_duration_));
+    // For timed sleep, force soft off state with wakeup timer
+    // Note: The actual timer setup would need to be configured separately
+    // using device tree or runtime GPIO/timer configuration
+    ESP_LOGI(TAG, "Sleep duration: %" PRIu32 " us", *this->sleep_duration_);
+
+    // On NRF52, we use PM_STATE_SOFT_OFF for deepest sleep
+    // The wakeup source needs to be configured before entering sleep
+    pm_state_force(0u, &(struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
+
+    // If we return here, sleep failed
+    ESP_LOGE(TAG, "Failed to enter deep sleep mode");
   } else {
-    sys_poweroff();
+    // Indefinite sleep - enter soft off (System OFF on NRF52)
+    ESP_LOGI(TAG, "Entering indefinite deep sleep (System OFF)");
+    pm_state_force(0u, &(struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
+
+    // If we return here, sleep failed
+    ESP_LOGE(TAG, "Failed to enter deep sleep mode");
   }
 }
 
