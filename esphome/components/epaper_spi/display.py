@@ -91,7 +91,8 @@ def model_schema(config):
                 cv.Optional(CONF_ROTATION, default=0): validate_rotation,
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
                 cv.Optional(
-                    CONF_UPDATE_INTERVAL, default=cv.UNDEFINED
+                    CONF_UPDATE_INTERVAL,
+                    default="5min",
                 ): update_interval,
                 cv.Optional(CONF_TRANSFORM): cv.Schema(
                     {
