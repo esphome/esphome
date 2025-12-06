@@ -147,8 +147,7 @@ async def to_code(config):
         cg.add_define("USE_NEXTION_COMMAND_SPACING")
         cg.add(var.set_command_spacing(command_spacing.total_milliseconds))
 
-    if startup_override_ms := config.get(CONF_STARTUP_OVERRIDE_MS):
-        cg.add(var.set_startup_override_ms(startup_override_ms))
+    cg.add(var.set_startup_override_ms(config[CONF_STARTUP_OVERRIDE_MS]))
 
     if CONF_BRIGHTNESS in config:
         cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
