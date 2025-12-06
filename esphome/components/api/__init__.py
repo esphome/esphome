@@ -31,7 +31,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigFragmentType, ConfigType
 
@@ -707,7 +707,18 @@ async def api_respond_to_code(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-):
+) -> MockObj:
+    # Validate that api.respond is used inside an API action context.
+    # We can't easily validate this at config time since the schema validation
+    # doesn't have access to the parent action context. Validating here in to_code
+    # is still much better than a cryptic C++ compile error.
+    has_call_id = any(name == "call_id" for _, name in args)
+    if not has_call_id:
+        raise EsphomeError(
+            "api.respond can only be used inside an API action's 'then:' block. "
+            "The 'call_id' variable is required to send a response."
+        )
+
     cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv)
