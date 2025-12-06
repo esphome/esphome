@@ -1,9 +1,8 @@
 #include "deep_sleep_component.h"
 #ifdef USE_ZEPHYR
 #include "esphome/core/log.h"
-#include <zephyr/pm/pm.h>
-#include <zephyr/pm/policy.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/poweroff.h>
 #include <hal/nrf_rtc.h>
 
 namespace esphome::deep_sleep {
@@ -112,10 +111,10 @@ void DeepSleepComponent::deep_sleep_() {
     k_usleep(1000);
 
     // Enter System OFF mode - will wake on RTC compare event
-    // Note: PM_STATE_SOFT_OFF on NRF52 = System OFF mode
-    // Only GPIO DETECT signal and COMPARE event from RTC can wake the system
+    // sys_poweroff() on Zephyr/NRF52 enters the deepest sleep state (System OFF)
+    // Only RTC compare event and GPIO DETECT signal can wake the system
     ESP_LOGD(TAG, "Entering System OFF with RTC wakeup");
-    pm_state_force(0u, &(struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
+    sys_poweroff();
 
     // If we return here, sleep failed
     ESP_LOGE(TAG, "Failed to enter deep sleep mode");
@@ -125,7 +124,7 @@ void DeepSleepComponent::deep_sleep_() {
     ESP_LOGI(TAG, "Entering indefinite deep sleep (System OFF)");
     ESP_LOGW(TAG, "No wakeup source configured - only reset or GPIO will wake device");
 
-    pm_state_force(0u, &(struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
+    sys_poweroff();
 
     // If we return here, sleep failed
     ESP_LOGE(TAG, "Failed to enter deep sleep mode");
