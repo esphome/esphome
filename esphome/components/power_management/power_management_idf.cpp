@@ -5,7 +5,7 @@
 namespace esphome {
 namespace power_management {
 
-static const char *TAG = "power_management";
+static const char *const TAG = "power_management";
 
 // static only use is in setup
 void PowerManagement::timer_callback(TimerHandle_t timer) {
