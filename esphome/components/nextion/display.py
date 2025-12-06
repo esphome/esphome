@@ -153,10 +153,7 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
-        if CORE.is_esp32 and CORE.using_arduino:
-            cg.add_build_flag("-DCONFIG_ESP_TLS_INSECURE=1")
-            cg.add_build_flag("-DCONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=1")
-        elif CORE.is_esp32 and CORE.using_esp_idf:
+        if CORE.is_esp32:
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
