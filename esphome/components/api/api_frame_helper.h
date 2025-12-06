@@ -35,10 +35,9 @@ struct ClientInfo;
 class ProtoWriteBuffer;
 
 struct ReadPacketBuffer {
-  std::vector<uint8_t> container;
-  uint16_t type;
-  uint16_t data_offset;
+  const uint8_t *data;  // Points directly into frame helper's rx_buf_ (valid until next read_packet call)
   uint16_t data_len;
+  uint16_t type;
 };
 
 // Packed packet info structure to minimize memory usage
@@ -119,6 +118,22 @@ class APIFrameHelper {
   uint8_t frame_footer_size() const { return frame_footer_size_; }
   // Check if socket has data ready to read
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
+  // Release excess memory from internal buffers after initial sync
+  void release_buffers() {
+    // rx_buf_: Safe to clear only if no partial read in progress.
+    // rx_buf_len_ tracks bytes read so far; if non-zero, we're mid-frame
+    // and clearing would lose partially received data.
+    if (this->rx_buf_len_ == 0) {
+      // Use swap trick since shrink_to_fit() is non-binding and may be ignored
+      std::vector<uint8_t>().swap(this->rx_buf_);
+    }
+    // reusable_iovs_: Safe to release unconditionally.
+    // Only used within write_protobuf_packets() calls - cleared at start,
+    // populated with pointers, used for writev(), then function returns.
+    // The iovecs contain stale pointers after the call (data was either sent
+    // or copied to tx_buf_), and are cleared on next write_protobuf_packets().
+    std::vector<struct iovec>().swap(this->reusable_iovs_);
+  }
 
  protected:
   // Buffer containing data to be sent

@@ -12,14 +12,21 @@
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
-#ifdef USE_API_USER_DEFINED_ACTIONS
-#include "user_services.h"
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
+#ifdef USE_CAMERA
+#include "esphome/components/camera/camera.h"
 #endif
 
-#include <map>
 #include <vector>
 
 namespace esphome::api {
+
+#ifdef USE_API_USER_DEFINED_ACTIONS
+// Forward declaration - full definition in user_services.h
+class UserServiceDescriptor;
+#endif
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
@@ -27,7 +34,17 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component, public Controller {
+class APIServer : public Component,
+                  public Controller
+#ifdef USE_LOGGER
+    ,
+                  public logger::LogListener
+#endif
+#ifdef USE_CAMERA
+    ,
+                  public camera::CameraListener
+#endif
+{
  public:
   APIServer();
   void setup() override;
@@ -37,6 +54,12 @@ class APIServer : public Component, public Controller {
   void dump_config() override;
   void on_shutdown() override;
   bool teardown() override;
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+#endif
+#ifdef USE_CAMERA
+  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
+#endif
 #ifdef USE_API_PASSWORD
   bool check_password(const uint8_t *password_data, size_t password_len) const;
   void set_password(const std::string &password);
@@ -132,6 +155,19 @@ class APIServer : public Component, public Controller {
   // Only compile push_back method when custom_services: true (external components)
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Action call context management - supports concurrent calls from multiple clients
+  // Returns server-generated action_call_id to avoid collisions when clients use same call_id
+  uint32_t register_active_action_call(uint32_t client_call_id, APIConnection *conn);
+  void unregister_active_action_call(uint32_t action_call_id);
+  void unregister_active_action_calls_for_connection(APIConnection *conn);
+  // Send response for a specific action call (uses action_call_id, sends client_call_id in response)
+  void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message,
+                            const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
@@ -180,7 +216,6 @@ class APIServer : public Component, public Controller {
 #endif
 
  protected:
-  void schedule_reboot_timeout_();
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
@@ -196,6 +231,7 @@ class APIServer : public Component, public Controller {
 
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
+  uint32_t last_connected_{0};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
@@ -208,6 +244,17 @@ class APIServer : public Component, public Controller {
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Active action calls - supports concurrent calls from multiple clients
+  // Uses server-generated action_call_id to avoid collisions when multiple clients use same call_id
+  struct ActiveActionCall {
+    uint32_t action_call_id;  // Server-generated unique ID (passed to actions)
+    uint32_t client_call_id;  // Client's original call_id (used in response)
+    APIConnection *connection;
+  };
+  std::vector<ActiveActionCall> active_action_calls_;
+  uint32_t next_action_call_id_{1};  // Counter for generating unique action_call_ids
+#endif                               // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   struct PendingActionResponse {
