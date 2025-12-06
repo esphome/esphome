@@ -96,6 +96,7 @@
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
 #define USE_OUTPUT
+#define USE_POWER_MANAGEMENT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
 #define USE_SELECT

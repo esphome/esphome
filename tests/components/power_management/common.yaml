@@ -1,0 +1,6 @@
+power_management:
+  id: pm_id
+  timer_lock_duration: 61sec
+  tickless_idle: true
+  power_down_flash: true
+  power_down_peripherals: true
