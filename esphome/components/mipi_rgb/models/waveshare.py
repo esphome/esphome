@@ -56,7 +56,7 @@ wave_4_3.extend(
 )
 
 st7701s.extend(
-    "WAVESHARE-4-480x480",
+    "WAVESHARE-4-480X480",
     data_rate="2MHz",
     spi_mode="MODE3",
     color_order="BGR",
