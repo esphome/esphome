@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components.lvgl.widgets.img import CONF_IMAGE
 import esphome.config_validation as cv
 from esphome.const import CONF_SIZE, CONF_TEXT
 
@@ -9,6 +8,7 @@ from ..lvcode import LocalVariable, lv
 from ..schemas import TEXT_SCHEMA
 from ..types import lv_obj_t
 from . import Widget, WidgetType
+from .img import CONF_IMAGE
 
 CONF_QRCODE = "qrcode"
 CONF_DARK_COLOR = "dark_color"

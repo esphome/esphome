@@ -191,8 +191,8 @@ INDICATOR_TICKS_SCHEMA = cv.Schema(
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR_START, default=0): lv_color,
         cv.Optional(CONF_COLOR_END): lv_color,
-        cv.Optional(CONF_VALUE, CONF_VALUE): lv_float,
-        cv.Optional(CONF_START_VALUE, CONF_VALUE): lv_float,
+        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_START_VALUE): lv_float,
         cv.Optional(CONF_END_VALUE): lv_float,
         cv.Optional(CONF_LOCAL, default=False): lv_bool,
     }
