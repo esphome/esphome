@@ -43,6 +43,10 @@ class Sdl : public display::Display {
     }
     this->key_callbacks_[keycode].add(std::move(callback));
   }
+  bool add_on_resize_callback(std::function<void(int, int)> &&callback) override {
+    this->resize_callbacks_.add(std::move(callback));
+    return true;
+  }
 
   int mouse_x{};
   int mouse_y{};
@@ -65,6 +69,7 @@ class Sdl : public display::Display {
   uint16_t x_high_{0};
   uint16_t y_high_{0};
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
+  CallbackManager<void(int, int)> resize_callbacks_{};
 };
 }  // namespace sdl
 }  // namespace esphome

@@ -703,6 +703,10 @@ class Display : public PollingComponent {
 
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
 
+  /// Add a callback to be notified when the display is resized.
+  /// Returns true if the display supports resize callbacks, false otherwise.
+  virtual bool add_on_resize_callback(std::function<void(int, int)> &&callback) { return false; }
+
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 

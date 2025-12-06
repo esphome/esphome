@@ -107,8 +107,33 @@ void Sdl::loop() {
       case SDL_WINDOWEVENT:
         switch (e.window.event) {
           case SDL_WINDOWEVENT_SIZE_CHANGED:
-          case SDL_WINDOWEVENT_EXPOSED:
           case SDL_WINDOWEVENT_RESIZED: {
+            // Get the new window size
+            int new_width = e.window.data1;
+            int new_height = e.window.data2;
+
+            // Update internal dimensions
+            this->width_ = new_width;
+            this->height_ = new_height;
+
+            // Recreate texture with new dimensions
+            if (this->texture_) {
+              SDL_DestroyTexture(this->texture_);
+            }
+            this->texture_ = SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC,
+                                               new_width, new_height);
+            SDL_SetTextureBlendMode(this->texture_, SDL_BLENDMODE_BLEND);
+            SDL_RenderSetLogicalSize(this->renderer_, new_width, new_height);
+
+            // Notify listeners
+            this->resize_callbacks_(new_width, new_height);
+
+            // Trigger a full redraw
+            SDL_Rect rect{0, 0, this->width_, this->height_};
+            this->redraw_(rect);
+            break;
+          }
+          case SDL_WINDOWEVENT_EXPOSED: {
             SDL_Rect rect{0, 0, this->width_, this->height_};
             this->redraw_(rect);
             break;

@@ -599,6 +599,21 @@ void LvglComponent::setup() {
   // Rotation will be handled by our drawing function, so reset the display rotation.
   for (auto *disp : this->displays_)
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
+
+  // Register resize callback for displays that support it
+  for (auto *disp : this->displays_) {
+    disp->add_on_resize_callback([this](int new_width, int new_height) {
+      ESP_LOGI(TAG, "Display resized to %dx%d, updating LVGL display resolution", new_width, new_height);
+      this->width_ = new_width;
+      this->height_ = new_height;
+      lv_display_set_resolution(this->disp_, new_width, new_height);
+      // Invalidate the active screen to trigger a redraw
+      if (lv_screen_active() != nullptr) {
+        lv_obj_invalidate(lv_screen_active());
+      }
+    });
+  }
+
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
 }
