@@ -22,11 +22,11 @@ jobs:
     if: github.event.action != 'labeled' || github.event.sender.type != 'Bot'
     steps:
       - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Generate a token
         id: generate-token
-        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2
+        uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2
         with:
           app-id: ${{ secrets.ESPHOME_GITHUB_APP_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
@@ -68,6 +68,7 @@ jobs:
               'bugfix',
               'new-feature',
               'breaking-change',
+              'developer-breaking-change',
               'code-quality'
             ];
 
@@ -367,6 +368,7 @@ jobs:
                 { pattern: /- \[x\] Bugfix \(non-breaking change which fixes an issue\)/i, label: 'bugfix' },
                 { pattern: /- \[x\] New feature \(non-breaking change which adds functionality\)/i, label: 'new-feature' },
                 { pattern: /- \[x\] Breaking change \(fix or feature that would cause existing functionality to not work as expected\)/i, label: 'breaking-change' },
+                { pattern: /- \[x\] Developer breaking change \(an API change that could break external components\)/i, label: 'developer-breaking-change' },
                 { pattern: /- \[x\] Code quality improvements to existing code or addition of tests/i, label: 'code-quality' }
               ];
 

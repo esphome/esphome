@@ -39,6 +39,7 @@ CONFIG_SCHEMA = (
             # due to hardware limitations or lack of reliable interrupt support. This ensures
             # stable operation on these platforms. Future maintainers should verify platform
             # capabilities before changing this default behavior.
+            # nrf52 has no gpio interrupts implemented yet
             cv.SplitDefault(
                 CONF_USE_INTERRUPT,
                 bk72xx=False,
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = (
                 esp8266=True,
                 host=True,
                 ln882x=False,
-                nrf52=True,
+                nrf52=False,
                 rp2040=True,
                 rtl87xx=False,
             ): cv.boolean,

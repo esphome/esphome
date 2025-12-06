@@ -8,7 +8,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateSwitch : public switch_::Switch, public Component {
+class TemplateSwitch final : public switch_::Switch, public Component {
  public:
   TemplateSwitch();
 

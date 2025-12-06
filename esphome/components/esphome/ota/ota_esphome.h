@@ -53,6 +53,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
 #endif  // USE_OTA_PASSWORD
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
+  inline bool write_byte_(uint8_t byte) { return this->writeall_(&byte, 1); }
 
   bool try_read_(size_t to_read, const LogString *desc);
   bool try_write_(size_t to_write, const LogString *desc);

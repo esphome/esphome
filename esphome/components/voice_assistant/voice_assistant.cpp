@@ -206,7 +206,7 @@ void VoiceAssistant::loop() {
     case State::START_MICROPHONE: {
       ESP_LOGD(TAG, "Starting Microphone");
       if (!this->allocate_buffers_()) {
-        this->status_set_error("Failed to allocate buffers");
+        this->status_set_error(LOG_STR("Failed to allocate buffers"));
         return;
       }
       if (this->status_has_error()) {
@@ -657,7 +657,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         ESP_LOGW(TAG, "No text in STT_END event");
         return;
       } else if (text.length() > 500) {
-        text = text.substr(0, 497) + "...";
+        text.resize(497);
+        text += "...";
       }
       ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
       this->defer([this, text]() { this->stt_end_trigger_->trigger(text); });
@@ -714,7 +715,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       if (text.length() > 500) {
-        text = text.substr(0, 497) + "...";
+        text.resize(497);
+        text += "...";
       }
       ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
       this->defer([this, text]() {

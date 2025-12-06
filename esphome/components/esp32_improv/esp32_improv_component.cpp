@@ -127,6 +127,7 @@ void ESP32ImprovComponent::loop() {
           // Set initial state based on whether we have an authorizer
           this->set_state_(this->get_initial_state_(), false);
           this->set_error_(improv::ERROR_NONE);
+          this->should_start_ = false;  // Clear flag after starting
           ESP_LOGD(TAG, "Service started!");
         }
       }
@@ -336,7 +337,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->connecting_sta_ = sta;
 
         wifi::global_wifi_component->set_sta(sta);
-        wifi::global_wifi_component->start_connecting(sta, false);
+        wifi::global_wifi_component->start_connecting(sta);
         this->set_state_(improv::STATE_PROVISIONING);
         ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());

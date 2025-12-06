@@ -65,7 +65,7 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 def validate_config(config):
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
-        if variant in (esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S2):
+        if variant in (esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S2):
             max_idle = 65535
         else:
             max_idle = 32767
@@ -114,6 +114,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 bk72xx="1000b",
                 ln882x="1000b",
                 rtl87xx="1000b",
+                rp2040="1000b",
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
@@ -130,13 +131,13 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
-                esp32_s2=192,
-                esp32_s3=192,
-                esp32_p4=192,
                 esp32_c3=96,
                 esp32_c5=96,
                 esp32_c6=96,
                 esp32_h2=96,
+                esp32_p4=192,
+                esp32_s2=192,
+                esp32_s3=192,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_FILTER_SYMBOLS): cv.All(
                 cv.only_on_esp32, cv.int_range(min=0)
@@ -147,7 +148,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_USE_DMA): cv.All(
                 esp32.only_on_variant(
-                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+                    supported=[esp32.VARIANT_ESP32P4, esp32.VARIANT_ESP32S3]
                 ),
                 cv.boolean,
             ),
@@ -213,6 +214,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
         },
     }
 )

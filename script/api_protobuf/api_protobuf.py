@@ -462,7 +462,7 @@ class Int64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -482,7 +482,7 @@ class UInt64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%llu", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRIu64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -522,7 +522,7 @@ class Fixed64Type(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%llu", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRIu64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -1106,7 +1106,7 @@ class SFixed64Type(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -1150,7 +1150,7 @@ class SInt64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -1610,8 +1610,9 @@ class RepeatedTypeInfo(TypeInfo):
             # Other types need the actual value
             # Special handling for const char* elements
             if self._use_pointer and "const char" in self._container_no_template:
+                field_id_size = self.calculate_field_id_size()
                 o += f"  for (const char *it : {container_ref}) {{\n"
-                o += "    size.add_length_force(1, strlen(it));\n"
+                o += f"    size.add_length_force({field_id_size}, strlen(it));\n"
             else:
                 auto_ref = "" if self._ti_is_bool else "&"
                 o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
@@ -2545,7 +2546,7 @@ static void dump_field(std::string &out, const char *field_name, float value, in
 static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%llu", value);
+  snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 
@@ -2768,8 +2769,8 @@ static const char *const TAG = "api.service";
     cases = list(RECEIVE_CASES.items())
     cases.sort()
     hpp += " protected:\n"
-    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
-    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
+    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
+    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
     out += "  switch (msg_type) {\n"
     for i, (case, ifdef, message_name) in cases:
         if ifdef is not None:
@@ -2877,9 +2878,9 @@ static const char *const TAG = "api.service";
                     result += "#endif\n"
             return result
 
-        hpp_protected += "  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
+        hpp_protected += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
 
-        cpp += f"\nvoid {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
+        cpp += f"\nvoid {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
         cpp += "  // Check authentication/connection requirements for messages\n"
         cpp += "  switch (msg_type) {\n"
 
