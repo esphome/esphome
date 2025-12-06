@@ -4,8 +4,6 @@
 namespace esphome {
 namespace power_management {
 
-static const char *TAG = "power_management";
-
 PowerManagement *global_pm = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 const char *power_manager_type_to_string(PowerManagementLockType type) {

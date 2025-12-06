@@ -1,3 +1,4 @@
+#pragma once
 
 #include "power_management.h"
 

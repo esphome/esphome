@@ -44,21 +44,21 @@ class PowerManagement : public Component {
   void acquire_lock(PowerManagementLockUser user, PowerManagementLockType lt);
   void release_lock(PowerManagementLockUser user, PowerManagementLockType lt);
 #ifdef USE_ESP_IDF
-  static void timer_callback(TimerHandle_t xTimer);
+  static void timer_callback(TimerHandle_t timer);
+  static const uint8_t PM_LOCK_ARRAY_SIZE = 4;
 #endif
  protected:
 #ifdef USE_ESP_IDF
   mutable std::mutex pm_lock_mutex_;
-  static const uint8_t pm_lock_array_size_ = 4;
-  esp_pm_lock_handle_t pm_lock_handles_[pm_lock_array_size_];
+  esp_pm_lock_handle_t pm_lock_handles_[PM_LOCK_ARRAY_SIZE];
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   // match with PowerManagementLockType
-  esp_pm_lock_type_t pm_lock_types_[pm_lock_array_size_] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_CPU_FREQ_MAX,
-                                                            ESP_PM_APB_FREQ_MAX, ESP_PM_NO_LIGHT_SLEEP};
+  esp_pm_lock_type_t pm_lock_types_[PM_LOCK_ARRAY_SIZE] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_CPU_FREQ_MAX,
+                                                           ESP_PM_APB_FREQ_MAX, ESP_PM_NO_LIGHT_SLEEP};
 #else
   // substitute apb for slp
-  esp_pm_lock_type_t pm_lock_types_[pm_lock_array_size_] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_CPU_FREQ_MAX,
-                                                            ESP_PM_APB_FREQ_MAX, ESP_PM_APB_FREQ_MAX};
+  esp_pm_lock_type_t pm_lock_types_[PM_LOCK_ARRAY_SIZE] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_CPU_FREQ_MAX,
+                                                           ESP_PM_APB_FREQ_MAX, ESP_PM_APB_FREQ_MAX};
 #endif
 
 #endif

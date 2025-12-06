@@ -8,8 +8,8 @@ namespace power_management {
 static const char *TAG = "power_management";
 
 // static only use is in setup
-void PowerManagement::timer_callback(TimerHandle_t xTimer) {
-  void *context = pvTimerGetTimerID(xTimer);
+void PowerManagement::timer_callback(TimerHandle_t timer) {
+  void *context = pvTimerGetTimerID(timer);
   PowerManagement *obj = (PowerManagement *) context;
   obj->release_lock(PowerManagementLockUser::PM, PowerManagementLockType::CPU);
 }
@@ -40,7 +40,7 @@ void PowerManagement::setup() {
   }
 
   // Create Locks
-  for (uint8_t i = 0; i < this->pm_lock_array_size_; i++) {
+  for (uint8_t i = 0; i < PowerManagement::PM_LOCK_ARRAY_SIZE; i++) {
     rc = esp_pm_lock_create(this->pm_lock_types_[i], 0, power_manager_type_to_string((PowerManagementLockType) i),
                             &(this->pm_lock_handles_[i]));
     if (rc != ESP_OK) {
@@ -54,9 +54,9 @@ void PowerManagement::setup() {
   if (this->timer_lock_duration_ > 0) {
     // Acquire Initial Lock
     this->acquire_lock(PowerManagementLockUser::PM, PowerManagementLockType::CPU);
-    TimerHandle_t xTimer = xTimerCreate("PM Sleep Timer", pdMS_TO_TICKS(this->timer_lock_duration_), pdFALSE, this,
-                                        PowerManagement::timer_callback);
-    xTimerStart(xTimer, 0);
+    TimerHandle_t timer = xTimerCreate("PM Sleep Timer", pdMS_TO_TICKS(this->timer_lock_duration_), pdFALSE, this,
+                                       PowerManagement::timer_callback);
+    xTimerStart(timer, 0);
   }
 }
 
@@ -71,9 +71,9 @@ void PowerManagement::acquire_lock(PowerManagementLockUser user, PowerManagement
     ESP_LOGD(TAG, "Acquired pm lock: %s, user: %s", power_manager_type_to_string(lt),
              power_manager_user_to_string(user));
     if (lt == PowerManagementLockType::TMR && this->timer_lock_duration_ > 0) {
-      TimerHandle_t xTimer = xTimerCreate("PM Sleep Timer", pdMS_TO_TICKS(this->timer_lock_duration_), pdFALSE, this,
-                                          PowerManagement::timer_callback);
-      xTimerStart(xTimer, 0);
+      TimerHandle_t timer = xTimerCreate("PM Sleep Timer", pdMS_TO_TICKS(this->timer_lock_duration_), pdFALSE, this,
+                                         PowerManagement::timer_callback);
+      xTimerStart(timer, 0);
     }
   }
 }
