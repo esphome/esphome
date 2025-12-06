@@ -315,7 +315,7 @@ void Scheduler::full_cleanup_removed_items_() {
       valid_items.push_back(std::move(item));
     } else {
       // Recycle removed items
-      this->recycle_item_(std::move(item));
+      this->recycle_item_main_loop_(std::move(item));
     }
   }
 
@@ -400,7 +400,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Don't run on failed components
     if (item->component != nullptr && item->component->is_failed()) {
       LockGuard guard{this->lock_};
-      this->recycle_item_(this->pop_raw_locked_());
+      this->recycle_item_main_loop_(this->pop_raw_locked_());
       continue;
     }
 
@@ -413,7 +413,7 @@ void HOT Scheduler::call(uint32_t now) {
     {
       LockGuard guard{this->lock_};
       if (is_item_removed_(item.get())) {
-        this->recycle_item_(this->pop_raw_locked_());
+        this->recycle_item_main_loop_(this->pop_raw_locked_());
         this->to_remove_--;
         continue;
       }
@@ -422,7 +422,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Single-threaded or multi-threaded with atomics: can check without lock
     if (is_item_removed_(item.get())) {
       LockGuard guard{this->lock_};
-      this->recycle_item_(this->pop_raw_locked_());
+      this->recycle_item_main_loop_(this->pop_raw_locked_());
       this->to_remove_--;
       continue;
     }
@@ -449,7 +449,7 @@ void HOT Scheduler::call(uint32_t now) {
     if (executed_item->remove) {
       // We were removed/cancelled in the function call, recycle and continue
       this->to_remove_--;
-      this->recycle_item_(std::move(executed_item));
+      this->recycle_item_main_loop_(std::move(executed_item));
       continue;
     }
 
@@ -460,7 +460,7 @@ void HOT Scheduler::call(uint32_t now) {
       this->to_add_.push_back(std::move(executed_item));
     } else {
       // Timeout completed - recycle it
-      this->recycle_item_(std::move(executed_item));
+      this->recycle_item_main_loop_(std::move(executed_item));
     }
 
     has_added_items |= !this->to_add_.empty();
@@ -475,7 +475,7 @@ void HOT Scheduler::process_to_add() {
   for (auto &it : this->to_add_) {
     if (is_item_removed_(it.get())) {
       // Recycle cancelled items
-      this->recycle_item_(std::move(it));
+      this->recycle_item_main_loop_(std::move(it));
       continue;
     }
 
@@ -509,7 +509,7 @@ size_t HOT Scheduler::cleanup_() {
     if (!item->remove)
       break;
     this->to_remove_--;
-    this->recycle_item_(this->pop_raw_locked_());
+    this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
   return this->items_.size();
 }
@@ -562,20 +562,15 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
 #endif /* not ESPHOME_THREAD_SINGLE */
 
   // Cancel items in the main heap
-  // Special case: if the last item in the heap matches, we can remove it immediately
-  // (removing the last element doesn't break heap structure)
+  // We only mark items for removal here - never recycle directly.
+  // The main loop may be executing an item's callback right now, and recycling
+  // would destroy the callback while it's running (use-after-free).
+  // Only the main loop in call() should recycle items after execution completes.
   if (!this->items_.empty()) {
-    auto &last_item = this->items_.back();
-    if (this->matches_item_locked_(last_item, component, name_cstr, type, match_retry)) {
-      this->recycle_item_(std::move(this->items_.back()));
-      this->items_.pop_back();
-      total_cancelled++;
-    }
-    // For other items in heap, we can only mark for removal (can't remove from middle of heap)
     size_t heap_cancelled =
         this->mark_matching_items_removed_locked_(this->items_, component, name_cstr, type, match_retry);
     total_cancelled += heap_cancelled;
-    this->to_remove_ += heap_cancelled;  // Track removals for heap items
+    this->to_remove_ += heap_cancelled;
   }
 
   // Cancel items in to_add_
@@ -749,7 +744,7 @@ bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
                                                               : (a->next_execution_high_ > b->next_execution_high_);
 }
 
-void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
+void Scheduler::recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item) {
   if (!item)
     return;
 
