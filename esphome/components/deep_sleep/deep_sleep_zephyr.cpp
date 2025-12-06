@@ -3,7 +3,10 @@
 #include "esphome/core/log.h"
 #include <zephyr/pm/pm.h>
 #include <zephyr/pm/policy.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/kernel.h>
+#include <zephyr/drivers/counter.h>
+#include <hal/nrf_rtc.h>
 
 namespace esphome::deep_sleep {
 
@@ -61,24 +64,69 @@ void DeepSleepComponent::dump_config_platform_() {
 
 bool DeepSleepComponent::prepare_to_sleep_() { return true; }
 
+static void setup_rtc_wakeup(uint32_t sleep_us) {
+  // Use RTC2 for wakeup timer (RTC0 is used by SoftDevice if BLE is enabled, RTC1 by Zephyr kernel)
+  // Configure RTC2 to wake from System OFF
+
+  // Stop RTC if running
+  nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_STOP);
+  nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_CLEAR);
+
+  // RTC frequency is 32.768 kHz, so 1 tick = 30.517 us
+  // Convert microseconds to RTC ticks: ticks = us / 30.517 = us * 32768 / 1000000
+  uint64_t ticks = ((uint64_t) sleep_us * 32768ULL) / 1000000ULL;
+
+  // RTC counter is 24-bit, max value is 0xFFFFFF (approximately 512 seconds)
+  if (ticks > 0xFFFFFF) {
+    ESP_LOGW(TAG, "Sleep duration too long for RTC (max ~512s), capping to maximum");
+    ticks = 0xFFFFFF;
+  }
+
+  ESP_LOGD(TAG, "RTC wakeup in %" PRIu32 " us (%" PRIu32 " ticks)", sleep_us, (uint32_t) ticks);
+
+  // Set compare register for wakeup
+  nrf_rtc_cc_set(NRF_RTC2, 0, (uint32_t) ticks);
+
+  // Enable compare event and interrupt
+  nrf_rtc_event_clear(NRF_RTC2, NRF_RTC_EVENT_COMPARE_0);
+  nrf_rtc_int_enable(NRF_RTC2, NRF_RTC_INT_COMPARE0_MASK);
+
+  // Configure RTC prescaler (default 0 means 32.768 kHz)
+  nrf_rtc_prescaler_set(NRF_RTC2, 0);
+
+  // Start RTC
+  nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_START);
+
+  ESP_LOGD(TAG, "RTC2 configured for wakeup");
+}
+
 void DeepSleepComponent::deep_sleep_() {
   ESP_LOGI(TAG, "Entering deep sleep");
 
   if (this->sleep_duration_.has_value()) {
-    // For timed sleep, force soft off state with wakeup timer
-    // Note: The actual timer setup would need to be configured separately
-    // using device tree or runtime GPIO/timer configuration
-    ESP_LOGI(TAG, "Sleep duration: %" PRIu32 " us", *this->sleep_duration_);
+    uint32_t sleep_us = *this->sleep_duration_;
+    ESP_LOGI(TAG, "Sleep duration: %" PRIu32 " us (%.2f seconds)", sleep_us, sleep_us / 1000000.0f);
 
-    // On NRF52, we use PM_STATE_SOFT_OFF for deepest sleep
-    // The wakeup source needs to be configured before entering sleep
+    // Configure RTC timer for wakeup
+    setup_rtc_wakeup(sleep_us);
+
+    // Small delay to ensure RTC is running
+    k_usleep(1000);
+
+    // Enter System OFF mode - will wake on RTC compare event
+    // Note: PM_STATE_SOFT_OFF on NRF52 = System OFF mode
+    // Only GPIO DETECT signal and COMPARE event from RTC can wake the system
+    ESP_LOGD(TAG, "Entering System OFF with RTC wakeup");
     pm_state_force(0u, &(struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
 
     // If we return here, sleep failed
     ESP_LOGE(TAG, "Failed to enter deep sleep mode");
   } else {
-    // Indefinite sleep - enter soft off (System OFF on NRF52)
+    // Indefinite sleep - enter System OFF without wakeup timer
+    // Only GPIO or reset can wake the system
     ESP_LOGI(TAG, "Entering indefinite deep sleep (System OFF)");
+    ESP_LOGW(TAG, "No wakeup source configured - only reset or GPIO will wake device");
+
     pm_state_force(0u, &(struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
 
     // If we return here, sleep failed

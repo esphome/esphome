@@ -285,6 +285,9 @@ async def to_code(config):
         zephyr_add_prj_conf("POWEROFF", True)
         zephyr_add_prj_conf("PM", True)
         zephyr_add_prj_conf("PM_DEVICE", True)
+        # Enable counter/RTC support for timed wakeup
+        zephyr_add_prj_conf("COUNTER", True)
+        zephyr_add_prj_conf("COUNTER_RTC", True, required=False)
 
     cg.add_define("USE_DEEP_SLEEP")
 
