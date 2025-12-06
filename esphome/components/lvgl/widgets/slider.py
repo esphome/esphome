@@ -13,7 +13,7 @@ from ..helpers import add_lv_use
 from ..lv_validation import animated, get_start_value, lv_float
 from ..lvcode import lv
 from ..types import LvNumber
-from . import Widget, NumberType
+from . import NumberType, Widget
 from .lv_bar import CONF_BAR
 
 CONF_SLIDER = "slider"
