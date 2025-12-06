@@ -1,8 +1,6 @@
 import sys
 from typing import Any
 
-from core import EsphomeError
-
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
 from esphome.config_validation import Invalid, Schema
@@ -15,7 +13,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_TYPE,
 )
-from esphome.core import ID, TimePeriod
+from esphome.core import ID, EsphomeError, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj
 
