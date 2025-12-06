@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace hlw8032 {
+namespace esphome::hlw8032 {
 
 class HLW8032Component : public Component, public uart::UARTDevice {
  public:
@@ -42,5 +41,4 @@ class HLW8032Component : public Component, public uart::UARTDevice {
   bool header_found_{false};
 };
 
-}  // namespace hlw8032
-}  // namespace esphome
+}  // namespace esphome::hlw8032
