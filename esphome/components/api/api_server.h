@@ -261,7 +261,7 @@ extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-cons
 
 template<typename... Ts> class APIDisconnectClientsAction : public Action<Ts...> {
  public:
-  bool play(const Ts &...x) override { return global_api_server->disconnect_clients(); }
+  void play(const Ts &...x) override { global_api_server->disconnect_clients(); }
 };
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
