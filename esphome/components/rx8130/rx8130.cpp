@@ -62,6 +62,7 @@ void RX8130Component::update() { this->read_time(); }
 void RX8130Component::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8130:");
   LOG_I2C_DEVICE(this);
+  RealTimeClock::dump_config();
 }
 
 void RX8130Component::read_time() {

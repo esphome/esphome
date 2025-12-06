@@ -15,6 +15,11 @@ from . import (
 class MemoryAnalyzerCLI(MemoryAnalyzer):
     """Memory analyzer with CLI-specific report generation."""
 
+    # Symbol size threshold for detailed analysis
+    SYMBOL_SIZE_THRESHOLD: int = (
+        100  # Show symbols larger than this in detailed analysis
+    )
+
     # Column width constants
     COL_COMPONENT: int = 29
     COL_FLASH_TEXT: int = 14
@@ -191,14 +196,21 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     f"{len(symbols):>{self.COL_CORE_COUNT}} | {percentage:>{self.COL_CORE_PERCENT - 1}.1f}%"
                 )
 
-            # Top 15 largest core symbols
+            # All core symbols above threshold
             lines.append("")
-            lines.append(f"Top 15 Largest {_COMPONENT_CORE} Symbols:")
             sorted_core_symbols = sorted(
                 self._esphome_core_symbols, key=lambda x: x[2], reverse=True
             )
+            large_core_symbols = [
+                (symbol, demangled, size)
+                for symbol, demangled, size in sorted_core_symbols
+                if size > self.SYMBOL_SIZE_THRESHOLD
+            ]
 
-            for i, (symbol, demangled, size) in enumerate(sorted_core_symbols[:15]):
+            lines.append(
+                f"{_COMPONENT_CORE} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_core_symbols)} symbols):"
+            )
+            for i, (symbol, demangled, size) in enumerate(large_core_symbols):
                 lines.append(f"{i + 1}. {demangled} ({size:,} B)")
 
             lines.append("=" * self.TABLE_WIDTH)
@@ -268,13 +280,15 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 lines.append(f"Total size: {comp_mem.flash_total:,} B")
                 lines.append("")
 
-                # Show all symbols > 100 bytes for better visibility
+                # Show all symbols above threshold for better visibility
                 large_symbols = [
-                    (sym, dem, size) for sym, dem, size in sorted_symbols if size > 100
+                    (sym, dem, size)
+                    for sym, dem, size in sorted_symbols
+                    if size > self.SYMBOL_SIZE_THRESHOLD
                 ]
 
                 lines.append(
-                    f"{comp_name} Symbols > 100 B ({len(large_symbols)} symbols):"
+                    f"{comp_name} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_symbols)} symbols):"
                 )
                 for i, (symbol, demangled, size) in enumerate(large_symbols):
                     lines.append(f"{i + 1}. {demangled} ({size:,} B)")

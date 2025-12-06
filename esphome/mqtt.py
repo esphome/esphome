@@ -30,6 +30,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import get_int_env, get_str_env
 from esphome.log import AnsiFore, color
+from esphome.types import ConfigType
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -154,8 +155,12 @@ def show_discover(config, username=None, password=None, client_id=None):
 
 
 def get_esphome_device_ip(
-    config, username=None, password=None, client_id=None, timeout=25
-):
+    config: ConfigType,
+    username: str | None = None,
+    password: str | None = None,
+    client_id: str | None = None,
+    timeout: int | float = 25,
+) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
             "Cannot discover IP via MQTT as the config does not include the mqtt: "
@@ -165,6 +170,10 @@ def get_esphome_device_ip(
         raise EsphomeError(
             "Cannot discover IP via MQTT as the config does not include the device name: "
             "component"
+        )
+    if not config[CONF_MQTT].get(CONF_BROKER):
+        raise EsphomeError(
+            "Cannot discover IP via MQTT as the broker is not configured"
         )
 
     dev_name = config[CONF_ESPHOME][CONF_NAME]

@@ -3,17 +3,18 @@
 #include "gpio.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace esp8266 {
+namespace esphome::esp8266 {
 
 static const char *const TAG = "esp8266";
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
-  if (flags == gpio::FLAG_INPUT) {  // NOLINT(bugprone-branch-clone)
-    return INPUT;
-  } else if (flags == gpio::FLAG_OUTPUT) {
+  if (flags == gpio::FLAG_OUTPUT || flags == (gpio::FLAG_OUTPUT | gpio::FLAG_INPUT)) {
     return OUTPUT;
-  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
+  }
+  if (flags == gpio::FLAG_INPUT) {
+    return INPUT;
+  }
+  if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     if (pin == 16) {
       // GPIO16 doesn't have a pullup, so pinMode would fail.
       // However, sometimes this method is called with pullup mode anyway
@@ -22,13 +23,14 @@ static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
       return INPUT;
     }
     return INPUT_PULLUP;
-  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
-    return INPUT_PULLDOWN_16;
-  } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
-    return OUTPUT_OPEN_DRAIN;
-  } else {
-    return 0;
   }
+  if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
+    return INPUT_PULLDOWN_16;
+  }
+  if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
+    return OUTPUT_OPEN_DRAIN;
+  }
+  return INPUT;
 }
 
 struct ISRPinArg {
@@ -110,9 +112,11 @@ void ESP8266GPIOPin::digital_write(bool value) {
 }
 void ESP8266GPIOPin::detach_interrupt() const { detachInterrupt(pin_); }
 
-}  // namespace esp8266
+}  // namespace esphome::esp8266
 
-using namespace esp8266;
+namespace esphome {
+
+using esp8266::ISRPinArg;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);

@@ -49,8 +49,15 @@ extern "C" {
 #include <WiFi.h>
 #endif
 
-namespace esphome {
-namespace wifi {
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#endif
+
+namespace esphome::wifi {
+
+/// Sentinel value for RSSI when WiFi is not connected
+static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
 
 struct SavedWifiSettings {
   char ssid[33];
@@ -74,12 +81,6 @@ enum WiFiComponentState : uint8_t {
   WIFI_COMPONENT_STATE_STA_SCANNING,
   /** WiFi is in STA(+AP) mode and currently connecting to an AP. */
   WIFI_COMPONENT_STATE_STA_CONNECTING,
-  /** WiFi is in STA(+AP) mode and currently connecting to an AP a second time.
-   *
-   * This is required because for some reason ESPs don't like to connect to WiFi APs directly after
-   * a scan.
-   * */
-  WIFI_COMPONENT_STATE_STA_CONNECTING_2,
   /** WiFi is in STA(+AP) mode and successfully connected. */
   WIFI_COMPONENT_STATE_STA_CONNECTED,
   /** WiFi is in AP-only mode and internal AP is already enabled. */
@@ -157,8 +158,10 @@ class WiFiAP {
   void set_eap(optional<EAPAuth> eap_auth);
 #endif  // USE_WIFI_WPA2_EAP
   void set_channel(optional<uint8_t> channel);
-  void set_priority(float priority) { priority_ = priority; }
+  void set_priority(int8_t priority) { priority_ = priority; }
+#ifdef USE_WIFI_MANUAL_IP
   void set_manual_ip(optional<ManualIP> manual_ip);
+#endif
   void set_hidden(bool hidden);
   const std::string &get_ssid() const;
   const optional<bssid_t> &get_bssid() const;
@@ -167,8 +170,10 @@ class WiFiAP {
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
   const optional<uint8_t> &get_channel() const;
-  float get_priority() const { return priority_; }
+  int8_t get_priority() const { return priority_; }
+#ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
+#endif
   bool get_hidden() const;
 
  protected:
@@ -178,9 +183,11 @@ class WiFiAP {
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
+#ifdef USE_WIFI_MANUAL_IP
   optional<ManualIP> manual_ip_;
-  float priority_{0};
+#endif
   optional<uint8_t> channel_;
+  int8_t priority_{0};
   bool hidden_{false};
 };
 
@@ -198,17 +205,17 @@ class WiFiScanResult {
   int8_t get_rssi() const;
   bool get_with_auth() const;
   bool get_is_hidden() const;
-  float get_priority() const { return priority_; }
-  void set_priority(float priority) { priority_ = priority; }
+  int8_t get_priority() const { return priority_; }
+  void set_priority(int8_t priority) { priority_ = priority; }
 
   bool operator==(const WiFiScanResult &rhs) const;
 
  protected:
   bssid_t bssid_;
-  std::string ssid_;
-  float priority_{0.0f};
   uint8_t channel_;
   int8_t rssi_;
+  std::string ssid_;
+  int8_t priority_{0};
   bool matches_{false};
   bool with_auth_;
   bool is_hidden_;
@@ -216,7 +223,7 @@ class WiFiScanResult {
 
 struct WiFiSTAPriority {
   bssid_t bssid;
-  float priority;
+  int8_t priority;
 };
 
 enum WiFiPowerSaveMode : uint8_t {
@@ -225,9 +232,56 @@ enum WiFiPowerSaveMode : uint8_t {
   WIFI_POWER_SAVE_HIGH,
 };
 
+enum WifiMinAuthMode : uint8_t {
+  WIFI_MIN_AUTH_MODE_WPA = 0,
+  WIFI_MIN_AUTH_MODE_WPA2,
+  WIFI_MIN_AUTH_MODE_WPA3,
+};
+
 #ifdef USE_ESP32
 struct IDFWiFiEvent;
 #endif
+
+/** Listener interface for WiFi IP state changes.
+ *
+ * Components can implement this interface to receive IP address updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiIPStateListener {
+ public:
+  virtual void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                           const network::IPAddress &dns2) = 0;
+};
+
+/** Listener interface for WiFi scan results.
+ *
+ * Components can implement this interface to receive scan results
+ * without the overhead of std::function callbacks.
+ */
+class WiFiScanResultsListener {
+ public:
+  virtual void on_wifi_scan_results(const wifi_scan_vector_t<WiFiScanResult> &results) = 0;
+};
+
+/** Listener interface for WiFi connection state changes.
+ *
+ * Components can implement this interface to receive connection updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiConnectStateListener {
+ public:
+  virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
+};
+
+/** Listener interface for WiFi power save mode changes.
+ *
+ * Components can implement this interface to receive power save mode updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiPowerSaveListener {
+ public:
+  virtual void on_wifi_power_save(WiFiPowerSaveMode mode) = 0;
+};
 
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent : public Component {
@@ -263,22 +317,30 @@ class WiFiComponent : public Component {
   bool is_disabled();
   void start_scanning();
   void check_scanning_finished();
-  void start_connecting(const WiFiAP &ap, bool two);
+  void start_connecting(const WiFiAP &ap);
+  // Backward compatibility overload - ignores 'two' parameter
+  void start_connecting(const WiFiAP &ap, bool /* two */) { this->start_connecting(ap); }
 
   void check_connecting_finished();
 
   void retry_connect();
+
+#ifdef USE_RP2040
+  bool can_proceed() override;
+#endif
 
   void set_reboot_timeout(uint32_t reboot_timeout);
 
   bool is_connected();
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
+  void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
   void set_output_power(float output_power) { output_power_ = output_power; }
 
   void set_passive_scan(bool passive);
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
@@ -295,6 +357,7 @@ class WiFiComponent : public Component {
 
   bool has_sta() const;
   bool has_ap() const;
+  bool is_ap_active() const;
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
@@ -317,14 +380,14 @@ class WiFiComponent : public Component {
     }
     return false;
   }
-  float get_sta_priority(const bssid_t bssid) {
+  int8_t get_sta_priority(const bssid_t bssid) {
     for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid)
         return it.priority;
     }
-    return 0.0f;
+    return 0;
   }
-  void set_sta_priority(const bssid_t bssid, float priority) {
+  void set_sta_priority(const bssid_t bssid, int8_t priority) {
     for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid) {
         it.priority = priority;
@@ -350,6 +413,58 @@ class WiFiComponent : public Component {
   Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
 
   int32_t get_wifi_channel();
+
+#ifdef USE_WIFI_LISTENERS
+  /** Add a listener for IP state changes.
+   * Listener receives: IP addresses, DNS address 1, DNS address 2
+   */
+  void add_ip_state_listener(WiFiIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
+  /// Add a listener for WiFi scan results
+  void add_scan_results_listener(WiFiScanResultsListener *listener) {
+    this->scan_results_listeners_.push_back(listener);
+  }
+  /** Add a listener for WiFi connection state changes.
+   * Listener receives: SSID, BSSID
+   */
+  void add_connect_state_listener(WiFiConnectStateListener *listener) {
+    this->connect_state_listeners_.push_back(listener);
+  }
+  /** Add a listener for WiFi power save mode changes.
+   * Listener receives: WiFiPowerSaveMode
+   */
+  void add_power_save_listener(WiFiPowerSaveListener *listener) { this->power_save_listeners_.push_back(listener); }
+#endif  // USE_WIFI_LISTENERS
+
+#ifdef USE_WIFI_RUNTIME_POWER_SAVE
+  /** Request high-performance mode (no power saving) for improved WiFi latency.
+   *
+   * Components that need maximum WiFi performance (e.g., audio streaming, large data transfers)
+   * can call this method to temporarily disable WiFi power saving. Multiple components can
+   * request high performance simultaneously using a counting semaphore.
+   *
+   * Power saving will be restored to the YAML-configured mode when all components have
+   * called release_high_performance().
+   *
+   * Note: Only supported on ESP32.
+   *
+   * @return true if request was satisfied (high-performance mode active or already configured),
+   *         false if operation failed (semaphore error)
+   */
+  bool request_high_performance();
+
+  /** Release a high-performance mode request.
+   *
+   * Should be called when a component no longer needs maximum WiFi latency.
+   * When all requests are released (semaphore count reaches zero), WiFi power saving
+   * is restored to the YAML-configured mode.
+   *
+   * Note: Only supported on ESP32.
+   *
+   * @return true if release was successful (or already in high-performance config),
+   *         false if operation failed (semaphore error)
+   */
+  bool release_high_performance();
+#endif  // USE_WIFI_RUNTIME_POWER_SAVE
 
  protected:
 #ifdef USE_WIFI_AP
@@ -379,10 +494,11 @@ class WiFiComponent : public Component {
   /// Find next SSID that wasn't in scan results (might be hidden)
   /// Returns index of next potentially hidden SSID, or -1 if none found
   /// @param start_index Start searching from index after this (-1 to start from beginning)
-  /// @param include_explicit_hidden If true, include SSIDs marked hidden:true. If false, only find truly hidden SSIDs.
-  int8_t find_next_hidden_sta_(int8_t start_index, bool include_explicit_hidden = true);
+  int8_t find_next_hidden_sta_(int8_t start_index);
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
+  /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
+  void clear_priorities_if_all_min_();
   /// Advance to next target (AP/SSID) within current phase, or increment retry counter
   /// Called when staying in the same phase after a failed connection attempt
   void advance_to_next_target_or_increment_retry_();
@@ -411,12 +527,14 @@ class WiFiComponent : public Component {
     return true;
   }
 
+  void connect_soon_();
+
   void wifi_loop_();
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
-  bool wifi_sta_ip_config_(optional<ManualIP> manual_ip);
+  bool wifi_sta_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
@@ -424,7 +542,7 @@ class WiFiComponent : public Component {
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
-  bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
+  bool wifi_ap_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
 #endif  // USE_WIFI_AP
 
@@ -473,6 +591,12 @@ class WiFiComponent : public Component {
   WiFiAP ap_;
 #endif
   optional<float> output_power_;
+#ifdef USE_WIFI_LISTENERS
+  std::vector<WiFiIPStateListener *> ip_state_listeners_;
+  std::vector<WiFiScanResultsListener *> scan_results_listeners_;
+  std::vector<WiFiConnectStateListener *> connect_state_listeners_;
+  std::vector<WiFiPowerSaveListener *> power_save_listeners_;
+#endif  // USE_WIFI_LISTENERS
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
@@ -489,6 +613,7 @@ class WiFiComponent : public Component {
   // Group all 8-bit values together
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
+  WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
@@ -506,15 +631,24 @@ class WiFiComponent : public Component {
   bool error_from_callback_{false};
   bool scan_done_{false};
   bool ap_setup_{false};
+  bool ap_started_{false};
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
   bool btm_{false};
   bool rrm_{false};
 #endif
-  bool enable_on_boot_;
+  bool enable_on_boot_{true};
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
+  bool did_scan_this_cycle_{false};
+  bool skip_cooldown_next_cycle_{false};
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
+  bool is_high_performance_mode_{false};
+
+  SemaphoreHandle_t high_performance_semaphore_{nullptr};
+#endif
 
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
@@ -528,107 +662,5 @@ class WiFiComponent : public Component {
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
- public:
-  bool check(const Ts &...x) override { return global_wifi_component->is_connected(); }
-};
-
-template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
- public:
-  bool check(const Ts &...x) override { return !global_wifi_component->is_disabled(); }
-};
-
-template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override { global_wifi_component->enable(); }
-};
-
-template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override { global_wifi_component->disable(); }
-};
-
-template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, public Component {
- public:
-  TEMPLATABLE_VALUE(std::string, ssid)
-  TEMPLATABLE_VALUE(std::string, password)
-  TEMPLATABLE_VALUE(bool, save)
-  TEMPLATABLE_VALUE(uint32_t, connection_timeout)
-
-  void play(const Ts &...x) override {
-    auto ssid = this->ssid_.value(x...);
-    auto password = this->password_.value(x...);
-    // Avoid multiple calls
-    if (this->connecting_)
-      return;
-    // If already connected to the same AP, do nothing
-    if (global_wifi_component->wifi_ssid() == ssid) {
-      // Callback to notify the user that the connection was successful
-      this->connect_trigger_->trigger();
-      return;
-    }
-    // Create a new WiFiAP object with the new SSID and password
-    this->new_sta_.set_ssid(ssid);
-    this->new_sta_.set_password(password);
-    // Save the current STA
-    this->old_sta_ = global_wifi_component->get_sta();
-    // Disable WiFi
-    global_wifi_component->disable();
-    // Set the state to connecting
-    this->connecting_ = true;
-    // Store the new STA so once the WiFi is enabled, it will connect to it
-    // This is necessary because the WiFiComponent will raise an error and fallback to the saved STA
-    // if trying to connect to a new STA while already connected to another one
-    if (this->save_.value(x...)) {
-      global_wifi_component->save_wifi_sta(new_sta_.get_ssid(), new_sta_.get_password());
-    } else {
-      global_wifi_component->set_sta(new_sta_);
-    }
-    // Enable WiFi
-    global_wifi_component->enable();
-    // Set timeout for the connection
-    this->set_timeout("wifi-connect-timeout", this->connection_timeout_.value(x...), [this, x...]() {
-      // If the timeout is reached, stop connecting and revert to the old AP
-      global_wifi_component->disable();
-      global_wifi_component->save_wifi_sta(old_sta_.get_ssid(), old_sta_.get_password());
-      global_wifi_component->enable();
-      // Start a timeout for the fallback if the connection to the old AP fails
-      this->set_timeout("wifi-fallback-timeout", this->connection_timeout_.value(x...), [this]() {
-        this->connecting_ = false;
-        this->error_trigger_->trigger();
-      });
-    });
-  }
-
-  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; }
-  Trigger<> *get_error_trigger() const { return this->error_trigger_; }
-
-  void loop() override {
-    if (!this->connecting_)
-      return;
-    if (global_wifi_component->is_connected()) {
-      // The WiFi is connected, stop the timeout and reset the connecting flag
-      this->cancel_timeout("wifi-connect-timeout");
-      this->cancel_timeout("wifi-fallback-timeout");
-      this->connecting_ = false;
-      if (global_wifi_component->wifi_ssid() == this->new_sta_.get_ssid()) {
-        // Callback to notify the user that the connection was successful
-        this->connect_trigger_->trigger();
-      } else {
-        // Callback to notify the user that the connection failed
-        this->error_trigger_->trigger();
-      }
-    }
-  }
-
- protected:
-  bool connecting_{false};
-  WiFiAP new_sta_;
-  WiFiAP old_sta_;
-  Trigger<> *connect_trigger_{new Trigger<>()};
-  Trigger<> *error_trigger_{new Trigger<>()};
-};
-
-}  // namespace wifi
-}  // namespace esphome
+}  // namespace esphome::wifi
 #endif
