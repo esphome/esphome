@@ -733,6 +733,11 @@ class APIConnection final : public APIServerConnection {
     this->on_fatal_error();
     this->log_warning_(message, err);
   }
+#ifdef USE_POWER_MANAGEMENT
+  bool pm_loop_lock_{false};
+  void pm_loop_acquire_lock_();
+  void pm_loop_release_lock_();
+#endif
 };
 
 }  // namespace esphome::api

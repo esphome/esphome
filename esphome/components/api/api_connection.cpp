@@ -39,6 +39,9 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
+#ifdef USE_POWER_MANAGEMENT
+#include "esphome/components/power_management/power_management.h"
+#endif
 
 namespace esphome::api {
 
@@ -143,10 +146,26 @@ APIConnection::~APIConnection() {
 }
 
 void APIConnection::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+#ifdef USE_POWER_MANAGEMENT
+  if ((this->flags_.next_close) || (this->flags_.batch_scheduled) || (!this->list_entities_iterator_.completed())
+#ifdef USE_CAMERA
+      || (this->image_reader_ && this->image_reader_->available())
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
+      || (state_subs_at_ >= 0)
+#endif
+      || (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove)) {
+    this->pm_loop_acquire_lock_();
+  }
+#endif
   if (this->flags_.next_close) {
     // requested a disconnect
     this->helper_->close();
     this->flags_.remove = true;
+#ifdef USE_POWER_MANAGEMENT
+    this->pm_loop_release_lock_();
+#endif
     return;
   }
 
@@ -156,9 +175,11 @@ void APIConnection::loop() {
     return;
   }
 
-  const uint32_t now = App.get_loop_component_start_time();
   // Check if socket has data ready before attempting to read
   if (this->helper_->is_socket_ready()) {
+#ifdef USE_POWER_MANAGEMENT
+    this->pm_loop_acquire_lock_();
+#endif
     // Read up to MAX_MESSAGES_PER_LOOP messages per loop to improve throughput
     for (uint8_t message_count = 0; message_count < MAX_MESSAGES_PER_LOOP; message_count++) {
       ReadPacketBuffer buffer;
@@ -168,13 +189,20 @@ void APIConnection::loop() {
         break;
       } else if (err != APIError::OK) {
         this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
+#ifdef USE_POWER_MANAGEMENT
+        this->pm_loop_release_lock_();
+#endif
         return;
       } else {
         this->last_traffic_ = now;
         // read a packet
         this->read_message(buffer.data_len, buffer.type, buffer.data);
-        if (this->flags_.remove)
+        if (this->flags_.remove) {
+#ifdef USE_POWER_MANAGEMENT
+          this->pm_loop_release_lock_();
+#endif
           return;
+        }
       }
     }
   }
@@ -250,6 +278,19 @@ void APIConnection::loop() {
 #ifdef USE_API_HOMEASSISTANT_STATES
   if (state_subs_at_ >= 0) {
     this->process_state_subscriptions_();
+  }
+#endif
+
+#ifdef USE_POWER_MANAGEMENT
+  if (!((this->flags_.next_close) || (this->flags_.batch_scheduled) || (!this->list_entities_iterator_.completed())
+#ifdef USE_CAMERA
+        || (this->image_reader_ && this->image_reader_->available())
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
+        || (state_subs_at_ >= 0)
+#endif
+        || (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove))) {
+    this->pm_loop_release_lock_();
   }
 #endif
 }
@@ -1941,6 +1982,23 @@ void APIConnection::log_warning_(const LogString *message, APIError err) {
   ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
+
+#ifdef USE_POWER_MANAGEMENT
+void APIConnection::pm_loop_acquire_lock_() {
+  if (!this->pm_loop_lock_) {
+    power_management::global_pm->acquire_lock(power_management::PowerManagementLockUser::API,
+                                              power_management::PowerManagementLockType::CPU);
+    this->pm_loop_lock_ = true;
+  }
+}
+void APIConnection::pm_loop_release_lock_() {
+  if (this->pm_loop_lock_) {
+    power_management::global_pm->release_lock(power_management::PowerManagementLockUser::API,
+                                              power_management::PowerManagementLockType::CPU);
+    this->pm_loop_lock_ = false;
+  }
+}
+#endif
 
 }  // namespace esphome::api
 #endif
