@@ -35,6 +35,7 @@ from ..defines import (
     CONF_PIVOT_X,
     CONF_PIVOT_Y,
     CONF_RADIUS,
+    CONF_SCALE,
     CONF_SRC,
     CONF_START_VALUE,
     CONF_TICKS,
@@ -80,7 +81,6 @@ from . import Widget, WidgetType, get_widgets, widget_to_code
 from .arc import CONF_ARC
 from .img import CONF_IMAGE
 from .line import CONF_LINE
-from .scale import lv_scale_section_t, scale_spec
 
 CONF_ANGLE_RANGE = "angle_range"
 CONF_COLOR_END = "color_end"
@@ -112,8 +112,9 @@ CONF_TICK_STYLE = "tick_style"
 
 
 # For compatibility, keep meter types but map to scale
+lv_scale_t = LvType("lv_scale_t")
 lv_meter_t = lv_obj_t
-lv_meter_indicator_t = lv_scale_section_t
+lv_meter_indicator_t = lv_obj_t
 lv_meter_indicator_ticks_t = LvType(
     "lv_scale_section_t", parents=(lv_meter_indicator_t,)
 )
@@ -140,6 +141,24 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
 ).add_extra(cv.has_at_most_one_key(CONF_R_MOD, CONF_LENGTH))
+
+
+class ScaleType(WidgetType):
+    """
+    Will migrate to scale.py in due course
+    """
+
+    def __init__(self):
+        super().__init__(
+            CONF_SCALE,
+            lv_scale_t,
+            (CONF_MAIN, CONF_ITEMS, CONF_INDICATOR),
+            {},
+            is_mock=True,
+        )
+
+
+scale_spec = ScaleType()
 
 INDICATOR_IMG_SCHEMA = cv.Schema(
     {
