@@ -11,6 +11,7 @@ from .. import (
     MicroNova,
     MicroNovaFunctions,
     micronova_ns,
+    validate_memory_location,
 )
 
 ICON_FLASH = "mdi:flash"
@@ -37,8 +38,8 @@ CONFIG_SCHEMA = cv.Schema(
         .extend(
             {
                 cv.Optional(
-                    CONF_MEMORY_WRITE_LOCATION, default=0xA0
-                ): cv.hex_int_range(),
+                    CONF_MEMORY_WRITE_LOCATION, default=0x20
+                ): cv.All(cv.hex_int_range(), validate_memory_location),
                 cv.Optional(CONF_STEP, default=1.0): cv.float_range(min=0.1, max=10.0),
             }
         ),
@@ -52,7 +53,7 @@ CONFIG_SCHEMA = cv.Schema(
             )
         )
         .extend(
-            {cv.Optional(CONF_MEMORY_WRITE_LOCATION, default=0xA0): cv.hex_int_range()}
+            {cv.Optional(CONF_MEMORY_WRITE_LOCATION, default=0x20): cv.All(cv.hex_int_range(), validate_memory_location)}
         ),
     }
 )

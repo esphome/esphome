@@ -56,7 +56,7 @@ def validate_memory_location(value: int) -> int:
         new_value = value & ~WRITE_BIT
         _LOGGER.warning(
             "Setting the write bit (0x80) in memory_location is not necessary. It will be added automatically."
-            "Please set the memory_location to the read address (without write bit)."
+            " Please set the memory_location to the read address (without write bit)."
             " Recommended change: 0x%02X -> 0x%02X", value, new_value
         )
         return new_value

@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend(
             MICRONOVA_LISTENER_SCHEMA(
-                default_memory_location=0x80, default_memory_address=0x21
+                default_memory_location=0x00, default_memory_address=0x21
             )
         )
         .extend(
