@@ -255,6 +255,18 @@ bool APIServer::check_password(const uint8_t *password_data, size_t password_len
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
+void APIServer::disconnect_clients() {
+  for (auto &c : this->clients_) {
+    DisconnectRequest req;
+    if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
+      // If we can't send the disconnect request directly (tx_buffer full),
+      // schedule it at the front of the batch so it will be sent with priority
+      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,
+                                 DisconnectRequest::ESTIMATED_SIZE);
+    }
+  }
+}
+
 // Macro for controller update dispatch
 #define API_DISPATCH_UPDATE(entity_type, entity_name) \
   void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
@@ -462,10 +474,7 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
     this->set_timeout(100, [this, active_psk]() {
       ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
       this->set_noise_psk(active_psk);
-      for (auto &c : this->clients_) {
-        DisconnectRequest req;
-        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
-      }
+      this->disconnect_clients();
     });
   }
   return true;
@@ -563,15 +572,7 @@ void APIServer::on_shutdown() {
   this->batch_delay_ = 5;
 
   // Send disconnect requests to all connected clients
-  for (auto &c : this->clients_) {
-    DisconnectRequest req;
-    if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
-      // If we can't send the disconnect request directly (tx_buffer full),
-      // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,
-                                 DisconnectRequest::ESTIMATED_SIZE);
-    }
-  }
+  this->disconnect_clients();
 }
 
 bool APIServer::teardown() {
