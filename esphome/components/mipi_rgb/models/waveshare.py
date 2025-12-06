@@ -79,14 +79,17 @@ st7701s.extend(
 )
 
 st7701s.extend(
-    "WAVESHARE-3.16-320x820",
+    "WAVESHARE-3.16-320X820",
     width=320,
     height=820,
     de_pin=40,
     hsync_pin=38,
     vsync_pin=39,
     pclk_pin=41,
-    cs_pin=0,
+    cs_pin={
+        "number": 0,
+        "ignore_strapping_warning": True,
+    },
     pclk_frequency="18MHz",
     reset_pin=16,
     hsync_back_porch=30,
