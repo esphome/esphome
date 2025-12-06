@@ -10,7 +10,7 @@ static const char *const TAG = "deep_sleep.bk72xx";
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
 void DeepSleepComponent::dump_config_platform_() {
-  for (const WakeUpPinItem item : this->wakeup_pins_) {
+  for (const WakeUpPinItem &item : this->wakeup_pins_) {
     LOG_PIN("  Wakeup Pin: ", item.wakeup_pin);
   }
 }
