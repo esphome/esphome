@@ -90,8 +90,10 @@ MapFilter::MapFilter(const std::initializer_list<Substitution> &mappings) : mapp
 
 optional<std::string> MapFilter::new_value(std::string value) {
   for (const auto &mapping : this->mappings_) {
-    if (mapping.from == value)
-      return mapping.to.str();
+    if (mapping.from == value) {
+      value.assign(mapping.to.c_str(), mapping.to.size());
+      return value;
+    }
   }
   return value;  // Pass through if no match
 }
