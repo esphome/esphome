@@ -8,6 +8,9 @@
 #include <string>
 #include <utility>
 
+namespace esphome {
+namespace async_tcp {
+
 // Provide AsyncClient API for ESP-IDF and host platforms using sockets
 class AsyncClient {
  public:
@@ -57,5 +60,8 @@ class AsyncClient {
   AcErrorHandler error_cb_{nullptr};
   void *error_arg_{nullptr};
 };
+
+}  // namespace async_tcp
+}  // namespace esphome
 
 #endif  // !USE_ARDUINO
