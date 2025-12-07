@@ -16,7 +16,7 @@ void TemplateText::setup() {
     uint32_t key = this->get_preference_hash();
     key += this->traits.get_min_length() << 2;
     key += this->traits.get_max_length() << 4;
-    key += fnv1_hash(this->traits.get_pattern_ref().c_str()) << 6;
+    key += fnv1_hash(this->traits.get_pattern_c_str()) << 6;
     this->pref_->setup(key, value);
   }
   if (!value.empty())
