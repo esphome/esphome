@@ -243,23 +243,6 @@ class LogStringLiteral(Literal):
         return f"LOG_STR({cpp_string_escape(self.string)})"
 
 
-class StringRefLiteral(Literal):
-    """A StringRef literal using from_lit() for compile-time string references.
-
-    Uses StringRef::from_lit() which stores pointer + length (8 bytes) instead of
-    std::string (24-32 bytes + heap allocation). The string data stays in flash.
-    """
-
-    __slots__ = ("string",)
-
-    def __init__(self, string: str) -> None:
-        super().__init__()
-        self.string = string
-
-    def __str__(self) -> str:
-        return f"StringRef::from_lit({cpp_string_escape(self.string)})"
-
-
 class IntLiteral(Literal):
     __slots__ = ("i",)
 

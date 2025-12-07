@@ -248,12 +248,6 @@ class TestLiterals:
             (cg.FloatLiteral(4.2), "4.2f"),
             (cg.FloatLiteral(1.23456789), "1.23456789f"),
             (cg.FloatLiteral(math.nan), "NAN"),
-            (cg.StringRefLiteral("foo"), 'StringRef::from_lit("foo")'),
-            (cg.StringRefLiteral(""), 'StringRef::from_lit("")'),
-            (
-                cg.StringRefLiteral('with "quotes"'),
-                'StringRef::from_lit("with \\042quotes\\042")',
-            ),
         ),
     )
     def test_str__simple(self, target: cg.Literal, expected: str):
