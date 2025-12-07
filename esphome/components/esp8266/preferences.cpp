@@ -15,24 +15,24 @@ extern "C" {
 #include <cstring>
 #include <memory>
 
-namespace esphome {
-namespace esp8266 {
+namespace esphome::esp8266 {
 
 static const char *const TAG = "esp8266.preferences";
 
-static bool s_prevent_write = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static uint32_t *s_flash_storage = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_prevent_write = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_flash_dirty = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static const uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
+static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
+static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
+static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
+
 #define ESP_RTC_USER_MEM ((uint32_t *) ESP_RTC_USER_MEM_START)
-static const uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
-static const uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
 
 #ifdef USE_ESP8266_PREFERENCES_FLASH
-static const uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
+static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
 #else
-static const uint32_t ESP8266_FLASH_STORAGE_SIZE = 64;
+static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 64;
 #endif
 
 static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
@@ -284,10 +284,10 @@ void setup_preferences() {
 }
 void preferences_prevent_write(bool prevent) { s_prevent_write = prevent; }
 
-}  // namespace esp8266
+}  // namespace esphome::esp8266
 
+namespace esphome {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 }  // namespace esphome
 
 #endif  // USE_ESP8266

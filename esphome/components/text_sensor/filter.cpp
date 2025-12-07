@@ -66,10 +66,14 @@ SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &su
     : substitutions_(substitutions) {}
 
 optional<std::string> SubstituteFilter::new_value(std::string value) {
-  std::size_t pos;
   for (const auto &sub : this->substitutions_) {
-    while ((pos = value.find(sub.from)) != std::string::npos)
+    std::size_t pos = 0;
+    while ((pos = value.find(sub.from, pos)) != std::string::npos) {
       value.replace(pos, sub.from.size(), sub.to);
+      // Advance past the replacement to avoid infinite loop when
+      // the replacement contains the search pattern (e.g., f -> foo)
+      pos += sub.to.size();
+    }
   }
   return value;
 }

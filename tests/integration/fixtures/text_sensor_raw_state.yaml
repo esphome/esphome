@@ -1,0 +1,54 @@
+esphome:
+  name: test-text-sensor-raw-state
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Text sensor WITHOUT filters - get_raw_state() should return same as state
+text_sensor:
+  - platform: template
+    name: "No Filter Sensor"
+    id: no_filter_sensor
+
+  # Text sensor WITH filter - get_raw_state() should return original value
+  - platform: template
+    name: "With Filter Sensor"
+    id: with_filter_sensor
+    filters:
+      - to_upper
+
+# Button to publish values and log raw_state vs state
+button:
+  - platform: template
+    name: "Test No Filter Button"
+    id: test_no_filter_button
+    on_press:
+      - text_sensor.template.publish:
+          id: no_filter_sensor
+          state: "hello world"
+      - delay: 50ms
+      # Log both state and get_raw_state() to verify they match
+      - logger.log:
+          format: "NO_FILTER: state='%s' raw_state='%s'"
+          args:
+            - id(no_filter_sensor).state.c_str()
+            - id(no_filter_sensor).get_raw_state().c_str()
+
+  - platform: template
+    name: "Test With Filter Button"
+    id: test_with_filter_button
+    on_press:
+      - text_sensor.template.publish:
+          id: with_filter_sensor
+          state: "hello world"
+      - delay: 50ms
+      # Log both state and get_raw_state() to verify filter works
+      # state should be "HELLO WORLD" (filtered), raw_state should be "hello world" (original)
+      - logger.log:
+          format: "WITH_FILTER: state='%s' raw_state='%s'"
+          args:
+            - id(with_filter_sensor).state.c_str()
+            - id(with_filter_sensor).get_raw_state().c_str()

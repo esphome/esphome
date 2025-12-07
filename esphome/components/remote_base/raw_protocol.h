@@ -42,17 +42,20 @@ class RawTrigger : public Trigger<RawTimings>, public Component, public RemoteRe
 
 template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  void set_code_template(std::function<RawTimings(Ts...)> func) { this->code_func_ = func; }
+  void set_code_template(RawTimings (*func)(Ts...)) {
+    this->code_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
+  }
   void set_code_static(const int32_t *code, size_t len) {
-    this->code_static_ = code;
-    this->code_static_len_ = len;
+    this->code_.data = code;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
   TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    if (this->code_static_ != nullptr) {
-      for (size_t i = 0; i < this->code_static_len_; i++) {
-        auto val = this->code_static_[i];
+    if (this->len_ >= 0) {
+      for (size_t i = 0; i < static_cast<size_t>(this->len_); i++) {
+        auto val = this->code_.data[i];
         if (val < 0) {
           dst->space(static_cast<uint32_t>(-val));
         } else {
@@ -60,15 +63,17 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
         }
       }
     } else {
-      dst->set_data(this->code_func_(x...));
+      dst->set_data(this->code_.func(x...));
     }
     dst->set_carrier_frequency(this->carrier_frequency_.value(x...));
   }
 
  protected:
-  std::function<RawTimings(Ts...)> code_func_{nullptr};
-  const int32_t *code_static_{nullptr};
-  int32_t code_static_len_{0};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
+  union Code {
+    RawTimings (*func)(Ts...);
+    const int32_t *data;
+  } code_;
 };
 
 class RawDumper : public RemoteReceiverDumperBase {
