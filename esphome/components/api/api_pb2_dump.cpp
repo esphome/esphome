@@ -231,6 +231,20 @@ template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::Servic
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::SupportsResponseType>(enums::SupportsResponseType value) {
+  switch (value) {
+    case enums::SUPPORTS_RESPONSE_NONE:
+      return "SUPPORTS_RESPONSE_NONE";
+    case enums::SUPPORTS_RESPONSE_OPTIONAL:
+      return "SUPPORTS_RESPONSE_OPTIONAL";
+    case enums::SUPPORTS_RESPONSE_ONLY:
+      return "SUPPORTS_RESPONSE_ONLY";
+    case enums::SUPPORTS_RESPONSE_STATUS:
+      return "SUPPORTS_RESPONSE_STATUS";
+    default:
+      return "UNKNOWN";
+  }
+}
 #endif
 #ifdef USE_CLIMATE
 template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
@@ -1194,6 +1208,7 @@ void ListEntitiesServicesResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+  dump_field(out, "supports_response", static_cast<enums::SupportsResponseType>(this->supports_response));
 }
 void ExecuteServiceArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ExecuteServiceArgument");
@@ -1223,6 +1238,25 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, "call_id", this->call_id);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, "return_response", this->return_response);
+#endif
+}
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void ExecuteServiceResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ExecuteServiceResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message_ref_);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  out.append("  response_data: ");
+  out.append(format_hex_pretty(this->response_data, this->response_data_len));
+  out.append("\n");
+#endif
 }
 #endif
 #ifdef USE_CAMERA

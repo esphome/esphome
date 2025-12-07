@@ -402,35 +402,45 @@ This document provides essential context for AI models interacting with this pro
             _use_feature = True
         ```
 
-        **Good Pattern (CORE.data with Helpers):**
+        **Bad Pattern (Flat Keys):**
         ```python
+        # Don't do this - keys should be namespaced under component domain
+        MY_FEATURE_KEY = "my_component_feature"
+        CORE.data[MY_FEATURE_KEY] = True
+        ```
+
+        **Good Pattern (dataclass):**
+        ```python
+        from dataclasses import dataclass, field
         from esphome.core import CORE
 
-        # Keys for CORE.data storage
-        COMPONENT_STATE_KEY = "my_component_state"
-        USE_FEATURE_KEY = "my_component_use_feature"
+        DOMAIN = "my_component"
 
-        def _get_component_state() -> list:
-            """Get component state from CORE.data."""
-            return CORE.data.setdefault(COMPONENT_STATE_KEY, [])
+        @dataclass
+        class MyComponentData:
+            feature_enabled: bool = False
+            item_count: int = 0
+            items: list[str] = field(default_factory=list)
 
-        def _get_use_feature() -> bool | None:
-            """Get feature flag from CORE.data."""
-            return CORE.data.get(USE_FEATURE_KEY)
+        def _get_data() -> MyComponentData:
+            if DOMAIN not in CORE.data:
+                CORE.data[DOMAIN] = MyComponentData()
+            return CORE.data[DOMAIN]
 
-        def _set_use_feature(value: bool) -> None:
-            """Set feature flag in CORE.data."""
-            CORE.data[USE_FEATURE_KEY] = value
+        def request_feature() -> None:
+            _get_data().feature_enabled = True
 
-        def enable_feature():
-            _set_use_feature(True)
+        def add_item(item: str) -> None:
+            _get_data().items.append(item)
         ```
+
+        If you need a real-world example, search for components that use `@dataclass` with `CORE.data` in the codebase. Note: Some components may use `TypedDict` for dictionary-based storage; both patterns are acceptable depending on your needs.
 
         **Why this matters:**
         - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
         - `CORE.data` automatically clears between runs
-        - Typed helper functions provide better IDE support and maintainability
-        - Encapsulation makes state management explicit and testable
+        - Namespacing under `DOMAIN` prevents key collisions between components
+        - `@dataclass` provides type safety and cleaner attribute access
 
 *   **Security:** Be mindful of security when making changes to the API, web server, or any other network-related code. Do not hardcode secrets or keys.
 
