@@ -57,6 +57,9 @@ async def to_code(config):
         zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
         zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
         zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
+        # stats
+        zephyr_add_prj_conf("THREAD_RUNTIME_STATS", True)
+        zephyr_add_prj_conf("SCHED_THREAD_USAGE_ANALYSIS", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add_define("USE_DEBUG")

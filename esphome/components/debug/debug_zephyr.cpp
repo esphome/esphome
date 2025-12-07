@@ -103,6 +103,8 @@ static void fa_cb(const struct flash_area *fa, void *user_data) {
 #endif
 }
 
+static void kernel_threads();
+
 void DebugComponent::log_partition_info_() {
 #if CONFIG_FLASH_MAP_LABELS
   ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
@@ -370,9 +372,76 @@ void DebugComponent::get_device_info_(std::string &device_info) {
   };
   ESP_LOGD(TAG, "NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
   ESP_LOGD(TAG, "NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
+  kernel_threads();
 }
 
 void DebugComponent::update_platform_() {}
+
+static void tdata_dump(const struct k_thread *cthread, void *user_data) {
+  struct k_thread *thread = (struct k_thread *) cthread;
+  unsigned int pcnt;
+  size_t unused;
+  size_t size = thread->stack_info.size;
+  const char *tname;
+  int ret;
+  char state_str[32];
+
+#ifdef CONFIG_THREAD_RUNTIME_STATS
+  k_thread_runtime_stats_t rt_stats_thread;
+  k_thread_runtime_stats_t rt_stats_all;
+#endif
+
+  tname = k_thread_name_get(thread);
+
+  ESP_LOGD(TAG, "%s%p %-10s", (thread == k_current_get()) ? "*" : " ", thread, tname ? tname : "NA");
+  /* Cannot use lld as it's less portable. */
+  ESP_LOGD(TAG, "\toptions: 0x%x, priority: %d timeout: %d", thread->base.user_options, thread->base.prio,
+           (int32_t) thread->base.timeout.dticks);  // it should be int64_t
+  ESP_LOGD(TAG, "\tstate: %s, entry: %p", k_thread_state_str(thread, state_str, sizeof(state_str)),
+           thread->entry.pEntry);
+
+#ifdef CONFIG_THREAD_RUNTIME_STATS
+  ret = 0;
+
+  if (k_thread_runtime_stats_get(thread, &rt_stats_thread) != 0) {
+    ret++;
+  }
+
+  if (k_thread_runtime_stats_all_get(&rt_stats_all) != 0) {
+    ret++;
+  }
+
+  if (ret == 0) {
+    pcnt = (rt_stats_thread.execution_cycles * 100U) / rt_stats_all.execution_cycles;
+
+    /*
+     * z_prf() does not support %llu by default unless
+     * CONFIG_MINIMAL_LIBC_LL_PRINTF=y. So do conditional
+     * compilation to avoid blindly enabling this kconfig
+     * so it won't increase RAM/ROM usage too much on 32-bit
+     * targets.
+     */
+    ESP_LOGD(TAG, "\tTotal execution cycles: %u (%u %%)", (uint32_t) rt_stats_thread.execution_cycles, pcnt);
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
+    ESP_LOGD(TAG, "\tCurrent execution cycles: %u", (uint32_t) rt_stats_thread.current_cycles);
+    ESP_LOGD(TAG, "\tPeak execution cycles: %u", (uint32_t) rt_stats_thread.peak_cycles);
+    ESP_LOGD(TAG, "\tAverage execution cycles: %u", (uint32_t) rt_stats_thread.average_cycles);
+#endif
+  } else {
+    ESP_LOGE(TAG, "thread runtime stats failed");
+  }
+#endif
+}
+
+static void kernel_threads() {
+  ESP_LOGD(TAG, "Threads:");
+
+#ifdef CONFIG_SMP
+  k_thread_foreach_unlocked(tdata_dump, nullptr);
+#else
+  k_thread_foreach(tdata_dump, nullptr);
+#endif
+}
 
 }  // namespace esphome::debug
 #endif
