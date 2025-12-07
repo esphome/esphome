@@ -62,7 +62,10 @@ optional<std::string> AppendFilter::new_value(std::string value) {
 }
 
 // Prepend
-optional<std::string> PrependFilter::new_value(std::string value) { return this->prefix_ + value; }
+optional<std::string> PrependFilter::new_value(std::string value) {
+  value.insert(0, this->prefix_.c_str(), this->prefix_.size());
+  return value;
+}
 
 // Substitute
 SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &substitutions)
