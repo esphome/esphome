@@ -434,9 +434,9 @@ std::string DebugComponent::get_uicr_() {
     }
     return res;
   };
-  std::string result("\nNRFFW:\n");
+  std::string result("\nNRFFW: ");
   result += uicr(NRF_UICR->NRFFW, 13);
-  result += "\nNRFHW:\n";
+  result += "\nNRFHW: ";
   result += uicr(NRF_UICR->NRFHW, 12);
   return result;
 }
