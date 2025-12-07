@@ -56,10 +56,16 @@ optional<std::string> ToLowerFilter::new_value(std::string value) {
 }
 
 // Append
-optional<std::string> AppendFilter::new_value(std::string value) { return value + this->suffix_; }
+optional<std::string> AppendFilter::new_value(std::string value) {
+  value += this->suffix_;
+  return value;
+}
 
 // Prepend
-optional<std::string> PrependFilter::new_value(std::string value) { return this->prefix_ + value; }
+optional<std::string> PrependFilter::new_value(std::string value) {
+  value.insert(0, this->prefix_.c_str(), this->prefix_.size());
+  return value;
+}
 
 // Substitute
 SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &substitutions)
@@ -68,8 +74,9 @@ SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &su
 optional<std::string> SubstituteFilter::new_value(std::string value) {
   for (const auto &sub : this->substitutions_) {
     std::size_t pos = 0;
-    while ((pos = value.find(sub.from, pos)) != std::string::npos) {
-      value.replace(pos, sub.from.size(), sub.to);
+    // Use c_str()/size() to avoid temporary std::string allocation from implicit conversion
+    while ((pos = value.find(sub.from.c_str(), pos, sub.from.size())) != std::string::npos) {
+      value.replace(pos, sub.from.size(), sub.to.c_str(), sub.to.size());
       // Advance past the replacement to avoid infinite loop when
       // the replacement contains the search pattern (e.g., f -> foo)
       pos += sub.to.size();
@@ -83,8 +90,10 @@ MapFilter::MapFilter(const std::initializer_list<Substitution> &mappings) : mapp
 
 optional<std::string> MapFilter::new_value(std::string value) {
   for (const auto &mapping : this->mappings_) {
-    if (mapping.from == value)
-      return mapping.to;
+    if (mapping.from == value) {
+      value.assign(mapping.to.c_str(), mapping.to.size());
+      return value;
+    }
   }
   return value;  // Pass through if no match
 }
