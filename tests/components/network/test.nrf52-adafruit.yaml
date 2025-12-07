@@ -1,6 +1,3 @@
 # nRF52 only supports IPv6 over Thread, no WiFi
-substitutions:
-  network_enable_ipv6: "true"
-
+# IPv6 is always enabled for nRF52 (not configurable)
 network:
-  enable_ipv6: ${network_enable_ipv6}
