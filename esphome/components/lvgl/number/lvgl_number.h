@@ -29,14 +29,17 @@ class LVGLNumber : public number::Number, public Component {
     this->publish_state(value);
   }
 
-  void on_value() { this->publish_state(this->value_lambda_()); }
+  void on_value() { this->publish_(this->value_lambda_()); }
 
  protected:
-  void control(float value) override {
-    this->control_lambda_(value);
+  void publish_(float value) {
     this->publish_state(value);
     if (this->restore_)
       this->pref_.save(&value);
+  }
+  void control(float value) override {
+    this->control_lambda_(value);
+    this->publish_(value);
   }
   std::function<void(float)> control_lambda_;
   std::function<float()> value_lambda_;

@@ -895,7 +895,11 @@ void PrometheusHandler::valve_row_(AsyncResponseStream *stream, valve::Valve *ob
   stream->print(ESPHOME_F("\",name=\""));
   stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\",operation=\""));
-  stream->print(valve::valve_operation_to_str(obj->current_operation));
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  stream->print((const __FlashStringHelper *) valve::valve_operation_to_str(obj->current_operation));
+#else
+  stream->print((const char *) valve::valve_operation_to_str(obj->current_operation));
+#endif
   stream->print(ESPHOME_F("\"} "));
   stream->print(ESPHOME_F("1.0"));
   stream->print(ESPHOME_F("\n"));
