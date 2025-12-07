@@ -339,7 +339,8 @@ void Nextion::loop() {
     if (this->started_ms_ == 0)
       this->started_ms_ = App.get_loop_component_start_time();
 
-    if (this->started_ms_ + this->startup_override_ms_ < App.get_loop_component_start_time()) {
+    if (this->startup_override_ms_ > 0 &&
+        this->started_ms_ + this->startup_override_ms_ < App.get_loop_component_start_time()) {
       ESP_LOGV(TAG, "Manual ready set");
       this->connection_state_.nextion_reports_is_setup_ = true;
     }
@@ -848,7 +849,8 @@ void Nextion::process_nextion_commands_() {
 
   const uint32_t ms = App.get_loop_component_start_time();
 
-  if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
+  if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
+      this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
     for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
       NextionComponentBase *component = this->nextion_queue_[i]->component;
       if (this->nextion_queue_[i]->queue_time + this->max_q_age_ms_ < ms) {

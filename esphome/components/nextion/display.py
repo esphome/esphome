@@ -62,7 +62,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
-            cv.Optional(CONF_MAX_QUEUE_AGE, default=8000): cv.uint16_t,
+            cv.Optional(CONF_MAX_QUEUE_AGE, default=8000): cv.int_range(min=0, max=65535),
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
             cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation(
@@ -98,7 +98,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
-            cv.Optional(CONF_STARTUP_OVERRIDE_MS, default=8000): cv.uint16_t,
+            cv.Optional(CONF_STARTUP_OVERRIDE_MS, default=8000): cv.int_range(min=0, max=65535),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
             cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
