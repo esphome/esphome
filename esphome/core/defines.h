@@ -300,6 +300,7 @@
 #define USE_NRF52_UICR_ERASE
 #define USE_SOFTDEVICE_ID 7
 #define USE_SOFTDEVICE_VERSION 1
+#define USE_ZEPHYR_NETWORKING
 #endif
 
 // Disabled feature flags
