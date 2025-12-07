@@ -5,7 +5,7 @@
 
 namespace esphome::micronova {
 
-static const std::string STOVE_STATES[11] = {"Off",
+static const char *const STOVE_STATES[11] = {"Off",
                                              "Start",
                                              "Pellets loading",
                                              "Ignition",
