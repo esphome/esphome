@@ -40,34 +40,34 @@ async def smpmgr_scan(name: str) -> str:
 
 async def smpmgr_upload(config: ConfigType, device: str, firmware: Path) -> None:
     try:
-        await smpmgr_upload_(config, device, firmware)
-    except SMPTransportDisconnected:
-        raise EsphomeError(f"{device} was disconnected.")
-    except SMPBLETransportDeviceNotFound:
-        raise EsphomeError(f"{device} was not found.")
+        await _smpmgr_upload(config, device, firmware)
+    except SMPTransportDisconnected as exc:
+        raise EsphomeError(f"{device} was disconnected.") from exc
+    except SMPBLETransportDeviceNotFound as exc:
+        raise EsphomeError(f"{device} was not found.") from exc
 
 
-def get_image_tlv_sha256(file: Path) -> str:
+def _get_image_tlv_sha256(file: Path) -> str:
     _LOGGER.info("Checking image: %s", str(file))
     try:
         image_info = ImageInfo.load_file(str(file))
         pprint(image_info.header)
         _LOGGER.debug(str(image_info))
-    except MCUBootImageError as e:
-        raise EsphomeError(f"Inspection of FW image failed: {e}")
-    except FileNotFoundError:
-        raise EsphomeError("Build with zephyr_mcumgr enabled")
+    except MCUBootImageError as exc:
+        raise EsphomeError("Inspection of FW image failed") from exc
+    except FileNotFoundError as exc:
+        raise EsphomeError("Build with zephyr_mcumgr enabled") from exc
 
     try:
         image_tlv_sha256 = image_info.get_tlv(IMAGE_TLV.SHA256)
         _LOGGER.debug("IMAGE_TLV_SHA256: %s", image_tlv_sha256)
-    except TLVNotFound:
-        raise EsphomeError("Could not find IMAGE_TLV_SHA256 in image.")
+    except TLVNotFound as exc:
+        raise EsphomeError("Could not find IMAGE_TLV_SHA256 in image.") from exc
     return image_tlv_sha256.value
 
 
-async def smpmgr_upload_(config: ConfigType, device: str, firmware: Path) -> None:
-    image_tlv_sha256 = get_image_tlv_sha256(firmware)
+async def _smpmgr_upload(config: ConfigType, device: str, firmware: Path) -> None:
+    image_tlv_sha256 = _get_image_tlv_sha256(firmware)
 
     if is_mac_address(device):
         smp_client = SMPClient(SMPBLETransport(), device)
@@ -77,19 +77,19 @@ async def smpmgr_upload_(config: ConfigType, device: str, firmware: Path) -> Non
     _LOGGER.info("Connecting %s...", device)
     try:
         await smp_client.connect()
-    except BleakDeviceNotFoundError:
-        raise EsphomeError(f"Device {device} not found")
-    except SMPBLETransportException:
-        raise EsphomeError(f"Connection error with {device}")
+    except BleakDeviceNotFoundError as exc:
+        raise EsphomeError(f"Device {device} not found") from exc
+    except SMPBLETransportException as exc:
+        raise EsphomeError(f"Connection error with {device}") from exc
 
     _LOGGER.info("Connected %s...", device)
 
     try:
         image_state = await smp_client.request(ImageStatesRead(), 2.5)
-    except SMPBadStartDelimiter:
-        raise EsphomeError(f"mcumgr is not supported by device ({device})")
-    except TimeoutError:
-        raise EsphomeError(f"mcumgr is not supported by device ({device})")
+    except SMPBadStartDelimiter as exc:
+        raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
+    except TimeoutError as exc:
+        raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
 
     already_uploaded = False
 
