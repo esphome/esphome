@@ -272,11 +272,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
-        cv.Optional(CONF_AUTH_REQ_MODE, default="no_bond"): cv.enum(
-            AUTH_REQ_MODE, lower=True
-        ),
-        cv.Optional(CONF_MAX_KEY_SIZE, default="16"): cv.int_range(min=7, max=16),
-        cv.Optional(CONF_MIN_KEY_SIZE, default="7"): cv.int_range(min=7, max=16),
+        # note: no defaults so we can action them not being present
+        cv.Optional(CONF_AUTH_REQ_MODE): cv.enum(AUTH_REQ_MODE, lower=True),
+        cv.Optional(CONF_MAX_KEY_SIZE): cv.int_range(min=7, max=16),
+        cv.Optional(CONF_MIN_KEY_SIZE): cv.int_range(min=7, max=16),
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ADVERTISING, default=False): cv.boolean,
         cv.Optional(
@@ -497,6 +496,14 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
+
+    if (
+        CONF_AUTH_REQ_MODE in config
+        or CONF_MAX_KEY_SIZE in config
+        or CONF_MIN_KEY_SIZE in config
+    ):
+        cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
+
     if CONF_AUTH_REQ_MODE in config:
         cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
     if CONF_MAX_KEY_SIZE in config:

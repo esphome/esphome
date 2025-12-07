@@ -302,6 +302,7 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
   if (this->max_key_size_) {
     err = esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &(this->max_key_size_), sizeof(uint8_t));
     if (err != ESP_OK) {
@@ -326,6 +327,7 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+#endif  // ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
 
   // BLE takes some time to be fully set up, 200ms should be more than enough
   delay(200);  // NOLINT
@@ -671,6 +673,15 @@ void ESP32BLE::dump_config() {
         break;
     }
 
+    char mac_s[18];
+    format_mac_addr_upper(mac_address, mac_s);
+    ESP_LOGCONFIG(TAG,
+                  "BLE:\n"
+                  "  MAC address: %s\n"
+                  "  IO Capability: %s",
+                  mac_s, io_capability_s);
+
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
     const char *auth_req_mode_s = "<default>";
     if (this->auth_req_mode_) {
       switch (this->auth_req_mode_.value()) {
@@ -701,14 +712,6 @@ void ESP32BLE::dump_config() {
       }
     }
 
-    char mac_s[18];
-    format_mac_addr_upper(mac_address, mac_s);
-
-    ESP_LOGCONFIG(TAG,
-                  "BLE:\n"
-                  "  MAC address: %s\n"
-                  "  IO Capability: %s",
-                  mac_s, io_capability_s);
     ESP_LOGCONFIG(TAG, "  Auth Req Mode: %s", auth_req_mode_s);
     if (this->max_key_size_ && this->min_key_size_) {
       ESP_LOGCONFIG(TAG, "  Key Size: %u - %u", this->min_key_size_, this->max_key_size_);
@@ -717,6 +720,8 @@ void ESP32BLE::dump_config() {
     } else if (this->max_key_size_) {
       ESP_LOGCONFIG(TAG, "  Key Size: %u - <default>", this->min_key_size_);
     }
+#endif  // ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+
   } else {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
