@@ -83,6 +83,18 @@ inkplate_6 = InkplateModel(
     name="inkplate_6",
     width=800,
     height=600,
+    # MCU pins
+    ckv_pin=32,
+    sph_pin=33,
+    # MCP23017 expander pins
+    gmod_pin={"mcp23xxx": None, "number": 1},
+    gpio0_enable_pin={"mcp23xxx": None, "number": 8},
+    oe_pin={"mcp23xxx": None, "number": 0},
+    spv_pin={"mcp23xxx": None, "number": 2},
+    powerup_pin={"mcp23xxx": None, "number": 4},
+    wakeup_pin={"mcp23xxx": None, "number": 3},
+    vcom_pin={"mcp23xxx": None, "number": 5},
+    # MCU data pins
     display_data_pins=[
         4,
         {CONF_NUMBER: 5, CONF_IGNORE_STRAPPING_WARNING: True},
@@ -107,11 +119,21 @@ inkplate_6 = InkplateModel(
     ),
 )
 
-# Inkplate 10
+# Inkplate 10 - uses PCA6416A instead of MCP23017
+# Note that the 10 has two PCA6416A hubs, the naming must match this config (pca6416a_hub) or the pins will
+# need to be manually specified in the config.
 inkplate_6.extend(
     name="inkplate_10",
     width=1200,
     height=825,
+    # Override expander type to pca6416a
+    gmod_pin={"pca6416a": "pca6416a_hub", "number": 1},
+    gpio0_enable_pin={"pca6416a": "pca6416a_hub", "number": 8},
+    oe_pin={"pca6416a": "pca6416a_hub", "number": 0},
+    spv_pin={"pca6416a": "pca6416a_hub", "number": 2},
+    powerup_pin={"pca6416a": "pca6416a_hub", "number": 4},
+    wakeup_pin={"pca6416a": "pca6416a_hub", "number": 3},
+    vcom_pin={"pca6416a": "pca6416a_hub", "number": 5},
     waveform=(
         (0, 0, 0, 0, 0, 0, 0, 1, 0),
         (0, 0, 0, 2, 2, 2, 1, 1, 0),
@@ -183,11 +205,17 @@ inkplate_6.extend(
     ),
 )
 
-# Inkplate 6 V2
-inkplate_6.extend(
+# Inkplate 6 V2 - uses PCA6416A instead of MCP23017
+inkplate_6_v2 = inkplate_6.extend(
     name="inkplate_6_v2",
-    width=800,
-    height=600,
+    # Override expander type to pca6416a
+    gmod_pin={"pca6416a": None, "number": 1},
+    gpio0_enable_pin={"pca6416a": None, "number": 8},
+    oe_pin={"pca6416a": None, "number": 0},
+    spv_pin={"pca6416a": None, "number": 2},
+    powerup_pin={"pca6416a": None, "number": 4},
+    wakeup_pin={"pca6416a": None, "number": 3},
+    vcom_pin={"pca6416a": None, "number": 5},
     waveform=(
         (1, 0, 1, 0, 1, 1, 1, 0, 0),
         (0, 0, 0, 1, 1, 1, 1, 0, 0),
@@ -200,20 +228,12 @@ inkplate_6.extend(
     ),
 )
 
-# Inkplate 5
-inkplate_6.extend(
+# Inkplate 5 - uses PCA6416A (same as Inkplate 6 V2)
+inkplate_6_v2.extend(
     name="inkplate_5",
     width=960,
     height=540,
-    ckv_pin=32,
-    sph_pin=33,
-    gmod_pin={"pca6416a": None, "number": 1},
-    gpio0_enable_pin={"pca6416a": None, "number": 8},
-    oe_pin={"pca6416a": None, "number": 0},
-    spv_pin={"pca6416a": None, "number": 2},
-    powerup_pin={"pca6416a": None, "number": 4},
-    wakeup_pin={"pca6416a": None, "number": 3},
-    vcom_pin={"pca6416a": None, "number": 5},
+    # Already inherits pca6416a pins from inkplate_6_v2 if extended from it
     waveform=(
         (0, 0, 1, 1, 0, 1, 1, 1, 0),
         (0, 1, 1, 1, 1, 2, 0, 1, 0),
@@ -226,11 +246,12 @@ inkplate_6.extend(
     ),
 )
 
-# Inkplate 5 V2
-inkplate_6.extend(
+# Inkplate 5 V2 - uses PCA6416A (same pins as Inkplate 5 and v_v2)
+inkplate_6_v2.extend(
     name="inkplate_5_v2",
     width=1280,
     height=720,
+    # Already inherits pca6416a pins from parent
     waveform=(
         (0, 0, 1, 1, 2, 1, 1, 1, 0),
         (1, 1, 2, 2, 1, 2, 1, 1, 0),

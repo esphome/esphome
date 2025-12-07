@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -37,7 +37,7 @@ static constexpr uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0
 static constexpr uint8_t PIXEL_MASK_LUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
 static constexpr uint8_t PIXEL_MASK_GLUT[2] = {0x0F, 0xF0};
 
-class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
+class Inkplate : public display::Display, public i2c::I2CDevice {
  public:
   Inkplate(InkplateModel model, uint16_t width, uint16_t height, const std::array<InternalGPIOPin *, 8> &data_pins,
            GPIOPin *ckv, GPIOPin *gpio0_enable, GPIOPin *gmod, GPIOPin *oe, GPIOPin *powerup, GPIOPin *sph,
@@ -106,7 +106,7 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void draw_pixel_at(int x, int y, Color color) override;
   bool rotate_coordinates_(int &x, int &y) const;
   void display1b_();
   void display3b_();
@@ -128,6 +128,9 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   int get_width_internal() override { return this->width_; }
 
   int get_height_internal() override { return this->height_; }
+
+  int get_width() override { return this->transform_ & SWAP_XY ? this->height_ : this->width_; }
+  int get_height() override { return this->transform_ & SWAP_XY ? this->width_ : this->height_; }
 
   size_t get_buffer_length_();
 
@@ -152,7 +155,7 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   bool partial_updating_{};
   bool custom_waveform_{false};
   uint8_t waveform_[GLUT_COUNT][GLUT_SIZE]{};
-  int data_pin_mask_;
+  uint8_t *buffer_{nullptr};
 
   InkplateModel model_;
   uint16_t width_;
@@ -171,6 +174,7 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   GPIOPin *wakeup_pin_;
   InternalGPIOPin *cl_pin_;
   InternalGPIOPin *le_pin_;
+  int data_pin_mask_;
 };
 
 }  // namespace inkplate

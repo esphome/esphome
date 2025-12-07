@@ -63,7 +63,6 @@ Inkplate = inkplate_ns.class_(
     cg.PollingComponent,
     i2c.I2CDevice,
     display.Display,
-    display.DisplayBuffer,
 )
 
 InkplateModelEnum = inkplate_ns.enum("InkplateModel")
