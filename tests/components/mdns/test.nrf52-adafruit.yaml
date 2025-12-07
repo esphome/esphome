@@ -1,5 +1,15 @@
-# mDNS test for nrf52
+# nRF52 only supports IPv6 over Thread, no WiFi
+substitutions:
+  network_enable_ipv6: "true"
+
+# until PR #11764 (network component) is merged
+external_components:
+  - source: github://pr#11764
+    components: [network]
+    refresh: 1h
+
 network:
+  enable_ipv6: ${network_enable_ipv6}
 
 mdns:
   disabled: false
