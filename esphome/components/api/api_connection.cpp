@@ -866,7 +866,7 @@ uint16_t APIConnection::try_send_text_info(EntityBase *entity, APIConnection *co
   msg.mode = static_cast<enums::TextMode>(text->traits.get_mode());
   msg.min_length = text->traits.get_min_length();
   msg.max_length = text->traits.get_max_length();
-  msg.set_pattern(text->traits.get_pattern_ref());
+  msg.set_pattern(text->traits.get_pattern_c_str());
   return fill_and_encode_entity_info(text, msg, ListEntitiesTextResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
