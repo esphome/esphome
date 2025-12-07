@@ -127,7 +127,6 @@ CONFIG_SCHEMA = cv.Schema(
                         esp32_arduino=cv.Version(0, 0, 0),
                         esp8266_arduino=cv.Version(0, 0, 0),
                         host=cv.Version(0, 0, 0),
-                        nrf52_arduino=cv.Version(0, 0, 0),
                         rp2040_arduino=cv.Version(0, 0, 0),
                     ),
                     cv.boolean_false,
