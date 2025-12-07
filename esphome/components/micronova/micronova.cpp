@@ -119,7 +119,7 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
   uint16_t checksum = 0;
 
   if (this->reply_pending_mutex_.try_lock()) {
-    auto write_location = location | WRITE_BIT;
+    uint8_t write_location = location | WRITE_BIT;
     write_data[0] = write_location;
     write_data[1] = address;
     write_data[2] = data;
