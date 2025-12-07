@@ -8,12 +8,13 @@ CODEOWNERS = ["@jorre05"]
 
 DEPENDENCIES = ["uart"]
 
-CONF_MICRONOVA_ID = "micronova_id"
+DOMAIN = "micronova"
+CONF_MICRONOVA_ID = f"{DOMAIN}_id"
 CONF_ENABLE_RX_PIN = "enable_rx_pin"
 CONF_MEMORY_LOCATION = "memory_location"
 CONF_MEMORY_ADDRESS = "memory_address"
 
-micronova_ns = cg.esphome_ns.namespace("micronova")
+micronova_ns = cg.esphome_ns.namespace(DOMAIN)
 
 MicroNovaFunctions = micronova_ns.enum("MicroNovaFunctions", is_class=True)
 MICRONOVA_FUNCTIONS_ENUM = {
@@ -42,6 +43,16 @@ CONFIG_SCHEMA = (
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.polling_component_schema("60s"))
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    DOMAIN,
+    baud_rate=1200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=2,
 )
 
 
