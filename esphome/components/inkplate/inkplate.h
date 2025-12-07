@@ -34,6 +34,28 @@ static constexpr uint8_t PIXEL_MASK_GLUT[2] = {0x0F, 0xF0};
 
 class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
  public:
+  Inkplate(const std::array<InternalGPIOPin *, 8> &data_pins, GPIOPin *ckv, InternalGPIOPin *cl, GPIOPin *gpio0_enable,
+           GPIOPin *gmod, InternalGPIOPin *le, GPIOPin *oe, GPIOPin *powerup, GPIOPin *sph, GPIOPin *spv, GPIOPin *vcom,
+           GPIOPin *wakeup)
+      : display_data_pins_(data_pins),
+        ckv_pin_(ckv),
+        cl_pin_(cl),
+        gpio0_enable_pin_(gpio0_enable),
+        gmod_pin_(gmod),
+        le_pin_(le),
+        oe_pin_(oe),
+        powerup_pin_(powerup),
+        sph_pin_(sph),
+        spv_pin_(spv),
+        vcom_pin_(vcom),
+        wakeup_pin_(wakeup) {
+    // Compute data pin mask once
+    this->data_pin_mask_ = 0;
+    for (auto *pin : this->display_data_pins_) {
+      this->data_pin_mask_ |= (1 << pin->get_pin());
+    }
+  }
+
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
     this->block_partial_ = true;
@@ -55,27 +77,6 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
   void set_model(InkplateModel model) { this->model_ = model; }
-
-  void set_display_data_0_pin(InternalGPIOPin *data) { this->display_data_0_pin_ = data; }
-  void set_display_data_1_pin(InternalGPIOPin *data) { this->display_data_1_pin_ = data; }
-  void set_display_data_2_pin(InternalGPIOPin *data) { this->display_data_2_pin_ = data; }
-  void set_display_data_3_pin(InternalGPIOPin *data) { this->display_data_3_pin_ = data; }
-  void set_display_data_4_pin(InternalGPIOPin *data) { this->display_data_4_pin_ = data; }
-  void set_display_data_5_pin(InternalGPIOPin *data) { this->display_data_5_pin_ = data; }
-  void set_display_data_6_pin(InternalGPIOPin *data) { this->display_data_6_pin_ = data; }
-  void set_display_data_7_pin(InternalGPIOPin *data) { this->display_data_7_pin_ = data; }
-
-  void set_ckv_pin(GPIOPin *ckv) { this->ckv_pin_ = ckv; }
-  void set_cl_pin(InternalGPIOPin *cl) { this->cl_pin_ = cl; }
-  void set_gpio0_enable_pin(GPIOPin *gpio0_enable) { this->gpio0_enable_pin_ = gpio0_enable; }
-  void set_gmod_pin(GPIOPin *gmod) { this->gmod_pin_ = gmod; }
-  void set_le_pin(InternalGPIOPin *le) { this->le_pin_ = le; }
-  void set_oe_pin(GPIOPin *oe) { this->oe_pin_ = oe; }
-  void set_powerup_pin(GPIOPin *powerup) { this->powerup_pin_ = powerup; }
-  void set_sph_pin(GPIOPin *sph) { this->sph_pin_ = sph; }
-  void set_spv_pin(GPIOPin *spv) { this->spv_pin_ = spv; }
-  void set_vcom_pin(GPIOPin *vcom) { this->vcom_pin_ = vcom; }
-  void set_wakeup_pin(GPIOPin *wakeup) { this->wakeup_pin_ = wakeup; }
 
   float get_setup_priority() const override;
 
@@ -152,50 +153,33 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
 
   size_t get_buffer_length_();
 
-  int get_data_pin_mask_() {
-    int data = 0;
-    data |= (1 << this->display_data_0_pin_->get_pin());
-    data |= (1 << this->display_data_1_pin_->get_pin());
-    data |= (1 << this->display_data_2_pin_->get_pin());
-    data |= (1 << this->display_data_3_pin_->get_pin());
-    data |= (1 << this->display_data_4_pin_->get_pin());
-    data |= (1 << this->display_data_5_pin_->get_pin());
-    data |= (1 << this->display_data_6_pin_->get_pin());
-    data |= (1 << this->display_data_7_pin_->get_pin());
-    return data;
-  }
+  int get_data_pin_mask_() { return this->data_pin_mask_; }
 
   bool panel_on_{false};
-  uint8_t temperature_;
+  uint8_t temperature_{};
 
   uint8_t *partial_buffer_{nullptr};
   uint8_t *partial_buffer_2_{nullptr};
 
   uint32_t *glut_{nullptr};
   uint32_t *glut2_{nullptr};
-  uint32_t pin_lut_[256];
+  uint32_t pin_lut_[256]{};
 
-  uint32_t full_update_every_;
-  uint32_t partial_updates_{0};
+  unsigned full_update_every_{1};
+  unsigned partial_updates_{0};
 
   bool block_partial_{true};
-  bool greyscale_;
+  bool greyscale_{};
   bool mirror_y_{false};
   bool mirror_x_{false};
-  bool partial_updating_;
+  bool partial_updating_{};
   bool custom_waveform_{false};
-  uint8_t waveform_[GLUT_COUNT][GLUT_SIZE];
+  uint8_t waveform_[GLUT_COUNT][GLUT_SIZE]{};
 
   InkplateModel model_;
 
-  InternalGPIOPin *display_data_0_pin_;
-  InternalGPIOPin *display_data_1_pin_;
-  InternalGPIOPin *display_data_2_pin_;
-  InternalGPIOPin *display_data_3_pin_;
-  InternalGPIOPin *display_data_4_pin_;
-  InternalGPIOPin *display_data_5_pin_;
-  InternalGPIOPin *display_data_6_pin_;
-  InternalGPIOPin *display_data_7_pin_;
+  std::array<InternalGPIOPin *, 8> display_data_pins_;
+  int data_pin_mask_;
 
   GPIOPin *ckv_pin_;
   InternalGPIOPin *cl_pin_;

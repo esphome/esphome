@@ -107,6 +107,7 @@ Checks: >-
   -readability-isolate-declaration,
   -readability-magic-numbers,
   -readability-make-member-function-const,
+  -readability-math-missing-parentheses,
   -readability-named-parameter,
   -readability-redundant-casting,
   -readability-redundant-inline-specifier,
