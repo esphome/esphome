@@ -223,6 +223,13 @@ class APIConnection final : public APIServerConnection {
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void execute_service(const ExecuteServiceRequest &msg) override;
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  void send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  void send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+                                     const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_API_NOISE
   bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) override;
@@ -505,27 +512,8 @@ class APIConnection final : public APIServerConnection {
 
   class MessageCreator {
    public:
-    // Constructor for function pointer
     MessageCreator(MessageCreatorPtr ptr) { data_.function_ptr = ptr; }
-
-    // Constructor for const char * (Event types - no allocation needed)
     explicit MessageCreator(const char *str_value) { data_.const_char_ptr = str_value; }
-
-    // Delete copy operations - MessageCreator should only be moved
-    MessageCreator(const MessageCreator &other) = delete;
-    MessageCreator &operator=(const MessageCreator &other) = delete;
-
-    // Move constructor
-    MessageCreator(MessageCreator &&other) noexcept : data_(other.data_) { other.data_.function_ptr = nullptr; }
-
-    // Move assignment
-    MessageCreator &operator=(MessageCreator &&other) noexcept {
-      if (this != &other) {
-        data_ = other.data_;
-        other.data_.function_ptr = nullptr;
-      }
-      return *this;
-    }
 
     // Call operator - uses message_type to determine union type
     uint16_t operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single,
@@ -535,7 +523,7 @@ class APIConnection final : public APIServerConnection {
     union Data {
       MessageCreatorPtr function_ptr;
       const char *const_char_ptr;
-    } data_;  // 4 bytes on 32-bit, 8 bytes on 64-bit - same as before
+    } data_;  // 4 bytes on 32-bit, 8 bytes on 64-bit
   };
 
   // Generic batching mechanism for both state updates and entity info
@@ -548,7 +536,7 @@ class APIConnection final : public APIServerConnection {
 
       // Constructor for creating BatchItem
       BatchItem(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size)
-          : entity(entity), creator(std::move(creator)), message_type(message_type), estimated_size(estimated_size) {}
+          : entity(entity), creator(creator), message_type(message_type), estimated_size(estimated_size) {}
     };
 
     std::vector<BatchItem> items;
@@ -716,12 +704,12 @@ class APIConnection final : public APIServerConnection {
     }
 
     // Fall back to scheduled batching
-    return this->schedule_message_(entity, std::move(creator), message_type, estimated_size);
+    return this->schedule_message_(entity, creator, message_type, estimated_size);
   }
 
   // Helper function to schedule a deferred message with known message type
   bool schedule_message_(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size) {
-    this->deferred_batch_.add_item(entity, std::move(creator), message_type, estimated_size);
+    this->deferred_batch_.add_item(entity, creator, message_type, estimated_size);
     return this->schedule_batch_();
   }
 
