@@ -7,14 +7,26 @@ namespace sht4x {
 static const char *const TAG = "sht4x";
 
 static const uint8_t MEASURECOMMANDS[] = {0xFD, 0xF6, 0xE0};
+static const uint8_t SERIAL_NUMBER_COMMAND = 0x89;
 
 void SHT4XComponent::start_heater_() {
   uint8_t cmd[] = {MEASURECOMMANDS[this->heater_command_]};
 
   ESP_LOGD(TAG, "Heater turning on");
   if (this->write(cmd, 1) != i2c::ERROR_OK) {
-    this->status_set_error("Failed to turn on heater");
+    this->status_set_error(LOG_STR("Failed to turn on heater"));
   }
+}
+
+void SHT4XComponent::read_serial_number_() {
+  uint16_t buffer[2];
+  if (!this->get_8bit_register(SERIAL_NUMBER_COMMAND, buffer, 2, 1)) {
+    ESP_LOGE(TAG, "Get serial number failed");
+    this->serial_number_ = 0;
+    return;
+  }
+  this->serial_number_ = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]));
+  ESP_LOGD(TAG, "Serial number: %08" PRIx32, this->serial_number_);
 }
 
 void SHT4XComponent::setup() {
@@ -23,6 +35,8 @@ void SHT4XComponent::setup() {
     this->mark_failed();
     return;
   }
+
+  this->read_serial_number_();
 
   if (std::isfinite(this->duty_cycle_) && this->duty_cycle_ > 0.0f) {
     uint32_t heater_interval = static_cast<uint32_t>(static_cast<uint16_t>(this->heater_time_) / this->duty_cycle_);
@@ -54,10 +68,17 @@ void SHT4XComponent::setup() {
 }
 
 void SHT4XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "SHT4x:");
+  ESP_LOGCONFIG(TAG,
+                "SHT4x:\n"
+                "  Serial number: %08" PRIx32,
+                this->serial_number_);
+
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  }
+  if (this->serial_number_ == 0) {
+    ESP_LOGW(TAG, "Get serial number failed");
   }
 }
 

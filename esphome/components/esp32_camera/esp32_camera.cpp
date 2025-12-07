@@ -205,7 +205,9 @@ void ESP32Camera::loop() {
   this->current_image_ = std::make_shared<ESP32CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
   ESP_LOGD(TAG, "Got Image: len=%u", fb->len);
-  this->new_image_callback_.call(this->current_image_);
+  for (auto *listener : this->listeners_) {
+    listener->on_camera_image(this->current_image_);
+  }
   this->last_update_ = now;
   this->single_requesters_ = 0;
 }
@@ -357,21 +359,16 @@ void ESP32Camera::set_frame_buffer_location(camera_fb_location_t fb_location) {
 }
 
 /* ---------------- public API (specific) ---------------- */
-void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<camera::CameraImage>)> &&callback) {
-  this->new_image_callback_.add(std::move(callback));
-}
-void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
-  this->stream_start_callback_.add(std::move(callback));
-}
-void ESP32Camera::add_stream_stop_callback(std::function<void()> &&callback) {
-  this->stream_stop_callback_.add(std::move(callback));
-}
 void ESP32Camera::start_stream(camera::CameraRequester requester) {
-  this->stream_start_callback_.call();
+  for (auto *listener : this->listeners_) {
+    listener->on_stream_start();
+  }
   this->stream_requesters_ |= (1U << requester);
 }
 void ESP32Camera::stop_stream(camera::CameraRequester requester) {
-  this->stream_stop_callback_.call();
+  for (auto *listener : this->listeners_) {
+    listener->on_stream_stop();
+  }
   this->stream_requesters_ &= ~(1U << requester);
 }
 void ESP32Camera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }

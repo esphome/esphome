@@ -8,8 +8,7 @@
 #include "climate_mode.h"
 #include "climate_traits.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 #define LOG_CLIMATE(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -345,5 +344,4 @@ class Climate : public EntityBase {
   const char *custom_preset_{nullptr};
 };
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate
