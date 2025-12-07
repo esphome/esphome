@@ -47,6 +47,14 @@ void DebugComponent::dump_config() {
   if (this->reset_reason_ != nullptr) {
     this->reset_reason_->publish_state(get_reset_reason_());
   }
+#ifdef USE_ZEPHYR
+  if (this->stack_usage_ != nullptr) {
+    this->stack_usage_->publish_state(get_stack_usage_());
+  }
+  if (this->uicr_ != nullptr) {
+    this->uicr_->publish_state(get_uicr_());
+  }
+#endif
 #endif  // USE_TEXT_SENSOR
 
 #if defined(USE_ESP32) || defined(USE_ZEPHYR)

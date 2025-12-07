@@ -9,6 +9,13 @@
 
 #define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
 
+#ifdef CONFIG_INIT_STACKS
+extern "C" {
+int z_stack_space_get(const char *stack_start, size_t size, size_t *unused_ptr);
+}
+K_KERNEL_STACK_ARRAY_DECLARE(z_interrupt_stacks, CONFIG_MP_MAX_NUM_CPUS, CONFIG_ISR_STACK_SIZE);
+#endif
+
 namespace esphome::debug {
 
 static const char *const TAG = "debug";
@@ -80,8 +87,6 @@ std::string DebugComponent::get_reset_reason_() {
   show_reset_reason(reset_reason, cause & RESET_HARDWARE, "Hardware reset");
   show_reset_reason(reset_reason, cause & RESET_USER, "User reset");
   show_reset_reason(reset_reason, cause & RESET_TEMPERATURE, "Temperature reset");
-
-  ESP_LOGD(TAG, "Reset Reason: %s", reset_reason.c_str());
   return reset_reason;
 }
 
@@ -357,6 +362,67 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 #endif
   }
 #endif
+}
+
+void DebugComponent::update_platform_() {}
+
+#ifdef CONFIG_INIT_STACKS
+static void stack_dump(const struct k_thread *thread, void *user_data) {
+  std::string *stack = (std::string *) user_data;
+  unsigned int pcnt;
+  size_t unused;
+  size_t size = thread->stack_info.size;
+  const char *tname;
+  int ret;
+
+  ret = k_thread_stack_space_get(thread, &unused);
+  if (ret) {
+    ESP_LOGD(TAG, "Unable to determine unused stack size (%d)", ret);
+    return;
+  }
+
+  tname = k_thread_name_get((struct k_thread *) thread);
+
+  /* Calculate the real size reserved for the stack */
+  pcnt = ((size - unused) * 100U) / size;
+
+  *stack += str_sprintf("\n%p %s"
+                        "\tunused %4u\tusage %4u / %4u (%2u %%)",
+                        thread, tname ? tname : "NA", unused, size - unused, size, pcnt);
+}
+
+std::string DebugComponent::get_stack_usage_() {
+  std::string stack;
+#ifdef CONFIG_SMP
+  k_thread_foreach_unlocked(stack_dump, &stack);
+#else
+  k_thread_foreach(stack_dump, &stack);
+#endif
+  /* Placeholder logic for interrupt stack until we have better
+   * kernel support, including dumping arch-specific exception-related
+   * stack buffers.
+   */
+  unsigned int num_cpus = arch_num_cpus();
+
+  for (int i = 0; i < num_cpus; i++) {
+    size_t unused;
+    const char *buf = Z_KERNEL_STACK_BUFFER(z_interrupt_stacks[i]);
+    size_t size = K_KERNEL_STACK_SIZEOF(z_interrupt_stacks[i]);
+    int err = z_stack_space_get(buf, size, &unused);
+
+    if (err != 0) {
+      ESP_LOGE(TAG, "failed stack space get %d", err);
+      continue;
+    }
+
+    stack += str_sprintf("\n%p IRQ %02d\tunused %4u\tusage %4u / %4u (%2u %%)", &z_interrupt_stacks[i], i, unused,
+                         size - unused, size, ((size - unused) * 100U) / size);
+  }
+  return stack;
+}
+#endif
+
+std::string DebugComponent::get_uicr_() {
   auto uicr = [](volatile uint32_t *data, uint8_t size) {
     std::string res;
     char buf[sizeof(uint32_t) * 2 + 1];
@@ -368,11 +434,12 @@ void DebugComponent::get_device_info_(std::string &device_info) {
     }
     return res;
   };
-  ESP_LOGD(TAG, "NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
-  ESP_LOGD(TAG, "NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
+  std::string result("\nNRFFW:\n");
+  result += uicr(NRF_UICR->NRFFW, 13);
+  result += "\nNRFHW:\n";
+  result += uicr(NRF_UICR->NRFHW, 12);
+  return result;
 }
-
-void DebugComponent::update_platform_() {}
 
 }  // namespace esphome::debug
 #endif
