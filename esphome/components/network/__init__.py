@@ -145,8 +145,6 @@ async def to_code(config):
     cg.add_define("USE_NETWORK")
     if CORE.using_arduino and CORE.is_esp32:
         cg.add_library("Networking", None)
-    if CORE.is_nrf52:
-        cg.add_define("USE_ZEPHYR_NETWORKING")
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior
