@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,

@@ -114,7 +114,7 @@ async def test_api_custom_services(
         assert custom_arrays_service is not None, "custom_service_with_arrays not found"
 
         # Test YAML service
-        client.execute_service(yaml_service, {})
+        await client.execute_service(yaml_service, {})
         await asyncio.wait_for(yaml_service_future, timeout=5.0)
 
         # Verify YAML service with args arguments
@@ -124,7 +124,7 @@ async def test_api_custom_services(
         assert yaml_args_types["my_string"] == UserServiceArgType.STRING
 
         # Test YAML service with arguments
-        client.execute_service(
+        await client.execute_service(
             yaml_args_service,
             {
                 "my_int": 123,
@@ -144,7 +144,7 @@ async def test_api_custom_services(
         assert yaml_many_args_types["arg4"] == UserServiceArgType.STRING
 
         # Test YAML service with many arguments
-        client.execute_service(
+        await client.execute_service(
             yaml_many_args_service,
             {
                 "arg1": 42,
@@ -156,7 +156,7 @@ async def test_api_custom_services(
         await asyncio.wait_for(yaml_many_args_future, timeout=5.0)
 
         # Test simple CustomAPIDevice service
-        client.execute_service(custom_service, {})
+        await client.execute_service(custom_service, {})
         await asyncio.wait_for(custom_service_future, timeout=5.0)
 
         # Verify custom_args_service arguments
@@ -168,7 +168,7 @@ async def test_api_custom_services(
         assert arg_types["arg_float"] == UserServiceArgType.FLOAT
 
         # Test CustomAPIDevice service with arguments
-        client.execute_service(
+        await client.execute_service(
             custom_args_service,
             {
                 "arg_string": "test_string",
@@ -188,7 +188,7 @@ async def test_api_custom_services(
         assert array_arg_types["string_array"] == UserServiceArgType.STRING_ARRAY
 
         # Test CustomAPIDevice service with arrays
-        client.execute_service(
+        await client.execute_service(
             custom_arrays_service,
             {
                 "bool_array": [True, False],
