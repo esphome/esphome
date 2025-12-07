@@ -25,13 +25,14 @@ class Modbus : public uart::UARTDevice, public Component {
   void loop() override;
 
   float get_setup_priority() const override;
-  virtual bool tx_blocked();
+  virtual bool tx_blocked(bool block_for_interframe_delays);
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 
  protected:
   void receive_bytes_();
   bool timeout_();
+  int32_t turnaround_delay_remaining_();
   virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
   virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code,
@@ -69,7 +70,7 @@ class ModbusClientHub : public Modbus {
   void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
   void set_turnaround_time(uint16_t time_in_ms) { turnaround_delay_ms_ = time_in_ms; }
   bool tx_buffer_empty();
-  bool tx_blocked() override;
+  bool tx_blocked(bool block_for_interframe_delays) override;
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             ModbusClientDevice *device = nullptr, bool allow_duplicates = false);
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
@@ -78,6 +79,7 @@ class ModbusClientHub : public Modbus {
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
  protected:
+  int32_t send_wait_delay_remaining_();
   void parse_modbus_frames() override;
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void send_next_frame_();
@@ -135,7 +137,7 @@ class ModbusClientDevice {
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
   // If more than one device is connected block sending a new command before a response is received
-  bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
+  bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(true); }
 
  protected:
   ModbusClientHub *parent_;

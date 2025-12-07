@@ -45,8 +45,10 @@ void ModbusClientHub::loop() {
   }
 
   //  If there's no response pending and there's commands in the buffer
-  if (!this->tx_blocked() && !this->tx_buffer_.empty())
-    this->defer("send_next_frame", [this]() { this->send_next_frame_(); });
+  if (!this->tx_buffer_.empty() && !this->tx_blocked(false) && this->turnaround_delay_remaining_() <= 5) {
+    usleep(this->turnaround_delay_remaining_() * 1000);
+    this->send_next_frame_();
+  }
 }
 
 bool Modbus::timeout_() {
@@ -60,15 +62,25 @@ bool Modbus::timeout_() {
 
   return this->last_receive_check_ - this->last_modbus_byte_ > timeout;
 }
-
-bool Modbus::tx_blocked() {
+int32_t Modbus::turnaround_delay_remaining_() {
   // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
   // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
   // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   const uint32_t now = millis();
+  return std::max((int32_t) 0, std::max((int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ +
+                                                   this->turnaround_delay_ms_ - (now - this->last_send_)),
+                                        (int32_t) (this->frame_delay_ms_ + this->turnaround_delay_ms_ -
+                                                   (now - this->last_modbus_byte_))));
+}
+int32_t ModbusClientHub::send_wait_delay_remaining_() {
+  const uint32_t now = millis();
+  return std::max((int32_t) 0,
+                  (int32_t) (this->last_send_tx_offset_ + this->send_wait_time_ - (now - this->last_send_)));
+}
 
+bool Modbus::tx_blocked(bool block_for_interframe_delays) {
   // We block transmission in any of these case:
   // 1. There are bytes in the UART Rx buffer
   // 2. There are bytes in our Rx buffer
@@ -76,35 +88,31 @@ bool Modbus::tx_blocked() {
   // 4. The last received byte isn't more than frame_delay ms ago (i.e. wait to be sure there isn't more Rx coming)
   // 5. If we're a client - also wait for the turnaround delay, to give the servers time to process the previous message
   return this->available() || !this->rx_buffer_.empty() ||
-         (now - this->last_send_ < this->last_send_tx_offset_ + this->frame_delay_ms_ + this->turnaround_delay_ms_) ||
-         (now - this->last_modbus_byte_ < this->frame_delay_ms_ + this->turnaround_delay_ms_);
+         (block_for_interframe_delays && this->turnaround_delay_remaining_() > 0);
 }
 
-bool ModbusClientHub::tx_blocked() {
+bool ModbusClientHub::tx_blocked(bool block_for_interframe_delays) {
   // We block transmission in any of these case:
   // 1. We're waiting for a response
   // 2. Any of the base class tx_blocked conditions
-  return (this->waiting_for_response_.has_value()) || this->Modbus::tx_blocked();
+  return (this->waiting_for_response_.has_value()) || this->Modbus::tx_blocked(block_for_interframe_delays);
 }
 
 bool ModbusClientHub::tx_buffer_empty() { return this->tx_buffer_.empty(); }
 
 void Modbus::receive_bytes_() {
-  bool bytes_received = false;
-  while (this->available()) {
-    bytes_received = true;
-    uint8_t byte;
-    this->read_byte(&byte);
-    if (this->rx_buffer_.empty()) {
-      ESP_LOGV(TAG, "Received first byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
-    } else {
-      ESP_LOGVV(TAG, "Received byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
-    }
-    this->rx_buffer_.push_back(byte);
-  }
   this->last_receive_check_ = millis();
-  if (bytes_received) {
+  int bytes = this->available();
+
+  if (bytes) {
+    int buffer_size = this->rx_buffer_.size();
     this->last_modbus_byte_ = this->last_receive_check_;
+    this->rx_buffer_.resize(buffer_size + bytes);
+    this->read_array(this->rx_buffer_.data() + buffer_size, bytes);
+    if (buffer_size == 0) {
+      ESP_LOGV(TAG, "Received first byte %d (0X%x) %dms after last send %d", this->rx_buffer_[0], this->rx_buffer_[0],
+               millis() - this->last_send_, this->rx_buffer_.size());
+    }
   }
 }
 
@@ -339,7 +347,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 }
 
 bool Modbus::send_frame_(const std::vector<uint8_t> &frame) {
-  if (this->tx_blocked()) {
+  if (this->tx_blocked(true)) {
     ESP_LOGE(TAG, "Attempted to send while transmission blocked");
     return false;
   }
@@ -372,7 +380,7 @@ void ModbusClientHub::send_next_frame_() {
     return;
   }
 
-  if (this->tx_blocked()) {
+  if (this->tx_blocked(true)) {
     ESP_LOGE(TAG, "Attempted to send while transmission blocked");
     return;
   }
@@ -474,6 +482,9 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGV(TAG, "Adding frame to tx queue: %s", format_hex_pretty(frame).c_str());
     this->tx_buffer_.push_back({device, frame});
+    if (this->tx_buffer_.size() == 1) {
+      App.wake_loop_threadsafe();
+    }
   } else {
     ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty(frame).c_str());
     if (device)
@@ -519,10 +530,12 @@ void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
   }
   std::vector<uint8_t> frame = add_crc_to_payload(payload);
 
-  const uint32_t now = millis();
-  if (now - this->last_modbus_byte_ < this->frame_delay_ms_) {
-    this->set_timeout("send_frame", (this->frame_delay_ms_ - (now - this->last_modbus_byte_)),
-                      [this, frame] { this->send_frame_(frame); });
+  const int32_t turnaround_delay_remaining = this->turnaround_delay_remaining_();
+  if (turnaround_delay_remaining > 5) {
+    this->set_timeout("send_frame", turnaround_delay_remaining, [this, frame] { this->send_frame_(frame); });
+  } else if (turnaround_delay_remaining > 0) {
+    usleep(turnaround_delay_remaining * 1000);
+    this->send_frame_(frame);
   } else {
     this->send_frame_(frame);
   }
