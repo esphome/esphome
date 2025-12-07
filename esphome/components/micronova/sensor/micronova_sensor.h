@@ -3,8 +3,7 @@
 #include "esphome/components/micronova/micronova.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 class MicroNovaSensor : public sensor::Sensor, public MicroNovaListener {
  public:
@@ -26,5 +25,4 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaListener {
   int fan_speed_offset_ = 0;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

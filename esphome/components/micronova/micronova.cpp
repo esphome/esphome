@@ -1,8 +1,7 @@
 #include "micronova.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 void MicroNovaBaseListener::dump_base_config() {
   ESP_LOGCONFIG(TAG,
@@ -150,5 +149,4 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
   }
 }
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova
