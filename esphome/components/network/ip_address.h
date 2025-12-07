@@ -21,13 +21,13 @@
 #include <arpa/inet.h>
 #endif
 
-#ifdef USE_ZEPHYR_NETWORKING
+#ifdef USE_ZEPHYR
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/posix/arpa/inet.h>
 #endif
 
-#ifdef USE_ZEPHYR_NETWORKING
+#ifdef USE_ZEPHYR
 // Zephyr networking uses IPv6-only for Thread
 using ip_addr_t = in6_addr;
 using ip6_addr_t = in6_addr;
@@ -58,7 +58,7 @@ namespace network {
 
 struct IPAddress {
  public:
-#ifdef USE_ZEPHYR_NETWORKING
+#ifdef USE_ZEPHYR
   // Zephyr networking IPv6-only implementation for Thread
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
