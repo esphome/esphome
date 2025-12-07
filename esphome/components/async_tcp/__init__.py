@@ -8,8 +8,8 @@ DEPENDENCIES = ["network"]
 
 
 def AUTO_LOAD() -> list[str]:
-    # Socket component only needed for non-Arduino platforms
-    if not CORE.using_arduino:
+    # Socket component only needed for non-ESP32 platforms without Arduino
+    if not CORE.using_arduino and not CORE.is_esp32:
         return ["socket"]
     return []
 
@@ -27,11 +27,16 @@ async def to_code(config):
         elif CORE.is_esp8266:
             # https://github.com/ESP32Async/ESPAsyncTCP
             cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
-    # ESP-IDF and host use socket-based implementation (no library needed)
+    elif CORE.is_esp32:
+        # AsyncTCP also supports ESP-IDF without Arduino
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(name="esp32async/asynctcp", ref="3.4.91")
+    # Host and other platforms use socket-based implementation (no library needed)
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    # Only compile socket implementation for non-Arduino platforms
-    if CORE.using_arduino:
+    # Only compile socket implementation for non-ESP32 platforms without Arduino
+    if CORE.using_arduino or CORE.is_esp32:
         return ["async_tcp_socket.cpp"]
     return []
