@@ -7,8 +7,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class UARTSwitch : public switch_::Switch, public UARTDevice, public Component {
  public:
@@ -33,5 +32,4 @@ class UARTSwitch : public switch_::Switch, public UARTDevice, public Component {
   uint32_t last_transmission_;
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart
