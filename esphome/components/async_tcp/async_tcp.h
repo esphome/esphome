@@ -9,5 +9,5 @@
 #else
 #include "async_tcp_socket.h"
 // Expose AsyncClient in global namespace to match Arduino library behavior
-using esphome::async_tcp::AsyncClient;
+using esphome::async_tcp::AsyncClient;  // NOLINT(google-global-names-in-headers)
 #endif
