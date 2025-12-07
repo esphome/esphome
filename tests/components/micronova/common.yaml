@@ -16,6 +16,7 @@ number:
       step: 1
     power_level:
       name: Micronova Power level
+      update_interval: 10s
 
 sensor:
   - platform: micronova
@@ -41,3 +42,9 @@ switch:
   - platform: micronova
     stove:
       name: Stove on/off
+
+text_sensor:
+  - platform: micronova
+    stove_state:
+      name: Stove status
+      update_interval: 5s

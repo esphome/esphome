@@ -14,8 +14,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 #ifdef USE_BINARY_SENSOR
 enum BinarySensorFlags : uint16_t {
@@ -169,5 +168,4 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state, uint32_t delay);
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
