@@ -55,6 +55,8 @@ def get_image_tlv_sha256(file: Path) -> str:
         _LOGGER.debug(str(image_info))
     except MCUBootImageError as e:
         raise EsphomeError(f"Inspection of FW image failed: {e}")
+    except FileNotFoundError:
+        raise EsphomeError("Build with zephyr_mcumgr enabled")
 
     try:
         image_tlv_sha256 = image_info.get_tlv(IMAGE_TLV.SHA256)
@@ -84,8 +86,10 @@ async def smpmgr_upload_(config: ConfigType, device: str, firmware: Path) -> Non
 
     try:
         image_state = await smp_client.request(ImageStatesRead(), 2.5)
-    except SMPBadStartDelimiter as e:
-        raise EsphomeError(f"mcumgr is not supported by device ({e})")
+    except SMPBadStartDelimiter:
+        raise EsphomeError(f"mcumgr is not supported by device ({device})")
+    except TimeoutError:
+        raise EsphomeError(f"mcumgr is not supported by device ({device})")
 
     already_uploaded = False
 

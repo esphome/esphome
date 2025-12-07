@@ -289,31 +289,34 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     result = 0
     handled = False
 
+    mcumgr_device = None
+
     if get_port_type(host) == "SERIAL":
-        check_permissions(host)
-        result = _upload_using_platformio(config, host, ["-t", "upload"])
-        handled = True
+        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            mcumgr_device = host
+        else:
+            check_permissions(host)
+            result = _upload_using_platformio(config, host, ["-t", "upload"])
+            handled = True
 
     if host == "PYOCD":
         result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
         handled = True
 
-    address = None
-
     from .ble_logger import is_mac_address
     from .ota import smpmgr_scan, smpmgr_upload
 
     if host == "BLE":
-        address = asyncio.run(smpmgr_scan(CORE.name))
+        mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
 
     if is_mac_address(host):
-        address = host
+        mcumgr_device = host
 
-    if address:
+    if mcumgr_device:
         firmware = os.path.abspath(
             CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
         )
-        asyncio.run(smpmgr_upload(config, address, firmware))
+        asyncio.run(smpmgr_upload(config, mcumgr_device, firmware))
         handled = True
 
     if result != 0:
