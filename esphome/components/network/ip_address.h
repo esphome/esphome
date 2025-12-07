@@ -27,6 +27,7 @@ using ip4_addr_t = in_addr;
 #ifdef USE_ZEPHYR_NETWORKING
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
+#include <zephyr/posix/arpa/inet.h>
 using ip_addr_t = in_addr;
 using ip4_addr_t = in_addr;
 // Zephyr uses inet_pton instead of inet_aton
