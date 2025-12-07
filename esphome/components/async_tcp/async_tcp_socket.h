@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 
 // Provide AsyncClient API for ESP-IDF and host platforms using sockets
 class AsyncClient {
@@ -22,20 +23,20 @@ class AsyncClient {
   bool connected() const { return connected_; }
   size_t write(const char *data, size_t len);
 
-  void onConnect(AcConnectHandler cb, void *arg = nullptr) {
-    connect_cb_ = cb;
+  void onConnect(AcConnectHandler cb, void *arg = nullptr) {  // NOLINT(readability-identifier-naming)
+    connect_cb_ = std::move(cb);
     connect_arg_ = arg;
   }
-  void onDisconnect(AcConnectHandler cb, void *arg = nullptr) {
-    disconnect_cb_ = cb;
+  void onDisconnect(AcConnectHandler cb, void *arg = nullptr) {  // NOLINT(readability-identifier-naming)
+    disconnect_cb_ = std::move(cb);
     disconnect_arg_ = arg;
   }
-  void onData(AcDataHandler cb, void *arg = nullptr) {
-    data_cb_ = cb;
+  void onData(AcDataHandler cb, void *arg = nullptr) {  // NOLINT(readability-identifier-naming)
+    data_cb_ = std::move(cb);
     data_arg_ = arg;
   }
-  void onError(AcErrorHandler cb, void *arg = nullptr) {
-    error_cb_ = cb;
+  void onError(AcErrorHandler cb, void *arg = nullptr) {  // NOLINT(readability-identifier-naming)
+    error_cb_ = std::move(cb);
     error_arg_ = arg;
   }
 

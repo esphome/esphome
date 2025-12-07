@@ -7,6 +7,9 @@
 #include <cerrno>
 #include <sys/select.h>
 
+namespace esphome {
+namespace async_tcp {
+
 static const char *const TAG = "async_tcp";
 
 bool AsyncClient::connect(const char *host, uint16_t port) {
@@ -145,5 +148,8 @@ void AsyncClient::loop() {
     }
   }
 }
+
+}  // namespace async_tcp
+}  // namespace esphome
 
 #endif  // !USE_ARDUINO
