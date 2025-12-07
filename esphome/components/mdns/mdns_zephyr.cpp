@@ -11,7 +11,13 @@ static const char *const TAG = "mdns.zephyr";
 
 void MDNSComponent::setup() {
   ESP_LOGD(TAG, "Setting up mDNS for Zephyr...");
-  this->compile_records_();
+#ifdef USE_MDNS_STORE_SERVICES
+  this->compile_records_(this->services_);
+  const auto &services = this->services_;
+#else
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
+  this->compile_records_(services);
+#endif
 
   ESP_LOGI(TAG, "mDNS records compiled, waiting for network connectivity before registering services");
 }
