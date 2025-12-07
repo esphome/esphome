@@ -5,7 +5,7 @@ button:
   - platform: micronova
     custom_button:
       name: Custom Micronova Button
-      memory_location: 0xA0
+      memory_location: 0x20
       memory_address: 0x7D
       memory_data: 0x0F
 
