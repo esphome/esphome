@@ -86,12 +86,12 @@ async def to_lower_filter_to_code(config, filter_id):
 
 @FILTER_REGISTRY.register("append", AppendFilter, cv.string)
 async def append_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, cg.StringRefLiteral(config))
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("prepend", PrependFilter, cv.string)
 async def prepend_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, cg.StringRefLiteral(config))
+    return cg.new_Pvariable(filter_id, config)
 
 
 def validate_mapping(value):
@@ -114,8 +114,8 @@ async def substitute_filter_to_code(config, filter_id):
     substitutions = [
         cg.StructInitializer(
             cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", cg.StringRefLiteral(conf[CONF_FROM])),
-            ("to", cg.StringRefLiteral(conf[CONF_TO])),
+            ("from", conf[CONF_FROM]),
+            ("to", conf[CONF_TO]),
         )
         for conf in config
     ]
@@ -127,8 +127,8 @@ async def map_filter_to_code(config, filter_id):
     mappings = [
         cg.StructInitializer(
             cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", cg.StringRefLiteral(conf[CONF_FROM])),
-            ("to", cg.StringRefLiteral(conf[CONF_TO])),
+            ("from", conf[CONF_FROM]),
+            ("to", conf[CONF_TO]),
         )
         for conf in config
     ]
