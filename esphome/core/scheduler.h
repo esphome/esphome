@@ -219,7 +219,9 @@ class Scheduler {
   // Returns the number of items remaining after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
   size_t cleanup_();
-  void pop_raw_();
+  // Remove and return the front item from the heap
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  std::unique_ptr<SchedulerItem> pop_raw_locked_();
 
  private:
   // Helper to cancel items by name - must be called with lock held
@@ -243,8 +245,18 @@ class Scheduler {
   }
 
   // Helper function to check if item matches criteria for cancellation
-  inline bool HOT matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
-                                SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
+  // IMPORTANT: Must be called with scheduler lock held
+  inline bool HOT matches_item_locked_(const std::unique_ptr<SchedulerItem> &item, Component *component,
+                                       const char *name_cstr, SchedulerItem::Type type, bool match_retry,
+                                       bool skip_removed = true) const {
+    // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
+    // platforms, items can be moved out of defer_queue_ during processing, leaving nullptr entries.
+    // PR #11305 added nullptr checks in callers (mark_matching_items_removed_locked_() and
+    // has_cancelled_timeout_in_container_locked_()), but this check provides defense-in-depth: helper
+    // functions should be safe regardless of caller behavior.
+    // Fixes: https://github.com/esphome/esphome/issues/11940
+    if (!item)
+      return false;
     if (item->component != component || item->type != type || (skip_removed && item->remove) ||
         (match_retry && !item->is_retry)) {
       return false;
@@ -260,8 +272,10 @@ class Scheduler {
     return is_item_removed_(item) || (item->component != nullptr && item->component->is_failed());
   }
 
-  // Helper to recycle a SchedulerItem
-  void recycle_item_(std::unique_ptr<SchedulerItem> item);
+  // Helper to recycle a SchedulerItem back to the pool.
+  // IMPORTANT: Only call from main loop context! Recycling clears the callback,
+  // so calling from another thread while the callback is executing causes use-after-free.
+  void recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item);
 
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
@@ -304,8 +318,8 @@ class Scheduler {
         // SAFETY: Moving out the unique_ptr leaves a nullptr in the vector at defer_queue_front_.
         // This is intentional and safe because:
         // 1. The vector is only cleaned up by cleanup_defer_queue_locked_() at the end of this function
-        // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_
-        //    and has_cancelled_timeout_in_container_ in scheduler.h)
+        // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_locked_
+        //    and has_cancelled_timeout_in_container_locked_ in scheduler.h)
         // 3. The lock protects concurrent access, but the nullptr remains until cleanup
         item = std::move(this->defer_queue_[this->defer_queue_front_]);
         this->defer_queue_front_++;
@@ -317,7 +331,7 @@ class Scheduler {
         now = this->execute_item_(item.get(), now);
       }
       // Recycle the defer item after execution
-      this->recycle_item_(std::move(item));
+      this->recycle_item_main_loop_(std::move(item));
     }
 
     // If we've consumed all items up to the snapshot point, clean up the dead space
@@ -393,10 +407,10 @@ class Scheduler {
 
   // Helper to mark matching items in a container as removed
   // Returns the number of items marked for removal
-  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  // IMPORTANT: Must be called with scheduler lock held
   template<typename Container>
-  size_t mark_matching_items_removed_(Container &container, Component *component, const char *name_cstr,
-                                      SchedulerItem::Type type, bool match_retry) {
+  size_t mark_matching_items_removed_locked_(Container &container, Component *component, const char *name_cstr,
+                                             SchedulerItem::Type type, bool match_retry) {
     size_t count = 0;
     for (auto &item : container) {
       // Skip nullptr items (can happen in defer_queue_ when items are being processed)
@@ -405,7 +419,7 @@ class Scheduler {
       // the vector can still contain nullptr items from the processing loop. This check prevents crashes.
       if (!item)
         continue;
-      if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
+      if (this->matches_item_locked_(item, component, name_cstr, type, match_retry)) {
         // Mark item for removal (platform-specific)
         this->set_item_removed_(item.get(), true);
         count++;
@@ -415,9 +429,10 @@ class Scheduler {
   }
 
   // Template helper to check if any item in a container matches our criteria
+  // IMPORTANT: Must be called with scheduler lock held
   template<typename Container>
-  bool has_cancelled_timeout_in_container_(const Container &container, Component *component, const char *name_cstr,
-                                           bool match_retry) const {
+  bool has_cancelled_timeout_in_container_locked_(const Container &container, Component *component,
+                                                  const char *name_cstr, bool match_retry) const {
     for (const auto &item : container) {
       // Skip nullptr items (can happen in defer_queue_ when items are being processed)
       // The defer_queue_ uses index-based processing: items are std::moved out but left in the
@@ -426,8 +441,8 @@ class Scheduler {
       if (!item)
         continue;
       if (is_item_removed_(item.get()) &&
-          this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, match_retry,
-                              /* skip_removed= */ false)) {
+          this->matches_item_locked_(item, component, name_cstr, SchedulerItem::TIMEOUT, match_retry,
+                                     /* skip_removed= */ false)) {
         return true;
       }
     }
