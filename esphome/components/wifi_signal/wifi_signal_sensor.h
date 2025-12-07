@@ -5,17 +5,19 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
-namespace esphome {
-namespace wifi_signal {
+namespace esphome::wifi_signal {
 
-class WiFiSignalSensor : public sensor::Sensor, public PollingComponent {
+class WiFiSignalSensor : public sensor::Sensor, public PollingComponent, public wifi::WiFiConnectStateListener {
  public:
+  void setup() override { wifi::global_wifi_component->add_connect_state_listener(this); }
   void update() override { this->publish_state(wifi::global_wifi_component->wifi_rssi()); }
   void dump_config() override;
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
+  // WiFiConnectStateListener interface - update RSSI immediately on connect
+  void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override { this->update(); }
 };
 
-}  // namespace wifi_signal
-}  // namespace esphome
+}  // namespace esphome::wifi_signal
 #endif

@@ -334,6 +334,12 @@ class LWIPRawImpl : public Socket {
     }
     return ret;
   }
+
+  ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) override {
+    errno = ENOTSUP;
+    return -1;
+  }
+
   ssize_t internal_write(const void *buf, size_t len) {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
