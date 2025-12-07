@@ -22,10 +22,14 @@ pillow==11.3.0
 cairosvg==2.8.2
 freetype-py==2.5.1
 jinja2==3.1.6
-bleak==2.0.0
+bleak==0.22.1
 
 # esp-idf >= 5.0 requires this
 pyparsing >= 3.0
 
 # For autocompletion
 argcomplete>=2.0.0
+
+# for mcumgr
+rich==13.7.0
+smpclient==3.2.0

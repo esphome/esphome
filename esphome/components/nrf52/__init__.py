@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 
 from esphome import pins
@@ -297,6 +298,24 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
         handled = True
 
+    address = None
+
+    from .ble_logger import is_mac_address
+    from .ota import smpmgr_scan, smpmgr_upload
+
+    if host == "BLE":
+        address = asyncio.run(smpmgr_scan(CORE.name))
+
+    if is_mac_address(host):
+        address = host
+
+    if address:
+        firmware = os.path.abspath(
+            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+        )
+        asyncio.run(smpmgr_upload(config, address, firmware))
+        handled = True
+
     if result != 0:
         raise EsphomeError(f"Upload failed with result: {result}")
 
@@ -308,7 +327,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     from .ble_logger import is_mac_address, logger_connect, logger_scan
 
     if devices[0] == "BLE":
-        ble_device = asyncio.run(logger_scan(CORE.config["esphome"]["name"]))
+        ble_device = asyncio.run(logger_scan(CORE.name))
         if ble_device:
             address = ble_device.address
         else:
