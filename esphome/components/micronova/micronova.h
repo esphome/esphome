@@ -13,18 +13,6 @@ namespace esphome::micronova {
 static const char *const TAG = "micronova";
 static const int STOVE_REPLY_DELAY = 60;
 
-static const std::string STOVE_STATES[11] = {"Off",
-                                             "Start",
-                                             "Pellets loading",
-                                             "Ignition",
-                                             "Working",
-                                             "Brazier Cleaning",
-                                             "Final Cleaning",
-                                             "Standby",
-                                             "No pellets alarm",
-                                             "No ignition alarm",
-                                             "Undefined alarm"};
-
 enum class MicroNovaFunctions {
   STOVE_FUNCTION_VOID = 0,
   STOVE_FUNCTION_SWITCH = 1,
