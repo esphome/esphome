@@ -17,6 +17,9 @@ static const char *const TAG = "i2c.idf";
 
 void IDFI2CBus::setup() {
   static i2c_port_t next_hp_port = I2C_NUM_0;
+#if SOC_LP_I2C_SUPPORTED
+  static i2c_port_t next_lp_port = LP_I2C_NUM_0;
+#endif
 
   if (this->timeout_ > 13000) {
     ESP_LOGW(TAG, "Using max allowed timeout: 13 ms");
@@ -32,7 +35,13 @@ void IDFI2CBus::setup() {
   bus_conf.glitch_ignore_cnt = 7;
 #if SOC_LP_I2C_SUPPORTED
   if (this->lp_mode_) {
-    this->port_ = LP_I2C_NUM_0;
+    if ((next_lp_port - LP_I2C_NUM_0) == SOC_LP_I2C_NUM) {
+      ESP_LOGE(TAG, "No more than %u LP buses supported", SOC_LP_I2C_NUM);
+      this->mark_failed();
+      return;
+    }
+    this->port_ = next_lp_port;
+    next_lp_port = (i2c_port_t) (next_lp_port + 1);
     bus_conf.lp_source_clk = LP_I2C_SCLK_DEFAULT;
   } else {
 #endif

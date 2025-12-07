@@ -52,7 +52,7 @@ class IDFI2CBus : public InternalI2CBus, public Component {
   uint32_t timeout_ = 0;
   bool initialized_ = false;
 #if SOC_LP_I2C_SUPPORTED
-  bool lp_mode_{};
+  bool lp_mode_ = false;
 #endif
 };
 
