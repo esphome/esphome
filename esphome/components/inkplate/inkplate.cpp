@@ -141,15 +141,23 @@ void Inkplate::update() {
   this->display();
 }
 
+bool Inkplate::rotate_coordinates_(int &x, int &y) const {
+  if (!this->get_clipping().inside(x, y))
+    return false;
+  if (this->transform_ & SWAP_XY)
+    std::swap(x, y);
+  if (this->transform_ & MIRROR_X)
+    x = this->width_ - x - 1;
+  if (this->transform_ & MIRROR_Y)
+    y = this->height_ - y - 1;
+  if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
+    return false;
+  return true;
+}
+
 void HOT Inkplate::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+  if (!this->rotate_coordinates_(x, y))
     return;
-
-  if (this->mirror_y_)
-    y = this->get_height_internal() - y - 1;
-
-  if (this->mirror_x_)
-    x = this->get_width_internal() - x - 1;
 
   if (this->greyscale_) {
     int x1 = x / 2;

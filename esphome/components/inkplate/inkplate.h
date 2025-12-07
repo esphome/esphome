@@ -19,6 +19,11 @@ enum InkplateModel : uint8_t {
   INKPLATE_5_V2 = 5,
 };
 
+static constexpr uint8_t NONE = 0;
+static constexpr uint8_t MIRROR_X = 1;
+static constexpr uint8_t MIRROR_Y = 2;
+static constexpr uint8_t SWAP_XY = 4;
+
 static constexpr uint8_t GLUT_SIZE = 9;
 static constexpr uint8_t GLUT_COUNT = 8;
 
@@ -34,21 +39,24 @@ static constexpr uint8_t PIXEL_MASK_GLUT[2] = {0x0F, 0xF0};
 
 class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
  public:
-  Inkplate(const std::array<InternalGPIOPin *, 8> &data_pins, GPIOPin *ckv, InternalGPIOPin *cl, GPIOPin *gpio0_enable,
-           GPIOPin *gmod, InternalGPIOPin *le, GPIOPin *oe, GPIOPin *powerup, GPIOPin *sph, GPIOPin *spv, GPIOPin *vcom,
-           GPIOPin *wakeup)
-      : display_data_pins_(data_pins),
+  Inkplate(InkplateModel model, uint16_t width, uint16_t height, const std::array<InternalGPIOPin *, 8> &data_pins,
+           GPIOPin *ckv, GPIOPin *gpio0_enable, GPIOPin *gmod, GPIOPin *oe, GPIOPin *powerup, GPIOPin *sph,
+           GPIOPin *spv, GPIOPin *vcom, GPIOPin *wakeup, InternalGPIOPin *cl, InternalGPIOPin *le)
+      : model_(model),
+        width_(width),
+        height_(height),
+        display_data_pins_(data_pins),
         ckv_pin_(ckv),
-        cl_pin_(cl),
         gpio0_enable_pin_(gpio0_enable),
         gmod_pin_(gmod),
-        le_pin_(le),
         oe_pin_(oe),
         powerup_pin_(powerup),
         sph_pin_(sph),
         spv_pin_(spv),
         vcom_pin_(vcom),
-        wakeup_pin_(wakeup) {
+        wakeup_pin_(wakeup),
+        cl_pin_(cl),
+        le_pin_(le) {
     // Compute data pin mask once
     this->data_pin_mask_ = 0;
     for (auto *pin : this->display_data_pins_) {
@@ -70,13 +78,9 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
     this->custom_waveform_ = is_custom;
   }
 
-  void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
-  void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
-
   void set_partial_updating(bool partial_updating) { this->partial_updating_ = partial_updating; }
   void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
-
-  void set_model(InkplateModel model) { this->model_ = model; }
+  void set_transform(uint8_t transform) { this->transform_ = transform; }
 
   float get_setup_priority() const override;
 
@@ -103,6 +107,7 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  bool rotate_coordinates_(int &x, int &y) const;
   void display1b_();
   void display3b_();
   void initialize_();
@@ -117,39 +122,12 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   void eink_on_();
   bool read_power_status_();
 
-  void setup_pins_();
   void pins_z_state_();
   void pins_as_outputs_();
 
-  int get_width_internal() override {
-    if (this->model_ == INKPLATE_6 || this->model_ == INKPLATE_6_V2) {
-      return 800;
-    } else if (this->model_ == INKPLATE_10) {
-      return 1200;
-    } else if (this->model_ == INKPLATE_5) {
-      return 960;
-    } else if (this->model_ == INKPLATE_5_V2) {
-      return 1280;
-    } else if (this->model_ == INKPLATE_6_PLUS) {
-      return 1024;
-    }
-    return 0;
-  }
+  int get_width_internal() override { return this->width_; }
 
-  int get_height_internal() override {
-    if (this->model_ == INKPLATE_6 || this->model_ == INKPLATE_6_V2) {
-      return 600;
-    } else if (this->model_ == INKPLATE_5) {
-      return 540;
-    } else if (this->model_ == INKPLATE_5_V2) {
-      return 720;
-    } else if (this->model_ == INKPLATE_10) {
-      return 825;
-    } else if (this->model_ == INKPLATE_6_PLUS) {
-      return 758;
-    }
-    return 0;
-  }
+  int get_height_internal() override { return this->height_; }
 
   size_t get_buffer_length_();
 
@@ -170,28 +148,29 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
 
   bool block_partial_{true};
   bool greyscale_{};
-  bool mirror_y_{false};
-  bool mirror_x_{false};
+  uint8_t transform_{false};
   bool partial_updating_{};
   bool custom_waveform_{false};
   uint8_t waveform_[GLUT_COUNT][GLUT_SIZE]{};
-
-  InkplateModel model_;
-
-  std::array<InternalGPIOPin *, 8> display_data_pins_;
   int data_pin_mask_;
 
+  InkplateModel model_;
+  uint16_t width_;
+  uint16_t height_;
+
+  std::array<InternalGPIOPin *, 8> display_data_pins_;
+
   GPIOPin *ckv_pin_;
-  InternalGPIOPin *cl_pin_;
   GPIOPin *gpio0_enable_pin_;
   GPIOPin *gmod_pin_;
-  InternalGPIOPin *le_pin_;
   GPIOPin *oe_pin_;
   GPIOPin *powerup_pin_;
   GPIOPin *sph_pin_;
   GPIOPin *spv_pin_;
   GPIOPin *vcom_pin_;
   GPIOPin *wakeup_pin_;
+  InternalGPIOPin *cl_pin_;
+  InternalGPIOPin *le_pin_;
 };
 
 }  // namespace inkplate
