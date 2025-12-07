@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include "esphome/core/string_ref.h"
+
 namespace esphome {
 namespace text {
 
@@ -22,6 +24,7 @@ class TextTraits {
   void set_pattern(const char *pattern) { this->pattern_ = pattern; }
   std::string get_pattern() const { return std::string(this->pattern_); }
   const char *get_pattern_c_str() const { return this->pattern_; }
+  StringRef get_pattern_ref() const { return StringRef(this->pattern_); }
 
   // Set/get the frontend mode.
   void set_mode(TextMode mode) { this->mode_ = mode; }
