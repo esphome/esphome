@@ -126,7 +126,7 @@ static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 //        Allows single write call with newline included for efficiency
 // true:  write_msg_ adds newline itself via puts()/println() (other platforms)
 //        Newline should NOT be added to buffer
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_STM32)
 static constexpr bool WRITE_MSG_ADDS_NEWLINE = false;
 #else
 static constexpr bool WRITE_MSG_ADDS_NEWLINE = true;

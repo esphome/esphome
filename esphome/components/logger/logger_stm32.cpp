@@ -14,10 +14,9 @@ void Logger::pre_setup() {
 
 void Logger::set_uart_parent(uart::UARTComponent *uart) { this->hw_uart_ = uart; }
 
-void HOT Logger::write_msg_(const char *msg) {
+void HOT Logger::write_msg_(const char *msg, size_t size) {
   if (this->hw_uart_) {
-    this->hw_uart_->write_array((uint8_t *) msg, strlen(msg));
-    this->hw_uart_->write_array((uint8_t *) "\n", 1);
+    this->hw_uart_->write_array((uint8_t *) msg, size);
   }
 }
 
