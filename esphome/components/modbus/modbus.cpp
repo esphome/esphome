@@ -39,7 +39,7 @@ void Modbus::loop() {
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   if (millis() - this->last_modbus_byte_ > timeout) {
-    clear_rx_buffer_("timeout after partial response", true);
+    this->clear_rx_buffer_("timeout after partial response", true);
   }
 
   // If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
@@ -216,14 +216,14 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
           uint8_t exception = raw[2];
           ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
                    exception, address, millis() - this->last_send_);
-          if (waiting_for_response_ == address) {
+          if (this->waiting_for_response_ == address) {
             device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
           } else {
             // Ignore modbus exception not related to a pending command
             ESP_LOGD(TAG, "Ignoring error - not expecting a response from %d", address);
           }
         } else {  // Not an error response
-          if (waiting_for_response_ == address) {
+          if (this->waiting_for_response_ == address) {
             device->on_modbus_data(data);
           } else {
             // Ignore modbus response not related to a pending command
