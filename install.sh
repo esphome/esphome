@@ -18,7 +18,6 @@ ESPHOME_USER="esphome"
 ESPHOME_HOME="/opt/esphome"
 ESPHOME_WORKSPACE="/var/lib/esphome"
 SERVICE_NAME="esphome-compile-backend"
-PYTHON_VERSION="3.11"
 
 # Logging functions
 log_info() {
