@@ -445,6 +445,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 }
 void WiFiComponent::wifi_scan_done_callback_() {
   this->scan_result_.clear();
+  this->scan_done_ = true;
 
   int16_t num = WiFi.scanComplete();
   if (num < 0)
@@ -463,7 +464,6 @@ void WiFiComponent::wifi_scan_done_callback_() {
                                     ssid.length() == 0);
   }
   WiFi.scanDelete();
-  this->scan_done_ = true;
 #ifdef USE_WIFI_LISTENERS
   for (auto *listener : this->scan_results_listeners_) {
     listener->on_wifi_scan_results(this->scan_result_);
