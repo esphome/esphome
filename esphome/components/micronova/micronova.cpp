@@ -54,20 +54,20 @@ void MicroNova::request_update_listeners_() {
 
 void MicroNova::loop() {
   // Check if we're processing a command and waiting for reply
-  if (this->current_command_.has_value()) {
+  if (this->transmission_time_ != 0) {
     if (millis() - this->transmission_time_ > STOVE_REPLY_DELAY) {
       int stove_reply_value = this->read_stove_reply_();
       // For READ commands, notify all listeners registered for this address
-      if (!this->current_command_->is_write()) {
-        uint8_t loc = this->current_command_->memory_location;
-        uint8_t addr = this->current_command_->memory_address;
+      if (!this->current_command_.is_write()) {
+        uint8_t loc = this->current_command_.memory_location;
+        uint8_t addr = this->current_command_.memory_address;
         for (auto *listener : this->listeners_) {
           if (listener->get_memory_location() == loc && listener->get_memory_address() == addr) {
             listener->process_value_from_stove(stove_reply_value);
           }
         }
       }
-      this->current_command_.reset();
+      this->transmission_time_ = 0;
     }
     return;
   }
@@ -99,10 +99,6 @@ void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
 }
 
 void MicroNova::send_current_command_() {
-  if (!this->current_command_.has_value()) {
-    return;
-  }
-
   uint8_t trash_rx;
 
   // Clear rx buffer - stove hiccups may cause late replies in the rx
@@ -111,12 +107,12 @@ void MicroNova::send_current_command_() {
     ESP_LOGW(TAG, "Reading excess byte 0x%02X", trash_rx);
   }
 
-  uint8_t write_data[4] = {this->current_command_->memory_location, this->current_command_->memory_address, 0, 0};
+  uint8_t write_data[4] = {this->current_command_.memory_location, this->current_command_.memory_address, 0, 0};
   size_t write_len;
 
-  if (this->current_command_->is_write()) {
+  if (this->current_command_.is_write()) {
     write_len = 4;
-    write_data[2] = this->current_command_->data;
+    write_data[2] = this->current_command_.data;
     // calculate checksum
     write_data[3] = ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
     ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
@@ -134,22 +130,18 @@ void MicroNova::send_current_command_() {
 }
 
 int MicroNova::read_stove_reply_() {
-  if (!this->current_command_.has_value()) {
-    return -1;
-  }
-
   uint8_t reply_data[2] = {0, 0};
 
   this->read_array(reply_data, 2);
 
   ESP_LOGV(TAG, "Reply from stove [%02X,%02X]", reply_data[0], reply_data[1]);
 
-  uint8_t checksum = ((uint16_t) this->current_command_->memory_location +
-                      (uint16_t) this->current_command_->memory_address + (uint16_t) reply_data[1]) &
+  uint8_t checksum = ((uint16_t) this->current_command_.memory_location +
+                      (uint16_t) this->current_command_.memory_address + (uint16_t) reply_data[1]) &
                      0xFF;
   if (reply_data[0] != checksum) {
     ESP_LOGE(TAG, "Checksum mismatch! From [0x%02X:0x%02X] received [0x%02X,0x%02X]. Expected 0x%02X, got 0x%02X",
-             this->current_command_->memory_location, this->current_command_->memory_address, reply_data[0],
+             this->current_command_.memory_location, this->current_command_.memory_address, reply_data[0],
              reply_data[1], checksum, reply_data[0]);
     return -1;
   }

@@ -7,7 +7,6 @@
 #include "esphome/core/log.h"
 
 #include <deque>
-#include <optional>
 #include <vector>
 
 namespace esphome::micronova {
@@ -98,8 +97,8 @@ class MicroNova : public Component, public uart::UARTDevice {
 
   std::deque<MicroNovaCommand> command_queue_;
 
-  std::optional<MicroNovaCommand> current_command_;
-  uint32_t transmission_time_{0};  ///< Time when current command was sent
+  MicroNovaCommand current_command_;
+  uint32_t transmission_time_{0};  ///< Time when current command was sent (0 = no command pending)
 
   std::vector<MicroNovaListener *> listeners_;
 };
