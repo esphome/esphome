@@ -7,7 +7,6 @@
 #include "esphome/core/log.h"
 
 #include <deque>
-#include <map>
 #include <optional>
 #include <vector>
 
@@ -34,14 +33,6 @@ enum class MicroNovaFunctions {
 enum class MicroNovaCommandType : uint8_t {
   READ = 0,
   WRITE = 1,
-};
-
-/// Key for listener map: (memory_location, memory_address)
-struct MicroNovaAddress {
-  uint8_t memory_location;
-  uint8_t memory_address;
-
-  auto operator<=>(const MicroNovaAddress &) const = default;
 };
 
 /// Represents a command to be sent to the stove
@@ -139,9 +130,7 @@ class MicroNova : public Component, public uart::UARTDevice {
 
   std::optional<MicroNovaCommand> current_command_;
 
-  /// Registered listeners grouped by memory address
-  /// Key: (memory_location, memory_address), Value: list of listeners for that address
-  std::map<MicroNovaAddress, std::vector<MicroNovaListener *>> listeners_;
+  std::vector<MicroNovaListener *> listeners_;
 };
 
 }  // namespace esphome::micronova
