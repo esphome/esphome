@@ -1,7 +1,6 @@
 #include "micronova_switch.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 void MicroNovaSwitch::write_state(bool state) {
   switch (this->get_function()) {
@@ -23,7 +22,7 @@ void MicroNovaSwitch::write_state(bool state) {
           ESP_LOGW(TAG, "Unable to turn stove off, invalid state: %d", micronova_->get_current_stove_state());
         }
       }
-      this->micronova_->update();
+      this->micronova_->request_update_listeners();
       break;
 
     default:
@@ -31,5 +30,4 @@ void MicroNovaSwitch::write_state(bool state) {
   }
 }
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

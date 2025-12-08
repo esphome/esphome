@@ -3,14 +3,16 @@
 #include "esphome/components/micronova/micronova.h"
 #include "esphome/components/number/number.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
-class MicroNovaNumber : public number::Number, public MicroNovaSensorListener {
+class MicroNovaNumber : public number::Number, public MicroNovaListener {
  public:
   MicroNovaNumber() {}
-  MicroNovaNumber(MicroNova *m) : MicroNovaSensorListener(m) {}
-  void dump_config() override { LOG_NUMBER("", "Micronova number", this); }
+  MicroNovaNumber(MicroNova *m) : MicroNovaListener(m) {}
+  void dump_config() override {
+    LOG_NUMBER("", "Micronova number", this);
+    this->dump_base_config();
+  }
   void control(float value) override;
   void request_value_from_stove() override {
     this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
@@ -24,5 +26,4 @@ class MicroNovaNumber : public number::Number, public MicroNovaSensorListener {
   uint8_t memory_write_location_ = 0;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

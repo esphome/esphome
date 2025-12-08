@@ -3,13 +3,15 @@
 #include "esphome/components/micronova/micronova.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
-class MicroNovaSensor : public sensor::Sensor, public MicroNovaSensorListener {
+class MicroNovaSensor : public sensor::Sensor, public MicroNovaListener {
  public:
-  MicroNovaSensor(MicroNova *m) : MicroNovaSensorListener(m) {}
-  void dump_config() override { LOG_SENSOR("", "Micronova sensor", this); }
+  MicroNovaSensor(MicroNova *m) : MicroNovaListener(m) {}
+  void dump_config() override {
+    LOG_SENSOR("", "Micronova sensor", this);
+    this->dump_base_config();
+  }
 
   void request_value_from_stove() override {
     this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
@@ -23,5 +25,4 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaSensorListener {
   int fan_speed_offset_ = 0;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

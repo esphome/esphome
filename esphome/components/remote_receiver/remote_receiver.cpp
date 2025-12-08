@@ -3,65 +3,81 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266)
+#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
 
-namespace esphome {
-namespace remote_receiver {
+namespace esphome::remote_receiver {
 
 static const char *const TAG = "remote_receiver";
 
+static void IRAM_ATTR HOT write_value(RemoteReceiverComponentStore *arg, uint32_t delta, bool level) {
+  // convert level to -1 or +1 and write the delta to the buffer
+  int32_t multiplier = ((int32_t) level << 1) - 1;
+  uint32_t buffer_write = arg->buffer_write;
+  arg->buffer[buffer_write++] = (int32_t) delta * multiplier;
+  if (buffer_write >= arg->buffer_size) {
+    buffer_write = 0;
+  }
+
+  // detect overflow and reset the write pointer
+  if (buffer_write == arg->buffer_read) {
+    buffer_write = arg->buffer_start;
+    arg->overflow = true;
+  }
+
+  // detect idle and start a new sequence unless there is only idle in
+  // which case reset the write pointer instead
+  if (delta >= arg->idle_us) {
+    if (arg->buffer_write == arg->buffer_start) {
+      buffer_write = arg->buffer_start;
+    } else {
+      arg->buffer_start = buffer_write;
+    }
+  }
+  arg->buffer_write = buffer_write;
+}
+
+static void IRAM_ATTR HOT commit_value(RemoteReceiverComponentStore *arg, uint32_t micros, bool level) {
+  // commit value if the level is different from the last commit level
+  if (level != arg->commit_level) {
+    write_value(arg, micros - arg->commit_micros, level);
+    arg->commit_micros = micros;
+    arg->commit_level = level;
+  }
+}
+
 void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverComponentStore *arg) {
-  const uint32_t now = micros();
-  // If the lhs is 1 (rising edge) we should write to an uneven index and vice versa
-  const uint32_t next = (arg->buffer_write_at + 1) % arg->buffer_size;
-  const bool level = arg->pin.digital_read();
-  if (level != next % 2)
-    return;
+  // invert the level so it matches the level of the signal before the edge
+  const bool curr_level = !arg->pin.digital_read();
+  const uint32_t curr_micros = micros();
+  const bool prev_level = arg->prev_level;
+  const uint32_t prev_micros = arg->prev_micros;
 
-  // If next is buffer_read, we have hit an overflow
-  if (next == arg->buffer_read_at)
-    return;
-
-  const uint32_t last_change = arg->buffer[arg->buffer_write_at];
-  const uint32_t time_since_change = now - last_change;
-  if (time_since_change <= arg->filter_us)
-    return;
-
-  arg->buffer[arg->buffer_write_at = next] = now;  // NOLINT(clang-diagnostic-deprecated-volatile)
+  // commit the previous value if the pulse is not filtered and the level is different
+  if (curr_micros - prev_micros >= arg->filter_us && prev_level != curr_level) {
+    commit_value(arg, prev_micros, prev_level);
+  }
+  arg->prev_micros = curr_micros;
+  arg->prev_level = curr_level;
 }
 
 void RemoteReceiverComponent::setup() {
   this->pin_->setup();
-  auto &s = this->store_;
-  s.filter_us = this->filter_us_;
-  s.pin = this->pin_->to_isr();
-  s.buffer_size = this->buffer_size_;
-
-  this->high_freq_.start();
-  if (s.buffer_size % 2 != 0) {
-    // Make sure divisible by two. This way, we know that every 0bxxx0 index is a space and every 0bxxx1 index is a mark
-    s.buffer_size++;
-  }
-
-  s.buffer = new uint32_t[s.buffer_size];
-  void *buf = (void *) s.buffer;
-  memset(buf, 0, s.buffer_size * sizeof(uint32_t));
-
-  // First index is a space.
-  if (this->pin_->digital_read()) {
-    s.buffer_write_at = s.buffer_read_at = 1;
-  } else {
-    s.buffer_write_at = s.buffer_read_at = 0;
-  }
+  this->store_.idle_us = this->idle_us_;
+  this->store_.filter_us = this->filter_us_;
+  this->store_.pin = this->pin_->to_isr();
+  this->store_.buffer = new int32_t[this->buffer_size_];
+  this->store_.buffer_size = this->buffer_size_;
+  this->store_.prev_micros = micros();
+  this->store_.commit_micros = this->store_.prev_micros;
+  this->store_.prev_level = this->pin_->digital_read();
+  this->store_.commit_level = this->store_.prev_level;
   this->pin_->attach_interrupt(RemoteReceiverComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
+  this->high_freq_.start();
 }
+
 void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Receiver:");
   LOG_PIN("  Pin: ", this->pin_);
-  if (this->pin_->digital_read()) {
-    ESP_LOGW(TAG, "Remote Receiver Signal starts with a HIGH value. Usually this means you have to "
-                  "invert the signal using 'inverted: True' in the pin schema!");
-  }
   ESP_LOGCONFIG(TAG,
                 "  Buffer Size: %u\n"
                 "  Tolerance: %u%s\n"
@@ -73,53 +89,54 @@ void RemoteReceiverComponent::dump_config() {
 }
 
 void RemoteReceiverComponent::loop() {
+  // check for overflow
   auto &s = this->store_;
-
-  // copy write at to local variables, as it's volatile
-  const uint32_t write_at = s.buffer_write_at;
-  const uint32_t dist = (s.buffer_size + write_at - s.buffer_read_at) % s.buffer_size;
-  // signals must at least one rising and one leading edge
-  if (dist <= 1)
-    return;
-  const uint32_t now = micros();
-  if (now - s.buffer[write_at] < this->idle_us_) {
-    // The last change was fewer than the configured idle time ago.
-    return;
+  if (s.overflow) {
+    ESP_LOGW(TAG, "Buffer overflow");
+    s.overflow = false;
   }
 
-  ESP_LOGVV(TAG, "read_at=%u write_at=%u dist=%u now=%u end=%u", s.buffer_read_at, write_at, dist, now,
-            s.buffer[write_at]);
-
-  // Skip first value, it's from the previous idle level
-  s.buffer_read_at = (s.buffer_read_at + 1) % s.buffer_size;
-  uint32_t prev = s.buffer_read_at;
-  s.buffer_read_at = (s.buffer_read_at + 1) % s.buffer_size;
-  const uint32_t reserve_size = 1 + (s.buffer_size + write_at - s.buffer_read_at) % s.buffer_size;
-  this->temp_.clear();
-  this->temp_.reserve(reserve_size);
-  int32_t multiplier = s.buffer_read_at % 2 == 0 ? 1 : -1;
-
-  for (uint32_t i = 0; prev != write_at; i++) {
-    int32_t delta = s.buffer[s.buffer_read_at] - s.buffer[prev];
-    if (uint32_t(delta) >= this->idle_us_) {
-      // already found a space longer than idle. There must have been two pulses
-      break;
+  // if no data is available check for uncommitted data stuck in the buffer and commit
+  // the previous value if needed
+  uint32_t last_index = s.buffer_start;
+  if (last_index == s.buffer_read) {
+    InterruptLock lock;
+    if (s.buffer_read == s.buffer_start && s.buffer_write != s.buffer_start &&
+        micros() - s.prev_micros >= this->idle_us_) {
+      commit_value(&s, s.prev_micros, s.prev_level);
+      write_value(&s, s.idle_us, !s.commit_level);
+      last_index = s.buffer_start;
     }
-
-    ESP_LOGVV(TAG, "  i=%u buffer[%u]=%u - buffer[%u]=%u -> %d", i, s.buffer_read_at, s.buffer[s.buffer_read_at], prev,
-              s.buffer[prev], multiplier * delta);
-    this->temp_.push_back(multiplier * delta);
-    prev = s.buffer_read_at;
-    s.buffer_read_at = (s.buffer_read_at + 1) % s.buffer_size;
-    multiplier *= -1;
   }
-  s.buffer_read_at = (s.buffer_size + s.buffer_read_at - 1) % s.buffer_size;
-  this->temp_.push_back(this->idle_us_ * multiplier);
+  if (last_index == s.buffer_read) {
+    return;
+  }
 
+  // find the size of the packet and reserve the memory
+  uint32_t temp_read = s.buffer_read;
+  uint32_t reserve_size = 0;
+  while (temp_read != last_index && (uint32_t) std::abs(s.buffer[temp_read]) < this->idle_us_) {
+    reserve_size++;
+    temp_read++;
+    if (temp_read >= s.buffer_size) {
+      temp_read = 0;
+    }
+  }
+  this->temp_.clear();
+  this->temp_.reserve(reserve_size + 1);
+
+  // read the buffer
+  for (uint32_t i = 0; i < reserve_size + 1; i++) {
+    this->temp_.push_back((int32_t) s.buffer[s.buffer_read++]);
+    if (s.buffer_read >= s.buffer_size) {
+      s.buffer_read = 0;
+    }
+  }
+
+  // call the listeners and dumpers
   this->call_listeners_dumpers_();
 }
 
-}  // namespace remote_receiver
-}  // namespace esphome
+}  // namespace esphome::remote_receiver
 
 #endif

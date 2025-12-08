@@ -84,8 +84,6 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         # Get device name for object ID calculation
         device_name = device_id_obj.id
 
-    add(var.set_name(config[CONF_NAME]))
-
     # Calculate base object_id using the same logic as C++
     # This must match the C++ behavior in esphome/core/entity_base.cpp
     base_object_id = get_base_entity_object_id(
@@ -97,8 +95,8 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
             "Entity has empty name, using '%s' as object_id base", base_object_id
         )
 
-    # Set the object ID
-    add(var.set_object_id(base_object_id))
+    # Set both name and object_id in one call to reduce generated code size
+    add(var.set_name_and_object_id(config[CONF_NAME], base_object_id))
     _LOGGER.debug(
         "Setting object_id '%s' for entity '%s' on platform '%s'",
         base_object_id,

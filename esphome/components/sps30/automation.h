@@ -1,20 +1,25 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include "sps30.h"
 
 namespace esphome {
 namespace sps30 {
 
-template<typename... Ts> class StartFanAction : public Action<Ts...> {
+template<typename... Ts> class StartFanAction : public Action<Ts...>, public Parented<SPS30Component> {
  public:
-  explicit StartFanAction(SPS30Component *sps30) : sps30_(sps30) {}
+  void play(const Ts &...x) override { this->parent_->start_fan_cleaning(); }
+};
 
-  void play(const Ts &...x) override { this->sps30_->start_fan_cleaning(); }
+template<typename... Ts> class StartMeasurementAction : public Action<Ts...>, public Parented<SPS30Component> {
+ public:
+  void play(const Ts &...x) override { this->parent_->start_measurement(); }
+};
 
- protected:
-  SPS30Component *sps30_;
+template<typename... Ts> class StopMeasurementAction : public Action<Ts...>, public Parented<SPS30Component> {
+ public:
+  void play(const Ts &...x) override { this->parent_->stop_measurement(); }
 };
 
 }  // namespace sps30
