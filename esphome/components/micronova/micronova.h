@@ -12,6 +12,7 @@ namespace esphome::micronova {
 
 static const char *const TAG = "micronova";
 static const int STOVE_REPLY_DELAY = 60;
+static const uint8_t WRITE_BIT = 1 << 7;  // 0x80
 
 enum class MicroNovaFunctions {
   STOVE_FUNCTION_VOID = 0,
