@@ -4,13 +4,13 @@ import esphome.config_validation as cv
 from esphome.const import CONF_STEP, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
 
 from .. import (
-    CONF_MEMORY_ADDRESS,
-    CONF_MEMORY_LOCATION,
     CONF_MICRONOVA_ID,
-    MICRONOVA_LISTENER_SCHEMA,
+    MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
+    MicroNovaListener,
     micronova_ns,
+    to_code_micronova_listener,
 )
 
 ICON_FLASH = "mdi:flash"
@@ -19,7 +19,9 @@ CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
 CONF_POWER_LEVEL = "power_level"
 CONF_MEMORY_WRITE_LOCATION = "memory_write_location"
 
-MicroNovaNumber = micronova_ns.class_("MicroNovaNumber", number.Number, cg.Component)
+MicroNovaNumber = micronova_ns.class_(
+    "MicroNovaNumber", number.Number, MicroNovaListener
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -30,8 +32,10 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_TEMPERATURE,
         )
         .extend(
-            MICRONOVA_LISTENER_SCHEMA(
-                default_memory_location=0x20, default_memory_address=0x7D
+            MICRONOVA_ADDRESS_SCHEMA(
+                default_memory_location=0x20,
+                default_memory_address=0x7D,
+                is_polling_component=True,
             )
         )
         .extend(
@@ -47,8 +51,10 @@ CONFIG_SCHEMA = cv.Schema(
             icon=ICON_FLASH,
         )
         .extend(
-            MICRONOVA_LISTENER_SCHEMA(
-                default_memory_location=0x20, default_memory_address=0x7F
+            MICRONOVA_ADDRESS_SCHEMA(
+                default_memory_location=0x20,
+                default_memory_address=0x7F,
+                is_polling_component=True,
             )
         )
         .extend(
@@ -68,23 +74,17 @@ async def to_code(config):
             max_value=40,
             step=thermostat_temperature_config.get(CONF_STEP),
         )
+        await to_code_micronova_listener(
+            mv,
+            numb,
+            thermostat_temperature_config,
+            MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE,
+        )
         cg.add(numb.set_micronova_object(mv))
-        cg.add(mv.register_micronova_listener(numb))
-        cg.add(
-            numb.set_memory_location(
-                thermostat_temperature_config[CONF_MEMORY_LOCATION]
-            )
-        )
-        cg.add(
-            numb.set_memory_address(thermostat_temperature_config[CONF_MEMORY_ADDRESS])
-        )
         cg.add(
             numb.set_memory_write_location(
                 thermostat_temperature_config.get(CONF_MEMORY_WRITE_LOCATION)
             )
-        )
-        cg.add(
-            numb.set_function(MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE)
         )
 
     if power_level_config := config.get(CONF_POWER_LEVEL):
@@ -94,13 +94,12 @@ async def to_code(config):
             max_value=5,
             step=1,
         )
+        await to_code_micronova_listener(
+            mv, numb, power_level_config, MicroNovaFunctions.STOVE_FUNCTION_POWER_LEVEL
+        )
         cg.add(numb.set_micronova_object(mv))
-        cg.add(mv.register_micronova_listener(numb))
-        cg.add(numb.set_memory_location(power_level_config[CONF_MEMORY_LOCATION]))
-        cg.add(numb.set_memory_address(power_level_config[CONF_MEMORY_ADDRESS]))
         cg.add(
             numb.set_memory_write_location(
                 power_level_config.get(CONF_MEMORY_WRITE_LOCATION)
             )
         )
-        cg.add(numb.set_function(MicroNovaFunctions.STOVE_FUNCTION_POWER_LEVEL))
