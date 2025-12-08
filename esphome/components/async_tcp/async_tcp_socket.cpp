@@ -1,6 +1,6 @@
 #include "async_tcp_socket.h"
 
-#ifndef USE_ARDUINO
+#if defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
@@ -152,4 +152,4 @@ void AsyncClient::loop() {
 }  // namespace async_tcp
 }  // namespace esphome
 
-#endif  // !USE_ARDUINO
+#endif  // defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)

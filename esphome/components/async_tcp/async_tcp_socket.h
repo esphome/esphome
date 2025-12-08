@@ -1,6 +1,6 @@
 #pragma once
 
-#ifndef USE_ARDUINO
+#if defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
 #include "esphome/components/socket/socket.h"
 #include <functional>
@@ -64,4 +64,4 @@ class AsyncClient {
 }  // namespace async_tcp
 }  // namespace esphome
 
-#endif  // !USE_ARDUINO
+#endif  // defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
