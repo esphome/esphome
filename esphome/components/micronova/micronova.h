@@ -14,24 +14,14 @@ namespace esphome::micronova {
 
 static const char *const TAG = "micronova";
 
-enum class MicroNovaCommandType : uint8_t {
-  READ = 0,
-  WRITE = 1,
-};
-
 /// Represents a command to be sent to the stove
+/// Write commands have the high bit (0x80) set in memory_location
 struct MicroNovaCommand {
-  MicroNovaCommandType type;
   uint8_t memory_location;
   uint8_t memory_address;
-  uint8_t data;                   ///< Only used for WRITE commands
-  uint32_t transmission_time{0};  ///< Time when command was sent
+  uint8_t data;  ///< Only used for write commands
 
-  /// Compare commands for equality (ignores transmission_time for queue deduplication)
-  bool operator==(const MicroNovaCommand &other) const {
-    return type == other.type && memory_location == other.memory_location && memory_address == other.memory_address &&
-           data == other.data;
-  }
+  bool is_write() const;
 };
 
 class MicroNova;
@@ -109,6 +99,7 @@ class MicroNova : public Component, public uart::UARTDevice {
   std::deque<MicroNovaCommand> command_queue_;
 
   std::optional<MicroNovaCommand> current_command_;
+  uint32_t transmission_time_{0};  ///< Time when current command was sent
 
   std::vector<MicroNovaListener *> listeners_;
 };

@@ -6,6 +6,8 @@ namespace esphome::micronova {
 static const int STOVE_REPLY_DELAY = 60;
 static const uint8_t WRITE_BIT = 1 << 7;  // 0x80
 
+bool MicroNovaCommand::is_write() const { return this->memory_location & WRITE_BIT; }
+
 void MicroNovaBaseListener::dump_base_config() {
   ESP_LOGCONFIG(TAG,
                 "  Memory Location: %02X\n"
@@ -53,10 +55,10 @@ void MicroNova::request_update_listeners_() {
 void MicroNova::loop() {
   // Check if we're processing a command and waiting for reply
   if (this->current_command_.has_value()) {
-    if (millis() - this->current_command_->transmission_time > STOVE_REPLY_DELAY) {
+    if (millis() - this->transmission_time_ > STOVE_REPLY_DELAY) {
       int stove_reply_value = this->read_stove_reply_();
       // For READ commands, notify all listeners registered for this address
-      if (this->current_command_->type == MicroNovaCommandType::READ) {
+      if (!this->current_command_->is_write()) {
         uint8_t loc = this->current_command_->memory_location;
         uint8_t addr = this->current_command_->memory_address;
         for (auto *listener : this->listeners_) {
@@ -79,19 +81,18 @@ void MicroNova::loop() {
 }
 
 void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
-  MicroNovaCommand cmd;
-  cmd.type = MicroNovaCommandType::READ;
-  cmd.memory_location = location;
-  cmd.memory_address = address;
-  cmd.data = 0;
-
-  // Check if this read is already queued
+  // Check if this read is already queued (compare location + address only)
   for (const auto &queued : this->command_queue_) {
-    if (queued == cmd) {
+    if (queued.memory_location == location && queued.memory_address == address) {
       ESP_LOGV(TAG, "Read [%02X,%02X] already queued, ignoring", location, address);
       return;
     }
   }
+
+  MicroNovaCommand cmd;
+  cmd.memory_location = location;
+  cmd.memory_address = address;
+  cmd.data = 0;
 
   this->command_queue_.push_back(cmd);
   ESP_LOGV(TAG, "Queued read [%02X,%02X] at back (queue size: %zu)", location, address, this->command_queue_.size());
@@ -113,15 +114,15 @@ void MicroNova::send_current_command_() {
   uint8_t write_data[4] = {this->current_command_->memory_location, this->current_command_->memory_address, 0, 0};
   size_t write_len;
 
-  if (this->current_command_->type == MicroNovaCommandType::READ) {
-    write_len = 2;
-    ESP_LOGV(TAG, "Request from stove [%02X,%02X]", write_data[0], write_data[1]);
-  } else {
+  if (this->current_command_->is_write()) {
     write_len = 4;
     write_data[2] = this->current_command_->data;
     // calculate checksum
     write_data[3] = ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
     ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
+  } else {
+    write_len = 2;
+    ESP_LOGV(TAG, "Request from stove [%02X,%02X]", write_data[0], write_data[1]);
   }
 
   this->enable_rx_pin_->digital_write(true);
@@ -129,7 +130,7 @@ void MicroNova::send_current_command_() {
   this->flush();
   this->enable_rx_pin_->digital_write(false);
 
-  this->current_command_->transmission_time = millis();
+  this->transmission_time_ = millis();
 }
 
 int MicroNova::read_stove_reply_() {
@@ -157,7 +158,6 @@ int MicroNova::read_stove_reply_() {
 
 void MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t data) {
   MicroNovaCommand cmd;
-  cmd.type = MicroNovaCommandType::WRITE;
   cmd.memory_location = location | WRITE_BIT;
   cmd.memory_address = address;
   cmd.data = data;
