@@ -21,7 +21,12 @@ CONFIG_SCHEMA = cv.Schema({})
 
 @coroutine_with_priority(CoroPriority.NETWORK_TRANSPORT)
 async def to_code(config):
-    if CORE.is_esp32 or CORE.is_libretiny:
+    if CORE.using_esp_idf:
+        # ESP-IDF needs the IDF component
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(name="esp32async/asynctcp", ref="3.4.91")
+    elif CORE.is_esp32 or CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
         cg.add_library("ESP32Async/AsyncTCP", "3.4.5")
     elif CORE.is_esp8266:
