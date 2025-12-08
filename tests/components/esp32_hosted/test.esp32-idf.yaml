@@ -1,0 +1,12 @@
+esp32_hosted:
+  variant: ESP32C6
+  type: spi-full-duplex
+  active_high: true
+  reset_pin: GPIO15
+  handshake_pin: GPIO16
+  data_ready_pin: GPIO14
+  miso_pin: GPIO13
+  mosi_pin: GPIO12
+  frequency: 10 MHz
+  clk_pin: GPIO9
+  cs_pin: GPIO10
