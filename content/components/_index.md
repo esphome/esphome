@@ -337,6 +337,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "Daly BMS","components/sensor/daly_bms","daly_bms.jpg","Voltage & Current & Power"
 "DSMR","components/sensor/dsmr","dsmr.svg","Electrical counter"
 "HLW8012","components/sensor/hlw8012","hlw8012.svg","Voltage & Current & Power"
+"HLW8032","components/sensor/hlw8032","hlw8032.png","Voltage & Current & Power"
 "INA219","components/sensor/ina219","ina219.jpg","DC Current"
 "INA226","components/sensor/ina226","ina226.jpg","DC Current & Power"
 "INA228","components/sensor/ina2xx","ina228.jpg","DC Voltage & Current & Power & Charge"
