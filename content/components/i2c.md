@@ -53,6 +53,9 @@ i2c:
 - **scl_pullup_enabled** (*Optional*, boolean): Enable the internal pullup resistor for the SCL pin.
   Defaults to `true`. Only available on ESP32.
 
+- **low_power_mode** (*Optional*, boolean): Enable the low-power (master only) I²C bus.
+  Only availible on ESP32C5, ESP32C6 and ESP32P4. Defaults to `false` unless required.
+
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this I²C bus if you need multiple I²C buses.
 
 > [!NOTE]
