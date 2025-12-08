@@ -1264,8 +1264,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
     }
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      // If scan found no matching networks, skip to hidden network mode
-      if (!this->scan_result_.empty() && !this->scan_result_[0].get_matches()) {
+      // If scan found no networks or no matching networks, skip to hidden network mode
+      if (this->scan_result_.empty() || !this->scan_result_[0].get_matches()) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
 
