@@ -1,0 +1,6 @@
+esp32:
+  board: esp32-p4-evboard
+  framework:
+    type: esp-idf
+
+<<: !include common.yaml
