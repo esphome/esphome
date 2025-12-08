@@ -664,17 +664,92 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
     event_buffer_.append(CRLF_STR, CRLF_LEN);
   }
 
-  if (message && *message) {
-    event_buffer_.append("data: ", sizeof("data: ") - 1);
-    event_buffer_.append(message);
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+  // Match ESPAsyncWebServer: null message means no data lines and no terminating blank line
+  if (message) {
+    // SSE spec requires each line of a multi-line message to have its own "data:" prefix
+    // Handle \n, \r, and \r\n line endings (matching ESPAsyncWebServer behavior)
+
+    // Fast path: check if message contains any newlines at all
+    // Most SSE messages (JSON state updates) have no newlines
+    const char *first_n = strchr(message, '\n');
+    const char *first_r = strchr(message, '\r');
+
+    if (first_n == nullptr && first_r == nullptr) {
+      // No newlines - fast path (most common case)
+      event_buffer_.append("data: ", sizeof("data: ") - 1);
+      event_buffer_.append(message);
+      event_buffer_.append(CRLF_STR CRLF_STR, CRLF_LEN * 2);  // data line + blank line terminator
+    } else {
+      // Has newlines - handle multi-line message
+      const char *line_start = message;
+      size_t msg_len = strlen(message);
+      const char *msg_end = message + msg_len;
+
+      // Reuse the first search results
+      const char *next_n = first_n;
+      const char *next_r = first_r;
+
+      while (line_start <= msg_end) {
+        const char *line_end;
+        const char *next_line;
+
+        if (next_n == nullptr && next_r == nullptr) {
+          // No more line breaks - output remaining text as final line
+          event_buffer_.append("data: ", sizeof("data: ") - 1);
+          event_buffer_.append(line_start);
+          event_buffer_.append(CRLF_STR, CRLF_LEN);
+          break;
+        }
+
+        // Determine line ending type and next line start
+        if (next_n != nullptr && next_r != nullptr) {
+          if (next_r + 1 == next_n) {
+            // \r\n sequence
+            line_end = next_r;
+            next_line = next_n + 1;
+          } else {
+            // Mixed \n and \r - use whichever comes first
+            line_end = (next_r < next_n) ? next_r : next_n;
+            next_line = line_end + 1;
+          }
+        } else if (next_n != nullptr) {
+          // Unix LF
+          line_end = next_n;
+          next_line = next_n + 1;
+        } else {
+          // Old Mac CR
+          line_end = next_r;
+          next_line = next_r + 1;
+        }
+
+        // Output this line
+        event_buffer_.append("data: ", sizeof("data: ") - 1);
+        event_buffer_.append(line_start, line_end - line_start);
+        event_buffer_.append(CRLF_STR, CRLF_LEN);
+
+        line_start = next_line;
+
+        // Check if we've consumed all content
+        if (line_start >= msg_end) {
+          break;
+        }
+
+        // Search for next newlines only in remaining string
+        next_n = strchr(line_start, '\n');
+        next_r = strchr(line_start, '\r');
+      }
+
+      // Terminate message with blank line
+      event_buffer_.append(CRLF_STR, CRLF_LEN);
+    }
   }
 
-  if (event_buffer_.empty()) {
+  if (event_buffer_.size() == static_cast<size_t>(chunk_len_header_len)) {
+    // Nothing was added, reset buffer
+    event_buffer_.resize(0);
     return true;
   }
 
-  event_buffer_.append(CRLF_STR, CRLF_LEN);
   event_buffer_.append(CRLF_STR, CRLF_LEN);
 
   // chunk length header itself and the final chunk terminating CRLF are not counted as part of the chunk
