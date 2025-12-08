@@ -15,114 +15,120 @@ void XensivDPS3xx::setup() {
       if (this->Dps3xxPressureSensor->setInterruptSources(DPS3xx_FIFO_FULL_INTR, 0) != DPS__SUCCEEDED) {
         this->failure_reason_ += "Failed to set FIFO interrupt;";
         this->mark_failed();
+
+        // continuous mode
+        /*
+         * temperature measure rate (value from 0 to 7)
+         * 2^temp_mr temperature measurement results per second
+         */
+        int16_t temp_mr = 5;
+
+        /*
+         * temperature oversampling rate (value from 0 to 7)
+         * 2^temp_osr internal temperature measurements per result
+         * A higher value increases precision
+         */
+        int16_t temp_osr = 1;
+
+        /*
+         * pressure measure rate (value from 0 to 7)
+         * 2^prs_mr pressure measurement results per second
+         */
+        int16_t prs_mr = 5;
+
+        /*
+         * pressure oversampling rate (value from 0 to 7)
+         * 2^prs_osr internal pressure measurements per result
+         * A higher value increases precision
+         */
+        int16_t prs_osr = 1;
+        Dps3xxPressureSensor->getIntStatusFifoFull();
+        if (this->Dps3xxPressureSensor->startMeasureBothCont(temp_mr, temp_osr, prs_mr, prs_osr) != DPS__SUCCEEDED) {
+          this->failure_reason_ += "Failed to start continuous measurement;";
+          this->mark_failed();
+          return;
+        }
+        this->failure_reason_ += "Failed to set interrupt sources;";
+        this->mark_failed();
         return;
       }
-    } else {
+    } else if (this->operation_mode_ == 0) {
       // Single-shot mode: use measurement ready interrupts
       if (this->Dps3xxPressureSensor->setInterruptSources(DPS3xx_BOTH_INTR, 0) != DPS__SUCCEEDED) {
         this->failure_reason_ += "Failed to set interrupt sources;";
         this->mark_failed();
         return;
       }
-    }
-
-    if (this->operation_mode_ == 1) {
-      // continuous mode
-      /*
-       * temperature measure rate (value from 0 to 7)
-       * 2^temp_mr temperature measurement results per second
-       */
-      int16_t temp_mr = 5;
-
-      /*
-       * temperature oversampling rate (value from 0 to 7)
-       * 2^temp_osr internal temperature measurements per result
-       * A higher value increases precision
-       */
-      int16_t temp_osr = 1;
-
-      /*
-       * pressure measure rate (value from 0 to 7)
-       * 2^prs_mr pressure measurement results per second
-       */
-      int16_t prs_mr = 5;
-
-      /*
-       * pressure oversampling rate (value from 0 to 7)
-       * 2^prs_osr internal pressure measurements per result
-       * A higher value increases precision
-       */
-      int16_t prs_osr = 1;
-      Dps3xxPressureSensor->getIntStatusFifoFull();
-
-      // Configure interrupts if pin is provided
-      if (this->interrupt_pin_ != nullptr) {
-        // Setup GPIO interrupt pin first
-        this->interrupt_pin_->setup();
-        this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-        this->interrupt_pin_->attach_interrupt(XensivDPS3xx::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-      } else {
-        this->failure_reason_ += "interrupt pin not configured;";
-      }
-
-      if (this->Dps3xxPressureSensor->startMeasureBothCont(temp_mr, temp_osr, prs_mr, prs_osr) != DPS__SUCCEEDED) {
-        this->failure_reason_ += "Failed to start continuous measurement;";
-        this->mark_failed();
-        return;
-      }
-    } else if (this->operation_mode_ == 0) {
-      // single-shot mode
-      this->Dps3xxPressureSensor->getIntStatusPrsReady();
     } else {
       this->failure_reason_ += "Invalid operation mode configured;";
+      this->mark_failed();
+      return;
+    }
+
+    // Configure interrupts if pin is provided
+    if (this->interrupt_pin_ != nullptr) {
+      // Setup GPIO interrupt pin first
+      this->interrupt_pin_->setup();
+      this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+      this->interrupt_pin_->attach_interrupt(XensivDPS3xx::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    } else {
+      this->failure_reason_ += "interrupt pin not configured;";
     }
   });
 }
 
 void XensivDPS3xx::loop() {
   // Check if data is ready via interrupt
-  if (this->data_ready_) {
-    this->data_ready_ = false;  // Clear flag
-    ESP_LOGD(TAG, "Interrupt occurred, data ready.");
+  // if (this->Dps3xxPressureSensor->getIntStatusFifoFull() == 1) {
+  //   ESP_LOGD(TAG, "FIFO Full Interrupt occurred, data ready.");
+  //   if (operation_mode_ == 1) {
+  //     // In continuous mode, read all available samples from FIFO
+  //     float temp_buffer[32];
+  //     float prs_buffer[32];
+  //     uint8_t temp_count = 32;
+  //     uint8_t prs_count = 32;
+  //     int16_t res = Dps3xxPressureSensor->getContResults(temp_buffer, temp_count, prs_buffer, prs_count);
+  //     if (res != DPS__SUCCEEDED) {
+  //       ESP_LOGW(TAG, "getContResults() returned: %d", res);
+  //       return;
+  //     }
+  //     // Publish the last temperature sample
+  //     if (this->temperature_sensor_ != nullptr && temp_count > 0) {
+  //       this->temperature_sensor_->publish_state(temp_buffer[temp_count - 1]);
+  //     }
+  //     // Publish the last pressure sample
+  //     if (this->pressure_sensor_ != nullptr && prs_count > 0) {
+  //       this->pressure_sensor_->publish_state(prs_buffer[prs_count - 1] / 1000);  // Convert to hPa
+  //     }
+  //     return;
+  //   }
+  // }else if(this->Dps3xxPressureSensor->getIntStatusFifoFull() == -1){
+  //   ESP_LOGW(TAG, "The FIFO IS Disabled: -1");
+  //   return;
+  // }
+
+  if (data_ready_) {
+    data_ready_ = false;
+    ESP_LOGW(TAG, "Data ready interrupt occurred.");
     if (operation_mode_ == 1) {
+      ESP_LOGW(TAG, "Reading data in continuous mode.");
       // In continuous mode, read all available samples from FIFO
-      float temp_buffer[32];
-      float prs_buffer[32];
-      uint8_t temp_count = 32;
-      uint8_t prs_count = 32;
-
-      // Clear FIFO full interrupt flag
-      Dps3xxPressureSensor->getIntStatusFifoFull();
-
-      int16_t res = Dps3xxPressureSensor->getContResults(temp_buffer, temp_count, prs_buffer, prs_count);
-      if (res != DPS__SUCCEEDED) {
-        ESP_LOGW(TAG, "getContResults() returned: %d", res);
+      uint8_t pressureCount = 20;
+      float pressure[pressureCount];
+      uint8_t temperatureCount = 20;
+      float temperature[temperatureCount];
+      int16_t ret = Dps3xxPressureSensor->getContResults(temperature, temperatureCount, pressure, pressureCount);
+      ESP_LOGW(TAG, "getContResults() returned: %d", ret);
+    } else if (operation_mode_ == 0) {
+      ESP_LOGW(TAG, "Reading data in single-shot mode.");
+      // In single-shot mode, read one temperature and one pressure value
+      float result;
+      int16_t ret = Dps3xxPressureSensor->getSingleResult(result);
+      if (ret != DPS__SUCCEEDED) {
+        ESP_LOGW(TAG, "getSingleResult() returned: %d", ret);
         return;
-      }
-
-      // Publish the last temperature sample
-      if (this->temperature_sensor_ != nullptr && temp_count > 0) {
-        this->temperature_sensor_->publish_state(temp_buffer[temp_count - 1]);
-      }
-      // Publish the last pressure sample
-      if (this->pressure_sensor_ != nullptr && prs_count > 0) {
-        this->pressure_sensor_->publish_state(prs_buffer[prs_count - 1] / 1000);  // Convert to hPa
-      }
-      return;
-    }
-
-    // Read temperature if ready
-    float result = 0.0f;
-    int16_t res = Dps3xxPressureSensor->getSingleResult(result);
-    if (res == DPS3xx_TEMP_INTR) {
-      if (this->temperature_sensor_ != nullptr) {
-        this->temperature_sensor_->publish_state(result);
-      }
-    }
-    // Read pressure if ready
-    else if (res == DPS3xx_PRS_INTR) {
-      if (this->pressure_sensor_ != nullptr) {
-        this->pressure_sensor_->publish_state(result / 1000);  // Convert to hPa
+      } else {
+        this->pressure_sensor_->publish_state(result / 1000.0f);  // Convert to hPa
       }
     }
   }
