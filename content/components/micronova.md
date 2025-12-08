@@ -55,8 +55,8 @@ micronova:
 > not specify them. However your Micronova boad may require you to specify alternate values. So every text sensor, button,
 > switch or number accepts these parameters:
 >
-> - **memory_location** (*Optional*): The memory location where the parameter must be read. For most stoves this is 0x00 for RAM
->   or 0x20 for EPROM.
+> - **memory_location** (*Optional*): The memory location for the parameter (0x00 for RAM, 0x20 for EPROM on most stoves).
+>   The write bit is set automatically when writing.
 >
 > - **memory_address** (*Optional*): The address where the parameter is stored.
 
@@ -152,12 +152,6 @@ number:
 - **power_level** (*Optional*): Number that sets/reads the requested stove power.
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
   - All options from [Number](/components/number#config-number).
-
-> [!NOTE]
-> Besides **memory_location** and **memory_address** you can specify a specific **memory_write_location** parameter.
-> This parameter is a hex value for the **memory_location** where the new thermostat value must be written.
->
-> - **memory_write_location** (*Optional*): The **memory_location** where to write the new thermostat value.
 
 ## Buttons
 
