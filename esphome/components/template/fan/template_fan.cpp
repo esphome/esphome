@@ -1,8 +1,7 @@
 #include "template_fan.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.fan";
 
@@ -34,5 +33,4 @@ void TemplateFan::control(const fan::FanCall &call) {
   this->publish_state();
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
