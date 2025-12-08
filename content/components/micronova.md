@@ -49,8 +49,6 @@ micronova:
 ### Configuration variables
 
 - **enable_rx_pin** (**Required**, [Pin](/guides/configuration-types#pin)): Output pin to be used to switch the line between RX and TX.
-- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked.
-  Defaults to 60 seconds.
 
 > [!NOTE]
 > For all text sensors, sensors, numbers, buttons and switches hereafter most of the the default **memory_location** and **memory_address** parameters will work so you should
@@ -74,7 +72,8 @@ text_sensor:
 ### Configuration variables
 
 - **stove_state** (*Optional*): The current stove state.
-  All options from [Text Sensor](/components/text_sensor#config-text_sensor).
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Sensors
 
@@ -103,27 +102,34 @@ sensor:
 ### Configuration variables
 
 - **room_temperature** (*Optional*): Sensor that reads the stoves ambient room temperature.
-  All options from [Sensor](/components/sensor).
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+  - All options from [Sensor](/components/sensor).
 
 - **fumes_temperature** (*Optional*): Fumes temperature.
-  All options from [Sensor](/components/sensor).
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+  - All options from [Sensor](/components/sensor).
 
 - **stove_power** (*Optional*): Current stove power.
-  All options from [Sensor](/components/sensor).
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+  - All options from [Sensor](/components/sensor).
 
 - **fan_speed** (*Optional*): Current fan speed. The raw value from the stove is multiplied by 10 + `fan_rpm_offset`.
-
   - **fan_rpm_offset** (*Optional*, integer): Offset the reported RPM value. Must be between 0 and 255. Defaults to 0.
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
   - All other options from [Sensor](/components/sensor).
-- **water_temperature** (*Optional*): Internal boiler water termperature.
-  All options from [Sensor](/components/sensor).
+
+- **water_temperature** (*Optional*): Internal boiler water temperature.
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+  - All options from [Sensor](/components/sensor).
 
 - **water_pressure** (*Optional*): Internal boiler water pressure.
-  All options from [Sensor](/components/sensor).
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+  - All options from [Sensor](/components/sensor).
 
 - **memory_address_sensor** (*Optional*): Can be any **memory_location** / **memory_address** you want to track. Usefull
   when you don't know where the parameter is for your stove is.
-  All options from [Sensor](/components/sensor).
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+  - All options from [Sensor](/components/sensor).
 
 ## Numbers
 
@@ -141,9 +147,11 @@ number:
 
 - **thermostat_temperature** (*Optional*): Number that holds the current stove thermostat value.
   - **step** (*Optional*): Temperature step. This value is used to multiply/devide the raw value when setting/reading the **thermostat_temperature**
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
   - All other options from [Number](/components/number#config-number).
 - **power_level** (*Optional*): Number that sets/reads the requested stove power.
-  All options from [Number](/components/number#config-number).
+  - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+  - All options from [Number](/components/number#config-number).
 
 > [!NOTE]
 > Besides **memory_location** and **memory_address** you can specify a specific **memory_write_location** parameter.
