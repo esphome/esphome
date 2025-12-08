@@ -20,10 +20,11 @@ void XensivDPS3xx::setup() {
   this->Dps3xxPressureSensor = new Dps3xx(this);
   Dps3xxPressureSensor->begin();
   this->set_timeout(50, [this]() {
-    if (this->Dps3xxPressureSensor->setInterruptSources(0b00010000, 1) != DPS__SUCCEEDED) {
+    // Set interrupt sources with low-active polarity
+    if (this->Dps3xxPressureSensor->setInterruptSources(DPS3xx_PRS_INTR, 0) != DPS__SUCCEEDED) {
       this->failure_reason_ += "Failed to set interrupt sources;";
     }
-    this->Dps3xxPressureSensor->getIntStatusFifoFull();
+    this->Dps3xxPressureSensor->getIntStatusPrsReady();
   });
 }
 
@@ -31,8 +32,15 @@ void XensivDPS3xx::loop() {
   // Check if data is ready via interrupt
   if (this->data_ready_) {
     this->data_ready_ = false;  // Clear flag
-    // TODO: Read sensor data
-    ESP_LOGW(TAG, "Data ready interrupt received - reading sensor data not yet implemented");
+    ESP_LOGD(TAG, "Interrupt occurred, data ready.");
+
+    // Read and clear the interrupt status
+    int16_t int_status = Dps3xxPressureSensor->getIntStatusPrsReady();
+    if (int_status == 1) {  // Returns 1 when interrupt flag is set
+      float pressure = 0.0f;
+      Dps3xxPressureSensor->getSingleResult(pressure);
+      this->pressure_sensor_->publish_state(pressure / 1000);  // Convert to kPa
+    }
   }
 }
 
@@ -68,15 +76,15 @@ bool XensivDPS3xx::measure_now() {
    * Pressure measurement behaves like temperature measurement
    * ret = Dps3xxPressureSensor.measurePressureOnce(pressure);
    */
-  ret = Dps3xxPressureSensor->measurePressureOnce(pressure, oversampling);
-  // ret = Dps3xxPressureSensor->startMeasurePressureOnce(oversampling);
+  // ret = Dps3xxPressureSensor->measurePressureOnce(pressure, oversampling);
+  ret = Dps3xxPressureSensor->startMeasurePressureOnce(oversampling);
   ESP_LOGD(TAG, "measurePressureOnce() returned: %d", ret);
   if (ret != 0) {
     // Something went wrong.
     // Look at the library code for more information about return codes
     return false;
   } else {
-    this->pressure_sensor_->publish_state(pressure / 1000);
+    // this->pressure_sensor_->publish_state(pressure / 1000);
   }
   return true;
 }
