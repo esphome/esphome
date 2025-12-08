@@ -27,6 +27,7 @@ class MicroNovaSwitch : public switch_::Switch, public MicroNovaListener {
 
   uint8_t memory_data_on_ = 0;
   uint8_t memory_data_off_ = 0;
+  uint8_t raw_state_ = 0;
 };
 
 }  // namespace esphome::micronova

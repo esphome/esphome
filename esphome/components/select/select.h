@@ -62,8 +62,9 @@ class Select : public EntityBase {
   size_t size() const;
 
   /// Find the (optional) index offset of the provided option value.
-  optional<size_t> index_of(const std::string &option) const;
-  optional<size_t> index_of(const char *option) const;
+  optional<size_t> index_of(const char *option, size_t len) const;
+  optional<size_t> index_of(const std::string &option) const { return this->index_of(option.data(), option.size()); }
+  optional<size_t> index_of(const char *option) const { return this->index_of(option, strlen(option)); }
 
   /// Return the (optional) index offset of the currently active option.
   optional<size_t> active_index() const;
