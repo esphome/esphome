@@ -27,7 +27,7 @@ bool DeepSleepComponent::prepare_to_sleep_() {
         // Defer deep sleep until inactive
         if (!this->next_enter_deep_sleep_) {
           this->status_set_warning();
-          ESP_LOGW(TAG, "Waiting for pin_ to switch state to enter deep sleep...");
+          ESP_LOGV(TAG, "Waiting for pin to switch state to enter deep sleep...");
         }
         this->next_enter_deep_sleep_ = true;
         return false;
