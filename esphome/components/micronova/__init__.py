@@ -4,7 +4,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@jorre05"]
+CODEOWNERS = ["@jorre05", "@edenhaus"]
 
 DEPENDENCIES = ["uart"]
 
@@ -12,6 +12,7 @@ CONF_MICRONOVA_ID = "micronova_id"
 CONF_ENABLE_RX_PIN = "enable_rx_pin"
 CONF_MEMORY_LOCATION = "memory_location"
 CONF_MEMORY_ADDRESS = "memory_address"
+DEFAULT_POLLING_INTERVAL = "60s"
 
 micronova_ns = cg.esphome_ns.namespace("micronova")
 
@@ -31,22 +32,24 @@ MICRONOVA_FUNCTIONS_ENUM = {
     "STOVE_FUNCTION_CUSTOM": MicroNovaFunctions.STOVE_FUNCTION_CUSTOM,
 }
 
-MicroNova = micronova_ns.class_("MicroNova", cg.PollingComponent, uart.UARTDevice)
+MicroNova = micronova_ns.class_("MicroNova", cg.Component, uart.UARTDevice)
+MicroNovaListener = micronova_ns.class_("MicroNovaListener", cg.PollingComponent)
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(MicroNova),
-            cv.Required(CONF_ENABLE_RX_PIN): pins.gpio_output_pin_schema,
-        }
-    )
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("60s"))
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(MicroNova),
+        cv.Required(CONF_ENABLE_RX_PIN): pins.gpio_output_pin_schema,
+    }
+).extend(uart.UART_DEVICE_SCHEMA)
 
 
-def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
-    return cv.Schema(
+def MICRONOVA_ADDRESS_SCHEMA(
+    *,
+    default_memory_location: int,
+    default_memory_address: int,
+    is_polling_component: bool,
+):
+    schema = cv.Schema(
         {
             cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
             cv.Optional(
@@ -57,6 +60,17 @@ def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
             ): cv.hex_int_range(),
         }
     )
+    if is_polling_component:
+        schema = schema.extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
+    return schema
+
+
+async def to_code_micronova_listener(mv, var, config, micronova_function):
+    await cg.register_component(var, config)
+    cg.add(mv.register_micronova_listener(var))
+    cg.add(var.set_memory_location(config[CONF_MEMORY_LOCATION]))
+    cg.add(var.set_memory_address(config[CONF_MEMORY_ADDRESS]))
+    cg.add(var.set_function(micronova_function))
 
 
 async def to_code(config):

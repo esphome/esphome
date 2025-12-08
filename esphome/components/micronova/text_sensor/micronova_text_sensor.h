@@ -17,10 +17,13 @@ static const char *const STOVE_STATES[11] = {"Off",
                                              "No ignition alarm",
                                              "Undefined alarm"};
 
-class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaSensorListener {
+class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaListener {
  public:
-  MicroNovaTextSensor(MicroNova *m) : MicroNovaSensorListener(m) {}
-  void dump_config() override { LOG_TEXT_SENSOR("", "Micronova text sensor", this); }
+  MicroNovaTextSensor(MicroNova *m) : MicroNovaListener(m) {}
+  void dump_config() override {
+    LOG_TEXT_SENSOR("", "Micronova text sensor", this);
+    this->dump_base_config();
+  }
   void request_value_from_stove() override {
     this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
   }
