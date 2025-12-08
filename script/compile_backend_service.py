@@ -214,6 +214,14 @@ def process_configuration(args: argparse.Namespace) -> None:
             )
             raise CompilationError("Compilation failed")
 
+        _notify_stage(
+            args.status_callback,
+            args.config_url,
+            "compile",
+            True,
+            compile_output,
+        )
+
         factory_image = _find_factory_image(build_dir)
         upload_name = _derive_output_name(yaml_path.stem)
         upload_key = (
