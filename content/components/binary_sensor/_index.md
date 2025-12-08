@@ -268,6 +268,8 @@ binary_sensor:
 
 Configuration variables: See [Automation](/automations).
 
+See [`on_click`](#binary_sensor-on_click) for an example using a single button for both `on_click` and a continuous longpress.
+
 {{< anchor "binary_sensor-on_release" >}}
 
 ### `on_release`
@@ -336,7 +338,7 @@ Configuration variables: See [Automation](/automations).
 
 This automation will be triggered when a button is pressed down for a time period of length
 `min_length` to `max_length`. Any click longer or shorter than this will not trigger the automation.
-The automation is therefore also triggered on the falling edge of the signal.
+The automation is therefore triggered on the falling edge of the signal.
 
 ```yaml
 binary_sensor:
@@ -372,6 +374,43 @@ Configuration variables:
 >       max_length: 1000ms
 >       then:
 >         - switch.turn_on: relay_1
+> ```
+
+> [!NOTE]
+> A single button can be used to handle both `on_click` and a continuous longpress, by making a
+> [Template Binary Sensor](/components/binary_sensor/template/) follow a GPIO button with a delay:
+>
+> ```yaml
+> binary_sensor:
+>   - platform: gpio
+>     id: button_1
+>     # ...
+>     on_click:
+>       min_length: 50ms
+>       max_length: 350ms
+>       then:
+>         - light.turn_on:
+>             id: light_1
+>             brightness: 10%
+>
+>   - platform: template
+>     # ...
+>     condition:
+>       binary_sensor.is_on: button_1
+>     filters:
+>       - delayed_on: 1s
+>     on_press:
+>       - while:
+>           condition:
+>             # Using `!lambda: 'return true;'` would run endlessly
+>             # once triggered, so repeat the outer condition
+>             binary_sensor.is_on: button_1
+>           then:
+>             - light.dim_relative:
+>                 id: light_1
+>                 relative_brightness: 5%
+>                 transition_length: 0.1s
+>             - delay: 0.1s
 > ```
 
 {{< anchor "binary_sensor-on_double_click" >}}
