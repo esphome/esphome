@@ -70,8 +70,7 @@ void PulseMeterSensor::loop() {
 
   // If there is an unprocessed edge, and filter_us_ has passed since, count this edge early.
   // Wait for the debt to be repaid before counting another unprocessed edge early.
-  if (!this->peeked_edge_ &&
-      this->get_->last_rising_edge_us_ != this->get_->last_detected_edge_us_ &&
+  if (!this->peeked_edge_ && this->get_->last_rising_edge_us_ != this->get_->last_detected_edge_us_ &&
       now - this->get_->last_rising_edge_us_ >= this->filter_us_) {
     this->peeked_edge_ = true;
     this->get_->last_detected_edge_us_ = this->get_->last_rising_edge_us_;
