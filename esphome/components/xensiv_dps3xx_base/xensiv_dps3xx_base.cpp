@@ -20,9 +20,10 @@ void XensivDPS3xx::setup() {
   this->Dps3xxPressureSensor = new Dps3xx(this);
   Dps3xxPressureSensor->begin();
   this->set_timeout(50, [this]() {
-    this->Dps3xxPressureSensor->setInterruptSources(0b00010000, 1);
+    if (this->Dps3xxPressureSensor->setInterruptSources(0b00010000, 1) != DPS__SUCCEEDED) {
+      this->failure_reason_ += "Failed to set interrupt sources;";
+    }
     this->Dps3xxPressureSensor->getIntStatusFifoFull();
-    this->Dps3xxPressureSensor->startMeasurePressureCont(5, 1);
   });
 }
 
@@ -68,6 +69,7 @@ bool XensivDPS3xx::measure_now() {
    * ret = Dps3xxPressureSensor.measurePressureOnce(pressure);
    */
   ret = Dps3xxPressureSensor->measurePressureOnce(pressure, oversampling);
+  // ret = Dps3xxPressureSensor->startMeasurePressureOnce(oversampling);
   ESP_LOGD(TAG, "measurePressureOnce() returned: %d", ret);
   if (ret != 0) {
     // Something went wrong.
