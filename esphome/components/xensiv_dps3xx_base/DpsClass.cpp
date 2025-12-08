@@ -158,11 +158,11 @@ int16_t DpsClass::getSingleResult(float &result) {
         case CMD_TEMP:  // temperature
           getRawResult(&raw_val, registerBlocks[TEMP]);
           result = calcTemp(raw_val);
-          return DPS__SUCCEEDED;  // TODO
-        case CMD_PRS:             // pressure
+          return DPS3xx_TEMP_INTR;  // TODO
+        case CMD_PRS:               // pressure
           getRawResult(&raw_val, registerBlocks[PRS]);
           result = calcPressure(raw_val);
-          return DPS__SUCCEEDED;  // TODO
+          return DPS3xx_PRS_INTR;  // TODO
         default:
           return DPS__FAIL_UNKNOWN;  // should already be filtered above
       }

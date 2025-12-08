@@ -242,14 +242,13 @@ class DpsClass {
   int16_t correctTemp(void);
 
   uint8_t m_initFail;
+  dps::Mode m_opMode;
 
  protected:
   XensivDPS3xx *dps_device_;
 
   // scaling factor table
   static const int32_t scaling_facts[DPS__NUM_OF_SCAL_FACTS];
-
-  dps::Mode m_opMode;
 
   // flags
 
