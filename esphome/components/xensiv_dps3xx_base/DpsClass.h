@@ -26,15 +26,17 @@
 #pragma once
 
 #include "dps_config.h"
-#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace xensiv_dps3xx_base {
 
+// Forward declaration to avoid circular dependency
+class XensivDPS3xx;
+
 class DpsClass {
  public:
   // constructor
-  DpsClass(i2c::I2CDevice *i2c_device);  // TODO CHANGE TO DPS3xx base class for constructor and so on
+  DpsClass(XensivDPS3xx *dps_device);  // TODO CHANGE TO DPS3xx base class for constructor and so on
   // destructor
   ~DpsClass(void);
 
@@ -239,8 +241,10 @@ class DpsClass {
    */
   int16_t correctTemp(void);
 
+  uint8_t m_initFail;
+
  protected:
-  i2c::I2CDevice *i2c_device_;
+  XensivDPS3xx *dps_device_;
 
   // scaling factor table
   static const int32_t scaling_facts[DPS__NUM_OF_SCAL_FACTS];
@@ -248,7 +252,6 @@ class DpsClass {
   dps::Mode m_opMode;
 
   // flags
-  uint8_t m_initFail;
 
   uint8_t m_productID;
   uint8_t m_revisionID;
@@ -275,7 +278,6 @@ class DpsClass {
   uint8_t m_SpiI2c;  // 0=SPI, 1=I2C
 
   // used for I2C
-  TwoWire *m_i2cbus;
   uint8_t m_slaveAddress;
 
 #ifndef DPS_DISABLESPI

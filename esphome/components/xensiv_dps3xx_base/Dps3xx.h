@@ -9,6 +9,9 @@ namespace xensiv_dps3xx_base {
 
 class Dps3xx : public DpsClass {
  public:
+  // Constructor - inherits from DpsClass
+  using DpsClass::DpsClass;
+
   int16_t getContResults(float *tempBuffer, uint8_t &tempCount, float *prsBuffer, uint8_t &prsCount);
 
   /**

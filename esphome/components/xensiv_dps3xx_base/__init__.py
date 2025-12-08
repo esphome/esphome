@@ -24,7 +24,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
         cv.Required(CONF_PRESSURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_HECTOPASCAL,
             icon=ICON_GAUGE,
-            accuracy_decimals=2,
+            accuracy_decimals=5,
             device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
@@ -43,7 +43,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 SENSOR_MAP = {
-    CONF_PRESSURE: "set_dps_sensor",
+    CONF_PRESSURE: "set_pressure_sensor",
 }
 
 

@@ -18,14 +18,19 @@ class XensivDPS3xx : public Component {
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   bool measure_now();
 
+  // Allow DpsClass to access protected I2C methods
+  friend class DpsClass;
+  friend class Dps3xx;
+
  protected:
   virtual bool read_byte(uint8_t reg, uint8_t *data) = 0;
   virtual bool read_bytes(uint8_t reg, uint8_t *data, size_t len) = 0;
   virtual bool write_byte(uint8_t reg, uint8_t value) = 0;
+  static void gpio_intr(XensivDPS3xx *arg);
 
   InternalGPIOPin *interrupt_pin_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
-  Dps3xx Dps3xxPressureSensor;
+  Dps3xx *Dps3xxPressureSensor{nullptr};
 
   volatile bool data_ready_{false};
 

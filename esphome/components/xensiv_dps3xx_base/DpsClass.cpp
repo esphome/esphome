@@ -1,4 +1,5 @@
 #include "DpsClass.h"
+#include "xensiv_dps3xx_base.h"
 
 namespace esphome {
 namespace xensiv_dps3xx_base {
@@ -10,17 +11,20 @@ const int32_t DpsClass::scaling_facts[DPS__NUM_OF_SCAL_FACTS] = {524288, 1572864
 
 ////////  Constructor, Destructor, begin, end  ////////
 
-DpsClass::DpsClass(i2c::I2CDevice i2c_device) {
+DpsClass::DpsClass(XensivDPS3xx *dps_device) {
   // assume that initialization has failed before it has been done
   m_initFail = 1U;
 
-  this->i2c_device_ = i2c_device;
+  this->dps_device_ = dps_device;
 }
 
 DpsClass::~DpsClass(void) { end(); }
 
 void DpsClass::begin() {
-  // nothing to do
+  // Initialize the sensor (read product ID, calibration coefficients, etc.)
+  m_initFail = 0U;
+  //   delay(50); // Wait 50ms
+  init();
 }
 
 #ifndef DPS_DISABLESPI
@@ -447,8 +451,11 @@ int16_t DpsClass::readByte(uint8_t regAddress) {
     return readByteSPI(regAddress);
   }
 #endif
-
-  return this->i2c_device_.readByte(regAddress);
+  uint8_t data;
+  if (!this->dps_device_->read_byte(regAddress, &data)) {
+    return DPS__FAIL_UNKNOWN;
+  }
+  return data;
 }
 
 #ifndef DPS_DISABLESPI
@@ -518,7 +525,7 @@ int16_t DpsClass::writeByte(uint8_t regAddress, uint8_t data, uint8_t check) {
     return writeByteSpi(regAddress, data, check);
   }
 #endif
-  if (this->i2c_device_.writeByte(regAddress, data) != 0)  // Send buffer content to slave
+  if (!this->dps_device_->write_byte(regAddress, data))  // write_byte returns true on success
   {
     return DPS__FAIL_UNKNOWN;
   } else {
@@ -593,7 +600,6 @@ int16_t DpsClass::readByteBitfield(RegMask_t regMask) {
   return (((uint8_t) ret) & regMask.mask) >> regMask.shift;
 }
 
-// TODO!
 int16_t DpsClass::readBlock(RegBlock_t regBlock, uint8_t *buffer) {
 #ifndef DPS_DISABLESPI
   // delegate to specialized function if Dps3xx is connected via SPI
@@ -601,22 +607,17 @@ int16_t DpsClass::readBlock(RegBlock_t regBlock, uint8_t *buffer) {
     return readBlockSPI(regBlock, buffer);
   }
 #endif
-  // // do not read if there is no buffer
-  // if (buffer == NULL)
-  // {
-  //     return 0; // 0 bytes read successfully
-  // }
+  // do not read if there is no buffer
+  if (buffer == nullptr) {
+    return 0;  // 0 bytes read successfully
+  }
 
-  // this->i2c_device_.read_bytes(0x0, (uint8_t)regBlock.length);
-  // // request length bytes from slave
-  // int16_t ret = m_i2cbus->requestFrom(m_slaveAddress, (uint8_t)regBlock.length, (uint8_t)1);
-  // // read all received bytes to buffer
-  // for (int16_t count = 0; count < ret; count++)
-  // {
-  //     buffer[count] = m_i2cbus->read();
-  // }
-  // return ret;
-  return true;
+  // Read multiple bytes from the sensor
+  if (!this->dps_device_->read_bytes(regBlock.regAddress, buffer, regBlock.length)) {
+    return DPS__FAIL_UNKNOWN;
+  }
+
+  return regBlock.length;  // return number of bytes read
 }
 
 void DpsClass::getTwosComplement(int32_t *raw, uint8_t length) {

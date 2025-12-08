@@ -7,16 +7,23 @@ namespace xensiv_dps3xx_base {
 static const char *const TAG = "xensiv_dps3xx.component";
 
 void XensivDPS3xx::setup() {
-  this->Dps3xxPressureSensor = Dps3xx(this);
-  Dps3xxPressureSensor.begin();
-
   // Configure interrupts if pin is provided
   if (this->interrupt_pin_ != nullptr) {
     // Setup GPIO interrupt pin first
     this->interrupt_pin_->setup();
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->attach_interrupt(XensivDPS3xx::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+  } else {
+    this->failure_reason_ += "interrupt pin not configured;";
   }
+
+  this->Dps3xxPressureSensor = new Dps3xx(this);
+  Dps3xxPressureSensor->begin();
+  this->set_timeout(50, [this]() {
+    this->Dps3xxPressureSensor->setInterruptSources(0b00010000, 1);
+    this->Dps3xxPressureSensor->getIntStatusFifoFull();
+    this->Dps3xxPressureSensor->startMeasurePressureCont(5, 1);
+  });
 }
 
 void XensivDPS3xx::loop() {
@@ -31,11 +38,11 @@ void XensivDPS3xx::loop() {
 void XensivDPS3xx::gpio_intr(XensivDPS3xx *arg) { arg->data_ready_ = true; }
 
 bool XensivDPS3xx::measure_now() {
+  ESP_LOGD(TAG, "Starting measure now");
   float temperature;
   float pressure;
   uint8_t oversampling = 7;
   int16_t ret;
-  Serial.println();
 
   /*
    * lets the Dps3xx perform a Single temperature measurement with the last (or standard) configuration
@@ -46,36 +53,30 @@ bool XensivDPS3xx::measure_now() {
    * the Dps 3xx will perform 2^oversampling internal temperature measurements and combine them to one result with
    * higher precision measurements with higher precision take more time, consult datasheet for more information
    */
-  ret = Dps3xxPressureSensor.measureTempOnce(temperature, oversampling);
+  // ret = Dps3xxPressureSensor->measureTempOnce(temperature, oversampling);
 
-  if (ret != 0) {
-    /*
-     * Something went wrong.
-     * Look at the library code for more information about return codes
-     */
-    Serial.print("FAIL! ret = ");
-    Serial.println(ret);
-  } else {
-    Serial.print("Temperature: ");
-    Serial.print(temperature);
-    Serial.println(" degrees of Celsius");
-  }
+  // if (ret != 0) {
+  //   // Something went wrong.
+  //   // Look at the library code for more information about return codes
+  //   return false;
+  // } else {
+  //   // this->pressure_sensor_->publish_state(temperature);
+  // }
 
   /*
    * Pressure measurement behaves like temperature measurement
    * ret = Dps3xxPressureSensor.measurePressureOnce(pressure);
    */
-  ret = Dps3xxPressureSensor.measurePressureOnce(pressure, oversampling);
+  ret = Dps3xxPressureSensor->measurePressureOnce(pressure, oversampling);
+  ESP_LOGD(TAG, "measurePressureOnce() returned: %d", ret);
   if (ret != 0) {
     // Something went wrong.
     // Look at the library code for more information about return codes
-    Serial.print("FAIL! ret = ");
-    Serial.println(ret);
+    return false;
   } else {
-    Serial.print("Pressure: ");
-    Serial.print(pressure);
-    Serial.println(" Pascal");
+    this->pressure_sensor_->publish_state(pressure / 1000);
   }
+  return true;
 }
 
 void XensivDPS3xx::dump_config() {
@@ -88,8 +89,8 @@ void XensivDPS3xx::dump_config() {
     ESP_LOGW(TAG, "Failure reason(s): %s", this->failure_reason_.c_str());
   }
 
-  if (this->dps_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Pressure Sensor", this->dps_sensor_);
+  if (this->pressure_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Pressure Sensor", this->pressure_sensor_);
   }
 
   if (this->interrupt_pin_ != nullptr) {
@@ -97,7 +98,9 @@ void XensivDPS3xx::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Interrupt Pin: Not configured");
   }
-  return true;
+  if (this->Dps3xxPressureSensor != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Dps3xxPressureSensor m_initFail: %d", this->Dps3xxPressureSensor->m_initFail);
+  }
 }
 
 }  // namespace xensiv_dps3xx_base
