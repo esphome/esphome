@@ -7,7 +7,7 @@
 #include "esphome/components/display/display.h"
 #endif
 #ifdef USE_LVGL_FONT
-#include "esphome/components/lvgl/lvgl_proxy.h"
+#include <lvgl.h>
 #endif
 
 namespace esphome {
