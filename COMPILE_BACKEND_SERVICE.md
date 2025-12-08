@@ -15,7 +15,7 @@ The service follows this workflow:
 3. **Compile Firmware**: Runs `esphome compile` to build the firmware
    - On failure: Calls status callback API with compilation error and CLI output
    - On success: Calls status callback API to notify compilation success
-4. **Upload Binary**: 
+4. **Upload Binary**:
    - Locates the `firmware.factory.bin` file in the build directory
    - Renames it based on the YAML filename (removes trailing `1` if present)
      - Example: `xyz1111.yaml` → `xyz111.bin`
