@@ -312,6 +312,23 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
+
+      // LibreTiny can send spurious disconnect events with empty ssid/bssid during connection.
+      // These are typically "Association Leave" events that don't indicate actual failures:
+      //   [W][wifi_lt]: Disconnected ssid='' bssid=00:00:00:00:00:00 reason='Association Leave'
+      //   [W][wifi_lt]: Disconnected ssid='' bssid=00:00:00:00:00:00 reason='Association Leave'
+      //   [V][wifi_lt]: Connected ssid='WIFI' bssid=... channel=3, authmode=WPA2 PSK
+      // Without this check, the spurious events set s_sta_connecting=false, causing
+      // wifi_sta_connect_status_() to return IDLE. The main loop then sees
+      // "Unknown connection status 0" (wifi_component.cpp check_connecting_finished)
+      // and calls retry_connect(), aborting a connection that may succeed moments later.
+      // Real connection failures will have ssid/bssid populated, or we'll hit the 30s timeout.
+      if (it.ssid_len == 0 && s_sta_connecting) {
+        ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s)",
+                 get_disconnect_reason_str(it.reason));
+        break;
+      }
+
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       } else {
