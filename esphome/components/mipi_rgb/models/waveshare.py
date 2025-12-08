@@ -99,7 +99,7 @@ st7701s.extend(
     vsync_front_porch=20,
     vsync_pulse_width=40,
     data_pins={
-        "red": [46, 3, 8, 18, 17],
+        "red": [18, 17, 46, 3, 8],
         "green": [14, 13, 12, 11, 10, 9],
         "blue": [5, 45, 48, 47, 21],
     },
