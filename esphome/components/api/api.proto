@@ -1195,7 +1195,7 @@ message SelectCommandRequest {
   option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
-  string state = 2;
+  string state = 2 [(pointer_to_buffer) = true];
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
 

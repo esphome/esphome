@@ -4,16 +4,18 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@jorre05"]
+CODEOWNERS = ["@jorre05", "@edenhaus"]
 
 DEPENDENCIES = ["uart"]
 
-CONF_MICRONOVA_ID = "micronova_id"
+DOMAIN = "micronova"
+CONF_MICRONOVA_ID = f"{DOMAIN}_id"
 CONF_ENABLE_RX_PIN = "enable_rx_pin"
 CONF_MEMORY_LOCATION = "memory_location"
 CONF_MEMORY_ADDRESS = "memory_address"
+DEFAULT_POLLING_INTERVAL = "60s"
 
-micronova_ns = cg.esphome_ns.namespace("micronova")
+micronova_ns = cg.esphome_ns.namespace(DOMAIN)
 
 MicroNovaFunctions = micronova_ns.enum("MicroNovaFunctions", is_class=True)
 MICRONOVA_FUNCTIONS_ENUM = {
@@ -31,32 +33,57 @@ MICRONOVA_FUNCTIONS_ENUM = {
     "STOVE_FUNCTION_CUSTOM": MicroNovaFunctions.STOVE_FUNCTION_CUSTOM,
 }
 
-MicroNova = micronova_ns.class_("MicroNova", cg.PollingComponent, uart.UARTDevice)
+MicroNova = micronova_ns.class_("MicroNova", cg.Component, uart.UARTDevice)
+MicroNovaListener = micronova_ns.class_("MicroNovaListener", cg.PollingComponent)
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(MicroNova),
-            cv.Required(CONF_ENABLE_RX_PIN): pins.gpio_output_pin_schema,
-        }
-    )
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(MicroNova),
+        cv.Required(CONF_ENABLE_RX_PIN): pins.gpio_output_pin_schema,
+    }
+).extend(uart.UART_DEVICE_SCHEMA)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    DOMAIN,
+    baud_rate=1200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=2,
 )
 
 
-def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
-    return cv.Schema(
+def MICRONOVA_ADDRESS_SCHEMA(
+    *,
+    default_memory_location: int,
+    default_memory_address: int,
+    is_polling_component: bool,
+):
+    schema = cv.Schema(
         {
             cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
+            # On write requests the write bit (0x80) is added automatically to the location
+            # Therefore no locations >= 0x80 are allowed
             cv.Optional(
                 CONF_MEMORY_LOCATION, default=default_memory_location
-            ): cv.hex_int_range(),
+            ): cv.hex_int_range(min=0x00, max=0x79),
             cv.Optional(
                 CONF_MEMORY_ADDRESS, default=default_memory_address
-            ): cv.hex_int_range(),
+            ): cv.hex_int_range(min=0x00, max=0xFF),
         }
     )
+    if is_polling_component:
+        schema = schema.extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
+    return schema
+
+
+async def to_code_micronova_listener(mv, var, config, micronova_function):
+    await cg.register_component(var, config)
+    cg.add(mv.register_micronova_listener(var))
+    cg.add(var.set_memory_location(config[CONF_MEMORY_LOCATION]))
+    cg.add(var.set_memory_address(config[CONF_MEMORY_ADDRESS]))
+    cg.add(var.set_function(micronova_function))
 
 
 async def to_code(config):
