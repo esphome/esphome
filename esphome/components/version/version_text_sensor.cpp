@@ -13,7 +13,7 @@ void VersionTextSensor::setup() {
   if (this->hide_timestamp_) {
     this->publish_state(ESPHOME_VERSION);
   } else {
-    this->publish_state(str_sprintf(ESPHOME_VERSION " %s", App.get_compilation_time().c_str()));
+    this->publish_state(str_sprintf(ESPHOME_VERSION " %s", App.get_compilation_time_ref().c_str()));
   }
 }
 float VersionTextSensor::get_setup_priority() const { return setup_priority::DATA; }
