@@ -25,18 +25,14 @@ void MicroNovaListener::request_value_from_stove_() {
 }
 
 void MicroNova::setup() {
-  if (this->enable_rx_pin_ != nullptr) {
-    this->enable_rx_pin_->setup();
-    this->enable_rx_pin_->pin_mode(gpio::FLAG_OUTPUT);
-    this->enable_rx_pin_->digital_write(false);
-  }
+  this->enable_rx_pin_->setup();
+  this->enable_rx_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->enable_rx_pin_->digital_write(false);
 }
 
 void MicroNova::dump_config() {
   ESP_LOGCONFIG(TAG, "MicroNova:");
-  if (this->enable_rx_pin_ != nullptr) {
-    LOG_PIN("  Enable RX Pin: ", this->enable_rx_pin_);
-  }
+  LOG_PIN("  Enable RX Pin: ", this->enable_rx_pin_);
 }
 
 void MicroNova::register_micronova_listener(MicroNovaListener *listener) {

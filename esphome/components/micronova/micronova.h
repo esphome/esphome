@@ -63,7 +63,7 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
 // Main component class
 class MicroNova : public Component, public uart::UARTDevice {
  public:
-  MicroNova() {}
+  MicroNova(GPIOPin *enable_rx_pin) : enable_rx_pin_(enable_rx_pin) {}
 
   void setup() override;
   void loop() override;
@@ -82,14 +82,12 @@ class MicroNova : public Component, public uart::UARTDevice {
   /// @param data Data to write
   void queue_write_command(uint8_t location, uint8_t address, uint8_t data);
 
-  void set_enable_rx_pin(GPIOPin *enable_rx_pin) { this->enable_rx_pin_ = enable_rx_pin; }
-
  protected:
   void send_current_command_();
   int read_stove_reply_();
   void request_update_listeners_();
 
-  GPIOPin *enable_rx_pin_{nullptr};
+  GPIOPin *enable_rx_pin_;
 
   std::deque<MicroNovaCommand> command_queue_;
   MicroNovaCommand current_command_;
