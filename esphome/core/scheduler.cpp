@@ -744,6 +744,10 @@ bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
                                                               : (a->next_execution_high_ > b->next_execution_high_);
 }
 
+// Recycle a SchedulerItem back to the pool for reuse.
+// IMPORTANT: Caller must hold the scheduler lock before calling this function.
+// This protects scheduler_item_pool_ from concurrent access by other threads
+// that may be acquiring items from the pool in set_timer_common_().
 void Scheduler::recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item) {
   if (!item)
     return;

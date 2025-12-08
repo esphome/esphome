@@ -1,11 +1,11 @@
 cc1101:
   id: transceiver
   cs_pin: ${cs_pin}
-  frequency: 433920
-  if_frequency: 153
-  filter_bandwidth: 203
+  frequency: 433.92MHz
+  if_frequency: 153kHz
+  filter_bandwidth: 203kHz
   channel: 0
-  channel_spacing: 200
+  channel_spacing: 200kHz
   symbol_rate: 5000
   modulation_type: ASK/OOK
 
