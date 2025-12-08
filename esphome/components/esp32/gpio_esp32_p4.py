@@ -42,7 +42,10 @@ def esp32_p4_validate_supports(value):
 
 
 def esp32_p4_validate_lp_i2c(value):
-    if int(value[CONF_SDA]) not in _ESP32P4_LP_PINS or int(value[CONF_SCL]) not in _ESP32P4_LP_PINS:
+    if (
+        int(value[CONF_SDA]) not in _ESP32P4_LP_PINS
+        or int(value[CONF_SCL]) not in _ESP32P4_LP_PINS
+    ):
         raise cv.Invalid(
             f"Low power i2c interface for ESP32-P4 is only supported on low power interface GPIO{min(_ESP32P4_LP_PINS)} - GPIO{max(_ESP32P4_LP_PINS)}"
         )
