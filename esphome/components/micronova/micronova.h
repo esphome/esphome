@@ -95,17 +95,6 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
   void request_value_from_stove_();
 };
 
-class MicroNovaSwitchListener : public MicroNovaBaseListener {
- public:
-  MicroNovaSwitchListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void set_stove_state(bool v) = 0;
-  virtual bool get_stove_state() = 0;
-
- protected:
-  uint8_t memory_data_on_ = 0;
-  uint8_t memory_data_off_ = 0;
-};
-
 /////////////////////////////////////////////////////////////////////
 // Main component class
 class MicroNova : public Component, public uart::UARTDevice {
@@ -131,12 +120,6 @@ class MicroNova : public Component, public uart::UARTDevice {
 
   void set_enable_rx_pin(GPIOPin *enable_rx_pin) { this->enable_rx_pin_ = enable_rx_pin; }
 
-  void set_current_stove_state(uint8_t s) { this->current_stove_state_ = s; }
-  uint8_t get_current_stove_state() { return this->current_stove_state_; }
-
-  void set_stove(MicroNovaSwitchListener *s) { this->stove_switch_ = s; }
-  MicroNovaSwitchListener *get_stove_switch() { return this->stove_switch_; }
-
  protected:
   void send_current_command_();
 
@@ -155,7 +138,6 @@ class MicroNova : public Component, public uart::UARTDevice {
   /// Registered listeners grouped by memory address
   /// Key: (memory_location, memory_address), Value: list of listeners for that address
   std::map<MicroNovaAddress, std::vector<MicroNovaListener *>> listeners_;
-  MicroNovaSwitchListener *stove_switch_{nullptr};
 };
 
 }  // namespace esphome::micronova

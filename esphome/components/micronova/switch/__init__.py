@@ -8,6 +8,7 @@ from .. import (
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
+    MicroNovaListener,
     micronova_ns,
     to_code_micronova_listener,
 )
@@ -16,7 +17,9 @@ CONF_STOVE = "stove"
 CONF_MEMORY_DATA_ON = "memory_data_on"
 CONF_MEMORY_DATA_OFF = "memory_data_off"
 
-MicroNovaSwitch = micronova_ns.class_("MicroNovaSwitch", switch.Switch, cg.Component)
+MicroNovaSwitch = micronova_ns.class_(
+    "MicroNovaSwitch", switch.Switch, MicroNovaListener
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -29,7 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
             MICRONOVA_ADDRESS_SCHEMA(
                 default_memory_location=0x00,
                 default_memory_address=0x21,
-                is_polling_component=False,
+                is_polling_component=True,
             )
         )
         .extend(
