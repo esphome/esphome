@@ -4,12 +4,20 @@ from types import SimpleNamespace
 import pytest
 
 boto3 = pytest.importorskip("boto3")
-botocore_unsigned = pytest.importorskip("botocore", reason="botocore is required for S3 mocking")
+botocore_unsigned = pytest.importorskip(
+    "botocore", reason="botocore is required for S3 mocking"
+)
 UNSIGNED = botocore_unsigned.UNSIGNED
-moto_server = pytest.importorskip("moto.server", reason="moto is required for S3 integration testing")
+moto_server = pytest.importorskip(
+    "moto.server", reason="moto is required for S3 integration testing"
+)
 ThreadedMotoServer = moto_server.ThreadedMotoServer
 
-from script.compile_backend_service import _derive_output_name, _upload_factory_image, process_configuration
+from script.compile_backend_service import (
+    _derive_output_name,
+    _upload_factory_image,
+    process_configuration,
+)
 
 
 def test_derive_output_name_trims_trailing_one():

@@ -10,23 +10,24 @@ Mock S3 targets such as Beeceptor are supported via ``--s3-endpoint`` together
 with ``--s3-path-style`` and ``--s3-unsigned``. See
 https://beeceptor.com/docs/tutorials/aws-s3-mock-server/ for setup details.
 """
+
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 import logging
+from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
-from typing import Iterable
 from urllib.parse import urlparse
 import urllib.request
 
 import boto3
-import botocore.exceptions
 from botocore import UNSIGNED
 from botocore.config import Config
+import botocore.exceptions
 import requests
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ def _derive_output_name(stem: str) -> str:
     become ``xyz111.bin``. In all other cases the full stem is used.
     """
 
-    trimmed = stem[:-1] if stem.endswith("1") else stem
+    trimmed = stem.removesuffix("1")
     return f"{trimmed}.bin"
 
 
@@ -215,7 +216,11 @@ def process_configuration(args: argparse.Namespace) -> None:
 
         factory_image = _find_factory_image(build_dir)
         upload_name = _derive_output_name(yaml_path.stem)
-        upload_key = str(Path(args.upload_prefix) / upload_name) if args.upload_prefix else upload_name
+        upload_key = (
+            str(Path(args.upload_prefix) / upload_name)
+            if args.upload_prefix
+            else upload_name
+        )
         _upload_factory_image(
             factory_image,
             args.upload_bucket,
@@ -243,8 +248,12 @@ def process_configuration(args: argparse.Namespace) -> None:
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ESPHome compilation backend service")
-    parser.add_argument("config_url", help="Public S3 URL pointing to the YAML configuration")
-    parser.add_argument("upload_bucket", help="S3 bucket to upload compiled firmware to")
+    parser.add_argument(
+        "config_url", help="Public S3 URL pointing to the YAML configuration"
+    )
+    parser.add_argument(
+        "upload_bucket", help="S3 bucket to upload compiled firmware to"
+    )
     parser.add_argument(
         "--upload-prefix",
         help="Key prefix within the upload bucket for the compiled binary",
