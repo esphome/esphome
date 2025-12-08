@@ -59,6 +59,8 @@ void XensivDPS3xx::setup() {
         this->mark_failed();
         return;
       }
+      Dps3xxPressureSensor->getIntStatusPrsReady();
+
     } else {
       this->failure_reason_ += "Invalid operation mode configured;";
       this->mark_failed();
@@ -122,13 +124,18 @@ void XensivDPS3xx::loop() {
     } else if (operation_mode_ == 0) {
       ESP_LOGW(TAG, "Reading data in single-shot mode.");
       // In single-shot mode, read one temperature and one pressure value
-      float result;
-      int16_t ret = Dps3xxPressureSensor->getSingleResult(result);
-      if (ret != DPS__SUCCEEDED) {
-        ESP_LOGW(TAG, "getSingleResult() returned: %d", ret);
+      int res = Dps3xxPressureSensor->getIntStatusPrsReady();
+      if (res == 1) {
+        ESP_LOGW(TAG, "getIntStatusPrsReady() returned: %d", res);
+        float result = 0.0f;
+        int16_t ret = Dps3xxPressureSensor->getSingleResult(result);
+        if (ret != DPS__SUCCEEDED) {
+          ESP_LOGW(TAG, "getSingleResult() returned: %d", ret);
+          return;
+        } else {
+          this->pressure_sensor_->publish_state(result / 1000.0f);  // Convert to hPa
+        }
         return;
-      } else {
-        this->pressure_sensor_->publish_state(result / 1000.0f);  // Convert to hPa
       }
     }
   }
