@@ -411,9 +411,7 @@ def wizard(path: Path) -> int:
             "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
     elif platform == "RP2040":
-        board_link = (
-            "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040"
-        )
+        board_link = "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040"
     elif platform in ["BK72XX", "LN882X", "RTL87XX"]:
         board_link = "https://docs.libretiny.eu/docs/status/supported/"
     else:
