@@ -4,6 +4,16 @@
 
 The `compile_backend_service.py` script provides an automated system for downloading ESPHome YAML configurations from S3, validating them, compiling firmware, and uploading the resulting binary back to S3. It also provides HTTP callback notifications at each stage of the process.
 
+## Quick Installation
+
+For Proxmox LXC deployment, use our one-command installer:
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/dev/install.sh)
+```
+
+See [PROXMOX_QUICKSTART.md](PROXMOX_QUICKSTART.md) and [LXC_INSTALLATION.md](LXC_INSTALLATION.md) for detailed installation instructions.
+
 ## Workflow
 
 The service follows this workflow:
