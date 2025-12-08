@@ -3,6 +3,9 @@
 
 namespace esphome::micronova {
 
+static const int STOVE_REPLY_DELAY = 60;
+static const uint8_t WRITE_BIT = 1 << 7;  // 0x80
+
 void MicroNovaBaseListener::dump_base_config() {
   ESP_LOGCONFIG(TAG,
                 "  Memory Location: %02X\n"
@@ -125,7 +128,8 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
   uint16_t checksum = 0;
 
   if (this->reply_pending_mutex_.try_lock()) {
-    write_data[0] = location;
+    uint8_t write_location = location | WRITE_BIT;
+    write_data[0] = write_location;
     write_data[1] = address;
     write_data[2] = data;
 
@@ -140,7 +144,7 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
     this->enable_rx_pin_->digital_write(false);
 
     this->current_transmission_.request_transmission_time = millis();
-    this->current_transmission_.memory_location = location;
+    this->current_transmission_.memory_location = write_location;
     this->current_transmission_.memory_address = address;
     this->current_transmission_.reply_pending = true;
     this->current_transmission_.initiating_listener = nullptr;

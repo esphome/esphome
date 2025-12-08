@@ -19,11 +19,9 @@ class MicroNovaNumber : public number::Number, public MicroNovaListener {
   }
   void process_value_from_stove(int value_from_stove) override;
 
-  void set_memory_write_location(uint8_t l) { this->memory_write_location_ = l; }
   void set_use_step_scaling(bool v) { this->use_step_scaling_ = v; }
 
  protected:
-  uint8_t memory_write_location_ = 0;
   bool use_step_scaling_ = false;
 };
 
