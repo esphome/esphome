@@ -1,7 +1,6 @@
 #include "micronova_button.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 void MicroNovaButton::press_action() {
   switch (this->get_function()) {
@@ -13,5 +12,4 @@ void MicroNovaButton::press_action() {
   }
 }
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

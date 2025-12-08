@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/components/md5/md5.h"
@@ -107,4 +107,4 @@ void IDFOTABackend::abort() {
 
 }  // namespace ota
 }  // namespace esphome
-#endif
+#endif  // USE_ESP32

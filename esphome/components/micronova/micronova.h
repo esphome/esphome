@@ -11,8 +11,7 @@
 #include <optional>
 #include <vector>
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 static const char *const TAG = "micronova";
 static const int STOVE_REPLY_DELAY = 60;
@@ -153,5 +152,4 @@ class MicroNova : public Component, public uart::UARTDevice {
   std::map<MicroNovaAddress, std::vector<MicroNovaListener *>> listeners_;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

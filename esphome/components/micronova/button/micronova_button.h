@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 class MicroNovaButton : public Component, public button::Button, public MicroNovaBaseListener {
  public:
@@ -24,5 +23,4 @@ class MicroNovaButton : public Component, public button::Button, public MicroNov
   uint8_t memory_data_ = 0;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

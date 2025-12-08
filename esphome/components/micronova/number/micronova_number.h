@@ -3,8 +3,7 @@
 #include "esphome/components/micronova/micronova.h"
 #include "esphome/components/number/number.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 class MicroNovaNumber : public number::Number, public MicroNovaListener {
  public:
@@ -15,13 +14,6 @@ class MicroNovaNumber : public number::Number, public MicroNovaListener {
   }
   void control(float value) override;
   void process_value_from_stove(int value_from_stove) override;
-
-  void set_memory_write_location(uint8_t l) { this->memory_write_location_ = l; }
-  uint8_t get_memory_write_location() { return this->memory_write_location_; }
-
- protected:
-  uint8_t memory_write_location_ = 0;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

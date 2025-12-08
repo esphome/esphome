@@ -1,7 +1,6 @@
 #include "micronova_text_sensor.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 void MicroNovaTextSensor::process_value_from_stove(int value_from_stove) {
   if (value_from_stove == -1) {
@@ -18,5 +17,4 @@ void MicroNovaTextSensor::process_value_from_stove(int value_from_stove) {
   }
 }
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

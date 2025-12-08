@@ -1,7 +1,6 @@
 #include "micronova_number.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 void MicroNovaNumber::process_value_from_stove(int value_from_stove) {
   float new_sensor_value = 0;
@@ -37,8 +36,7 @@ void MicroNovaNumber::control(float value) {
     default:
       break;
   }
-  this->micronova_->queue_write_command(this->memory_write_location_, this->memory_address_, new_number);
+  this->micronova_->queue_write_command(this->memory_location_, this->memory_address_, new_number);
 }
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

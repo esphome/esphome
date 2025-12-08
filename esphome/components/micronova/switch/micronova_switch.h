@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 class MicroNovaSwitch : public switch_::Switch, public MicroNovaListener {
  public:
@@ -27,5 +26,4 @@ class MicroNovaSwitch : public switch_::Switch, public MicroNovaListener {
   uint8_t memory_data_off_ = 0;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

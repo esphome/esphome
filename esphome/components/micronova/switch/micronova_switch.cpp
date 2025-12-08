@@ -1,7 +1,6 @@
 #include "micronova_switch.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 void MicroNovaSwitch::write_state(bool state) {
   switch (this->get_function()) {
@@ -34,5 +33,4 @@ void MicroNovaSwitch::process_value_from_stove(int value_from_stove) {
   }
 }
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova
