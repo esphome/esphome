@@ -3,6 +3,9 @@
 
 namespace esphome::micronova {
 
+static const int STOVE_REPLY_DELAY = 60;
+static const uint8_t WRITE_BIT = 1 << 7;  // 0x80
+
 void MicroNovaBaseListener::dump_base_config() {
   ESP_LOGCONFIG(TAG,
                 "  Memory Location: %02X\n"
