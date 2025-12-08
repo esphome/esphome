@@ -13,6 +13,9 @@ class MicroNovaSwitch : public switch_::Switch, public MicroNovaListener {
     LOG_SWITCH("", "Micronova switch", this);
     this->dump_base_config();
   }
+  void request_value_from_stove() override {
+    this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
+  }
   void process_value_from_stove(int value_from_stove) override;
 
   void set_memory_data_on(uint8_t f) { this->memory_data_on_ = f; }
