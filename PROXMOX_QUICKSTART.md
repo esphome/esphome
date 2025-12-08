@@ -5,7 +5,7 @@
 For a Proxmox LXC container running Debian 11+ or Ubuntu 20.04+:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/dev/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/main/install.sh)
 ```
 
 ## 📋 What Gets Installed
@@ -70,7 +70,7 @@ pct start 100
 pct enter 100
 
 # Run installer
-bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/dev/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/main/install.sh)
 ```
 
 ### 3. Configure and Test

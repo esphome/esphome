@@ -22,7 +22,7 @@
 For running the ESPHome compile backend service in an LXC container on Proxmox, use our one-command installer:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/dev/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/main/install.sh)
 ```
 
 This installs a complete compile backend service that:

@@ -214,14 +214,19 @@ WorkingDirectory=${ESPHOME_WORKSPACE}
 Environment="PATH=${ESPHOME_HOME}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="VIRTUAL_ENV=${ESPHOME_HOME}/venv"
 
-# Service will be started manually with appropriate arguments
-# Example: systemctl start ${SERVICE_NAME}@config-url@upload-bucket
-# Or managed through a wrapper script
+# This is a template service file
+# The service is designed to be invoked via the esphome-compile CLI tool
+# For automatic service execution, customize this file with your specific arguments
+# Example ExecStart line:
+# ExecStart=${ESPHOME_HOME}/venv/bin/python3 ${ESPHOME_HOME}/esphome/script/compile_backend_service.py \\
+#   https://s3.amazonaws.com/bucket/config.yaml \\
+#   firmware-bucket \\
+#   --status-callback https://api.example.com/status \\
+#   --completion-callback https://api.example.com/complete \\
+#   --workspace ${ESPHOME_WORKSPACE}
 
-# Note: This service requires command-line arguments to run
-# See /opt/esphome/service-wrapper.sh for a management wrapper
-
-ExecStart=${ESPHOME_HOME}/venv/bin/python3 ${ESPHOME_HOME}/esphome/script/compile_backend_service.py
+# Default: Service requires manual invocation via esphome-compile CLI
+ExecStart=/bin/true
 
 # Restart on failure
 Restart=on-failure
@@ -242,6 +247,7 @@ WantedBy=multi-user.target
 EOF
     
     log_success "Systemd service file created"
+    log_info "Note: This is a template service. Use 'esphome-compile' CLI for normal operations."
 }
 
 # Create environment file template

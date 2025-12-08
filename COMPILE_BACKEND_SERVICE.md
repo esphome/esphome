@@ -9,7 +9,7 @@ The `compile_backend_service.py` script provides an automated system for downloa
 For Proxmox LXC deployment, use our one-command installer:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/dev/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/main/install.sh)
 ```
 
 See [PROXMOX_QUICKSTART.md](PROXMOX_QUICKSTART.md) and [LXC_INSTALLATION.md](LXC_INSTALLATION.md) for detailed installation instructions.

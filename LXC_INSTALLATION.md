@@ -114,7 +114,7 @@ ssh root@<container-ip>
 ### Step 2: Run the Installer
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/dev/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/main/install.sh)
 ```
 
 The installer will:

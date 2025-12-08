@@ -7,7 +7,7 @@
 One-command installation:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/dev/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/main/install.sh)
 ```
 
 See [PROXMOX_QUICKSTART.md](PROXMOX_QUICKSTART.md) for detailed LXC setup instructions.
