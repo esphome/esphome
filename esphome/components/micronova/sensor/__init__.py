@@ -147,4 +147,4 @@ async def to_code(config):
     if fan_speed_config := config.get(CONF_FAN_SPEED):
         sens = await sensor.new_sensor(fan_speed_config, mv)
         await to_code_micronova_listener(mv, sens, fan_speed_config)
-        cg.add(sens.set_fan_speed_mode(fan_speed_config[CONF_FAN_RPM_OFFSET]))
+        cg.add(sens.set_fan_speed_offset(fan_speed_config[CONF_FAN_RPM_OFFSET]))

@@ -19,7 +19,7 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaListener {
   void process_value_from_stove(int value_from_stove) override;
 
   void set_divisor(uint8_t d) { this->divisor_ = d; }
-  void set_fan_speed_mode(uint8_t offset) {
+  void set_fan_speed_offset(uint8_t offset) {
     this->is_fan_speed_ = true;
     this->fan_speed_offset_ = offset;
   }
