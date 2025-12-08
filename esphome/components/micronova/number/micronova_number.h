@@ -14,6 +14,11 @@ class MicroNovaNumber : public number::Number, public MicroNovaListener {
   }
   void control(float value) override;
   void process_value_from_stove(int value_from_stove) override;
+
+  void set_use_step_scaling(bool v) { this->use_step_scaling_ = v; }
+
+ protected:
+  bool use_step_scaling_ = false;
 };
 
 }  // namespace esphome::micronova

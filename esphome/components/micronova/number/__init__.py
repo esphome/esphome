@@ -7,7 +7,6 @@ from .. import (
     CONF_MICRONOVA_ID,
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
-    MicroNovaFunctions,
     MicroNovaListener,
     micronova_ns,
     to_code_micronova_listener,
@@ -67,12 +66,8 @@ async def to_code(config):
             max_value=40,
             step=thermostat_temperature_config.get(CONF_STEP),
         )
-        await to_code_micronova_listener(
-            mv,
-            numb,
-            thermostat_temperature_config,
-            MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE,
-        )
+        await to_code_micronova_listener(mv, numb, thermostat_temperature_config)
+        cg.add(numb.set_use_step_scaling(True))
 
     if power_level_config := config.get(CONF_POWER_LEVEL):
         numb = await number.new_number(
@@ -82,6 +77,4 @@ async def to_code(config):
             max_value=5,
             step=1,
         )
-        await to_code_micronova_listener(
-            mv, numb, power_level_config, MicroNovaFunctions.STOVE_FUNCTION_POWER_LEVEL
-        )
+        await to_code_micronova_listener(mv, numb, power_level_config)
