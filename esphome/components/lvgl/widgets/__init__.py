@@ -278,6 +278,12 @@ class Widget:
     def has_state(self, state):
         return (lv_expr.obj_get_state(self.obj) & literal(state)) != 0
 
+    def is_pressed(self):
+        return self.has_state(LV_STATE.PRESSED)
+
+    def is_checked(self):
+        return self.has_state(LV_STATE.CHECKED)
+
     def add_flag(self, flag):
         if "|" in flag:
             flag = f"(lv_obj_flag_t)({flag})"
