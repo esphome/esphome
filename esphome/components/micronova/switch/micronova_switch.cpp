@@ -4,30 +4,26 @@ namespace esphome::micronova {
 
 void MicroNovaSwitch::write_state(bool state) {
   switch (this->get_function()) {
-    case MicroNovaFunctions::STOVE_FUNCTION_SWITCH: {
-      auto data = state ? this->memory_data_on_ : this->memory_data_off_;
-      this->micronova_->queue_write_command(this->memory_location_, this->memory_address_, data);
-      this->publish_state(state);
+    case MicroNovaFunctions::STOVE_FUNCTION_SWITCH:
+      if (state) {
+        // Only send power-on when current state is Off
+        if (this->micronova_->get_current_stove_state() == 0) {
+          this->micronova_->queue_write_command(this->memory_location_, this->memory_address_, this->memory_data_on_);
+          this->publish_state(true);
+        } else {
+          ESP_LOGW(TAG, "Unable to turn stove on, invalid state: %d", micronova_->get_current_stove_state());
+        }
+      } else {
+        // don't send power-off when status is Off or Final cleaning
+        if (this->micronova_->get_current_stove_state() != 0 && micronova_->get_current_stove_state() != 6) {
+          this->micronova_->queue_write_command(this->memory_location_, this->memory_address_, this->memory_data_off_);
+          this->publish_state(false);
+        } else {
+          ESP_LOGW(TAG, "Unable to turn stove off, invalid state: %d", micronova_->get_current_stove_state());
+        }
+      }
       break;
-    }
-    default:
-      break;
-  }
-}
 
-void MicroNovaSwitch::process_value_from_stove(int value_from_stove) {
-  if (value_from_stove == -1) {
-    ESP_LOGE(TAG, "Error reading stove state");
-    return;
-  }
-
-  switch (this->get_function()) {
-    case MicroNovaFunctions::STOVE_FUNCTION_SWITCH: {
-      // set the stove switch to on for any value but 0
-      bool state = value_from_stove != 0;
-      this->publish_state(state);
-      break;
-    }
     default:
       break;
   }

@@ -6,14 +6,16 @@
 
 namespace esphome::micronova {
 
-class MicroNovaSwitch : public switch_::Switch, public MicroNovaListener {
+class MicroNovaSwitch : public Component, public switch_::Switch, public MicroNovaSwitchListener {
  public:
-  MicroNovaSwitch(MicroNova *m) : MicroNovaListener(m) {}
+  MicroNovaSwitch(MicroNova *m) : MicroNovaSwitchListener(m) {}
   void dump_config() override {
     LOG_SWITCH("", "Micronova switch", this);
     this->dump_base_config();
   }
-  void process_value_from_stove(int value_from_stove) override;
+
+  void set_stove_state(bool v) override { this->publish_state(v); }
+  bool get_stove_state() override { return this->state; }
 
   void set_memory_data_on(uint8_t f) { this->memory_data_on_ = f; }
 
@@ -21,9 +23,6 @@ class MicroNovaSwitch : public switch_::Switch, public MicroNovaListener {
 
  protected:
   void write_state(bool state) override;
-
-  uint8_t memory_data_on_ = 0;
-  uint8_t memory_data_off_ = 0;
 };
 
 }  // namespace esphome::micronova
