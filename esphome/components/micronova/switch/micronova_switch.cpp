@@ -8,6 +8,7 @@ void MicroNovaSwitch::write_state(bool state) {
       auto data = state ? this->memory_data_on_ : this->memory_data_off_;
       this->micronova_->write_address(this->memory_location_, this->memory_address_, data);
       this->publish_state(state);
+      this->set_needs_update(true);
       break;
     }
     default:
