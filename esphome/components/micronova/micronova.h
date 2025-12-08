@@ -86,17 +86,12 @@ class MicroNova : public Component, public uart::UARTDevice {
 
  protected:
   void send_current_command_();
-
   int read_stove_reply_();
-
   void request_update_listeners_();
-
-  uint8_t current_stove_state_ = 0;
 
   GPIOPin *enable_rx_pin_{nullptr};
 
   std::deque<MicroNovaCommand> command_queue_;
-
   MicroNovaCommand current_command_;
   uint32_t transmission_time_{0};  ///< Time when current command was sent (0 = no command pending)
 

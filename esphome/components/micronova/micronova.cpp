@@ -114,7 +114,7 @@ void MicroNova::send_current_command_() {
     write_len = 4;
     write_data[2] = this->current_command_.data;
     // calculate checksum
-    write_data[3] = ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
+    write_data[3] = write_data[0] + write_data[1] + write_data[2];
     ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
   } else {
     write_len = 2;
@@ -136,9 +136,7 @@ int MicroNova::read_stove_reply_() {
 
   ESP_LOGV(TAG, "Reply from stove [%02X,%02X]", reply_data[0], reply_data[1]);
 
-  uint8_t checksum = ((uint16_t) this->current_command_.memory_location +
-                      (uint16_t) this->current_command_.memory_address + (uint16_t) reply_data[1]) &
-                     0xFF;
+  uint8_t checksum = this->current_command_.memory_location + this->current_command_.memory_address + reply_data[1];
   if (reply_data[0] != checksum) {
     ESP_LOGE(TAG, "Checksum mismatch! From [0x%02X:0x%02X] received [0x%02X,0x%02X]. Expected 0x%02X, got 0x%02X",
              this->current_command_.memory_location, this->current_command_.memory_address, reply_data[0],
