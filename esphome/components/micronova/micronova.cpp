@@ -3,8 +3,9 @@
 
 namespace esphome::micronova {
 
-static const int STOVE_REPLY_DELAY = 60;
-static const uint8_t WRITE_BIT = 1 << 7;  // 0x80
+static const uint8_t STOVE_REPLY_SIZE = 2;
+static const uint32_t STOVE_REPLY_TIMEOUT = 200;  // ms
+static const uint8_t WRITE_BIT = 1 << 7;          // 0x80
 
 bool MicroNovaCommand::is_write() const { return this->memory_location & WRITE_BIT; }
 
@@ -51,7 +52,8 @@ void MicroNova::request_update_listeners_() {
 void MicroNova::loop() {
   // Check if we're processing a command and waiting for reply
   if (this->transmission_time_ != 0) {
-    if (millis() - this->transmission_time_ > STOVE_REPLY_DELAY) {
+    // Check if all reply bytes have arrived
+    if (this->available() >= STOVE_REPLY_SIZE) {
       int stove_reply_value = this->read_stove_reply_();
       // For READ commands, notify all listeners registered for this address
       if (!this->current_command_.is_write()) {
@@ -63,6 +65,11 @@ void MicroNova::loop() {
           }
         }
       }
+      this->transmission_time_ = 0;
+    } else if (millis() - this->transmission_time_ > STOVE_REPLY_TIMEOUT) {
+      // Timeout - no reply received (buffer cleared before next command)
+      ESP_LOGW(TAG, "Timeout waiting for reply from [0x%02X:0x%02X], available: %d",
+               this->current_command_.memory_location, this->current_command_.memory_address, this->available());
       this->transmission_time_ = 0;
     }
     return;
