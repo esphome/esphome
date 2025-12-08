@@ -51,7 +51,7 @@ def esp32_c6_validate_supports(value):
 def esp32_c6_validate_lp_i2c(value):
     lp_sda_pin = _ESP32C6_I2C_LP_PINS["SDA"]
     lp_scl_pin = _ESP32C6_I2C_LP_PINS["SCL"]
-    if int(value[CONF_SDA]) is lp_sda_pin and int(value[CONF_SCL]) is lp_scl_pin:
+    if int(value[CONF_SDA]) == lp_sda_pin and int(value[CONF_SCL]) == lp_scl_pin:
         return
     raise cv.Invalid(
         f"Low power i2c interface is only supported on GPIO{lp_sda_pin} SDA and GPIO{lp_scl_pin} SCL for ESP32-C6"
