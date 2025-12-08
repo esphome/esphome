@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
     CONF_NAME,
-    CONF_NUMBER,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
@@ -514,33 +513,6 @@ def _detect_variant(value):
     return value
 
 
-def _config_mentions_rf_switch(config_obj):
-    """Check whether the config references the XIAO ESP32C6 RF switch pins."""
-    rf_pin_numbers = {3, 14}
-    rf_pin_names = {"RF_SWITCH_EN", "RF_ANT_SELECT", "GPIO3", "GPIO14"}
-
-    def _matches_pin(value):
-        if isinstance(value, str):
-            return value.upper() in rf_pin_names
-        if isinstance(value, dict):
-            # Pin schemas are normalized to include the pin number.
-            number = value.get(CONF_NUMBER)
-            if isinstance(number, int) and number in rf_pin_numbers:
-                return True
-            if "pin" in value and _matches_pin(value["pin"]):
-                return True
-        number_attr = getattr(value, "number", None)
-        return isinstance(number_attr, int) and number_attr in rf_pin_numbers
-
-    if isinstance(config_obj, dict):
-        if _matches_pin(config_obj):
-            return True
-        return any(_config_mentions_rf_switch(value) for value in config_obj.values())
-    if isinstance(config_obj, list):
-        return any(_config_mentions_rf_switch(item) for item in config_obj)
-    return _matches_pin(config_obj)
-
-
 def final_validate(config):
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -549,7 +521,6 @@ def final_validate(config):
     conf_fw = config[CONF_FRAMEWORK]
     advanced = conf_fw[CONF_ADVANCED]
     full_config = fv.full_config.get()
-    board = config[CONF_BOARD]
     if pio_options := full_config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS):
         pio_flash_size_key = "board_upload.flash_size"
         pio_partitions_key = "board_build.partitions"
@@ -598,33 +569,6 @@ def final_validate(config):
                 f"OTA with 32MB flash requires '{CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES}' to be set in the '{CONF_ADVANCED}' section of the esp32 configuration",
                 path=[CONF_FLASH_SIZE],
             )
-        )
-
-    if (
-        board == "seeed_xiao_esp32c6"
-        and "wifi" in full_config
-        and not _config_mentions_rf_switch(full_config.get("output", []))
-    ):
-        _LOGGER.warning(
-            "Seeed Studio XIAO ESP32C6 ships with its RF switch off by default. "
-            "Make sure to drive the RF_SWITCH_EN (GPIO3) low to improve signal strength. "
-            "Drive the antenna selection pin RF_ANT_SELECT (GPIO14) low to select the on-board ceramic antenna. "
-            "Example:\n\n"
-            "output:\n"
-            "  - platform: gpio\n"
-            "    id: rf_switch_enable\n"
-            "    pin: RF_SWITCH_EN\n"
-            "    inverted: true\n"
-            "  - platform: gpio\n"
-            "    id: rf_antenna_select\n"
-            "    pin: RF_ANT_SELECT\n"
-            "\n"
-            "esphome:\n"
-            "  on_boot:\n"
-            "    - priority: 800\n"
-            "      then:\n"
-            "        - output.turn_on: rf_switch_enable # Enable RF switch to connect any antenna\n"
-            "        - output.turn_off: rf_antenna_select # Select the on-board ceramic antenna\n"
         )
     if errs:
         raise cv.MultipleInvalid(errs)
