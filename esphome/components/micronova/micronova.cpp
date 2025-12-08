@@ -103,6 +103,10 @@ void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
 }
 
 void MicroNova::send_current_command_() {
+  if (!this->current_command_.has_value()) {
+    return;
+  }
+
   uint8_t trash_rx;
 
   // Clear rx buffer - stove hiccups may cause late replies in the rx
@@ -134,6 +138,10 @@ void MicroNova::send_current_command_() {
 }
 
 int MicroNova::read_stove_reply_() {
+  if (!this->current_command_.has_value()) {
+    return -1;
+  }
+
   uint8_t reply_data[2] = {0, 0};
 
   this->read_array(reply_data, 2);
