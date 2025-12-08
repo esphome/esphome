@@ -148,6 +148,8 @@ void HX711Sensor::loop() {
 #if defined(USE_HX711_CHANNEL_B_SENSOR)
     if (current_measurement_is_channel_b) {
       this->log_and_publish_channel_b_value_(NAN);
+    } else {
+      this->gain_ = gain_to_restore;
     }
 #endif
     // Restart the HX711 sensor, this will start powerup sequence.
