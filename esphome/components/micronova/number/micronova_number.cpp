@@ -36,7 +36,7 @@ void MicroNovaNumber::control(float value) {
     default:
       break;
   }
-  this->micronova_->write_address(this->memory_write_location_, this->memory_address_, new_number);
+  this->micronova_->write_address(this->memory_location_, this->memory_address_, new_number);
   this->micronova_->request_update_listeners();
 }
 

@@ -63,12 +63,14 @@ def MICRONOVA_ADDRESS_SCHEMA(
     schema = cv.Schema(
         {
             cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
+            # On write requests the write bit (0x80) is added automatically to the location
+            # Therefore no locations >= 0x80 are allowed
             cv.Optional(
                 CONF_MEMORY_LOCATION, default=default_memory_location
-            ): cv.hex_int_range(),
+            ): cv.hex_int_range(min=0x00, max=0x79),
             cv.Optional(
                 CONF_MEMORY_ADDRESS, default=default_memory_address
-            ): cv.hex_int_range(),
+            ): cv.hex_int_range(min=0x00, max=0xFF),
         }
     )
     if is_polling_component:
