@@ -6,7 +6,7 @@ from .. import (
     CONF_MEMORY_ADDRESS,
     CONF_MEMORY_LOCATION,
     CONF_MICRONOVA_ID,
-    MICRONOVA_LISTENER_SCHEMA,
+    MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
     micronova_ns,
@@ -24,8 +24,10 @@ CONFIG_SCHEMA = cv.Schema(
             MicroNovaButton,
         )
         .extend(
-            MICRONOVA_LISTENER_SCHEMA(
-                default_memory_location=0xA0, default_memory_address=0x7D
+            MICRONOVA_ADDRESS_SCHEMA(
+                default_memory_location=0xA0,
+                default_memory_address=0x7D,
+                is_polling_component=False,
             )
         )
         .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range()}),
