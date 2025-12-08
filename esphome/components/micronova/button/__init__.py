@@ -8,7 +8,6 @@ from .. import (
     CONF_MICRONOVA_ID,
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
-    MicroNovaFunctions,
     micronova_ns,
 )
 
@@ -43,4 +42,3 @@ async def to_code(config):
         cg.add(bt.set_memory_location(custom_button_config.get(CONF_MEMORY_LOCATION)))
         cg.add(bt.set_memory_address(custom_button_config.get(CONF_MEMORY_ADDRESS)))
         cg.add(bt.set_memory_data(custom_button_config[CONF_MEMORY_DATA]))
-        cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_CUSTOM))
