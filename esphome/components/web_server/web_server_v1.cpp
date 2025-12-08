@@ -191,7 +191,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
   stream->print(
-      ESPHOME_F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
+      ESPHOME_F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/\">ESPHome Web API</a> for "
                 "REST API documentation.</p>"));
 #if defined(USE_WEBSERVER_OTA) && !defined(USE_WEBSERVER_OTA_DISABLED)
   // Show OTA form only if web_server OTA is not explicitly disabled
