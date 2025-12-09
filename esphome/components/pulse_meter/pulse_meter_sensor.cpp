@@ -56,32 +56,32 @@ void PulseMeterSensor::loop() {
     this->last_pin_val_ = current;
 
     // Get the latest state from the ISR and reset the count in the ISR
-    std::memcpy((void *) this->get_, (void *) this->set_, sizeof(State));
-    this->set_->count_ = 0;
+    this->get_ = this->set_;
+    this->set_.count_ = 0;
   }
 
   const uint32_t now = micros();
 
   // If an edge was peeked, repay the debt
-  if (this->peeked_edge_ && this->get_->count_ > 0) {
+  if (this->peeked_edge_ && this->get_.count_ > 0) {
     this->peeked_edge_ = false;
-    this->get_->count_--;  // NOLINT(clang-diagnostic-deprecated-volatile)
+    this->get_.count_--;
   }
 
   // If there is an unprocessed edge, and filter_us_ has passed since, count this edge early.
   // Wait for the debt to be repaid before counting another unprocessed edge early.
-  if (!this->peeked_edge_ && this->get_->last_rising_edge_us_ != this->get_->last_detected_edge_us_ &&
-      now - this->get_->last_rising_edge_us_ >= this->filter_us_) {
+  if (!this->peeked_edge_ && this->get_.last_rising_edge_us_ != this->get_.last_detected_edge_us_ &&
+      now - this->get_.last_rising_edge_us_ >= this->filter_us_) {
     this->peeked_edge_ = true;
-    this->get_->last_detected_edge_us_ = this->get_->last_rising_edge_us_;
-    this->get_->count_++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+    this->get_.last_detected_edge_us_ = this->get_.last_rising_edge_us_;
+    this->get_.count_++;
   }
 
   // Check if we detected a pulse this loop
-  if (this->get_->count_ > 0) {
+  if (this->get_.count_ > 0) {
     // Keep a running total of pulses if a total sensor is configured
     if (this->total_sensor_ != nullptr) {
-      this->total_pulses_ += this->get_->count_;
+      this->total_pulses_ += this->get_.count_;
       const uint32_t total = this->total_pulses_;
       this->total_sensor_->publish_state(total);
     }
@@ -93,15 +93,15 @@ void PulseMeterSensor::loop() {
         this->meter_state_ = MeterState::RUNNING;
       } break;
       case MeterState::RUNNING: {
-        uint32_t delta_us = this->get_->last_detected_edge_us_ - this->last_processed_edge_us_;
-        float pulse_width_us = delta_us / float(this->get_->count_);
+        uint32_t delta_us = this->get_.last_detected_edge_us_ - this->last_processed_edge_us_;
+        float pulse_width_us = delta_us / float(this->get_.count_);
         ESP_LOGV(TAG, "New pulse, delta: %" PRIu32 " µs, count: %" PRIu32 ", width: %.5f µs", delta_us,
-                 this->get_->count_, pulse_width_us);
+                 this->get_.count_, pulse_width_us);
         this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
       } break;
     }
 
-    this->last_processed_edge_us_ = this->get_->last_detected_edge_us_;
+    this->last_processed_edge_us_ = this->get_.last_detected_edge_us_;
   }
   // No detected edges this loop
   else {
@@ -143,13 +143,13 @@ void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
   auto &state = sensor->edge_state_;
-  auto &set = *sensor->set_;
+  auto &set = sensor->set_;
 
   if ((now - state.last_sent_edge_us_) >= sensor->filter_us_) {
     state.last_sent_edge_us_ = now;
     set.last_detected_edge_us_ = now;
     set.last_rising_edge_us_ = now;
-    set.count_++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+    set.count_++;
   }
 
   // This ISR is bound to rising edges, so the pin is high
@@ -162,7 +162,7 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   const uint32_t now = micros();
   const bool pin_val = sensor->isr_pin_.digital_read();
   auto &state = sensor->pulse_state_;
-  auto &set = *sensor->set_;
+  auto &set = sensor->set_;
 
   // Filter length has passed since the last interrupt
   const bool length = now - state.last_intr_ >= sensor->filter_us_;
@@ -172,7 +172,7 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   } else if (length && !state.latched_ && sensor->last_pin_val_) {  // Long enough high edge
     state.latched_ = true;
     set.last_detected_edge_us_ = state.last_intr_;
-    set.count_++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+    set.count_++;
   }
 
   // Due to order of operations this includes
