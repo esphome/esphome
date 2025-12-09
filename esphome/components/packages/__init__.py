@@ -38,33 +38,37 @@ def validate_has_jinja(value: Any):
     return value
 
 
-def valid_package_contents(package_config: dict):
-    """Validates that a package_config that will be merged looks as much as possible to a valid config
-    to fail early on obvious mistakes."""
-    if isinstance(package_config, dict):
-        if CONF_URL in package_config:
-            # If a URL key is found, then make sure the config conforms to a remote package schema:
-            return REMOTE_PACKAGE_SCHEMA(package_config)
+def valid_package_contents(allow_jinja: bool = True) -> Callable[[Any], dict]:
+    """Returns a validator that checks if a package_config that will be merged looks as
+    much as possible to a valid config to fail early on obvious mistakes."""
 
-        # Validate manually since Voluptuous would regenerate dicts and lose metadata
-        # such as ESPHomeDataBase
-        for k, v in package_config.items():
-            if not isinstance(k, str):
-                raise cv.Invalid("Package content keys must be strings")
-            if isinstance(v, (dict, list, Remove)):
-                continue  # e.g. script: [], psram: !remove, logger: {level: debug}
-            if v is None:
-                continue  # e.g. web_server:
-            if isinstance(v, str) and has_jinja(v):
-                # e.g: remote package shorthand:
-                # package_name: github://esphome/repo/file.yaml@${ branch }, or:
-                # switch: ${ expression that evals to a switch }
-                continue
+    def validator(package_config: dict) -> dict:
+        if isinstance(package_config, dict):
+            if CONF_URL in package_config:
+                # If a URL key is found, then make sure the config conforms to a remote package schema:
+                return REMOTE_PACKAGE_SCHEMA(package_config)
 
-            raise cv.Invalid("Invalid component content in package definition")
-        return package_config
+            # Validate manually since Voluptuous would regenerate dicts and lose metadata
+            # such as ESPHomeDataBase
+            for k, v in package_config.items():
+                if not isinstance(k, str):
+                    raise cv.Invalid("Package content keys must be strings")
+                if isinstance(v, (dict, list, Remove)):
+                    continue  # e.g. script: [], psram: !remove, logger: {level: debug}
+                if v is None:
+                    continue  # e.g. web_server:
+                if allow_jinja and isinstance(v, str) and has_jinja(v):
+                    # e.g: remote package shorthand:
+                    # package_name: github://esphome/repo/file.yaml@${ branch }, or:
+                    # switch: ${ expression that evals to a switch }
+                    continue
 
-    raise cv.Invalid("Package contents must be a dict")
+                raise cv.Invalid("Invalid component content in package definition")
+            return package_config
+
+        raise cv.Invalid("Package contents must be a dict")
+
+    return validator
 
 
 def expand_file_to_files(config: dict):
@@ -154,8 +158,10 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
 PACKAGE_SCHEMA = cv.Any(  # A package definition is either:
     validate_source_shorthand,  # A git URL shorthand string that expands to a remote package schema, or
     REMOTE_PACKAGE_SCHEMA,  # a valid remote package schema, or
-    validate_has_jinja,  # a Jinja string that may resolve to a package
-    valid_package_contents,  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
+    validate_has_jinja,  # a Jinja string that may resolve to a package, or
+    valid_package_contents(
+        allow_jinja=True
+    ),  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
     # which will have to be fully validated later as per each component's schema.
 )
 
@@ -248,13 +254,17 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     return {"packages": packages}
 
 
-def _walk_packages(config: dict, callback: Callable[[dict], dict]) -> dict:
+def _walk_packages(
+    config: dict, callback: Callable[[dict], dict], validate_deprecated: bool = True
+) -> dict:
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
 
-    # The following single line can be safely removed once single-package deprecation is effective
-    packages = CONFIG_SCHEMA(packages)
+    # The following block and `validate_deprecated` parameter can be safely removed
+    #  once single-package deprecation is effective
+    if validate_deprecated:
+        packages = CONFIG_SCHEMA(packages)
 
     with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, dict):
@@ -313,12 +323,14 @@ def merge_packages(config: dict) -> dict:
     # Build flat list of all package configs to merge in priority order:
     merge_list: list[dict] = []
 
+    validate_package = valid_package_contents(allow_jinja=False)
+
     def process_package_callback(package_config: dict) -> dict:
         """This will be called for each package found in the config."""
-        merge_list.append(package_config)
+        merge_list.append(validate_package(package_config))
         return package_config
 
-    _walk_packages(config, process_package_callback)
+    _walk_packages(config, process_package_callback, validate_deprecated=False)
     # Merge all packages into the main config:
     config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]

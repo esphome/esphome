@@ -964,3 +964,30 @@ def test_package_merge() -> None:
     actual = merge_packages(config)
 
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "invalid_package",
+    [
+        6,
+        "some string",
+        ["some string"],
+        None,
+        True,
+        {"some_component": 8},
+        {3: 2},
+        {"some_component": r"${unevaluated expression}"},
+    ],
+)
+def test_package_merge_invalid(invalid_package) -> None:
+    """
+    Tests that trying to merge an invalid package raises an error.
+    """
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
+
+    with pytest.raises(cv.Invalid):
+        merge_packages(config)
