@@ -72,7 +72,7 @@ update_system() {
 # Install system dependencies
 install_dependencies() {
     log_info "Installing system dependencies..."
-    
+
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
         python3 \
         python3-pip \
@@ -104,7 +104,7 @@ install_dependencies() {
         lsb-release \
         udev \
         software-properties-common
-    
+
     log_success "System dependencies installed"
 }
 
@@ -122,22 +122,22 @@ create_user() {
 # Create directory structure
 create_directories() {
     log_info "Creating directory structure..."
-    
+
     mkdir -p "$ESPHOME_HOME"
     mkdir -p "$ESPHOME_WORKSPACE"
     mkdir -p /var/log/esphome
-    
+
     chown -R "$ESPHOME_USER:$ESPHOME_USER" "$ESPHOME_HOME"
     chown -R "$ESPHOME_USER:$ESPHOME_USER" "$ESPHOME_WORKSPACE"
     chown -R "$ESPHOME_USER:$ESPHOME_USER" /var/log/esphome
-    
+
     log_success "Directories created"
 }
 
 # Clone ESPHome repository
 clone_repository() {
     log_info "Cloning ESPHome repository..."
-    
+
     if [[ -d "$ESPHOME_HOME/esphome" ]]; then
         log_info "Repository already exists, pulling latest changes..."
         cd "$ESPHOME_HOME/esphome"
@@ -147,59 +147,59 @@ clone_repository() {
         sudo -u "$ESPHOME_USER" git clone https://github.com/esphome/esphome.git
         cd esphome
     fi
-    
+
     log_success "Repository ready"
 }
 
 # Setup Python virtual environment
 setup_venv() {
     log_info "Setting up Python virtual environment..."
-    
+
     cd "$ESPHOME_HOME"
-    
+
     if [[ -d "$ESPHOME_HOME/venv" ]]; then
         log_info "Virtual environment already exists"
     else
         sudo -u "$ESPHOME_USER" python3 -m venv venv
         log_success "Virtual environment created"
     fi
-    
+
     # Activate and upgrade pip
     sudo -u "$ESPHOME_USER" bash -c "source venv/bin/activate && pip install --upgrade pip setuptools wheel"
-    
+
     log_success "Virtual environment ready"
 }
 
 # Install ESPHome and dependencies
 install_esphome() {
     log_info "Installing ESPHome and dependencies..."
-    
+
     cd "$ESPHOME_HOME/esphome"
-    
+
     # Install ESPHome in editable mode
     sudo -u "$ESPHOME_USER" bash -c "source $ESPHOME_HOME/venv/bin/activate && pip install -e ."
-    
+
     # Ensure boto3 and requests are installed (for compile backend service)
     sudo -u "$ESPHOME_USER" bash -c "source $ESPHOME_HOME/venv/bin/activate && pip install boto3 requests"
-    
+
     log_success "ESPHome installed"
 }
 
 # Configure PlatformIO
 configure_platformio() {
     log_info "Configuring PlatformIO..."
-    
+
     sudo -u "$ESPHOME_USER" bash -c "source $ESPHOME_HOME/venv/bin/activate && \
         platformio settings set enable_telemetry No && \
         platformio settings set check_platformio_interval 1000000"
-    
+
     log_success "PlatformIO configured"
 }
 
 # Create systemd service file
 create_systemd_service() {
     log_info "Creating systemd service file..."
-    
+
     cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
 [Unit]
 Description=ESPHome Compile Backend Service
@@ -245,7 +245,7 @@ SyslogIdentifier=${SERVICE_NAME}
 [Install]
 WantedBy=multi-user.target
 EOF
-    
+
     log_success "Systemd service file created"
     log_info "Note: This is a template service. Use 'esphome-compile' CLI for normal operations."
 }
@@ -253,7 +253,7 @@ EOF
 # Create environment file template
 create_env_template() {
     log_info "Creating environment configuration template..."
-    
+
     cat > "$ESPHOME_HOME/compile-backend.env.example" <<'EOF'
 # ESPHome Compile Backend Service Configuration
 # Copy this file to compile-backend.env and customize it
@@ -279,16 +279,16 @@ COMPLETION_CALLBACK_URL=https://api.example.com/complete
 # Logging
 LOG_LEVEL=INFO
 EOF
-    
+
     chown "$ESPHOME_USER:$ESPHOME_USER" "$ESPHOME_HOME/compile-backend.env.example"
-    
+
     log_success "Environment template created at $ESPHOME_HOME/compile-backend.env.example"
 }
 
 # Create service wrapper script
 create_wrapper_script() {
     log_info "Creating service wrapper script..."
-    
+
     cat > "$ESPHOME_HOME/service-wrapper.sh" <<'EOF'
 #!/usr/bin/env bash
 # ESPHome Compile Backend Service Wrapper
@@ -348,17 +348,17 @@ exec python3 "$ESPHOME_DIR/script/compile_backend_service.py" \
     --workspace "$WORKSPACE" \
     "${CMD_ARGS[@]}"
 EOF
-    
+
     chmod +x "$ESPHOME_HOME/service-wrapper.sh"
     chown "$ESPHOME_USER:$ESPHOME_USER" "$ESPHOME_HOME/service-wrapper.sh"
-    
+
     log_success "Service wrapper script created at $ESPHOME_HOME/service-wrapper.sh"
 }
 
 # Create management CLI
 create_management_cli() {
     log_info "Creating management CLI..."
-    
+
     cat > /usr/local/bin/esphome-compile <<'EOF'
 #!/usr/bin/env bash
 # ESPHome Compile Backend Management CLI
@@ -374,15 +374,15 @@ case "${1:-help}" in
         shift
         sudo -u "$ESPHOME_USER" "$ESPHOME_HOME/service-wrapper.sh" "$@"
         ;;
-    
+
     status)
         systemctl status "$SERVICE_NAME" || true
         ;;
-    
+
     logs)
         journalctl -u "$SERVICE_NAME" -f
         ;;
-    
+
     update)
         echo "Updating ESPHome..."
         cd "$ESPHOME_HOME/esphome"
@@ -390,7 +390,7 @@ case "${1:-help}" in
         sudo -u "$ESPHOME_USER" bash -c "source $ESPHOME_HOME/venv/bin/activate && pip install -e ."
         echo "Update complete!"
         ;;
-    
+
     config)
         if [[ -f "$ESPHOME_HOME/compile-backend.env" ]]; then
             "${EDITOR:-nano}" "$ESPHOME_HOME/compile-backend.env"
@@ -401,13 +401,13 @@ case "${1:-help}" in
             "${EDITOR:-nano}" "$ESPHOME_HOME/compile-backend.env"
         fi
         ;;
-    
+
     test)
         echo "Running tests..."
         cd "$ESPHOME_HOME/esphome"
         sudo -u "$ESPHOME_USER" bash -c "source $ESPHOME_HOME/venv/bin/activate && python3 -m pytest tests/test_compile_backend_service.py -v"
         ;;
-    
+
     help|*)
         cat <<HELP
 ESPHome Compile Backend Management CLI
@@ -418,7 +418,7 @@ Commands:
   compile <config_url> <upload_bucket> [opts]
                     Compile an ESPHome configuration from S3
                     Example: esphome-compile compile https://s3.../config.yaml my-bucket
-  
+
   status            Show service status
   logs              Show and follow service logs
   update            Update ESPHome to latest version
@@ -447,16 +447,16 @@ HELP
         ;;
 esac
 EOF
-    
+
     chmod +x /usr/local/bin/esphome-compile
-    
+
     log_success "Management CLI created at /usr/local/bin/esphome-compile"
 }
 
 # Create README
 create_readme() {
     log_info "Creating installation README..."
-    
+
     cat > "$ESPHOME_HOME/README.md" <<'EOF'
 # ESPHome Compile Backend Service
 
@@ -527,9 +527,9 @@ Full documentation: `/opt/esphome/esphome/COMPILE_BACKEND_SERVICE.md`
 
 For issues and questions, see: https://github.com/esphome/esphome
 EOF
-    
+
     chown "$ESPHOME_USER:$ESPHOME_USER" "$ESPHOME_HOME/README.md"
-    
+
     log_success "README created"
 }
 
@@ -578,7 +578,7 @@ EOF
 # Main installation function
 main() {
     log_info "Starting ESPHome Compile Backend Service installation..."
-    
+
     check_root
     detect_os
     update_system
@@ -594,10 +594,10 @@ main() {
     create_wrapper_script
     create_management_cli
     create_readme
-    
+
     # Reload systemd
     systemctl daemon-reload
-    
+
     log_success "Installation completed successfully!"
     show_instructions
 }

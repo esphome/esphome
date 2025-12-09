@@ -10,13 +10,13 @@ bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/main/install.sh
 
 ## 📋 What Gets Installed
 
-✅ Complete ESPHome environment with all dependencies  
-✅ Python 3.11+ with virtual environment  
-✅ PlatformIO for firmware compilation  
-✅ AWS S3 integration (boto3)  
-✅ Systemd service configuration  
-✅ Management CLI (`esphome-compile`)  
-✅ Automatic updates support  
+✅ Complete ESPHome environment with all dependencies
+✅ Python 3.11+ with virtual environment
+✅ PlatformIO for firmware compilation
+✅ AWS S3 integration (boto3)
+✅ Systemd service configuration
+✅ Management CLI (`esphome-compile`)
+✅ Automatic updates support
 
 ## 🎯 Use Cases
 
@@ -168,12 +168,12 @@ S3_ENDPOINT=https://nyc3.digitaloceanspaces.com
 
 ## 🔒 Security Best Practices
 
-✅ Service runs as non-root user (`esphome`)  
-✅ Unprivileged LXC container recommended  
-✅ Use HTTPS for all S3 and callback URLs  
-✅ Restrict AWS credentials to minimum required permissions  
-✅ Enable resource limits (CPU, Memory) in systemd service  
-✅ Regular updates with `esphome-compile update`  
+✅ Service runs as non-root user (`esphome`)
+✅ Unprivileged LXC container recommended
+✅ Use HTTPS for all S3 and callback URLs
+✅ Restrict AWS credentials to minimum required permissions
+✅ Enable resource limits (CPU, Memory) in systemd service
+✅ Regular updates with `esphome-compile update`
 
 **AWS IAM Policy Example:**
 ```json

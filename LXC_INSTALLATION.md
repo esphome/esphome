@@ -39,7 +39,7 @@ This guide helps you set up the ESPHome compile backend service in a Proxmox LXC
 1. **Create LXC Container**
    - Navigate to your Proxmox node in the web interface
    - Click "Create CT" (Create Container)
-   
+
 2. **General Settings**
    - **Hostname**: `esphome-compile` (or your preferred name)
    - **Password**: Set a root password
@@ -290,7 +290,7 @@ sudo systemctl start esphome-compile-backend@instance1
 
 **Problem**: Installation fails with package errors
 
-**Solution**: 
+**Solution**:
 ```bash
 apt-get update
 apt-get upgrade -y
@@ -305,21 +305,21 @@ apt-get upgrade -y
 
 **Problem**: "Unable to locate credentials"
 
-**Solution**: 
+**Solution**:
 1. Verify AWS credentials are set in the config file
 2. Check credentials are valid: `aws s3 ls` (if AWS CLI is installed)
 3. For public S3 access, use `--s3-unsigned` flag
 
 **Problem**: "HTTP Error 403: FORBIDDEN" when downloading
 
-**Solution**: 
+**Solution**:
 1. Ensure the S3 object has public-read ACL
 2. Or configure appropriate AWS credentials
 3. Check bucket permissions
 
 **Problem**: "Unable to locate firmware.factory.bin"
 
-**Solution**: 
+**Solution**:
 1. Check that the YAML specifies a valid platform (esp32, esp8266, rp2040)
 2. Review compilation logs: `esphome-compile logs`
 3. Ensure the workspace has sufficient disk space
@@ -328,14 +328,14 @@ apt-get upgrade -y
 
 **Problem**: Cannot access S3
 
-**Solution**: 
+**Solution**:
 1. Verify container has internet access: `ping google.com`
 2. Check DNS resolution: `nslookup s3.amazonaws.com`
 3. Verify firewall rules on Proxmox host
 
 **Problem**: Callbacks timing out
 
-**Solution**: 
+**Solution**:
 1. Verify callback URLs are accessible from the container
 2. Test with curl: `curl -X POST https://api.example.com/status -d '{}'`
 3. Check for firewall rules blocking outbound HTTPS
@@ -344,14 +344,14 @@ apt-get upgrade -y
 
 **Problem**: Out of memory during compilation
 
-**Solution**: 
+**Solution**:
 1. Increase container RAM to 4GB or more
 2. Monitor with: `free -h`
 3. Reduce concurrent compilations
 
 **Problem**: Out of disk space
 
-**Solution**: 
+**Solution**:
 ```bash
 # Check disk usage
 df -h
@@ -455,17 +455,17 @@ After installation:
 ## Security Considerations
 
 1. **Run as Non-Root**: The service runs as the `esphome` user (not root)
-2. **Credential Security**: 
+2. **Credential Security**:
    - Never commit credentials to version control
    - Restrict access to `/opt/esphome/compile-backend.env`
    - Consider using IAM roles if running on AWS EC2
-3. **Network Security**: 
+3. **Network Security**:
    - Use HTTPS for S3 and callback URLs
    - Consider VPN or private networking for sensitive deployments
-4. **Input Validation**: 
+4. **Input Validation**:
    - The service executes YAML configurations - only process trusted sources
    - Consider implementing allowlist for config URLs
-5. **Resource Limits**: 
+5. **Resource Limits**:
    - Systemd service includes CPU and memory limits
    - Adjust in `/etc/systemd/system/esphome-compile-backend.service` if needed
 
@@ -507,7 +507,7 @@ def compile_firmware():
     data = request.json
     config_url = data['config_url']
     bucket = data['upload_bucket']
-    
+
     # Trigger compilation
     result = subprocess.run([
         'sudo', '-u', 'esphome',
@@ -515,7 +515,7 @@ def compile_firmware():
         config_url,
         bucket
     ], capture_output=True)
-    
+
     return {'success': result.returncode == 0}
 ```
 

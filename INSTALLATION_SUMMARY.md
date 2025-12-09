@@ -93,12 +93,12 @@ Created at `/etc/systemd/system/esphome-compile-backend.service`:
 
 ### 4. Security Features
 
-✅ **Non-Root Execution**: Service runs as dedicated `esphome` user  
-✅ **Unprivileged LXC**: Recommended container configuration  
-✅ **Resource Limits**: CPU and memory constraints in systemd  
-✅ **Credential Management**: Separate configuration file with proper permissions  
-✅ **HTTPS Support**: For S3 and callback URLs  
-✅ **No Hardcoded Secrets**: All credentials in configuration file  
+✅ **Non-Root Execution**: Service runs as dedicated `esphome` user
+✅ **Unprivileged LXC**: Recommended container configuration
+✅ **Resource Limits**: CPU and memory constraints in systemd
+✅ **Credential Management**: Separate configuration file with proper permissions
+✅ **HTTPS Support**: For S3 and callback URLs
+✅ **No Hardcoded Secrets**: All credentials in configuration file
 
 ### 5. Updated `.gitignore`
 Added entries to prevent committing:
@@ -109,11 +109,11 @@ Added entries to prevent committing:
 
 ## 🎯 Original Requirements Met
 
-✅ **Check Implementation**: Verified the S3 compile backend service is properly implemented  
-✅ **One-Command Installation**: Created bash installer similar to Proxmox helper scripts  
-✅ **LXC on Proxmox**: Designed specifically for Proxmox LXC containers  
-✅ **Update README**: Updated with installation instructions  
-✅ **Best Industry Practices**: Following security and operational best practices  
+✅ **Check Implementation**: Verified the S3 compile backend service is properly implemented
+✅ **One-Command Installation**: Created bash installer similar to Proxmox helper scripts
+✅ **LXC on Proxmox**: Designed specifically for Proxmox LXC containers
+✅ **Update README**: Updated with installation instructions
+✅ **Best Industry Practices**: Following security and operational best practices
 
 ## 📊 Implementation Statistics
 
