@@ -12,22 +12,6 @@ namespace esphome::micronova {
 
 static const char *const TAG = "micronova";
 
-enum class MicroNovaFunctions {
-  STOVE_FUNCTION_VOID = 0,
-  STOVE_FUNCTION_SWITCH = 1,
-  STOVE_FUNCTION_ROOM_TEMPERATURE = 2,
-  STOVE_FUNCTION_THERMOSTAT_TEMPERATURE = 3,
-  STOVE_FUNCTION_FUMES_TEMPERATURE = 4,
-  STOVE_FUNCTION_STOVE_POWER = 5,
-  STOVE_FUNCTION_FAN_SPEED = 6,
-  STOVE_FUNCTION_STOVE_STATE = 7,
-  STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR = 8,
-  STOVE_FUNCTION_WATER_TEMPERATURE = 9,
-  STOVE_FUNCTION_WATER_PRESSURE = 10,
-  STOVE_FUNCTION_POWER_LEVEL = 11,
-  STOVE_FUNCTION_CUSTOM = 12
-};
-
 class MicroNova;
 
 //////////////////////////////////////////////////////////////////////
@@ -39,9 +23,6 @@ class MicroNovaBaseListener {
 
   void set_micronova_object(MicroNova *m) { this->micronova_ = m; }
 
-  void set_function(MicroNovaFunctions f) { this->function_ = f; }
-  MicroNovaFunctions get_function() { return this->function_; }
-
   void set_memory_location(uint8_t l) { this->memory_location_ = l; }
   uint8_t get_memory_location() { return this->memory_location_; }
 
@@ -52,7 +33,6 @@ class MicroNovaBaseListener {
 
  protected:
   MicroNova *micronova_{nullptr};
-  MicroNovaFunctions function_ = MicroNovaFunctions::STOVE_FUNCTION_VOID;
   uint8_t memory_location_ = 0;
   uint8_t memory_address_ = 0;
 };
@@ -73,17 +53,6 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
 
  protected:
   bool needs_update_ = false;
-};
-
-class MicroNovaSwitchListener : public MicroNovaBaseListener {
- public:
-  MicroNovaSwitchListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void set_stove_state(bool v) = 0;
-  virtual bool get_stove_state() = 0;
-
- protected:
-  uint8_t memory_data_on_ = 0;
-  uint8_t memory_data_off_ = 0;
 };
 
 class MicroNovaButtonListener : public MicroNovaBaseListener {
@@ -112,15 +81,7 @@ class MicroNova : public Component, public uart::UARTDevice {
 
   void set_enable_rx_pin(GPIOPin *enable_rx_pin) { this->enable_rx_pin_ = enable_rx_pin; }
 
-  void set_current_stove_state(uint8_t s) { this->current_stove_state_ = s; }
-  uint8_t get_current_stove_state() { return this->current_stove_state_; }
-
-  void set_stove(MicroNovaSwitchListener *s) { this->stove_switch_ = s; }
-  MicroNovaSwitchListener *get_stove_switch() { return this->stove_switch_; }
-
  protected:
-  uint8_t current_stove_state_ = 0;
-
   GPIOPin *enable_rx_pin_{nullptr};
 
   struct MicroNovaSerialTransmission {
@@ -135,7 +96,6 @@ class MicroNova : public Component, public uart::UARTDevice {
   MicroNovaSerialTransmission current_transmission_;
 
   std::vector<MicroNovaListener *> micronova_listeners_{};
-  MicroNovaSwitchListener *stove_switch_{nullptr};
 };
 
 }  // namespace esphome::micronova
