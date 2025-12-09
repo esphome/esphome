@@ -13,7 +13,7 @@ XENSIVDPS3xxI2C = xensiv_dps3xx_ns.class_(
 )
 
 CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
-    i2c.i2c_device_schema(default_address=0x76)
+    i2c.i2c_device_schema(default_address=0x77)
 ).extend({cv.GenerateID(): cv.declare_id(XENSIVDPS3xxI2C)})
 
 
