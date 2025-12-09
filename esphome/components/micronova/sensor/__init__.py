@@ -13,7 +13,6 @@ from .. import (
     CONF_MICRONOVA_ID,
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
-    MicroNovaFunctions,
     MicroNovaListener,
     micronova_ns,
     to_code_micronova_listener,
@@ -131,21 +130,21 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
-    for key, fn in {
-        CONF_ROOM_TEMPERATURE: MicroNovaFunctions.STOVE_FUNCTION_ROOM_TEMPERATURE,
-        CONF_FUMES_TEMPERATURE: MicroNovaFunctions.STOVE_FUNCTION_FUMES_TEMPERATURE,
-        CONF_STOVE_POWER: MicroNovaFunctions.STOVE_FUNCTION_STOVE_POWER,
-        CONF_MEMORY_ADDRESS_SENSOR: MicroNovaFunctions.STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR,
-        CONF_WATER_TEMPERATURE: MicroNovaFunctions.STOVE_FUNCTION_WATER_TEMPERATURE,
-        CONF_WATER_PRESSURE: MicroNovaFunctions.STOVE_FUNCTION_WATER_PRESSURE,
+    for key, divisor in {
+        CONF_ROOM_TEMPERATURE: 2,
+        CONF_FUMES_TEMPERATURE: None,
+        CONF_STOVE_POWER: None,
+        CONF_MEMORY_ADDRESS_SENSOR: None,
+        CONF_WATER_TEMPERATURE: 2,
+        CONF_WATER_PRESSURE: 10,
     }.items():
         if sensor_config := config.get(key):
             sens = await sensor.new_sensor(sensor_config, mv)
-            await to_code_micronova_listener(mv, sens, sensor_config, fn)
+            await to_code_micronova_listener(mv, sens, sensor_config)
+            if divisor:
+                cg.add(sens.set_divisor(divisor))
 
     if fan_speed_config := config.get(CONF_FAN_SPEED):
         sens = await sensor.new_sensor(fan_speed_config, mv)
-        await to_code_micronova_listener(
-            mv, sens, fan_speed_config, MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED
-        )
+        await to_code_micronova_listener(mv, sens, fan_speed_config)
         cg.add(sens.set_fan_speed_offset(fan_speed_config[CONF_FAN_RPM_OFFSET]))
