@@ -8,13 +8,7 @@ void MicroNovaTextSensor::process_value_from_stove(int value_from_stove) {
     return;
   }
 
-  switch (this->get_function()) {
-    case MicroNovaFunctions::STOVE_FUNCTION_STOVE_STATE:
-      this->publish_state(STOVE_STATES[value_from_stove]);
-      break;
-    default:
-      break;
-  }
+  this->publish_state(STOVE_STATES[value_from_stove]);
 }
 
 }  // namespace esphome::micronova
