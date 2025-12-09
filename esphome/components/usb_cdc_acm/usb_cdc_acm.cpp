@@ -123,12 +123,14 @@ void USBCDCACMInstance::setup() {
   this->usb_tx_ringbuf_ = xRingbufferCreate(CONFIG_TINYUSB_CDC_TX_BUFSIZE, RINGBUF_TYPE_BYTEBUF);
   if (this->usb_tx_ringbuf_ == nullptr) {
     ESP_LOGE(TAG, "USB TX buffer creation error for itf %d", this->itf_);
+    this->parent_->mark_failed();
     return;
   }
 
   this->usb_rx_ringbuf_ = xRingbufferCreate(CONFIG_TINYUSB_CDC_RX_BUFSIZE, RINGBUF_TYPE_BYTEBUF);
   if (this->usb_rx_ringbuf_ == nullptr) {
     ESP_LOGE(TAG, "USB RX buffer creation error for itf %d", this->itf_);
+    this->parent_->mark_failed();
     return;
   }
 
@@ -380,20 +382,36 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
     this->has_peek_ = false;
     bytes_read = 1;
     data++;
-    len--;
+    if (--len == 0) {  // Decrement len first, then check it...
+      return true;     // No more to read
+    }
   }
 
   // Read remaining bytes from RX ring buffer
-  if (len > 0) {
-    size_t rx_size = 0;
-    uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(this->usb_rx_ringbuf_, &rx_size, 0, len));
-
-    if (buf != nullptr) {
-      memcpy(data, buf, rx_size);
-      vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
-      bytes_read += rx_size;
-    }
+  size_t rx_size = 0;
+  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(this->usb_rx_ringbuf_, &rx_size, 0, len));
+  if (buf == nullptr) {
+    return false;
   }
+
+  memcpy(data, buf, rx_size);
+  vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+  bytes_read += rx_size;
+  data += rx_size;
+  len -= rx_size;
+  if (len == 0) {
+    return true;  // No more to read
+  }
+
+  // Buffer's data may wrap around, in which case we should perform another read
+  buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(this->usb_rx_ringbuf_, &rx_size, 0, len));
+  if (buf == nullptr) {
+    return false;
+  }
+
+  memcpy(data, buf, rx_size);
+  vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+  bytes_read += rx_size;
 
   return bytes_read == original_len;
 }
