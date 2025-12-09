@@ -642,17 +642,17 @@ std::string get_mac_address() {
 }
 
 std::string get_mac_address_pretty() {
-  char buf[18];
+  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   return std::string(get_mac_address_pretty_into_buffer(buf));
 }
 
-void get_mac_address_into_buffer(std::span<char, 13> buf) {
+void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf) {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   format_mac_addr_lower_no_sep(mac, buf.data());
 }
 
-const char *get_mac_address_pretty_into_buffer(std::span<char, 18> buf) {
+const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());

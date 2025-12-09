@@ -91,7 +91,16 @@ def validate_source_shorthand(value):
 
 def deprecate_single_package(config):
     _LOGGER.warning(
-        "Including a single package under `packages:` is deprecated. Use a list instead."
+        """
+        Including a single package under `packages:`, i.e., `packages: !include mypackage.yaml` is deprecated.
+        This method for including packages will go away in 2026.7.0
+        Please use a list instead:
+
+        packages:
+          - !include mypackage.yaml
+
+        See https://github.com/esphome/esphome/pull/12116
+        """
     )
     return config
 

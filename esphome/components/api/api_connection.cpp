@@ -14,6 +14,9 @@
 #include <functional>
 #include <limits>
 #include <utility>
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -902,7 +905,7 @@ uint16_t APIConnection::try_send_select_info(EntityBase *entity, APIConnection *
 }
 void APIConnection::select_command(const SelectCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(select::Select, select, select)
-  call.set_option(msg.state);
+  call.set_option(reinterpret_cast<const char *>(msg.state), msg.state_len);
   call.perform();
 }
 #endif
@@ -1471,34 +1474,63 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 
   resp.set_compilation_time(App.get_compilation_time_ref());
 
-  // Compile-time StringRef constants for manufacturers
+  // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Espressif");
+#define ESPHOME_MANUFACTURER "Espressif"
 #elif defined(USE_RP2040)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Raspberry Pi");
+#define ESPHOME_MANUFACTURER "Raspberry Pi"
 #elif defined(USE_BK72XX)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Beken");
+#define ESPHOME_MANUFACTURER "Beken"
 #elif defined(USE_LN882X)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Lightning");
+#define ESPHOME_MANUFACTURER "Lightning"
 #elif defined(USE_NRF52)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Nordic Semiconductor");
+#define ESPHOME_MANUFACTURER "Nordic Semiconductor"
 #elif defined(USE_RTL87XX)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Realtek");
+#define ESPHOME_MANUFACTURER "Realtek"
 #elif defined(USE_HOST)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Host");
+#define ESPHOME_MANUFACTURER "Host"
 #endif
-  resp.set_manufacturer(MANUFACTURER);
 
+#ifdef USE_ESP8266
+  // ESP8266 requires PROGMEM for flash storage, copy to stack for memcpy compatibility
+  static const char MANUFACTURER_PROGMEM[] PROGMEM = ESPHOME_MANUFACTURER;
+  char manufacturer_buf[sizeof(MANUFACTURER_PROGMEM)];
+  memcpy_P(manufacturer_buf, MANUFACTURER_PROGMEM, sizeof(MANUFACTURER_PROGMEM));
+  resp.set_manufacturer(StringRef(manufacturer_buf, sizeof(MANUFACTURER_PROGMEM) - 1));
+#else
+  static constexpr auto MANUFACTURER = StringRef::from_lit(ESPHOME_MANUFACTURER);
+  resp.set_manufacturer(MANUFACTURER);
+#endif
+#undef ESPHOME_MANUFACTURER
+
+#ifdef USE_ESP8266
+  static const char MODEL_PROGMEM[] PROGMEM = ESPHOME_BOARD;
+  char model_buf[sizeof(MODEL_PROGMEM)];
+  memcpy_P(model_buf, MODEL_PROGMEM, sizeof(MODEL_PROGMEM));
+  resp.set_model(StringRef(model_buf, sizeof(MODEL_PROGMEM) - 1));
+#else
   static constexpr auto MODEL = StringRef::from_lit(ESPHOME_BOARD);
   resp.set_model(MODEL);
+#endif
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
 #ifdef ESPHOME_PROJECT_NAME
+#ifdef USE_ESP8266
+  static const char PROJECT_NAME_PROGMEM[] PROGMEM = ESPHOME_PROJECT_NAME;
+  static const char PROJECT_VERSION_PROGMEM[] PROGMEM = ESPHOME_PROJECT_VERSION;
+  char project_name_buf[sizeof(PROJECT_NAME_PROGMEM)];
+  char project_version_buf[sizeof(PROJECT_VERSION_PROGMEM)];
+  memcpy_P(project_name_buf, PROJECT_NAME_PROGMEM, sizeof(PROJECT_NAME_PROGMEM));
+  memcpy_P(project_version_buf, PROJECT_VERSION_PROGMEM, sizeof(PROJECT_VERSION_PROGMEM));
+  resp.set_project_name(StringRef(project_name_buf, sizeof(PROJECT_NAME_PROGMEM) - 1));
+  resp.set_project_version(StringRef(project_version_buf, sizeof(PROJECT_VERSION_PROGMEM) - 1));
+#else
   static constexpr auto PROJECT_NAME = StringRef::from_lit(ESPHOME_PROJECT_NAME);
   static constexpr auto PROJECT_VERSION = StringRef::from_lit(ESPHOME_PROJECT_VERSION);
   resp.set_project_name(PROJECT_NAME);
   resp.set_project_version(PROJECT_VERSION);
+#endif
 #endif
 #ifdef USE_WEBSERVER
   resp.webserver_port = USE_WEBSERVER_PORT;
@@ -1548,7 +1580,12 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   for (auto &it : this->parent_->get_state_subs()) {
-    if (it.entity_id == msg.entity_id && it.attribute.value() == msg.attribute) {
+    // Compare entity_id and attribute with message fields
+    bool entity_match = (strcmp(it.entity_id, msg.entity_id.c_str()) == 0);
+    bool attribute_match = (it.attribute != nullptr && strcmp(it.attribute, msg.attribute.c_str()) == 0) ||
+                           (it.attribute == nullptr && msg.attribute.empty());
+
+    if (entity_match && attribute_match) {
       it.callback(msg.state);
     }
   }
@@ -1927,8 +1964,8 @@ void APIConnection::process_state_subscriptions_() {
   SubscribeHomeAssistantStateResponse resp;
   resp.set_entity_id(StringRef(it.entity_id));
 
-  // Avoid string copy by directly using the optional's value if it exists
-  resp.set_attribute(it.attribute.has_value() ? StringRef(it.attribute.value()) : StringRef(""));
+  // Avoid string copy by using the const char* pointer if it exists
+  resp.set_attribute(it.attribute != nullptr ? StringRef(it.attribute) : StringRef(""));
 
   resp.once = it.once;
   if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {
