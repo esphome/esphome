@@ -533,7 +533,7 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
   if (msg.has_flash_length)
     call.set_flash_length(msg.flash_length);
   if (msg.has_effect)
-    call.set_effect(msg.effect);
+    call.set_effect(reinterpret_cast<const char *>(msg.effect), msg.effect_len);
   call.perform();
 }
 #endif
