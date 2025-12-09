@@ -318,7 +318,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
 
 void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *, uint16_t) {
   for (auto *device : this->devices_) {
-    if (device->address_ == address) {
+    if (device->get_address() == address) {
       ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
     }
   }
@@ -336,30 +336,34 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t funct
 
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data,
                                                    uint16_t len) {
-  bool found = false;
 
   for (auto *device : this->devices_) {
-    if (device->address_ == address) {
-      found = true;
+    if (device->get_address() == address) {
+      ModbusServerResponse response;
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
-        device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
+        response =
+            device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
                                          helpers::get_data<uint16_t>(data, 2));
       } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        device->on_modbus_write_registers(function_code, std::vector<uint8_t>(data, data + len));
+        response = device->on_modbus_write_registers(function_code, std::vector<uint8_t>(data, data + len));
       } else {
         ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
-        device->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+        return;
+      }
+      if (static_cast<uint8_t>(response.exception)) {
+        this->send_exception_(address, function_code, response.exception);
+      } else {
+        this->send_response_(address, function_code, std::move(response.payload));
       }
     }
   }
 
-  if (!found) {
-    this->expecting_peer_response_ = address;
-    ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
-  }
+  this->expecting_peer_response_ = address;
+  ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
 }
 
 bool Modbus::send_frame_(const ModbusFrame &frame) {
@@ -449,17 +453,18 @@ float Modbus::get_setup_priority() const {
   return setup_priority::BUS - 1.0f;
 }
 
-void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload) {
-  const uint16_t len = static_cast<uint16_t>(2 + payload.size());
-  if (len > MAX_RAW_SIZE) {
-    ESP_LOGE(TAG, "Server send frame too large (%" PRIu16 " bytes)", len);
-    return;
-  }
-  uint8_t raw_frame[MAX_RAW_SIZE];
-  raw_frame[0] = address;
-  raw_frame[1] = function_code;
-  std::memcpy(raw_frame + 2, payload.data(), payload.size());
-  this->send_raw_(raw_frame, len);
+void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
+  payload.insert(payload.begin(), std::initializer_list<uint8_t>{address, function_code});
+  this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
+}
+
+void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
+  std::vector<uint8_t> payload;
+  payload.reserve(3);
+  payload.push_back(address);
+  payload.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
+  payload.push_back(static_cast<uint8_t>(exception_code));
+  this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
