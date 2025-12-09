@@ -6,13 +6,61 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <deque>
 #include <queue>
-#include <vector>
 
 namespace esphome::micronova {
 
 static const char *const TAG = "micronova";
+
+/// Fixed-size circular buffer with FIFO semantics and iteration support
+/// Used for read queue where we need to check for duplicates before adding
+template<typename T, size_t N> class CommandQueue {
+ public:
+  class Iterator {
+   public:
+    Iterator(const CommandQueue *queue, size_t pos) : queue_(queue), pos_(pos) {}
+    const T &operator*() const { return queue_->data_[(queue_->head_ + pos_) % N]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const CommandQueue *queue_;
+    size_t pos_;
+  };
+
+  void push_back(const T &value) {
+    if (this->count_ < N) {
+      this->data_[this->tail_] = value;
+      this->tail_ = (this->tail_ + 1) % N;
+      ++this->count_;
+    }
+  }
+
+  void pop_front() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % N;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+
+  size_t size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+
+  Iterator begin() const { return Iterator(this, 0); }
+  Iterator end() const { return Iterator(this, this->count_); }
+
+ protected:
+  std::array<T, N> data_{};
+  size_t head_{0};
+  size_t tail_{0};
+  size_t count_{0};
+};
 
 /// Represents a command to be sent to the stove
 /// Write commands have the high bit (0x80) set in memory_location
@@ -91,11 +139,11 @@ class MicroNova : public Component, public uart::UARTDevice {
   GPIOPin *enable_rx_pin_;
 
   std::queue<MicroNovaCommand> write_queue_;
-  std::deque<MicroNovaCommand> read_queue_;
+  CommandQueue<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;
   MicroNovaCommand current_command_;
   uint32_t transmission_time_{0};  ///< Time when current command was sent (0 = no command pending)
 
-  std::vector<MicroNovaListener *> listeners_;
+  StaticVector<MicroNovaListener *, MICRONOVA_LISTENER_COUNT> listeners_;
 };
 
 }  // namespace esphome::micronova
