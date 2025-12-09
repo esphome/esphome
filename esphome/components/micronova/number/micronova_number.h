@@ -18,6 +18,11 @@ class MicroNovaNumber : public number::Number, public MicroNovaListener {
     this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
   }
   void process_value_from_stove(int value_from_stove) override;
+
+  void set_use_step_scaling(bool v) { this->use_step_scaling_ = v; }
+
+ protected:
+  bool use_step_scaling_ = false;
 };
 
 }  // namespace esphome::micronova

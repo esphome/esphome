@@ -402,7 +402,7 @@ def run_ota_impl_(
         )
         _LOGGER.error(
             "(If this error persists, please set a static IP address: "
-            "https://esphome.io/components/wifi.html#manual-ips)"
+            "https://esphome.io/components/wifi/#manual-ips)"
         )
         raise OTAError(err) from err
 

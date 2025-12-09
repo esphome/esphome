@@ -12,22 +12,6 @@ namespace esphome::micronova {
 
 static const char *const TAG = "micronova";
 
-enum class MicroNovaFunctions {
-  STOVE_FUNCTION_VOID = 0,
-  STOVE_FUNCTION_SWITCH = 1,
-  STOVE_FUNCTION_ROOM_TEMPERATURE = 2,
-  STOVE_FUNCTION_THERMOSTAT_TEMPERATURE = 3,
-  STOVE_FUNCTION_FUMES_TEMPERATURE = 4,
-  STOVE_FUNCTION_STOVE_POWER = 5,
-  STOVE_FUNCTION_FAN_SPEED = 6,
-  STOVE_FUNCTION_STOVE_STATE = 7,
-  STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR = 8,
-  STOVE_FUNCTION_WATER_TEMPERATURE = 9,
-  STOVE_FUNCTION_WATER_PRESSURE = 10,
-  STOVE_FUNCTION_POWER_LEVEL = 11,
-  STOVE_FUNCTION_CUSTOM = 12
-};
-
 class MicroNova;
 
 //////////////////////////////////////////////////////////////////////
@@ -39,9 +23,6 @@ class MicroNovaBaseListener {
 
   void set_micronova_object(MicroNova *m) { this->micronova_ = m; }
 
-  void set_function(MicroNovaFunctions f) { this->function_ = f; }
-  MicroNovaFunctions get_function() { return this->function_; }
-
   void set_memory_location(uint8_t l) { this->memory_location_ = l; }
   uint8_t get_memory_location() { return this->memory_location_; }
 
@@ -52,7 +33,6 @@ class MicroNovaBaseListener {
 
  protected:
   MicroNova *micronova_{nullptr};
-  MicroNovaFunctions function_ = MicroNovaFunctions::STOVE_FUNCTION_VOID;
   uint8_t memory_location_ = 0;
   uint8_t memory_address_ = 0;
 };

@@ -60,22 +60,58 @@ class MDNSComponent : public Component {
 
   void on_shutdown() override;
 
+#ifdef USE_MDNS_DYNAMIC_TXT
   /// Add a dynamic TXT value and return pointer to it for use in MDNSTXTRecord
   const char *add_dynamic_txt_value(const std::string &value) {
     this->dynamic_txt_values_.push_back(value);
     return this->dynamic_txt_values_[this->dynamic_txt_values_.size() - 1].c_str();
   }
+#endif
 
-  /// Storage for runtime-generated TXT values (MAC address, user lambdas)
+ protected:
+  /// Helper to set up services and MAC buffers, then call platform-specific registration
+  using PlatformRegisterFn = void (*)(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &);
+
+  void setup_buffers_and_register_(PlatformRegisterFn platform_register) {
+#ifdef USE_MDNS_STORE_SERVICES
+    auto &services = this->services_;
+#else
+    StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_storage;
+    auto &services = services_storage;
+#endif
+
+#ifdef USE_API
+#ifdef USE_MDNS_STORE_SERVICES
+    get_mac_address_into_buffer(this->mac_address_);
+    char *mac_ptr = this->mac_address_;
+#else
+    char mac_address[MAC_ADDRESS_BUFFER_SIZE];
+    get_mac_address_into_buffer(mac_address);
+    char *mac_ptr = mac_address;
+#endif
+#else
+    char *mac_ptr = nullptr;
+#endif
+
+    this->compile_records_(services, mac_ptr);
+    platform_register(this, services);
+  }
+
+#ifdef USE_MDNS_DYNAMIC_TXT
+  /// Storage for runtime-generated TXT values from user lambdas
   /// Pre-sized at compile time via MDNS_DYNAMIC_TXT_COUNT to avoid heap allocations.
   /// Static/compile-time values (version, board, etc.) are stored directly in flash and don't use this.
   StaticVector<std::string, MDNS_DYNAMIC_TXT_COUNT> dynamic_txt_values_;
+#endif
 
- protected:
+#if defined(USE_API) && defined(USE_MDNS_STORE_SERVICES)
+  /// Fixed buffer for MAC address (only needed when services are stored)
+  char mac_address_[MAC_ADDRESS_BUFFER_SIZE];
+#endif
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
 #endif
-  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services);
+  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf);
 };
 
 }  // namespace esphome::mdns
