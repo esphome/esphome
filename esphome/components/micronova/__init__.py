@@ -54,30 +54,27 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-def _required_or_optional(key: str, default_value: int | None):
-    """Return Required or Optional marker based on whether default_value is provided."""
-    if default_value is None:
-        return cv.Required(key)
-    return cv.Optional(key, default=default_value)
-
-
 def MICRONOVA_ADDRESS_SCHEMA(
     *,
     default_memory_location: int | None = None,
     default_memory_address: int | None = None,
     is_polling_component: bool,
 ):
+    location_key = (
+        cv.Optional(CONF_MEMORY_LOCATION, default=default_memory_location)
+        if default_memory_location is not None
+        else cv.Required(CONF_MEMORY_LOCATION)
+    )
+    address_key = (
+        cv.Optional(CONF_MEMORY_ADDRESS, default=default_memory_address)
+        if default_memory_address is not None
+        else cv.Required(CONF_MEMORY_ADDRESS)
+    )
     schema = cv.Schema(
         {
             cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
-            # On write requests the write bit (0x80) is added automatically to the location
-            # Therefore no locations >= 0x80 are allowed
-            _required_or_optional(
-                CONF_MEMORY_LOCATION, default_memory_location
-            ): cv.hex_int_range(min=0x00, max=0x79),
-            _required_or_optional(
-                CONF_MEMORY_ADDRESS, default_memory_address
-            ): cv.hex_int_range(min=0x00, max=0xFF),
+            location_key: cv.hex_int_range(min=0x00, max=0x79),
+            address_key: cv.hex_int_range(min=0x00, max=0xFF),
         }
     )
     if is_polling_component:
