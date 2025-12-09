@@ -213,6 +213,7 @@ esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hlk_fm22x/* @OnFreund
+esphome/components/hlw8032/* @rici4kubicek
 esphome/components/hm3301/* @freekode
 esphome/components/hmac_md5/* @dwmw2
 esphome/components/homeassistant/* @esphome/core @OttoWinter
@@ -228,6 +229,7 @@ esphome/components/hte501/* @Stock-M
 esphome/components/http_request/ota/* @oarcher
 esphome/components/http_request/update/* @jesserockz
 esphome/components/htu31d/* @betterengineering
+esphome/components/hub75/* @stuartparmenter
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/hyt271/* @Philippe12
 esphome/components/i2c/* @esphome/core
@@ -307,7 +309,7 @@ esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/media_player/* @jesserockz
 esphome/components/micro_wake_word/* @jesserockz @kahrendt
-esphome/components/micronova/* @jorre05
+esphome/components/micronova/* @edenhaus @jorre05
 esphome/components/microphone/* @jesserockz @kahrendt
 esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
