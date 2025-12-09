@@ -959,13 +959,13 @@ jobs:
       - memory-impact-comment
     if: always()
     steps:
-      - name: Success
-        if: ${{ !(contains(needs.*.result, 'failure')) }}
-        run: exit 0
-      - name: Failure
-        if: ${{ contains(needs.*.result, 'failure') }}
+      - name: Check job results
         env:
-          JSON_DOC: ${{ toJSON(needs) }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
-          echo $JSON_DOC | jq
-          exit 1
+          # memory-impact-target-branch is allowed to fail without blocking CI.
+          # This job builds the target branch (dev/beta/release) which may fail because:
+          # 1. The target branch has a build issue independent of this PR
+          # 2. This PR fixes a build issue on the target branch
+          # In either case, we only care that the PR branch builds successfully.
+          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result != "failure")'
