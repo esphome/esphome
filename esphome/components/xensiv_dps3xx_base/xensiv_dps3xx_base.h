@@ -8,16 +8,17 @@
 namespace esphome {
 namespace xensiv_dps3xx_base {
 
-class XensivDPS3xx : public Component {
+class XensivDPS3xx : public PollingComponent {
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
+  void update();
 
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_operation_mode(uint8_t mode) { this->operation_mode_ = mode; }
-  void set_sensor_rate_value(uint32_t sensor_rate) { this->sensor_rate_value_ = sensor_rate; }
+  void set_sensor_rate_value(float sensor_rate) { this->sensor_rate_value_ = sensor_rate; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   bool measure_temperature_now();
   bool measure_pressure_now();
@@ -34,7 +35,7 @@ class XensivDPS3xx : public Component {
 
   InternalGPIOPin *interrupt_pin_{nullptr};
   uint8_t operation_mode_{0};
-  uint8_t sensor_rate_value_{0};
+  float sensor_rate_value_{1.0f};  // Update interval in seconds (0.125 - 16)
   sensor::Sensor *pressure_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
   Dps3xx *Dps3xxPressureSensor{nullptr};

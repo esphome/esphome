@@ -9,7 +9,7 @@ DEPENDENCIES = ["i2c"]
 
 xensiv_dps3xx_ns = cg.esphome_ns.namespace("xensiv_dps3xx_i2c")
 XENSIVDPS3xxI2C = xensiv_dps3xx_ns.class_(
-    "XensivDPS3xxI2C", cg.Component, i2c.I2CDevice
+    "XensivDPS3xxI2C", cg.PollingComponent, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(

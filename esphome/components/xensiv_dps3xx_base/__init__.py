@@ -38,18 +38,21 @@ CONFIG_SCHEMA_BASE = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Required(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_SENSOR_RATE, default="60s"): cv.All(
+        cv.Optional(CONF_SENSOR_RATE, default="1s"): cv.All(
             cv.positive_time_period_seconds,
-            cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=4095)),
+            cv.Range(
+                min=cv.TimePeriod(milliseconds=125), max=cv.TimePeriod(seconds=16)
+            ),
         ),
         cv.Optional(CONF_OPERATION_MODE, default="continuous"): cv.enum(
             {
                 "single_shot": 0,
                 "continuous": 1,
+                "pressure": 2,
             }
         ),
     }
-).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.polling_component_schema("1s"))
 
 SENSOR_MAP = {
     CONF_PRESSURE: "set_pressure_sensor",

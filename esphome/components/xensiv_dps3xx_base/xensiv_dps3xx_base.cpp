@@ -1,6 +1,7 @@
 #include "esphome/core/log.h"
 #include "xensiv_dps3xx_base.h"
 #include <cstring>
+#include <cmath>
 
 namespace esphome {
 namespace xensiv_dps3xx_base {
@@ -27,24 +28,50 @@ void XensivDPS3xx::setup() {
       return;
     }
     Dps3xxPressureSensor->getIntStatusFifoFull();
-    /* temperature measure rate (value from 0 to 7)
-     * 2^temp_mr temperature measurement results per second */
-    int16_t temp_mr = 0;
-    /* temperature oversampling rate (value from 0 to 7)
-     * 2^temp_osr internal temperature measurements per result */
-    int16_t temp_osr = 1;
-    /* pressure measure rate (value from 0 to 7)
-     * 2^prs_mr pressure measurement results per second */
-    int16_t prs_mr = 0;
-    /* pressure oversampling rate (value from 0 to 7)
-     * 2^prs_osr internal pressure measurements per result */
+
+    // Use default of 1 second if not configured
+    if (this->sensor_rate_value_ == 0) {
+      this->sensor_rate_value_ = 1;
+    }
+
+    // Clamp sensor_rate_value to valid range [0.125s - 16s]
+    // Min: 0.125s (mr=7 → 128 Hz each → 256 total → 32/256 = 0.125s)
+    // Max: 16s (mr=0 → 1 Hz each → 2 total → 32/2 = 16s)
+    if (this->sensor_rate_value_ < 0.125f) {
+      this->sensor_rate_value_ = 0.125f;
+    } else if (this->sensor_rate_value_ > 16.0f) {
+      this->sensor_rate_value_ = 16.0f;
+    }
+
+    // Calculate measurement rate to fill FIFO (32 samples) in sensor_rate_value_ seconds
+    // FIFO fills with both temp and pressure, so: 2 * (2^mr) * sensor_rate_value_ = 32
+    // Therefore: 2^mr = 16 / sensor_rate_value_
+    // mr = log2(16 / sensor_rate_value_)
+
+    float target_rate = 16.0f / this->sensor_rate_value_;  // Measurements per second per type
+    int16_t temp_mr = static_cast<int16_t>(std::round(std::log2(target_rate)));
+    int16_t prs_mr = temp_mr;  // Use same rate for both
+
+    // Clamp to valid range [0, 7] (should not be needed after rate validation, but safety)
+    temp_mr = std::max(0, std::min(7, static_cast<int>(temp_mr)));
+    prs_mr = std::max(0, std::min(7, static_cast<int>(prs_mr)));
+
+    // Keep oversampling low for faster measurements
+    int16_t temp_osr = 1;  // 2^1 = 2 internal measurements
     int16_t prs_osr = 1;
+
+    ESP_LOGI(TAG, "Configured for %.1fs update interval: temp_mr=%d (%.0f Hz), prs_mr=%d (%.0f Hz)",
+             this->sensor_rate_value_, temp_mr, std::pow(2.0f, temp_mr), prs_mr, std::pow(2.0f, prs_mr));
+
     if (this->Dps3xxPressureSensor->startMeasureBothCont(temp_mr, temp_osr, prs_mr, prs_osr) != DPS__SUCCEEDED) {
       this->failure_reason_ += "Failed to start continuous measurement;";
       this->mark_failed();
       return;
     }
     return;
+
+  } else if (this->operation_mode_ == 2) { /* Pressure mode: disable interrupts */
+    // no interrupts
 
   } else if (this->operation_mode_ == 0) { /* Single-shot mode: use measurement ready interrupts */
     if (this->Dps3xxPressureSensor->setInterruptSources(DPS3xx_BOTH_INTR, 0) != DPS__SUCCEEDED) {
@@ -66,7 +93,7 @@ void XensivDPS3xx::loop() {
     data_ready_ = false;
     ESP_LOGW(TAG, "Data ready interrupt occurred.");
 
-    if (operation_mode_ == 1) {
+    if (operation_mode_ == 1) { /* Continuous mode */
       // read all available samples from FIFO
       uint8_t pressureCount = 20;
       float pressure[pressureCount];
@@ -75,10 +102,25 @@ void XensivDPS3xx::loop() {
       int16_t ret = Dps3xxPressureSensor->getContResults(temperature, temperatureCount, pressure, pressureCount);
       if (ret == DPS__SUCCEEDED) {
         this->Dps3xxPressureSensor->getIntStatusFifoFull();
-        this->pressure_sensor_->publish_state(pressure[pressureCount - 1] / 1000.0f);  // Convert to hPa
-        this->temperature_sensor_->publish_state(temperature[temperatureCount - 1]);   // °C
-      }
 
+        // Calculate and publish average temperature
+        if (temperatureCount > 0) {
+          float temp_sum = 0.0f;
+          for (uint8_t i = 0; i < temperatureCount; i++) {
+            temp_sum += temperature[i];
+          }
+          this->temperature_sensor_->publish_state(temp_sum / temperatureCount);
+        }
+
+        // Calculate and publish average pressure
+        if (pressureCount > 0) {
+          float prs_sum = 0.0f;
+          for (uint8_t i = 0; i < pressureCount; i++) {
+            prs_sum += pressure[i];
+          }
+          this->pressure_sensor_->publish_state(prs_sum / pressureCount / 1000.0f);  // Convert to hPa
+        }
+      }
     } else if (operation_mode_ == 0) {
       ESP_LOGW(TAG, "Reading data in single-shot mode.");
       // In single-shot mode, read one temperature and one pressure value
@@ -99,6 +141,34 @@ void XensivDPS3xx::loop() {
   } else {
     // No data ready
     return;
+  }
+}
+
+void XensivDPS3xx::update() {
+  if (this->operation_mode_ == 2) { /* Pressure Mode */
+    uint8_t osr = 7;                // oversampling rate
+    if (this->Dps3xxPressureSensor->startMeasurePressureOnce(osr) != DPS__SUCCEEDED) {
+      ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
+      return;
+    }
+
+    // Calculate timeout using same formula as measurePressureOnce()
+    // busy_time_us = (20 << mr) + (16 << (osr + mr))
+    // With mr=0: busy_time_us = 20 + (16 << osr) microseconds
+    // Convert to milliseconds by dividing by DPS__BUSYTIME_SCALING (10)
+    // Add DPS3xx__BUSYTIME_FAILSAFE (10 ms) safety margin
+    uint32_t busy_time_us = 20U + (16U << osr);  // Formula from calcBusyTime with mr=0
+    uint32_t timeout_ms = (busy_time_us / 10U) + 10U;
+
+    this->set_timeout(timeout_ms, [this]() {
+      float pressure = 0.0f;
+      if (this->Dps3xxPressureSensor->getSingleResult(pressure) != DPS__SUCCEEDED) {
+        ESP_LOGW(TAG, "getSingleResult() failed in update()");
+        return;
+      } else {
+        this->pressure_sensor_->publish_state(pressure / 1000.0f);  // Convert to hPa
+      }
+    });
   }
 }
 
