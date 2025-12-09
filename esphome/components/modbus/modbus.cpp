@@ -290,7 +290,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
 void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t function_code,
                                                   const std::vector<uint8_t> &) {
   for (auto *device : this->devices_) {
-    if (device->address_ == address) {
+    if (device->get_address() == address) {
       ESP_LOGE(TAG, "Unexpected response from address %d, which is mapped to this device.", address);
     }
   }
@@ -309,18 +309,25 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   bool found = false;
 
   for (auto *device : this->devices_) {
-    if (device->address_ == address) {
+    if (!found && device->get_address() == address) {
       found = true;
+      ModbusServerResponse response;
 
       if (function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           function_code == ModbusFunctionCode::READ_INPUT_REGISTERS) {
-        device->on_modbus_read_registers(function_code, get_data<uint16_t>(data, 0), get_data<uint16_t>(data, 2));
+        response =
+            device->on_modbus_read_registers(function_code, get_data<uint16_t>(data, 0), get_data<uint16_t>(data, 2));
       } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        device->on_modbus_write_registers(function_code, data);
+        response = device->on_modbus_write_registers(function_code, data);
       } else {
         ESP_LOGW(TAG, "Unsupported function code %d", function_code);
-        device->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+        this->send_exception(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+      }
+      if (static_cast<uint8_t>(response.exception)) {
+        this->send_exception(address, function_code, response.exception);
+      } else {
+        this->send_response(address, function_code, std::move(response.payload));
       }
     }
   }
@@ -421,8 +428,17 @@ void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t star
   this->send_raw(data, device, allow_duplicates);
 }
 
-void ModbusServerHub::send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
+void ModbusServerHub::send_response(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
   payload.insert(payload.begin(), std::initializer_list<uint8_t>{address, function_code});
+  this->send_raw(payload);
+}
+
+void ModbusServerHub::send_exception(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
+  std::vector<uint8_t> payload;
+  payload.reserve(3);
+  payload.push_back(address);
+  payload.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
+  payload.push_back(static_cast<uint8_t>(exception_code));
   this->send_raw(payload);
 }
 

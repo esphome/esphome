@@ -95,8 +95,6 @@ class ModbusServerHub : public Modbus {
  public:
   ModbusServerHub() = default;
   void dump_config() override;
-  void send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload);
-  void send_raw(const std::vector<uint8_t> &payload);
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
@@ -104,6 +102,9 @@ class ModbusServerHub : public Modbus {
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data);
+  void send_exception(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
+  void send_response(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload);
+  void send_raw(const std::vector<uint8_t> &payload);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 };
@@ -144,31 +145,22 @@ class ModbusClientDevice {
 // This is for compatibility with external components using the former class name
 class ModbusDevice : public ModbusClientDevice {};
 
+struct ModbusServerResponse {
+  ModbusExceptionCode exception;
+  std::vector<uint8_t> payload;
+};
+
 class ModbusServerDevice {
  public:
   ModbusServerDevice() = default;
-  ModbusServerDevice(ModbusServerHub *parent, uint8_t address) : parent_(parent), address_(address) {}
-  void set_parent(ModbusServerHub *parent) { parent_ = parent; }
+  ModbusServerDevice(uint8_t address) : address_(address) {}
   void set_address(uint8_t address) { address_ = address; }
-  virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
-  virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
-  void send(uint8_t function, std::vector<uint8_t> &&payload) {
-    this->parent_->send(this->address_, function, std::move(payload));
-  }
-  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload); }
-  void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {
-    std::vector<uint8_t> error_response;
-    error_response.reserve(3);
-    error_response.push_back(this->address_);
-    error_response.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
-    error_response.push_back(static_cast<uint8_t>(exception_code));
-    this->send_raw(error_response);
-  }
+  uint8_t get_address() const { return address_; }
+  virtual ModbusServerResponse on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
+                                                        uint16_t number_of_registers) = 0;
+  virtual ModbusServerResponse on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) = 0;
 
  protected:
-  friend ModbusServerHub;
-
-  ModbusServerHub *parent_;
   uint8_t address_;
 };
 
