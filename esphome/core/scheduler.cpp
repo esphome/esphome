@@ -204,13 +204,21 @@ bool HOT Scheduler::cancel_interval(Component *component, const char *name) {
 }
 
 struct RetryArgs {
+  // Ordered to minimize padding on 32-bit systems
   std::function<RetryResult(uint8_t)> func;
-  uint8_t retry_countdown;
-  uint32_t current_interval;
   Component *component;
-  std::string name;  // Keep as std::string since retry uses it dynamically
-  float backoff_increase_factor;
   Scheduler *scheduler;
+  const char *name;  // Points to static string or owned copy
+  uint32_t current_interval;
+  float backoff_increase_factor;
+  uint8_t retry_countdown;
+  bool name_is_dynamic;  // True if name needs delete[]
+
+  ~RetryArgs() {
+    if (this->name_is_dynamic && this->name) {
+      delete[] this->name;
+    }
+  }
 };
 
 void retry_handler(const std::shared_ptr<RetryArgs> &args) {
@@ -218,8 +226,10 @@ void retry_handler(const std::shared_ptr<RetryArgs> &args) {
   if (retry_result == RetryResult::DONE || args->retry_countdown <= 0)
     return;
   // second execution of `func` happens after `initial_wait_time`
+  // Pass is_static_string=true because args->name is owned by the shared_ptr<RetryArgs>
+  // which is captured in the lambda and outlives the SchedulerItem
   args->scheduler->set_timer_common_(
-      args->component, Scheduler::SchedulerItem::TIMEOUT, false, &args->name, args->current_interval,
+      args->component, Scheduler::SchedulerItem::TIMEOUT, true, args->name, args->current_interval,
       [args]() { retry_handler(args); }, /* is_retry= */ true);
   // backoff_increase_factor applied to third & later executions
   args->current_interval *= args->backoff_increase_factor;
@@ -246,16 +256,35 @@ void HOT Scheduler::set_retry_common_(Component *component, bool is_static_strin
 
   auto args = std::make_shared<RetryArgs>();
   args->func = std::move(func);
-  args->retry_countdown = max_attempts;
-  args->current_interval = initial_wait_time;
   args->component = component;
-  args->name = name_cstr ? name_cstr : "";  // Convert to std::string for RetryArgs
-  args->backoff_increase_factor = backoff_increase_factor;
   args->scheduler = this;
+  args->current_interval = initial_wait_time;
+  args->backoff_increase_factor = backoff_increase_factor;
+  args->retry_countdown = max_attempts;
+
+  // Store name - either as static pointer or owned copy
+  if (name_cstr == nullptr || name_cstr[0] == '\0') {
+    // Empty or null name - use empty string literal
+    args->name = "";
+    args->name_is_dynamic = false;
+  } else if (is_static_string) {
+    // Static string - just store the pointer
+    args->name = name_cstr;
+    args->name_is_dynamic = false;
+  } else {
+    // Dynamic string - make a copy
+    size_t len = strlen(name_cstr);
+    char *copy = new char[len + 1];
+    memcpy(copy, name_cstr, len + 1);
+    args->name = copy;
+    args->name_is_dynamic = true;
+  }
 
   // First execution of `func` immediately - use set_timer_common_ with is_retry=true
+  // Pass is_static_string=true because args->name is owned by the shared_ptr<RetryArgs>
+  // which is captured in the lambda and outlives the SchedulerItem
   this->set_timer_common_(
-      component, SchedulerItem::TIMEOUT, false, &args->name, 0, [args]() { retry_handler(args); },
+      component, SchedulerItem::TIMEOUT, true, args->name, 0, [args]() { retry_handler(args); },
       /* is_retry= */ true);
 }
 
