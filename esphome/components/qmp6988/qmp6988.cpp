@@ -310,7 +310,7 @@ void QMP6988Component::calculate_pressure_() {
 
 void QMP6988Component::setup() {
   if (!this->device_check_()) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 

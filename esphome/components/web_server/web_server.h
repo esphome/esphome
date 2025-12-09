@@ -7,6 +7,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 #include <functional>
 #include <list>
@@ -168,9 +171,16 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * by esphome.io by default), an event source under '/events' that automatically sends
  * all state updates in real time + the debug log. Lastly, there's an REST API available
  * under the '/light/...', '/sensor/...', ... URLs. A full documentation for this API
- * can be found under https://esphome.io/web-api/index.html.
+ * can be found under https://esphome.io/web-api/.
  */
-class WebServer : public Controller, public Component, public AsyncWebHandler {
+class WebServer : public Controller,
+                  public Component,
+                  public AsyncWebHandler
+#ifdef USE_LOGGER
+    ,
+                  public logger::LogListener
+#endif
+{
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
   friend class DeferredUpdateEventSourceList;
 #endif
@@ -229,6 +239,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void loop() override;
 
   void dump_config() override;
+
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+#endif
 
   /// MQTT setup priority.
   float get_setup_priority() const override;
