@@ -6,20 +6,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <queue>
-
 namespace esphome::micronova {
 
 static const char *const TAG = "micronova";
 
 /// Fixed-size circular buffer with FIFO semantics and iteration support
-/// Used for read queue where we need to check for duplicates before adding
-template<typename T, size_t N> class CommandQueue {
+template<typename T, uint8_t N> class CommandRingBuffer {
  public:
   class Iterator {
    public:
-    Iterator(const CommandQueue *queue, size_t pos) : queue_(queue), pos_(pos) {}
-    const T &operator*() const { return queue_->data_[(queue_->head_ + pos_) % N]; }
+    Iterator(const CommandRingBuffer *buf, uint8_t pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
     Iterator &operator++() {
       ++pos_;
       return *this;
@@ -27,11 +24,11 @@ template<typename T, size_t N> class CommandQueue {
     bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
 
    private:
-    const CommandQueue *queue_;
-    size_t pos_;
+    const CommandRingBuffer *buf_;
+    uint8_t pos_;
   };
 
-  void push_back(const T &value) {
+  void push(const T &value) {
     if (this->count_ < N) {
       this->data_[this->tail_] = value;
       this->tail_ = (this->tail_ + 1) % N;
@@ -39,7 +36,7 @@ template<typename T, size_t N> class CommandQueue {
     }
   }
 
-  void pop_front() {
+  void pop() {
     if (this->count_ > 0) {
       this->head_ = (this->head_ + 1) % N;
       --this->count_;
@@ -47,8 +44,6 @@ template<typename T, size_t N> class CommandQueue {
   }
 
   T &front() { return this->data_[this->head_]; }
-  const T &front() const { return this->data_[this->head_]; }
-
   size_t size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
 
@@ -56,10 +51,10 @@ template<typename T, size_t N> class CommandQueue {
   Iterator end() const { return Iterator(this, this->count_); }
 
  protected:
-  std::array<T, N> data_{};
-  size_t head_{0};
-  size_t tail_{0};
-  size_t count_{0};
+  T data_[N]{};
+  uint8_t head_{0};
+  uint8_t tail_{0};
+  uint8_t count_{0};
 };
 
 /// Represents a command to be sent to the stove
@@ -125,11 +120,13 @@ class MicroNova : public Component, public uart::UARTDevice {
   /// @param address Memory address on the stove
   void queue_read_request(uint8_t location, uint8_t address);
 
+#ifdef MICRONOVA_WRITER_COUNT
   /// Queue a write command to the stove (processed before reads)
   /// @param location Memory location on the stove
   /// @param address Memory address on the stove
   /// @param data Data to write
   void queue_write_command(uint8_t location, uint8_t address, uint8_t data);
+#endif
 
  protected:
   void send_current_command_();
@@ -138,8 +135,10 @@ class MicroNova : public Component, public uart::UARTDevice {
 
   GPIOPin *enable_rx_pin_;
 
-  std::queue<MicroNovaCommand> write_queue_;
-  CommandQueue<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;
+#ifdef MICRONOVA_WRITER_COUNT
+  CommandRingBuffer<MicroNovaCommand, MICRONOVA_WRITER_COUNT> write_queue_;
+#endif
+  CommandRingBuffer<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;
   MicroNovaCommand current_command_;
   uint32_t transmission_time_{0};  ///< Time when current command was sent (0 = no command pending)
 

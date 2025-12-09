@@ -9,6 +9,7 @@ from .. import (
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     micronova_ns,
+    register_micronova_writer,
 )
 
 MicroNovaButton = micronova_ns.class_("MicroNovaButton", button.Button, cg.Component)
@@ -38,6 +39,7 @@ async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     if custom_button_config := config.get(CONF_CUSTOM_BUTTON):
+        register_micronova_writer()
         bt = await button.new_button(custom_button_config, mv)
         cg.add(bt.set_memory_location(custom_button_config.get(CONF_MEMORY_LOCATION)))
         cg.add(bt.set_memory_address(custom_button_config.get(CONF_MEMORY_ADDRESS)))

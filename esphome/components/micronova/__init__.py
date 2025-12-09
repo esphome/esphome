@@ -20,6 +20,7 @@ class MicronovaData:
     """Track micronova component state during code generation."""
 
     listener_count: int = 0
+    writer_count: int = 0
 
 
 def _get_data() -> MicronovaData:
@@ -81,6 +82,11 @@ def MICRONOVA_ADDRESS_SCHEMA(
     return schema
 
 
+def register_micronova_writer() -> None:
+    """Register a component that can write to the stove (button, switch, number)."""
+    _get_data().writer_count += 1
+
+
 async def to_code_micronova_listener(mv, var, config):
     _get_data().listener_count += 1
     await cg.register_component(var, config)
@@ -100,7 +106,18 @@ async def to_code(config):
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _final_step() -> None:
-    """Add define for listener count after all listeners are registered."""
+    """Add defines for listener and writer counts after all are registered."""
     data = _get_data()
+    if data.listener_count > 255:
+        raise cv.Invalid(
+            f"Too many micronova listeners ({data.listener_count}). Maximum is 255."
+        )
     if data.listener_count > 0:
         cg.add_define("MICRONOVA_LISTENER_COUNT", data.listener_count)
+
+    if data.writer_count > 255:
+        raise cv.Invalid(
+            f"Too many micronova writers ({data.writer_count}). Maximum is 255."
+        )
+    if data.writer_count > 0:
+        cg.add_define("MICRONOVA_WRITER_COUNT", data.writer_count)
