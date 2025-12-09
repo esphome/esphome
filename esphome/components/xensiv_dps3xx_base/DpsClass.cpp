@@ -27,55 +27,6 @@ void DpsClass::begin() {
   init();
 }
 
-#ifndef DPS_DISABLESPI
-void DpsClass::begin(SPIClass &bus, int32_t chipSelect) { begin(bus, chipSelect, 0U); }
-#endif
-
-#ifndef DPS_DISABLESPI
-void DpsClass::begin(SPIClass &bus, int32_t chipSelect, uint8_t threeWire) {
-  // this flag will show if the initialization was successful
-  m_initFail = 0U;
-
-  // Set SPI bus connection
-  m_SpiI2c = 0U;
-  m_spibus = &bus;
-  m_chipSelect = chipSelect;
-
-  // Init bus
-  m_spibus->begin();
-
-  // Configure the SPI settings for the device
-  SPISettings settings(DPS3xx__SPI_MAX_FREQ, MSBFIRST, SPI_MODE3);
-
-  // Start an SPI transaction to configure the device
-  m_spibus->beginTransaction(settings);
-
-  pinMode(m_chipSelect, OUTPUT);
-  digitalWrite(m_chipSelect, HIGH);
-
-  delay(50);  // startup time of Dps3xx
-
-  // End the SPI transaction
-  m_spibus->endTransaction();
-
-  // Switch to 3-wire mode if necessary
-  // do not use writeByteBitfield or check option to set SPI mode!
-  // Reading is not possible until SPI-mode is valid
-  if (threeWire) {
-    m_threeWire = 1U;
-    m_spibus->beginTransaction(settings);  // Ensure SPI transaction for 3-wire mode
-    if (writeByte(DPS3xx__REG_ADR_SPI3W, DPS3xx__REG_CONTENT_SPI3W)) {
-      m_spibus->endTransaction();  // End transaction
-      m_initFail = 1U;
-      return;
-    }
-    m_spibus->endTransaction();  // End transaction
-  }
-
-  init();
-}
-#endif
-
 void DpsClass::end(void) { standby(); }
 
 ////////  Declaration of other public functions starts here  ////////
@@ -445,12 +396,6 @@ int16_t DpsClass::getFIFOvalue(int32_t *value) {
 }
 
 int16_t DpsClass::readByte(uint8_t regAddress) {
-#ifndef DPS_DISABLESPI
-  // delegate to specialized function if Dps3xx is connected via SPI
-  if (m_SpiI2c == 0) {
-    return readByteSPI(regAddress);
-  }
-#endif
   uint8_t data;
   if (!this->dps_device_->read_byte(regAddress, &data)) {
     return DPS__FAIL_UNKNOWN;
@@ -458,73 +403,9 @@ int16_t DpsClass::readByte(uint8_t regAddress) {
   return data;
 }
 
-#ifndef DPS_DISABLESPI
-int16_t DpsClass::readByteSPI(uint8_t regAddress) {
-  // this function is only made for communication via SPI
-  if (m_SpiI2c != 0) {
-    return DPS__FAIL_UNKNOWN;
-  }
-  // mask regAddress
-  regAddress &= ~DPS3xx__SPI_RW_MASK;
-  // reserve and initialize bus
-  m_spibus->beginTransaction(SPISettings(DPS3xx__SPI_MAX_FREQ, MSBFIRST, SPI_MODE3));
-  // enable ChipSelect for Dps3xx
-  digitalWrite(m_chipSelect, LOW);
-  // send address with read command to Dps3xx
-  m_spibus->transfer(regAddress | DPS3xx__SPI_READ_CMD);
-  // receive register content from Dps3xx
-  uint8_t ret = m_spibus->transfer(0xFF);  // send a dummy byte while receiving
-  // disable ChipSelect for Dps3xx
-  digitalWrite(m_chipSelect, HIGH);
-  // close current SPI transaction
-  m_spibus->endTransaction();
-  // return received data
-  return ret;
-}
-#endif
-
-#ifndef DPS_DISABLESPI
-int16_t DpsClass::readBlockSPI(RegBlock_t regBlock, uint8_t *buffer) {
-  // this function is only made for communication via SPI
-  if (m_SpiI2c != 0) {
-    return DPS__FAIL_UNKNOWN;
-  }
-  // do not read if there is no buffer
-  if (buffer == NULL) {
-    return 0;  // 0 bytes were read successfully
-  }
-  // mask regAddress
-  regBlock.regAddress &= ~DPS3xx__SPI_RW_MASK;
-  // reserve and initialize bus
-  m_spibus->beginTransaction(SPISettings(DPS3xx__SPI_MAX_FREQ, MSBFIRST, SPI_MODE3));
-  // enable ChipSelect for Dps3xx
-  digitalWrite(m_chipSelect, LOW);
-  // send address with read command to Dps3xx
-  m_spibus->transfer(regBlock.regAddress | DPS3xx__SPI_READ_CMD);
-
-  // receive register contents from Dps3xx
-  for (uint8_t count = 0; count < regBlock.length; count++) {
-    buffer[count] = m_spibus->transfer(0xFF);  // send a dummy byte while receiving
-  }
-
-  // disable ChipSelect for Dps3xx
-  digitalWrite(m_chipSelect, HIGH);
-  // close current SPI transaction
-  m_spibus->endTransaction();
-  // return received data
-  return regBlock.length;
-}
-#endif
-
 int16_t DpsClass::writeByte(uint8_t regAddress, uint8_t data) { return writeByte(regAddress, data, 0U); }
 
 int16_t DpsClass::writeByte(uint8_t regAddress, uint8_t data, uint8_t check) {
-#ifndef DPS_DISABLESPI
-  // delegate to specialized function if Dps3xx is connected via SPI
-  if (m_SpiI2c == 0) {
-    return writeByteSpi(regAddress, data, check);
-  }
-#endif
   if (!this->dps_device_->write_byte(regAddress, data))  // write_byte returns true on success
   {
     return DPS__FAIL_UNKNOWN;
@@ -539,45 +420,6 @@ int16_t DpsClass::writeByte(uint8_t regAddress, uint8_t data, uint8_t check) {
     }
   }
 }
-
-#ifndef DPS_DISABLESPI
-int16_t DpsClass::writeByteSpi(uint8_t regAddress, uint8_t data, uint8_t check) {
-  // this function is only made for communication via SPI
-  if (m_SpiI2c != 0) {
-    return DPS__FAIL_UNKNOWN;
-  }
-  // mask regAddress
-  regAddress &= ~DPS3xx__SPI_RW_MASK;
-  // reserve and initialize bus
-  m_spibus->beginTransaction(SPISettings(DPS3xx__SPI_MAX_FREQ, MSBFIRST, SPI_MODE3));
-  // enable ChipSelect for Dps3xx
-  digitalWrite(m_chipSelect, LOW);
-  // send address with read command to Dps3xx
-  m_spibus->transfer(regAddress | DPS3xx__SPI_WRITE_CMD);
-
-  // write register content from Dps3xx
-  m_spibus->transfer(data);
-
-  // disable ChipSelect for Dps3xx
-  digitalWrite(m_chipSelect, HIGH);
-  // close current SPI transaction
-  m_spibus->endTransaction();
-
-  // check if necessary
-  if (check == 0) {
-    // no checking necessary
-    return DPS__SUCCEEDED;
-  }
-  // checking necessary
-  if (readByte(regAddress) == data) {
-    // check passed
-    return DPS__SUCCEEDED;
-  } else {
-    // check failed
-    return DPS__FAIL_UNKNOWN;
-  }
-}
-#endif
 
 int16_t DpsClass::writeByteBitfield(uint8_t data, RegMask_t regMask) {
   return writeByteBitfield(data, regMask.regAddress, regMask.mask, regMask.shift, 0U);
@@ -601,12 +443,6 @@ int16_t DpsClass::readByteBitfield(RegMask_t regMask) {
 }
 
 int16_t DpsClass::readBlock(RegBlock_t regBlock, uint8_t *buffer) {
-#ifndef DPS_DISABLESPI
-  // delegate to specialized function if Dps3xx is connected via SPI
-  if (m_SpiI2c == 0) {
-    return readBlockSPI(regBlock, buffer);
-  }
-#endif
   // do not read if there is no buffer
   if (buffer == nullptr) {
     return 0;  // 0 bytes read successfully

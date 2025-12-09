@@ -3,25 +3,15 @@
  *
  * "Dps3xx" represents Infineon's high-sensitive pressure and temperature sensor.
  * It measures in ranges of 300 - 1200 hPa and -40 and 85 °C.
- * The sensor can be connected via SPI or I2C.
+ * The sensor can be connected via I2C.
  * It is able to perform single measurements
  * or to perform continuous measurements of temperature and pressure at the same time,
  * and stores the results in a FIFO to reduce bus communication.
  *
  * Have a look at the datasheet for more information.
  */
-#define DPS_DISABLESPI
 #ifndef DPSCLASS_H_INCLUDED
 #define DPSCLASS_H_INCLUDED
-
-// Disable SPI for currently not supported platforms.
-#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_RENESAS)
-#define DPS_DISABLESPI
-#endif
-
-#ifndef DPS_DISABLESPI
-#include <SPI.h>
-#endif
 
 #pragma once
 
@@ -44,25 +34,6 @@ class DpsClass {
    * I2C begin function with standard address
    */
   void begin();
-
-#ifndef DPS_DISABLESPI
-  /**
-   * SPI begin function for Dps3xx with 4-wire SPI
-   */
-  void begin(SPIClass &bus, int32_t chipSelect);
-#endif
-
-#ifndef DPS_DISABLESPI
-  /**
-   * Standard SPI begin function
-   *
-   * @param &bus:             SPI bus which connects MC to Dps3xx
-   * @param chipSelect:       Number of the CS line for the Dps3xx
-   * @param threeWire:        1 if Dps3xx is connected with 3-wire SPI
-   *                          0 if Dps3xx is connected with 4-wire SPI (standard)
-   */
-  void begin(SPIClass &bus, int32_t chipSelect, uint8_t threeWire);
-#endif
 
   /**
    * End function for Dps3xx
@@ -273,18 +244,9 @@ class DpsClass {
   // last measured scaled temperature (necessary for pressure compensation)
   float m_lastTempScal;
 
-  // bus specific
-  uint8_t m_SpiI2c;  // 0=SPI, 1=I2C
-
   // used for I2C
   uint8_t m_slaveAddress;
 
-#ifndef DPS_DISABLESPI
-  // used for SPI
-  SPIClass *m_spibus;
-  int32_t m_chipSelect;
-  uint8_t m_threeWire;
-#endif
   /**
    * Initializes the sensor.
    * This function has to be called from begin()
@@ -393,17 +355,6 @@ class DpsClass {
    */
   int16_t readByte(uint8_t regAddress);
 
-#ifndef DPS_DISABLESPI
-  /**
-   * reads a byte from the sensor via SPI
-   * this function is automatically called by readByte
-   * if the sensor is connected via SPI
-   *
-   * @param regAddress:       Address that has to be read
-   * @return  register content or -1 on fail
-   */
-  int16_t readByteSPI(uint8_t regAddress);
-#endif
   /**
    * reads a block from the sensor
    *
@@ -415,18 +366,6 @@ class DpsClass {
    */
   int16_t readBlock(RegBlock_t regBlock, uint8_t *buffer);
 
-#ifndef DPS_DISABLESPI
-  /**
-   * reads a block from the sensor via SPI
-   *
-   * @param regAddress:       Address that has to be read
-   * @param length:           Length of data block
-   * @param readBuffer:       Buffer where data will be stored
-   * @return  number of bytes that have been read successfully, which might not always equal to length due to rx-Buffer
-   * overflow etc.
-   */
-  int16_t readBlockSPI(RegBlock_t regBlock, uint8_t *readBuffer);
-#endif
   /**
    * writes a byte to a given register of the sensor without checking
    *
@@ -448,20 +387,6 @@ class DpsClass {
    *          -1 on fail
    */
   int16_t writeByte(uint8_t regAddress, uint8_t data, uint8_t check);
-
-#ifndef DPS_DISABLESPI
-  /**
-   * writes a byte to a register of the sensor via SPI
-   *
-   * @param regAddress:       Address of the register that has to be updated
-   * @param data:             Byte that will be written to the register
-   * @param check:            If this is true, register content will be read after writing
-   *                          to check if update was successful
-   * @return  0 if byte was written successfully or
-   *          -1 on fail
-   */
-  int16_t writeByteSpi(uint8_t regAddress, uint8_t data, uint8_t check);
-#endif
 
   /**
    * updates a bit field of the sensor without checking
