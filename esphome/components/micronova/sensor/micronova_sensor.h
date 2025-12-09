@@ -18,11 +18,16 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaListener {
   }
   void process_value_from_stove(int value_from_stove) override;
 
-  void set_fan_speed_offset(uint8_t f) { this->fan_speed_offset_ = f; }
-  uint8_t get_set_fan_speed_offset() { return this->fan_speed_offset_; }
+  void set_divisor(uint8_t d) { this->divisor_ = d; }
+  void set_fan_speed_offset(uint8_t offset) {
+    this->is_fan_speed_ = true;
+    this->fan_speed_offset_ = offset;
+  }
 
  protected:
-  int fan_speed_offset_ = 0;
+  uint8_t divisor_ = 1;
+  uint8_t fan_speed_offset_ = 0;
+  bool is_fan_speed_ = false;
 };
 
 }  // namespace esphome::micronova
