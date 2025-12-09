@@ -1,8 +1,7 @@
 #include "template_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.switch";
 
@@ -57,5 +56,4 @@ void TemplateSwitch::dump_config() {
 }
 void TemplateSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
