@@ -7,6 +7,7 @@
 #include "esphome/core/log.h"
 
 #include <deque>
+#include <queue>
 #include <vector>
 
 namespace esphome::micronova {
@@ -76,7 +77,7 @@ class MicroNova : public Component, public uart::UARTDevice {
   /// @param address Memory address on the stove
   void queue_read_request(uint8_t location, uint8_t address);
 
-  /// Queue a write command to the stove (high priority - inserted at front)
+  /// Queue a write command to the stove (processed before reads)
   /// @param location Memory location on the stove
   /// @param address Memory address on the stove
   /// @param data Data to write
@@ -89,7 +90,8 @@ class MicroNova : public Component, public uart::UARTDevice {
 
   GPIOPin *enable_rx_pin_;
 
-  std::deque<MicroNovaCommand> command_queue_;
+  std::queue<MicroNovaCommand> write_queue_;
+  std::deque<MicroNovaCommand> read_queue_;
   MicroNovaCommand current_command_;
   uint32_t transmission_time_{0};  ///< Time when current command was sent (0 = no command pending)
 

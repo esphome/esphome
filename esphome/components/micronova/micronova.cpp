@@ -3,9 +3,9 @@
 
 namespace esphome::micronova {
 
-static const uint8_t STOVE_REPLY_SIZE = 2;
-static const uint32_t STOVE_REPLY_TIMEOUT = 200;  // ms
-static const uint8_t WRITE_BIT = 1 << 7;          // 0x80
+static constexpr uint8_t STOVE_REPLY_SIZE = 2;
+static constexpr uint32_t STOVE_REPLY_TIMEOUT = 200;  // ms
+static constexpr uint8_t WRITE_BIT = 1 << 7;          // 0x80
 
 bool MicroNovaCommand::is_write() const { return this->memory_location & WRITE_BIT; }
 
@@ -75,19 +75,23 @@ void MicroNova::loop() {
     return;
   }
 
-  // No reply pending - process next command from queue
-  if (!this->command_queue_.empty()) {
-    this->current_command_ = this->command_queue_.front();
-    this->command_queue_.pop_front();
+  // No reply pending - process next command (writes have priority over reads)
+  if (!this->write_queue_.empty()) {
+    this->current_command_ = this->write_queue_.front();
+    this->write_queue_.pop();
+    this->send_current_command_();
+  } else if (!this->read_queue_.empty()) {
+    this->current_command_ = this->read_queue_.front();
+    this->read_queue_.pop_front();
     this->send_current_command_();
   }
 }
 
 void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
-  // Check if this read is already queued (compare location + address only)
-  for (const auto &queued : this->command_queue_) {
+  // Check if this read is already queued
+  for (const auto &queued : this->read_queue_) {
     if (queued.memory_location == location && queued.memory_address == address) {
-      ESP_LOGV(TAG, "Read [%02X,%02X] already queued, ignoring", location, address);
+      ESP_LOGV(TAG, "Read [%02X,%02X] already queued, skipping", location, address);
       return;
     }
   }
@@ -97,8 +101,8 @@ void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
   cmd.memory_address = address;
   cmd.data = 0;
 
-  this->command_queue_.push_back(cmd);
-  ESP_LOGV(TAG, "Queued read [%02X,%02X] at back (queue size: %zu)", location, address, this->command_queue_.size());
+  this->read_queue_.push_back(cmd);
+  ESP_LOGV(TAG, "Queued read [%02X,%02X] (queue size: %zu)", location, address, this->read_queue_.size());
 }
 
 void MicroNova::send_current_command_() {
@@ -156,8 +160,8 @@ void MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t d
   cmd.memory_address = address;
   cmd.data = data;
 
-  this->command_queue_.push_front(cmd);
-  ESP_LOGD(TAG, "Queued write [%02X,%02X] at front (queue size: %zu)", location, address, this->command_queue_.size());
+  this->write_queue_.push(cmd);
+  ESP_LOGD(TAG, "Queued write [%02X,%02X] (queue size: %zu)", location, address, this->write_queue_.size());
   // Automatically queue sensor updates after write commands
   this->request_update_listeners_();
 }
