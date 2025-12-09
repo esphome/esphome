@@ -112,6 +112,10 @@ async def to_code(config):
 async def _final_step() -> None:
     """Add defines for listener and writer counts after all are registered."""
     data = _get_data()
+    if data.listener_count == 0 and data.writer_count == 0:
+        raise cv.Invalid(
+            "No micronova entities configured. Add at least one micronova entity."
+        )
     if data.listener_count > 255:
         raise cv.Invalid(
             f"Too many micronova reading entities ({data.listener_count}). Maximum is 255."

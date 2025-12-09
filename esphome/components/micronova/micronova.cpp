@@ -36,6 +36,7 @@ void MicroNova::dump_config() {
   LOG_PIN("  Enable RX Pin: ", this->enable_rx_pin_);
 }
 
+#ifdef MICRONOVA_LISTENER_COUNT
 void MicroNova::register_micronova_listener(MicroNovaListener *listener) {
   this->listeners_.push_back(listener);
   // Request initial value
@@ -48,12 +49,14 @@ void MicroNova::request_update_listeners_() {
     this->queue_read_request(listener->get_memory_location(), listener->get_memory_address());
   }
 }
+#endif
 
 void MicroNova::loop() {
   // Check if we're processing a command and waiting for reply
   if (this->transmission_time_ != 0) {
     // Check if all reply bytes have arrived
     if (this->available() >= STOVE_REPLY_SIZE) {
+#ifdef MICRONOVA_LISTENER_COUNT
       int stove_reply_value = this->read_stove_reply_();
       // For READ commands, notify all listeners registered for this address
       if (!this->current_command_.is_write()) {
@@ -65,6 +68,9 @@ void MicroNova::loop() {
           }
         }
       }
+#else
+      this->read_stove_reply_();
+#endif
       this->transmission_time_ = 0;
     } else if (millis() - this->transmission_time_ > STOVE_REPLY_TIMEOUT) {
       // Timeout - no reply received (buffer cleared before next command)
@@ -81,15 +87,19 @@ void MicroNova::loop() {
     this->current_command_ = this->write_queue_.front();
     this->write_queue_.pop();
     this->send_current_command_();
-  } else
+    return;
+  }
 #endif
-      if (!this->read_queue_.empty()) {
+#ifdef MICRONOVA_LISTENER_COUNT
+  if (!this->read_queue_.empty()) {
     this->current_command_ = this->read_queue_.front();
     this->read_queue_.pop();
     this->send_current_command_();
   }
+#endif
 }
 
+#ifdef MICRONOVA_LISTENER_COUNT
 void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
   // Check if this read is already queued
   for (const auto &queued : this->read_queue_) {
@@ -107,6 +117,7 @@ void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
   this->read_queue_.push(cmd);
   ESP_LOGV(TAG, "Queued read [%02X,%02X] (queue size: %zu)", location, address, this->read_queue_.size());
 }
+#endif
 
 void MicroNova::send_current_command_() {
   uint8_t trash_rx;
@@ -166,8 +177,10 @@ void MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t d
 
   this->write_queue_.push(cmd);
   ESP_LOGD(TAG, "Queued write [%02X,%02X] (queue size: %zu)", location, address, this->write_queue_.size());
+#ifdef MICRONOVA_LISTENER_COUNT
   // Automatically queue sensor updates after write commands
   this->request_update_listeners_();
+#endif
 }
 #endif
 

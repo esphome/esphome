@@ -112,6 +112,8 @@ class MicroNova : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
+
+#ifdef MICRONOVA_LISTENER_COUNT
   void register_micronova_listener(MicroNovaListener *listener);
 
   /// Queue a read request to the stove (low priority - added at back)
@@ -119,6 +121,7 @@ class MicroNova : public Component, public uart::UARTDevice {
   /// @param location Memory location on the stove
   /// @param address Memory address on the stove
   void queue_read_request(uint8_t location, uint8_t address);
+#endif
 
 #ifdef MICRONOVA_WRITER_COUNT
   /// Queue a write command to the stove (processed before reads)
@@ -131,18 +134,24 @@ class MicroNova : public Component, public uart::UARTDevice {
  protected:
   void send_current_command_();
   int read_stove_reply_();
+#ifdef MICRONOVA_LISTENER_COUNT
   void request_update_listeners_();
+#endif
 
   GPIOPin *enable_rx_pin_;
 
 #ifdef MICRONOVA_WRITER_COUNT
   CommandRingBuffer<MicroNovaCommand, MICRONOVA_WRITER_COUNT> write_queue_;
 #endif
+#ifdef MICRONOVA_LISTENER_COUNT
   CommandRingBuffer<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;
+#endif
   MicroNovaCommand current_command_;
   uint32_t transmission_time_{0};  ///< Time when current command was sent (0 = no command pending)
 
+#ifdef MICRONOVA_LISTENER_COUNT
   StaticVector<MicroNovaListener *, MICRONOVA_LISTENER_COUNT> listeners_;
+#endif
 };
 
 }  // namespace esphome::micronova
