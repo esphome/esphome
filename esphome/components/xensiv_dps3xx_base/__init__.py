@@ -1,10 +1,8 @@
-from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_INTERRUPT_PIN,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -17,7 +15,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@michal-gora", "@ederjc", "@jaenrig-ifx"]
 
-CONF_SENSOR_RATE = "sensor_rate"
 CONF_OPERATION_MODE = "operation_mode"
 
 xensiv_dps3xx_ns = cg.esphome_ns.namespace("xensiv_dps3xx_base")
@@ -37,22 +34,14 @@ CONFIG_SCHEMA_BASE = cv.Schema(
             accuracy_decimals=2,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Required(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_SENSOR_RATE, default="1s"): cv.All(
-            cv.positive_time_period_seconds,
-            cv.Range(
-                min=cv.TimePeriod(milliseconds=125), max=cv.TimePeriod(seconds=16)
-            ),
-        ),
-        cv.Optional(CONF_OPERATION_MODE, default="polling"): cv.enum(
+        cv.Optional(CONF_OPERATION_MODE, default="continuous"): cv.enum(
             {
-                "single_shot": 0,
+                "idle": 0,
                 "continuous": 1,
-                "polling": 2,
             }
         ),
     }
-).extend(cv.polling_component_schema("1s"))
+).extend(cv.polling_component_schema("60s"))
 
 SENSOR_MAP = {
     CONF_PRESSURE: "set_pressure_sensor",
@@ -68,14 +57,6 @@ async def to_code_base(config):
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
-
-    if CONF_INTERRUPT_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
-        cg.add(var.set_interrupt_pin(pin))
-
-    if CONF_SENSOR_RATE in config:
-        # Convert TimePeriod to total seconds
-        cg.add(var.set_sensor_rate_value(config[CONF_SENSOR_RATE].total_seconds))
 
     if CONF_OPERATION_MODE in config:
         cg.add(var.set_operation_mode(config[CONF_OPERATION_MODE]))
