@@ -3,6 +3,10 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
+#ifdef USE_MD5
+#include "esphome/components/md5/md5.h"
+#endif
+
 #ifdef USE_ESP32
 
 #include "esphome/core/event_pool.h"
@@ -97,6 +101,11 @@ class ESPNowComponent : public Component {
 
   float get_setup_priority() const override { return setup_priority::LATE; }
 
+  // Handle Primary Master Key (PMK)
+  void set_pmk(const std::string& pmk);
+  bool has_pmk();
+  void set_espnow_pmk();
+
   // Add a peer to the internal list of peers
   void add_peer(peer_address_t address) {
     ESPNowPeer peer;
@@ -171,6 +180,9 @@ class ESPNowComponent : public Component {
 
   uint8_t wifi_channel_{0};
   ESPNowState state_{ESPNOW_STATE_OFF};
+
+  // Primary Master Key (optional)
+  std::string pmk;
 
   bool auto_add_peer_{false};
   bool enable_on_boot_{true};

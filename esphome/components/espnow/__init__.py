@@ -17,7 +17,7 @@ from esphome.core import CORE, HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["socket", "md5"]
 
 byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
@@ -57,6 +57,7 @@ OnBroadcastedTrigger = espnow_ns.class_(
 
 CONF_AUTO_ADD_PEER = "auto_add_peer"
 CONF_PEERS = "peers"
+CONF_PMK = "pmk"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
 CONF_ON_BROADCAST = "on_broadcast"
@@ -80,6 +81,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
+            cv.Optional(CONF_PMK): cv.templatable(cv.string),
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnUnknownPeerTrigger),
@@ -139,6 +141,9 @@ async def to_code(config):
 
     for peer in config.get(CONF_PEERS, []):
         cg.add(var.add_peer(peer.parts))
+
+    if pmk := config.get(CONF_PMK):
+        cg.add(var.set_pmk(pmk))
 
     if on_receive := config.get(CONF_ON_UNKNOWN_PEER):
         trigger = await _trigger_to_code(on_receive)
