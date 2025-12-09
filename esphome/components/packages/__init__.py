@@ -105,7 +105,16 @@ def validate_source_shorthand(value):
 
 def deprecate_single_package(config):
     _LOGGER.warning(
-        "Including a single package under `packages:` is deprecated. Use a list instead."
+        """
+        Including a single package under `packages:`, i.e., `packages: !include mypackage.yaml` is deprecated.
+        This method for including packages will go away in 2026.7.0
+        Please use a list instead:
+
+        packages:
+          - !include mypackage.yaml
+
+        See https://github.com/esphome/esphome/pull/12116
+        """
     )
     return config
 
@@ -305,7 +314,7 @@ def do_packages_pass(
 
     substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
 
-    def process_package_callback(package_config, context_vars):
+    def process_package_callback(package_config, context_vars: Any) -> dict:
         """This will be called for each package found in the config."""
         package_config = _substitute_remote_package_definition(
             package_config, context_vars
@@ -346,9 +355,9 @@ def merge_packages(config: dict) -> dict:
         return config
 
     # Build flat list of all package configs to merge in priority order:
-    merge_list = []
+    merge_list: list[dict] = []
 
-    def process_package_callback(package_config, context):
+    def process_package_callback(package_config: dict, context: Any) -> dict:
         """This will be called for each package found in the config."""
         merge_list.append(package_config)
         return _walk_packages(package_config, process_package_callback)
