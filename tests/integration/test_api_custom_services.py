@@ -38,6 +38,7 @@ async def test_api_custom_services(
     custom_service_future = loop.create_future()
     custom_args_future = loop.create_future()
     custom_arrays_future = loop.create_future()
+    ha_state_future = loop.create_future()
 
     # Patterns to match in logs
     yaml_service_pattern = re.compile(r"YAML service called")
@@ -49,6 +50,9 @@ async def test_api_custom_services(
     )
     custom_arrays_pattern = re.compile(
         r"Array service called with 2 bools, 3 ints, 2 floats, 2 strings"
+    )
+    ha_state_pattern = re.compile(
+        r"This subscription uses std::string API for backward compatibility"
     )
 
     def check_output(line: str) -> None:
@@ -65,6 +69,8 @@ async def test_api_custom_services(
             custom_args_future.set_result(True)
         elif not custom_arrays_future.done() and custom_arrays_pattern.search(line):
             custom_arrays_future.set_result(True)
+        elif not ha_state_future.done() and ha_state_pattern.search(line):
+            ha_state_future.set_result(True)
 
     # Run with log monitoring
     async with (
@@ -114,7 +120,7 @@ async def test_api_custom_services(
         assert custom_arrays_service is not None, "custom_service_with_arrays not found"
 
         # Test YAML service
-        client.execute_service(yaml_service, {})
+        await client.execute_service(yaml_service, {})
         await asyncio.wait_for(yaml_service_future, timeout=5.0)
 
         # Verify YAML service with args arguments
@@ -124,7 +130,7 @@ async def test_api_custom_services(
         assert yaml_args_types["my_string"] == UserServiceArgType.STRING
 
         # Test YAML service with arguments
-        client.execute_service(
+        await client.execute_service(
             yaml_args_service,
             {
                 "my_int": 123,
@@ -144,7 +150,7 @@ async def test_api_custom_services(
         assert yaml_many_args_types["arg4"] == UserServiceArgType.STRING
 
         # Test YAML service with many arguments
-        client.execute_service(
+        await client.execute_service(
             yaml_many_args_service,
             {
                 "arg1": 42,
@@ -156,7 +162,7 @@ async def test_api_custom_services(
         await asyncio.wait_for(yaml_many_args_future, timeout=5.0)
 
         # Test simple CustomAPIDevice service
-        client.execute_service(custom_service, {})
+        await client.execute_service(custom_service, {})
         await asyncio.wait_for(custom_service_future, timeout=5.0)
 
         # Verify custom_args_service arguments
@@ -168,7 +174,7 @@ async def test_api_custom_services(
         assert arg_types["arg_float"] == UserServiceArgType.FLOAT
 
         # Test CustomAPIDevice service with arguments
-        client.execute_service(
+        await client.execute_service(
             custom_args_service,
             {
                 "arg_string": "test_string",
@@ -188,7 +194,7 @@ async def test_api_custom_services(
         assert array_arg_types["string_array"] == UserServiceArgType.STRING_ARRAY
 
         # Test CustomAPIDevice service with arrays
-        client.execute_service(
+        await client.execute_service(
             custom_arrays_service,
             {
                 "bool_array": [True, False],
@@ -198,3 +204,8 @@ async def test_api_custom_services(
             },
         )
         await asyncio.wait_for(custom_arrays_future, timeout=5.0)
+
+        # Test Home Assistant state subscription (std::string API backward compatibility)
+        # This verifies that custom_api_device.h can still use std::string overloads
+        client.send_home_assistant_state("sensor.custom_test", "", "42.5")
+        await asyncio.wait_for(ha_state_future, timeout=5.0)

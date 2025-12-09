@@ -6,11 +6,17 @@
 #ifdef USE_API_PLAINTEXT
 #include "api_frame_helper_plaintext.h"
 #endif
+#ifdef USE_API_USER_DEFINED_ACTIONS
+#include "user_services.h"
+#endif
 #include <cerrno>
 #include <cinttypes>
 #include <functional>
 #include <limits>
 #include <utility>
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -899,7 +905,7 @@ uint16_t APIConnection::try_send_select_info(EntityBase *entity, APIConnection *
 }
 void APIConnection::select_command(const SelectCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(select::Select, select, select)
-  call.set_option(msg.state);
+  call.set_option(reinterpret_cast<const char *>(msg.state), msg.state_len);
   call.perform();
 }
 #endif
@@ -1468,34 +1474,63 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 
   resp.set_compilation_time(App.get_compilation_time_ref());
 
-  // Compile-time StringRef constants for manufacturers
+  // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Espressif");
+#define ESPHOME_MANUFACTURER "Espressif"
 #elif defined(USE_RP2040)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Raspberry Pi");
+#define ESPHOME_MANUFACTURER "Raspberry Pi"
 #elif defined(USE_BK72XX)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Beken");
+#define ESPHOME_MANUFACTURER "Beken"
 #elif defined(USE_LN882X)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Lightning");
+#define ESPHOME_MANUFACTURER "Lightning"
 #elif defined(USE_NRF52)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Nordic Semiconductor");
+#define ESPHOME_MANUFACTURER "Nordic Semiconductor"
 #elif defined(USE_RTL87XX)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Realtek");
+#define ESPHOME_MANUFACTURER "Realtek"
 #elif defined(USE_HOST)
-  static constexpr auto MANUFACTURER = StringRef::from_lit("Host");
+#define ESPHOME_MANUFACTURER "Host"
 #endif
-  resp.set_manufacturer(MANUFACTURER);
 
+#ifdef USE_ESP8266
+  // ESP8266 requires PROGMEM for flash storage, copy to stack for memcpy compatibility
+  static const char MANUFACTURER_PROGMEM[] PROGMEM = ESPHOME_MANUFACTURER;
+  char manufacturer_buf[sizeof(MANUFACTURER_PROGMEM)];
+  memcpy_P(manufacturer_buf, MANUFACTURER_PROGMEM, sizeof(MANUFACTURER_PROGMEM));
+  resp.set_manufacturer(StringRef(manufacturer_buf, sizeof(MANUFACTURER_PROGMEM) - 1));
+#else
+  static constexpr auto MANUFACTURER = StringRef::from_lit(ESPHOME_MANUFACTURER);
+  resp.set_manufacturer(MANUFACTURER);
+#endif
+#undef ESPHOME_MANUFACTURER
+
+#ifdef USE_ESP8266
+  static const char MODEL_PROGMEM[] PROGMEM = ESPHOME_BOARD;
+  char model_buf[sizeof(MODEL_PROGMEM)];
+  memcpy_P(model_buf, MODEL_PROGMEM, sizeof(MODEL_PROGMEM));
+  resp.set_model(StringRef(model_buf, sizeof(MODEL_PROGMEM) - 1));
+#else
   static constexpr auto MODEL = StringRef::from_lit(ESPHOME_BOARD);
   resp.set_model(MODEL);
+#endif
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
 #ifdef ESPHOME_PROJECT_NAME
+#ifdef USE_ESP8266
+  static const char PROJECT_NAME_PROGMEM[] PROGMEM = ESPHOME_PROJECT_NAME;
+  static const char PROJECT_VERSION_PROGMEM[] PROGMEM = ESPHOME_PROJECT_VERSION;
+  char project_name_buf[sizeof(PROJECT_NAME_PROGMEM)];
+  char project_version_buf[sizeof(PROJECT_VERSION_PROGMEM)];
+  memcpy_P(project_name_buf, PROJECT_NAME_PROGMEM, sizeof(PROJECT_NAME_PROGMEM));
+  memcpy_P(project_version_buf, PROJECT_VERSION_PROGMEM, sizeof(PROJECT_VERSION_PROGMEM));
+  resp.set_project_name(StringRef(project_name_buf, sizeof(PROJECT_NAME_PROGMEM) - 1));
+  resp.set_project_version(StringRef(project_version_buf, sizeof(PROJECT_VERSION_PROGMEM) - 1));
+#else
   static constexpr auto PROJECT_NAME = StringRef::from_lit(ESPHOME_PROJECT_NAME);
   static constexpr auto PROJECT_VERSION = StringRef::from_lit(ESPHOME_PROJECT_VERSION);
   resp.set_project_name(PROJECT_NAME);
   resp.set_project_version(PROJECT_VERSION);
+#endif
 #endif
 #ifdef USE_WEBSERVER
   resp.webserver_port = USE_WEBSERVER_PORT;
@@ -1545,7 +1580,12 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   for (auto &it : this->parent_->get_state_subs()) {
-    if (it.entity_id == msg.entity_id && it.attribute.value() == msg.attribute) {
+    // Compare entity_id and attribute with message fields
+    bool entity_match = (strcmp(it.entity_id, msg.entity_id.c_str()) == 0);
+    bool attribute_match = (it.attribute != nullptr && strcmp(it.attribute, msg.attribute.c_str()) == 0) ||
+                           (it.attribute == nullptr && msg.attribute.empty());
+
+    if (entity_match && attribute_match) {
       it.callback(msg.state);
     }
   }
@@ -1554,15 +1594,54 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Register the call and get a unique server-generated action_call_id
+  // This avoids collisions when multiple clients use the same call_id
+  uint32_t action_call_id = 0;
+  if (msg.call_id != 0) {
+    action_call_id = this->parent_->register_active_action_call(msg.call_id, this);
+  }
+  // Use the overload that passes action_call_id separately (avoids copying msg)
+  for (auto *service : this->parent_->get_user_services()) {
+    if (service->execute_service(msg, action_call_id)) {
+      found = true;
+    }
+  }
+#else
   for (auto *service : this->parent_->get_user_services()) {
     if (service->execute_service(msg)) {
       found = true;
     }
   }
+#endif
   if (!found) {
     ESP_LOGV(TAG, "Could not find service");
   }
+  // Note: For services with supports_response != none, the call is unregistered
+  // by an automatically appended APIUnregisterServiceCallAction at the end of
+  // the action list. This ensures async actions (delays, waits) complete first.
 }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message) {
+  ExecuteServiceResponse resp;
+  resp.call_id = call_id;
+  resp.success = success;
+  resp.set_error_message(StringRef(error_message));
+  this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
+}
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+                                                  const uint8_t *response_data, size_t response_data_len) {
+  ExecuteServiceResponse resp;
+  resp.call_id = call_id;
+  resp.success = success;
+  resp.set_error_message(StringRef(error_message));
+  resp.response_data = response_data;
+  resp.response_data_len = response_data_len;
+  this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
+}
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -1662,13 +1741,13 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
   for (auto &item : items) {
     if (item.entity == entity && item.message_type == message_type) {
       // Replace with new creator
-      item.creator = std::move(creator);
+      item.creator = creator;
       return;
     }
   }
 
   // No existing item found, add new one
-  items.emplace_back(entity, std::move(creator), message_type, estimated_size);
+  items.emplace_back(entity, creator, message_type, estimated_size);
 }
 
 void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCreator creator, uint8_t message_type,
@@ -1677,7 +1756,7 @@ void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCre
   // This avoids expensive vector::insert which shifts all elements
   // Note: We only ever have one high-priority message at a time (ping OR disconnect)
   // If we're disconnecting, pings are blocked, so this simple swap is sufficient
-  items.emplace_back(entity, std::move(creator), message_type, estimated_size);
+  items.emplace_back(entity, creator, message_type, estimated_size);
   if (items.size() > 1) {
     // Swap the new high-priority item to the front
     std::swap(items.front(), items.back());
@@ -1885,8 +1964,8 @@ void APIConnection::process_state_subscriptions_() {
   SubscribeHomeAssistantStateResponse resp;
   resp.set_entity_id(StringRef(it.entity_id));
 
-  // Avoid string copy by directly using the optional's value if it exists
-  resp.set_attribute(it.attribute.has_value() ? StringRef(it.attribute.value()) : StringRef(""));
+  // Avoid string copy by using the const char* pointer if it exists
+  resp.set_attribute(it.attribute != nullptr ? StringRef(it.attribute) : StringRef(""));
 
   resp.once = it.once;
   if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {
