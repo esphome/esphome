@@ -98,11 +98,10 @@ st7701s.extend(
     vsync_back_porch=20,
     vsync_front_porch=20,
     vsync_pulse_width=40,
-    color_order="RGB",
     data_pins={
-        "blue": [17, 46, 3, 8, 18],
+        "red": [17, 46, 3, 8, 18],
         "green": [14, 13, 12, 11, 10, 9],
-        "red": [21, 5, 45, 48, 47],
+        "blue": [21, 5, 45, 48, 47],
     },
     initsequence=(
         (0xFF, 0x77, 0x01, 0x00, 0x00, 0x13),
