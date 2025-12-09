@@ -197,7 +197,6 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_SPIRAM_SPEED", speed)
     if config[CONF_MODE] == TYPE_OCTAL and speed == 120:
         add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
-        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_FLASH_DC_AWARE", True)
         if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 4, 0):
             add_idf_sdkconfig_option(
                 "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True
