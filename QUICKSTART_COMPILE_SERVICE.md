@@ -1,5 +1,38 @@
 # Quick Start Guide: ESPHome Compile Backend Service
 
+## Installation
+
+### Proxmox LXC (Recommended)
+
+One-command installation:
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/esphome/esphome/main/install.sh)
+```
+
+See [PROXMOX_QUICKSTART.md](PROXMOX_QUICKSTART.md) for detailed LXC setup instructions.
+
+### Manual Installation
+
+If you prefer manual installation or are not using Proxmox:
+
+1. Clone the repository:
+```bash
+git clone https://github.com/esphome/esphome.git
+cd esphome
+```
+
+2. Install dependencies:
+```bash
+pip install -e .
+pip install boto3 requests
+```
+
+3. Configure PlatformIO:
+```bash
+platformio settings set enable_telemetry No
+```
+
 ## What It Does
 
 This service automates the complete ESPHome firmware compilation workflow:

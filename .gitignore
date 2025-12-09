@@ -144,3 +144,11 @@ sdkconfig.*
 /managed_components
 
 api-docs/
+
+# Compile backend service environment configuration
+compile-backend.env
+service-wrapper.sh
+compile-backend.env.example
+
+# Temporary compilation directories
+/tmp/esphome-compile-*/
