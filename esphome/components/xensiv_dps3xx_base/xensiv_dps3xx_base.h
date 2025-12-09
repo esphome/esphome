@@ -20,8 +20,7 @@ class XensivDPS3xx : public PollingComponent {
   void set_operation_mode(uint8_t mode) { this->operation_mode_ = mode; }
   void set_sensor_rate_value(float sensor_rate) { this->sensor_rate_value_ = sensor_rate; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
-  bool measure_temperature_now();
-  bool measure_pressure_now();
+  bool measure_now();
 
   // Allow DpsClass to access protected I2C methods
   friend class DpsClass;

@@ -145,84 +145,50 @@ void XensivDPS3xx::loop() {
 
 void XensivDPS3xx::update() {
   if (this->operation_mode_ == 2) { /* Polling Mode */
-    uint8_t osr = 7;                // oversampling rate
-    // Calculate timeout using same formula as measurePressureOnce()
-    uint32_t busy_time_us = 20U + (16U << osr);  // Formula from calcBusyTime with mr=0
-    uint32_t timeout_ms = (busy_time_us / 10U) + 10U;
-
-    // start pressure measurement
-    if (this->Dps3xxPressureSensor->startMeasurePressureOnce(osr) != DPS__SUCCEEDED) {
-      ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
-      return;
-    }
-    this->set_timeout(timeout_ms, [this, osr, timeout_ms]() {
-      float pressure = 0.0f;
-      if (this->Dps3xxPressureSensor->getSingleResult(pressure) != DPS__SUCCEEDED) {
-        ESP_LOGW(TAG, "getSingleResult() failed in update()");
-      } else {
-        this->pressure_sensor_->publish_state(pressure / 1000.0f);  // Convert to hPa
-      }
-
-      // start temperature measurement
-      if (this->Dps3xxPressureSensor->startMeasureTempOnce(osr) != DPS__SUCCEEDED) {
-        ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
-        return;
-      }
-      this->set_timeout(timeout_ms, [this]() {
-        float temperature = 0.0f;
-        if (this->Dps3xxPressureSensor->getSingleResult(temperature) != DPS__SUCCEEDED) {
-          ESP_LOGW(TAG, "getSingleResult() failed in update()");
-        } else {
-          this->temperature_sensor_->publish_state(temperature);
-        }
-      });
-    });
+    measure_now();
   }
 }
 
 void XensivDPS3xx::gpio_intr(XensivDPS3xx *arg) { arg->data_ready_ = true; }
 
 /**
- * @brief Perform a single temperature measurement
+ * @brief Perform a single pressure and a single temperature measurement
  *
  * @return true
  * @return false
  */
-bool XensivDPS3xx::measure_temperature_now() {
-  ESP_LOGD(TAG, "Starting temperature measure now");
-  float temperature;
-  float pressure;
-  uint8_t oversampling = 7;
-  int16_t ret;
+bool XensivDPS3xx::measure_now() {
+  uint8_t osr = 7;  // oversampling rate
+  // Calculate timeout using same formula as measurePressureOnce()
+  uint32_t busy_time_us = 20U + (16U << osr);  // Formula from calcBusyTime with mr=0
+  uint32_t timeout_ms = (busy_time_us / 10U) + 10U;
 
-  ret = Dps3xxPressureSensor->startMeasureTempOnce(oversampling);
-  if (ret != 0) {
-    // Something went wrong.
-    ESP_LOGW(TAG, "startMeasureTempOnce() returned: %d", ret);
-    return false;
+  // start pressure measurement
+  if (this->Dps3xxPressureSensor->startMeasurePressureOnce(osr) != DPS__SUCCEEDED) {
+    ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
   }
-  return true;
-}
+  this->set_timeout(timeout_ms, [this, osr, timeout_ms]() {
+    float pressure = 0.0f;
+    if (this->Dps3xxPressureSensor->getSingleResult(pressure) != DPS__SUCCEEDED) {
+      ESP_LOGW(TAG, "getSingleResult() failed in update()");
+    } else {
+      this->pressure_sensor_->publish_state(pressure / 1000.0f);  // Convert to hPa
+    }
 
-/**
- * @brief Perform a single pressure measurement
- *
- * @return true
- * @return false
- */
-bool XensivDPS3xx::measure_pressure_now() {
-  ESP_LOGD(TAG, "Starting pressure measure now");
-  float temperature;
-  float pressure;
-  uint8_t oversampling = 7;
-  int16_t ret;
-
-  ret = Dps3xxPressureSensor->startMeasurePressureOnce(oversampling);
-  if (ret != 0) {
-    // Something went wrong.
-    ESP_LOGW(TAG, "startMeasurePressureOnce() returned: %d", ret);
-    return false;
-  }
+    // start temperature measurement
+    if (this->Dps3xxPressureSensor->startMeasureTempOnce(osr) != DPS__SUCCEEDED) {
+      ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
+      return;
+    }
+    this->set_timeout(timeout_ms, [this]() {
+      float temperature = 0.0f;
+      if (this->Dps3xxPressureSensor->getSingleResult(temperature) != DPS__SUCCEEDED) {
+        ESP_LOGW(TAG, "getSingleResult() failed in update()");
+      } else {
+        this->temperature_sensor_->publish_state(temperature);
+      }
+    });
+  });
   return true;
 }
 
