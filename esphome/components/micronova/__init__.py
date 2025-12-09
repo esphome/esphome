@@ -123,9 +123,5 @@ async def _final_step() -> None:
     if data.listener_count > 0:
         cg.add_define("MICRONOVA_LISTENER_COUNT", data.listener_count)
 
-    if data.writer_count > 255:
-        raise cv.Invalid(
-            f"Too many micronova writing entities ({data.writer_count}). Maximum is 255."
-        )
     if data.writer_count > 0:
-        cg.add_define("MICRONOVA_WRITER_COUNT", data.writer_count)
+        cg.add_define("USE_MICRONOVA_WRITER")

@@ -9,6 +9,7 @@
 namespace esphome::micronova {
 
 static const char *const TAG = "micronova";
+static constexpr uint8_t WRITE_QUEUE_SIZE = 10;
 
 /// Fixed-size circular buffer with FIFO semantics and iteration support
 template<typename T, uint8_t N> class CommandRingBuffer {
@@ -28,12 +29,15 @@ template<typename T, uint8_t N> class CommandRingBuffer {
     uint8_t pos_;
   };
 
-  void push(const T &value) {
+  bool push(const T &value) {
     if (this->count_ < N) {
       this->data_[this->tail_] = value;
       this->tail_ = (this->tail_ + 1) % N;
       ++this->count_;
+      return true;
     }
+    ESP_LOGW(TAG, "Command queue full, dropping command");
+    return false;
   }
 
   void pop() {
@@ -123,12 +127,13 @@ class MicroNova : public Component, public uart::UARTDevice {
   void queue_read_request(uint8_t location, uint8_t address);
 #endif
 
-#ifdef MICRONOVA_WRITER_COUNT
+#ifdef USE_MICRONOVA_WRITER
   /// Queue a write command to the stove (processed before reads)
   /// @param location Memory location on the stove
   /// @param address Memory address on the stove
   /// @param data Data to write
-  void queue_write_command(uint8_t location, uint8_t address, uint8_t data);
+  /// @return true if command was queued, false if queue was full
+  bool queue_write_command(uint8_t location, uint8_t address, uint8_t data);
 #endif
 
  protected:
@@ -140,8 +145,8 @@ class MicroNova : public Component, public uart::UARTDevice {
 
   GPIOPin *enable_rx_pin_;
 
-#ifdef MICRONOVA_WRITER_COUNT
-  CommandRingBuffer<MicroNovaCommand, MICRONOVA_WRITER_COUNT> write_queue_;
+#ifdef USE_MICRONOVA_WRITER
+  CommandRingBuffer<MicroNovaCommand, WRITE_QUEUE_SIZE> write_queue_;
 #endif
 #ifdef MICRONOVA_LISTENER_COUNT
   CommandRingBuffer<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;

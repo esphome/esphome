@@ -82,7 +82,7 @@ void MicroNova::loop() {
   }
 
   // No reply pending - process next command (writes have priority over reads)
-#ifdef MICRONOVA_WRITER_COUNT
+#ifdef USE_MICRONOVA_WRITER
   if (!this->write_queue_.empty()) {
     this->current_command_ = this->write_queue_.front();
     this->write_queue_.pop();
@@ -168,19 +168,22 @@ int MicroNova::read_stove_reply_() {
   return ((int) reply_data[1]);
 }
 
-#ifdef MICRONOVA_WRITER_COUNT
-void MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t data) {
+#ifdef USE_MICRONOVA_WRITER
+bool MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t data) {
   MicroNovaCommand cmd;
   cmd.memory_location = location | WRITE_BIT;
   cmd.memory_address = address;
   cmd.data = data;
 
-  this->write_queue_.push(cmd);
+  if (!this->write_queue_.push(cmd)) {
+    return false;
+  }
   ESP_LOGD(TAG, "Queued write [%02X,%02X] (queue size: %zu)", location, address, this->write_queue_.size());
 #ifdef MICRONOVA_LISTENER_COUNT
   // Automatically queue sensor updates after write commands
   this->request_update_listeners_();
 #endif
+  return true;
 }
 #endif
 
