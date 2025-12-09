@@ -234,11 +234,9 @@ def substitute(
     elif isinstance(item, dict):
         replace_keys = []  # Track keys that need to be replaced
         for k, v in item.items():
-            # Substitute keys if not at the root or not the CONF_SUBSTITUTIONS key
-            if path or k != CONF_SUBSTITUTIONS:
-                sub = substitute(k, path + [k], context_vars, strict_undefined)
-                if sub is not None:
-                    replace_keys.append((k, sub))  # Mark key for replacement
+            sub = substitute(k, path + [k], context_vars, strict_undefined)
+            if sub is not None:
+                replace_keys.append((k, sub))  # Mark key for replacement
             sub = substitute(v, path + [k], context_vars, strict_undefined)
             if sub is not None:
                 item[k] = sub  # Update the value if substitution occurred
@@ -270,10 +268,11 @@ def substitute(
 def do_substitution_pass(
     config: dict, command_line_substitutions: dict | None = None
 ) -> None:
-    # Merge substitutions in config, overriding with substitutions coming from command line:
+    has_substitutions_key = CONF_SUBSTITUTIONS in config
+    # Extract substitutions from config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = merge_dicts_ordered(
-        config.get(CONF_SUBSTITUTIONS, {}), command_line_substitutions or {}
+        config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions or {}
     )
     with cv.prepend_path(CONF_SUBSTITUTIONS):
         if not isinstance(substitutions, dict):
@@ -292,8 +291,8 @@ def do_substitution_pass(
             substitutions[new] = substitutions[old]
             del substitutions[old]
 
-    if CONF_SUBSTITUTIONS in config:
-        config[CONF_SUBSTITUTIONS] = substitutions
-        config.move_to_end(CONF_SUBSTITUTIONS, last=False)
     parent_context = _push_context(substitutions, ContextVars())
     substitute(config, [], parent_context, False)
+    if has_substitutions_key:  # restores substitutions to front of dict
+        config[CONF_SUBSTITUTIONS] = substitutions
+        config.move_to_end(CONF_SUBSTITUTIONS, last=False)
