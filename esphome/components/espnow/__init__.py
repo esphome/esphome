@@ -58,6 +58,8 @@ OnBroadcastedTrigger = espnow_ns.class_(
 CONF_AUTO_ADD_PEER = "auto_add_peer"
 CONF_PEERS = "peers"
 CONF_PMK = "pmk"
+CONF_PEER_ADDRESS = "address"
+CONF_PEER_LMK = "lmk"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
 CONF_ON_BROADCAST = "on_broadcast"
@@ -80,7 +82,17 @@ CONFIG_SCHEMA = cv.All(
             cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
-            cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
+            cv.Optional(CONF_PEERS): cv.ensure_list(
+                cv.Any(
+                    cv.mac_address,
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_PEER_ADDRESS): cv.mac_address,
+                            cv.Optional(CONF_PEER_LMK): cv.templatable(cv.string)
+                        }
+                    )
+                )
+            ),
             cv.Optional(CONF_PMK): cv.templatable(cv.string),
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
                 {
@@ -140,7 +152,14 @@ async def to_code(config):
     cg.add(var.set_auto_add_peer(config[CONF_AUTO_ADD_PEER]))
 
     for peer in config.get(CONF_PEERS, []):
-        cg.add(var.add_peer(peer.parts))
+        if isinstance(peer, core.MACAddress):
+            cg.add(var.add_peer(peer.parts))
+        else:
+            lmk = peer.get(CONF_PEER_LMK, None)
+            if lmk:
+                cg.add(var.add_peer(peer.get(CONF_PEER_ADDRESS).parts, lmk))
+            else:
+                cg.add(var.add_peer(peer.get(CONF_PEER_ADDRESS).parts))
 
     if pmk := config.get(CONF_PMK):
         cg.add(var.set_pmk(pmk))

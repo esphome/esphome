@@ -174,27 +174,31 @@ bool ESPNowComponent::has_pmk() {
   return ! this->pmk.empty();
 }
 
+void ESPNowComponent::hash_mk(const std::string& mk, const uint8_t* out) {
+#ifdef USE_MD5
+  md5::MD5Digest hasher;
+  hasher.init();
+  hasher.add(mk.c_str(), mk.size());
+  hasher.calculate();
+  hasher.get_bytes((uint8_t*) out);
+#else
+  // better than nothing
+  uint32_t hash = fnv1_hash(mk);
+
+  *((uint32_t*)(&mk[0]))  = hash;
+  *((uint32_t*)(&mk[4]))  = hash;
+  *((uint32_t*)(&mk[8]))  = hash;
+  *((uint32_t*)(&mk[12])) = hash;
+#endif
+}
+
 void ESPNowComponent::set_espnow_pmk() {
   if (! this->has_pmk()) return;
 
   // PMK's are 16 bytes. To allow for any string to serve as PMK, we'll hash it
   // and use that to fill the byte array
-  const uint8_t* pmk[16];
-#ifdef USE_MD5
-  md5::MD5Digest hasher;
-  hasher.init();
-  hasher.add(this->pmk.c_str(), this->pmk.size());
-  hasher.calculate();
-  hasher.get_bytes((uint8_t*) pmk);
-#else
-  // better than nothing
-  uint32_t hash = fnv1_hash(this->pmk);
-
-  *((uint32_t*)(&pmk[0]))  = hash;
-  *((uint32_t*)(&pmk[4]))  = hash;
-  *((uint32_t*)(&pmk[8]))  = hash;
-  *((uint32_t*)(&pmk[12])) = hash;
-#endif
+  const uint8_t* pmk[ESP_NOW_KEY_LEN];
+  this->hash_mk(this->pmk, (const uint8_t*) pmk);
 
   esp_err_t err = esp_now_set_pmk((const uint8_t*) pmk);
   if (err != ESP_OK) {
@@ -266,7 +270,7 @@ void ESPNowComponent::enable_() {
   }
 
   for (auto peer : this->peers_) {
-    this->add_peer(peer.address);
+    this->add_peer(peer.address, peer.lmk);
   }
 }
 
@@ -462,7 +466,7 @@ void ESPNowComponent::send_() {
   }
 }
 
-esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
+esp_err_t ESPNowComponent::add_peer(const uint8_t *peer, const uint8_t* lmk) {
   if (this->state_ != ESPNOW_STATE_ENABLED || this->is_failed()) {
     return ESP_ERR_ESPNOW_NOT_INIT;
   }
@@ -477,6 +481,13 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     memset(&peer_info, 0, sizeof(esp_now_peer_info_t));
     peer_info.ifidx = WIFI_IF_STA;
     memcpy(peer_info.peer_addr, peer, ESP_NOW_ETH_ALEN);
+
+    // Add (optional) Local Master Key
+    if (lmk != nullptr) {
+      memcpy(peer_info.lmk, lmk, ESP_NOW_KEY_LEN);
+      peer_info.encrypt = true;
+    }
+
     esp_err_t err = esp_now_add_peer(&peer_info);
 
     if (err != ESP_OK) {
