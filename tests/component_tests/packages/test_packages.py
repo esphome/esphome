@@ -176,10 +176,7 @@ def test_single_package(
 
     assert actual == expected
 
-    assert (
-        "Including a single package under `packages:` is deprecated. Use a list instead."
-        in caplog.text
-    )
+    assert "This method for including packages will go away in 2026.7.0" in caplog.text
 
 
 def test_package_append(basic_wifi, basic_esphome):

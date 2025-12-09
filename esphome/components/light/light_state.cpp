@@ -305,8 +305,7 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
     this->remote_values = target;
   }
   this->output_->update_state(this);
-  this->next_write_ = true;
-  this->enable_loop();
+  this->schedule_write_();
 }
 
 void LightState::disable_loop_if_idle_() {

@@ -2,8 +2,7 @@
 
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 class TemplateButton final : public button::Button {
  public:
@@ -11,5 +10,4 @@ class TemplateButton final : public button::Button {
   void press_action() override{};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
