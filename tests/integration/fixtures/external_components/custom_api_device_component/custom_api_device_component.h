@@ -24,7 +24,7 @@ class CustomAPIDeviceComponent : public Component, public CustomAPIDevice {
                               std::vector<float> float_array, std::vector<std::string> string_array);
 
   // Test Home Assistant state subscription with std::string API
-  void on_ha_state_changed(std::string entity_id, std::string state);
+  void on_ha_state_changed(const std::string &entity_id, const std::string &state);
 };
 
 }  // namespace custom_api_device_component
