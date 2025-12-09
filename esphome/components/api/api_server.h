@@ -290,6 +290,7 @@ class APIServer : public Component,
   uint8_t listen_backlog_{4};
   uint8_t max_connections_{8};
   bool shutting_down_ = false;
+  int32_t use_more_ram_;
   // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE

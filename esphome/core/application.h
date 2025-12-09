@@ -614,7 +614,6 @@ class Application {
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};
 #endif
-  int32_t use_more_ram_;
 };
 
 /// Global storage of Application pointer - only one Application can exist.
