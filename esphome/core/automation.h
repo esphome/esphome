@@ -45,6 +45,12 @@ template<typename T, typename... X> class TemplatableValue {
  public:
   TemplatableValue() : type_(NONE) {}
 
+  // For const char* when T is std::string: store pointer directly, no heap allocation
+  // String remains in flash and is only converted to std::string when value() is called
+  TemplatableValue(const char *str) requires std::same_as<T, std::string> : type_(STATIC_STRING) {
+    this->static_str_ = str;
+  }
+
   template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
     new (&this->value_) T(std::move(value));
   }
@@ -64,24 +70,28 @@ template<typename T, typename... X> class TemplatableValue {
 
   // Copy constructor
   TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
-    if (type_ == VALUE) {
+    if (this->type_ == VALUE) {
       new (&this->value_) T(other.value_);
-    } else if (type_ == LAMBDA) {
+    } else if (this->type_ == LAMBDA) {
       this->f_ = new std::function<T(X...)>(*other.f_);
-    } else if (type_ == STATELESS_LAMBDA) {
+    } else if (this->type_ == STATELESS_LAMBDA) {
       this->stateless_f_ = other.stateless_f_;
+    } else if (this->type_ == STATIC_STRING) {
+      this->static_str_ = other.static_str_;
     }
   }
 
   // Move constructor
   TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
-    if (type_ == VALUE) {
+    if (this->type_ == VALUE) {
       new (&this->value_) T(std::move(other.value_));
-    } else if (type_ == LAMBDA) {
+    } else if (this->type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
-    } else if (type_ == STATELESS_LAMBDA) {
+    } else if (this->type_ == STATELESS_LAMBDA) {
       this->stateless_f_ = other.stateless_f_;
+    } else if (this->type_ == STATIC_STRING) {
+      this->static_str_ = other.static_str_;
     }
     other.type_ = NONE;
   }
@@ -104,12 +114,12 @@ template<typename T, typename... X> class TemplatableValue {
   }
 
   ~TemplatableValue() {
-    if (type_ == VALUE) {
+    if (this->type_ == VALUE) {
       this->value_.~T();
-    } else if (type_ == LAMBDA) {
+    } else if (this->type_ == LAMBDA) {
       delete this->f_;
     }
-    // STATELESS_LAMBDA/NONE: no cleanup needed (function pointer or empty, not heap-allocated)
+    // STATELESS_LAMBDA/STATIC_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
   }
 
   bool has_value() { return this->type_ != NONE; }
@@ -122,6 +132,13 @@ template<typename T, typename... X> class TemplatableValue {
         return (*this->f_)(x...);  // std::function call
       case VALUE:
         return this->value_;
+      case STATIC_STRING:
+        // if constexpr required: code must compile for all T, but STATIC_STRING
+        // can only be set when T is std::string (enforced by constructor constraint)
+        if constexpr (std::same_as<T, std::string>) {
+          return std::string(this->static_str_);
+        }
+        __builtin_unreachable();
       case NONE:
       default:
         return T{};
@@ -148,12 +165,14 @@ template<typename T, typename... X> class TemplatableValue {
     VALUE,
     LAMBDA,
     STATELESS_LAMBDA,
+    STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
   } type_;
 
   union {
     T value_;
     std::function<T(X...)> *f_;
     T (*stateless_f_)(X...);
+    const char *static_str_;  // For STATIC_STRING type
   };
 };
 
