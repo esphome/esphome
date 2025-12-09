@@ -1,0 +1,8 @@
+substitutions:
+  cs_pin: GPIO5
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  remote_receiver: !include ../../test_build_components/common/remote_receiver/esp8266-ard.yaml
+
+<<: !include common.yaml
