@@ -119,6 +119,9 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(24, this->zwave_home_id);
 #endif
+#ifdef USE_INFRARED_PROXY
+  buffer.encode_uint32(25, this->infrared_proxy_feature_flags);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name_ref_.size());
@@ -173,6 +176,9 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   size.add_uint32(2, this->zwave_home_id);
+#endif
+#ifdef USE_INFRARED_PROXY
+  size.add_uint32(2, this->infrared_proxy_feature_flags);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3345,6 +3351,127 @@ void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
 void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, static_cast<uint32_t>(this->type));
   size.add_length(1, this->data_len);
+}
+#endif
+#ifdef USE_INFRARED_PROXY
+void ListEntitiesInfraredProxyResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id_ref_);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name_ref_);
+#ifdef USE_ENTITY_ICON
+  buffer.encode_string(4, this->icon_ref_);
+#endif
+  buffer.encode_bool(5, this->disabled_by_default);
+  buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  buffer.encode_uint32(7, this->device_id);
+#endif
+  buffer.encode_uint32(8, this->capabilities);
+}
+void ListEntitiesInfraredProxyResponse::calculate_size(ProtoSize &size) const {
+  size.add_length(1, this->object_id_ref_.size());
+  size.add_fixed32(1, this->key);
+  size.add_length(1, this->name_ref_.size());
+#ifdef USE_ENTITY_ICON
+  size.add_length(1, this->icon_ref_.size());
+#endif
+  size.add_bool(1, this->disabled_by_default);
+  size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_uint32(1, this->capabilities);
+}
+bool InfraredProxyTimingParams::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->frequency = value.as_uint32();
+      break;
+    case 2:
+      this->length_in_bits = value.as_uint32();
+      break;
+    case 3:
+      this->header_high_us = value.as_uint32();
+      break;
+    case 4:
+      this->header_low_us = value.as_uint32();
+      break;
+    case 5:
+      this->one_high_us = value.as_uint32();
+      break;
+    case 6:
+      this->one_low_us = value.as_uint32();
+      break;
+    case 7:
+      this->zero_high_us = value.as_uint32();
+      break;
+    case 8:
+      this->zero_low_us = value.as_uint32();
+      break;
+    case 9:
+      this->footer_high_us = value.as_uint32();
+      break;
+    case 10:
+      this->footer_low_us = value.as_uint32();
+      break;
+    case 11:
+      this->repeat_high_us = value.as_uint32();
+      break;
+    case 12:
+      this->repeat_low_us = value.as_uint32();
+      break;
+    case 13:
+      this->minimum_idle_time_us = value.as_uint32();
+      break;
+    case 14:
+      this->msb_first = value.as_bool();
+      break;
+    case 15:
+      this->repeat_count = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredProxyTransmitRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2:
+      value.decode_to_message(this->timing);
+      break;
+    case 3: {
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredProxyTransmitRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1:
+      this->key = value.as_fixed32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void InfraredProxyReceiveEvent::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  for (auto &it : this->timings) {
+    buffer.encode_int32(2, it, true);
+  }
+}
+void InfraredProxyReceiveEvent::calculate_size(ProtoSize &size) const {
+  size.add_fixed32(1, this->key);
+  if (!this->timings.empty()) {
+    for (const auto &it : this->timings) {
+      size.add_int32_force(1, it);
+    }
+  }
 }
 #endif
 

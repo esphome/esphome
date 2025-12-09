@@ -492,7 +492,7 @@ class DeviceInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint8_t ESTIMATED_SIZE = 255;
+  static constexpr uint16_t ESTIMATED_SIZE = 260;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
@@ -555,6 +555,9 @@ class DeviceInfoResponse final : public ProtoMessage {
 #endif
 #ifdef USE_ZWAVE_PROXY
   uint32_t zwave_home_id{0};
+#endif
+#ifdef USE_INFRARED_PROXY
+  uint32_t infrared_proxy_feature_flags{0};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -3104,6 +3107,98 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+#endif
+#ifdef USE_INFRARED_PROXY
+class ListEntitiesInfraredProxyResponse final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 132;
+  static constexpr uint8_t ESTIMATED_SIZE = 44;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "list_entities_infrared_proxy_response"; }
+#endif
+  StringRef object_id_ref_{};
+  void set_object_id(const StringRef &ref) { this->object_id_ref_ = ref; }
+  uint32_t key{0};
+  StringRef name_ref_{};
+  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
+#ifdef USE_ENTITY_ICON
+  StringRef icon_ref_{};
+  void set_icon(const StringRef &ref) { this->icon_ref_ = ref; }
+#endif
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
+#endif
+  uint32_t capabilities{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class InfraredProxyTimingParams final : public ProtoDecodableMessage {
+ public:
+  uint32_t frequency{0};
+  uint32_t length_in_bits{0};
+  uint32_t header_high_us{0};
+  uint32_t header_low_us{0};
+  uint32_t one_high_us{0};
+  uint32_t one_low_us{0};
+  uint32_t zero_high_us{0};
+  uint32_t zero_low_us{0};
+  uint32_t footer_high_us{0};
+  uint32_t footer_low_us{0};
+  uint32_t repeat_high_us{0};
+  uint32_t repeat_low_us{0};
+  uint32_t minimum_idle_time_us{0};
+  bool msb_first{false};
+  uint32_t repeat_count{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class InfraredProxyTransmitRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 133;
+  static constexpr uint8_t ESTIMATED_SIZE = 41;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "infrared_proxy_transmit_request"; }
+#endif
+  uint32_t key{0};
+  InfraredProxyTimingParams timing{};
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class InfraredProxyReceiveEvent final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 134;
+  static constexpr uint8_t ESTIMATED_SIZE = 13;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "infrared_proxy_receive_event"; }
+#endif
+  uint32_t key{0};
+  FixedVector<int32_t> timings{};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
 };
 #endif
 

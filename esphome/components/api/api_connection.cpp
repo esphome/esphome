@@ -46,6 +46,9 @@
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
+#ifdef USE_INFRARED_PROXY
+#include "esphome/components/infrared_proxy/infrared_proxy.h"
+#endif
 
 namespace esphome::api {
 
@@ -1642,6 +1645,10 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
   resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
 #endif
+#ifdef USE_INFRARED_PROXY
+  // Get global feature flags for the infrared_proxy component
+  resp.infrared_proxy_feature_flags = infrared_proxy::get_infrared_proxy_feature_flags();
+#endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
 #endif
@@ -2075,6 +2082,24 @@ void APIConnection::process_state_subscriptions_() {
   }
 }
 #endif  // USE_API_HOMEASSISTANT_STATES
+
+#ifdef USE_INFRARED_PROXY
+void APIConnection::infrared_proxy_transmit(const InfraredProxyTransmitRequest &msg) {
+  this->parent_->on_infrared_proxy_transmit_request(msg);
+}
+
+void APIConnection::send_list_entities_infrared_proxy_response(const ListEntitiesInfraredProxyResponse &msg) {
+  if (!this->send_message(msg, ListEntitiesInfraredProxyResponse::MESSAGE_TYPE)) {
+    this->on_fatal_error();
+  }
+}
+
+void APIConnection::send_infrared_proxy_receive_event(const InfraredProxyReceiveEvent &msg) {
+  if (!this->send_message(msg, InfraredProxyReceiveEvent::MESSAGE_TYPE)) {
+    this->on_fatal_error();
+  }
+}
+#endif  // USE_INFRARED_PROXY
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
   ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),

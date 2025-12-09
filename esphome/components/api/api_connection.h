@@ -167,6 +167,12 @@ class APIConnection final : public APIServerConnection {
   void zwave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
 
+#ifdef USE_INFRARED_PROXY
+  void infrared_proxy_transmit(const InfraredProxyTransmitRequest &msg) override;
+  void send_list_entities_infrared_proxy_response(const ListEntitiesInfraredProxyResponse &msg);
+  void send_infrared_proxy_receive_event(const InfraredProxyReceiveEvent &msg);
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;

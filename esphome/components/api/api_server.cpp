@@ -18,6 +18,10 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
+#ifdef USE_INFRARED_PROXY
+#include "esphome/components/infrared_proxy/infrared_proxy.h"
+#endif
+
 #include <algorithm>
 #include <utility>
 
@@ -665,6 +669,65 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
+
+#ifdef USE_INFRARED_PROXY
+void APIServer::register_infrared_proxy(infrared_proxy::InfraredProxyComponent *infrared_proxy) {
+  this->infrared_proxies_.push_back(infrared_proxy);
+}
+
+void APIServer::on_infrared_proxy_transmit_request(const InfraredProxyTransmitRequest &msg) {
+  for (auto *infrared_proxy : this->infrared_proxies_) {
+    if (infrared_proxy->get_object_id_hash() == msg.key) {
+      infrared_proxy->transmit(msg);
+      return;
+    }
+  }
+  ESP_LOGW(TAG, "Infrared proxy transmit request for unknown key: %u", msg.key);
+}
+
+void APIServer::send_infrared_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {
+  InfraredProxyReceiveEvent event{};
+  event.key = key;
+  // Convert std::vector to FixedVector
+  event.timings.init(timings.size());
+  for (size_t i = 0; i < timings.size(); i++) {
+    event.timings.push_back(timings[i]);
+  }
+
+  for (auto &client : this->clients_) {
+    client->send_infrared_proxy_receive_event(event);
+  }
+}
+
+void APIServer::list_infrared_proxy_entities(APIConnection *conn) {
+  for (auto *infrared_proxy : this->infrared_proxies_) {
+    ListEntitiesInfraredProxyResponse msg{};
+    msg.key = infrared_proxy->get_object_id_hash();
+
+    // Store object_id in a local variable to ensure it outlives StringRef creation
+    std::string object_id = infrared_proxy->get_object_id();
+    msg.set_object_id(StringRef(object_id));
+
+    if (infrared_proxy->has_own_name()) {
+      msg.set_name(infrared_proxy->get_name());
+    }
+
+    // Set common EntityBase properties
+#ifdef USE_ENTITY_ICON
+    msg.set_icon(infrared_proxy->get_icon_ref());
+#endif
+    msg.disabled_by_default = infrared_proxy->is_disabled_by_default();
+    msg.entity_category = static_cast<enums::EntityCategory>(infrared_proxy->get_entity_category());
+#ifdef USE_DEVICES
+    msg.device_id = infrared_proxy->get_device_id();
+#endif
+
+    msg.capabilities = infrared_proxy->get_capability_flags();
+
+    conn->send_list_entities_infrared_proxy_response(msg);
+  }
+}
+#endif  // USE_INFRARED_PROXY
 
 }  // namespace esphome::api
 #endif

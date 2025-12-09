@@ -829,6 +829,9 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
+#ifdef USE_INFRARED_PROXY
+  dump_field(out, "infrared_proxy_feature_flags", this->infrared_proxy_feature_flags);
+#endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
@@ -2356,6 +2359,58 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
   out.append("  data: ");
   out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
+}
+#endif
+#ifdef USE_INFRARED_PROXY
+void ListEntitiesInfraredProxyResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesInfraredProxyResponse");
+  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "key", this->key);
+  dump_field(out, "name", this->name_ref_);
+#ifdef USE_ENTITY_ICON
+  dump_field(out, "icon", this->icon_ref_);
+#endif
+  dump_field(out, "disabled_by_default", this->disabled_by_default);
+  dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "capabilities", this->capabilities);
+}
+void InfraredProxyTimingParams::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredProxyTimingParams");
+  dump_field(out, "frequency", this->frequency);
+  dump_field(out, "length_in_bits", this->length_in_bits);
+  dump_field(out, "header_high_us", this->header_high_us);
+  dump_field(out, "header_low_us", this->header_low_us);
+  dump_field(out, "one_high_us", this->one_high_us);
+  dump_field(out, "one_low_us", this->one_low_us);
+  dump_field(out, "zero_high_us", this->zero_high_us);
+  dump_field(out, "zero_low_us", this->zero_low_us);
+  dump_field(out, "footer_high_us", this->footer_high_us);
+  dump_field(out, "footer_low_us", this->footer_low_us);
+  dump_field(out, "repeat_high_us", this->repeat_high_us);
+  dump_field(out, "repeat_low_us", this->repeat_low_us);
+  dump_field(out, "minimum_idle_time_us", this->minimum_idle_time_us);
+  dump_field(out, "msb_first", this->msb_first);
+  dump_field(out, "repeat_count", this->repeat_count);
+}
+void InfraredProxyTransmitRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredProxyTransmitRequest");
+  dump_field(out, "key", this->key);
+  out.append("  timing: ");
+  this->timing.dump_to(out);
+  out.append("\n");
+  out.append("  data: ");
+  out.append(format_hex_pretty(this->data, this->data_len));
+  out.append("\n");
+}
+void InfraredProxyReceiveEvent::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredProxyReceiveEvent");
+  dump_field(out, "key", this->key);
+  for (const auto &it : this->timings) {
+    dump_field(out, "timings", it, 4);
+  }
 }
 #endif
 

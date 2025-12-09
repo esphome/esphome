@@ -611,6 +611,17 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_INFRARED_PROXY
+    case InfraredProxyTransmitRequest::MESSAGE_TYPE: {
+      InfraredProxyTransmitRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_infrared_proxy_transmit_request: %s", msg.dump().c_str());
+#endif
+      this->on_infrared_proxy_transmit_request(msg);
+      break;
+    }
+#endif
 #ifdef USE_WATER_HEATER
     case WaterHeaterCommandRequest::MESSAGE_TYPE: {
       WaterHeaterCommandRequest msg;
@@ -818,6 +829,11 @@ void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) { th
 #endif
 #ifdef USE_ZWAVE_PROXY
 void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) { this->zwave_proxy_request(msg); }
+#endif
+#ifdef USE_INFRARED_PROXY
+void APIServerConnection::on_infrared_proxy_transmit_request(const InfraredProxyTransmitRequest &msg) {
+  this->infrared_proxy_transmit(msg);
+}
 #endif
 
 void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {

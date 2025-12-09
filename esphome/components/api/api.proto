@@ -66,6 +66,8 @@ service APIConnection {
 
   rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
   rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
+
+  rpc infrared_proxy_transmit(InfraredProxyTransmitRequest) returns (void) {}
 }
 
 
@@ -257,6 +259,9 @@ message DeviceInfoResponse {
   // Indicates if Z-Wave proxy support is available and features supported
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+
+  // Indicates if infrared proxy support is available and features supported
+  uint32 infrared_proxy_feature_flags = 25 [(field_ifdef) = "USE_INFRARED_PROXY"];
 }
 
 message ListEntitiesRequest {
@@ -2436,4 +2441,65 @@ message ZWaveProxyRequest {
 
   ZWaveProxyRequestType type = 1;
   bytes data = 2;
+}
+
+// ==================== INFRARED PROXY ====================
+// Note: Feature and capability flag enums are defined in
+// esphome/components/infrared_proxy/infrared_proxy.h
+
+// Listing of infrared proxy instances
+message ListEntitiesInfraredProxyResponse {
+  option (id) = 132;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_INFRARED_PROXY";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  uint32 capabilities = 8;  // Bitfield of InfraredProxyCapabilityFlags
+}
+
+// IR timing parameters for encoding messages
+message InfraredProxyTimingParams {
+  uint32 frequency = 1;           // Carrier frequency in Hz (0 = no carrier for RF)
+  uint32 length_in_bits = 2;      // Number of bits in the message
+  uint32 header_high_us = 3;      // Header mark duration in microseconds
+  uint32 header_low_us = 4;       // Header space duration in microseconds
+  uint32 one_high_us = 5;         // Logical '1' mark duration in microseconds
+  uint32 one_low_us = 6;          // Logical '1' space duration in microseconds
+  uint32 zero_high_us = 7;        // Logical '0' mark duration in microseconds
+  uint32 zero_low_us = 8;         // Logical '0' space duration in microseconds
+  uint32 footer_high_us = 9;      // Footer mark duration in microseconds
+  uint32 footer_low_us = 10;      // Footer space duration in microseconds
+  uint32 repeat_high_us = 11;     // Repeat mark duration in microseconds
+  uint32 repeat_low_us = 12;      // Repeat space duration in microseconds
+  uint32 minimum_idle_time_us = 13; // Minimum idle time between messages
+  bool msb_first = 14;            // Transmit MSB first if true, LSB first if false
+  uint32 repeat_count = 15;       // Number of times to repeat the message
+}
+
+// Command to transmit infrared data
+message InfraredProxyTransmitRequest {
+  option (id) = 133;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_INFRARED_PROXY";
+
+  fixed32 key = 1;                           // Key identifying the transmitter instance
+  InfraredProxyTimingParams timing = 2;      // Timing parameters for encoding
+  bytes data = 3 [(pointer_to_buffer) = true]; // Data bytes to encode and transmit
+}
+
+// Event message for received infrared data
+message InfraredProxyReceiveEvent {
+  option (id) = 134;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_INFRARED_PROXY";
+  option (no_delay) = true;
+
+  fixed32 key = 1;                                    // Key identifying the receiver instance
+  repeated int32 timings = 2 [(fixed_vector) = true]; // Raw timings (alternating on/off in microseconds)
 }

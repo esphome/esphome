@@ -28,6 +28,18 @@ namespace esphome::api {
 class UserServiceDescriptor;
 #endif
 
+}  // namespace esphome::api
+
+#ifdef USE_INFRARED_PROXY
+#include "esphome/components/remote_base/remote_base.h"
+namespace esphome::infrared_proxy {
+// Forward declaration
+class InfraredProxyComponent;
+}  // namespace esphome::infrared_proxy
+#endif
+
+namespace esphome::api {
+
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
   psk_t psk;
@@ -184,6 +196,15 @@ class APIServer : public Component,
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
+#ifdef USE_INFRARED_PROXY
+  void register_infrared_proxy(infrared_proxy::InfraredProxyComponent *infrared_proxy);
+  void on_infrared_proxy_transmit_request(const InfraredProxyTransmitRequest &msg);
+  void send_infrared_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings);
+  void list_infrared_proxy_entities(APIConnection *conn);
+  const std::vector<infrared_proxy::InfraredProxyComponent *> &get_infrared_proxies() const {
+    return this->infrared_proxies_;
+  }
+#endif
 
   bool is_connected(bool state_subscription_only = false) const;
 
@@ -269,6 +290,9 @@ class APIServer : public Component,
   std::vector<ActiveActionCall> active_action_calls_;
   uint32_t next_action_call_id_{1};  // Counter for generating unique action_call_ids
 #endif                               // USE_API_USER_DEFINED_ACTION_RESPONSES
+#endif
+#ifdef USE_INFRARED_PROXY
+  std::vector<infrared_proxy::InfraredProxyComponent *> infrared_proxies_;
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   struct PendingActionResponse {

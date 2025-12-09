@@ -1,0 +1,21 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+remote_transmitter:
+  id: ir_transmitter
+  pin: ${tx_pin}
+  carrier_duty_percent: 50%
+
+remote_receiver:
+  id: ir_receiver
+  pin: ${rx_pin}
+
+infrared_proxy:
+  - id: ir_tx
+    remote_transmitter_id: ir_transmitter
+
+  - id: ir_rx
+    remote_receiver_id: ir_receiver
