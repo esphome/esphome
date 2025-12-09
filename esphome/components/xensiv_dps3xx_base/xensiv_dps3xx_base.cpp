@@ -19,44 +19,42 @@ void XensivDPS3xx::update() {
 }
 
 /**
- * @brief Perform a single pressure and a single temperature non-blocking measurement
+ * @brief Takes single measurement of pressure and temperature (non-blocking wait)
  *
- * @return true
- * @return false
  */
-bool XensivDPS3xx::measure_now() {
+void XensivDPS3xx::measure_now() {
   uint8_t osr = 7;  // oversampling rate
   // Calculate timeout using same formula as measurePressureOnce()
   uint32_t busy_time_us = 20U + (16U << osr);  // Formula from calcBusyTime with mr=0
   uint32_t timeout_ms = (busy_time_us / 10U) + 10U;
 
   // start pressure measurement
-  if (this->Dps3xxPressureSensor->startMeasurePressureOnce(osr) != DPS__SUCCEEDED) {
+  int16_t res_pressure = this->Dps3xxPressureSensor->startMeasurePressureOnce(osr);
+  if (res_pressure != DPS__SUCCEEDED) {
     ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
   }
-  this->set_timeout(timeout_ms, [this, osr, timeout_ms]() {
+  this->set_timeout(timeout_ms, [this, res_pressure, osr, timeout_ms]() {
     float pressure = 0.0f;
-    if (this->Dps3xxPressureSensor->getSingleResult(pressure) != DPS__SUCCEEDED) {
-      ESP_LOGW(TAG, "getSingleResult() failed in update()");
+    if (res_pressure != DPS__SUCCEEDED || this->Dps3xxPressureSensor->getSingleResult(pressure) != DPS__SUCCEEDED) {
+      ESP_LOGW(TAG, "Pressure: getSingleResult() failed in update()");
     } else {
       this->pressure_sensor_->publish_state(pressure / 1000.0f);  // Convert to hPa
     }
 
     // start temperature measurement
     if (this->Dps3xxPressureSensor->startMeasureTempOnce(osr) != DPS__SUCCEEDED) {
-      ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
+      ESP_LOGW(TAG, "startMeasureTempOnce() failed in update()");
       return;
     }
     this->set_timeout(timeout_ms, [this]() {
       float temperature = 0.0f;
       if (this->Dps3xxPressureSensor->getSingleResult(temperature) != DPS__SUCCEEDED) {
-        ESP_LOGW(TAG, "getSingleResult() failed in update()");
+        ESP_LOGW(TAG, "Temperature: getSingleResult() failed in update()");
       } else {
         this->temperature_sensor_->publish_state(temperature);
       }
     });
   });
-  return true;
 }
 
 void XensivDPS3xx::dump_config() {

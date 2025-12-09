@@ -16,7 +16,7 @@ class XensivDPS3xx : public PollingComponent {
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_operation_mode(uint8_t mode) { this->operation_mode_ = mode; }
-  bool measure_now();
+  void measure_now();
 
   // Allow DpsClass to access protected I2C methods
   friend class DpsClass;
