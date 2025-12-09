@@ -70,9 +70,6 @@ void XensivDPS3xx::setup() {
     }
     return;
 
-  } else if (this->operation_mode_ == 2) { /* Pressure mode: disable interrupts */
-    // no interrupts
-
   } else if (this->operation_mode_ == 0) { /* Single-shot mode: use measurement ready interrupts */
     if (this->Dps3xxPressureSensor->setInterruptSources(DPS3xx_BOTH_INTR, 0) != DPS__SUCCEEDED) {
       this->failure_reason_ += "Failed to set interrupt sources;";
@@ -81,6 +78,8 @@ void XensivDPS3xx::setup() {
     }
     Dps3xxPressureSensor->getIntStatusPrsReady();
 
+  } else if (this->operation_mode_ == 2) { /* Polling Mode */
+    // no interrupts
   } else { /* Invalid operation mode */
     this->failure_reason_ += "Invalid operation mode configured;";
     this->mark_failed();
@@ -145,29 +144,38 @@ void XensivDPS3xx::loop() {
 }
 
 void XensivDPS3xx::update() {
-  if (this->operation_mode_ == 2) { /* Pressure Mode */
+  if (this->operation_mode_ == 2) { /* Polling Mode */
     uint8_t osr = 7;                // oversampling rate
+    // Calculate timeout using same formula as measurePressureOnce()
+    uint32_t busy_time_us = 20U + (16U << osr);  // Formula from calcBusyTime with mr=0
+    uint32_t timeout_ms = (busy_time_us / 10U) + 10U;
+
+    // start pressure measurement
     if (this->Dps3xxPressureSensor->startMeasurePressureOnce(osr) != DPS__SUCCEEDED) {
       ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
       return;
     }
-
-    // Calculate timeout using same formula as measurePressureOnce()
-    // busy_time_us = (20 << mr) + (16 << (osr + mr))
-    // With mr=0: busy_time_us = 20 + (16 << osr) microseconds
-    // Convert to milliseconds by dividing by DPS__BUSYTIME_SCALING (10)
-    // Add DPS3xx__BUSYTIME_FAILSAFE (10 ms) safety margin
-    uint32_t busy_time_us = 20U + (16U << osr);  // Formula from calcBusyTime with mr=0
-    uint32_t timeout_ms = (busy_time_us / 10U) + 10U;
-
-    this->set_timeout(timeout_ms, [this]() {
+    this->set_timeout(timeout_ms, [this, osr, timeout_ms]() {
       float pressure = 0.0f;
       if (this->Dps3xxPressureSensor->getSingleResult(pressure) != DPS__SUCCEEDED) {
         ESP_LOGW(TAG, "getSingleResult() failed in update()");
-        return;
       } else {
         this->pressure_sensor_->publish_state(pressure / 1000.0f);  // Convert to hPa
       }
+
+      // start temperature measurement
+      if (this->Dps3xxPressureSensor->startMeasureTempOnce(osr) != DPS__SUCCEEDED) {
+        ESP_LOGW(TAG, "startMeasurePressureOnce() failed in update()");
+        return;
+      }
+      this->set_timeout(timeout_ms, [this]() {
+        float temperature = 0.0f;
+        if (this->Dps3xxPressureSensor->getSingleResult(temperature) != DPS__SUCCEEDED) {
+          ESP_LOGW(TAG, "getSingleResult() failed in update()");
+        } else {
+          this->temperature_sensor_->publish_state(temperature);
+        }
+      });
     });
   }
 }

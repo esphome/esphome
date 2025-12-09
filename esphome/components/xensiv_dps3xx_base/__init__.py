@@ -44,11 +44,11 @@ CONFIG_SCHEMA_BASE = cv.Schema(
                 min=cv.TimePeriod(milliseconds=125), max=cv.TimePeriod(seconds=16)
             ),
         ),
-        cv.Optional(CONF_OPERATION_MODE, default="continuous"): cv.enum(
+        cv.Optional(CONF_OPERATION_MODE, default="polling"): cv.enum(
             {
                 "single_shot": 0,
                 "continuous": 1,
-                "pressure": 2,
+                "polling": 2,
             }
         ),
     }
