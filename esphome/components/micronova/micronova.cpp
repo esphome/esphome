@@ -176,6 +176,7 @@ bool MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t d
   cmd.data = data;
 
   if (!this->write_queue_.push(cmd)) {
+    ESP_LOGW(TAG, "Write queue full, dropping command");
     return false;
   }
   ESP_LOGD(TAG, "Queued write [%02X,%02X] (queue size: %zu)", location, address, this->write_queue_.size());

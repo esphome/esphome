@@ -30,14 +30,13 @@ template<typename T, uint8_t N> class CommandRingBuffer {
   };
 
   bool push(const T &value) {
-    if (this->count_ < N) {
-      this->data_[this->tail_] = value;
-      this->tail_ = (this->tail_ + 1) % N;
-      ++this->count_;
-      return true;
+    if (this->count_ >= N) {
+      return false;
     }
-    ESP_LOGW(TAG, "Command queue full, dropping command");
-    return false;
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % N;
+    ++this->count_;
+    return true;
   }
 
   void pop() {
