@@ -1,4 +1,5 @@
 from collections import UserDict
+from collections.abc import Callable
 from functools import reduce
 import logging
 from pathlib import Path
@@ -238,12 +239,14 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     return {"packages": packages}
 
 
-def _walk_packages(config: dict, callback: callable) -> dict:
+def _walk_packages(config: dict, callback: Callable[[dict], dict]) -> dict:
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
-    # The following line can be safely removed once single-package deprecation is effective
+
+    # The following single line can be safely removed once single-package deprecation is effective
     packages = CONFIG_SCHEMA(packages)
+
     with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
@@ -272,7 +275,7 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
 
     substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
 
-    def process_package_callback(package_config):
+    def process_package_callback(package_config: dict) -> dict:
         """This will be called for each package found in the config."""
         package_config = PACKAGE_SCHEMA(package_config)
         if isinstance(package_config, str):
@@ -299,9 +302,9 @@ def merge_packages(config: dict) -> dict:
         return config
 
     # Build flat list of all package configs to merge in priority order:
-    merge_list = []
+    merge_list: list[dict] = []
 
-    def process_package_callback(package_config):
+    def process_package_callback(package_config: dict) -> dict:
         """This will be called for each package found in the config."""
         merge_list.append(package_config)
         return package_config
