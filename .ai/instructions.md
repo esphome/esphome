@@ -276,7 +276,7 @@ This document provides essential context for AI models interacting with this pro
 ## 7. Specific Instructions for AI Collaboration
 
 *   **Contribution Workflow (Pull Request Process):**
-    1.  **Fork & Branch:** Create a new branch in your fork.
+    1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
     4.  **Lint:** Run `pre-commit` to ensure code is compliant.
