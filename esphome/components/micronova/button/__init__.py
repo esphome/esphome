@@ -6,9 +6,8 @@ from .. import (
     CONF_MEMORY_ADDRESS,
     CONF_MEMORY_LOCATION,
     CONF_MICRONOVA_ID,
-    MICRONOVA_LISTENER_SCHEMA,
+    MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
-    MicroNovaFunctions,
     micronova_ns,
 )
 
@@ -24,8 +23,10 @@ CONFIG_SCHEMA = cv.Schema(
             MicroNovaButton,
         )
         .extend(
-            MICRONOVA_LISTENER_SCHEMA(
-                default_memory_location=0xA0, default_memory_address=0x7D
+            MICRONOVA_ADDRESS_SCHEMA(
+                default_memory_location=0x20,
+                default_memory_address=0x7D,
+                is_polling_component=False,
             )
         )
         .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range()}),
@@ -41,4 +42,3 @@ async def to_code(config):
         cg.add(bt.set_memory_location(custom_button_config.get(CONF_MEMORY_LOCATION)))
         cg.add(bt.set_memory_address(custom_button_config.get(CONF_MEMORY_ADDRESS)))
         cg.add(bt.set_memory_data(custom_button_config[CONF_MEMORY_DATA]))
-        cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_CUSTOM))
