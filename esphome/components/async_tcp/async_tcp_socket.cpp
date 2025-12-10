@@ -28,9 +28,9 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
     return false;
   }
 
-  // Create socket
+  // Create socket with loop monitoring
   int family = ((struct sockaddr *) &addr)->sa_family;
-  socket_ = esphome::socket::socket(family, SOCK_STREAM, IPPROTO_TCP);
+  socket_ = esphome::socket::socket_loop_monitored(family, SOCK_STREAM, IPPROTO_TCP);
   if (!socket_) {
     ESP_LOGE(TAG, "Failed to create socket");
     if (error_cb_)
@@ -81,14 +81,16 @@ void AsyncClient::loop() {
   if (!socket_)
     return;
 
-  int fd = socket_->get_fd();
-  if (fd < 0) {
-    ESP_LOGW(TAG, "Invalid socket fd");
-    close();
-    return;
-  }
-
   if (connecting_) {
+    // For connecting, we need to check writability, not readability
+    // The Application's select() only monitors read FDs, so we do our own check here
+    int fd = socket_->get_fd();
+    if (fd < 0) {
+      ESP_LOGW(TAG, "Invalid socket fd");
+      close();
+      return;
+    }
+
     fd_set writefds;
     FD_ZERO(&writefds);
     FD_SET(fd, &writefds);
@@ -117,31 +119,21 @@ void AsyncClient::loop() {
         error_cb_(error_arg_, this, errno);
     }
   } else if (connected_) {
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(fd, &readfds);
+    // For connected sockets, use the Application's select() results
+    if (!socket_->ready())
+      return;
 
-    struct timeval tv = {0, 0};
-    int ret = select(fd + 1, &readfds, nullptr, nullptr, &tv);
+    uint8_t buf[512];
+    ssize_t len = socket_->read(buf, sizeof(buf));
 
-    if (ret > 0 && FD_ISSET(fd, &readfds)) {
-      uint8_t buf[512];
-      ssize_t len = socket_->read(buf, sizeof(buf));
-
-      if (len == 0) {
-        ESP_LOGI(TAG, "Connection closed by peer");
-        close();
-      } else if (len > 0) {
-        if (data_cb_)
-          data_cb_(data_arg_, this, buf, len);
-      } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        ESP_LOGW(TAG, "Read error: %d", errno);
-        close();
-        if (error_cb_)
-          error_cb_(error_arg_, this, errno);
-      }
-    } else if (ret < 0) {
-      ESP_LOGE(TAG, "Select error: %d", errno);
+    if (len == 0) {
+      ESP_LOGI(TAG, "Connection closed by peer");
+      close();
+    } else if (len > 0) {
+      if (data_cb_)
+        data_cb_(data_arg_, this, buf, len);
+    } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      ESP_LOGW(TAG, "Read error: %d", errno);
       close();
       if (error_cb_)
         error_cb_(error_arg_, this, errno);
