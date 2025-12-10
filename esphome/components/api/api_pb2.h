@@ -765,7 +765,7 @@ class FanStateResponse final : public StateResponseProtoMessage {
 class FanCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 31;
-  static constexpr uint8_t ESTIMATED_SIZE = 38;
+  static constexpr uint8_t ESTIMATED_SIZE = 48;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "fan_command_request"; }
 #endif
@@ -778,7 +778,8 @@ class FanCommandRequest final : public CommandProtoMessage {
   bool has_speed_level{false};
   int32_t speed_level{0};
   bool has_preset_mode{false};
-  std::string preset_mode{};
+  const uint8_t *preset_mode{nullptr};
+  uint16_t preset_mode_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

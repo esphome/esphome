@@ -477,7 +477,7 @@ message FanCommandRequest {
   bool has_speed_level = 10;
   int32 speed_level = 11;
   bool has_preset_mode = 12;
-  string preset_mode = 13;
+  string preset_mode = 13 [(pointer_to_buffer) = true];
   uint32 device_id = 14 [(field_ifdef) = "USE_DEVICES"];
 }
 

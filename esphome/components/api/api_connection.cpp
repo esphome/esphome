@@ -447,7 +447,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   if (msg.has_preset_mode)
-    call.set_preset_mode(msg.preset_mode);
+    call.set_preset_mode(reinterpret_cast<const char *>(msg.preset_mode), msg.preset_mode_len);
   call.perform();
 }
 #endif

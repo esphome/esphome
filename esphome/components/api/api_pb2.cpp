@@ -447,9 +447,12 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool FanCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 13:
-      this->preset_mode = value.as_string();
+    case 13: {
+      // Use raw data directly to avoid allocation
+      this->preset_mode = value.data();
+      this->preset_mode_len = value.size();
       break;
+    }
     default:
       return false;
   }

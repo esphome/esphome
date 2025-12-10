@@ -923,7 +923,9 @@ void FanCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_speed_level", this->has_speed_level);
   dump_field(out, "speed_level", this->speed_level);
   dump_field(out, "has_preset_mode", this->has_preset_mode);
-  dump_field(out, "preset_mode", this->preset_mode);
+  out.append("  preset_mode: ");
+  out.append(format_hex_pretty(this->preset_mode, this->preset_mode_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
