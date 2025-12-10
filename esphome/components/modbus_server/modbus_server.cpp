@@ -7,8 +7,8 @@ namespace modbus_server {
 
 static const char *const TAG = "modbus_server";
 
-void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
-                                            uint16_t number_of_registers) {
+modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
+                                                                    uint16_t number_of_registers) {
   ESP_LOGD(TAG,
            "Received read holding/input registers for device 0x%X. FC: 0x%X. Start address: 0x%X. Number of registers: "
            "0x%X.",
@@ -16,8 +16,7 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
 
   if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_READ) {
     ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
-    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
-    return;
+    return {.exception = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS};
   }
 
   std::vector<uint16_t> sixteen_bit_response;
@@ -56,23 +55,25 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
         ESP_LOGW(TAG,
                  "Could not match any register to address 0x%02X and default not allowed. Sending exception response.",
                  current_address);
-        this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
-        return;
+        return {.exception = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS};
       }
     }
   }
 
   std::vector<uint8_t> response;
-  response.push_back(number_of_registers * 2);  // byte count
+  if (number_of_registers != sixteen_bit_response.size())
+    ESP_LOGW(TAG, "Response size not matched to request register count.");
+  response.push_back(sixteen_bit_response.size() * 2);  // actual byte count
   for (auto v : sixteen_bit_response) {
     auto decoded_value = decode_value(v);
     response.push_back(decoded_value[0]);
     response.push_back(decoded_value[1]);
   }
-  this->send(function_code, std::move(response));
+  return {.payload = std::move(response)};
 }
 
-void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) {
+modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t function_code,
+                                                                     const std::vector<uint8_t> &data) {
   uint16_t number_of_registers;
   uint16_t payload_offset;
 
@@ -80,15 +81,13 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
     number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
     if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_WRITE) {
       ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
-      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-      return;
+      return {.exception = ModbusExceptionCode::ILLEGAL_DATA_VALUE};
     }
     uint16_t payload_size = data[4];
     if (payload_size != number_of_registers * 2) {
       ESP_LOGW(TAG, "Payload size of %d bytes is not 2 times the number of registers (%d). Sending exception response.",
                payload_size, number_of_registers);
-      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-      return;
+      return {.exception = ModbusExceptionCode::ILLEGAL_DATA_VALUE};
     }
     payload_offset = 5;
   } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
@@ -96,8 +95,7 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
     payload_offset = 2;
   } else {
     ESP_LOGW(TAG, "Invalid function code 0x%X. Sending exception response.", function_code);
-    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
-    return;
+    return {.exception = ModbusExceptionCode::ILLEGAL_FUNCTION};
   }
 
   uint16_t start_address = uint16_t(data[1]) | (uint16_t(data[0]) << 8);
@@ -132,18 +130,20 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
         return server_register->write_lambda != nullptr;
       })) {
     ESP_LOGW(TAG, "Invalid register address. Sending exception response.");
-    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
-    return;
+    return {.exception = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS};
   }
 
   // Actually write to the registers:
-  if (!for_each_register([&data](ServerRegister *server_register, uint16_t offset) {
-        int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
-        return server_register->write_lambda(number);
+  if (!for_each_register([this, function_code, &data](ServerRegister *server_register, uint16_t offset) {
+        bool error = false;
+        int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF, &error);
+        if (error)
+          return false;
+        else
+          return server_register->write_lambda(number);
       })) {
     ESP_LOGW(TAG, "Could not write all registers. Sending exception response.");
-    this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
-    return;
+    return {.exception = ModbusExceptionCode::SERVICE_DEVICE_FAILURE};
   }
 
   std::vector<uint8_t> response;
@@ -151,7 +151,7 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
   response.push_back(this->address_);
   response.push_back(function_code);
   response.insert(response.end(), data.begin(), data.begin() + 4);
-  this->send_raw(response);
+  return {.payload = std::move(response)};
 }
 
 void ModbusServer::dump_config() {

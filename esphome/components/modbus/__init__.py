@@ -14,8 +14,8 @@ DEPENDENCIES = ["uart"]
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
-ModbusServer = modbus_ns.class_("ModbusServer", Modbus)
-ModbusClient = modbus_ns.class_("ModbusClient", Modbus)
+ModbusServer = modbus_ns.class_("ModbusServerHub", Modbus)
+ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
@@ -114,7 +114,8 @@ def final_validate_modbus_device(
 # Remove the server parameter and extract from config.
 async def register_modbus_device(var, config, server: bool = False):
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
-    cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
     if server:
         cg.add(parent.register_device(var))
+    else:
+        cg.add(var.set_parent(parent))

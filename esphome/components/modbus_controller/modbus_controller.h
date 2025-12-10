@@ -95,10 +95,11 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
  public:
   /// For compatibility, a constructor for an empty command with no controller connection.
   ModbusCommandItem() = default;
-  ModbusCommandItem(ModbusController &controller, modbus::ModbusClient *parent, uint8_t address)
+  ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address)
       : modbus::ModbusClientDevice(parent, address), controller_(&controller){};
   // constructor creates a read command from a range
-  ModbusCommandItem(ModbusController &controller, modbus::ModbusClient *parent, uint8_t address, RegisterRange &&range)
+  ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
+                    RegisterRange &&range)
       : modbus::ModbusClientDevice(parent, address),
         sensors(std::move(range.sensors)),
         skip_updates(range.skip_updates),

@@ -29,7 +29,7 @@ void Modbus::loop() {
   this->parse_modbus_frames();
 }
 
-void ModbusClient::loop() {
+void ModbusClientHub::loop() {
   // Call base class to receive bytes and parse frames
   this->Modbus::loop();
 
@@ -80,14 +80,14 @@ bool Modbus::tx_blocked() {
          (now - this->last_modbus_byte_ < this->frame_delay_ms_ + this->turnaround_delay_ms_);
 }
 
-bool ModbusClient::tx_blocked() {
+bool ModbusClientHub::tx_blocked() {
   // We block transmission in any of these case:
   // 1. We're waiting for a response
   // 2. Any of the base class tx_blocked conditions
   return (this->waiting_for_response_.has_value()) || this->Modbus::tx_blocked();
 }
 
-bool ModbusClient::tx_buffer_empty() { return this->tx_buffer_.empty(); }
+bool ModbusClientHub::tx_buffer_empty() { return this->tx_buffer_.empty(); }
 
 void Modbus::receive_bytes_() {
   bool bytes_received = false;
@@ -108,7 +108,7 @@ void Modbus::receive_bytes_() {
   }
 }
 
-void ModbusClient::parse_modbus_frames() {
+void ModbusClientHub::parse_modbus_frames() {
   if (!this->rx_buffer_.empty()) {
     size_t size;
     do {
@@ -121,7 +121,7 @@ void ModbusClient::parse_modbus_frames() {
   }
 }
 
-void ModbusServer::parse_modbus_frames() {
+void ModbusServerHub::parse_modbus_frames() {
   if (!this->rx_buffer_.empty()) {
     size_t size;
     do {
@@ -193,7 +193,7 @@ bool Modbus::parse_modbus_server_frame_() {
   return true;
 }
 
-bool ModbusServer::parse_modbus_client_frame_() {
+bool ModbusServerHub::parse_modbus_client_frame_() {
   size_t size = this->rx_buffer_.size();
   uint8_t frame_length = client_frame_length(this->rx_buffer_);
 
@@ -236,8 +236,8 @@ bool ModbusServer::parse_modbus_client_frame_() {
   return true;
 }
 
-void ModbusClient::process_modbus_server_frame(uint8_t address, uint8_t function_code,
-                                               const std::vector<uint8_t> &data) {
+void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t function_code,
+                                                  const std::vector<uint8_t> &data) {
   if (!this->waiting_for_response_.has_value()) {
     ESP_LOGW(TAG, "Received unexpected frame from address %d, function code 0x%X, %dms after last send", address,
              function_code, this->last_modbus_byte_ - this->last_send_);
@@ -245,23 +245,30 @@ void ModbusClient::process_modbus_server_frame(uint8_t address, uint8_t function
   } else {  // We are waiting for a response
     // Check if the response matches the expected address and function code
 
-    uint8_t expected_address = this->waiting_for_response_.value().frame[0];
-    uint8_t expected_function_code = this->waiting_for_response_.value().frame[1];
+    ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+    uint8_t expected_address = wfr.frame[0];
+    uint8_t expected_function_code = wfr.frame[1];
     if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
       ESP_LOGW(TAG, "Received incorrect frame address %d <> %d or function code 0x%X <> 0x%X, %dms after last send",
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
                this->last_modbus_byte_ - this->last_send_);
       // Invalidate the waiting device so it won't process this response.
-      this->waiting_for_response_.value().device->on_modbus_no_response();
-      this->waiting_for_response_.value().device = nullptr;
+      if (wfr.device)
+        wfr.device->on_modbus_no_response();
+      wfr.interrupted = true;
+      wfr.device = nullptr;
       return;
     }
-    ModbusClientDevice *device = this->waiting_for_response_.value().device;
-    if (device == nullptr) {
+
+    if (wfr.interrupted) {
       ESP_LOGW(
           TAG,
           "Ignoring response from %d - transmission interrupted by previous unexpected response, %dms after last send",
           address, this->last_modbus_byte_ - this->last_send_);
+      return;
+    } else if (wfr.device == nullptr) {
+      ESP_LOGV(TAG, "Ignoring response from %d - no callback device set, %dms after last send", address,
+               this->last_modbus_byte_ - this->last_send_);
       return;
     } else {  // We have a valid device waiting for this response
 
@@ -271,18 +278,19 @@ void ModbusClient::process_modbus_server_frame(uint8_t address, uint8_t function
         uint8_t exception = data[0];
         ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
                  exception, address, this->last_modbus_byte_ - this->last_send_);
-        device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
+        wfr.device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
 
       } else {  // Not an error response
-        device->on_modbus_data(data);
+        wfr.device->on_modbus_data(data);
       }
     }
   }
 }
 
-void ModbusServer::process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &) {
+void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t function_code,
+                                                  const std::vector<uint8_t> &) {
   for (auto *device : this->devices_) {
-    if (device->address_ == address) {
+    if (device->get_address() == address) {
       ESP_LOGE(TAG, "Unexpected response from address %d, which is mapped to this device.", address);
     }
   }
@@ -296,23 +304,30 @@ void ModbusServer::process_modbus_server_frame(uint8_t address, uint8_t function
   this->expecting_peer_response_ = 0;
 }
 
-void ModbusServer::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
-                                                const std::vector<uint8_t> &data) {
+void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
+                                                   const std::vector<uint8_t> &data) {
   bool found = false;
 
   for (auto *device : this->devices_) {
-    if (device->address_ == address) {
+    if (!found && device->get_address() == address) {
       found = true;
+      ModbusServerResponse response;
 
       if (function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           function_code == ModbusFunctionCode::READ_INPUT_REGISTERS) {
-        device->on_modbus_read_registers(function_code, get_data<uint16_t>(data, 0), get_data<uint16_t>(data, 2));
+        response =
+            device->on_modbus_read_registers(function_code, get_data<uint16_t>(data, 0), get_data<uint16_t>(data, 2));
       } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        device->on_modbus_write_registers(function_code, data);
+        response = device->on_modbus_write_registers(function_code, data);
       } else {
         ESP_LOGW(TAG, "Unsupported function code %d", function_code);
-        device->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+        this->send_exception(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+      }
+      if (static_cast<uint8_t>(response.exception)) {
+        this->send_exception(address, function_code, response.exception);
+      } else {
+        this->send_response(address, function_code, std::move(response.payload));
       }
     }
   }
@@ -351,7 +366,7 @@ bool Modbus::send_frame_(const std::vector<uint8_t> &frame) {
   return true;
 }
 
-void ModbusClient::send_next_frame_() {
+void ModbusClientHub::send_next_frame_() {
   if (this->tx_buffer_.empty()) {
     ESP_LOGE(TAG, "Attempted to send from empty tx buffer");
     return;
@@ -378,7 +393,7 @@ void ModbusClient::send_next_frame_() {
   }
 }
 
-void ModbusClient::dump_config() {
+void ModbusClientHub::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
   ESP_LOGCONFIG(TAG,
@@ -389,7 +404,7 @@ void ModbusClient::dump_config() {
                 this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
                 this->long_rx_buffer_delay_ms_);
 }
-void ModbusServer::dump_config() {
+void ModbusServerHub::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
   ESP_LOGCONFIG(TAG,
@@ -403,24 +418,33 @@ float Modbus::get_setup_priority() const {
   return setup_priority::BUS - 1.0f;
 }
 
-void ModbusClient::send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
-                        uint16_t number_of_entities) {
+void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
+                           ModbusClientDevice *device, bool allow_duplicates) {
   ESP_LOGVV(TAG, "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d ", address,
             function_code, start_address, number_of_entities);
   std::vector<uint8_t> data;
   data.push_back(address);
   create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities);
-  this->send_raw(device, data);
+  this->send_raw(data, device, allow_duplicates);
 }
 
-void ModbusServer::send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
+void ModbusServerHub::send_response(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
   payload.insert(payload.begin(), std::initializer_list<uint8_t>{address, function_code});
+  this->send_raw(payload);
+}
+
+void ModbusServerHub::send_exception(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
+  std::vector<uint8_t> payload;
+  payload.reserve(3);
+  payload.push_back(address);
+  payload.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
+  payload.push_back(static_cast<uint8_t>(exception_code));
   this->send_raw(payload);
 }
 
 // Helper function for lambdas
 // Send raw command for client pushes to queue. Except CRC everything must be contained in payload
-void ModbusClient::send_raw(ModbusClientDevice *device, const std::vector<uint8_t> &payload) {
+void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device, bool allow_duplicates) {
   if (payload.empty()) {
     if (device)
       device->on_modbus_not_sent();
@@ -436,12 +460,14 @@ void ModbusClient::send_raw(ModbusClientDevice *device, const std::vector<uint8_
     //  return;
   }
 
-  for (const auto &item : this->tx_buffer_) {
-    if (item.frame == frame && item.device == device) {
-      ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty(frame).c_str());
-      if (device)
-        device->on_modbus_not_sent();
-      return;
+  if (!allow_duplicates) {
+    for (const auto &item : this->tx_buffer_) {
+      if (item.frame == frame && item.device == device) {
+        ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty(frame).c_str());
+        if (device)
+          device->on_modbus_not_sent();
+        return;
+      }
     }
   }
 
@@ -455,7 +481,7 @@ void ModbusClient::send_raw(ModbusClientDevice *device, const std::vector<uint8_
   }
 }
 
-void ModbusClient::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
+void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
   // Remove any pending commands for this address from the tx buffer
   auto &tx_buffer = this->tx_buffer_;
   tx_buffer.erase(std::remove_if(tx_buffer.begin(), tx_buffer.end(),
@@ -470,7 +496,7 @@ void ModbusClient::clear_tx_queue_for_address(uint8_t address, bool clear_sent) 
     }
   }
 }
-void ModbusClient::clear_tx_queue_for_device(ModbusClientDevice *device) {
+void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   // Remove any pending commands for this address from the tx buffer
   auto &tx_buffer = this->tx_buffer_;
   tx_buffer.erase(std::remove_if(tx_buffer.begin(), tx_buffer.end(),
@@ -487,7 +513,7 @@ void ModbusClient::clear_tx_queue_for_device(ModbusClientDevice *device) {
 }
 
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
-void ModbusServer::send_raw(const std::vector<uint8_t> &payload) {
+void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {
     return;
   }

@@ -331,7 +331,7 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
  * @return 64-bit number of the payload
  */
 int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                          uint32_t bitmask);
+                          uint32_t bitmask, bool *error_return = nullptr);
 
 /** Create a modbus clinet pdu for reading/writing single/multiple coils/register/inputs.
  * @param pdu target for modbus protocol data unit (function code + data)
