@@ -3,8 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 
 static const char *const TAG = "number";
 
@@ -43,5 +42,4 @@ void Number::add_on_state_callback(std::function<void(float)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-}  // namespace number
-}  // namespace esphome
+}  // namespace esphome::number

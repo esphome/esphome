@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -75,11 +74,11 @@ static const LogString *color_mode_to_human(ColorMode color_mode) {
 
 // Helper to log percentage values
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-static void log_percent(const char *name, const char *param, float value) {
-  ESP_LOGD(TAG, "  %s: %.0f%%", param, value * 100.0f);
+static void log_percent(const LogString *param, float value) {
+  ESP_LOGD(TAG, "  %s: %.0f%%", LOG_STR_ARG(param), value * 100.0f);
 }
 #else
-#define log_percent(name, param, value)
+#define log_percent(param, value)
 #endif
 
 void LightCall::perform() {
@@ -105,11 +104,11 @@ void LightCall::perform() {
     }
 
     if (this->has_brightness()) {
-      log_percent(name, "Brightness", v.get_brightness());
+      log_percent(LOG_STR("Brightness"), v.get_brightness());
     }
 
     if (this->has_color_brightness()) {
-      log_percent(name, "Color brightness", v.get_color_brightness());
+      log_percent(LOG_STR("Color brightness"), v.get_color_brightness());
     }
     if (this->has_red() || this->has_green() || this->has_blue()) {
       ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
@@ -117,7 +116,7 @@ void LightCall::perform() {
     }
 
     if (this->has_white()) {
-      log_percent(name, "White", v.get_white());
+      log_percent(LOG_STR("White"), v.get_white());
     }
     if (this->has_color_temperature()) {
       ESP_LOGD(TAG, "  Color temperature: %.1f mireds", v.get_color_temperature());
@@ -175,8 +174,10 @@ void LightCall::perform() {
     this->parent_->set_immediately_(v, publish);
   }
 
-  if (!this->has_transition_()) {
-    this->parent_->target_state_reached_callback_.call();
+  if (!this->has_transition_() && this->parent_->target_state_reached_listeners_) {
+    for (auto *listener : *this->parent_->target_state_reached_listeners_) {
+      listener->on_light_target_state_reached();
+    }
   }
   if (publish) {
     this->parent_->publish_state();
@@ -647,5 +648,4 @@ LightCall &LightCall::set_rgbw(float red, float green, float blue, float white) 
   return *this;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

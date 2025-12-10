@@ -7,7 +7,7 @@ from .. import (
     CONF_MEMORY_ADDRESS,
     CONF_MEMORY_LOCATION,
     CONF_MICRONOVA_ID,
-    MICRONOVA_LISTENER_SCHEMA,
+    MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
     micronova_ns,
@@ -27,8 +27,10 @@ CONFIG_SCHEMA = cv.Schema(
             icon=ICON_POWER,
         )
         .extend(
-            MICRONOVA_LISTENER_SCHEMA(
-                default_memory_location=0x80, default_memory_address=0x21
+            MICRONOVA_ADDRESS_SCHEMA(
+                default_memory_location=0x80,
+                default_memory_address=0x21,
+                is_polling_component=False,
             )
         )
         .extend(
