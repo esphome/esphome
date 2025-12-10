@@ -14,6 +14,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP8266
+#include <coredecls.h>  // For esp_schedule()
+#endif
+
 namespace esphome {
 namespace socket {
 
@@ -473,6 +477,11 @@ class LWIPRawImpl : public Socket {
     } else {
       pbuf_cat(rx_buf_, pb);
     }
+#ifdef USE_ESP8266
+    // Wake the main loop immediately so it can process the received data.
+    // esp_schedule() wakes the context blocked in delay() -> esp_suspend().
+    esp_schedule();
+#endif
     return ERR_OK;
   }
 
@@ -633,6 +642,10 @@ class LWIPRawListenImpl : public LWIPRawImpl {
     sock->init();
     accepted_sockets_[accepted_socket_count_++] = std::move(sock);
     LWIP_LOG("Accepted connection, queue size: %d", accepted_socket_count_);
+#ifdef USE_ESP8266
+    // Wake the main loop immediately so it can accept the new connection.
+    esp_schedule();
+#endif
     return ERR_OK;
   }
 
