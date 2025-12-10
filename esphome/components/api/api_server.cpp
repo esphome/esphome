@@ -4,8 +4,8 @@
 #include "api_connection.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -186,6 +186,9 @@ void APIServer::loop() {
     // Rare case: handle disconnection
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
     this->client_disconnected_trigger_->trigger(client->client_info_.name, client->client_info_.peername);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+    this->unregister_active_action_calls_for_connection(client.get());
 #endif
     ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name.c_str());
 
@@ -416,25 +419,56 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 
 #ifdef USE_API_HOMEASSISTANT_STATES
+// Helper to add subscription (reduces duplication)
+void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
+                                        std::function<void(std::string)> f, bool once) {
+  this->state_subs_.push_back(HomeAssistantStateSubscription{
+      .entity_id = entity_id, .attribute = attribute, .callback = std::move(f), .once = once,
+      // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
+  });
+}
+
+// Helper to add subscription with heap-allocated strings (reduces duplication)
+void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                                        std::function<void(std::string)> f, bool once) {
+  HomeAssistantStateSubscription sub;
+  // Allocate heap storage for the strings
+  sub.entity_id_dynamic_storage = std::make_unique<std::string>(std::move(entity_id));
+  sub.entity_id = sub.entity_id_dynamic_storage->c_str();
+
+  if (attribute.has_value()) {
+    sub.attribute_dynamic_storage = std::make_unique<std::string>(std::move(attribute.value()));
+    sub.attribute = sub.attribute_dynamic_storage->c_str();
+  } else {
+    sub.attribute = nullptr;
+  }
+
+  sub.callback = std::move(f);
+  sub.once = once;
+  this->state_subs_.push_back(std::move(sub));
+}
+
+// New const char* overload (for internal components - zero allocation)
+void APIServer::subscribe_home_assistant_state(const char *entity_id, const char *attribute,
+                                               std::function<void(std::string)> f) {
+  this->add_state_subscription_(entity_id, attribute, std::move(f), false);
+}
+
+void APIServer::get_home_assistant_state(const char *entity_id, const char *attribute,
+                                         std::function<void(std::string)> f) {
+  this->add_state_subscription_(entity_id, attribute, std::move(f), true);
+}
+
+// Existing std::string overload (for custom_api_device.h - heap allocation)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
-  this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = std::move(entity_id),
-      .attribute = std::move(attribute),
-      .callback = std::move(f),
-      .once = false,
-  });
+  this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                          std::function<void(std::string)> f) {
-  this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = std::move(entity_id),
-      .attribute = std::move(attribute),
-      .callback = std::move(f),
-      .once = true,
-  });
-};
+  this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
+}
 
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
@@ -584,6 +618,85 @@ bool APIServer::teardown() {
   // Return true only when all clients have been torn down
   return this->clients_.empty();
 }
+
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+// Timeout for action calls - matches aioesphomeapi client timeout (default 30s)
+// Can be overridden via USE_API_ACTION_CALL_TIMEOUT_MS define for testing
+#ifndef USE_API_ACTION_CALL_TIMEOUT_MS
+#define USE_API_ACTION_CALL_TIMEOUT_MS 30000  // NOLINT
+#endif
+
+uint32_t APIServer::register_active_action_call(uint32_t client_call_id, APIConnection *conn) {
+  uint32_t action_call_id = this->next_action_call_id_++;
+  // Handle wraparound (skip 0 as it means "no call")
+  if (this->next_action_call_id_ == 0) {
+    this->next_action_call_id_ = 1;
+  }
+  this->active_action_calls_.push_back({action_call_id, client_call_id, conn});
+
+  // Schedule automatic cleanup after timeout (client will have given up by then)
+  this->set_timeout(str_sprintf("action_call_%u", action_call_id), USE_API_ACTION_CALL_TIMEOUT_MS,
+                    [this, action_call_id]() {
+                      ESP_LOGD(TAG, "Action call %u timed out", action_call_id);
+                      this->unregister_active_action_call(action_call_id);
+                    });
+
+  return action_call_id;
+}
+
+void APIServer::unregister_active_action_call(uint32_t action_call_id) {
+  // Cancel the timeout for this action call
+  this->cancel_timeout(str_sprintf("action_call_%u", action_call_id));
+
+  // Swap-and-pop is more efficient than remove_if for unordered vectors
+  for (size_t i = 0; i < this->active_action_calls_.size(); i++) {
+    if (this->active_action_calls_[i].action_call_id == action_call_id) {
+      std::swap(this->active_action_calls_[i], this->active_action_calls_.back());
+      this->active_action_calls_.pop_back();
+      return;
+    }
+  }
+}
+
+void APIServer::unregister_active_action_calls_for_connection(APIConnection *conn) {
+  // Remove all active action calls for disconnected connection using swap-and-pop
+  for (size_t i = 0; i < this->active_action_calls_.size();) {
+    if (this->active_action_calls_[i].connection == conn) {
+      // Cancel the timeout for this action call
+      this->cancel_timeout(str_sprintf("action_call_%u", this->active_action_calls_[i].action_call_id));
+
+      std::swap(this->active_action_calls_[i], this->active_action_calls_.back());
+      this->active_action_calls_.pop_back();
+      // Don't increment i - need to check the swapped element
+    } else {
+      i++;
+    }
+  }
+}
+
+void APIServer::send_action_response(uint32_t action_call_id, bool success, const std::string &error_message) {
+  for (auto &call : this->active_action_calls_) {
+    if (call.action_call_id == action_call_id) {
+      call.connection->send_execute_service_response(call.client_call_id, success, error_message);
+      return;
+    }
+  }
+  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
+}
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+void APIServer::send_action_response(uint32_t action_call_id, bool success, const std::string &error_message,
+                                     const uint8_t *response_data, size_t response_data_len) {
+  for (auto &call : this->active_action_calls_) {
+    if (call.action_call_id == action_call_id) {
+      call.connection->send_execute_service_response(call.client_call_id, success, error_message, response_data,
+                                                     response_data_len);
+      return;
+    }
+  }
+  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
+}
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 
 }  // namespace esphome::api
 #endif

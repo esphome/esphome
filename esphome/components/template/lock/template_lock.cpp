@@ -1,8 +1,7 @@
 #include "template_lock.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 using namespace esphome::lock;
 
@@ -56,5 +55,4 @@ void TemplateLock::dump_config() {
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
