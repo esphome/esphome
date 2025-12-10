@@ -24,7 +24,7 @@ namespace socket {
 static const char *const TAG = "socket.lwip";
 
 // set to 1 to enable verbose lwip logging
-#if 0
+#if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
 #define LWIP_LOG(msg, ...) ESP_LOGVV(TAG, "socket %p: " msg, this, ##__VA_ARGS__)
 #else
 #define LWIP_LOG(msg, ...)
@@ -327,9 +327,10 @@ class LWIPRawImpl : public Socket {
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       if (err == -1) {
-        if (ret != 0)
+        if (ret != 0) {
           // if we already read some don't return an error
           break;
+        }
         return err;
       }
       ret += err;
@@ -397,9 +398,10 @@ class LWIPRawImpl : public Socket {
     ssize_t written = internal_write(buf, len);
     if (written == -1)
       return -1;
-    if (written == 0)
+    if (written == 0) {
       // no need to output if nothing written
       return 0;
+    }
     if (nodelay_) {
       int err = internal_output();
       if (err == -1)
@@ -412,18 +414,20 @@ class LWIPRawImpl : public Socket {
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = internal_write(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       if (err == -1) {
-        if (written != 0)
+        if (written != 0) {
           // if we already read some don't return an error
           break;
+        }
         return err;
       }
       written += err;
       if ((size_t) err != iov[i].iov_len)
         break;
     }
-    if (written == 0)
+    if (written == 0) {
       // no need to output if nothing written
       return 0;
+    }
     if (nodelay_) {
       int err = internal_output();
       if (err == -1)
