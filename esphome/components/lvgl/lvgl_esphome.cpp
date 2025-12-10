@@ -498,12 +498,12 @@ void LvglComponent::setup() {
     buf_bytes /= MIN_BUFFER_FRAC;
     buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   }
+  this->buffer_frac_ = frac;
   if (buffer == nullptr) {
     this->status_set_error(LOG_STR("Memory allocation failure"));
     this->mark_failed();
     return;
   }
-  this->buffer_frac_ = frac;
   lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buffer_pixels);
   this->disp_drv_.hor_res = display->get_width();
   this->disp_drv_.ver_res = display->get_height();

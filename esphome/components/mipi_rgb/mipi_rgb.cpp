@@ -371,17 +371,10 @@ void MipiRgb::dump_config() {
                 get_pin_name(this->de_pin_).c_str(), get_pin_name(this->pclk_pin_).c_str(),
                 get_pin_name(this->hsync_pin_).c_str(), get_pin_name(this->vsync_pin_).c_str());
 
-  if (this->madctl_ & MADCTL_BGR) {
-    this->dump_pins_(8, 13, "Blue", 0);
-    this->dump_pins_(13, 16, "Green", 0);
-    this->dump_pins_(0, 3, "Green", 3);
-    this->dump_pins_(3, 8, "Red", 0);
-  } else {
-    this->dump_pins_(8, 13, "Red", 0);
-    this->dump_pins_(13, 16, "Green", 0);
-    this->dump_pins_(0, 3, "Green", 3);
-    this->dump_pins_(3, 8, "Blue", 0);
-  }
+  this->dump_pins_(8, 13, "Blue", 0);
+  this->dump_pins_(13, 16, "Green", 0);
+  this->dump_pins_(0, 3, "Green", 3);
+  this->dump_pins_(3, 8, "Red", 0);
 }
 
 }  // namespace mipi_rgb

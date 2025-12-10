@@ -35,7 +35,7 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
-void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf) {
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
@@ -86,7 +86,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
       txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
-    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(this->add_dynamic_txt_value(get_mac_address()))});
+
+    // MAC address: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
+    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)});
 
 #ifdef USE_ESP8266
     MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
