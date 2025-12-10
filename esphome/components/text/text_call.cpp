@@ -12,6 +12,11 @@ TextCall &TextCall::set_value(const char *value, size_t len) {
   return *this;
 }
 
+TextCall &TextCall::set_value(const std::string &value) {
+  this->value_ = value;
+  return *this;
+}
+
 void TextCall::validate_() {
   const auto *name = this->parent_->get_name().c_str();
 
