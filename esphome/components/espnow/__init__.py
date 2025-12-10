@@ -221,7 +221,7 @@ async def register_peer(var, config, args):
 
     # only for espnow.peer.add
     if lmk:= config.get(CONF_PEER_LMK, None):
-        template_ = await cg.templatable(lmk, args, cv.string, cv.string)
+        template_ = await cg.templatable(lmk, args, cg.std_string)
         cg.add(var.set_lmk(template_))
 
 def _validate_send_action(config):
@@ -232,9 +232,7 @@ def _validate_send_action(config):
         )
     return config
 
-
 SEND_SCHEMA.add_extra(_validate_send_action)
-
 
 @automation.register_action(
     "espnow.send",
