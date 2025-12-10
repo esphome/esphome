@@ -38,7 +38,7 @@ void XensivDPS3xx::measure_now() {
     if (res_pressure != DPS__SUCCEEDED || this->Dps3xxPressureSensor->getSingleResult(pressure) != DPS__SUCCEEDED) {
       ESP_LOGW(TAG, "Pressure: getSingleResult() failed in update()");
     } else {
-      this->pressure_sensor_->publish_state(pressure / 1000.0f);  // Convert to hPa
+      this->pressure_sensor_->publish_state(pressure / 100.0f);  // Convert to hPa
     }
 
     // start temperature measurement
