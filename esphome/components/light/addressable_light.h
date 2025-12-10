@@ -61,13 +61,11 @@ class AddressableLight : public LightOutput, public Component {
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
   std::unique_ptr<LightTransformer> create_default_transition() override;
-  void set_correction(float red, float green, float blue, float white = 1.0f) {
-    this->correction_.set_max_brightness(
-        Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
-  }
-  void set_correction(float red, float green, float blue, float cold_white = 1.0f, float warm_white = 1.0f) {
+  void set_correction(float red, float green, float blue, float white = 1.0f, float cold_white = 1.0f,
+                      float warm_white = 1.0f) {
     this->correction_.set_max_brightness(Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue),
-                                               to_uint8_scale(cold_white), to_uint8_scale(warm_white)));
+                                               to_uint8_scale(white), to_uint8_scale(cold_white),
+                                               to_uint8_scale(warm_white)));
   }
 
   void setup_state(LightState *state) override {
