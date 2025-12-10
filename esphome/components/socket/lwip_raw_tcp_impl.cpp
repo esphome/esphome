@@ -21,6 +21,24 @@
 namespace esphome {
 namespace socket {
 
+#ifdef USE_ESP8266
+// Flag to signal socket activity - checked by socket_delay() to exit early
+static volatile bool s_socket_woke = false;
+
+void socket_delay(uint32_t ms) {
+  // Use esp_delay with a callback that checks if socket data arrived.
+  // This allows the delay to exit early when socket_wake() is called by
+  // lwip recv_fn/accept_fn callbacks, reducing socket latency.
+  s_socket_woke = false;
+  esp_delay(ms, []() { return !s_socket_woke; });
+}
+
+void socket_wake() {
+  s_socket_woke = true;
+  esp_schedule();
+}
+#endif
+
 static const char *const TAG = "socket.lwip";
 
 // set to 1 to enable verbose lwip logging
@@ -483,8 +501,7 @@ class LWIPRawImpl : public Socket {
     }
 #ifdef USE_ESP8266
     // Wake the main loop immediately so it can process the received data.
-    // esp_schedule() wakes the context blocked in delay() -> esp_suspend().
-    esp_schedule();
+    socket_wake();
 #endif
     return ERR_OK;
   }
@@ -648,7 +665,7 @@ class LWIPRawListenImpl : public LWIPRawImpl {
     LWIP_LOG("Accepted connection, queue size: %d", accepted_socket_count_);
 #ifdef USE_ESP8266
     // Wake the main loop immediately so it can accept the new connection.
-    esp_schedule();
+    socket_wake();
 #endif
     return ERR_OK;
   }
