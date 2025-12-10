@@ -621,7 +621,7 @@ class LWIPRawListenImpl : public LWIPRawImpl {
   }
 
  private:
-  err_t accept_fn(struct tcp_pcb *newpcb, err_t err) {
+  err_t accept_fn_(struct tcp_pcb *newpcb, err_t err) {
     LWIP_LOG("accept(newpcb=%p err=%d)", newpcb, err);
     if (err != ERR_OK || newpcb == nullptr) {
       // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
@@ -651,7 +651,7 @@ class LWIPRawListenImpl : public LWIPRawImpl {
 
   static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
     LWIPRawListenImpl *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
-    return arg_this->accept_fn(newpcb, err);
+    return arg_this->accept_fn_(newpcb, err);
   }
 
   // Accept queue - holds incoming connections briefly until the event loop calls accept()
