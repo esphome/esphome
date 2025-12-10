@@ -10,6 +10,7 @@ params:
 {{< anchor "esp32-can" >}}
 
 The ESP32 has an integrated CAN controller and therefore doesn't necessarily need an external controller.
+Some variants (ESP32-C5, ESP32-C6, ESP32-P4) have multiple CAN controllers - see [Multiple CAN Controllers](#multiple-can-controllers) below.
 You only need to specify the RX and TX pins. Any GPIO will work.
 
 ```yaml
@@ -39,28 +40,43 @@ canbus:
 
 The following table lists the bit rates supported by the component for ESP32 variants:
 
-| bit_rate          | ESP32 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- |
-| 1KBPS             |       | x        | x        | x        | x        | x        |
-| 5KBPS             |       | x        | x        | x        | x        | x        |
-| 10KBPS | | x | x | x | x | x |
-| 12K5BPS | | x | x | x | x | x |
-| 16KBPS | | x | x | x | x | x |
-| 20KBPS | | x | x | x | x | x |
-| 25KBPS | x | x | x | x | x | x |
-| 31K25BPS | | | | | | |
-| 33KBPS | | | | | | |
-| 40KBPS | | | | | | |
-| 50KBPS | x | x | x | x | x | x |
-| 80KBPS | | | | | | |
-| 83K38BPS | | | | | | |
-| 95KBPS | | | | | | |
-| 100KBPS | x | x | x | x | x | x |
-| 125KBPS (Default) | x | x | x | x | x | x |
-| 250KBPS | x | x | x | x | x | x |
-| 500KBPS | x | x | x | x | x | x |
-| 800KBPS | x | x | x | x | x | x |
-| 1000KBPS | x | x | x | x | x | x |
+| bit_rate          | ESP32 | Other variants* |
+| ----------------- | ----- | --------------- |
+| 1KBPS             |       | x               |
+| 5KBPS             |       | x               |
+| 10KBPS            |       | x               |
+| 12K5BPS           |       | x               |
+| 16KBPS            |       | x               |
+| 20KBPS            |       | x               |
+| 25KBPS            | x     | x               |
+| 31K25BPS          |       |                 |
+| 33KBPS            |       |                 |
+| 40KBPS            |       |                 |
+| 50KBPS            | x     | x               |
+| 80KBPS            |       |                 |
+| 83K3BPS           |       |                 |
+| 95KBPS            |       |                 |
+| 100KBPS           | x     | x               |
+| 125KBPS (Default) | x     | x               |
+| 250KBPS           | x     | x               |
+| 500KBPS           | x     | x               |
+| 800KBPS           | x     | x               |
+| 1000KBPS          | x     | x               |
+
+Other variants: ESP32-C3, ESP32-C5, ESP32-C6, ESP32-H2, ESP32-P4, ESP32-S2, ESP32-S3
+
+> [!NOTE]
+> ESP32-C2 and ESP32-C61 do not have TWAI/CAN hardware and are not supported.
+
+## Multiple CAN Controllers
+
+Some ESP32 variants have multiple CAN (TWAI) controllers:
+
+- **ESP32-C5**: 2 controllers
+- **ESP32-C6**: 2 controllers
+- **ESP32-P4**: 3 controllers
+
+All other supported variants have a single controller. ESP32-C2 and ESP32-C61 do not have CAN hardware.
 
 ## Wiring options
 

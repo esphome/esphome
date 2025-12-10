@@ -43,6 +43,7 @@ specified, or a custom init sequence can be provided.
 | Model                  | Manufacturer | Product Description                                                           |
 | ---------------------- | ------------ | ----------------------------------------------------------------------------- |
 | JC1060P470             | Guition      | <https://aliexpress.com/item/1005008328088576.html>                           |
+| JC4880P443             | Guition      | <https://aliexpress.com/item/1005009618259341.html>                           |
 | M5STACK-TAB5           | M5Stack      | <https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4> |
 | WAVESHARE-P4-NANO-10.1 | Waveshare | <https://www.waveshare.com/esp32-p4-nano.htm?sku=29031> |
 | WAVESHARE-P4-86-PANEL | Waveshare | <https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm?sku=31570> |

@@ -61,7 +61,8 @@ using an octal SPI bus, so references here to parallel and octal SPI are equival
 | ------------------------------------ | ------------ | ----------------------------------------------------------------- |
 | ADAFRUIT-S2-TFT-FEATHER              | Adafruit     | <https://www.adafruit.com/product/6312>                           |
 | ADAFRUIT-FUNHOUSE                    | Adafruit     | <https://www.adafruit.com/product/4985>                           |
-| M5CORE                               | M5Stack | <https://docs.m5stack.com/en/core/BASIC%20v2.6> |
+| M5CORE                               | M5Stack      | <https://docs.m5stack.com/en/core/BASIC%20v2.6> |
+| M5CORE2                              | M5Stack      | <https://docs.m5stack.com/en/core/core2> |
 | S3BOX                                | Espressif | <https://www.espressif.com/en/products/devkits/esp32-s3-box> |
 | S3BOXLITE                            | Espressif | <https://www.espressif.com/en/products/devkits/esp32-s3-box-lite> |
 | WAVESHARE-4-TFT                      | Waveshare | <https://www.waveshare.com/4inch-tft-touch-shield.htm> |
@@ -73,6 +74,7 @@ using an octal SPI bus, so references here to parallel and octal SPI are equival
 | JC3248W535                           | Guition | <https://www.aliexpress.com/item/1005007566332450.html> |
 | JC3636W518                           | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
 | JC3636W518V2                         | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
+| JC4827W543                           | Guition | <https://www.aliexpress.com/item/1005006729377800.html> |
 | LANBON-L8                            | Lanbon | <https://www.lanbon.cn/product/lanbon-l8> |
 | T4-S3                                | Lilygo | <https://www.lilygo.cc/products/t4-s3> |
 | T-EMBED                              | Lilygo | <https://www.lilygo.cc/products/t-embed> |

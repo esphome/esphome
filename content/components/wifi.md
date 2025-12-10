@@ -494,6 +494,22 @@ on_...:
 
 The lambda equivalent for this is `!id(wifi_id).is_disabled()`.
 
+{{< anchor "wifi-ap-active_condition" >}}
+
+### `wifi.ap_active` Condition
+
+This [Condition](/automations/actions#all-conditions) checks if WiFi AP is currently active or not.
+
+```yaml
+on_...:
+  - if:
+      condition: wifi.ap_active
+      then:
+        - logger.log: WiFi AP is active!
+```
+
+The lambda equivalent for this is `id(wifi_id).is_ap_active()`.
+
 ## See Also
 
 - {{< docref "captive_portal/" >}}

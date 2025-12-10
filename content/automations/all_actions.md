@@ -31,6 +31,7 @@ title: ""
 - **fingerprint_grow:** `aura_led_control`, `cancel_enroll`, `delete`, `delete_all`, `enroll`, `led_control`
 - **globals:** `set`
 - **grove_tb6612fng:** `break`, `change_address`, `no_standby`, `run`, `standby`, `stop`
+- **hc8:** `calibrate`
 - **homeassistant:** `event`, `service`, `tag_scanned`
 - **http_request:** `get`, `post`, `send`
 - **htu21d:** `set_heater`, `set_heater_level`

@@ -67,7 +67,7 @@ Advanced features:
 
   - **pins** (**Required**, list of pin numbers): The pins to wake up on.
   - **mode** (**Required**): The mode to use for the wakeup source. Must be one of:
-    - `ANY_LOW`: wake up when any selected pin is LOW (ESP32‑S2/S3/C6/H2 only)
+    - `ANY_LOW`: wake up when any selected pin is LOW (ESP32‑C5/C6/C61/H2/P4/S2/S3 only)
     - `ALL_LOW`: wake up when all selected pins are LOW (ESP32 only)
     - `ANY_HIGH`: wake up when any selected pin is HIGH
 

@@ -8,7 +8,7 @@ params:
 ---
 
 The `total_daily_energy` sensor is a helper sensor that can use the power value of
-other sensors like the {{< docref "hlw8012" "HLW8012" >}}, {{< docref "cse7766" "CSE7766" >}}, {{< docref "atm90e32" "ATM90E32" >}}, etc and integrate
+other sensors like the {{< docref "hlw8012" "HLW8012" >}}, {{< docref "hlw8032" "HLW8032" >}}, {{< docref "cse7766" "CSE7766" >}}, {{< docref "atm90e32" "ATM90E32" >}}, etc and integrate
 it over time.
 
 So this component allows you to convert readings in `W` or `kW` to readings of the total
