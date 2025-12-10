@@ -62,8 +62,9 @@ async def to_code_base(config):
             cg.add(getattr(var, funcName)(sens))
 
     if CONF_PRESSURE_COMPENSATION in config:
-        # cv.pressure returns value in Pascals (Pa)
-        cg.add(var.set_pressure_compensation(int(config[CONF_PRESSURE_COMPENSATION])))
+        # cv.pressure returns value in Pascals (Pa), convert to hPa (1 bit = 1 hPa)
+        pressure_hpa = int(config[CONF_PRESSURE_COMPENSATION]) // 100
+        cg.add(var.set_pressure_compensation(pressure_hpa))
 
     if CONF_PRESSURE_COMPENSATION_SOURCE in config:
         sens = await cg.get_variable(config[CONF_PRESSURE_COMPENSATION_SOURCE])

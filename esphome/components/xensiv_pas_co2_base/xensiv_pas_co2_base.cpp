@@ -8,6 +8,17 @@ static const char *const TAG = "xensiv_pas_co2.component";
 void XensivPasCO2::setup() {
   ESP_LOGCONFIG(TAG, "Setting up XensivPasCO2 component");
 
+  // Set up pressure compensation source callback early if configured
+  if (this->pressure_compensation_source_ != nullptr) {
+    this->pressure_compensation_source_->add_on_state_callback([this](float pressure_hpa) {
+      this->set_timeout(10, [this, pressure_hpa]() {
+        ESP_LOGD(TAG, "Pressure compensation source updated: %.2f hPa", pressure_hpa);
+        this->set_pressure_compensation((uint16_t) pressure_hpa);
+      });
+    });
+    ESP_LOGCONFIG(TAG, "Pressure compensation source callback registered");
+  }
+
   // Test I2C communication first using scratch register
   if (!this->test_scratch_register_()) {
     ESP_LOGE(TAG, "I2C communication test failed");
@@ -57,22 +68,8 @@ void XensivPasCO2::setup_sensor(XensivPasCO2 *arg) {
     ESP_LOGE(TAG, "Failed to set sensor rate");
   }
 
-  // Set pressure compensation if configured
-  if (arg->pressure_ref_ > 0) {
-    uint8_t press_h = (arg->pressure_ref_ >> 8) & 0xFF;
-    uint8_t press_l = arg->pressure_ref_ & 0xFF;
-
-    ESP_LOGD(TAG, "Setting pressure compensation to %d Pa", arg->pressure_ref_);
-
-    if (!arg->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
-      ESP_LOGE(TAG, "Failed to write PRESS_REF_H");
-    }
-    if (!arg->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
-      ESP_LOGE(TAG, "Failed to write PRESS_REF_L");
-    }
-  } else {
-    ESP_LOGD(TAG, "Pressure compensation not configured, using sensor default");
-  }
+  // Apply pressure compensation using common setter (handles 0/default internally)
+  arg->set_pressure_compensation(arg->pressure_ref_);
 
   // Configure sensor interrupt register and GPIO pin if configured
   if (!arg->setup_interrupt_()) {
@@ -209,31 +206,26 @@ bool XensivPasCO2::update_sensor_rate_() {
 
 void XensivPasCO2::set_pressure_compensation(uint16_t pressure_ref) {
   this->pressure_ref_ = pressure_ref;
-
-  // If sensor is already initialized, write the value immediately
-  if (this->initialized_) {
-    // If pressure_ref is 0, skip setting (use sensor default)
-    if (pressure_ref == 0) {
-      ESP_LOGD(TAG, "Pressure compensation set to 0, using sensor default");
-      return;
-    }
-
-    // Pressure reference is stored as 16-bit value in Pascal units
-    uint8_t press_h = (pressure_ref >> 8) & 0xFF;  // Upper byte
-    uint8_t press_l = pressure_ref & 0xFF;         // Lower byte
-
-    ESP_LOGD(TAG, "Setting pressure compensation to %d Pa", pressure_ref);
-
-    if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
-      ESP_LOGE(TAG, "Failed to write PRESS_REF_H");
-      return;
-    }
-    if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
-      ESP_LOGE(TAG, "Failed to write PRESS_REF_L");
-      return;
-    }
+  // If pressure_ref is 0, skip setting (use sensor default)
+  if (pressure_ref == 0) {
+    ESP_LOGD(TAG, "Pressure compensation set to 0, using sensor default");
+    return;
   }
-  // If not initialized yet, value will be written during setup_sensor_()
+
+  // Pressure reference is stored as 16-bit value in hPa units (1 bit = 1 hPa)
+  uint8_t press_h = (pressure_ref >> 8) & 0xFF;  // Upper byte
+  uint8_t press_l = pressure_ref & 0xFF;         // Lower byte
+
+  ESP_LOGD(TAG, "Setting pressure compensation to %d hPa", pressure_ref);
+
+  if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
+    ESP_LOGE(TAG, "Failed to write PRESS_REF_H");
+    return;
+  }
+  if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
+    ESP_LOGE(TAG, "Failed to write PRESS_REF_L");
+    return;
+  }
 }
 
 bool XensivPasCO2::check_sensor_ready_() {
@@ -348,10 +340,11 @@ void XensivPasCO2::dump_config() {
   ESP_LOGCONFIG(TAG, "  Measurement Rate: %d seconds", this->sensor_rate_);
 
   if (this->pressure_ref_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Pressure Compensation: %d Pa (%.2f hPa)", this->pressure_ref_, this->pressure_ref_ / 100.0f);
+    ESP_LOGCONFIG(TAG, "  Pressure Compensation: %d hPa", this->pressure_ref_);
   } else {
-    ESP_LOGCONFIG(TAG, "  Pressure Compensation: Using sensor default : 1015 hPa");
+    ESP_LOGCONFIG(TAG, "  Pressure Compensation: Using sensor default (1015 hPa)");
   }
 }
+
 }  // namespace xensiv_pas_co2_base
 }  // namespace esphome
