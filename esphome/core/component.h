@@ -367,6 +367,9 @@ class Component {
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,       // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
+  void set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,              // NOLINT
+                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
+
   void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,  // NOLINT
                  float backoff_increase_factor = 1.0f);                                                      // NOLINT
 
@@ -376,6 +379,7 @@ class Component {
    * @return Whether a retry function was deleted.
    */
   bool cancel_retry(const std::string &name);  // NOLINT
+  bool cancel_retry(const char *name);         // NOLINT
 
   /** Set a timeout function with a unique name.
    *
