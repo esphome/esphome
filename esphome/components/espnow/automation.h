@@ -88,11 +88,14 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
 
 template<typename... Ts> class AddPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
+  TEMPLATABLE_VALUE(std::string, lmk);
 
  public:
   void play(const Ts &...x) override {
-    peer_address_t address = this->address_.value(x...);
-    this->parent_->add_peer(address.data());
+    auto address = this->address_.value(x...);
+    auto lmk     = this->lmk_.value(x...);
+
+    this->parent_->add_peer(address.data(), lmk.data());
   }
 };
 
