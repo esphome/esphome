@@ -1091,11 +1091,11 @@ message ClimateCommandRequest {
   bool has_swing_mode = 14;
   ClimateSwingMode swing_mode = 15;
   bool has_custom_fan_mode = 16;
-  string custom_fan_mode = 17;
+  string custom_fan_mode = 17 [(pointer_to_buffer) = true];
   bool has_preset = 18;
   ClimatePreset preset = 19;
   bool has_custom_preset = 20;
-  string custom_preset = 21;
+  string custom_preset = 21 [(pointer_to_buffer) = true];
   bool has_target_humidity = 22;
   float target_humidity = 23;
   uint32 device_id = 24 [(field_ifdef) = "USE_DEVICES"];

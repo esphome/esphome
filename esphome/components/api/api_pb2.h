@@ -1475,7 +1475,7 @@ class ClimateStateResponse final : public StateResponseProtoMessage {
 class ClimateCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 48;
-  static constexpr uint8_t ESTIMATED_SIZE = 84;
+  static constexpr uint8_t ESTIMATED_SIZE = 104;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "climate_command_request"; }
 #endif
@@ -1492,11 +1492,13 @@ class ClimateCommandRequest final : public CommandProtoMessage {
   bool has_swing_mode{false};
   enums::ClimateSwingMode swing_mode{};
   bool has_custom_fan_mode{false};
-  std::string custom_fan_mode{};
+  const uint8_t *custom_fan_mode{nullptr};
+  uint16_t custom_fan_mode_len{0};
   bool has_preset{false};
   enums::ClimatePreset preset{};
   bool has_custom_preset{false};
-  std::string custom_preset{};
+  const uint8_t *custom_preset{nullptr};
+  uint16_t custom_preset_len{0};
   bool has_target_humidity{false};
   float target_humidity{0.0f};
 #ifdef HAS_PROTO_MESSAGE_DUMP
