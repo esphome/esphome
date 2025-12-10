@@ -84,6 +84,9 @@ void AsyncClient::loop() {
   if (connecting_) {
     // For connecting, we need to check writability, not readability
     // The Application's select() only monitors read FDs, so we do our own check here
+    // For ESP platforms lwip_select() might be faster, but this code isn't used
+    // on those platforms anyway. If it was, we'd fix the Application select()
+    // to report writability instead of doing it this way.
     int fd = socket_->get_fd();
     if (fd < 0) {
       ESP_LOGW(TAG, "Invalid socket fd");
