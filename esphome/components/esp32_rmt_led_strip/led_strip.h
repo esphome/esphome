@@ -61,12 +61,12 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   int32_t size() const override { return this->num_leds_; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    if (this->channel_map.is_rgbcct()) {
+    if (this->channel_map_.is_rgbcct()) {
       traits.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
       // Apply configured mired range (defaults set on construction or via YAML)
       traits.set_min_mireds(this->min_mireds_);
       traits.set_max_mireds(this->max_mireds_);
-    } else if (this->channel_map.is_rgbw()) {
+    } else if (this->channel_map_.is_rgbw()) {
       traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
     } else {
       traits.set_supported_color_modes({light::ColorMode::RGB});
@@ -100,7 +100,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
  protected:
   light::ESPColorView get_view_internal(int32_t index) const override;
 
-  size_t get_buffer_size_() const { return this->num_leds_ * this->channel_map.channel_count; }
+  size_t get_buffer_size_() const { return this->num_leds_ * this->channel_map_.channel_count; }
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
@@ -116,7 +116,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   uint8_t pin_;
   uint16_t num_leds_;
 
-  ChannelMap channel_map{};
+  ChannelMap channel_map_{};
   float min_mireds_{154.0f};
   float max_mireds_{500.0f};
 

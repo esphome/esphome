@@ -157,7 +157,7 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 }
 
 bool ESP32RMTLEDStripLightOutput::set_channel_(const std::string &channel_name, int index) {
-  for (auto &[name, channel] : this->channel_map.channels) {
+  for (auto &[name, channel] : this->channel_map_.channels) {
     if (channel_name == name) {
       channel.exists = true;
       channel.position = index;
@@ -182,7 +182,7 @@ void ESP32RMTLEDStripLightOutput::set_channel_map_(const std::string &map) {
     index++;  // Only increment when a valid channel was found and a channel was actually set
   }
 
-  this->channel_map.channel_count = index;
+  this->channel_map_.channel_count = index;
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
@@ -249,23 +249,23 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {
-  uint8_t multiplier = this->channel_map.channel_count;
+  uint8_t multiplier = this->channel_map_.channel_count;
   uint8_t *base = this->buf_ + (index * multiplier);
 
   uint8_t *r_ptr =
-      this->channel_map.channels.at("R").exists ? base + this->channel_map.channels.at("R").position : nullptr;
+      this->channel_map_.channels.at("R").exists ? base + this->channel_map_.channels.at("R").position : nullptr;
   uint8_t *g_ptr =
-      this->channel_map.channels.at("G").exists ? base + this->channel_map.channels.at("G").position : nullptr;
+      this->channel_map_.channels.at("G").exists ? base + this->channel_map_.channels.at("G").position : nullptr;
   uint8_t *b_ptr =
-      this->channel_map.channels.at("B").exists ? base + this->channel_map.channels.at("B").position : nullptr;
+      this->channel_map_.channels.at("B").exists ? base + this->channel_map_.channels.at("B").position : nullptr;
   uint8_t *w_ptr =
-      this->channel_map.channels.at("W").exists ? base + this->channel_map.channels.at("W").position : nullptr;
+      this->channel_map_.channels.at("W").exists ? base + this->channel_map_.channels.at("W").position : nullptr;
   uint8_t *cw_ptr =
-      this->channel_map.channels.at("CW").exists ? base + this->channel_map.channels.at("CW").position : nullptr;
+      this->channel_map_.channels.at("CW").exists ? base + this->channel_map_.channels.at("CW").position : nullptr;
   uint8_t *ww_ptr =
-      this->channel_map.channels.at("WW").exists ? base + this->channel_map.channels.at("WW").position : nullptr;
+      this->channel_map_.channels.at("WW").exists ? base + this->channel_map_.channels.at("WW").position : nullptr;
 
-  if (this->channel_map.is_rgbcct()) {
+  if (this->channel_map_.is_rgbcct()) {
     return {r_ptr, g_ptr, b_ptr, cw_ptr, ww_ptr, &this->effect_data_[index], &this->correction_};
   }
 
@@ -279,19 +279,19 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
                 this->pin_);
   ESP_LOGCONFIG(TAG, "  RMT Symbols: %" PRIu32, this->rmt_symbols_);
   std::string channel_map_str = "";
-  std::vector<std::string> tokens(this->channel_map.channels.size(), "");
-  if (this->channel_map.channels.at("R").exists)
-    tokens[this->channel_map.channels.at("R").position] = "R";
-  if (this->channel_map.channels.at("G").exists)
-    tokens[this->channel_map.channels.at("G").position] = "G";
-  if (this->channel_map.channels.at("B").exists)
-    tokens[this->channel_map.channels.at("B").position] = "B";
-  if (this->channel_map.channels.at("W").exists)
-    tokens[this->channel_map.channels.at("W").position] = "W";
-  if (this->channel_map.channels.at("CW").exists)
-    tokens[this->channel_map.channels.at("CW").position] = "CW";
-  if (this->channel_map.channels.at("WW").exists)
-    tokens[this->channel_map.channels.at("WW").position] = "WW";
+  std::vector<std::string> tokens(this->channel_map_.channels.size(), "");
+  if (this->channel_map_.channels.at("R").exists)
+    tokens[this->channel_map_.channels.at("R").position] = "R";
+  if (this->channel_map_.channels.at("G").exists)
+    tokens[this->channel_map_.channels.at("G").position] = "G";
+  if (this->channel_map_.channels.at("B").exists)
+    tokens[this->channel_map_.channels.at("B").position] = "B";
+  if (this->channel_map_.channels.at("W").exists)
+    tokens[this->channel_map_.channels.at("W").position] = "W";
+  if (this->channel_map_.channels.at("CW").exists)
+    tokens[this->channel_map_.channels.at("CW").position] = "CW";
+  if (this->channel_map_.channels.at("WW").exists)
+    tokens[this->channel_map_.channels.at("WW").position] = "WW";
   for (size_t i = 0; i < tokens.size(); ++i) {
     if (tokens[i].empty()) {
       continue;
