@@ -16,13 +16,10 @@ namespace i2c {
 static const char *const TAG = "i2c.idf";
 
 void IDFI2CBus::setup() {
-  static i2c_port_t next_port = I2C_NUM_0;
-  this->port_ = next_port;
-  if (this->port_ == I2C_NUM_MAX) {
-    ESP_LOGE(TAG, "No more than %u buses supported", I2C_NUM_MAX);
-    this->mark_failed();
-    return;
-  }
+  static i2c_port_t next_hp_port = I2C_NUM_0;
+#if SOC_LP_I2C_SUPPORTED
+  static i2c_port_t next_lp_port = LP_I2C_NUM_0;
+#endif
 
   if (this->timeout_ > 13000) {
     ESP_LOGW(TAG, "Using max allowed timeout: 13 ms");
@@ -31,23 +28,35 @@ void IDFI2CBus::setup() {
 
   this->recover_();
 
-  next_port = (i2c_port_t) (next_port + 1);
-
   i2c_master_bus_config_t bus_conf{};
   memset(&bus_conf, 0, sizeof(bus_conf));
   bus_conf.sda_io_num = gpio_num_t(sda_pin_);
   bus_conf.scl_io_num = gpio_num_t(scl_pin_);
-  bus_conf.i2c_port = this->port_;
   bus_conf.glitch_ignore_cnt = 7;
 #if SOC_LP_I2C_SUPPORTED
-  if (this->port_ < SOC_HP_I2C_NUM) {
-    bus_conf.clk_source = I2C_CLK_SRC_DEFAULT;
-  } else {
+  if (this->lp_mode_) {
+    if ((next_lp_port - LP_I2C_NUM_0) == SOC_LP_I2C_NUM) {
+      ESP_LOGE(TAG, "No more than %u LP buses supported", SOC_LP_I2C_NUM);
+      this->mark_failed();
+      return;
+    }
+    this->port_ = next_lp_port;
+    next_lp_port = (i2c_port_t) (next_lp_port + 1);
     bus_conf.lp_source_clk = LP_I2C_SCLK_DEFAULT;
-  }
-#else
-  bus_conf.clk_source = I2C_CLK_SRC_DEFAULT;
+  } else {
 #endif
+    if (next_hp_port == SOC_HP_I2C_NUM) {
+      ESP_LOGE(TAG, "No more than %u HP buses supported", SOC_HP_I2C_NUM);
+      this->mark_failed();
+      return;
+    }
+    this->port_ = next_hp_port;
+    next_hp_port = (i2c_port_t) (next_hp_port + 1);
+    bus_conf.clk_source = I2C_CLK_SRC_DEFAULT;
+#if SOC_LP_I2C_SUPPORTED
+  }
+#endif
+  bus_conf.i2c_port = this->port_;
   bus_conf.flags.enable_internal_pullup = sda_pullup_enabled_ || scl_pullup_enabled_;
   esp_err_t err = i2c_new_master_bus(&bus_conf, &this->bus_);
   if (err != ESP_OK) {

@@ -134,6 +134,11 @@ inline std::string operator+(const StringRef &lhs, const std::string &rhs) {
   return str;
 }
 
+inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
+  std::string str(lhs);
+  str.append(rhs.c_str(), rhs.size());
+  return str;
+}
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
 inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }

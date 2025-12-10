@@ -778,7 +778,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "Need help? Check out the migration guide:\n"
         + color(
             AnsiFore.BLUE,
-            "https://esphome.io/guides/esp32_arduino_to_idf.html",
+            "https://esphome.io/guides/esp32_arduino_to_idf/",
         )
     )
     _LOGGER.warning(message)
