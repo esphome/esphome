@@ -1,4 +1,7 @@
 substitutions:
+  y: ${x}
+  x: ${y}
+  double_height: ${height * 2}
   width: 7
   height: 8
   enabled: true

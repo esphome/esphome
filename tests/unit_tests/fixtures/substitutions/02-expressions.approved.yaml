@@ -9,6 +9,9 @@ substitutions:
   numberOne: 1
   var1: 79
   double_width: 14
+  double_height: 16
+  y: ${x}
+  x: ${y}
 test_list:
   - The area is 56
   - 56
