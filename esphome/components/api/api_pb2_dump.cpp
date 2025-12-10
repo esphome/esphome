@@ -2001,9 +2001,7 @@ void TextStateResponse::dump_to(std::string &out) const {
 void TextCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "TextCommandRequest");
   dump_field(out, "key", this->key);
-  out.append("  state: ");
-  out.append(format_hex_pretty(this->state, this->state_len));
-  out.append("\n");
+  dump_field(out, "state", this->state);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif

@@ -2697,12 +2697,11 @@ class TextStateResponse final : public StateResponseProtoMessage {
 class TextCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 99;
-  static constexpr uint8_t ESTIMATED_SIZE = 28;
+  static constexpr uint8_t ESTIMATED_SIZE = 18;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "text_command_request"; }
 #endif
-  const uint8_t *state{nullptr};
-  uint16_t state_len{0};
+  std::string state{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

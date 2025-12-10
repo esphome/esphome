@@ -2732,12 +2732,9 @@ bool TextCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool TextCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2: {
-      // Use raw data directly to avoid allocation
-      this->state = value.data();
-      this->state_len = value.size();
+    case 2:
+      this->state = value.as_string();
       break;
-    }
     default:
       return false;
   }
