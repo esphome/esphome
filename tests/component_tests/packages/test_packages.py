@@ -709,7 +709,7 @@ def test_remote_packages_with_files_list(
 @patch("esphome.git.clone_or_update")
 def test_remote_packages_with_files_list_and_substitutions(
     mock_clone_or_update, mock_is_file, mock_load_yaml
-):
+) -> None:
     """
     Ensures that packages are loaded as mixed list of dictionary and strings
     """
@@ -1046,3 +1046,30 @@ def test_package_merge() -> None:
     actual = merge_packages(config)
 
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "invalid_package",
+    [
+        6,
+        "some string",
+        ["some string"],
+        None,
+        True,
+        {"some_component": 8},
+        {3: 2},
+        {"some_component": r"${unevaluated expression}"},
+    ],
+)
+def test_package_merge_invalid(invalid_package) -> None:
+    """
+    Tests that trying to merge an invalid package raises an error.
+    """
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
+
+    with pytest.raises(cv.Invalid):
+        merge_packages(config)

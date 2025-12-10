@@ -52,6 +52,7 @@ void CustomAPIDeviceComponent::on_service_with_arrays(std::vector<bool> bool_arr
   }
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 void CustomAPIDeviceComponent::on_ha_state_changed(std::string entity_id, std::string state) {
   ESP_LOGI(TAG, "Home Assistant state changed for %s: %s", entity_id.c_str(), state.c_str());
   ESP_LOGI(TAG, "This subscription uses std::string API for backward compatibility");
