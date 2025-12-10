@@ -3,8 +3,8 @@
 namespace esphome {
 
 // C++20 constinit ensures compile-time initialization (stored in ROM)
-constinit const Color Color::BLACK(0, 0, 0, 0);
-constinit const Color Color::WHITE(255, 255, 255, 255);
+constinit const Color Color::BLACK(0, 0, 0, 0, 0, 0);
+constinit const Color Color::WHITE(255, 255, 255, 255, 255, 255);
 
 Color Color::gradient(const Color &to_color, uint8_t amnt) {
   Color new_color;
@@ -13,6 +13,8 @@ Color Color::gradient(const Color &to_color, uint8_t amnt) {
   new_color.g = amnt_f * (to_color.g - this->g) + this->g;
   new_color.b = amnt_f * (to_color.b - this->b) + this->b;
   new_color.w = amnt_f * (to_color.w - this->w) + this->w;
+  new_color.cw = amnt_f * (to_color.cw - this->cw) + this->cw;
+  new_color.ww = amnt_f * (to_color.ww - this->ww) + this->ww;
   return new_color;
 }
 
