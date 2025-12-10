@@ -13,7 +13,10 @@ class TextCall {
   explicit TextCall(Text *parent) : parent_(parent) {}
   void perform();
 
-  TextCall &set_value(const std::string &value);
+  /// Set the value of the text input (zero-copy from API).
+  TextCall &set_value(const char *value, size_t len);
+  /// Set the value of the text input.
+  TextCall &set_value(const std::string &value) { return this->set_value(value.data(), value.size()); }
 
  protected:
   Text *const parent_;

@@ -875,7 +875,7 @@ uint16_t APIConnection::try_send_text_info(EntityBase *entity, APIConnection *co
 }
 void APIConnection::text_command(const TextCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(text::Text, text, text)
-  call.set_value(msg.state);
+  call.set_value(reinterpret_cast<const char *>(msg.state), msg.state_len);
   call.perform();
 }
 #endif
