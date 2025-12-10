@@ -11,10 +11,8 @@ void XensivPasCO2::setup() {
   // Set up pressure compensation source callback early if configured
   if (this->pressure_compensation_source_ != nullptr) {
     this->pressure_compensation_source_->add_on_state_callback([this](float pressure_hpa) {
-      this->set_timeout(10, [this, pressure_hpa]() {
-        ESP_LOGD(TAG, "Pressure compensation source updated: %.2f hPa", pressure_hpa);
-        this->set_pressure_compensation((uint16_t) pressure_hpa);
-      });
+      ESP_LOGD(TAG, "Pressure compensation source updated: %.2f hPa", pressure_hpa);
+      this->set_pressure_compensation((uint16_t) pressure_hpa);
     });
     ESP_LOGCONFIG(TAG, "Pressure compensation source callback registered");
   }
@@ -58,6 +56,32 @@ void XensivPasCO2::loop() {
 
     // Update operation mode if needed
     this->update_operation_mode_();
+
+    // Apply pending pressure compensation immediately after a DRDY cycle boundary
+    if (this->pending_pressure_update_) {
+      uint16_t ref = this->pending_pressure_ref_;
+      this->pending_pressure_update_ = false;
+      // Skip if default requested
+      if (ref == 0) {
+        ESP_LOGD(TAG, "Pressure compensation pending was 0 (default), skipping");
+      } else {
+        uint8_t press_h = (ref >> 8) & 0xFF;
+        uint8_t press_l = ref & 0xFF;
+        ESP_LOGD(TAG, "Applying pending pressure compensation: %d hPa", ref);
+        if (!this->write_with_retry_(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
+          ESP_LOGW(TAG, "Retry write failed for PRESS_REF_H, re-queueing");
+          // Re-queue once; avoid tight loops
+          this->pending_pressure_update_ = true;
+          this->pending_pressure_ref_ = ref;
+        } else if (!this->write_with_retry_(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
+          ESP_LOGW(TAG, "Retry write failed for PRESS_REF_L, re-queueing");
+          this->pending_pressure_update_ = true;
+          this->pending_pressure_ref_ = ref;
+        } else {
+          ESP_LOGD(TAG, "Pending pressure compensation applied successfully");
+        }
+      }
+    }
   }
 }
 
@@ -209,6 +233,9 @@ void XensivPasCO2::set_pressure_compensation(uint16_t pressure_ref) {
   // If pressure_ref is 0, skip setting (use sensor default)
   if (pressure_ref == 0) {
     ESP_LOGD(TAG, "Pressure compensation set to 0, using sensor default");
+    // Clear any pending
+    this->pending_pressure_update_ = false;
+    this->pending_pressure_ref_ = 0;
     return;
   }
 
@@ -218,14 +245,21 @@ void XensivPasCO2::set_pressure_compensation(uint16_t pressure_ref) {
 
   ESP_LOGD(TAG, "Setting pressure compensation to %d hPa", pressure_ref);
 
-  if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
-    ESP_LOGE(TAG, "Failed to write PRESS_REF_H");
-    return;
+  // If we're inside a measurement cycle, writes can sporadically fail.
+  // Queue the update to be applied right after next DRDY handling.
+  this->pending_pressure_update_ = true;
+  this->pending_pressure_ref_ = pressure_ref;
+}
+bool XensivPasCO2::write_with_retry_(uint8_t reg, uint8_t value, int retries, uint32_t delay_ms) {
+  for (int attempt = 0; attempt <= retries; attempt++) {
+    if (this->write_byte(reg, value)) {
+      return true;
+    }
+    if (attempt < retries) {
+      ESP_LOGD(TAG, "I2C write 0x%02X failed (attempt %d), retrying after %d ms", reg, attempt + 1, (int) delay_ms);
+    }
   }
-  if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
-    ESP_LOGE(TAG, "Failed to write PRESS_REF_L");
-    return;
-  }
+  return false;
 }
 
 bool XensivPasCO2::check_sensor_ready_() {
