@@ -19,10 +19,7 @@ void GP2Y1010AU0FSensor::dump_config() {
                 "  Wait before sampling: %" PRId32 " µs\n"
                 "  Wait after sampling: %" PRId32 " µs\n"
                 "  Wait after LED off: %" PRId32 " µs",
-                this->sample_duration_, 
-                this->voltage_multiplier_,
-                this->sample_wait_before_,
-                this->sample_wait_after_,
+                this->sample_duration_, this->voltage_multiplier_, this->sample_wait_before_, this->sample_wait_after_,
                 this->sample_wait_off_);
   LOG_UPDATE_INTERVAL(this);
 }
@@ -63,19 +60,19 @@ void GP2Y1010AU0FSensor::loop() {
 
   // Step 1: Enable the internal IR LED
   this->led_output_->turn_on();
-  
+
   // Step 2: Wait for the sensor to stabilize (280µs per datasheet)
   delayMicroseconds(this->sample_wait_before_);
-  
+
   // Step 3: Perform a single ADC sample
   float read_voltage = this->source_->sample();
-  
+
   // Step 4: Wait for reading to stabilize (40µs per datasheet)
   delayMicroseconds(this->sample_wait_after_);
-  
+
   // Step 5: Disable the internal IR LED
   this->led_output_->turn_off();
-  
+
   // Step 6: Wait for LED to fully turn off and complete pulse cycle (9680µs per datasheet)
   // Total pulse cycle: 280 + 40 + 9680 = 10000µs = 10ms
   delayMicroseconds(this->sample_wait_off_);
@@ -83,9 +80,9 @@ void GP2Y1010AU0FSensor::loop() {
   // Validate and accumulate reading
   if (std::isnan(read_voltage))
     return;
-  
+
   read_voltage = read_voltage * this->voltage_multiplier_ - this->voltage_offset_;
-  
+
   if (read_voltage < MIN_VOLTAGE || read_voltage > MAX_VOLTAGE)
     return;
 

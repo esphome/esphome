@@ -1,12 +1,11 @@
 import esphome.codegen as cg
+from esphome.components import output, sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.components import sensor, voltage_sampler, output
 from esphome.const import (
-    CONF_ID,
     CONF_OUTPUT,
+    ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
-    ICON_CHEMICAL_WEAPON,
 )
 
 DEPENDENCIES = ["voltage_sampler"]
@@ -40,7 +39,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
             cv.Optional(CONF_ADC_VOLTAGE_MULTIPLIER, default=1.0): cv.float_,
             cv.Optional(CONF_ADC_VOLTAGE_OFFSET, default=0.0): cv.float_,
-            cv.Optional(CONF_SAMPLE_DURATION, default="0ms"): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_SAMPLE_DURATION, default="0ms"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SAMPLE_WAIT_BEFORE, default=280): cv.uint32_t,
             cv.Optional(CONF_SAMPLE_WAIT_AFTER, default=40): cv.uint32_t,
             cv.Optional(CONF_SAMPLE_WAIT_OFF, default=9680): cv.uint32_t,
