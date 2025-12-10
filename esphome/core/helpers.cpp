@@ -266,19 +266,12 @@ std::string make_name_with_suffix(const std::string &name, char sep, const char 
 // Parsing & formatting
 
 size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
-  uint8_t val;
   size_t chars = std::min(length, 2 * count);
   for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
-    if (*str >= '0' && *str <= '9') {
-      val = *str - '0';
-    } else if (*str >= 'A' && *str <= 'F') {
-      val = 10 + (*str - 'A');
-    } else if (*str >= 'a' && *str <= 'f') {
-      val = 10 + (*str - 'a');
-    } else {
+    uint8_t val = parse_hex_char(*str);
+    if (val > 15)
       return 0;
-    }
-    data[i >> 1] = !(i & 1) ? val << 4 : data[i >> 1] | val;
+    data[i >> 1] = (i & 1) ? data[i >> 1] | val : val << 4;
   }
   return chars;
 }
