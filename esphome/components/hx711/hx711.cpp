@@ -223,8 +223,10 @@ bool HX711Sensor::is_measurement_ready() {
 
 void HX711Sensor::power_cycle_restart_(const bool use_internal_powerdown) {
   ESP_LOGD(TAG, "Restarting");
-  // Reset channel state machine flag
+  // Reset state machine flags
   this->hx711_state_flags_.channel_b_sensor_read_pending = false;
+  this->hx711_state_flags_.update_in_progress = false;
+  this->hx711_state_flags_.power_up_sequence_running = false;
   // Reset the HX711
   if (use_internal_powerdown) {
     this->power_down_internal_();
