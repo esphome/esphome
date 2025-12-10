@@ -172,10 +172,11 @@ def validate_config(config):
                 config[CONF_WAKEUP_PIN][0][CONF_WAKEUP_PIN_MODE] = config.pop(
                     CONF_WAKEUP_PIN_MODE
                 )
-    elif isinstance(config.get(CONF_WAKEUP_PIN, None), list):
-        raise cv.Invalid(
-            "Your platform does not support providing multiple entries in wakeup_pin"
-        )
+    else:
+        if isinstance(config.get(CONF_WAKEUP_PIN, None), list) and len(config.get(CONF_WAKEUP_PIN, [])) > 1:
+            raise cv.Invalid(
+                "Your platform does not support providing multiple entries in wakeup_pin"
+            )
 
     return config
 
