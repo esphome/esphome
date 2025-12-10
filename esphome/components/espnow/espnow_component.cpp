@@ -271,6 +271,8 @@ void ESPNowComponent::enable_() {
   for (auto peer : this->peers_) {
     this->add_peer(peer.address, peer.encrypt ? peer.lmk : nullptr);
   }
+
+  this->defer([this]() { this->start_trigger_->trigger(); });
 }
 
 void ESPNowComponent::disable() {

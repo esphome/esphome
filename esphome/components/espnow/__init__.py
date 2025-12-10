@@ -54,7 +54,6 @@ OnBroadcastedTrigger = espnow_ns.class_(
     "OnBroadcastedTrigger", ESPNowHandlerTrigger, ESPNowBroadcastedHandler
 )
 
-
 CONF_AUTO_ADD_PEER = "auto_add_peer"
 CONF_PEERS = "peers"
 CONF_PMK = "pmk"
@@ -62,6 +61,7 @@ CONF_PEER_LMK = "lmk"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
 CONF_ON_BROADCAST = "on_broadcast"
+CONF_ON_START = "on_start"
 CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
@@ -137,6 +137,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
                 }
             ),
+            cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
         },
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
@@ -200,6 +201,11 @@ async def to_code(config):
     for on_receive in config.get(CONF_ON_BROADCAST, []):
         trigger = await _trigger_to_code(on_receive)
         cg.add(var.register_broadcasted_handler(trigger))
+
+    if CONF_ON_START in config:
+        await automation.build_automation(
+            var.get_start_trigger(), [], config[CONF_ON_START]
+        )
 
 
 # ========================================== A C T I O N S ================================================

@@ -169,6 +169,8 @@ class ESPNowComponent : public Component {
     this->broadcasted_handlers_.push_back(handler);
   }
 
+  Trigger<> *get_start_trigger() const { return this->start_trigger_; }
+
  protected:
   friend void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
@@ -202,6 +204,8 @@ class ESPNowComponent : public Component {
 
   bool auto_add_peer_{false};
   bool enable_on_boot_{true};
+
+  Trigger<> *start_trigger_ = new Trigger<>();
 };
 
 extern ESPNowComponent *global_esp_now;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
