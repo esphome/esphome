@@ -20,6 +20,4 @@ uart:
 usb_cdc_acm:
   interfaces:
     - id: cdc_acm_1
-      number: 0
     - id: cdc_acm_2
-      number: 1
