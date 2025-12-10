@@ -974,7 +974,7 @@ class PinUseValidationCheck(ConfigValidationStep):
 
 
 def validate_config(
-    config: dict[str, Any],
+    config: OrderedDict[str, Any],
     command_line_substitutions: dict[str, Any],
     skip_external_update: bool = False,
 ) -> Config:
