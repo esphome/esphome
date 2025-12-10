@@ -70,7 +70,6 @@ def fixture_basic_esphome():
 
 def packages_pass(config):
     """Passes the config through the packages processing steps."""
-    config = OrderedDict(config)
     config = do_packages_pass(config)
     do_substitution_pass(config)
     config = merge_packages(config)
@@ -993,49 +992,47 @@ def test_package_merge() -> None:
     """
     Tests that all packages are merged into the top-level config.
     """
-    config = OrderedDict(
-        {
-            CONF_SUBSTITUTIONS: {"a": 1, "e": 5, "b": 2, "d": 6, "c": 3},
-            CONF_PACKAGES: {
-                "package1": {
-                    "logger": {
-                        "level": "DEBUG",
-                    },
-                    CONF_PACKAGES: [
-                        {
-                            "sensor": [
-                                {"platform": "template", "id": "sensor1"},
-                            ],
-                        },
-                    ],
-                    "sensor": [
-                        {"platform": "template", "id": "sensor2"},
-                    ],
+    config = {
+        CONF_SUBSTITUTIONS: {"a": 1, "e": 5, "b": 2, "d": 6, "c": 3},
+        CONF_PACKAGES: {
+            "package1": {
+                "logger": {
+                    "level": "DEBUG",
                 },
-                "package2": {
-                    "logger": {
-                        "level": "VERBOSE",
+                CONF_PACKAGES: [
+                    {
+                        "sensor": [
+                            {"platform": "template", "id": "sensor1"},
+                        ],
                     },
-                },
-                "package3": {
-                    CONF_PACKAGES: [
-                        {
-                            CONF_PACKAGES: [
-                                {
-                                    "sensor": [
-                                        {"platform": "template", "id": "sensor3"},
-                                    ],
-                                },
-                            ],
-                            "sensor": [
-                                {"platform": "template", "id": "sensor4"},
-                            ],
-                        },
-                    ],
+                ],
+                "sensor": [
+                    {"platform": "template", "id": "sensor2"},
+                ],
+            },
+            "package2": {
+                "logger": {
+                    "level": "VERBOSE",
                 },
             },
-        }
-    )
+            "package3": {
+                CONF_PACKAGES: [
+                    {
+                        CONF_PACKAGES: [
+                            {
+                                "sensor": [
+                                    {"platform": "template", "id": "sensor3"},
+                                ],
+                            },
+                        ],
+                        "sensor": [
+                            {"platform": "template", "id": "sensor4"},
+                        ],
+                    },
+                ],
+            },
+        },
+    }
     expected = {
         "sensor": [
             {"platform": "template", "id": "sensor1"},
@@ -1068,13 +1065,11 @@ def test_package_merge_invalid(invalid_package) -> None:
     """
     Tests that trying to merge an invalid package raises an error.
     """
-    config = OrderedDict(
-        {
-            CONF_PACKAGES: {
-                "some_package": invalid_package,
-            },
-        }
-    )
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
 
     with pytest.raises(cv.Invalid):
         merge_packages(config)

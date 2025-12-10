@@ -28,7 +28,6 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import EsphomeError
-from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -314,7 +313,7 @@ def _substitute_remote_package_definition(
     return package_config
 
 
-def do_packages_pass(config: OrderedDict, skip_update: bool = False) -> OrderedDict:
+def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
     """Processes, downloads and validates all packages in the config.
     Also extracts and merges all substitutions found in packages into the main config substitutions.
     """
@@ -358,7 +357,7 @@ def do_packages_pass(config: OrderedDict, skip_update: bool = False) -> OrderedD
     return config
 
 
-def merge_packages(config: OrderedDict) -> OrderedDict:
+def merge_packages(config: dict) -> dict:
     """Merges all packages into the main config and removes the `packages:` key."""
     if CONF_PACKAGES not in config:
         return config
@@ -377,9 +376,4 @@ def merge_packages(config: OrderedDict) -> OrderedDict:
     # Merge all packages into the main config:
     config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]
-
-    if CONF_SUBSTITUTIONS in config:
-        # for clarity in config dumps, restore substitutions, if any, to front of dict
-        config.move_to_end(CONF_SUBSTITUTIONS, last=False)
-
     return config
