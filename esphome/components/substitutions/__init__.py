@@ -1,4 +1,4 @@
-from collections import ChainMap
+from collections import ChainMap, OrderedDict
 import logging
 from re import Match
 from typing import Any
@@ -267,7 +267,7 @@ def substitute(
 
 
 def do_substitution_pass(
-    config: dict, command_line_substitutions: dict | None = None
+    config: OrderedDict, command_line_substitutions: dict | None = None
 ) -> None:
     # Extract substitutions from config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()

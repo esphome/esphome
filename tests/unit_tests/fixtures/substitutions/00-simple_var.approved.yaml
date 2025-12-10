@@ -10,7 +10,6 @@ substitutions:
     y: 82
   a: 15
   b: 20
-
 esphome:
   name: test
 test_list:
@@ -29,10 +28,12 @@ test_list:
   - key1: 1
     key2: 2
   - Literal $values ${are not substituted}
-  - ["list $value", "${is not}", "${substituted}"]
-  - {"$dictionary": "$value", "${is not}": "${substituted}"}
-  - |-
-    {{{ "x", "79"}, { "y", "82"}}}
+  - - list $value
+    - ${is not}
+    - ${substituted}
+  - $dictionary: $value
+    ${is not}: ${substituted}
+  - '{{{ "x", "79"}, { "y", "82"}}}'
   - '{{{"AA"}}}'
   - '"HELLO"'
   - '{ 79, 82 }'
