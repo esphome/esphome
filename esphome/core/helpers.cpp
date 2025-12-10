@@ -266,19 +266,12 @@ std::string make_name_with_suffix(const std::string &name, char sep, const char 
 // Parsing & formatting
 
 size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
-  uint8_t val;
   size_t chars = std::min(length, 2 * count);
   for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
-    if (*str >= '0' && *str <= '9') {
-      val = *str - '0';
-    } else if (*str >= 'A' && *str <= 'F') {
-      val = 10 + (*str - 'A');
-    } else if (*str >= 'a' && *str <= 'f') {
-      val = 10 + (*str - 'a');
-    } else {
+    uint8_t val = parse_hex_char(*str);
+    if (val > 15)
       return 0;
-    }
-    data[i >> 1] = !(i & 1) ? val << 4 : data[i >> 1] | val;
+    data[i >> 1] = (i & 1) ? data[i >> 1] | val : val << 4;
   }
   return chars;
 }
@@ -480,22 +473,13 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
 }
 
 size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
-  std::vector<uint8_t> decoded = base64_decode(encoded_string);
-  if (decoded.size() > buf_len) {
-    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
-    decoded.resize(buf_len);
-  }
-  memcpy(buf, decoded.data(), decoded.size());
-  return decoded.size();
-}
-
-std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   int in_len = encoded_string.size();
   int i = 0;
   int j = 0;
   int in = 0;
+  size_t out = 0;
   uint8_t char_array_4[4], char_array_3[3];
-  std::vector<uint8_t> ret;
+  bool truncated = false;
 
   // SAFETY: The loop condition checks is_base64() before processing each character.
   // This ensures base64_find_char() is only called on valid base64 characters,
@@ -511,8 +495,13 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
       char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
       char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
-      for (i = 0; (i < 3); i++)
-        ret.push_back(char_array_3[i]);
+      for (i = 0; i < 3; i++) {
+        if (out < buf_len) {
+          buf[out++] = char_array_3[i];
+        } else {
+          truncated = true;
+        }
+      }
       i = 0;
     }
   }
@@ -528,10 +517,28 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
     char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
     char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
-    for (j = 0; (j < i - 1); j++)
-      ret.push_back(char_array_3[j]);
+    for (j = 0; j < i - 1; j++) {
+      if (out < buf_len) {
+        buf[out++] = char_array_3[j];
+      } else {
+        truncated = true;
+      }
+    }
   }
 
+  if (truncated) {
+    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
+  }
+
+  return out;
+}
+
+std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
+  // Calculate maximum decoded size: every 4 base64 chars = 3 bytes
+  size_t max_len = ((encoded_string.size() + 3) / 4) * 3;
+  std::vector<uint8_t> ret(max_len);
+  size_t actual_len = base64_decode(encoded_string, ret.data(), max_len);
+  ret.resize(actual_len);
   return ret;
 }
 

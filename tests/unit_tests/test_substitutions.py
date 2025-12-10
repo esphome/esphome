@@ -8,7 +8,7 @@ import pytest
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
-from esphome.components.packages import do_packages_pass
+from esphome.components.packages import do_packages_pass, merge_packages
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import merge_config
 from esphome.const import CONF_SUBSTITUTIONS
@@ -74,6 +74,8 @@ def verify_database(value: Any, path: str = "") -> str | None:
         return None
     if isinstance(value, dict):
         for k, v in value.items():
+            if path == "" and k == CONF_SUBSTITUTIONS:
+                return None  # ignore substitutions key at top level since it is merged.
             key_result = verify_database(k, f"{path}/{k}")
             if key_result is not None:
                 return key_result
@@ -143,6 +145,8 @@ def test_substitutions_fixtures(
     config = do_packages_pass(config)
 
     substitutions.do_substitution_pass(config, command_line_substitutions)
+
+    config = merge_packages(config)
 
     resolve_extend_remove(config)
     verify_database_result = verify_database(config)
