@@ -276,12 +276,12 @@ This document provides essential context for AI models interacting with this pro
 ## 7. Specific Instructions for AI Collaboration
 
 *   **Contribution Workflow (Pull Request Process):**
-    1.  **Fork & Branch:** Create a new branch in your fork.
+    1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
     4.  **Lint:** Run `pre-commit` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
-    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made with the PULL_REQUEST_TEMPLATE.md template filled out correctly.
+    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome-docs` repository.
