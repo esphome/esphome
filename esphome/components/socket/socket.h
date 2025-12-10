@@ -82,6 +82,15 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::stri
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
 
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+/// Delay that can be woken early by socket activity.
+/// On ESP8266, lwip callbacks set a flag and call esp_schedule() to wake the delay.
+void socket_delay(uint32_t ms);
+
+/// Called by lwip callbacks to signal socket activity and wake delay.
+void socket_wake();
+#endif
+
 }  // namespace socket
 }  // namespace esphome
 #endif
