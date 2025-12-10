@@ -65,6 +65,11 @@ class AddressableLight : public LightOutput, public Component {
     this->correction_.set_max_brightness(
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
+  void set_correction(float red, float green, float blue, float cold_white = 1.0f, float warm_white = 1.0f) {
+    this->correction_.set_max_brightness(Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue),
+                                               to_uint8_scale(cold_white), to_uint8_scale(warm_white)));
+  }
+
   void setup_state(LightState *state) override {
     this->correction_.calculate_gamma_table(state->get_gamma_correct());
     this->state_parent_ = state;
