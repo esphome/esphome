@@ -8,7 +8,7 @@ namespace text {
 static const char *const TAG = "text";
 
 TextCall &TextCall::set_value(const char *value, size_t len) {
-  this->value_ = std::string(value, len);
+  this->value_.emplace(value, len);
   return *this;
 }
 
