@@ -172,11 +172,10 @@ def validate_config(config):
                 config[CONF_WAKEUP_PIN][0][CONF_WAKEUP_PIN_MODE] = config.pop(
                     CONF_WAKEUP_PIN_MODE
                 )
-    else:
-        if isinstance(config.get(CONF_WAKEUP_PIN, None), list):
-            raise cv.Invalid(
-                "Your platform does not support providing multiple entries in wakeup_pin"
-            )
+    elif isinstance(config.get(CONF_WAKEUP_PIN, None), list):
+        raise cv.Invalid(
+            "Your platform does not support providing multiple entries in wakeup_pin"
+        )
 
     return config
 
@@ -208,6 +207,7 @@ def _validate_sleep_duration(value):
     if value > max_duration:
         raise cv.Invalid("sleep duration cannot be more than 36 hours on BK72XX")
     return value
+
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
@@ -275,7 +275,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_WAKEUP_PIN): validate_wakeup_pin,
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
-                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]), cv.enum(WAKEUP_PIN_MODES), upper=True
+                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
+                cv.enum(WAKEUP_PIN_MODES),
+                upper=True,
             ),
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
                 cv.only_on_esp32,
