@@ -14,3 +14,11 @@ light:
     bit0_low: 100us
     bit1_high: 100us
     bit1_low: 100us
+  - platform: esp32_rmt_led_strip
+    id: led_strip3
+    pin: ${pin3}
+    num_leds: 60
+    channel_map: "G,R,B,WW,CW"
+    chipset: ws2805
+    min_mireds: 137.
+    max_mireds: 500.
