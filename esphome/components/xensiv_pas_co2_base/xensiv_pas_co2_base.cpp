@@ -158,11 +158,11 @@ bool XensivPasCO2::update_operation_mode_() {
     xensiv_pas_co2_measurement_config_t current_meas_cfg;
     if (this->read_bytes(XENSIV_PAS_CO2_REG_MEAS_CFG, &current_meas_cfg.u, 1)) {
       if (current_meas_cfg.b.op_mode != XENSIV_PAS_CO2_OP_MODE_CONTINUOUS) {
-        // Set to continuous measurement mode with automatic baseline offset compensation
+        // Set to continuous measurement mode without baseline offset compensation
         xensiv_pas_co2_measurement_config_t meas_cfg;
         meas_cfg.u = 0;
         meas_cfg.b.op_mode = XENSIV_PAS_CO2_OP_MODE_CONTINUOUS;
-        meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_AUTOMATIC;
+        meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_DISABLE;
         meas_cfg.b.pwm_mode = XENSIV_PAS_CO2_PWM_MODE_SINGLE_PULSE;
         meas_cfg.b.pwm_outen = 0;  // PWM output disabled
 
@@ -267,11 +267,11 @@ bool XensivPasCO2::check_sensor_ready_() {
 }
 
 bool XensivPasCO2::measure_now() {
-  // Start single-shot measurement with automatic baseline offset compensation
+  // Start single-shot measurement without automatic baseline offset compensation
   xensiv_pas_co2_measurement_config_t meas_cfg;
   meas_cfg.u = 0;
   meas_cfg.b.op_mode = XENSIV_PAS_CO2_OP_MODE_SINGLE;
-  meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_AUTOMATIC;
+  meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_DISABLE;
   meas_cfg.b.pwm_mode = XENSIV_PAS_CO2_PWM_MODE_SINGLE_PULSE;
   meas_cfg.b.pwm_outen = 0;  // PWM output disabled
 
@@ -281,6 +281,15 @@ bool XensivPasCO2::measure_now() {
   } else {
     ESP_LOGW(TAG, "Failed to start single-shot measurement");
     return false;
+  }
+}
+
+void XensivPasCO2::reset_ABOC() {
+  // Reset Automatic Baseline Offset Compensation (ABOC)
+  if (this->write_byte(XENSIV_PAS_CO2_REG_SENS_RST, XENSIV_PAS_CO2_CMD_RESET_ABOC)) {
+    ESP_LOGD(TAG, "ABOC reset command sent");
+  } else {
+    ESP_LOGW(TAG, "Failed to send ABOC reset command");
   }
 }
 
