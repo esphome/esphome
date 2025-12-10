@@ -67,7 +67,7 @@ void XensivPasCO2::loop() {
       } else {
         uint8_t press_h = (ref >> 8) & 0xFF;
         uint8_t press_l = ref & 0xFF;
-        ESP_LOGD(TAG, "Applying pending pressure compensation: %d hPa", ref);
+        // ESP_LOGD(TAG, "Applying pending pressure compensation: %d hPa", ref);
         if (!this->write_with_retry_(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
           ESP_LOGW(TAG, "Retry write failed for PRESS_REF_H, re-queueing");
           // Re-queue once; avoid tight loops
@@ -78,7 +78,7 @@ void XensivPasCO2::loop() {
           this->pending_pressure_update_ = true;
           this->pending_pressure_ref_ = ref;
         } else {
-          ESP_LOGD(TAG, "Pending pressure compensation applied successfully");
+          // ESP_LOGD(TAG, "Pending pressure compensation applied successfully");
         }
       }
     }
