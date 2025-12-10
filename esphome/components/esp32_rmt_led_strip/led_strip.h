@@ -61,7 +61,12 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   int32_t size() const override { return this->num_leds_; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    if (this->channel_map.is_rgbw()) {
+    if (this->channel_map.is_rgbcct()) {
+      traits.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
+      // Apply configured mired range (defaults set on construction or via YAML)
+      traits.set_min_mireds(this->min_mireds_);
+      traits.set_max_mireds(this->max_mireds_);
+    } else if (this->channel_map.is_rgbw()) {
       traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
     } else {
       traits.set_supported_color_modes({light::ColorMode::RGB});
@@ -71,6 +76,8 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
+  void set_min_mireds(float min_reds) { this->min_mireds_ = min_reds; }
+  void set_max_mireds(float max_mireds) { this->max_mireds_ = max_mireds; }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
   void set_use_psram(bool use_psram) { this->use_psram_ = use_psram; }
 
@@ -108,10 +115,13 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   uint32_t rmt_symbols_{48};
   uint8_t pin_;
   uint16_t num_leds_;
-  bool use_dma_{false};
-  bool use_psram_{false};
 
   ChannelMap channel_map{};
+  float min_mireds_{154.0f};
+  float max_mireds_{500.0f};
+
+  bool use_dma_{false};
+  bool use_psram_{false};
 
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};

@@ -47,6 +47,8 @@ CHIPSETS = {
 }
 
 CONF_CHANNEL_MAP = "channel_map"
+CONF_MIN_MIREDS = "min_mireds"
+CONF_MAX_MIREDS = "max_mireds"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
@@ -76,6 +78,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_CHANNEL_MAP): validate_channel_map,
+            cv.Optional(CONF_MIN_MIREDS): cv.positive_float,
+            cv.Optional(CONF_MAX_MIREDS): cv.positive_float,
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
@@ -162,6 +166,10 @@ async def to_code(config):
         )
 
     cg.add(var.set_channel_map(config[CONF_CHANNEL_MAP]))
+    if CONF_MIN_MIREDS in config:
+        cg.add(var.set_min_mireds(config[CONF_MIN_MIREDS]))
+    if CONF_MAX_MIREDS in config:
+        cg.add(var.set_max_mireds(config[CONF_MAX_MIREDS]))
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
     if CONF_USE_DMA in config:

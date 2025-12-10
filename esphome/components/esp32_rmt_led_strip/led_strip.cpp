@@ -260,6 +260,10 @@ light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index
       this->channel_map.channels.at("B").exists ? base + this->channel_map.channels.at("B").position : nullptr;
   uint8_t *w_ptr =
       this->channel_map.channels.at("W").exists ? base + this->channel_map.channels.at("W").position : nullptr;
+  uint8_t *cw_ptr =
+      this->channel_map.channels.at("CW").exists ? base + this->channel_map.channels.at("CW").position : nullptr;
+  uint8_t *ww_ptr =
+      this->channel_map.channels.at("WW").exists ? base + this->channel_map.channels.at("WW").position : nullptr;
 
   if (this->channel_map.is_rgbcct()) {
     return {r_ptr, g_ptr, b_ptr, cw_ptr, ww_ptr, &this->effect_data_[index], &this->correction_};
