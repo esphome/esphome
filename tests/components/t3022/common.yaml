@@ -1,0 +1,6 @@
+sensor:
+  - platform: t3022
+    i2c_id: i2c_bus
+    co2:
+      name: T3022 CO2
+    address: 0x15
