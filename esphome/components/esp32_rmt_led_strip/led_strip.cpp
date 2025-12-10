@@ -156,6 +156,35 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
   this->params_.reset.level1 = 0;
 }
 
+bool ESP32RMTLEDStripLightOutput::set_channel_(const std::string &channel_name, int index) {
+  for (auto &[name, channel] : this->channel_map.channels) {
+    if (channel_name == name) {
+      channel.exists = true;
+      channel.position = index;
+      return true;
+    }
+  }
+  return false;  // Channel not found
+}
+
+void ESP32RMTLEDStripLightOutput::set_channel_map_(const std::string &map) {
+  std::string s = map;
+  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
+
+  size_t start = 0, pos = 0;
+  int index = 0;
+  while ((pos = s.find(',', start)) != std::string::npos) {
+    this->set_channel_(s.substr(start, pos - start), index);
+    start = pos + 1;
+    index++;
+  }
+  if (this->set_channel_(s.substr(start), index)) {  // Last channel
+    index++;  // Only increment when a valid channel was found and a channel was actually set
+  }
+
+  this->channel_map.channel_count = index;
+}
+
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   // protect from refreshing too often
   uint32_t now = micros();
@@ -220,48 +249,23 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {
-  int32_t r = 0, g = 0, b = 0;
-  switch (this->rgb_order_) {
-    case ORDER_RGB:
-      r = 0;
-      g = 1;
-      b = 2;
-      break;
-    case ORDER_RBG:
-      r = 0;
-      g = 2;
-      b = 1;
-      break;
-    case ORDER_GRB:
-      r = 1;
-      g = 0;
-      b = 2;
-      break;
-    case ORDER_GBR:
-      r = 2;
-      g = 0;
-      b = 1;
-      break;
-    case ORDER_BGR:
-      r = 2;
-      g = 1;
-      b = 0;
-      break;
-    case ORDER_BRG:
-      r = 1;
-      g = 2;
-      b = 0;
-      break;
-  }
-  uint8_t multiplier = this->is_rgbw_ || this->is_wrgb_ ? 4 : 3;
-  uint8_t white = this->is_wrgb_ ? 0 : 3;
+  uint8_t multiplier = this->channel_map.channel_count;
+  uint8_t *base = this->buf_ + (index * multiplier);
 
-  return {this->buf_ + (index * multiplier) + r + this->is_wrgb_,
-          this->buf_ + (index * multiplier) + g + this->is_wrgb_,
-          this->buf_ + (index * multiplier) + b + this->is_wrgb_,
-          this->is_rgbw_ || this->is_wrgb_ ? this->buf_ + (index * multiplier) + white : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
+  uint8_t *r_ptr =
+      this->channel_map.channels.at("R").exists ? base + this->channel_map.channels.at("R").position : nullptr;
+  uint8_t *g_ptr =
+      this->channel_map.channels.at("G").exists ? base + this->channel_map.channels.at("G").position : nullptr;
+  uint8_t *b_ptr =
+      this->channel_map.channels.at("B").exists ? base + this->channel_map.channels.at("B").position : nullptr;
+  uint8_t *w_ptr =
+      this->channel_map.channels.at("W").exists ? base + this->channel_map.channels.at("W").position : nullptr;
+
+  if (this->channel_map.is_rgbcct()) {
+    return {r_ptr, g_ptr, b_ptr, cw_ptr, ww_ptr, &this->effect_data_[index], &this->correction_};
+  }
+
+  return {r_ptr, g_ptr, b_ptr, w_ptr, &this->effect_data_[index], &this->correction_};
 }
 
 void ESP32RMTLEDStripLightOutput::dump_config() {
@@ -270,35 +274,34 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
                 "  Pin: %u",
                 this->pin_);
   ESP_LOGCONFIG(TAG, "  RMT Symbols: %" PRIu32, this->rmt_symbols_);
-  const char *rgb_order;
-  switch (this->rgb_order_) {
-    case ORDER_RGB:
-      rgb_order = "RGB";
-      break;
-    case ORDER_RBG:
-      rgb_order = "RBG";
-      break;
-    case ORDER_GRB:
-      rgb_order = "GRB";
-      break;
-    case ORDER_GBR:
-      rgb_order = "GBR";
-      break;
-    case ORDER_BGR:
-      rgb_order = "BGR";
-      break;
-    case ORDER_BRG:
-      rgb_order = "BRG";
-      break;
-    default:
-      rgb_order = "UNKNOWN";
-      break;
+  std::string channel_map_str = "";
+  std::vector<std::string> tokens(this->channel_map.channels.size(), "");
+  if (this->channel_map.channels.at("R").exists)
+    tokens[this->channel_map.channels.at("R").position] = "R";
+  if (this->channel_map.channels.at("G").exists)
+    tokens[this->channel_map.channels.at("G").position] = "G";
+  if (this->channel_map.channels.at("B").exists)
+    tokens[this->channel_map.channels.at("B").position] = "B";
+  if (this->channel_map.channels.at("W").exists)
+    tokens[this->channel_map.channels.at("W").position] = "W";
+  if (this->channel_map.channels.at("CW").exists)
+    tokens[this->channel_map.channels.at("CW").position] = "CW";
+  if (this->channel_map.channels.at("WW").exists)
+    tokens[this->channel_map.channels.at("WW").position] = "WW";
+  for (size_t i = 0; i < tokens.size(); ++i) {
+    if (tokens[i].empty()) {
+      continue;
+    }
+    if (i != 0) {
+      channel_map_str += ",";
+    }
+    channel_map_str += tokens[i];
   }
   ESP_LOGCONFIG(TAG,
-                "  RGB Order: %s\n"
+                "  Channel map: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                rgb_order, *this->max_refresh_rate_, this->num_leds_);
+                channel_map_str.c_str(), *this->max_refresh_rate_, this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

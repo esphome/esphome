@@ -8,12 +8,10 @@ from esphome.components.const import CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
-    CONF_IS_RGBW,
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
     CONF_PIN,
-    CONF_RGB_ORDER,
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
 )
@@ -27,17 +25,6 @@ esp32_rmt_led_strip_ns = cg.esphome_ns.namespace("esp32_rmt_led_strip")
 ESP32RMTLEDStripLightOutput = esp32_rmt_led_strip_ns.class_(
     "ESP32RMTLEDStripLightOutput", light.AddressableLight
 )
-
-RGBOrder = esp32_rmt_led_strip_ns.enum("RGBOrder")
-
-RGB_ORDERS = {
-    "RGB": RGBOrder.ORDER_RGB,
-    "RBG": RGBOrder.ORDER_RBG,
-    "GRB": RGBOrder.ORDER_GRB,
-    "GBR": RGBOrder.ORDER_GBR,
-    "BGR": RGBOrder.ORDER_BGR,
-    "BRG": RGBOrder.ORDER_BRG,
-}
 
 
 @dataclass
@@ -58,13 +45,27 @@ CHIPSETS = {
     "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
-CONF_IS_WRGB = "is_wrgb"
+CONF_CHANNEL_MAP = "channel_map"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
 CONF_RESET_HIGH = "reset_high"
 CONF_RESET_LOW = "reset_low"
+
+VALID_CHANNEL_TOKENS = ["R", "G", "B", "W", "CW", "WW"]
+
+
+def validate_channel_map(value):
+    """Validate channel_map string and ensure only valid tokens are used."""
+    for token in value.split(","):
+        if token not in VALID_CHANNEL_TOKENS:
+            raise cv.Invalid(
+                f"Invalid token '{token}' in channel_map. "
+                f"Valid tokens are: {', '.join(VALID_CHANNEL_TOKENS)}"
+            )
+
+    return value
 
 
 CONFIG_SCHEMA = cv.All(
@@ -73,7 +74,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-            cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
+            cv.Required(CONF_CHANNEL_MAP): validate_channel_map,
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
@@ -87,8 +88,6 @@ CONFIG_SCHEMA = cv.All(
             ): cv.int_range(min=2),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
-            cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
-            cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
             cv.Optional(CONF_USE_DMA): cv.All(
                 esp32.only_on_variant(
                     supported=[esp32.VARIANT_ESP32P4, esp32.VARIANT_ESP32S3]
@@ -161,9 +160,7 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
-    cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
-    cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
+    cg.add(var.set_channel_map(config[CONF_CHANNEL_MAP]))
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
     if CONF_USE_DMA in config:
