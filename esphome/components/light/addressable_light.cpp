@@ -31,7 +31,9 @@ Color color_from_light_color_values(LightColorValues val) {
   auto g = to_uint8_scale(val.get_color_brightness() * val.get_green());
   auto b = to_uint8_scale(val.get_color_brightness() * val.get_blue());
   auto w = to_uint8_scale(val.get_white());
-  return Color(r, g, b, w);
+  auto cw = to_uint8_scale(val.get_cold_white());
+  auto ww = to_uint8_scale(val.get_warm_white());
+  return Color(r, g, b, w, cw, ww);
 }
 
 void AddressableLight::update_state(LightState *state) {
@@ -99,10 +101,12 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   if (smoothed_progress > this->last_transition_progress_ && this->last_transition_progress_ < 1.f) {
     int32_t scale = int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
     for (auto led : this->light_) {
-      led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
-                   subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
-                   subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
-                   subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+      led.set_red(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale));
+      led.set_green(subtract_scaled_difference(this->target_color_.green, led.get_green(), scale));
+      led.set_blue(subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale));
+      led.set_white(subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+      led.set_cold_white(subtract_scaled_difference(this->target_color_.cold_white, led.get_cold_white(), scale));
+      led.set_warm_white(subtract_scaled_difference(this->target_color_.warm_white, led.get_warm_white(), scale));
     }
     this->last_transition_progress_ = smoothed_progress;
     this->light_.schedule_show();
