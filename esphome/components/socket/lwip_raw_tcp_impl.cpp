@@ -23,6 +23,7 @@ namespace socket {
 
 #ifdef USE_ESP8266
 // Flag to signal socket activity - checked by socket_delay() to exit early
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile bool s_socket_woke = false;
 
 void socket_delay(uint32_t ms) {
