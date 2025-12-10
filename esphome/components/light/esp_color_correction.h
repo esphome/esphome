@@ -6,14 +6,15 @@ namespace esphome::light {
 
 class ESPColorCorrection {
  public:
-  ESPColorCorrection() : max_brightness_(255, 255, 255, 255) {}
+  ESPColorCorrection() : max_brightness_(255, 255, 255, 255, 255, 255) {}
   void set_max_brightness(const Color &max_brightness) { this->max_brightness_ = max_brightness; }
   void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
   void calculate_gamma_table(float gamma);
   inline Color color_correct(Color color) const ESPHOME_ALWAYS_INLINE {
     // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
     return Color(this->color_correct_red(color.red), this->color_correct_green(color.green),
-                 this->color_correct_blue(color.blue), this->color_correct_white(color.white));
+                 this->color_correct_blue(color.blue), this->color_correct_white(color.white),
+                 this->color_correct_cold_white(color.cold_white), this->color_correct_warm_white(color.warm_white));
   }
   inline uint8_t color_correct_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
     uint8_t res = esp_scale8_twice(red, this->max_brightness_.red, this->local_brightness_);
@@ -31,10 +32,20 @@ class ESPColorCorrection {
     uint8_t res = esp_scale8_twice(white, this->max_brightness_.white, this->local_brightness_);
     return this->gamma_table_[res];
   }
+  inline uint8_t color_correct_cold_white(uint8_t cold_white) const ESPHOME_ALWAYS_INLINE {
+    uint8_t res = esp_scale8_twice(cold_white, this->max_brightness_.cold_white, this->local_brightness_);
+    return this->gamma_table_[res];
+  }
+  inline uint8_t color_correct_warm_white(uint8_t warm_white) const ESPHOME_ALWAYS_INLINE {
+    uint8_t res = esp_scale8_twice(warm_white, this->max_brightness_.warm_white, this->local_brightness_);
+    return this->gamma_table_[res];
+  }
   inline Color color_uncorrect(Color color) const ESPHOME_ALWAYS_INLINE {
     // uncorrected = corrected^(1/gamma) / (max_brightness * local_brightness)
     return Color(this->color_uncorrect_red(color.red), this->color_uncorrect_green(color.green),
-                 this->color_uncorrect_blue(color.blue), this->color_uncorrect_white(color.white));
+                 this->color_uncorrect_blue(color.blue), this->color_uncorrect_white(color.white),
+                 this->color_uncorrect_cold_white(color.cold_white),
+                 this->color_uncorrect_warm_white(color.warm_white));
   }
   inline uint8_t color_uncorrect_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
     if (this->max_brightness_.red == 0 || this->local_brightness_ == 0)
@@ -62,6 +73,20 @@ class ESPColorCorrection {
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[white] * 255UL;
     uint16_t res = ((uncorrected / this->max_brightness_.white) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
+  }
+  inline uint8_t color_uncorrect_cold_white(uint8_t colw_white) const ESPHOME_ALWAYS_INLINE {
+    if (this->max_brightness_.cold_white == 0 || this->local_brightness_ == 0)
+      return 0;
+    uint16_t uncorrected = this->gamma_reverse_table_[colw_white] * 255UL;
+    uint16_t res = ((uncorrected / this->max_brightness_.cold_white) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
+  }
+  inline uint8_t color_uncorrect_warm_white(uint8_t warm_white) const ESPHOME_ALWAYS_INLINE {
+    if (this->max_brightness_.warm_white == 0 || this->local_brightness_ == 0)
+      return 0;
+    uint16_t uncorrected = this->gamma_reverse_table_[warm_white] * 255UL;
+    uint16_t res = ((uncorrected / this->max_brightness_.warm_white) * 255UL) / this->local_brightness_;
     return (uint8_t) std::min(res, uint16_t(255));
   }
 

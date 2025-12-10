@@ -13,6 +13,8 @@ class ESPColorSettable {
   virtual void set_green(uint8_t green) = 0;
   virtual void set_blue(uint8_t blue) = 0;
   virtual void set_white(uint8_t white) = 0;
+  virtual void set_cold_white(uint8_t cold_white) = 0;
+  virtual void set_warm_white(uint8_t warm_white) = 0;
   virtual void set_effect_data(uint8_t effect_data) = 0;
   virtual void fade_to_white(uint8_t amnt) = 0;
   virtual void fade_to_black(uint8_t amnt) = 0;
@@ -32,6 +34,11 @@ class ESPColorSettable {
     this->set_rgb(red, green, blue);
     this->set_white(white);
   }
+  void set_rgbcct(uint8_t red, uint8_t green, uint8_t blue, uint8_t cold_white, uint8_t warm_white) {
+    this->set_rgb(red, green, blue);
+    this->set_cold_white(cold_white);
+    this->set_warm_white(warm_white);
+  }
 };
 
 class ESPColorView : public ESPColorSettable {
@@ -42,6 +49,19 @@ class ESPColorView : public ESPColorSettable {
         green_(green),
         blue_(blue),
         white_(white),
+        cold_white_(nullptr),
+        warm_white_(nullptr),
+        effect_data_(effect_data),
+        color_correction_(color_correction) {}
+  // Constructor for RGBCCT support
+  ESPColorView(uint8_t *red, uint8_t *green, uint8_t *blue, uint8_t *cold_white, uint8_t *warm_white,
+               uint8_t *effect_data, const ESPColorCorrection *color_correction)
+      : red_(red),
+        green_(green),
+        blue_(blue),
+        white_(nullptr),
+        cold_white_(cold_white),
+        warm_white_(warm_white),
         effect_data_(effect_data),
         color_correction_(color_correction) {}
   ESPColorView &operator=(const Color &rhs) {
@@ -60,6 +80,16 @@ class ESPColorView : public ESPColorSettable {
     if (this->white_ == nullptr)
       return;
     *this->white_ = this->color_correction_->color_correct_white(white);
+  }
+  void set_cold_white(uint8_t cold_white) override {
+    if (this->cold_white_ == nullptr)
+      return;
+    *this->cold_white_ = this->color_correction_->color_correct_cold_white(cold_white);
+  }
+  void set_warm_white(uint8_t warm_white) override {
+    if (this->warm_white_ == nullptr)
+      return;
+    *this->warm_white_ = this->color_correction_->color_correct_warm_white(warm_white);
   }
   void set_effect_data(uint8_t effect_data) override {
     if (this->effect_data_ == nullptr)
@@ -87,6 +117,26 @@ class ESPColorView : public ESPColorSettable {
       return 0;
     return *this->white_;
   }
+  uint8_t get_cold_white() const {
+    if (this->cold_white_ == nullptr)
+      return 0;
+    return this->color_correction_->color_uncorrect_cold_white(*this->cold_white_);
+  }
+  uint8_t get_cold_white_raw() const {
+    if (this->cold_white_ == nullptr)
+      return 0;
+    return *this->cold_white_;
+  }
+  uint8_t get_warm_white() const {
+    if (this->warm_white_ == nullptr)
+      return 0;
+    return this->color_correction_->color_uncorrect_warm_white(*this->warm_white_);
+  }
+  uint8_t get_warm_white_raw() const {
+    if (this->warm_white_ == nullptr)
+      return 0;
+    return *this->warm_white_;
+  }
   uint8_t get_effect_data() const {
     if (this->effect_data_ == nullptr)
       return 0;
@@ -101,6 +151,8 @@ class ESPColorView : public ESPColorSettable {
   uint8_t *const green_;
   uint8_t *const blue_;
   uint8_t *const white_;
+  uint8_t *const cold_white_;
+  uint8_t *const warm_white_;
   uint8_t *const effect_data_;
   const ESPColorCorrection *color_correction_;
 };
