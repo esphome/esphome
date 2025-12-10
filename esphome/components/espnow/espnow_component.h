@@ -55,6 +55,7 @@ enum ESPNowState : uint8_t {
 struct ESPNowPeer {
   uint8_t address[ESP_NOW_ETH_ALEN];  // MAC address of the peer
   uint8_t lmk[ESP_NOW_KEY_LEN]; // Local Master Key (optional)
+  bool    encrypt = false;
 
   bool operator==(const ESPNowPeer &other) const { return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0; }
   bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESP_NOW_ETH_ALEN) == 0; }
@@ -116,6 +117,7 @@ class ESPNowComponent : public Component {
     memset(&peer, 0, sizeof(ESPNowPeer));
     memcpy(peer.address, address.data(), ESP_NOW_ETH_ALEN);
     if (! lmk.empty()) {
+      peer.encrypt = true;
       this->hash_mk(lmk, (const uint8_t*) peer.lmk);
     }
     this->peers_.push_back(peer);

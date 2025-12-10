@@ -174,6 +174,8 @@ bool ESPNowComponent::has_pmk() {
   return ! this->pmk.empty();
 }
 
+// PMK's and LMK's are 16 bytes. To allow for any string to serve as MK,
+// we'll hash it and use that to fill the MK byte array.
 void ESPNowComponent::hash_mk(const std::string& mk, const uint8_t* out) {
 #ifdef USE_MD5
   md5::MD5Digest hasher;
@@ -184,7 +186,6 @@ void ESPNowComponent::hash_mk(const std::string& mk, const uint8_t* out) {
 #else
   // better than nothing
   uint32_t hash = fnv1_hash(mk);
-
   *((uint32_t*)(&mk[0]))  = hash;
   *((uint32_t*)(&mk[4]))  = hash;
   *((uint32_t*)(&mk[8]))  = hash;
@@ -195,8 +196,6 @@ void ESPNowComponent::hash_mk(const std::string& mk, const uint8_t* out) {
 void ESPNowComponent::set_espnow_pmk() {
   if (! this->has_pmk()) return;
 
-  // PMK's are 16 bytes. To allow for any string to serve as PMK, we'll hash it
-  // and use that to fill the byte array
   const uint8_t* pmk[ESP_NOW_KEY_LEN];
   this->hash_mk(this->pmk, (const uint8_t*) pmk);
 
@@ -270,7 +269,7 @@ void ESPNowComponent::enable_() {
   }
 
   for (auto peer : this->peers_) {
-    this->add_peer(peer.address, peer.lmk);
+    this->add_peer(peer.address, peer.encrypt ? peer.lmk : nullptr);
   }
 }
 
