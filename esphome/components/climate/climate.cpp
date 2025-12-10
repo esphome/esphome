@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/macros.h"
+#include <strings.h>
 
 namespace esphome::climate {
 
