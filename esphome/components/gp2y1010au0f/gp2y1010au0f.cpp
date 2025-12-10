@@ -19,10 +19,7 @@ void GP2Y1010AU0FSensor::dump_config() {
                 "  Wait before sampling: %" PRId32 " µs\n"
                 "  Wait after sampling: %" PRId32 " µs\n"
                 "  Wait after LED off: %" PRId32 " µs",
-                this->sample_duration_,
-                this->voltage_multiplier_,
-                this->sample_wait_before_,
-                this->sample_wait_after_,
+                this->sample_duration_, this->voltage_multiplier_, this->sample_wait_before_, this->sample_wait_after_,
                 this->sample_wait_off_);
   LOG_UPDATE_INTERVAL(this);
 }

@@ -22,8 +22,8 @@ class GP2Y1010AU0FSensor : public PollingComponent, public sensor::Sensor {
   void set_sample_duration(uint32_t sample_duration) { this->sample_duration_ = sample_duration; }
   void set_led_output(output::BinaryOutput *led_output) { this->led_output_ = led_output; }
   void set_sample_wait_before(uint32_t wait) { this->sample_wait_before_ = wait; }
-  void set_sample_wait_after(uint32_t wait) { this->sample_wait_after_ = wait; }    // NEW
-  void set_sample_wait_off(uint32_t wait) { this->sample_wait_off_ = wait; }        // NEW
+  void set_sample_wait_after(uint32_t wait) { this->sample_wait_after_ = wait; }  // NEW
+  void set_sample_wait_off(uint32_t wait) { this->sample_wait_off_ = wait; }      // NEW
 
  protected:
   voltage_sampler::VoltageSampler *source_{nullptr};
@@ -31,11 +31,11 @@ class GP2Y1010AU0FSensor : public PollingComponent, public sensor::Sensor {
 
   float voltage_multiplier_{1.0f};
   float voltage_offset_{0.0f};
-  
+
   uint32_t sample_duration_{0};
-  uint32_t sample_wait_before_{280};    // Wait before sampling (microseconds) - per datasheet
-  uint32_t sample_wait_after_{40};      // Wait after sampling (microseconds) - per datasheet (NEW)
-  uint32_t sample_wait_off_{9680};      // Wait after LED off (microseconds) - per datasheet (NEW)
+  uint32_t sample_wait_before_{280};  // Wait before sampling (microseconds) - per datasheet
+  uint32_t sample_wait_after_{40};    // Wait after sampling (microseconds) - per datasheet (NEW)
+  uint32_t sample_wait_off_{9680};    // Wait after LED off (microseconds) - per datasheet (NEW)
 
   bool is_sampling_{false};
   uint32_t num_samples_{0};
