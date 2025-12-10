@@ -533,7 +533,7 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
 
 std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   // Calculate maximum decoded size: every 4 base64 chars = 3 bytes
-  size_t max_len = (encoded_string.size() / 4 + 1) * 3;
+  size_t max_len = ((encoded_string.size() + 3) / 4) * 3;
   std::vector<uint8_t> ret(max_len);
   size_t actual_len = base64_decode(encoded_string, ret.data(), max_len);
   ret.resize(actual_len);
