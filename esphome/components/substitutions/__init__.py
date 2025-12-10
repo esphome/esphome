@@ -200,10 +200,11 @@ def _push_context(
 
 def push_context(config_node: Any, parent_context: ContextVars) -> ContextVars:
     """Returns the context vars this config node must be evaluated with."""
-    if not isinstance(config_node, ConfigContext):
-        # This node does not define any vars itself, so just return parent context
-        return parent_context
-    return _push_context(config_node.vars, parent_context)
+    if isinstance(config_node, ConfigContext):
+        return _push_context(config_node.vars, parent_context)
+
+    # This node does not define any vars itself, so just return parent context
+    return parent_context
 
 
 def substitute(
@@ -268,7 +269,6 @@ def substitute(
 def do_substitution_pass(
     config: dict, command_line_substitutions: dict | None = None
 ) -> None:
-    has_substitutions_key = CONF_SUBSTITUTIONS in config
     # Extract substitutions from config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = merge_dicts_ordered(
@@ -293,6 +293,6 @@ def do_substitution_pass(
 
     parent_context = _push_context(substitutions, ContextVars())
     substitute(config, [], parent_context, False)
-    if has_substitutions_key:  # restores substitutions to front of dict
+    if substitutions:  # restore substitutions, if any, to front of dict
         config[CONF_SUBSTITUTIONS] = substitutions
         config.move_to_end(CONF_SUBSTITUTIONS, last=False)
