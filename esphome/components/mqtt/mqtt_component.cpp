@@ -23,7 +23,7 @@ void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
   std::string sanitized_name = str_sanitize(App.get_name());
   return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
-         this->get_default_object_id_() + "/c";
+         this->get_default_object_id_() + "/config";
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
