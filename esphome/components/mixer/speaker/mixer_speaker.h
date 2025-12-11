@@ -65,9 +65,11 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   bool get_pause_state() const override { return this->pause_state_; }
 
   /// @brief Transfers audio from the ring buffer into the transfer buffer. Ducks audio while transferring.
+  /// @param transfer_buffer Locked shared_ptr to the transfer buffer (must be valid, not null)
   /// @param ticks_to_wait FreeRTOS ticks to wait while waiting to read from the ring buffer.
   /// @return Number of bytes transferred from the ring buffer.
-  size_t process_data_from_source(TickType_t ticks_to_wait);
+  size_t process_data_from_source(std::shared_ptr<audio::AudioSourceTransferBuffer> &transfer_buffer,
+                                  TickType_t ticks_to_wait);
 
   /// @brief Sets the ducking level for the source speaker.
   /// @param decibel_reduction The dB reduction level. For example, 0 is no change, 10 is a reduction by 10 dB

@@ -274,19 +274,16 @@ void SourceSpeaker::set_volume(float volume) {
 
 float SourceSpeaker::get_volume() { return this->parent_->get_output_speaker()->get_volume(); }
 
-size_t SourceSpeaker::process_data_from_source(TickType_t ticks_to_wait) {
-  if (!this->transfer_buffer_.use_count()) {
-    return 0;
-  }
-
+size_t SourceSpeaker::process_data_from_source(std::shared_ptr<audio::AudioSourceTransferBuffer> &transfer_buffer,
+                                               TickType_t ticks_to_wait) {
   // Store current offset, as these samples are already ducked
-  const size_t current_length = this->transfer_buffer_->available();
+  const size_t current_length = transfer_buffer->available();
 
-  size_t bytes_read = this->transfer_buffer_->transfer_data_from_source(ticks_to_wait);
+  size_t bytes_read = transfer_buffer->transfer_data_from_source(ticks_to_wait);
 
   uint32_t samples_to_duck = this->audio_stream_info_.bytes_to_samples(bytes_read);
   if (samples_to_duck > 0) {
-    int16_t *current_buffer = reinterpret_cast<int16_t *>(this->transfer_buffer_->get_buffer_start() + current_length);
+    int16_t *current_buffer = reinterpret_cast<int16_t *>(transfer_buffer->get_buffer_start() + current_length);
 
     duck_samples(current_buffer, samples_to_duck, &this->current_ducking_db_reduction_,
                  &this->ducking_transition_samples_remaining_, this->samples_per_ducking_step_,
@@ -635,7 +632,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
           // No transfer buffer allocated, so skip processing this speaker
           continue;
         }
-        speaker->process_data_from_source(0);  // Transfers and ducks audio from source ring buffers
+        speaker->process_data_from_source(transfer_buffer, 0);  // Transfers and ducks audio from source ring buffers
 
         if (transfer_buffer->available() > 0) {
           // Store the locked transfer buffers in their own vector to avoid releasing ownership until after the loop
