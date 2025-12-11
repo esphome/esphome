@@ -17,6 +17,8 @@ struct UpdateInfo {
   std::string firmware_url;
   std::string md5;
   std::string hmac_md5;
+  std::string config_hash;
+  std::string build_time;
   bool has_progress{false};
   float progress;
 };

@@ -100,6 +100,14 @@ void HttpRequestUpdate::update_task(void *params) {
       this_update->update_info_.title = root["name"].as<std::string>();
       this_update->update_info_.latest_version = root["version"].as<std::string>();
 
+      // Optional buildinfo fields for more precise change detection
+      if (root["config_hash"].is<const char *>()) {
+        this_update->update_info_.config_hash = root["config_hash"].as<std::string>();
+      }
+      if (root["build_time"].is<const char *>()) {
+        this_update->update_info_.build_time = root["build_time"].as<std::string>();
+      }
+
       for (auto build : root["builds"].as<JsonArray>()) {
         if (!build["chipFamily"].is<const char *>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
@@ -168,8 +176,21 @@ void HttpRequestUpdate::update_task(void *params) {
 
   bool trigger_update_available = false;
 
-  if (this_update->update_info_.latest_version.empty() ||
-      this_update->update_info_.latest_version == this_update->update_info_.current_version) {
+  bool version_changed = false;
+
+  if (!this_update->update_info_.latest_version.empty()) {
+    version_changed |= this_update->update_info_.latest_version != this_update->update_info_.current_version;
+  }
+
+  if (!this_update->update_info_.config_hash.empty()) {
+    uint32_t config_hash = strtoul(this_update->update_info_.config_hash.c_str(), nullptr, 16);
+    version_changed |= (config_hash != App.get_config_hash());
+  }
+  if (!this_update->update_info_.build_time.empty()) {
+    version_changed |= (this_update->update_info_.build_time != std::to_string(App.get_build_time()));
+  }
+
+  if (!version_changed) {
     this_update->state_ = update::UPDATE_STATE_NO_UPDATE;
   } else {
     if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
