@@ -56,9 +56,7 @@ void MQTTClientComponent::setup() {
     this->disconnect_reason_ = reason;
     this->session_present_ = false;
   });
-  this->mqtt_backend_.set_on_connect([this](bool session_present) {
-    this->session_present_ = session_present;
-  });
+  this->mqtt_backend_.set_on_connect([this](bool session_present) { this->session_present_ = session_present; });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
     logger::global_logger->add_log_listener(this);
