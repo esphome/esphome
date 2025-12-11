@@ -497,7 +497,9 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   while (it != subscriptions_.end()) {
     if (it->topic == topic) {
       it = subscriptions_.erase(it);
-      remove_subscription(*it);
+      if (!this->credentials_.clean_session) {
+        remove_subscription(*it);
+      }
     } else {
       ++it;
     }
@@ -563,38 +565,35 @@ void MQTTClientComponent::disable() {
   this->on_shutdown();
 }
 
-/** Generate a 32-bit hash for an MQTT subscription
+/** Generate a 32-bit hash for an MQTT subscription topic
  *
- * Combines the FNV-1 hash of the topic with the QoS value to create a unique identifier
- * for the subscription that can be used for persistence checks.
+ * Creates a unique identifier for the subscription topic that can be used
+ * as a key for persistence storage.
  *
  * @param sub The MQTT subscription to hash.
- * @return A 32-bit hash value combining topic and QoS.
+ * @return A 32-bit hash value based on the topic.
  */
-static uint32_t hash_subscription(const MQTTSubscription &sub) {
-  uint32_t hash = fnv1_hash(sub.topic.c_str());
-  // Mix in the QoS by XOR'ing it into the hash (shifted to spread bits)
-  hash ^= (static_cast<uint32_t>(sub.qos) << 24);
-  return hash;
-}
+static uint32_t hash_subscription(const MQTTSubscription &sub) { return fnv1_hash(sub.topic.c_str()); }
 
 /** Store a subscription in persistent storage
  *
- * Saves the subscription hash to non-volatile memory so it can be checked
+ * Saves the subscription QoS to non-volatile memory so it can be checked
  * on reconnect to determine if the subscription is already active on the broker.
+ * Stores QoS + 34 as a magic value to distinguish from uninitialized storage.
  *
  * @param sub The MQTT subscription to store.
  * @return true if the subscription was successfully stored, false otherwise.
  */
 static bool store_subscription(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
-  auto pref = global_preferences->make_preference<uint32_t>(hash, true);
-  return pref.save(&hash);
+  auto pref = global_preferences->make_preference<uint8_t>(hash, true);
+  uint8_t stored_value = sub.qos + 34;
+  return pref.save(&stored_value);
 }
 
 /** Check if a subscription is stored in persistent storage
  *
- * Retrieves the subscription hash from non-volatile memory to determine if
+ * Retrieves the subscription QoS from non-volatile memory to determine if
  * this subscription was previously stored (indicating it may still be active
  * on the broker in a persistent session).
  *
@@ -603,16 +602,16 @@ static bool store_subscription(const MQTTSubscription &sub) {
  */
 static bool is_subscription_stored(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
-  auto pref = global_preferences->make_preference<uint32_t>(hash, true);
-  uint32_t stored_hash = 0;
-  if (!pref.load(&stored_hash))
+  auto pref = global_preferences->make_preference<uint8_t>(hash, true);
+  uint8_t stored_value = 0;
+  if (!pref.load(&stored_value))
     return false;
-  return stored_hash == hash;
+  return stored_value == (sub.qos + 34);
 }
 
 /** Remove a subscription from persistent storage
  *
- * Deletes the subscription hash from non-volatile memory, typically when
+ * Deletes the subscription from non-volatile memory, typically when
  * unsubscribing from a topic or cleaning up after a clean session.
  *
  * @param sub The MQTT subscription to remove.
@@ -620,9 +619,13 @@ static bool is_subscription_stored(const MQTTSubscription &sub) {
  */
 static bool remove_subscription(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
-  auto pref = global_preferences->make_preference<uint32_t>(hash, true);
-  uint32_t zero_hash = 0;
-  return pref.save(&zero_hash);
+  // Check if it exists first
+  if (!is_subscription_stored(sub)) {
+    return true;
+  }
+  auto pref = global_preferences->make_preference<uint8_t>(hash, true);
+  uint8_t zero_value = 0;
+  return pref.save(&zero_value);
 }
 
 /** Check if the message topic matches the given subscription topic
