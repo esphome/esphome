@@ -9,8 +9,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
 
@@ -172,7 +171,6 @@ void HttpContainerArduino::end() {
   this->client_.end();
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
 #endif  // USE_ARDUINO && !USE_ESP32

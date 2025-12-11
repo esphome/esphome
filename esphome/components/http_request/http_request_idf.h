@@ -9,8 +9,7 @@
 #include <esp_netif.h>
 #include <esp_tls.h>
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 class HttpContainerIDF : public HttpContainer {
  public:
@@ -48,7 +47,6 @@ class HttpRequestIDF : public HttpRequestComponent {
   static esp_err_t http_event_handler(esp_http_client_event_t *evt);
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
 #endif  // USE_ESP32

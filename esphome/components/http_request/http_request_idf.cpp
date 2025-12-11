@@ -14,8 +14,7 @@
 
 #include "esp_task_wdt.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.idf";
 
@@ -245,7 +244,6 @@ void HttpContainerIDF::feed_wdt() {
   }
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
 #endif  // USE_ESP32
