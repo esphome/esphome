@@ -209,6 +209,12 @@ void HttpRequestUpdate::perform(bool force) {
     return;
   }
 
+  if (!this->hmac_key_.empty() && this->update_info.hmac_md5.empty()) {
+    ESP_LOGE(TAG, "HMAC key configured but manifest only contains plain md5");
+    this->status_set_error(LOG_STR("HMAC validation required but manifest not signed"));
+    return;
+  }
+
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->publish_state();
 
