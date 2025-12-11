@@ -299,7 +299,7 @@ class MQTTClientComponent : public Component
   void recalculate_availability_();
 
   bool subscribe_(const char *topic, uint8_t qos);
-  void resubscribe_subscription_(MQTTSubscription *sub);
+  void resubscribe_subscription_(MQTTSubscription *sub, bool check_persistence = false);
   void resubscribe_subscriptions_(bool check_persistence = false);
 
   MQTTCredentials credentials_;

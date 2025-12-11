@@ -420,9 +420,13 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   }
   return ret != 0;
 }
-void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
+void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub, bool check_persistence) {
   if (sub->subscribed)
     return;
+  // If the session is present, check if we had already subscribed
+  if (check_persistence) {
+    // TODO: Check if we have stored the subscription before and set subscribed = true if so
+  }
 
   const uint32_t now = millis();
   bool do_resub = sub->resubscribe_timeout == 0 || now - sub->resubscribe_timeout > 1000;
@@ -438,11 +442,7 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
 }
 void MQTTClientComponent::resubscribe_subscriptions_(bool check_persistence) {
   for (auto &subscription : this->subscriptions_) {
-    // If the session is present, check if we had already subscribed
-    if (check_persistence && !subscription.subscribed) {
-      // TODO: Check if we have stored the subscription before and set subscribed = true
-    }
-    this->resubscribe_subscription_(&subscription);
+    this->resubscribe_subscription_(&subscription, check_persistence);
   }
 }
 
