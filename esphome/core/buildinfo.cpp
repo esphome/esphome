@@ -34,7 +34,9 @@ static uintptr_t build_time = (uintptr_t) &ESPHOME_BUILD_TIME;
 
 const char *get_config_hash() {
   static char hash_str[9];
-  snprintf(hash_str, sizeof(hash_str), "%08x", (uint32_t) config_hash);
+  if (!hash_str[0]) {
+    snprintf(hash_str, sizeof(hash_str), "%08x", (uint32_t) config_hash);
+  }
   return hash_str;
 }
 
