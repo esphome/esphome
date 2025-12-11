@@ -244,6 +244,10 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   virtual int read(uint8_t *buf, size_t max_len) = 0;
   virtual void end() = 0;
 
+  /// @brief Checks if all data has been received (for streaming/chunked responses)
+  /// @return true if all data received, false if more data expected or not implemented
+  virtual bool is_complete_data_received() { return false; }
+
   void set_secure(bool secure) { this->secure_ = secure; }
   void set_chunked(bool chunked) { this->is_chunked_ = chunked; }
 

@@ -305,6 +305,8 @@ void HttpContainerIDF::end() {
   this->client_ = nullptr;
 }
 
+bool HttpContainerIDF::is_complete_data_received() { return esp_http_client_is_complete_data_received(this->client_); }
+
 void HttpContainerIDF::feed_wdt() {
   // Tests to see if the executing task has a watchdog timer attached
   if (esp_task_wdt_status(nullptr) == ESP_OK) {

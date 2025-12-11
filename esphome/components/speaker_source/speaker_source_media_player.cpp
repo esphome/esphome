@@ -1,0 +1,885 @@
+#include "speaker_source_media_player.h"
+
+#ifdef USE_ESP_IDF
+
+#include "esphome/core/log.h"
+
+#include "esphome/components/audio/audio.h"
+
+#include <algorithm>
+
+namespace esphome {
+namespace speaker_source {
+
+static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
+
+static const char *const TAG = "speaker_source_media_player";
+
+void SpeakerSourceMediaPlayer::setup() {
+  state = media_player::MEDIA_PLAYER_STATE_IDLE;
+
+  this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaPlayerControlCommand));
+  this->playlist_mutex_ = xSemaphoreCreateMutex();
+
+  this->pref_ = global_preferences->make_preference<VolumeRestoreState>(this->get_preference_hash());
+
+  VolumeRestoreState volume_restore_state;
+  if (this->pref_.load(&volume_restore_state)) {
+    this->set_volume_(volume_restore_state.volume);
+    this->set_mute_state_(volume_restore_state.is_muted);
+  } else {
+    this->set_volume_(this->volume_initial_);
+    this->set_mute_state_(false);
+  }
+
+  // Determine pipeline count: 1 if only media_speaker, 2 if both speakers configured
+  size_t pipeline_count = 1;
+  if (this->announcement_speaker_ != nullptr) {
+    pipeline_count = 2;
+  }
+
+  // Initialize all sources with the pipeline count
+  for (auto *media_source : this->media_sources_) {
+    media_source->init_pipelines(pipeline_count);
+
+    media_source->set_output_callback([this](media_source::MediaSource *src, uint8_t *data, size_t len,
+                                             TickType_t ticks, audio::AudioStreamInfo stream_info, size_t pipeline) {
+      return this->handle_media_output_callback_(src, data, len, ticks, stream_info, pipeline);
+    });
+    media_source->set_state_callback(
+        [this](media_source::MediaSource *src, media_source::MediaSourceState state, size_t pipeline) {
+          return this->handle_media_state_callback_(src, state, pipeline);
+        });
+
+    // Set volume and mute request callbacks for sources that support volume control
+    if (media_source->get_capabilities().supports_volume_control) {
+      media_source->set_volume_request_callback(
+          [this](media_source::MediaSource *src, float volume) { this->handle_volume_request_(src, volume); });
+      media_source->set_mute_request_callback(
+          [this](media_source::MediaSource *src, bool is_muted) { this->handle_mute_request_(src, is_muted); });
+    }
+
+    media_source->set_play_uri_request_callback(
+        [this](media_source::MediaSource *src, const std::string &uri, size_t pipeline) {
+          this->handle_play_uri_request_(src, uri, pipeline);
+        });
+  }
+
+  // Register callbacks to receive playback notifications from speakers
+  if (this->media_speaker_ != nullptr) {
+    this->media_speaker_->add_audio_output_callback([this](uint32_t frames, int64_t timestamp) {
+      this->handle_speaker_playback_callback_(frames, timestamp, MEDIA_PIPELINE);
+    });
+  }
+  if (this->announcement_speaker_ != nullptr) {
+    this->announcement_speaker_->add_audio_output_callback([this](uint32_t frames, int64_t timestamp) {
+      this->handle_speaker_playback_callback_(frames, timestamp, ANNOUNCEMENT_PIPELINE);
+    });
+  }
+
+  ESP_LOGI(TAG, "Set up speaker media player with %zu pipeline(s)", pipeline_count);
+}
+
+void SpeakerSourceMediaPlayer::set_playlist_delay_ms(size_t pipeline, uint32_t delay_ms) {
+  if (pipeline == MEDIA_PIPELINE) {
+    this->media_playlist_delay_ms_ = delay_ms;
+  } else if (pipeline == ANNOUNCEMENT_PIPELINE) {
+    this->announcement_playlist_delay_ms_ = delay_ms;
+  }
+}
+
+void SpeakerSourceMediaPlayer::handle_speaker_playback_callback_(uint32_t frames, int64_t timestamp, size_t pipeline) {
+  // Copy pointer to local variable to avoid TOCTOU race
+  media_source::MediaSource *active_source =
+      (pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
+  uint32_t *pending_frames =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_pending_frames_ : &this->announcement_pending_frames_;
+
+  // Check once - if null after this, we've avoided the race
+  if (active_source == nullptr) {
+    return;
+  }
+
+  // Calculate how many frames belong to this source
+  uint32_t source_frames = std::min(frames, *pending_frames);
+  *pending_frames -= source_frames;
+
+  if (source_frames > 0) {
+    // Notify the source about the played audio
+    // Safe: we've already checked active_source is not null and copied it locally
+    active_source->notify_audio_played(source_frames, timestamp, pipeline);
+  }
+}
+
+void SpeakerSourceMediaPlayer::handle_volume_request_(media_source::MediaSource *source, float volume) {
+  // Update the media player's volume
+  this->set_volume_(volume);
+  this->publish_state();
+}
+
+void SpeakerSourceMediaPlayer::handle_mute_request_(media_source::MediaSource *source, bool is_muted) {
+  // Update the media player's mute state
+  this->set_mute_state_(is_muted);
+  this->publish_state();
+}
+
+void SpeakerSourceMediaPlayer::handle_play_uri_request_(media_source::MediaSource *source, const std::string &uri,
+                                                        size_t pipeline) {
+  // Smart source is requesting the player to play a different URI
+  // This may route to a different source based on URI prefix
+  auto call = this->make_call();
+  call.set_media_url(uri);
+  call.set_announcement(pipeline == ANNOUNCEMENT_PIPELINE);
+  call.perform();
+}
+
+void SpeakerSourceMediaPlayer::handle_media_state_callback_(media_source::MediaSource *source,
+                                                            media_source::MediaSourceState state, size_t pipeline) {
+  media_source::MediaSource **active_source_ptr =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_active_source_ : &this->announcement_active_source_;
+  media_source::MediaSource **last_source_ptr =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_last_source_ : &this->announcement_last_source_;
+
+  speaker::Speaker *target_speaker = (pipeline == MEDIA_PIPELINE) ? this->media_speaker_ : this->announcement_speaker_;
+  std::vector<std::string> *playlist =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_playlist_ : &this->announcement_playlist_;
+  bool repeat_one = (pipeline == MEDIA_PIPELINE) ? this->media_repeat_one_ : this->announcement_repeat_one_;
+  uint32_t playlist_delay_ms =
+      (pipeline == MEDIA_PIPELINE) ? this->media_playlist_delay_ms_ : this->announcement_playlist_delay_ms_;
+
+  // Update active source tracking based on state transitions
+  if (state == media_source::MediaSourceState::IDLE) {
+    // Source went idle - clear stopping flag if this was the source we asked to stop
+    media_source::MediaSource **stopping_source_ptr =
+        (pipeline == MEDIA_PIPELINE) ? &this->media_stopping_source_ : &this->announcement_stopping_source_;
+    if (*stopping_source_ptr == source) {
+      *stopping_source_ptr = nullptr;
+    }
+
+    // Source went idle - clear it if it's the active source
+    if (*active_source_ptr == source) {
+      *last_source_ptr = *active_source_ptr;  // Update last source
+      *active_source_ptr = nullptr;
+      // Finish the speaker to ensure it's ready for the next playback
+      if (target_speaker != nullptr) {
+        target_speaker->finish();
+      }
+
+      // Handle playlist progression
+      xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
+      if (!playlist->empty()) {
+        // Pop the front item if repeat is disabled
+        if (!repeat_one) {
+          playlist->erase(playlist->begin());
+        }
+
+        // If there are more items in the playlist, schedule the next one
+        if (!playlist->empty()) {
+          const std::string next_uri = playlist->front();
+          xSemaphoreGive(this->playlist_mutex_);
+
+          const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
+
+          if (playlist_delay_ms > 0) {
+            // Schedule playback with delay
+            this->set_timeout(timeout_id, playlist_delay_ms, [this, next_uri, pipeline]() {
+              MediaPlayerControlCommand control_command;
+              control_command.type = MediaPlayerControlCommand::PLAY_URI;
+              control_command.pipeline = pipeline;
+              control_command.data.uri = new std::string(next_uri);
+              if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
+                delete control_command.data.uri;  // Clean up on failure
+                ESP_LOGE(TAG, "Failed to queue command, command dropped");
+              }
+            });
+          } else {
+            // Play immediately
+            MediaPlayerControlCommand control_command;
+            control_command.type = MediaPlayerControlCommand::PLAY_URI;
+            control_command.pipeline = pipeline;
+            control_command.data.uri = new std::string(next_uri);
+            if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
+              delete control_command.data.uri;  // Clean up on failure
+              ESP_LOGE(TAG, "Failed to queue command, command dropped");
+            }
+          }
+        } else {
+          xSemaphoreGive(this->playlist_mutex_);
+        }
+      } else {
+        xSemaphoreGive(this->playlist_mutex_);
+      }
+    }
+  } else if (state == media_source::MediaSourceState::PLAYING) {
+    // Source started playing - make it the active source if no one else is active
+    // (Note: try_execute_play_uri_ ensures old source is stopped before new one plays)
+    if (*active_source_ptr == nullptr) {
+      *active_source_ptr = source;
+      *last_source_ptr = nullptr;  // clear the last active source
+    }
+  }
+}
+
+size_t SpeakerSourceMediaPlayer::handle_media_output_callback_(media_source::MediaSource *source, uint8_t *data,
+                                                               size_t length, TickType_t ticks,
+                                                               audio::AudioStreamInfo stream_info, size_t pipeline) {
+  media_source::MediaSource *active_source =
+      (pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
+  speaker::Speaker *target_speaker = (pipeline == MEDIA_PIPELINE) ? this->media_speaker_ : this->announcement_speaker_;
+  uint32_t *pending_frames =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_pending_frames_ : &this->announcement_pending_frames_;
+
+  if (target_speaker == nullptr) {
+    vTaskDelay(ticks);
+    return 0;
+  }
+
+  if (active_source == source) {
+    // This source is active - play the audio
+    if (target_speaker->get_audio_stream_info() != stream_info) {
+      target_speaker->set_audio_stream_info(stream_info);
+      vTaskDelay(ticks);
+      return 0;
+    }
+    size_t bytes_written = target_speaker->play(data, length, ticks);
+    if (bytes_written > 0) {
+      // Track frames sent to speaker for this source
+      *pending_frames += stream_info.bytes_to_frames(bytes_written);
+    }
+    return bytes_written;
+  }
+
+  // Not the active source - wait for state callback to set us as active when we transition to PLAYING
+  vTaskDelay(ticks);
+  return 0;
+}
+
+void SpeakerSourceMediaPlayer::loop() {
+  // Process queued control commands
+  this->process_control_queue_();
+
+  // Update state based on active sources - announcement pipeline takes priority
+  media_player::MediaPlayerState old_state = this->state;
+
+  // Check playlist state to detect transitions between items
+  bool announcement_has_next_item = false;
+  bool media_has_next_item = false;
+  xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
+  announcement_has_next_item = !this->announcement_playlist_.empty() || this->announcement_repeat_one_;
+  media_has_next_item = !this->media_playlist_.empty() || this->media_repeat_one_;
+  xSemaphoreGive(this->playlist_mutex_);
+
+  // Check announcement pipeline first
+  // Copy pointer to local variable to avoid TOCTOU race
+  media_source::MediaSource *announcement_source = this->announcement_active_source_;
+  if (announcement_source != nullptr) {
+    // Get state once and store it to avoid multiple dereferences
+    media_source::MediaSourceState announcement_state = announcement_source->get_state(ANNOUNCEMENT_PIPELINE);
+    if (announcement_state != media_source::MediaSourceState::IDLE) {
+      // Announcement is active - announcements take priority and never report PAUSED
+      switch (announcement_state) {
+        case media_source::MediaSourceState::PLAYING:
+        case media_source::MediaSourceState::PAUSED:  // Treat paused announcements as announcing
+        case media_source::MediaSourceState::BUFFERING:
+          this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+          break;
+        case media_source::MediaSourceState::ERROR:
+          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+          ESP_LOGE(TAG, "Announcement source is in error state");
+          break;
+        default:
+          break;
+      }
+    } else {
+      // Announcement pipeline is idle, check media pipeline
+      // Copy pointer to local variable to avoid TOCTOU race
+      media_source::MediaSource *media_source = this->media_active_source_;
+      if (media_source != nullptr) {
+        // Get state once and store it to avoid multiple dereferences
+        media_source::MediaSourceState media_state = media_source->get_state(MEDIA_PIPELINE);
+        switch (media_state) {
+          case media_source::MediaSourceState::IDLE:
+            this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+            break;
+          case media_source::MediaSourceState::PAUSED:
+            this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+            break;
+          case media_source::MediaSourceState::PLAYING:
+            this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+            break;
+          case media_source::MediaSourceState::BUFFERING:
+            this->state = media_player::MEDIA_PLAYER_STATE_IDLE;  // Map buffering to idle for now
+            break;
+          case media_source::MediaSourceState::ERROR:
+            this->state = media_player::MEDIA_PLAYER_STATE_IDLE;  // Map error to idle
+            ESP_LOGE(TAG, "Media source is in error state");
+            break;
+        }
+      } else {
+        // No active media source - check if transitioning to next media item
+        if (media_has_next_item && old_state == media_player::MEDIA_PLAYER_STATE_PLAYING) {
+          this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+        } else {
+          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+        }
+      }
+    }
+  } else if (announcement_has_next_item && old_state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
+    // No active announcement source, but transitioning to next announcement item
+    this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+  } else {
+    // No active announcement, check media pipeline
+    // Copy pointer to local variable to avoid TOCTOU race
+    media_source::MediaSource *media_source = this->media_active_source_;
+    if (media_source != nullptr) {
+      // Get state once and store it to avoid multiple dereferences
+      media_source::MediaSourceState media_state = media_source->get_state(MEDIA_PIPELINE);
+      switch (media_state) {
+        case media_source::MediaSourceState::IDLE:
+          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+          break;
+        case media_source::MediaSourceState::PAUSED:
+          this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+          break;
+        case media_source::MediaSourceState::PLAYING:
+          this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+          break;
+        case media_source::MediaSourceState::BUFFERING:
+          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;  // Map buffering to idle for now
+          break;
+        case media_source::MediaSourceState::ERROR:
+          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;  // Map error to idle
+          ESP_LOGE(TAG, "Media source is in error state");
+          break;
+      }
+    } else {
+      // No active media source - check if transitioning to next media item
+      if (media_has_next_item && old_state == media_player::MEDIA_PLAYER_STATE_PLAYING) {
+        this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+      } else {
+        this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+      }
+    }
+  }
+
+  if (this->state != old_state) {
+    this->publish_state();
+    ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+  }
+}
+
+media_source::MediaSource *SpeakerSourceMediaPlayer::find_source_for_uri_(const std::string &uri, size_t pipeline) {
+  for (auto &source : this->media_sources_) {
+    const std::string &prefix = source->get_uri_prefix();
+    if (uri.find(prefix) == 0) {
+      // Check if this source can handle this pipeline (is it idle on this pipeline?)
+      if (source->get_state(pipeline) == media_source::MediaSourceState::IDLE) {
+        return source;  // First idle match wins
+      }
+    }
+  }
+  // If no idle source found, try again without checking state (will be stopped by try_execute_play_uri_)
+  for (auto &source : this->media_sources_) {
+    const std::string &prefix = source->get_uri_prefix();
+    if (uri.find(prefix) == 0) {
+      return source;  // First match wins
+    }
+  }
+  return nullptr;
+}
+
+bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, size_t pipeline) {
+  // Find target source
+  media_source::MediaSource *target_source = this->find_source_for_uri_(uri, pipeline);
+  if (target_source == nullptr) {
+    ESP_LOGW(TAG, "No source found for URI: %s", uri.c_str());
+    return true;  // Remove from queue (unrecoverable)
+  }
+
+  // Get the active source for this pipeline
+  // Copy pointer to local variable to avoid TOCTOU race
+  media_source::MediaSource *active_source =
+      (pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
+  speaker::Speaker *target_speaker = (pipeline == MEDIA_PIPELINE) ? this->media_speaker_ : this->announcement_speaker_;
+
+  // Get the stopping source for this pipeline
+  media_source::MediaSource **stopping_source_ptr =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_stopping_source_ : &this->announcement_stopping_source_;
+
+  // If active source exists and is not IDLE, stop it and wait
+  if (active_source != nullptr) {
+    // Get state once and store it to avoid multiple dereferences
+    media_source::MediaSourceState active_state = active_source->get_state(pipeline);
+    if (active_state != media_source::MediaSourceState::IDLE) {
+      // Only send END command once per source - check if we've already asked this source to stop
+      if (*stopping_source_ptr != active_source) {
+        ESP_LOGD(TAG, "Pipeline %zu: Stopping active source before playing: %s", pipeline, uri.c_str());
+        active_source->handle_command(media_source::MEDIA_SOURCE_COMMAND_END, pipeline);
+        if (target_speaker != nullptr) {
+          target_speaker->stop();
+        }
+        *stopping_source_ptr = active_source;
+      }
+      return false;  // Leave in queue, retry next loop
+    }
+  }
+
+  // Clear stopping flag since we're past the stopping phase
+  *stopping_source_ptr = nullptr;
+
+  // Check if speaker is ready
+  if (!target_speaker->is_stopped()) {
+    return false;  // Speaker not ready yet, retry later
+  }
+
+  // Speaker is ready, try to play
+  if (!target_source->play_uri(uri, pipeline)) {
+    ESP_LOGE(TAG, "Pipeline %zu: Failed to play URI: %s", pipeline, uri.c_str());
+  }
+
+  // Reset pending frame counter for this pipeline since we're starting a new source
+  if (pipeline == MEDIA_PIPELINE) {
+    this->media_pending_frames_ = 0;
+  } else {
+    this->announcement_pending_frames_ = 0;
+  }
+
+  return true;  // Remove from queue
+}
+
+void SpeakerSourceMediaPlayer::process_control_queue_() {
+  MediaPlayerControlCommand control_command;
+
+  // Use peek to check command without removing it
+  if (xQueuePeek(this->media_control_command_queue_, &control_command, 0) == pdTRUE) {
+    bool command_executed = false;
+
+    switch (control_command.type) {
+      case MediaPlayerControlCommand::PLAY_URI:
+        command_executed = this->try_execute_play_uri_(*control_command.data.uri, control_command.pipeline);
+        break;
+
+      case MediaPlayerControlCommand::ENQUEUE_URI: {
+        // Enqueue URI to the active source's internal playlist
+        // Copy pointer to local variable to avoid TOCTOU race
+        media_source::MediaSource *active_source = (control_command.pipeline == MEDIA_PIPELINE)
+                                                       ? this->media_active_source_
+                                                       : this->announcement_active_source_;
+
+        // Check once and store capability to avoid multiple dereferences
+        bool has_internal_playlist = false;
+        if (active_source != nullptr) {
+          has_internal_playlist = active_source->get_capabilities().has_internal_playlist;
+        }
+
+        if (has_internal_playlist) {
+          // Call enqueue_uri on the source
+          bool success = active_source->enqueue_uri(*control_command.data.uri, control_command.pipeline);
+          if (!success) {
+            ESP_LOGW(TAG, "Pipeline %zu: Failed to enqueue URI: %s", control_command.pipeline,
+                     control_command.data.uri->c_str());
+          }
+          command_executed = true;
+        } else {
+          // Source doesn't support internal playlist, command shouldn't have been queued
+          ESP_LOGE(TAG,
+                   "Logic error: ENQUEUE_URI command queued for pipeline %zu but source doesn't support internal "
+                   "playlist",
+                   control_command.pipeline);
+          command_executed = true;  // Remove from queue
+        }
+        break;
+      }
+
+      case MediaPlayerControlCommand::SEND_COMMAND: {
+        // Route command to the appropriate pipeline's active source
+        // Copy pointer to local variable to avoid TOCTOU race
+        media_source::MediaSource *active_source = (control_command.pipeline == MEDIA_PIPELINE)
+                                                       ? this->media_active_source_
+                                                       : this->announcement_active_source_;
+        if (active_source != nullptr) {
+          active_source->handle_command(control_command.data.source_command, control_command.pipeline);
+        } else {
+          media_source::MediaSource *last_source =
+              (control_command.pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
+          if (last_source != nullptr) {
+            last_source->handle_command(control_command.data.source_command, control_command.pipeline);
+          }
+        }
+        command_executed = true;
+        break;
+      }
+    }
+
+    // Only remove from queue if successfully executed
+    if (command_executed) {
+      xQueueReceive(this->media_control_command_queue_, &control_command, 0);
+
+      // Delete the allocated string for PLAY_URI and ENQUEUE_URI commands
+      if (control_command.type == MediaPlayerControlCommand::PLAY_URI ||
+          control_command.type == MediaPlayerControlCommand::ENQUEUE_URI) {
+        delete control_command.data.uri;  // Must be manually deleted after receiving from queue
+      }
+    }
+  }
+}
+
+void SpeakerSourceMediaPlayer::clear_local_playlist_(size_t pipeline, bool keep_current_item) {
+  const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
+  this->cancel_timeout(timeout_id);
+
+  xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
+  if (pipeline == MEDIA_PIPELINE) {
+    if (keep_current_item && !this->media_playlist_.empty()) {
+      // Keep only the currently playing item
+      std::string current = this->media_playlist_.front();
+      this->media_playlist_.clear();
+      this->media_playlist_.push_back(current);
+    } else {
+      this->media_playlist_.clear();
+    }
+  } else {
+    if (keep_current_item && !this->announcement_playlist_.empty()) {
+      // Keep only the currently playing item
+      std::string current = this->announcement_playlist_.front();
+      this->announcement_playlist_.clear();
+      this->announcement_playlist_.push_back(current);
+    } else {
+      this->announcement_playlist_.clear();
+    }
+  }
+  xSemaphoreGive(this->playlist_mutex_);
+}
+
+void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call) {
+  if (!this->is_ready()) {
+    // Ignore any commands sent before the media player is setup
+    return;
+  }
+
+  MediaPlayerControlCommand control_command;
+
+  // Determine which pipeline to use based on announcement flag
+  if (call.get_announcement().has_value() && call.get_announcement().value() &&
+      this->announcement_speaker_ != nullptr) {
+    control_command.pipeline = ANNOUNCEMENT_PIPELINE;
+  } else {
+    control_command.pipeline = MEDIA_PIPELINE;  // Default
+  }
+
+  if (call.get_media_url().has_value()) {
+    // Copy pointer to local variable to avoid TOCTOU race
+    media_source::MediaSource *active_source =
+        (control_command.pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
+
+    bool enqueue =
+        call.get_command().has_value() && call.get_command().value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE;
+
+    // Check if active source has internal playlist management
+    // Store capability to avoid multiple dereferences
+    bool has_internal_playlist = false;
+    if (active_source != nullptr) {
+      has_internal_playlist = active_source->get_capabilities().has_internal_playlist;
+    }
+
+    if (has_internal_playlist) {
+      // Source manages its own playlist - delegate to source
+      if (enqueue) {
+        control_command.type = MediaPlayerControlCommand::ENQUEUE_URI;
+        control_command.data.uri = new std::string(call.get_media_url().value());
+        if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
+          delete control_command.data.uri;  // Clean up on failure
+          ESP_LOGE(TAG, "Failed to queue command, command dropped");
+        }
+      } else {
+        // Just play the URI - source handles its own queueing behavior
+        control_command.type = MediaPlayerControlCommand::PLAY_URI;
+        control_command.data.uri = new std::string(call.get_media_url().value());
+        if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
+          delete control_command.data.uri;  // Clean up on failure
+          ESP_LOGE(TAG, "Failed to queue command, command dropped");
+        }
+      }
+    } else {
+      // Use local playlist management
+      std::vector<std::string> *playlist =
+          (control_command.pipeline == MEDIA_PIPELINE) ? &this->media_playlist_ : &this->announcement_playlist_;
+      const std::string timeout_id = (control_command.pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
+
+      xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
+
+      if (enqueue) {
+        // Add to end of playlist
+        playlist->push_back(call.get_media_url().value());
+
+        // If nothing is playing, start playback with the first item
+        // Get state once to avoid multiple dereferences
+        bool should_start = false;
+        if (active_source == nullptr) {
+          should_start = true;
+        } else {
+          media_source::MediaSourceState active_state = active_source->get_state(control_command.pipeline);
+          should_start = (active_state == media_source::MediaSourceState::IDLE);
+        }
+
+        xSemaphoreGive(this->playlist_mutex_);
+
+        if (should_start) {
+          control_command.type = MediaPlayerControlCommand::PLAY_URI;
+          control_command.data.uri = new std::string(call.get_media_url().value());
+          if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
+            delete control_command.data.uri;  // Clean up on failure
+            ESP_LOGE(TAG, "Failed to queue command, command dropped");
+          }
+        }
+      } else {
+        // Replace current playback - clear playlist, start new URI, then add to playlist
+        this->cancel_timeout(timeout_id);
+        playlist->clear();
+
+        xSemaphoreGive(this->playlist_mutex_);
+
+        // Start playback first
+        control_command.type = MediaPlayerControlCommand::PLAY_URI;
+        control_command.data.uri = new std::string(call.get_media_url().value());
+        if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
+          delete control_command.data.uri;  // Clean up on failure
+          ESP_LOGE(TAG, "Failed to queue command, command dropped");
+        }
+
+        // Now add to playlist so it's tracked as the current item
+        xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
+        playlist->push_back(call.get_media_url().value());
+        xSemaphoreGive(this->playlist_mutex_);
+      }
+    }
+
+    return;
+  }
+
+  if (call.get_volume().has_value()) {
+    this->set_volume_(call.get_volume().value());
+    this->publish_state();
+    return;
+  }
+
+  if (call.get_command().has_value()) {
+    // Copy pointer to local variable to avoid TOCTOU race
+    media_source::MediaSource *active_source =
+        (control_command.pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
+
+    // Store capability to avoid multiple dereferences
+    bool has_internal_playlist = false;
+    if (active_source != nullptr) {
+      has_internal_playlist = active_source->get_capabilities().has_internal_playlist;
+    }
+
+    media_source::MediaSourceCommand media_source_command = media_source::MEDIA_SOURCE_COMMAND_NOP;
+    switch (call.get_command().value()) {
+      case media_player::MEDIA_PLAYER_COMMAND_PLAY:
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_PLAY;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_STOP: {
+        if (!has_internal_playlist) {
+          // Stop should clear the playlist to prevent auto-progression
+          this->clear_local_playlist_(control_command.pipeline, false);
+        }
+
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_STOP;
+        break;
+      }
+      case media_player::MEDIA_PLAYER_COMMAND_MUTE:
+        this->set_mute_state_(true);
+        this->publish_state();
+        return;
+      case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
+        this->set_mute_state_(false);
+        this->publish_state();
+        return;
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+        this->set_volume_(std::min(1.0f, this->volume + this->volume_increment_));
+        this->publish_state();
+        return;
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+        this->set_volume_(std::max(0.0f, this->volume - this->volume_increment_));
+        this->publish_state();
+        return;
+      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+        if (has_internal_playlist) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL;
+        } else {
+          // TODO: Handle repeat entire playlist
+          return;
+        }
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+        if (has_internal_playlist) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE;
+        } else {
+          if (control_command.pipeline == MEDIA_PIPELINE) {
+            this->media_repeat_one_ = true;
+          } else {
+            this->announcement_repeat_one_ = true;
+          }
+          return;
+        }
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+        if (has_internal_playlist) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF;
+        } else {
+          if (control_command.pipeline == MEDIA_PIPELINE) {
+            this->media_repeat_one_ = false;
+          } else {
+            this->announcement_repeat_one_ = false;
+          }
+          return;
+        }
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+        if (has_internal_playlist) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST;
+        } else {
+          // Clear playlist but keep the currently playing item
+          this->clear_local_playlist_(control_command.pipeline, true);
+          return;
+        }
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_NEXT:
+        if (has_internal_playlist) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_NEXT;
+        } else {
+          // TODO: Go to next track in media player playlist
+          return;
+        }
+      case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS:
+        if (has_internal_playlist) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_PREVIOUS;
+        } else {
+          // TODO: Go to previous track in media player playlist
+          return;
+        }
+      case media_player::MEDIA_PLAYER_COMMAND_SHUFFLE:
+        if (has_internal_playlist) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_SHUFFLE;
+        } else {
+          // TODO: Handle shuffle in media player playlist
+          return;
+        }
+      case media_player::MEDIA_PLAYER_COMMAND_UNSHUFFLE:
+        if (has_internal_playlist) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE;
+        } else {
+          // TODO: Handle unshuffle in media player playlist
+          return;
+        }
+      case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
+        if (active_source->get_capabilities().supports_group_join) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN;
+        } else {
+          // TODO: Probably just ignore this, right?
+          return;
+        }
+      default:
+        break;
+    }
+    if (media_source_command != media_source::MEDIA_SOURCE_COMMAND_NOP) {
+      control_command.type = MediaPlayerControlCommand::SEND_COMMAND;
+      control_command.data.source_command = media_source_command;
+
+      xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY);
+    }
+  }
+}
+
+media_player::MediaPlayerTraits SpeakerSourceMediaPlayer::get_traits() {
+  auto traits = media_player::MediaPlayerTraits();
+  traits.set_supports_pause(true);
+
+  if (this->announcement_format_.has_value()) {
+    traits.get_supported_formats().push_back(this->announcement_format_.value());
+  }
+  if (this->media_format_.has_value()) {
+    traits.get_supported_formats().push_back(this->media_format_.value());
+  }
+
+  return traits;
+};
+
+void SpeakerSourceMediaPlayer::save_volume_restore_state_() {
+  VolumeRestoreState volume_restore_state;
+  volume_restore_state.volume = this->volume;
+  volume_restore_state.is_muted = this->is_muted_;
+  this->pref_.save(&volume_restore_state);
+}
+
+void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state) {
+  if (this->media_speaker_ != nullptr) {
+    this->media_speaker_->set_mute_state(mute_state);
+  }
+  if (this->announcement_speaker_ != nullptr) {
+    this->announcement_speaker_->set_mute_state(mute_state);
+  }
+
+  bool old_mute_state = this->is_muted_;
+  this->is_muted_ = mute_state;
+
+  this->save_volume_restore_state_();
+
+  // Notify media sources that support volume control about the mute state change
+  for (auto *media_source : this->media_sources_) {
+    if (media_source->get_capabilities().supports_volume_control) {
+      media_source->notify_mute_changed(mute_state);
+    }
+  }
+
+  if (old_mute_state != mute_state) {
+    if (mute_state) {
+      this->defer([this]() { this->mute_trigger_->trigger(); });
+    } else {
+      this->defer([this]() { this->unmute_trigger_->trigger(); });
+    }
+  }
+}
+
+void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
+  // Remap the volume to fit with in the configured limits
+  float bounded_volume = remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
+
+  if (this->media_speaker_ != nullptr) {
+    this->media_speaker_->set_volume(bounded_volume);
+  }
+
+  if (this->announcement_speaker_ != nullptr) {
+    this->announcement_speaker_->set_volume(bounded_volume);
+  }
+
+  if (publish) {
+    this->volume = volume;
+    this->save_volume_restore_state_();
+  }
+
+  // Notify media sources that support volume control about the volume change
+  for (auto *media_source : this->media_sources_) {
+    if (media_source->get_capabilities().supports_volume_control) {
+      media_source->notify_volume_changed(volume);
+    }
+  }
+
+  // Turn on the mute state if the volume is effectively zero, off otherwise
+  if (volume < 0.001) {
+    this->set_mute_state_(true);
+  } else {
+    this->set_mute_state_(false);
+  }
+
+  this->defer([this, volume]() { this->volume_trigger_->trigger(volume); });
+}
+
+}  // namespace speaker_source
+}  // namespace esphome
+
+#endif
