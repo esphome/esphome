@@ -624,7 +624,6 @@ void MQTTClientComponent::disable() {
   this->on_shutdown();
 }
 
-
 /** Check if the message topic matches the given subscription topic
  *
  * INFO: MQTT spec mandates that topics must not be empty and must be valid NULL-terminated UTF-8 strings.
