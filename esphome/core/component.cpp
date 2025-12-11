@@ -138,7 +138,16 @@ void Component::set_retry(const std::string &name, uint32_t initial_wait_time, u
   App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
 
+void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
+                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+}
+
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
+  return App.scheduler.cancel_retry(this, name);
+}
+
+bool Component::cancel_retry(const char *name) {  // NOLINT
   return App.scheduler.cancel_retry(this, name);
 }
 

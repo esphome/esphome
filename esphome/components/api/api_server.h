@@ -190,16 +190,27 @@ class APIServer : public Component,
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
-    std::string entity_id;
-    optional<std::string> attribute;
+    const char *entity_id;  // Pointer to flash (internal) or heap (external)
+    const char *attribute;  // Pointer to flash or nullptr (nullptr means no attribute)
     std::function<void(std::string)> callback;
     bool once;
+
+    // Dynamic storage for external components using std::string API (custom_api_device.h)
+    // These are only allocated when using the std::string overload (nullptr for const char* overload)
+    std::unique_ptr<std::string> entity_id_dynamic_storage;
+    std::unique_ptr<std::string> attribute_dynamic_storage;
   };
 
+  // New const char* overload (for internal components - zero allocation)
+  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(std::string)> f);
+  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(std::string)> f);
+
+  // Existing std::string overload (for custom_api_device.h - heap allocation)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(std::string)> f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
+
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
@@ -220,6 +231,13 @@ class APIServer : public Component,
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
 #endif  // USE_API_NOISE
+#ifdef USE_API_HOMEASSISTANT_STATES
+  // Helper methods to reduce code duplication
+  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(std::string)> f,
+                               bool once);
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                               std::function<void(std::string)> f, bool once);
+#endif  // USE_API_HOMEASSISTANT_STATES
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER

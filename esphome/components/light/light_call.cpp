@@ -504,8 +504,8 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
 #undef KEY
 }
 
-LightCall &LightCall::set_effect(const std::string &effect) {
-  if (strcasecmp(effect.c_str(), "none") == 0) {
+LightCall &LightCall::set_effect(const char *effect, size_t len) {
+  if (len == 4 && strncasecmp(effect, "none", 4) == 0) {
     this->set_effect(0);
     return *this;
   }
@@ -513,15 +513,16 @@ LightCall &LightCall::set_effect(const std::string &effect) {
   bool found = false;
   for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
     LightEffect *e = this->parent_->effects_[i];
+    const char *name = e->get_name();
 
-    if (strcasecmp(effect.c_str(), e->get_name()) == 0) {
+    if (strncasecmp(effect, name, len) == 0 && name[len] == '\0') {
       this->set_effect(i + 1);
       found = true;
       break;
     }
   }
   if (!found) {
-    ESP_LOGW(TAG, "'%s': no such effect '%s'", this->parent_->get_name().c_str(), effect.c_str());
+    ESP_LOGW(TAG, "'%s': no such effect '%.*s'", this->parent_->get_name().c_str(), (int) len, effect);
   }
   return *this;
 }
