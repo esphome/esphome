@@ -51,16 +51,9 @@ class PowerManagement : public Component {
 #ifdef USE_ESP_IDF
   mutable std::mutex pm_lock_mutex_;
   esp_pm_lock_handle_t pm_lock_handles_[PM_LOCK_ARRAY_SIZE];
-#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   // match with PowerManagementLockType
   esp_pm_lock_type_t pm_lock_types_[PM_LOCK_ARRAY_SIZE] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_CPU_FREQ_MAX,
                                                            ESP_PM_APB_FREQ_MAX, ESP_PM_NO_LIGHT_SLEEP};
-#else
-  // substitute apb for slp
-  esp_pm_lock_type_t pm_lock_types_[PM_LOCK_ARRAY_SIZE] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_CPU_FREQ_MAX,
-                                                           ESP_PM_APB_FREQ_MAX, ESP_PM_APB_FREQ_MAX};
-#endif
-
 #endif
   uint32_t timer_lock_duration_{0};
   uint32_t max_freq_mhz_{0};
