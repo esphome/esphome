@@ -312,6 +312,8 @@ void MQTTClientComponent::check_connected() {
   // MQTT Client needs some time to be fully set up.
   delay(100);  // NOLINT
 
+  // Startup subscriptions
+  // TODO: Get the session_present flag from the backend
   this->resubscribe_subscriptions_();
   this->send_device_info_();
 
@@ -388,6 +390,7 @@ void MQTTClientComponent::loop() {
         }
 
         this->last_connected_ = now;
+        // Try to resubscribe subscriptions that failed
         this->resubscribe_subscriptions_();
       }
       break;
@@ -427,10 +430,18 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   if (do_resub) {
     sub->subscribed = this->subscribe_(sub->topic.c_str(), sub->qos);
     sub->resubscribe_timeout = now;
+    // We are in a persistent session and have subscribed successfully
+    if (!this->credentials_.clean_session && sub->subscribed) {
+      // TODO: Store the topic and QOS to non-volatile memory
+    }
   }
 }
-void MQTTClientComponent::resubscribe_subscriptions_() {
+void MQTTClientComponent::resubscribe_subscriptions_(bool session_present) {
   for (auto &subscription : this->subscriptions_) {
+    // If the session is present, check if we had already subscribed
+    if (session_present && !subscription.subscribed) {
+      // TODO: Check if we have stored the subscription before and set subscribed = true
+    }
     this->resubscribe_subscription_(&subscription);
   }
 }

@@ -300,7 +300,7 @@ class MQTTClientComponent : public Component
 
   bool subscribe_(const char *topic, uint8_t qos);
   void resubscribe_subscription_(MQTTSubscription *sub);
-  void resubscribe_subscriptions_();
+  void resubscribe_subscriptions_(bool session_present = false);
 
   MQTTCredentials credentials_;
   /// The last will message. Disabled optional denotes it being default and
