@@ -45,7 +45,7 @@ std::string MQTTComponent::get_state_topic_() const {
 std::string MQTTComponent::get_command_topic_() const {
   if (this->has_custom_command_topic_)
     return this->custom_command_topic_.str();
-  return this->get_default_topic_for_("cm");
+  return this->get_default_topic_for_("x");
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
