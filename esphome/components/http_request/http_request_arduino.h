@@ -2,9 +2,9 @@
 
 #include "http_request.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_RP2040)
 #include <HTTPClient.h>
 #include <WiFiClient.h>
 #endif
@@ -39,4 +39,4 @@ class HttpRequestArduino : public HttpRequestComponent {
 }  // namespace http_request
 }  // namespace esphome
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO && !USE_ESP32

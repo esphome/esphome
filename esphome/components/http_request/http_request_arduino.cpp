@@ -1,6 +1,6 @@
 #include "http_request_arduino.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -75,8 +75,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     container->client_.setInsecure();
   }
   bool status = container->client_.begin(url.c_str());
-#elif defined(USE_ESP32)
-  bool status = container->client_.begin(url.c_str());
 #endif
 
   App.feed_wdt();
@@ -90,9 +88,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 
   container->client_.setReuse(true);
   container->client_.setTimeout(this->timeout_);
-#if defined(USE_ESP32)
-  container->client_.setConnectTimeout(this->timeout_);
-#endif
 
   if (this->useragent_ != nullptr) {
     container->client_.setUserAgent(this->useragent_);
@@ -180,4 +175,4 @@ void HttpContainerArduino::end() {
 }  // namespace http_request
 }  // namespace esphome
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO && !USE_ESP32
