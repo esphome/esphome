@@ -426,7 +426,12 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub, bool 
     return;
   // If the session is present, check if we had already subscribed
   if (check_persistence) {
-    // TODO: Check if we have stored the subscription before and set subscribed = true if so
+    if (is_subscription_stored(*sub)) {
+      ESP_LOGV(TAG, "Subscription to topic='%s' qos=%d already present in persistent session, skipping subscribe",
+               sub->topic.c_str(), sub->qos);
+      sub->subscribed = true;
+      return;
+    }
   }
 
   const uint32_t now = millis();
@@ -437,7 +442,7 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub, bool 
     sub->resubscribe_timeout = now;
     // We are in a persistent session and have subscribed successfully
     if (!this->credentials_.clean_session && sub->subscribed) {
-      // TODO: Store the topic and QOS to non-volatile memory
+      store_subscription(*sub);
     }
   }
 }
@@ -478,7 +483,6 @@ void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_js
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
-  // TODO: Remove from persistent storage if needed
   bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
   yield();
   if (ret) {
@@ -493,6 +497,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   while (it != subscriptions_.end()) {
     if (it->topic == topic) {
       it = subscriptions_.erase(it);
+      remove_subscription(*it);
     } else {
       ++it;
     }
@@ -556,6 +561,68 @@ void MQTTClientComponent::disable() {
   ESP_LOGD(TAG, "Disabling");
   this->state_ = MQTT_CLIENT_DISABLED;
   this->on_shutdown();
+}
+
+/** Generate a 32-bit hash for an MQTT subscription
+ *
+ * Combines the FNV-1 hash of the topic with the QoS value to create a unique identifier
+ * for the subscription that can be used for persistence checks.
+ *
+ * @param sub The MQTT subscription to hash.
+ * @return A 32-bit hash value combining topic and QoS.
+ */
+static uint32_t hash_subscription(const MQTTSubscription &sub) {
+  uint32_t hash = fnv1_hash(sub.topic.c_str());
+  // Mix in the QoS by XOR'ing it into the hash (shifted to spread bits)
+  hash ^= (static_cast<uint32_t>(sub.qos) << 24);
+  return hash;
+}
+
+/** Store a subscription in persistent storage
+ *
+ * Saves the subscription hash to non-volatile memory so it can be checked
+ * on reconnect to determine if the subscription is already active on the broker.
+ *
+ * @param sub The MQTT subscription to store.
+ * @return true if the subscription was successfully stored, false otherwise.
+ */
+static bool store_subscription(const MQTTSubscription &sub) {
+  uint32_t hash = hash_subscription(sub);
+  auto pref = global_preferences->make_preference<uint32_t>(hash, true);
+  return pref.save(&hash);
+}
+
+/** Check if a subscription is stored in persistent storage
+ *
+ * Retrieves the subscription hash from non-volatile memory to determine if
+ * this subscription was previously stored (indicating it may still be active
+ * on the broker in a persistent session).
+ *
+ * @param sub The MQTT subscription to check.
+ * @return true if the subscription was found in storage, false otherwise.
+ */
+static bool is_subscription_stored(const MQTTSubscription &sub) {
+  uint32_t hash = hash_subscription(sub);
+  auto pref = global_preferences->make_preference<uint32_t>(hash, true);
+  uint32_t stored_hash = 0;
+  if (!pref.load(&stored_hash))
+    return false;
+  return stored_hash == hash;
+}
+
+/** Remove a subscription from persistent storage
+ *
+ * Deletes the subscription hash from non-volatile memory, typically when
+ * unsubscribing from a topic or cleaning up after a clean session.
+ *
+ * @param sub The MQTT subscription to remove.
+ * @return true if the subscription was successfully removed, false otherwise.
+ */
+static bool remove_subscription(const MQTTSubscription &sub) {
+  uint32_t hash = hash_subscription(sub);
+  auto pref = global_preferences->make_preference<uint32_t>(hash, true);
+  uint32_t zero_hash = 0;
+  return pref.save(&zero_hash);
 }
 
 /** Check if the message topic matches the given subscription topic
