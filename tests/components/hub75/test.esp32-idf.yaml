@@ -25,15 +25,15 @@ display:
     oe_pin: GPIO15
     clk_pin: GPIO16
     pages:
-      - id: page1
+      - id: page1_hub75
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
-      - id: page2
+      - id: page2_hub75
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
     on_page_change:
-      from: page1
-      to: page2
+      from: page1_hub75
+      to: page2_hub75
       then:
         lambda: |-
           ESP_LOGD("display", "1 -> 2");

@@ -539,7 +539,8 @@ APIError APINoiseFrameHelper::init_handshake_() {
   if (aerr != APIError::OK)
     return aerr;
   // set_prologue copies it into handshakestate, so we can get rid of it now
-  prologue_ = {};
+  // Use swap idiom to actually release memory (= {} only clears size, not capacity)
+  std::vector<uint8_t>().swap(prologue_);
 
   err = noise_handshakestate_start(handshake_);
   aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_start"), APIError::HANDSHAKESTATE_SETUP_FAILED);
