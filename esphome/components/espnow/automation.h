@@ -88,7 +88,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
 
 template<typename... Ts> class AddPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
-  TEMPLATABLE_VALUE(std::string, lmk);
+  TEMPLATABLE_VALUE(master_key_t, lmk);
 
  public:
   void play(const Ts &...x) override {

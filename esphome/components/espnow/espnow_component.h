@@ -3,10 +3,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-#ifdef USE_MD5
-#include "esphome/components/md5/md5.h"
-#endif
-
 #ifdef USE_ESP32
 
 #include "esphome/core/event_pool.h"
@@ -23,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace esphome::espnow {
 
@@ -33,6 +30,7 @@ static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
 static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
+using master_key_t = std::array<uint8_t, ESP_NOW_KEY_LEN>;
 
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
@@ -55,7 +53,7 @@ enum ESPNowState : uint8_t {
 struct ESPNowPeer {
   uint8_t address[ESP_NOW_ETH_ALEN];  // MAC address of the peer
   uint8_t lmk[ESP_NOW_KEY_LEN]; // Local Master Key (optional)
-  bool    encrypt = false;
+  bool encrypt{false};
 
   bool operator==(const ESPNowPeer &other) const { return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0; }
   bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESP_NOW_ETH_ALEN) == 0; }
@@ -106,30 +104,34 @@ class ESPNowComponent : public Component {
   float get_setup_priority() const override { return setup_priority::LATE; }
 
   // Handle Primary Master Key (PMK)
-  void set_pmk(const std::string& pmk);
+  void set_pmk(const master_key_t& pmk);
   bool has_pmk();
-  void hash_mk(const std::string& mk, const uint8_t* out);
   void set_espnow_pmk();
 
-  // Add a peer to the internal list of peers
-  void add_peer(peer_address_t address, const std::string& lmk = EMPTY_STRING) {
+  // Add a peer with the esp_now api and add to the internal list if doesnt exist already
+  esp_err_t add_peer(const uint8_t *peer, const uint8_t* lmk = nullptr);
+
+  // Overloaded add_peer's
+  void add_peer(peer_address_t address, const master_key_t& lmk) {
+    this->add_peer(address, lmk.data());
+  }
+
+  void add_peer(peer_address_t address, const uint8_t* lmk = nullptr) {
     ESPNowPeer peer;
-    memset(&peer, 0, sizeof(ESPNowPeer));
     memcpy(peer.address, address.data(), ESP_NOW_ETH_ALEN);
-    if (! lmk.empty()) {
+    if (lmk) {
+      memcpy(peer.lmk, lmk, ESP_NOW_KEY_LEN);
       peer.encrypt = true;
-      this->hash_mk(lmk, (const uint8_t*) peer.lmk);
+    } else {
+      peer.encrypt = false;
     }
     this->peers_.push_back(peer);
   }
-  // Add a peer with a string LMK that needs to be hashed first
-  esp_err_t add_peer(const uint8_t *peer, const std::string& lmk) {
-    uint8_t hash[ESP_NOW_KEY_LEN];
-    this->hash_mk(lmk, (const uint8_t*) hash);
-    return this->add_peer(peer, (const uint8_t*) hash);
+
+  esp_err_t add_peer(const uint8_t *peer, const master_key_t& lmk) {
+    return this->add_peer(peer, lmk.data());
   }
-  // Add a peer with the esp_now api and add to the internal list if doesnt exist already
-  esp_err_t add_peer(const uint8_t *peer, const uint8_t* lmk = nullptr);
+
   // Remove a peer with the esp_now api and remove from the internal list if exists
   esp_err_t del_peer(const uint8_t *peer);
 
@@ -200,7 +202,7 @@ class ESPNowComponent : public Component {
   ESPNowState state_{ESPNOW_STATE_OFF};
 
   // Primary Master Key (optional)
-  std::string pmk;
+  std::optional<master_key_t> pmk_{};
 
   bool auto_add_peer_{false};
   bool enable_on_boot_{true};

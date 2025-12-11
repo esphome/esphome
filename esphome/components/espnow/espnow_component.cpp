@@ -9,10 +9,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_MD5
-#include "esphome/core/helpers.h"
-#endif
-
 #include <esp_event.h>
 #include <esp_mac.h>
 #include <esp_netif.h>
@@ -166,40 +162,18 @@ void ESPNowComponent::setup() {
   }
 }
 
-void ESPNowComponent::set_pmk(const std::string& pmk) {
-  this->pmk = pmk;
+void ESPNowComponent::set_pmk(const master_key_t& pmk) {
+  this->pmk_ = std::move(pmk);
 }
 
 bool ESPNowComponent::has_pmk() {
-  return ! this->pmk.empty();
-}
-
-// PMK's and LMK's are 16 bytes. To allow for any string to serve as MK,
-// we'll hash it and use that to fill the MK byte array.
-void ESPNowComponent::hash_mk(const std::string& mk, const uint8_t* out) {
-#ifdef USE_MD5
-  md5::MD5Digest hasher;
-  hasher.init();
-  hasher.add(mk.c_str(), mk.size());
-  hasher.calculate();
-  hasher.get_bytes((uint8_t*) out);
-#else
-  // better than nothing
-  uint32_t hash = fnv1_hash(mk);
-  *((uint32_t*)(&mk[0]))  = hash;
-  *((uint32_t*)(&mk[4]))  = hash;
-  *((uint32_t*)(&mk[8]))  = hash;
-  *((uint32_t*)(&mk[12])) = hash;
-#endif
+  return this->pmk_.has_value();
 }
 
 void ESPNowComponent::set_espnow_pmk() {
   if (! this->has_pmk()) return;
 
-  const uint8_t* pmk[ESP_NOW_KEY_LEN];
-  this->hash_mk(this->pmk, (const uint8_t*) pmk);
-
-  esp_err_t err = esp_now_set_pmk((const uint8_t*) pmk);
+  esp_err_t err = esp_now_set_pmk((const uint8_t*) this->pmk_->data());
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to set Primary Master Key - %s", LOG_STR_ARG(espnow_error_to_str(err)));
     return;

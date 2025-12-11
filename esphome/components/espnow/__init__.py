@@ -17,10 +17,14 @@ from esphome.core import CORE, HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = ["socket", "md5"]
+AUTO_LOAD = ["socket"]
+
+# fixed size of ESP-NOW master keys (both Primary and Local)
+ESPNOW_MASTER_KEY_SIZE = 16
 
 byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
+master_address_t = cg.std_ns.class_("array").template(cg.uint8, ESPNOW_MASTER_KEY_SIZE)
 
 espnow_ns = cg.esphome_ns.namespace("espnow")
 ESPNowComponent = espnow_ns.class_("ESPNowComponent", cg.Component)
@@ -57,7 +61,7 @@ OnBroadcastedTrigger = espnow_ns.class_(
 CONF_AUTO_ADD_PEER = "auto_add_peer"
 CONF_PEERS = "peers"
 CONF_PMK = "pmk"
-CONF_PEER_LMK = "lmk"
+CONF_LMK = "lmk"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
 CONF_ON_BROADCAST = "on_broadcast"
@@ -84,11 +88,20 @@ def _validate_raw_data(value):
         f"'{CONF_DATA}' must either be a string wrapped in quotes or a list of bytes"
     )
 
+def _validate_master_key(value):
+    if isinstance(value, str):
+        value = list(bytes(value.encode()))
+    elif not isinstance(value, list):
+        raise cv.Invalid("Key must either be a string wrapped in quotes or a list of bytes")
+    if len(value) != ESPNOW_MASTER_KEY_SIZE:
+        raise cv.Invalid(f"Key must be {ESPNOW_MASTER_KEY_SIZE} bytes in size, got {len(value)}")
+    return cv.Schema([cv.hex_uint8_t])(value)
+
 PEER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(ESPNowComponent),
         cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
-        cv.Optional(CONF_PEER_LMK): cv.templatable(cv.string),
+        cv.Optional(CONF_LMK): cv.templatable(_validate_master_key),
     }
 )
 
@@ -118,7 +131,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PEERS): cv.ensure_list(
                 cv.Any(cv.mac_address, PEER_SCHEMA)
             ),
-            cv.Optional(CONF_PMK): cv.templatable(cv.string),
+            cv.Optional(CONF_PMK): cv.templatable(_validate_master_key),
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnUnknownPeerTrigger),
@@ -181,7 +194,7 @@ async def to_code(config):
         if isinstance(peer, core.MACAddress):
             cg.add(var.add_peer(peer.parts))
         else:
-            lmk = peer.get(CONF_PEER_LMK, None)
+            lmk = peer.get(CONF_LMK, None)
             if lmk:
                 cg.add(var.add_peer(peer.get(CONF_ADDRESS).parts, lmk))
             else:
@@ -226,8 +239,8 @@ async def register_peer(var, config, args):
     cg.add(var.set_address(template_))
 
     # only for espnow.peer.add
-    if lmk:= config.get(CONF_PEER_LMK, None):
-        template_ = await cg.templatable(lmk, args, cg.std_string)
+    if lmk:= config.get(CONF_LMK, None):
+        template_ = await cg.templatable(lmk, args, master_address_t, master_address_t)
         cg.add(var.set_lmk(template_))
 
 def _validate_send_action(config):
