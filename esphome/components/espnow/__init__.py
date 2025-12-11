@@ -58,6 +58,7 @@ OnBroadcastedTrigger = espnow_ns.class_(
     "OnBroadcastedTrigger", ESPNowHandlerTrigger, ESPNowBroadcastedHandler
 )
 
+
 CONF_AUTO_ADD_PEER = "auto_add_peer"
 CONF_PEERS = "peers"
 CONF_PMK = "pmk"
@@ -70,23 +71,6 @@ CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
-
-def _validate_raw_data(value):
-    if isinstance(value, str):
-        if len(value) >= MAX_ESPNOW_PACKET_SIZE:
-            raise cv.Invalid(
-                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
-            )
-        return value
-    if isinstance(value, list):
-        if len(value) > MAX_ESPNOW_PACKET_SIZE:
-            raise cv.Invalid(
-                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} bytes long, got {len(value)}"
-            )
-        return cv.Schema([cv.hex_uint8_t])(value)
-    raise cv.Invalid(
-        f"'{CONF_DATA}' must either be a string wrapped in quotes or a list of bytes"
-    )
 
 def _validate_master_key(value):
     if isinstance(value, str):
@@ -105,15 +89,6 @@ PEER_SCHEMA = cv.Schema(
     }
 )
 
-SEND_SCHEMA = PEER_SCHEMA.extend(
-    {
-        cv.Required(CONF_DATA): cv.templatable(_validate_raw_data),
-        cv.Optional(CONF_ON_SENT): automation.validate_action_list,
-        cv.Optional(CONF_ON_ERROR): automation.validate_action_list,
-        cv.Optional(CONF_WAIT_FOR_SENT, default=True): cv.boolean,
-        cv.Optional(CONF_CONTINUE_ON_ERROR, default=True): cv.boolean,
-    }
-)
 
 def validate_channel(value):
     if value is None:
@@ -193,12 +168,10 @@ async def to_code(config):
     for peer in config.get(CONF_PEERS, []):
         if isinstance(peer, core.MACAddress):
             cg.add(var.add_peer(peer.parts))
+        elif lmk := peer.get(CONF_LMK):
+            cg.add(var.add_peer(peer.get(CONF_ADDRESS).parts, lmk))
         else:
-            lmk = peer.get(CONF_LMK, None)
-            if lmk:
-                cg.add(var.add_peer(peer.get(CONF_ADDRESS).parts, lmk))
-            else:
-                cg.add(var.add_peer(peer.get(CONF_ADDRESS).parts))
+            cg.add(var.add_peer(peer.get(CONF_ADDRESS).parts))
 
     if pmk := config.get(CONF_PMK):
         cg.add(var.set_pmk(pmk))
@@ -230,6 +203,24 @@ def validate_peer(value):
     return cv.mac_address(value)
 
 
+def _validate_raw_data(value):
+    if isinstance(value, str):
+        if len(value) >= MAX_ESPNOW_PACKET_SIZE:
+            raise cv.Invalid(
+                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
+            )
+        return value
+    if isinstance(value, list):
+        if len(value) > MAX_ESPNOW_PACKET_SIZE:
+            raise cv.Invalid(
+                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} bytes long, got {len(value)}"
+            )
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid(
+        f"'{CONF_DATA}' must either be a string wrapped in quotes or a list of bytes"
+    )
+
+
 async def register_peer(var, config, args):
     peer = config[CONF_ADDRESS]
     if isinstance(peer, core.MACAddress):
@@ -239,9 +230,21 @@ async def register_peer(var, config, args):
     cg.add(var.set_address(template_))
 
     # only for espnow.peer.add
-    if lmk:= config.get(CONF_LMK, None):
+    if lmk:= config.get(CONF_LMK):
         template_ = await cg.templatable(lmk, args, master_address_t, master_address_t)
         cg.add(var.set_lmk(template_))
+
+
+SEND_SCHEMA = PEER_SCHEMA.extend(
+    {
+        cv.Required(CONF_DATA): cv.templatable(_validate_raw_data),
+        cv.Optional(CONF_ON_SENT): automation.validate_action_list,
+        cv.Optional(CONF_ON_ERROR): automation.validate_action_list,
+        cv.Optional(CONF_WAIT_FOR_SENT, default=True): cv.boolean,
+        cv.Optional(CONF_CONTINUE_ON_ERROR, default=True): cv.boolean,
+    }
+)
+
 
 def _validate_send_action(config):
     if not config[CONF_WAIT_FOR_SENT] and not config[CONF_CONTINUE_ON_ERROR]:
@@ -251,7 +254,9 @@ def _validate_send_action(config):
         )
     return config
 
+
 SEND_SCHEMA.add_extra(_validate_send_action)
+
 
 @automation.register_action(
     "espnow.send",
