@@ -39,9 +39,7 @@ class Socket {
   virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
   virtual int listen(int backlog) = 0;
   virtual ssize_t read(void *buf, size_t len) = 0;
-#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
   virtual ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) = 0;
-#endif
   virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
   virtual ssize_t write(const void *buf, size_t len) = 0;
   virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
@@ -83,6 +81,15 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::stri
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
+
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+/// Delay that can be woken early by socket activity.
+/// On ESP8266, lwip callbacks set a flag and call esp_schedule() to wake the delay.
+void socket_delay(uint32_t ms);
+
+/// Called by lwip callbacks to signal socket activity and wake delay.
+void socket_wake();
+#endif
 
 }  // namespace socket
 }  // namespace esphome

@@ -160,18 +160,17 @@ void CC1101Component::dump_config() {
                                                  "4-FSK", "UNUSED", "UNUSED", "MSK"};
   int32_t freq = static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
                  XTAL_FREQUENCY / (1 << 16);
-  float symbol_rate =
-      (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY * 1000.0f;
+  float symbol_rate = (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY;
   float bw = XTAL_FREQUENCY / (8.0f * (4 + this->state_.CHANBW_M) * (1 << this->state_.CHANBW_E));
   ESP_LOGCONFIG(TAG, "CC1101:");
   LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG,
                 "  Chip ID: 0x%04X\n"
-                "  Frequency: %" PRId32 " kHz\n"
+                "  Frequency: %" PRId32 " Hz\n"
                 "  Channel: %u\n"
                 "  Modulation: %s\n"
                 "  Symbol Rate: %.0f baud\n"
-                "  Filter Bandwidth: %.1f kHz\n"
+                "  Filter Bandwidth: %.1f Hz\n"
                 "  Output Power: %.1f dBm",
                 this->chip_id_, freq, this->state_.CHANNR, MODULATION_NAMES[this->state_.MOD_FORMAT & 0x07],
                 symbol_rate, bw, this->output_power_effective_);
@@ -289,13 +288,13 @@ void CC1101Component::set_output_power(float value) {
   int32_t freq = static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
                  XTAL_FREQUENCY / (1 << 16);
   uint8_t a = 0xC0;
-  if (freq >= 300000 && freq <= 348000) {
+  if (freq >= 300000000 && freq <= 348000000) {
     a = PowerTableItem::find(PA_TABLE_315, sizeof(PA_TABLE_315) / sizeof(PA_TABLE_315[0]), value);
-  } else if (freq >= 378000 && freq <= 464000) {
+  } else if (freq >= 378000000 && freq <= 464000000) {
     a = PowerTableItem::find(PA_TABLE_433, sizeof(PA_TABLE_433) / sizeof(PA_TABLE_433[0]), value);
-  } else if (freq >= 779000 && freq < 900000) {
+  } else if (freq >= 779000000 && freq < 900000000) {
     a = PowerTableItem::find(PA_TABLE_868, sizeof(PA_TABLE_868) / sizeof(PA_TABLE_868[0]), value);
-  } else if (freq >= 900000 && freq <= 928000) {
+  } else if (freq >= 900000000 && freq <= 928000000) {
     a = PowerTableItem::find(PA_TABLE_915, sizeof(PA_TABLE_915) / sizeof(PA_TABLE_915[0]), value);
   }
 
@@ -401,7 +400,7 @@ void CC1101Component::set_msk_deviation(uint8_t value) {
 void CC1101Component::set_symbol_rate(float value) {
   uint8_t e;
   uint32_t m;
-  split_float(value * (1 << 28) / (XTAL_FREQUENCY * 1000), 8, e, m);
+  split_float(value * (1 << 28) / XTAL_FREQUENCY, 8, e, m);
   this->state_.DRATE_E = e;
   this->state_.DRATE_M = static_cast<uint8_t>(m);
   if (this->initialized_) {
