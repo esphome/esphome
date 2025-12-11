@@ -1,7 +1,14 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INDEX, CONF_NAME, CONF_POSITION, CONF_SIZE
+from esphome.const import (
+    CONF_ID,
+    CONF_INDEX,
+    CONF_ITEMS,
+    CONF_NAME,
+    CONF_POSITION,
+    CONF_SIZE,
+)
 
 from ..automation import action_to_code
 from ..defines import (
@@ -80,10 +87,12 @@ class TabviewType(WidgetType):
             await set_obj_properties(tab_widget, tab_conf)
             await add_widgets(tab_widget, tab_conf)
         if button_style := config.get(CONF_TAB_STYLE):
+            if CONF_ITEMS in button_style:
+                button_style.update(button_style[CONF_ITEMS])
             with LocalVariable(
-                "tabview_btnmatrix", lv_obj_t, rhs=lv_expr.tabview_get_tab_btns(w.obj)
-            ) as btnmatrix_obj:
-                await set_obj_properties(Widget(btnmatrix_obj, obj_spec), button_style)
+                "tabview_bar", lv_obj_t, rhs=lv_expr.tabview_get_tab_bar(w.obj)
+            ) as bar_obj:
+                await set_obj_properties(Widget(bar_obj, obj_spec), button_style)
         if content_style := config.get(CONF_CONTENT_STYLE):
             with LocalVariable(
                 "tabview_content", lv_obj_t, rhs=lv_expr.tabview_get_content(w.obj)
