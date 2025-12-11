@@ -314,7 +314,7 @@ void MQTTClientComponent::check_connected() {
 
   // Startup subscriptions
   // TODO: Get the session_present flag from the backend
-  this->resubscribe_subscriptions_();
+  this->resubscribe_subscriptions_(this->session_present_ && !this->credentials_.clean_session);
   this->send_device_info_();
 
   for (MQTTComponent *component : this->children_)
@@ -436,10 +436,10 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
     }
   }
 }
-void MQTTClientComponent::resubscribe_subscriptions_(bool session_present) {
+void MQTTClientComponent::resubscribe_subscriptions_(bool check_persistence) {
   for (auto &subscription : this->subscriptions_) {
     // If the session is present, check if we had already subscribed
-    if (session_present && !subscription.subscribed) {
+    if (check_persistence && !subscription.subscribed) {
       // TODO: Check if we have stored the subscription before and set subscribed = true
     }
     this->resubscribe_subscription_(&subscription);

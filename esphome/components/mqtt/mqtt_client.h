@@ -300,7 +300,7 @@ class MQTTClientComponent : public Component
 
   bool subscribe_(const char *topic, uint8_t qos);
   void resubscribe_subscription_(MQTTSubscription *sub);
-  void resubscribe_subscriptions_(bool session_present = false);
+  void resubscribe_subscriptions_(bool check_persistence = false);
 
   MQTTCredentials credentials_;
   /// The last will message. Disabled optional denotes it being default and
@@ -351,6 +351,7 @@ class MQTTClientComponent : public Component
 
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};
+  bool session_present_{false};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
