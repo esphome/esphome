@@ -201,7 +201,7 @@ void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_cal
 
 MQTTComponent::MQTTComponent() = default;
 
-float MQTTComponent::get_setup_priority() const { return setup_priority::BEFORE_CONNECTION; }
+float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
 void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
   this->custom_state_topic_ = StringRef(custom_state_topic);
