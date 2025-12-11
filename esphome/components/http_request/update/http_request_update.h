@@ -23,6 +23,7 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
   void check() override { this->update(); }
 
   void set_source_url(const std::string &source_url) { this->source_url_ = source_url; }
+  void set_hmac_key(const std::string &hmac_key) { this->hmac_key_ = hmac_key; }
 
   void set_request_parent(HttpRequestComponent *request_parent) { this->request_parent_ = request_parent; }
   void set_ota_parent(OtaHttpRequestComponent *ota_parent) { this->ota_parent_ = ota_parent; }
@@ -33,6 +34,7 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
   HttpRequestComponent *request_parent_;
   OtaHttpRequestComponent *ota_parent_;
   std::string source_url_;
+  std::string hmac_key_;
 
   static void update_task(void *params);
 #ifdef USE_ESP32
