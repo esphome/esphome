@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import hashlib
 import importlib
 import logging
 import os
@@ -6,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import stat
+import time
 from types import TracebackType
 
 from esphome import loader
@@ -23,6 +25,7 @@ from esphome.helpers import (
     is_ha_addon,
     read_file,
     walk_files,
+    write_file,
     write_file_if_changed,
 )
 from esphome.storage_json import StorageJSON, storage_path
@@ -173,6 +176,7 @@ VERSION_H_FORMAT = """\
 """
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
+BUILDINFO_H_TARGET = "esphome/core/buildinfo.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -245,6 +249,12 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
+    # Write buildinfo generation script
+    write_file(
+        CORE.relative_build_path("generate_buildinfo.py"), generate_buildinfo_script()
+    )
+    # Add buildinfo script to platformio extra_scripts
+    CORE.add_platformio_option("extra_scripts", ["pre:generate_buildinfo.py"])
 
     platform = "esphome.components." + CORE.target_platform
     try:
@@ -268,6 +278,33 @@ def generate_version_h():
     return VERSION_H_FORMAT.format(
         __version__, match.group(1), match.group(2), match.group(3)
     )
+
+
+def generate_buildinfo_script():
+    from esphome import yaml_util
+
+    # Use the same clean YAML representation as 'esphome config' command
+    config_str = yaml_util.dump(CORE.config, show_secrets=True)
+
+    config_hash = hashlib.md5(config_str.encode("utf-8")).hexdigest()[:8]
+    config_hash_int = int(config_hash, 16)
+    build_time = int(time.time())
+
+    # Generate linker script content
+    linker_script = f"""/* Auto-generated buildinfo symbols */
+ESPHOME_CONFIG_HASH = 0x{config_hash_int:08x};
+ESPHOME_BUILD_TIME = {build_time};
+"""
+
+    # Write linker script file
+    with open(CORE.relative_build_path("buildinfo.ld"), "w", encoding="utf-8") as f:
+        f.write(linker_script)
+
+    return """#!/usr/bin/env python3
+# Buildinfo linker script already generated
+Import("env")
+env.Append(LINKFLAGS=["buildinfo.ld"])
+"""
 
 
 def write_cpp(code_s):

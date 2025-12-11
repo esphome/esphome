@@ -518,8 +518,56 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     rc = platformio_api.run_compile(config, CORE.verbose)
     if rc != 0:
         return rc
+
+    # Check if firmware was rebuilt and emit buildinfo + create manifest
+    _check_and_emit_buildinfo()
+
     idedata = platformio_api.get_idedata(config)
     return 0 if idedata is not None else 1
+
+
+def _check_and_emit_buildinfo():
+    """Check if firmware was rebuilt and emit buildinfo."""
+
+    firmware_path = CORE.firmware_bin
+    buildinfo_script_path = CORE.relative_build_path("buildinfo.ld")
+
+    # Check if both files exist
+    if not firmware_path.exists() or not buildinfo_script_path.exists():
+        return
+
+    # Check if firmware is newer than buildinfo script (indicating a relink occurred)
+    if firmware_path.stat().st_mtime <= buildinfo_script_path.stat().st_mtime:
+        return
+
+    # Read buildinfo values from linker script
+    try:
+        with open(buildinfo_script_path, encoding="utf-8") as f:
+            content = f.read()
+
+        config_hash_match = re.search(
+            r"ESPHOME_CONFIG_HASH = 0x([0-9a-fA-F]+);", content
+        )
+        build_time_match = re.search(r"ESPHOME_BUILD_TIME = (\d+);", content)
+
+        if not config_hash_match or not build_time_match:
+            return
+
+        config_hash = config_hash_match.group(1)
+        build_time = int(build_time_match.group(1))
+
+        # Emit buildinfo
+        print("=== ESPHome Build Info ===")
+        print(f"Config Hash: 0x{config_hash}")
+        print(
+            f"Build Time:  {build_time} ({time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(build_time))})"
+        )
+        print("===========================")
+
+        # TODO: Future commit will create JSON manifest with OTA metadata here
+
+    except OSError as e:
+        _LOGGER.debug("Failed to emit buildinfo: %s", e)
 
 
 def upload_using_esptool(

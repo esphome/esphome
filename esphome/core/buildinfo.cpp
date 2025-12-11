@@ -1,0 +1,38 @@
+// Build information using linker-provided symbols
+//
+// Including build information into the build is fun, because we *don't*
+// want the mere fact of changing the build time to *itself* cause a
+// rebuild if nothing else had changed. If we do the naïve thing of
+// just putting #defines in a header like version.h, we'll cause exactly
+// that.
+//
+// So instead we provide the config hash and build time in a linker
+// script, so they get pulled in only if the firmware is already being
+// rebuilt.
+#include "esphome/core/buildinfo.h"
+#include <cstdio>
+
+// Linker-provided symbols - declare as extern variables, not functions
+extern "C" {
+extern const char ESPHOME_CONFIG_HASH[];
+extern const char ESPHOME_BUILD_TIME[];
+}
+
+namespace esphome {
+namespace buildinfo {
+
+// Reference the linker symbols as uintptr_t from the *data* section to
+// avoid issues with pc-relative relocations on 64-bit platforms.
+static const uintptr_t config_hash = (uintptr_t) &ESPHOME_CONFIG_HASH;
+static const uintptr_t build_time = (uintptr_t) &ESPHOME_BUILD_TIME;
+
+const char *get_config_hash() {
+  static char hash_str[9];
+  snprintf(hash_str, sizeof(hash_str), "%08x", (uint32_t) config_hash);
+  return hash_str;
+}
+
+time_t get_build_time() { return (time_t) build_time; }
+
+}  // namespace buildinfo
+}  // namespace esphome
