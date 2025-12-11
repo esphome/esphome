@@ -55,7 +55,7 @@ class FileMediaSource : public Component, public media_source::MediaSource {
   media_source::MediaSourceCapabilities get_capabilities() override;
 
   void add_file(audio::AudioFile *media_file, std::string file_id) {
-    this->files_.push_back(NamedAudioFile{media_file, file_id});
+    this->files_.push_back(NamedAudioFile{media_file, std::move(file_id)});
   }
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }

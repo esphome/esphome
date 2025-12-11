@@ -58,7 +58,7 @@ bool FileMediaSource::play_uri(const std::string &uri, size_t pipeline) {
   }
 
   // Validate URI starts with "file://"
-  if (uri.find("file://") != 0) {
+  if (!uri.starts_with("file://")) {
     ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
     return false;
   }

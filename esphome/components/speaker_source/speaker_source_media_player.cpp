@@ -48,7 +48,7 @@ void SpeakerSourceMediaPlayer::setup() {
     });
     media_source->set_state_callback(
         [this](media_source::MediaSource *src, media_source::MediaSourceState state, size_t pipeline) {
-          return this->handle_media_state_callback_(src, state, pipeline);
+          this->handle_media_state_callback_(src, state, pipeline);
         });
 
     // Set volume and mute request callbacks for sources that support volume control
@@ -371,7 +371,7 @@ void SpeakerSourceMediaPlayer::loop() {
 media_source::MediaSource *SpeakerSourceMediaPlayer::find_source_for_uri_(const std::string &uri, size_t pipeline) {
   for (auto &source : this->media_sources_) {
     const std::string &prefix = source->get_uri_prefix();
-    if (uri.find(prefix) == 0) {
+    if (uri.starts_with(prefix)) {
       // Check if this source can handle this pipeline (is it idle on this pipeline?)
       if (source->get_state(pipeline) == media_source::MediaSourceState::IDLE) {
         return source;  // First idle match wins
@@ -381,7 +381,7 @@ media_source::MediaSource *SpeakerSourceMediaPlayer::find_source_for_uri_(const 
   // If no idle source found, try again without checking state (will be stopped by try_execute_play_uri_)
   for (auto &source : this->media_sources_) {
     const std::string &prefix = source->get_uri_prefix();
-    if (uri.find(prefix) == 0) {
+    if (uri.starts_with(prefix)) {
       return source;  // First match wins
     }
   }

@@ -112,7 +112,7 @@ bool HTTPMediaSource::play_uri(const std::string &uri, size_t pipeline) {
   }
 
   // Validate URI starts with "http://" or "https://"
-  if (uri.find("http://") != 0 && uri.find("https://") != 0) {
+  if (!uri.starts_with("http://") && !uri.starts_with("https://")) {
     ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
     return false;
   }

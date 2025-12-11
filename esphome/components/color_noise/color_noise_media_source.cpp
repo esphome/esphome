@@ -62,7 +62,7 @@ bool ColorNoiseMediaSource::play_uri(const std::string &uri, size_t pipeline) {
   }
 
   // Validate URI starts with "color-noise://"
-  if (uri.find("color-noise://") != 0) {
+  if (!uri.starts_with("color-noise://")) {
     ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
     return false;
   }
@@ -118,7 +118,8 @@ bool ColorNoiseMediaSource::play_uri(const std::string &uri, size_t pipeline) {
     if (seed_pos != std::string::npos) {
       seed_pos += 5;  // Skip "seed="
       size_t end_pos = query.find('&', seed_pos);
-      std::string seed_str = query.substr(seed_pos, end_pos);
+      size_t len = (end_pos == std::string::npos) ? std::string::npos : end_pos - seed_pos;
+      std::string seed_str = query.substr(seed_pos, len);
       seed = std::strtoul(seed_str.c_str(), nullptr, 10);
     }
 
@@ -127,7 +128,8 @@ bool ColorNoiseMediaSource::play_uri(const std::string &uri, size_t pipeline) {
     if (duration_pos != std::string::npos) {
       duration_pos += 9;  // Skip "duration="
       size_t end_pos = query.find('&', duration_pos);
-      std::string duration_str = query.substr(duration_pos, end_pos);
+      size_t len = (end_pos == std::string::npos) ? std::string::npos : end_pos - duration_pos;
+      std::string duration_str = query.substr(duration_pos, len);
       duration_seconds = std::strtoul(duration_str.c_str(), nullptr, 10);
     }
   }
@@ -492,7 +494,6 @@ void ColorNoiseMediaSource::generate_task(void *params) {
       ctx.brown_y_accumulator = 0;
       initialize_brown_coefficients(stream_info.get_sample_rate(), ctx.brown_leakage, ctx.brown_scaling);
     } else if (ctx.noise_type == NoiseType::PINK) {
-      uint32_t init_state = prng_state;
       for (size_t i = 0; i < 7; i++) {
         ctx.pink_buffers[i] = 0;
       }
