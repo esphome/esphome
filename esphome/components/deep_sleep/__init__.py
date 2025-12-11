@@ -343,10 +343,10 @@ async def to_code(config):
                     )
                 )
         else:
-            pin = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN][0])
+            pin = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN][0][CONF_PIN])
             cg.add(var.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
-        cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE][0]))
+        cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
     if CONF_RUN_DURATION in config:
         run_duration_config = config[CONF_RUN_DURATION]
         if not isinstance(run_duration_config, dict):
