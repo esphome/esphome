@@ -81,14 +81,14 @@ void HX711Sensor::loop() {
       this->start_settle_timeout_();
     }
 
-    const float result_F = static_cast<float>(static_cast<int32_t>(result));
+    const float result_f = static_cast<float>(static_cast<int32_t>(result));
     if (!read_operation_result) {
       // On failed read, publish nan and do power cycle restart
       this->log_and_publish_channel_b_value_(NAN);
       this->power_cycle_restart_();
     } else {
       // Publish value on succesful read
-      this->log_and_publish_channel_b_value_(result_F);
+      this->log_and_publish_channel_b_value_(result_f);
     }
 
     this->hx711_state_flags_.update_in_progress = false;
