@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 
 #include "esphome/components/md5/md5.h"
+#include "esphome/components/hmac_md5/hmac_md5.h"
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/ota/ota_backend_arduino_esp8266.h"
@@ -31,6 +32,15 @@ void OtaHttpRequestComponent::set_md5_url(const std::string &url) {
   }
   this->md5_url_ = url;
   this->md5_expected_.clear();  // to be retrieved later
+}
+
+void OtaHttpRequestComponent::set_hmac_md5_url(const std::string &url) {
+  if (!this->validate_url_(url)) {
+    this->hmac_md5_url_.clear();  // URL was not valid; prevent flashing until it is
+    return;
+  }
+  this->hmac_md5_url_ = url;
+  this->hmac_md5_expected_.clear();  // to be retrieved later
 }
 
 void OtaHttpRequestComponent::set_url(const std::string &url) {
@@ -67,8 +77,11 @@ void OtaHttpRequestComponent::flash() {
 #ifdef USE_OTA_STATE_CALLBACK
       this->state_callback_.call(ota::OTA_ERROR, 0.0f, ota_status);
 #endif
-      this->md5_computed_.clear();  // will be reset at next attempt
-      this->md5_expected_.clear();  // will be reset at next attempt
+      this->md5_computed_.clear();       // will be reset at next attempt
+      this->md5_expected_.clear();       // will be reset at next attempt
+      this->hmac_md5_computed_.clear();  // will be reset at next attempt
+      this->hmac_md5_expected_.clear();  // will be reset at next attempt
+      this->hmac_key_.clear();           // will be reset at next attempt
       break;
   }
 }
@@ -89,12 +102,23 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
   std::unique_ptr<char[]> md5_receive_str(new char[33]);
+  hmac_md5::HmacMD5 hmac_md5_receive;
+  std::unique_ptr<char[]> hmac_md5_receive_str(new char[33]);
+  bool use_hmac = false;
 
-  if (this->md5_expected_.empty() && !this->http_get_md5_()) {
-    return OTA_MD5_INVALID;
+  // Check if we're using HMAC-MD5 or regular MD5
+  if (!this->hmac_md5_expected_.empty() || !this->hmac_md5_url_.empty()) {
+    use_hmac = true;
+    if (this->hmac_md5_expected_.empty() && !this->http_get_hmac_md5_()) {
+      return OTA_MD5_INVALID;
+    }
+    ESP_LOGD(TAG, "HMAC-MD5 expected: %s", this->hmac_md5_expected_.c_str());
+  } else {
+    if (this->md5_expected_.empty() && !this->http_get_md5_()) {
+      return OTA_MD5_INVALID;
+    }
+    ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_.c_str());
   }
-
-  ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_.c_str());
 
   auto url_with_auth = this->get_url_with_auth_(this->url_);
   if (url_with_auth.empty()) {
@@ -109,9 +133,14 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     return OTA_CONNECTION_ERROR;
   }
 
-  // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
-  md5_receive.init();
-  ESP_LOGV(TAG, "MD5Digest initialized");
+  // Initialize digest computation
+  if (use_hmac) {
+    hmac_md5_receive.init(this->hmac_key_);
+    ESP_LOGV(TAG, "HMAC-MD5 initialized");
+  } else {
+    md5_receive.init();
+    ESP_LOGV(TAG, "MD5Digest initialized");
+  }
 
   ESP_LOGV(TAG, "OTA backend begin");
   auto backend = ota::make_ota_backend();
@@ -144,8 +173,12 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     }
 
     if (bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
-      // add read bytes to MD5
-      md5_receive.add(buf, bufsize);
+      // add read bytes to digest
+      if (use_hmac) {
+        hmac_md5_receive.add(buf, bufsize);
+      } else {
+        md5_receive.add(buf, bufsize);
+      }
 
       // write bytes to OTA backend
       this->update_started_ = true;
@@ -173,15 +206,26 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   ESP_LOGI(TAG, "Done in %.0f seconds", float(millis() - update_start_time) / 1000);
 
-  // verify MD5 is as expected and act accordingly
-  md5_receive.calculate();
-  md5_receive.get_hex(md5_receive_str.get());
-  this->md5_computed_ = md5_receive_str.get();
-  if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
-    ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
-    this->cleanup_(std::move(backend), container);
-    return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
+  // verify digest is as expected and act accordingly
+  if (use_hmac) {
+    hmac_md5_receive.calculate();
+    hmac_md5_receive.get_hex(hmac_md5_receive_str.get());
+    this->hmac_md5_computed_ = hmac_md5_receive_str.get();
+    if (strncmp(this->hmac_md5_computed_.c_str(), this->hmac_md5_expected_.c_str(), MD5_SIZE) != 0) {
+      ESP_LOGE(TAG, "HMAC-MD5 computed: %s - Aborting due to HMAC-MD5 mismatch", this->hmac_md5_computed_.c_str());
+      this->cleanup_(std::move(backend), container);
+      return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
+    }
+    backend->set_update_md5(hmac_md5_receive_str.get());
   } else {
+    md5_receive.calculate();
+    md5_receive.get_hex(md5_receive_str.get());
+    this->md5_computed_ = md5_receive_str.get();
+    if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
+      ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
+      this->cleanup_(std::move(backend), container);
+      return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
+    }
     backend->set_update_md5(md5_receive_str.get());
   }
 
@@ -263,6 +307,47 @@ bool OtaHttpRequestComponent::http_get_md5_() {
   container->end();
 
   ESP_LOGV(TAG, "Read len: %u, MD5 expected: %u", read_len, MD5_SIZE);
+  return read_len == MD5_SIZE;
+}
+
+bool OtaHttpRequestComponent::http_get_hmac_md5_() {
+  if (this->hmac_md5_url_.empty()) {
+    return false;
+  }
+
+  auto url_with_auth = this->get_url_with_auth_(this->hmac_md5_url_);
+  if (url_with_auth.empty()) {
+    return false;
+  }
+
+  ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
+  ESP_LOGI(TAG, "Connecting to: %s", this->hmac_md5_url_.c_str());
+  auto container = this->parent_->get(url_with_auth);
+  if (container == nullptr) {
+    ESP_LOGE(TAG, "Failed to connect to HMAC-MD5 URL");
+    return false;
+  }
+  size_t length = container->content_length;
+  if (length == 0) {
+    container->end();
+    return false;
+  }
+  if (length < MD5_SIZE) {
+    ESP_LOGE(TAG, "HMAC-MD5 file must be %u bytes; %u bytes reported by HTTP server. Aborting", MD5_SIZE, length);
+    container->end();
+    return false;
+  }
+
+  this->hmac_md5_expected_.resize(MD5_SIZE);
+  int read_len = 0;
+  while (container->get_bytes_read() < MD5_SIZE) {
+    read_len = container->read((uint8_t *) this->hmac_md5_expected_.data(), MD5_SIZE);
+    App.feed_wdt();
+    yield();
+  }
+  container->end();
+
+  ESP_LOGV(TAG, "Read len: %u, HMAC-MD5 expected: %u", read_len, MD5_SIZE);
   return read_len == MD5_SIZE;
 }
 

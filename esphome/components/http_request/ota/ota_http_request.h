@@ -30,12 +30,17 @@ class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRe
 
   void set_md5_url(const std::string &md5_url);
   void set_md5(const std::string &md5) { this->md5_expected_ = md5; }
+  void set_hmac_md5_url(const std::string &hmac_md5_url);
+  void set_hmac_md5(const std::string &hmac_md5) { this->hmac_md5_expected_ = hmac_md5; }
+  void set_hmac_key(const std::string &hmac_key) { this->hmac_key_ = hmac_key; }
   void set_password(const std::string &password) { this->password_ = password; }
   void set_url(const std::string &url);
   void set_username(const std::string &username) { this->username_ = username; }
 
   std::string md5_computed() { return this->md5_computed_; }
   std::string md5_expected() { return this->md5_expected_; }
+  std::string hmac_md5_computed() { return this->hmac_md5_computed_; }
+  std::string hmac_md5_expected() { return this->hmac_md5_expected_; }
 
   void flash();
 
@@ -44,11 +49,16 @@ class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRe
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
+  bool http_get_hmac_md5_();
   bool validate_url_(const std::string &url);
 
   std::string md5_computed_{};
   std::string md5_expected_{};
   std::string md5_url_{};
+  std::string hmac_md5_computed_{};
+  std::string hmac_md5_expected_{};
+  std::string hmac_md5_url_{};
+  std::string hmac_key_{};
   std::string password_{};
   std::string username_{};
   std::string url_{};

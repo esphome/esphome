@@ -11,6 +11,9 @@ template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Actio
   OtaHttpRequestComponentFlashAction(OtaHttpRequestComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, md5_url)
   TEMPLATABLE_VALUE(std::string, md5)
+  TEMPLATABLE_VALUE(std::string, hmac_md5_url)
+  TEMPLATABLE_VALUE(std::string, hmac_md5)
+  TEMPLATABLE_VALUE(std::string, hmac_key)
   TEMPLATABLE_VALUE(std::string, password)
   TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(std::string, username)
@@ -21,6 +24,15 @@ template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Actio
     }
     if (this->md5_.has_value()) {
       this->parent_->set_md5(this->md5_.value(x...));
+    }
+    if (this->hmac_md5_url_.has_value()) {
+      this->parent_->set_hmac_md5_url(this->hmac_md5_url_.value(x...));
+    }
+    if (this->hmac_md5_.has_value()) {
+      this->parent_->set_hmac_md5(this->hmac_md5_.value(x...));
+    }
+    if (this->hmac_key_.has_value()) {
+      this->parent_->set_hmac_key(this->hmac_key_.value(x...));
     }
     if (this->password_.has_value()) {
       this->parent_->set_password(this->password_.value(x...));

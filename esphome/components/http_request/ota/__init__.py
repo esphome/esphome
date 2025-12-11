@@ -10,11 +10,14 @@ from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
 
 CODEOWNERS = ["@oarcher"]
 
-AUTO_LOAD = ["md5"]
+AUTO_LOAD = ["md5", "hmac_md5"]
 DEPENDENCIES = ["network", "http_request"]
 
 CONF_MD5 = "md5"
 CONF_MD5_URL = "md5_url"
+CONF_HMAC_MD5 = "hmac_md5"
+CONF_HMAC_MD5_URL = "hmac_md5_url"
+CONF_HMAC_KEY = "hmac_key"
 
 OtaHttpRequestComponent = http_request_ns.class_(
     "OtaHttpRequestComponent", OTAComponent
@@ -49,6 +52,14 @@ async def to_code(config):
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
 
 
+def validate_hmac_key(config):
+    if (
+        CONF_HMAC_MD5 in config or CONF_HMAC_MD5_URL in config
+    ) and CONF_HMAC_KEY not in config:
+        raise cv.Invalid("hmac_key is required when using hmac_md5 or hmac_md5_url")
+    return config
+
+
 OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -57,12 +68,18 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
             cv.Optional(CONF_MD5): cv.templatable(
                 cv.All(cv.string, cv.Length(min=32, max=32))
             ),
+            cv.Optional(CONF_HMAC_MD5_URL): cv.templatable(cv.url),
+            cv.Optional(CONF_HMAC_MD5): cv.templatable(
+                cv.All(cv.string, cv.Length(min=32, max=32))
+            ),
+            cv.Optional(CONF_HMAC_KEY): cv.templatable(cv.string),
             cv.Optional(CONF_PASSWORD): cv.templatable(cv.string),
             cv.Optional(CONF_USERNAME): cv.templatable(cv.string),
             cv.Required(CONF_URL): cv.templatable(cv.url),
         }
     ),
-    cv.has_exactly_one_key(CONF_MD5, CONF_MD5_URL),
+    cv.has_exactly_one_key(CONF_MD5, CONF_MD5_URL, CONF_HMAC_MD5, CONF_HMAC_MD5_URL),
+    validate_hmac_key,
 )
 
 
@@ -82,6 +99,18 @@ async def ota_http_request_action_to_code(config, action_id, template_arg, args)
     if md5_str := config.get(CONF_MD5):
         template_ = await cg.templatable(md5_str, args, cg.std_string)
         cg.add(var.set_md5(template_))
+
+    if hmac_md5_url := config.get(CONF_HMAC_MD5_URL):
+        template_ = await cg.templatable(hmac_md5_url, args, cg.std_string)
+        cg.add(var.set_hmac_md5_url(template_))
+
+    if hmac_md5_str := config.get(CONF_HMAC_MD5):
+        template_ = await cg.templatable(hmac_md5_str, args, cg.std_string)
+        cg.add(var.set_hmac_md5(template_))
+
+    if hmac_key_str := config.get(CONF_HMAC_KEY):
+        template_ = await cg.templatable(hmac_key_str, args, cg.std_string)
+        cg.add(var.set_hmac_key(template_))
 
     if password_str := config.get(CONF_PASSWORD):
         template_ = await cg.templatable(password_str, args, cg.std_string)
