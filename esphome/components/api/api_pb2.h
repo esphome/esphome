@@ -840,7 +840,7 @@ class LightStateResponse final : public StateResponseProtoMessage {
 class LightCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 32;
-  static constexpr uint8_t ESTIMATED_SIZE = 112;
+  static constexpr uint8_t ESTIMATED_SIZE = 122;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "light_command_request"; }
 #endif
@@ -869,7 +869,8 @@ class LightCommandRequest final : public CommandProtoMessage {
   bool has_flash_length{false};
   uint32_t flash_length{0};
   bool has_effect{false};
-  std::string effect{};
+  const uint8_t *effect{nullptr};
+  uint16_t effect_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1604,11 +1605,12 @@ class SelectStateResponse final : public StateResponseProtoMessage {
 class SelectCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 54;
-  static constexpr uint8_t ESTIMATED_SIZE = 18;
+  static constexpr uint8_t ESTIMATED_SIZE = 28;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "select_command_request"; }
 #endif
-  std::string state{};
+  const uint8_t *state{nullptr};
+  uint16_t state_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

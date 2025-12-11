@@ -287,7 +287,7 @@ std::string WebServer::get_config_json() {
   JsonObject root = builder.root();
 
   root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
-  root[ESPHOME_F("comment")] = App.get_comment();
+  root[ESPHOME_F("comment")] = App.get_comment_ref();
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
   root[ESPHOME_F("ota")] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
 #else
@@ -1211,7 +1211,7 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
   set_json_icon_state_value(root, obj, "text", state, value, start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
-  root[ESPHOME_F("pattern")] = obj->traits.get_pattern();
+  root[ESPHOME_F("pattern")] = obj->traits.get_pattern_c_str();
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     this->add_sorting_info_(root, obj);
