@@ -1,11 +1,12 @@
 #pragma once
 
 #include <cinttypes>
-#include <map>
+#include <vector>
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 
@@ -13,8 +14,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 #ifdef USE_BINARY_SENSOR
 enum BinarySensorFlags : uint16_t {
@@ -49,6 +49,13 @@ struct SensorInfo {
   uint8_t store_index;
 };
 
+#ifdef USE_BINARY_SENSOR
+struct AlarmSensor {
+  binary_sensor::BinarySensor *sensor;
+  SensorInfo info;
+};
+#endif
+
 class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControlPanel, public Component {
  public:
   TemplateAlarmControlPanel();
@@ -63,6 +70,12 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   void bypass_before_arming();
 
 #ifdef USE_BINARY_SENSOR
+  /** Initialize the sensors vector with the specified capacity.
+   *
+   * @param capacity The number of sensors to allocate space for.
+   */
+  void init_sensors(size_t capacity) { this->sensors_.init(capacity); }
+
   /** Add a binary_sensor to the alarm_panel.
    *
    * @param sensor The BinarySensor instance.
@@ -122,8 +135,8 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
  protected:
   void control(const alarm_control_panel::AlarmControlPanelCall &call) override;
 #ifdef USE_BINARY_SENSOR
-  // This maps a binary sensor to its alarm specific info
-  std::map<binary_sensor::BinarySensor *, SensorInfo> sensor_map_;
+  // List of binary sensors with their alarm-specific info
+  FixedVector<AlarmSensor> sensors_;
   // a list of automatically bypassed sensors
   std::vector<uint8_t> bypassed_sensor_indicies_;
 #endif
@@ -155,5 +168,4 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state, uint32_t delay);
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

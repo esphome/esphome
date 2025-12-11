@@ -36,20 +36,20 @@ void GDK101Component::setup() {
   uint8_t data[2];
   // first, reset the sensor
   if (!this->reset_sensor_(data)) {
-    this->status_set_error("Reset failed!");
+    this->status_set_error(LOG_STR("Reset failed!"));
     this->mark_failed();
     return;
   }
   // sensor should acknowledge success of the reset procedure
   if (data[0] != 1) {
-    this->status_set_error("Reset not acknowledged!");
+    this->status_set_error(LOG_STR("Reset not acknowledged!"));
     this->mark_failed();
     return;
   }
   delay(10);
   // read firmware version
   if (!this->read_fw_version_(data)) {
-    this->status_set_error("Failed to read firmware version");
+    this->status_set_error(LOG_STR("Failed to read firmware version"));
     this->mark_failed();
     return;
   }

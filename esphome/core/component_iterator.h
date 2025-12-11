@@ -10,7 +10,7 @@
 
 namespace esphome {
 
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 namespace api {
 class UserServiceDescriptor;
 }  // namespace api
@@ -45,7 +45,7 @@ class ComponentIterator {
 #ifdef USE_TEXT_SENSOR
   virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   virtual bool on_service(api::UserServiceDescriptor *service);
 #endif
 #ifdef USE_CAMERA
@@ -122,7 +122,7 @@ class ComponentIterator {
 #ifdef USE_TEXT_SENSOR
     TEXT_SENSOR,
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
     SERVICE,
 #endif
 #ifdef USE_CAMERA

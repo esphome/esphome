@@ -37,6 +37,7 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, HexInt, TimePeriod
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
@@ -58,6 +59,7 @@ from .const import (  # noqa
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -121,14 +123,15 @@ def get_cpu_frequencies(*frequencies):
 
 CPU_FREQUENCIES = {
     VARIANT_ESP32: get_cpu_frequencies(80, 160, 240),
-    VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
-    VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C2: get_cpu_frequencies(80, 120),
     VARIANT_ESP32C3: get_cpu_frequencies(80, 160),
     VARIANT_ESP32C5: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
+    VARIANT_ESP32C61: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
     VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
+    VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
 }
 
 # Make sure not missed here if a new variant added.
@@ -262,15 +265,32 @@ def add_idf_component(
             "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
             "an issue to the external_component author and ask them to update it."
         )
+    components_registry = CORE.data[KEY_ESP32][KEY_COMPONENTS]
     if components:
         for comp in components:
-            CORE.data[KEY_ESP32][KEY_COMPONENTS][comp] = {
+            existing = components_registry.get(comp)
+            if existing and existing.get(KEY_REF) != ref:
+                _LOGGER.warning(
+                    "IDF component %s version conflict %s replaced by %s",
+                    comp,
+                    existing.get(KEY_REF),
+                    ref,
+                )
+            components_registry[comp] = {
                 KEY_REPO: repo,
                 KEY_REF: ref,
                 KEY_PATH: f"{path}/{comp}" if path else comp,
             }
     else:
-        CORE.data[KEY_ESP32][KEY_COMPONENTS][name] = {
+        existing = components_registry.get(name)
+        if existing and existing.get(KEY_REF) != ref:
+            _LOGGER.warning(
+                "IDF component %s version conflict %s replaced by %s",
+                name,
+                existing.get(KEY_REF),
+                ref,
+            )
+        components_registry[name] = {
             KEY_REPO: repo,
             KEY_REF: ref,
             KEY_PATH: path,
@@ -566,6 +586,8 @@ CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
 CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
 CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
+CONF_FREERTOS_IN_IRAM = "freertos_in_iram"
+CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 
 # VFS requirement tracking
@@ -590,6 +612,14 @@ def require_vfs_dir() -> None:
     This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
     """
     CORE.data[KEY_VFS_DIR_REQUIRED] = True
+
+
+def _parse_idf_component(value: str) -> ConfigType:
+    """Parse IDF component shorthand syntax like 'owner/component^version'"""
+    if "^" not in value:
+        raise cv.Invalid(f"Invalid IDF component shorthand '{value}'")
+    name, ref = value.split("^", 1)
+    return {CONF_NAME: name, CONF_REF: ref}
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -651,6 +681,8 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_SELECT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
+                cv.Optional(CONF_FREERTOS_IN_IRAM, default=False): cv.boolean,
+                cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
@@ -659,14 +691,19 @@ FRAMEWORK_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
             cv.All(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_NAME): cv.string_strict,
-                        cv.Optional(CONF_SOURCE): cv.git_ref,
-                        cv.Optional(CONF_REF): cv.string,
-                        cv.Optional(CONF_PATH): cv.string,
-                        cv.Optional(CONF_REFRESH): cv.All(cv.string, cv.source_refresh),
-                    }
+                cv.Any(
+                    cv.All(cv.string_strict, _parse_idf_component),
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_NAME): cv.string_strict,
+                            cv.Optional(CONF_SOURCE): cv.git_ref,
+                            cv.Optional(CONF_REF): cv.string,
+                            cv.Optional(CONF_PATH): cv.string,
+                            cv.Optional(CONF_REFRESH): cv.All(
+                                cv.string, cv.source_refresh
+                            ),
+                        }
+                    ),
                 ),
                 _validate_idf_component,
             )
@@ -727,7 +764,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "Need help? Check out the migration guide:\n"
         + color(
             AnsiFore.BLUE,
-            "https://esphome.io/guides/esp32_arduino_to_idf.html",
+            "https://esphome.io/guides/esp32_arduino_to_idf/",
         )
     )
     _LOGGER.warning(message)
@@ -851,11 +888,28 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_yaml_idf_components(components: list[ConfigType]):
+    """Add IDF components from YAML config with final priority to override code-added components."""
+    for component in components:
+        add_idf_component(
+            name=component[CONF_NAME],
+            repo=component.get(CONF_SOURCE),
+            ref=component.get(CONF_REF),
+            path=component.get(CONF_PATH),
+        )
+
+
 async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
+    cg.add_platformio_option(
+        "board_upload.maximum_size",
+        int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
+    )
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
+    cg.add_build_flag("-Wl,-z,noexecstack")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     variant = config[CONF_VARIANT]
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
@@ -881,6 +935,12 @@ async def to_code(config):
     # Set the location of the IDF component manager cache
     os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
         CORE.relative_internal_path(".espressif")
+    )
+
+    add_extra_script(
+        "pre",
+        "pre_build.py",
+        Path(__file__).parent / "pre_build.py.script",
     )
 
     add_extra_script(
@@ -931,6 +991,12 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
         add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
+        # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
+        if get_esp32_variant() == VARIANT_ESP32S2:
+            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
+            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=0")
+            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=0")
+
     cg.add_build_flag("-Wno-nonnull-compare")
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
@@ -943,6 +1009,33 @@ async def to_code(config):
 
     # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
     add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
+
+    # Place non-ISR FreeRTOS functions into flash instead of IRAM
+    # This saves up to 8KB of IRAM. ISR-safe functions (FromISR variants) stay in IRAM.
+    # In ESP-IDF 6.0 this becomes the default and CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH
+    # is removed (replaced by CONFIG_FREERTOS_IN_IRAM to restore old behavior).
+    # We enable this now to match IDF 6.0 behavior and catch any issues early.
+    # Users can set freertos_in_iram: true as an escape hatch if they encounter problems
+    # with code that incorrectly calls FreeRTOS functions from ISRs with cache disabled.
+    if conf[CONF_ADVANCED][CONF_FREERTOS_IN_IRAM]:
+        # IDF 5.x: don't set the flash option (keeps functions in IRAM)
+        # IDF 6.0+: will need CONFIG_FREERTOS_IN_IRAM=y to restore IRAM placement
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_IN_IRAM", True)
+    else:
+        # IDF 5.x: explicitly place functions in flash
+        # IDF 6.0+: this is the default, option no longer exists
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH", True)
+
+    # Place ring buffer functions into flash instead of IRAM by default
+    # This saves IRAM. In ESP-IDF 6.0 flash placement becomes the default.
+    # Users can set ringbuf_in_iram: true as an escape hatch if they encounter issues.
+    if conf[CONF_ADVANCED][CONF_RINGBUF_IN_IRAM]:
+        # User requests ring buffer in IRAM
+        # IDF 6.0+: will need CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=n
+        add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH", False)
+    else:
+        # Place in flash to save IRAM (default)
+        add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH", True)
 
     # Setup watchdog
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
@@ -1081,13 +1174,10 @@ async def to_code(config):
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
-    for component in conf[CONF_COMPONENTS]:
-        add_idf_component(
-            name=component[CONF_NAME],
-            repo=component.get(CONF_SOURCE),
-            ref=component.get(CONF_REF),
-            path=component.get(CONF_PATH),
-        )
+    # Components from YAML are added in a separate coroutine with FINAL priority
+    # Schedule it to run after all other components
+    if conf[CONF_COMPONENTS]:
+        CORE.add_job(_add_yaml_idf_components, conf[CONF_COMPONENTS])
 
 
 APP_PARTITION_SIZES = {

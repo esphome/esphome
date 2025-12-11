@@ -1,5 +1,16 @@
 psram:
 
+# Tests the high performance request and release; requires the USE_WIFI_RUNTIME_POWER_SAVE define
+esphome:
+  platformio_options:
+    build_flags:
+      - "-DUSE_WIFI_RUNTIME_POWER_SAVE"
+  on_boot:
+    - then:
+        - lambda: |-
+            esphome::wifi::global_wifi_component->request_high_performance();
+            esphome::wifi::global_wifi_component->release_high_performance();
+
 wifi:
   use_psram: true
   min_auth_mode: WPA

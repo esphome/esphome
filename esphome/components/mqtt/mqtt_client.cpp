@@ -57,15 +57,7 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          if (level <= this->log_level_ && this->is_connected()) {
-            this->publish({.topic = this->log_message_.topic,
-                           .payload = std::string(message, message_len),
-                           .qos = this->log_message_.qos,
-                           .retain = this->log_message_.retain});
-          }
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
@@ -140,13 +132,25 @@ void MQTTClientComponent::send_device_info_() {
 #endif
 
 #ifdef USE_API_NOISE
-        root[api::global_api_server->get_noise_ctx()->has_psk() ? "api_encryption" : "api_encryption_supported"] =
+        root[api::global_api_server->get_noise_ctx().has_psk() ? "api_encryption" : "api_encryption_supported"] =
             "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
 #endif
       },
       2, this->discovery_info_.retain);
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
+
+#ifdef USE_LOGGER
+void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) tag;
+  if (level <= this->log_level_ && this->is_connected()) {
+    this->publish({.topic = this->log_message_.topic,
+                   .payload = std::string(message, message_len),
+                   .qos = this->log_message_.qos,
+                   .retain = this->log_message_.retain});
+  }
+}
+#endif
 
 void MQTTClientComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
