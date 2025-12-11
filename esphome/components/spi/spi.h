@@ -7,7 +7,13 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_ARDUINO
+#ifdef USE_ESP32
+
+#include "driver/spi_master.h"
+
+using SPIInterface = spi_host_device_t;
+
+#elif defined(USE_ARDUINO)
 
 #include <SPI.h>
 
@@ -17,15 +23,7 @@ using SPIInterface = SPIClassRP2040 *;
 using SPIInterface = SPIClass *;
 #endif
 
-#endif
-
-#ifdef USE_ESP_IDF
-
-#include "driver/spi_master.h"
-
-using SPIInterface = spi_host_device_t;
-
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32 / USE_ARDUINO
 
 #ifdef USE_ZEPHYR
 // TODO supprse clang-tidy. Remove after SPI driver for nrf52 is added.
