@@ -23,7 +23,7 @@ void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
   std::string sanitized_name = str_sanitize(App.get_name());
   return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
-         this->get_default_object_id_() + "/config";
+         this->get_default_object_id_() + "/c";
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
@@ -39,13 +39,13 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
 std::string MQTTComponent::get_state_topic_() const {
   if (this->has_custom_state_topic_)
     return this->custom_state_topic_.str();
-  return this->get_default_topic_for_("state");
+  return this->get_default_topic_for_("s");
 }
 
 std::string MQTTComponent::get_command_topic_() const {
   if (this->has_custom_command_topic_)
     return this->custom_command_topic_.str();
-  return this->get_default_topic_for_("command");
+  return this->get_default_topic_for_("cm");
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
@@ -201,7 +201,7 @@ void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_cal
 
 MQTTComponent::MQTTComponent() = default;
 
-float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
+float MQTTComponent::get_setup_priority() const { return setup_priority::BEFORE_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
 void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
   this->custom_state_topic_ = StringRef(custom_state_topic);
