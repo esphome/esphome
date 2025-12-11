@@ -501,7 +501,7 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
             config.get(CONF_COMMENT, ""),
-            cg.RawExpression('__DATE__ ", " __TIME__'),
+            cg.RawExpression("esphome::buildinfo::get_build_time_string()"),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )

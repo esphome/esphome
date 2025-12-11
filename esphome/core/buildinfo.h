@@ -13,6 +13,7 @@ namespace buildinfo {
 
 const char *get_config_hash();
 time_t get_build_time();
+const char *get_build_time_string();
 
 }  // namespace buildinfo
 }  // namespace esphome
