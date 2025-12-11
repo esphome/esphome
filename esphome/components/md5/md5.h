@@ -25,6 +25,11 @@
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif
 
+#if defined(USE_HOST)
+#include <openssl/evp.h>
+#define MD5_CTX_TYPE EVP_MD_CTX *
+#endif
+
 namespace esphome {
 namespace md5 {
 

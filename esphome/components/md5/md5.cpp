@@ -39,6 +39,22 @@ void MD5Digest::add(const uint8_t *data, size_t len) { br_md5_update(&this->ctx_
 void MD5Digest::calculate() { br_md5_out(&this->ctx_, this->digest_); }
 #endif  // USE_RP2040
 
+#ifdef USE_HOST
+void MD5Digest::init() {
+  memset(this->digest_, 0, 16);
+  this->ctx_ = EVP_MD_CTX_new();
+  EVP_DigestInit_ex(this->ctx_, EVP_md5(), nullptr);
+}
+
+void MD5Digest::add(const uint8_t *data, size_t len) { EVP_DigestUpdate(this->ctx_, data, len); }
+
+void MD5Digest::calculate() {
+  unsigned int len = 16;
+  EVP_DigestFinal_ex(this->ctx_, this->digest_, &len);
+  EVP_MD_CTX_free(this->ctx_);
+}
+#endif  // USE_HOST
+
 }  // namespace md5
 }  // namespace esphome
 #endif
