@@ -44,9 +44,11 @@ time_t get_build_time() { return (time_t) build_time; }
 
 const char *get_build_time_string() {
   static char time_str[32];
-  time_t bt = get_build_time();
-  struct tm *tm_info = localtime(&bt);
-  strftime(time_str, sizeof(time_str), "%b %d %Y, %H:%M:%S", tm_info);
+  if (!time_str[0]) {
+    time_t bt = get_build_time();
+    struct tm *tm_info = localtime(&bt);
+    strftime(time_str, sizeof(time_str), "%b %d %Y, %H:%M:%S", tm_info);
+  }
   return time_str;
 }
 
