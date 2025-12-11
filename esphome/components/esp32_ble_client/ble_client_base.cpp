@@ -524,10 +524,9 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
       if (!this->check_addr(param->ble_security.auth_cmpl.bd_addr))
         return;
-      esp_bd_addr_t bd_addr;
-      memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
-      ESP_LOGI(TAG, "[%d] [%s] auth complete addr: %s", this->connection_index_, this->address_str_,
-               format_hex(bd_addr, 6).c_str());
+      char addr_str[MAC_ADDR_STR_LEN];
+      format_mac_addr_upper(param->ble_security.auth_cmpl.bd_addr, addr_str);
+      ESP_LOGI(TAG, "[%d] [%s] auth complete addr: %s", this->connection_index_, this->address_str_, addr_str);
       if (!param->ble_security.auth_cmpl.success) {
         this->log_error_("auth fail reason", param->ble_security.auth_cmpl.fail_reason);
       } else {
