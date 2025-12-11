@@ -54,6 +54,10 @@ void MQTTClientComponent::setup() {
       return;
     this->state_ = MQTT_CLIENT_DISCONNECTED;
     this->disconnect_reason_ = reason;
+    this->session_present_ = false;
+  });
+  this->mqtt_backend_.set_on_connect([this](bool session_present) {
+    this->session_present_ = session_present;
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
@@ -313,7 +317,6 @@ void MQTTClientComponent::check_connected() {
   delay(100);  // NOLINT
 
   // Startup subscriptions
-  // TODO: Get the session_present flag from the backend
   this->resubscribe_subscriptions_(this->session_present_ && !this->credentials_.clean_session);
   this->send_device_info_();
 
