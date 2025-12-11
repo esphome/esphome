@@ -477,6 +477,7 @@ void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_js
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
+  // TODO: Remove from persistent storage if needed
   bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
   yield();
   if (ret) {
