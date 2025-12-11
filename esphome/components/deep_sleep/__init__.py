@@ -330,10 +330,10 @@ async def to_code(config):
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
+        pins_as_list = config.get(CONF_WAKEUP_PIN, [])
         if CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == PLATFORM_BK72XX:
-            pins = config.get(CONF_WAKEUP_PIN, [])
-            cg.add(var.init_wakeup_pins_(len(pins)))
-            for item in pins:
+            cg.add(var.init_wakeup_pins_(len(pins_as_list)))
+            for item in pins_as_list:
                 cg.add(
                     var.add_wakeup_pin(
                         await cg.gpio_pin_expression(item[CONF_PIN]),
@@ -343,7 +343,7 @@ async def to_code(config):
                     )
                 )
         else:
-            pin = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN][0][CONF_PIN])
+            pin = await cg.gpio_pin_expression(pins_as_list[0][CONF_PIN])
             cg.add(var.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
         cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
