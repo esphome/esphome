@@ -5,6 +5,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#ifdef USE_API_USER_DEFINED_ACTIONS
+#include "user_services.h"
+#endif
 
 namespace esphome::api {
 

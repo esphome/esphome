@@ -213,11 +213,13 @@ class Climate : public EntityBase {
    */
   ClimateTraits get_traits();
 
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
   void set_visual_temperature_step_override(float target, float current);
   void set_visual_min_humidity_override(float visual_min_humidity_override);
   void set_visual_max_humidity_override(float visual_max_humidity_override);
+#endif
 
   /// Check if a custom fan mode is currently active.
   bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
@@ -321,12 +323,14 @@ class Climate : public EntityBase {
   CallbackManager<void(Climate &)> state_callback_{};
   CallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
-  optional<float> visual_min_temperature_override_{};
-  optional<float> visual_max_temperature_override_{};
-  optional<float> visual_target_temperature_step_override_{};
-  optional<float> visual_current_temperature_step_override_{};
-  optional<float> visual_min_humidity_override_{};
-  optional<float> visual_max_humidity_override_{};
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
+  float visual_min_temperature_override_{NAN};
+  float visual_max_temperature_override_{NAN};
+  float visual_target_temperature_step_override_{NAN};
+  float visual_current_temperature_step_override_{NAN};
+  float visual_min_humidity_override_{NAN};
+  float visual_max_humidity_override_{NAN};
+#endif
 
  private:
   /** The active custom fan mode (private - enforces use of safe setters).

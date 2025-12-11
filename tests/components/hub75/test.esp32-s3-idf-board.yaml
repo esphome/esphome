@@ -1,0 +1,26 @@
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+display:
+  - platform: hub75
+    id: hub75_display_board
+    board: adafruit-matrix-portal-s3
+    panel_width: 64
+    panel_height: 32
+    double_buffer: true
+    brightness: 128
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: page2
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");
