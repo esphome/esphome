@@ -1,8 +1,7 @@
 #include "spi.h"
 #include <vector>
 
-namespace esphome {
-namespace spi {
+namespace esphome::spi {
 
 #ifdef USE_ESP32
 static const char *const TAG = "spi-esp-idf";
@@ -267,5 +266,4 @@ SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo
 }
 
 #endif  // USE_ESP32
-}  // namespace spi
-}  // namespace esphome
+}  // namespace esphome::spi
