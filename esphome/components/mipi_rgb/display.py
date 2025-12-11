@@ -24,7 +24,7 @@ from esphome.components.mipi import (
     CONF_VSYNC_BACK_PORCH,
     CONF_VSYNC_FRONT_PORCH,
     CONF_VSYNC_PULSE_WIDTH,
-    MODE_BGR,
+    MODE_RGB,
     PIXEL_MODE_16BIT,
     PIXEL_MODE_18BIT,
     DriverChip,
@@ -157,7 +157,7 @@ def model_schema(config):
             model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
                 pins.gpio_output_pin_schema
             ),
-            model.option(CONF_COLOR_ORDER, MODE_BGR): cv.enum(COLOR_ORDERS, upper=True),
+            model.option(CONF_COLOR_ORDER, MODE_RGB): cv.enum(COLOR_ORDERS, upper=True),
             model.option(CONF_DRAW_ROUNDING, 2): power_of_two,
             model.option(CONF_PIXEL_MODE, PIXEL_MODE_16BIT): cv.one_of(
                 *pixel_modes, lower=True
@@ -280,14 +280,9 @@ async def to_code(config):
         red_pins = config[CONF_DATA_PINS][CONF_RED]
         green_pins = config[CONF_DATA_PINS][CONF_GREEN]
         blue_pins = config[CONF_DATA_PINS][CONF_BLUE]
-        if config[CONF_COLOR_ORDER] == "BGR":
-            dpins.extend(red_pins)
-            dpins.extend(green_pins)
-            dpins.extend(blue_pins)
-        else:
-            dpins.extend(blue_pins)
-            dpins.extend(green_pins)
-            dpins.extend(red_pins)
+        dpins.extend(blue_pins)
+        dpins.extend(green_pins)
+        dpins.extend(red_pins)
         # swap bytes to match big-endian format
         dpins = dpins[8:16] + dpins[0:8]
     else:

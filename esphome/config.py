@@ -1012,14 +1012,20 @@ def validate_config(
 
     CORE.raw_config = config
 
-    # 1.1. Resolve !extend and !remove and check for REPLACEME
+    # 1.1. Merge packages
+    if CONF_PACKAGES in config:
+        from esphome.components.packages import merge_packages
+
+        config = merge_packages(config)
+
+    # 1.2. Resolve !extend and !remove and check for REPLACEME
     # After this step, there will not be any Extend or Remove values in the config anymore
     try:
         resolve_extend_remove(config)
     except vol.Invalid as err:
         result.add_error(err)
 
-    # 1.2. Load external_components
+    # 1.3. Load external_components
     if CONF_EXTERNAL_COMPONENTS in config:
         from esphome.components.external_components import do_external_components_pass
 
