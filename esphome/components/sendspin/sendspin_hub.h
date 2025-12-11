@@ -11,7 +11,6 @@
 #ifdef USE_SENDSPIN_PLAYER
 #include "sendspin_audio_chunk.h"
 #include "esphome/components/audio/audio.h"
-#include "esphome/components/audio/audio_chunk_queue.h"
 #include <vector>
 #endif
 
@@ -23,8 +22,6 @@
 #include "esphome/core/component.h"
 
 #include <freertos/FreeRTOS.h>
-#include <freertos/event_groups.h>
-#include <freertos/task.h>
 
 #include <limits>
 
@@ -68,6 +65,7 @@ struct ImageSlotCallback {
 enum class SendspinControls {
   START,
   STOP,
+  CLEAR,
   MUTE_UPDATE,
   VOLUME_UPDATE,
 };
@@ -150,8 +148,17 @@ class SendspinHub : public Component {
                            std::optional<bool> mute = std::nullopt);
 #endif
 
+  void disconnect_from_server(SendspinGoodbyeReason reason);
+
   void set_kalman_process_error(double process_error) { this->kalman_process_error_ = process_error; }
   void set_kalman_forget_factor(double forget_factor) { this->kalman_forget_factor_ = forget_factor; }
+
+  int64_t get_client_time(int64_t server_time) {
+    if (this->time_filter_ == nullptr) {
+      return 0;
+    }
+    return this->time_filter_->compute_client_time(server_time);
+  }
 
 #ifdef USE_SENDSPIN_ARTWORK
   void add_image_slot_callback(uint8_t slot,
@@ -181,13 +188,6 @@ class SendspinHub : public Component {
   // Simplified audio consumer management with pointer-based approach
   std::vector<std::function<bool(std::shared_ptr<SendspinAudioChunk>, TickType_t, const audio::AudioStreamInfo &)>>
       audio_chunk_callbacks_;
-
-  std::unique_ptr<audio::AudioChunkQueue> encoded_chunk_queue_;
-
-  static void decode_task(void *params);
-  TaskHandle_t decode_task_handle_{nullptr};
-  StaticTask_t decode_task_stack_;
-  StackType_t *decode_task_stack_buffer_{nullptr};
 
   uint8_t volume_;
   bool muted_;
@@ -230,8 +230,6 @@ class SendspinHub : public Component {
 
   double kalman_process_error_;
   double kalman_forget_factor_;
-
-  EventGroupHandle_t event_group_{nullptr};
 
   std::unique_ptr<SendspinWebsocket> sendspin_websocket_;
   std::unique_ptr<SendspinTimeFilter> time_filter_;

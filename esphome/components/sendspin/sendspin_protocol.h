@@ -647,7 +647,7 @@ std::string format_client_state_message(const ClientStateMessage *msg);
 
 std::string format_stream_request_format_message(const StreamRequestFormatMessage *msg);
 
-std::string format_client_goodbye_message(const ClientGoodbyeMessage *msg);
+std::string format_client_goodbye_message(SendspinGoodbyeReason reason);
 
 #ifdef USE_SENDSPIN_CONTROLLER
 std::string format_client_command_message(SendspinCommandType command, std::optional<uint8_t> volume = std::nullopt,

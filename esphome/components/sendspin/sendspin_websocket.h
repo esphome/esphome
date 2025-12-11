@@ -27,6 +27,9 @@ class SendspinWebsocket {
                                    std::optional<bool> mute = std::nullopt);
 #endif
 
+  void send_goodbye_reason(SendspinGoodbyeReason reason);
+  void disconnect();
+
   void send_time_message();
 
   void start_server(std::function<esp_err_t((httpd_req_t *) )> &&callback,

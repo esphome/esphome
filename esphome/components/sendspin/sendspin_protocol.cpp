@@ -712,11 +712,11 @@ std::string format_client_command_message(SendspinCommandType command, std::opti
 }
 #endif
 
-std::string format_client_goodbye_message(const ClientGoodbyeMessage *msg) {
+std::string format_client_goodbye_message(SendspinGoodbyeReason reason) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  return json::build_json([msg](JsonObject root) {
+  return json::build_json([reason](JsonObject root) {
     root["type"] = "client/goodbye";
-    root["payload"]["reason"] = to_string(msg->reason);
+    root["payload"]["reason"] = to_string(reason);
   });
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }

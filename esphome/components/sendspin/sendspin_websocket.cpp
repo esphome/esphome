@@ -79,6 +79,16 @@ void SendspinWebsocket::send_client_command_message(SendspinCommandType command,
 }
 #endif
 
+void SendspinWebsocket::send_goodbye_reason(SendspinGoodbyeReason reason) {
+  this->send_text_message_(format_client_goodbye_message(reason));
+}
+
+void SendspinWebsocket::disconnect() {
+  if (this->current_client_.has_value()) {
+    httpd_sess_trigger_close(this->server_, this->current_client_.value());
+  }
+}
+
 void SendspinWebsocket::send_time_message() {
   int64_t now = esp_timer_get_time();
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson

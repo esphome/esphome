@@ -27,11 +27,6 @@ static const char *const TAG = "sendspin.hub";
 static const size_t SENDSPIN_BINARY_CHUNK_HEADER_SIZE = 9;
 
 #ifdef USE_SENDSPIN_PLAYER
-static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 200;
-
-static const size_t DECODE_TASK_STACK_SIZE = 6 * 1024;
-static const UBaseType_t DECODE_TASK_PRIORITY = 2;
-
 // Time synchronization accuracy thresholds:
 // When Kalman filter variance exceeds this threshold (squared), time sync is considered unreliable
 static const int64_t TIME_SYNC_ERROR_THRESHOLD_US = 20000;
@@ -58,7 +53,6 @@ enum EventGroupBits : uint32_t {
   TASK_RUNNING = (1 << 9),
   TASK_STOPPING = (1 << 10),
   TASK_STOPPED = (1 << 11),
-  WARNING_ENCODED_CHUNK_FULL = (1 << 11),
 };
 
 void SendspinHub::setup() {
@@ -73,20 +67,6 @@ void SendspinHub::setup() {
     ESP_LOGE(TAG, "Couldn't create sendspin time filter.");
     this->mark_failed();
   }
-
-  this->event_group_ = xEventGroupCreate();
-  if (this->event_group_ == nullptr) {
-    ESP_LOGE(TAG, "Couldn't create event group.");
-    this->mark_failed();
-  }
-
-#ifdef USE_SENDSPIN_PLAYER
-  this->encoded_chunk_queue_ = audio::AudioChunkQueue::create(ENCODED_CHUNK_QUEUE_SIZE, 2000000, true);
-  if (this->encoded_chunk_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Couldn't create encoded chunk data queue.");
-    this->mark_failed();
-  }
-#endif
 }
 
 void SendspinHub::send_time_message_() {
@@ -133,75 +113,6 @@ void SendspinHub::loop() {
     this->sendspin_websocket_->start_server(websocket_server_handler, websocket_close_callback, (void *) this,
                                             this->task_stack_in_psram_, WEBSOCKET_TASK_PRIORITY);
   }
-
-#ifdef USE_SENDSPIN_PLAYER
-  EventBits_t event_bits = xEventGroupGetBits(this->event_group_);
-
-  if (event_bits & EventGroupBits::COMMAND_START) {
-    xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_STOP);
-    if (this->decode_task_handle_ == nullptr) {
-      ESP_LOGD(TAG, "Trying to start decode task");
-      if (this->decode_task_stack_buffer_ == nullptr) {
-        // Allocate stack for decode task
-        if (this->task_stack_in_psram_) {
-          RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-          this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
-        } else {
-          RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-          this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
-        }
-      }
-      if (this->decode_task_stack_buffer_ != nullptr) {
-        this->decode_task_handle_ =
-            xTaskCreateStatic(decode_task, "sendspin_decode", DECODE_TASK_STACK_SIZE, (void *) this,
-                              DECODE_TASK_PRIORITY, this->decode_task_stack_buffer_, &this->decode_task_stack_);
-        if (this->decode_task_handle_ == nullptr) {
-          ESP_LOGE(TAG, "Failed to create decode task.");
-        } else {
-          xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_START);
-        }
-      } else {
-        ESP_LOGW(TAG, "Couldn't allocate memory for decode task stack");
-      }
-    } else {
-      // Already running
-      xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_START);
-    }
-  }
-
-  if (event_bits & EventGroupBits::TASK_STARTING) {
-    ESP_LOGD(TAG, "Decode task starting");
-    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STARTING);
-  }
-  if (event_bits & EventGroupBits::TASK_RUNNING) {
-    // Task is running
-    ESP_LOGD(TAG, "Decode task running");
-    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_RUNNING);
-  }
-  if (event_bits & EventGroupBits::TASK_STOPPING) {
-    ESP_LOGD(TAG, "Decode task stopping");
-    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STOPPING);
-  }
-  if (event_bits & EventGroupBits::TASK_STOPPED) {
-    ESP_LOGD(TAG, "Decode task stopped");
-    if (this->decode_task_handle_ != nullptr) {
-      vTaskDelete(this->decode_task_handle_);
-      this->decode_task_handle_ = nullptr;
-    }
-    if (this->decode_task_stack_buffer_ != nullptr) {
-      if (this->task_stack_in_psram_) {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        stack_allocator.deallocate(this->decode_task_stack_buffer_, DECODE_TASK_STACK_SIZE);
-      } else {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        stack_allocator.deallocate(this->decode_task_stack_buffer_, DECODE_TASK_STACK_SIZE);
-      }
-      this->decode_task_stack_buffer_ = nullptr;
-    }
-
-    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STOPPED | EventGroupBits::COMMAND_STOP);
-  }
-#endif
 }
 
 void SendspinHub::start() {
@@ -275,9 +186,16 @@ void SendspinHub::send_client_command(SendspinCommandType command, std::optional
 }
 #endif
 
+void SendspinHub::disconnect_from_server(SendspinGoodbyeReason reason) {
+  if (this->sendspin_websocket_->is_connected()) {
+    this->sendspin_websocket_->send_goodbye_reason(reason);
+    // TODO: Fix this hack. We should create a method to know if the goodbye reason has successfully sent
+    this->set_timeout(1000, [this]() { this->sendspin_websocket_->disconnect(); });
+  }
+}
+
 void SendspinHub::websocket_close_callback(void *context) {
   SendspinHub *this_sendspin = (SendspinHub *) context;
-  xEventGroupSetBits(this_sendspin->event_group_, COMMAND_STOP);  // Handles stopping in the hub component
   this_sendspin->controls_callbacks_.call(SendspinControls::STOP);
 
   this_sendspin->time_filter_->reset();
@@ -430,11 +348,12 @@ bool SendspinHub::process_binary_message_(uint8_t *payload, size_t len) {
         audio_chunk->size = len - SENDSPIN_BINARY_CHUNK_HEADER_SIZE;
         audio_chunk->timestamp = server_timestamp;
         audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
+        audio::AudioStreamInfo stream_info(this->current_stream_params_.bit_depth.value(),
+                                           this->current_stream_params_.channels.value(),
+                                           this->current_stream_params_.sample_rate.value());
 
-        if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
-          // Failed to add
-          ESP_LOGE(TAG, "Failed to send audio chunk, clearing encoded chunk queue");
-          this->encoded_chunk_queue_->reset();
+        if (!this->send_audio_chunk_(audio_chunk, 0, stream_info)) {
+          ESP_LOGE(TAG, "Failed to send audio chunk");
         }
         // No need to manually release - shared_ptr handles cleanup automatically
         return true;  // don't deallocate payload, just clear pointer
@@ -496,7 +415,6 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
   switch (message_type) {
     case SendspinServerToClientMessageType::STREAM_START: {
       ESP_LOGD(TAG, "Stream Started");
-      xEventGroupSetBits(this->event_group_, COMMAND_START);
 #ifdef USE_SENDSPIN_PLAYER
 #ifdef USE_WIFI
       ESP_LOGI(TAG, "Requesting high performance networking for playback");
@@ -560,7 +478,7 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
           header_chunk->timestamp = 0;
         }
 
-        if (!this->encoded_chunk_queue_->add_chunk(header_chunk, 0)) {
+        if (!this->send_audio_chunk_(header_chunk, 0, stream_audio_stream_info)) {
           ESP_LOGE(TAG, "Failed to send codec header");
         } else {
           this->controls_callbacks_.call(SendspinControls::START);
@@ -595,16 +513,12 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
         ESP_LOGD(TAG, "Stream ended - player:%d artwork:%d visualizer:%d", end_player, end_artwork, end_visualizer);
 
         if (end_player) {
-          xEventGroupSetBits(this->event_group_, COMMAND_STOP);
           this->controls_callbacks_.call(SendspinControls::STOP);
-#ifdef USE_SENDSPIN_PLAYER
-#ifdef USE_WIFI
+#if defined(USE_SENDSPIN_PLAYER) && defined(USE_WIFI)
           if (this->high_performance_networking_requested_for_playback_ &&
               wifi::global_wifi_component->release_high_performance()) {
             this->high_performance_networking_requested_for_playback_ = false;
           }
-#endif
-          this->encoded_chunk_queue_->reset();
 #endif
         }
 
@@ -634,7 +548,7 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
 
         if (clear_player) {
 #ifdef USE_SENDSPIN_PLAYER
-          this->encoded_chunk_queue_->reset();
+          this->controls_callbacks_.call(SendspinControls::CLEAR);
 #endif
         }
 
@@ -781,6 +695,9 @@ void SendspinHub::update_volume(uint8_t volume) {
 }
 
 void SendspinHub::publish_client_state() {
+  if (!this->sendspin_websocket_ || !this->sendspin_websocket_->is_connected() || !this->hello_message_sent_) {
+    return;
+  }
   ClientStateMessage state_msg;
   ClientPlayerStateObject player_state;
   player_state.state = this->state_;
@@ -812,110 +729,6 @@ bool SendspinHub::send_audio_chunk_(std::shared_ptr<SendspinAudioChunk> audio_ch
   }
 
   return true;
-}
-
-void SendspinHub::decode_task(void *params) {
-  SendspinHub *this_sendspin = (SendspinHub *) params;
-
-  xEventGroupSetBits(this_sendspin->event_group_, TASK_STARTING);
-
-  std::shared_ptr<SendspinAudioChunk> encoded_chunk = nullptr;  // timestamp is in server time domain
-  std::shared_ptr<SendspinAudioChunk> decoded_chunk = nullptr;  // timestamp is in client time domain
-
-  std::unique_ptr<SendspinDecoder> decoder = std::make_unique<SendspinDecoder>();
-  audio::AudioStreamInfo current_stream_info;
-
-  xEventGroupSetBits(this_sendspin->event_group_, TASK_RUNNING);
-  while (!(xEventGroupGetBits(this_sendspin->event_group_) & COMMAND_STOP)) {
-    if (decoded_chunk != nullptr) {
-      // Add decoded chunk to the queue
-      if ((esp_timer_get_time() > decoded_chunk->timestamp) ||
-          this_sendspin->send_audio_chunk_(
-              decoded_chunk, pdMS_TO_TICKS(current_stream_info.bytes_to_frames(decoded_chunk->get_usable_size())),
-              current_stream_info)) {
-        // Clear chunk if it was already supposed to start playing (skipping it) or if successfully sent to consumers
-        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
-      } else {
-        // Try adding again
-        continue;
-      }
-    }
-
-    if (encoded_chunk == nullptr) {
-      auto audio_chunk = this_sendspin->encoded_chunk_queue_->receive_chunk(pdMS_TO_TICKS(50));
-      if (audio_chunk) {
-        encoded_chunk = std::static_pointer_cast<SendspinAudioChunk>(audio_chunk);
-      }
-    }
-
-    if (encoded_chunk != nullptr) {
-      // Already have an encoded chunk or successfully received one from the queue
-
-      if ((encoded_chunk->chunk_type != CHUNK_TYPE_ENCODED_AUDIO) &&
-          (encoded_chunk->chunk_type != CHUNK_TYPE_DECODED_AUDIO)) {
-        // New codec header
-        decoder->reset_decoders();
-        if (!decoder->process_header(encoded_chunk, &current_stream_info)) {
-          ESP_LOGE(TAG, "Failed to process audio codec header");
-          xEventGroupSetBits(this_sendspin->event_group_, COMMAND_STOP);  // force stop
-        } else {
-          xEventGroupClearBits(this_sendspin->event_group_, COMMAND_STOP);  // where the hell is this getting set?
-        }
-      } else if ((decoder->get_current_codec() != SendspinCodecFormat::UNSUPPORTED) &&
-                 (encoded_chunk->chunk_type == CHUNK_TYPE_ENCODED_AUDIO)) {
-        int64_t client_timestamp = this_sendspin->time_filter_->compute_client_time(encoded_chunk->timestamp);
-        int64_t time_until_playback_us = client_timestamp - esp_timer_get_time();
-        if (time_until_playback_us < 0) {
-          // Chunk was already supposed to play, skip it!
-          encoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
-          continue;
-        }
-
-        if (this_sendspin->time_filter_->get_covariance() >
-            TIME_SYNC_ERROR_THRESHOLD_US * TIME_SYNC_ERROR_THRESHOLD_US) {
-          // Time sync is unreliable, so delay decoding to avoid timing issues
-          const uint32_t time_until_playback_ms =
-              static_cast<uint32_t>(time_until_playback_us / 1000LL);  // Convert to milliseconds
-
-          // Wait for half the remaining time or minimum retry delay (whichever is larger)
-          // If chunk is too close to playback time, it will be discarded on next iteration
-          uint32_t wait_time_ms = std::max(time_until_playback_ms / 2, MIN_RETRY_DELAY_UNRELIABLE_SYNC_MS);
-          vTaskDelay(pdMS_TO_TICKS(wait_time_ms));
-          continue;
-        }
-
-        if (!decoder->decode_audio_chunk(encoded_chunk, decoded_chunk)) {
-          ESP_LOGE(TAG, "Failed to decode audio chunk");
-        } else {
-          decoded_chunk->timestamp = client_timestamp;
-        }
-      }
-
-      // Clear the encoded chunk. Note, for PCM, decoded_chunk is the same data as encoded_chunk but has its own
-      // shared_ptr reference
-      encoded_chunk = nullptr;
-    }
-
-    static uint32_t high_water_mark = 8192;
-    uint32_t new_high_water_mark = uxTaskGetStackHighWaterMark(nullptr);
-    if (new_high_water_mark < high_water_mark) {
-      ESP_LOGD(TAG, "Decode task - High water mark changed from %d to %d.", high_water_mark, new_high_water_mark);
-      high_water_mark = new_high_water_mark;
-    }
-  }
-
-  xEventGroupSetBits(this_sendspin->event_group_, TASK_STOPPING);
-
-  decoder->reset_decoders();
-
-  // shared_ptr automatically handles cleanup
-  encoded_chunk = nullptr;
-  decoded_chunk = nullptr;
-
-  xEventGroupSetBits(this_sendspin->event_group_, TASK_STOPPED);
-  while (true) {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-  }
 }
 #endif
 
