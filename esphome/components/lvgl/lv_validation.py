@@ -463,7 +463,7 @@ class TextValidator(LValidator):
             ):
                 return value
             # Either a std::string or a lambda call returning that. We need const char*
-            return MockObj(value).c_str()
+            return MockObj(f"({value}).c_str()")
         return await super().process(value, args)
 
 
