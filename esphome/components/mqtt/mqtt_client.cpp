@@ -488,13 +488,9 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub, bool 
   if (sub->subscribed)
     return;
   // If the session is present, check if we had already subscribed
-  if (check_persistence) {
-    if (is_subscription_stored(*sub)) {
-      ESP_LOGV(TAG, "Subscription to topic='%s' qos=%d already present in persistent session, skipping subscribe",
-               sub->topic.c_str(), sub->qos);
-      sub->subscribed = true;
-      return;
-    }
+  if (check_persistence && is_subscription_stored(*sub)) {
+    sub->subscribed = true;
+    return;
   }
 
   const uint32_t now = millis();
