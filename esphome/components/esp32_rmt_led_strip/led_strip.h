@@ -53,7 +53,7 @@ struct LedParams {
 };
 
 enum RGBOrder : uint8_t {  // Deprecated (in favor of channel_map)
-  ORDER_NO_SET,
+  ORDER_NOT_SET,
   ORDER_RGB,
   ORDER_RBG,
   ORDER_GRB,
@@ -140,9 +140,9 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   float max_mireds_{500.0f};
 
   struct {
-    RGBOrder rgb_order_{ORDER_NO_SET};  // Deprecated (in favor of channel_map)
-    bool is_rgbw_{false};               // Deprecated (in favor of channel_map)
-    bool is_wrgb_{false};               // Deprecated (in favor of channel_map)
+    RGBOrder rgb_order_{ORDER_NOT_SET};  // Deprecated (in favor of channel_map)
+    bool is_rgbw_{false};                // Deprecated (in favor of channel_map)
+    bool is_wrgb_{false};                // Deprecated (in favor of channel_map)
   } deprecated_settings_;
 
   bool use_dma_{false};

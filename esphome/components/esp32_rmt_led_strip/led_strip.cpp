@@ -134,7 +134,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
     return;
   }
 
-  if (this->deprecated_settings_.rgb_order_ != ORDER_NO_SET) {  // Deprecated (in favor of channel_map)
+  if (this->deprecated_settings_.rgb_order_ != ORDER_NOT_SET) {  // Deprecated (in favor of channel_map)
     ESP_LOGW(TAG, "The rgb_order, is_rgbw and is_wrgb settings are deprecated and will be removed in a future release. "
                   "Please use the channel_map setting instead.");
 
@@ -143,6 +143,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
       map += "W,";
     }
     switch (this->deprecated_settings_.rgb_order_) {
+      case ORDER_NOT_SET:
+        break;
       case ORDER_RGB:
         map += "R,G,B";
         break;
@@ -160,6 +162,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
         break;
       case ORDER_BRG:
         map += "B,R,G";
+        break;
+      default:
         break;
     }
     if (this->deprecated_settings_.is_rgbw_) {
