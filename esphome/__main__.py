@@ -46,10 +46,11 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     SECRETS_FILES,
+    __version__,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
-from esphome.helpers import get_bool_env, indent, is_ip_address
+from esphome.helpers import get_bool_env, indent, is_ip_address, write_file
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
@@ -528,6 +529,8 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
 def _check_and_emit_build_info() -> None:
     """Check if firmware was rebuilt and emit build_info."""
+    import hashlib
+    import hmac
     import json
 
     firmware_path = CORE.firmware_bin
@@ -559,6 +562,90 @@ def _check_and_emit_build_info() -> None:
     _LOGGER.info(
         "Build Info: config_hash=0x%08x build_time_str=%s", config_hash, build_time_str
     )
+
+    # Read firmware data for hash calculation
+    try:
+        with open(firmware_path, "rb") as f:
+            firmware_data = f.read()
+    except OSError as e:
+        _LOGGER.debug("Failed to read firmware for hashing: %s", e)
+        return
+
+    # Look for hmac_key in update components and calculate HMAC for each
+    hmac_results = []
+    for update_config in CORE.config.get("update", []):
+        if (
+            update_config.get("platform") == "http_request"
+            and "hmac_key" in update_config
+        ):
+            update_name = update_config.get("name") or update_config.get(
+                "id", "unknown"
+            )
+            hmac_key = update_config["hmac_key"]
+            hmac_md5_hash = hmac.new(
+                hmac_key.encode(), firmware_data, hashlib.md5
+            ).hexdigest()
+            hmac_sha256_hash = hmac.new(
+                hmac_key.encode(), firmware_data, hashlib.sha256
+            ).hexdigest()
+            hmac_results.append((update_name, hmac_md5_hash, hmac_sha256_hash))
+
+    # If no HMAC keys found, still generate a manifest with buildinfo
+    if not hmac_results:
+        hmac_results.append((CORE.name, None, None))
+
+    # Generate manifest files for each update component (or default manifest)
+    for update_name, hmac_md5_hash, hmac_sha256_hash in hmac_results:
+        # Use same version logic as http_request_update.cpp
+        project_version = (
+            CORE.config.get("esphome", {}).get("project", {}).get("version")
+        )
+        version = project_version if project_version else __version__
+
+        # Determine chip family
+        chip_family = "UNKNOWN"
+        if CORE.target_platform == "esp32":
+            from esphome.components.esp32.const import VARIANT_FRIENDLY
+
+            variant = CORE.config.get("esp32", {}).get("variant", "esp32")
+            chip_family = VARIANT_FRIENDLY.get(variant, variant.upper())
+        elif CORE.target_platform == "esp8266":
+            chip_family = "ESP8266"
+        elif CORE.target_platform == "rp2040":
+            chip_family = "RP2040"
+        elif CORE.is_libretiny:
+            from esphome.components.libretiny.const import FAMILY_FRIENDLY
+
+            family = CORE.config.get("libretiny", {}).get("family", "")
+            chip_family = FAMILY_FRIENDLY.get(family, family.upper())
+
+        ota_info = {"path": firmware_path.name}
+        if hmac_md5_hash is not None:
+            ota_info["hmac_md5"] = hmac_md5_hash
+            ota_info["hmac_sha256"] = hmac_sha256_hash
+        else:
+            # No HMAC key, use plain hashes
+            ota_info["md5"] = hashlib.md5(firmware_data).hexdigest()
+            ota_info["sha256"] = hashlib.sha256(firmware_data).hexdigest()
+
+        manifest = {
+            "name": CORE.name,
+            "version": version,
+            "config_hash": f"{config_hash:08x}",
+            "build_time": str(build_info.get("build_time")),
+            "builds": [
+                {
+                    "chipFamily": chip_family,
+                    "ota": ota_info,
+                }
+            ],
+        }
+
+        manifest_path = (
+            firmware_path.parent / f"{firmware_path.name}.{update_name}.manifest.json"
+        )
+        write_file(manifest_path, json.dumps(manifest, indent=2))
+        _LOGGER.info("Generated manifest: %s", manifest_path)
 
 
 def upload_using_esptool(
