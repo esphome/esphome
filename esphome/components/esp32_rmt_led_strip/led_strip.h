@@ -52,6 +52,16 @@ struct LedParams {
   rmt_symbol_word_t reset;
 };
 
+enum RGBOrder : uint8_t {  // Deprecated (in favor of channel_map)
+  ORDER_NO_SET,
+  ORDER_RGB,
+  ORDER_RBG,
+  ORDER_GRB,
+  ORDER_GBR,
+  ORDER_BGR,
+  ORDER_BRG,
+};
+
 class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
  public:
   void setup() override;
@@ -76,6 +86,15 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
+  void set_rgb_order(RGBOrder rgb_order) {
+    this->deprecated_settings_.rgb_order_ = rgb_order;
+  }  // Deprecated (in favor of channel_map)
+  void set_is_rgbw(bool is_rgbw) {
+    this->deprecated_settings_.is_rgbw_ = is_rgbw;
+  }  // Deprecated (in favor of channel_map)
+  void set_is_wrgb(bool is_wrgb) {
+    this->deprecated_settings_.is_wrgb_ = is_wrgb;
+  }  // Deprecated (in favor of channel_map)
   void set_min_mireds(float min_reds) { this->min_mireds_ = min_reds; }
   void set_max_mireds(float max_mireds) { this->max_mireds_ = max_mireds; }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
@@ -119,6 +138,12 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   ChannelMap channel_map_{};
   float min_mireds_{154.0f};
   float max_mireds_{500.0f};
+
+  struct {
+    RGBOrder rgb_order_{ORDER_NO_SET};  // Deprecated (in favor of channel_map)
+    bool is_rgbw_{false};               // Deprecated (in favor of channel_map)
+    bool is_wrgb_{false};               // Deprecated (in favor of channel_map)
+  } deprecated_settings_;
 
   bool use_dma_{false};
   bool use_psram_{false};

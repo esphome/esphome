@@ -133,6 +133,40 @@ void ESP32RMTLEDStripLightOutput::setup() {
     this->mark_failed();
     return;
   }
+
+  if (this->deprecated_settings_.rgb_order_ != ORDER_NO_SET) {  // Deprecated (in favor of channel_map)
+    ESP_LOGW(TAG, "The rgb_order, is_rgbw and is_wrgb settings are deprecated and will be removed in a future release. "
+                  "Please use the channel_map setting instead.");
+
+    std::string map = "";
+    if (this->deprecated_settings_.is_wrgb_) {
+      map += "W,";
+    }
+    switch (this->deprecated_settings_.rgb_order_) {
+      case ORDER_RGB:
+        map += "R,G,B";
+        break;
+      case ORDER_RBG:
+        map += "R,B,G";
+        break;
+      case ORDER_GRB:
+        map += "G,R,B";
+        break;
+      case ORDER_GBR:
+        map += "G,B,R";
+        break;
+      case ORDER_BGR:
+        map += "B,G,R";
+        break;
+      case ORDER_BRG:
+        map += "B,R,G";
+        break;
+    }
+    if (this->deprecated_settings_.is_rgbw_) {
+      map += ",W";
+    }
+    this->set_channel_map_(const_cast<const std::string &>(map));
+  }
 }
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,

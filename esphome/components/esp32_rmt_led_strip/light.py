@@ -8,10 +8,12 @@ from esphome.components.const import CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
+    CONF_IS_RGBW,  # Deprecated (in favor of channel_map)
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
     CONF_PIN,
+    CONF_RGB_ORDER,  # Deprecated (in favor of channel_map)
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
 )
@@ -25,6 +27,19 @@ esp32_rmt_led_strip_ns = cg.esphome_ns.namespace("esp32_rmt_led_strip")
 ESP32RMTLEDStripLightOutput = esp32_rmt_led_strip_ns.class_(
     "ESP32RMTLEDStripLightOutput", light.AddressableLight
 )
+
+RGBOrder = esp32_rmt_led_strip_ns.enum(
+    "RGBOrder"
+)  # Deprecated (in favor of channel_map)
+
+RGB_ORDERS = {  # Deprecated (in favor of channel_map)
+    "RGB": RGBOrder.ORDER_RGB,
+    "RBG": RGBOrder.ORDER_RBG,
+    "GRB": RGBOrder.ORDER_GRB,
+    "GBR": RGBOrder.ORDER_GBR,
+    "BGR": RGBOrder.ORDER_BGR,
+    "BRG": RGBOrder.ORDER_BRG,
+}
 
 
 @dataclass
@@ -46,6 +61,7 @@ CHIPSETS = {
     "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
+CONF_IS_WRGB = "is_wrgb"  # Deprecated (in favor of channel_map)
 CONF_CHANNEL_MAP = "channel_map"
 CONF_MIN_MIREDS = "min_mireds"
 CONF_MAX_MIREDS = "max_mireds"
@@ -71,15 +87,59 @@ def validate_channel_map(value):
     return value
 
 
+def check_deprecated_settings(config):
+    if CONF_RGB_ORDER in config:
+        _LOGGER.warning(
+            "'%s' is deprecated, please use '%s' instead.",
+            CONF_RGB_ORDER,
+            CONF_CHANNEL_MAP,
+        )
+
+    if CONF_IS_RGBW in config:
+        _LOGGER.warning(
+            "'%s' is deprecated, please use '%s' instead.",
+            CONF_IS_RGBW,
+            CONF_CHANNEL_MAP,
+        )
+
+    if CONF_IS_WRGB in config:
+        _LOGGER.warning(
+            "'%s' is deprecated, please use '%s' instead.",
+            CONF_IS_WRGB,
+            CONF_CHANNEL_MAP,
+        )
+
+    if CONF_RGB_ORDER in config and CONF_CHANNEL_MAP in config:
+        raise cv.Invalid(
+            f"Cannot use both '{CONF_RGB_ORDER}' and '{CONF_CHANNEL_MAP}' settings together. Please use only '{CONF_CHANNEL_MAP}'."
+        )
+
+    if CONF_RGB_ORDER not in config and CONF_CHANNEL_MAP not in config:
+        raise cv.Invalid(f"'{CONF_CHANNEL_MAP}' is a required setting.")
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-            cv.Required(CONF_CHANNEL_MAP): validate_channel_map,
+            cv.Optional(
+                CONF_CHANNEL_MAP
+            ): validate_channel_map,  # After CONF_RGB_ORDER is deprecated this setting will be required
             cv.Optional(CONF_MIN_MIREDS): cv.positive_float,
             cv.Optional(CONF_MAX_MIREDS): cv.positive_float,
+            cv.Optional(CONF_RGB_ORDER): cv.enum(
+                RGB_ORDERS, upper=True
+            ),  # Deprecated (in favor of channel_map)
+            cv.Optional(
+                CONF_IS_RGBW
+            ): cv.boolean,  # Deprecated (in favor of channel_map)
+            cv.Optional(
+                CONF_IS_WRGB
+            ): cv.boolean,  # Deprecated (in favor of channel_map)
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
@@ -127,6 +187,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
+    check_deprecated_settings,
 )
 
 
@@ -165,7 +226,20 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_channel_map(config[CONF_CHANNEL_MAP]))
+    if CONF_RGB_ORDER in config:
+        cg.add(
+            var.set_rgb_order(config[CONF_RGB_ORDER])
+        )  # Deprecated (in favor of channel_map)
+    if CONF_IS_RGBW in config:
+        cg.add(
+            var.set_is_rgbw(config[CONF_IS_RGBW])
+        )  # Deprecated (in favor of channel_map)
+    if CONF_IS_WRGB in config:
+        cg.add(
+            var.set_is_wrgb(config[CONF_IS_WRGB])
+        )  # Deprecated (in favor of channel_map)
+    if CONF_CHANNEL_MAP in config:
+        cg.add(var.set_channel_map(config[CONF_CHANNEL_MAP]))
     if CONF_MIN_MIREDS in config:
         cg.add(var.set_min_mireds(config[CONF_MIN_MIREDS]))
     if CONF_MAX_MIREDS in config:
