@@ -203,6 +203,12 @@ void HttpRequestUpdate::perform(bool force) {
     return;
   }
 
+  if (!this->update_info.hmac_md5.empty() && this->hmac_key_.empty()) {
+    ESP_LOGE(TAG, "Manifest contains hmac_md5 but no hmac_key configured");
+    this->status_set_error(LOG_STR("HMAC key required but not configured"));
+    return;
+  }
+
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->publish_state();
 
