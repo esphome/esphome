@@ -23,8 +23,8 @@ namespace buildinfo {
 
 // Reference the linker symbols as uintptr_t from the *data* section to
 // avoid issues with pc-relative relocations on 64-bit platforms.
-static const uintptr_t config_hash = (uintptr_t) &ESPHOME_CONFIG_HASH;
-static const uintptr_t build_time = (uintptr_t) &ESPHOME_BUILD_TIME;
+static uintptr_t config_hash = (uintptr_t) &ESPHOME_CONFIG_HASH;
+static uintptr_t build_time = (uintptr_t) &ESPHOME_BUILD_TIME;
 
 const char *get_config_hash() {
   static char hash_str[9];
