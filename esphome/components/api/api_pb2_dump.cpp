@@ -999,7 +999,9 @@ void LightCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_flash_length", this->has_flash_length);
   dump_field(out, "flash_length", this->flash_length);
   dump_field(out, "has_effect", this->has_effect);
-  dump_field(out, "effect", this->effect);
+  out.append("  effect: ");
+  out.append(format_hex_pretty(this->effect, this->effect_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1453,7 +1455,9 @@ void SelectStateResponse::dump_to(std::string &out) const {
 void SelectCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SelectCommandRequest");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state);
+  out.append("  state: ");
+  out.append(format_hex_pretty(this->state, this->state_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif

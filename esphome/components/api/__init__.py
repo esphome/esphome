@@ -246,7 +246,7 @@ def _validate_api_config(config: ConfigType) -> ConfigType:
         _LOGGER.warning(
             "API 'password' authentication has been deprecated since May 2022 and will be removed in version 2026.1.0. "
             "Please migrate to the 'encryption' configuration. "
-            "See https://esphome.io/components/api.html#configuration-variables"
+            "See https://esphome.io/components/api/#configuration-variables"
         )
 
     return config

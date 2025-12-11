@@ -624,6 +624,17 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
   return parse_hex<T>(str.c_str(), str.length());
 }
 
+/// Parse a hex character to its nibble value (0-15), returns 255 on invalid input
+constexpr uint8_t parse_hex_char(char c) {
+  if (c >= '0' && c <= '9')
+    return c - '0';
+  if (c >= 'A' && c <= 'F')
+    return c - 'A' + 10;
+  if (c >= 'a' && c <= 'f')
+    return c - 'a' + 10;
+  return 255;
+}
+
 /// Convert a nibble (0-15) to lowercase hex char
 inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
 
@@ -1056,6 +1067,12 @@ class HighFrequencyLoopRequester {
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
+/// Buffer size for MAC address in lowercase hex notation (12 hex chars + null terminator)
+constexpr size_t MAC_ADDRESS_BUFFER_SIZE = 13;
+
+/// Buffer size for MAC address in colon-separated uppercase hex notation (17 chars + null terminator)
+constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = 18;
+
 /// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();
 
@@ -1063,13 +1080,14 @@ std::string get_mac_address();
 std::string get_mac_address_pretty();
 
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
-/// Assumes buffer length is 13 (12 digits for hexadecimal representation followed by null terminator).
-void get_mac_address_into_buffer(std::span<char, 13> buf);
+/// Assumes buffer length is MAC_ADDRESS_BUFFER_SIZE (12 digits for hexadecimal representation followed by null
+/// terminator).
+void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf);
 
 /// Get the device MAC address into the given buffer, in colon-separated uppercase hex notation.
-/// Buffer must be exactly 18 bytes (17 for "XX:XX:XX:XX:XX:XX" + null terminator).
+/// Buffer must be exactly MAC_ADDRESS_PRETTY_BUFFER_SIZE bytes (17 for "XX:XX:XX:XX:XX:XX" + null terminator).
 /// Returns pointer to the buffer for convenience.
-const char *get_mac_address_pretty_into_buffer(std::span<char, 18> buf);
+const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
 
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
