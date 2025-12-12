@@ -221,6 +221,9 @@ void SendspinMediaSource::loop() {
         // Event group and queue already created in init_pipelines()
         // Start the task
         if (ctx.sync_task_handle == nullptr) {
+          xEventGroupClearBits(ctx.event_group, EventGroupBits::TASK_STARTING | EventGroupBits::TASK_RUNNING |
+                                                    EventGroupBits::TASK_STOPPING | EventGroupBits::TASK_STOPPED |
+                                                    EventGroupBits::COMMAND_STOP);
           if (ctx.sync_task_stack_buffer == nullptr) {
             if (this->task_stack_in_psram_) {
               RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
