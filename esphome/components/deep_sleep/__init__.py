@@ -146,9 +146,7 @@ def validate_wakeup_pin(
     if not isinstance(value, list):
         processed_pins: list[ConfigType] = [{CONF_PIN: value}]
     else:
-        processed_pins = []
-        for pin_config in value:
-            processed_pins.append(pin_config)
+        processed_pins = list(value)
 
     for i, pin_config in enumerate(processed_pins):
         # now validate each item
