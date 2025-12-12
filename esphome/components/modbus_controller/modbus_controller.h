@@ -231,6 +231,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
 class ModbusController : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void dump_config() override;
+  void loop() override { this->disable_loop(); };
   void setup() override;
   void update() override;
   void set_online(bool online, int function_code, int register_address);
