@@ -559,7 +559,9 @@ async def register_mqtt_component(var, config):
         state_topic = await cg.templatable(config[CONF_STATE_TOPIC], [], cg.std_string)
         cg.add(var.set_custom_state_topic(state_topic))
     if CONF_COMMAND_TOPIC in config:
-        command_topic = await cg.templatable(config[CONF_COMMAND_TOPIC], [], cg.std_string)
+        command_topic = await cg.templatable(
+            config[CONF_COMMAND_TOPIC], [], cg.std_string
+        )
         cg.add(var.set_custom_command_topic(command_topic))
     if CONF_COMMAND_RETAIN in config:
         cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))

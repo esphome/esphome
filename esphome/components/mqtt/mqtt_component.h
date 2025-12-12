@@ -97,8 +97,12 @@ class MQTTComponent : public Component {
   virtual std::string component_type() const = 0;
 
   /// Set a custom state topic. Do not set for default behavior.
-  template<typename T> void set_custom_state_topic(T custom_state_topic) { this->custom_state_topic_ = custom_state_topic; }
-  template<typename T> void set_custom_command_topic(T custom_command_topic) { this->custom_command_topic_ = custom_command_topic; }
+  template<typename T> void set_custom_state_topic(T custom_state_topic) {
+    this->custom_state_topic_ = custom_state_topic;
+  }
+  template<typename T> void set_custom_command_topic(T custom_command_topic) {
+    this->custom_command_topic_ = custom_command_topic;
+  }
   /// Set whether command message should be retained.
   void set_command_retain(bool command_retain);
 
@@ -193,7 +197,6 @@ class MQTTComponent : public Component {
   TemplatableValue<std::string> custom_command_topic_{};
 
   std::unique_ptr<Availability> availability_;
-
 
   bool command_retain_{false};
   bool retain_{true};
