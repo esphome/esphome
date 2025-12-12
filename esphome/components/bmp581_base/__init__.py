@@ -1,7 +1,7 @@
 import math
 
 import esphome.codegen as cg
-from esphome.components import i2c, sensor
+from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -44,9 +44,7 @@ IIR_FILTER_OPTIONS = {
     "128X": IIRFilter.IIR_FILTER_128,
 }
 
-BMP581Component = bmp581_ns.class_(
-    "BMP581Component", cg.PollingComponent, i2c.I2CDevice
-)
+BMP581Component = bmp581_ns.class_("BMP581Component", cg.PollingComponent)
 
 
 def compute_measurement_conversion_time(config):
@@ -97,7 +95,7 @@ def compute_measurement_conversion_time(config):
     return math.ceil(1.05 * (pressure_conversion_time + temperature_conversion_time))
 
 
-CONFIG_SCHEMA = cv.Schema(
+CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BMP581Component),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -137,7 +135,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
     if temperature_config := config.get(CONF_TEMPERATURE):
         sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature_sensor(sens))
