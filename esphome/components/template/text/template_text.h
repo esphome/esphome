@@ -6,8 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/template_lambda.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 // We keep this separate so we don't have to template and duplicate
 // the text input for each different size flash allocation.
@@ -84,5 +83,4 @@ class TemplateText final : public text::Text, public PollingComponent {
   TemplateTextSaverBase *pref_ = nullptr;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

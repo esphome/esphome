@@ -360,7 +360,7 @@ void WiFiComponent::start() {
                 get_mac_address_pretty_into_buffer(mac_s));
   this->last_connected_ = millis();
 
-  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
+  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time_ref().c_str()) : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
@@ -580,7 +580,7 @@ void WiFiComponent::loop() {
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
-bool WiFiComponent::is_ap_active() const { return this->state_ == WIFI_COMPONENT_STATE_AP; }
+bool WiFiComponent::is_ap_active() const { return this->ap_started_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 #ifdef USE_WIFI_11KV_SUPPORT
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
@@ -1264,8 +1264,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
     }
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      // If scan found no matching networks, skip to hidden network mode
-      if (!this->scan_result_.empty() && !this->scan_result_[0].get_matches()) {
+      // If scan found no networks or no matching networks, skip to hidden network mode
+      if (this->scan_result_.empty() || !this->scan_result_[0].get_matches()) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
 

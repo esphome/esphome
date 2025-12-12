@@ -59,6 +59,7 @@ from .const import (  # noqa
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -122,14 +123,15 @@ def get_cpu_frequencies(*frequencies):
 
 CPU_FREQUENCIES = {
     VARIANT_ESP32: get_cpu_frequencies(80, 160, 240),
-    VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
-    VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C2: get_cpu_frequencies(80, 120),
     VARIANT_ESP32C3: get_cpu_frequencies(80, 160),
     VARIANT_ESP32C5: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
+    VARIANT_ESP32C61: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
     VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
+    VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
 }
 
 # Make sure not missed here if a new variant added.
@@ -584,6 +586,8 @@ CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
 CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
 CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
+CONF_FREERTOS_IN_IRAM = "freertos_in_iram"
+CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 
 # VFS requirement tracking
@@ -677,6 +681,8 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_SELECT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
+                cv.Optional(CONF_FREERTOS_IN_IRAM, default=False): cv.boolean,
+                cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
@@ -758,7 +764,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "Need help? Check out the migration guide:\n"
         + color(
             AnsiFore.BLUE,
-            "https://esphome.io/guides/esp32_arduino_to_idf.html",
+            "https://esphome.io/guides/esp32_arduino_to_idf/",
         )
     )
     _LOGGER.warning(message)
@@ -903,6 +909,7 @@ async def to_code(config):
     )
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
+    cg.add_build_flag("-Wl,-z,noexecstack")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     variant = config[CONF_VARIANT]
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
@@ -1002,6 +1009,33 @@ async def to_code(config):
 
     # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
     add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
+
+    # Place non-ISR FreeRTOS functions into flash instead of IRAM
+    # This saves up to 8KB of IRAM. ISR-safe functions (FromISR variants) stay in IRAM.
+    # In ESP-IDF 6.0 this becomes the default and CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH
+    # is removed (replaced by CONFIG_FREERTOS_IN_IRAM to restore old behavior).
+    # We enable this now to match IDF 6.0 behavior and catch any issues early.
+    # Users can set freertos_in_iram: true as an escape hatch if they encounter problems
+    # with code that incorrectly calls FreeRTOS functions from ISRs with cache disabled.
+    if conf[CONF_ADVANCED][CONF_FREERTOS_IN_IRAM]:
+        # IDF 5.x: don't set the flash option (keeps functions in IRAM)
+        # IDF 6.0+: will need CONFIG_FREERTOS_IN_IRAM=y to restore IRAM placement
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_IN_IRAM", True)
+    else:
+        # IDF 5.x: explicitly place functions in flash
+        # IDF 6.0+: this is the default, option no longer exists
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH", True)
+
+    # Place ring buffer functions into flash instead of IRAM by default
+    # This saves IRAM. In ESP-IDF 6.0 flash placement becomes the default.
+    # Users can set ringbuf_in_iram: true as an escape hatch if they encounter issues.
+    if conf[CONF_ADVANCED][CONF_RINGBUF_IN_IRAM]:
+        # User requests ring buffer in IRAM
+        # IDF 6.0+: will need CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=n
+        add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH", False)
+    else:
+        # Place in flash to save IRAM (default)
+        add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH", True)
 
     # Setup watchdog
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)

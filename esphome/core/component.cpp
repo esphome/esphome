@@ -138,7 +138,16 @@ void Component::set_retry(const std::string &name, uint32_t initial_wait_time, u
   App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
 
+void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
+                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+}
+
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
+  return App.scheduler.cancel_retry(this, name);
+}
+
+bool Component::cancel_retry(const char *name) {  // NOLINT
   return App.scheduler.cancel_retry(this, name);
 }
 
@@ -369,11 +378,11 @@ void Component::status_clear_error() {
   this->component_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
-void Component::status_momentary_warning(const std::string &name, uint32_t length) {
+void Component::status_momentary_warning(const char *name, uint32_t length) {
   this->status_set_warning();
   this->set_timeout(name, length, [this]() { this->status_clear_warning(); });
 }
-void Component::status_momentary_error(const std::string &name, uint32_t length) {
+void Component::status_momentary_error(const char *name, uint32_t length) {
   this->status_set_error();
   this->set_timeout(name, length, [this]() { this->status_clear_error(); });
 }
