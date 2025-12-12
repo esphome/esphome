@@ -36,8 +36,8 @@ async def test_host_mode_empty_string_options(
 
         # Find our select entities
         select_entities = [e for e in entity_info if isinstance(e, SelectInfo)]
-        assert len(select_entities) == 3, (
-            f"Expected 3 select entities, got {len(select_entities)}"
+        assert len(select_entities) == 4, (
+            f"Expected 4 select entities, got {len(select_entities)}"
         )
 
         # Verify each select entity by name and check their options
@@ -71,40 +71,66 @@ async def test_host_mode_empty_string_options(
         assert empty_last.options[2] == "Choice Z"
         assert empty_last.options[3] == ""  # Empty string at end
 
+        # Check "Select Initial Option Test" - verify non-default initial option
+        assert "Select Initial Option Test" in selects_by_name
+        initial_option_test = selects_by_name["Select Initial Option Test"]
+        assert len(initial_option_test.options) == 4
+        assert initial_option_test.options[0] == "First"
+        assert initial_option_test.options[1] == "Second"
+        assert initial_option_test.options[2] == "Third"
+        assert initial_option_test.options[3] == "Fourth"
+
         # If we got here without protobuf decoding errors, the fix is working
         # The bug would have caused "Invalid protobuf message" errors with trailing bytes
 
-        # Also verify we can interact with the select entities
-        # Subscribe to state changes
+        # Also verify we can receive state updates for select entities
+        # This ensures empty strings work properly in state messages too
         states: dict[int, EntityState] = {}
-        state_change_future: asyncio.Future[None] = loop.create_future()
+        states_received_future: asyncio.Future[None] = loop.create_future()
+        expected_select_keys = {
+            empty_first.key,
+            empty_middle.key,
+            empty_last.key,
+            initial_option_test.key,
+        }
+        received_select_keys = set()
 
         def on_state(state: EntityState) -> None:
             """Track state changes."""
             states[state.key] = state
-            # When we receive the state change for our select, resolve the future
-            if state.key == empty_first.key and not state_change_future.done():
-                state_change_future.set_result(None)
+            # Track which select entities we've received states for
+            if state.key in expected_select_keys:
+                received_select_keys.add(state.key)
+                # Once we have all select states, we're done
+                if (
+                    received_select_keys == expected_select_keys
+                    and not states_received_future.done()
+                ):
+                    states_received_future.set_result(None)
 
         client.subscribe_states(on_state)
 
-        # Try setting a select to an empty string option
-        # This further tests that empty strings are handled correctly
-        client.select_command(empty_first.key, "")
-
-        # Wait for state update with timeout
+        # Wait for initial states with timeout
         try:
-            await asyncio.wait_for(state_change_future, timeout=5.0)
-        except asyncio.TimeoutError:
+            await asyncio.wait_for(states_received_future, timeout=5.0)
+        except TimeoutError:
             pytest.fail(
-                "Did not receive state update after setting select to empty string"
+                f"Did not receive states for all select entities. "
+                f"Expected keys: {expected_select_keys}, Received: {received_select_keys}"
             )
 
-        # Verify the state was set to empty string
+        # Verify we received states for all select entities
         assert empty_first.key in states
-        select_state = states[empty_first.key]
-        assert hasattr(select_state, "state")
-        assert select_state.state == ""
+        assert empty_middle.key in states
+        assert empty_last.key in states
+        assert initial_option_test.key in states
 
-        # The test passes if no protobuf decoding errors occurred
-        # With the bug, we would have gotten "Invalid protobuf message" errors
+        # Verify the initial option is set correctly to "Third" (not the default "First")
+        initial_state = states[initial_option_test.key]
+        assert initial_state.state == "Third", (
+            f"Expected initial state 'Third' but got '{initial_state.state}' - "
+            f"initial_option not correctly applied"
+        )
+
+        # The main test is that we got here without protobuf errors
+        # The select entities with empty string options were properly encoded

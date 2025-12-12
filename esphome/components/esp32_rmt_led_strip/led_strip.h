@@ -25,6 +25,12 @@ enum RGBOrder : uint8_t {
   ORDER_BRG,
 };
 
+struct LedParams {
+  rmt_symbol_word_t bit0;
+  rmt_symbol_word_t bit1;
+  rmt_symbol_word_t reset;
+};
+
 class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
  public:
   void setup() override;
@@ -72,12 +78,15 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
+  LedParams params_;
   rmt_channel_handle_t channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+  uint8_t *rmt_buf_{nullptr};
+#else
   rmt_symbol_word_t *rmt_buf_{nullptr};
-  rmt_symbol_word_t bit0_, bit1_, reset_;
+#endif
   uint32_t rmt_symbols_{48};
-
   uint8_t pin_;
   uint16_t num_leds_;
   bool is_rgbw_{false};

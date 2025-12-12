@@ -3,7 +3,6 @@ import functools
 import hashlib
 from itertools import accumulate
 import logging
-import os
 from pathlib import Path
 import re
 
@@ -15,6 +14,7 @@ from freetype import (
     FT_LOAD_RENDER,
     FT_LOAD_TARGET_MONO,
     Face,
+    FT_Exception,
     ft_pixel_mode_mono,
 )
 import requests
@@ -37,6 +37,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt
 from esphome.helpers import cpp_string_escape
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,7 +95,14 @@ class FontCache(MutableMapping):
         return self.store[self._keytransform(item)]
 
     def __setitem__(self, key, value):
-        self.store[self._keytransform(key)] = Face(str(value))
+        transformed = self._keytransform(key)
+        try:
+            self.store[transformed] = Face(str(value))
+        except FT_Exception as exc:
+            file = transformed.split(":", 1)
+            raise cv.Invalid(
+                f"{file[0].capitalize()} {file[1]} is not a valid font file"
+            ) from exc
 
 
 FONT_CACHE = FontCache()
@@ -245,11 +253,11 @@ def validate_truetype_file(value):
     return CORE.relative_config_path(cv.file_(value))
 
 
-def add_local_file(value):
+def add_local_file(value: ConfigType) -> ConfigType:
     if value in FONT_CACHE:
         return value
-    path = value[CONF_PATH]
-    if not os.path.isfile(path):
+    path = Path(value[CONF_PATH])
+    if not path.is_file():
         raise cv.Invalid(f"File '{path}' not found.")
     FONT_CACHE[value] = path
     return value
@@ -310,7 +318,7 @@ def download_gfont(value):
         external_files.compute_local_file_dir(DOMAIN)
         / f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1.ttf"
     )
-    if not external_files.is_file_recent(str(path), value[CONF_REFRESH]):
+    if not external_files.is_file_recent(path, value[CONF_REFRESH]):
         _LOGGER.debug("download_gfont: path=%s", path)
         try:
             req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)

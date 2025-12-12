@@ -1,0 +1,6 @@
+sensor:
+  - platform: opt3001
+    i2c_id: i2c_bus
+    name: Living Room Brightness
+    address: 0x44
+    update_interval: 30s

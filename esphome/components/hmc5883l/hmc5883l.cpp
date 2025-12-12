@@ -22,7 +22,6 @@ static const uint8_t HMC5883L_REGISTER_IDENTIFICATION_B = 0x0B;
 static const uint8_t HMC5883L_REGISTER_IDENTIFICATION_C = 0x0C;
 
 void HMC5883LComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id[3];
   if (!this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_A, &id[0]) ||
       !this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_B, &id[1]) ||

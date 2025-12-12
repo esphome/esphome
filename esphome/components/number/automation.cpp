@@ -15,7 +15,7 @@ void ValueRangeTrigger::setup() {
   float local_min = this->min_.value(0.0);
   float local_max = this->max_.value(0.0);
   convert hash = {.from = (local_max - local_min)};
-  uint32_t myhash = hash.to ^ this->parent_->get_object_id_hash();
+  uint32_t myhash = hash.to ^ this->parent_->get_preference_hash();
   this->rtc_ = global_preferences->make_preference<bool>(myhash);
   bool initial_state;
   if (this->rtc_.load(&initial_state)) {

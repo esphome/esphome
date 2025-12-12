@@ -1,7 +1,6 @@
 #include "filter.h"
 
 #include "binary_sensor.h"
-#include <utility>
 
 namespace esphome {
 
@@ -23,6 +22,12 @@ void Filter::input(bool value) {
   if (b.has_value()) {
     this->output(*b);
   }
+}
+
+void TimeoutFilter::input(bool value) {
+  this->set_timeout("timeout", this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
+  // we do not de-dup here otherwise changes from invalid to valid state will not be output
+  this->output(value);
 }
 
 optional<bool> DelayedOnOffFilter::new_value(bool value) {
@@ -62,7 +67,7 @@ float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARD
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
-AutorepeatFilter::AutorepeatFilter(std::vector<AutorepeatFilterTiming> timings) : timings_(std::move(timings)) {}
+AutorepeatFilter::AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) : timings_(timings) {}
 
 optional<bool> AutorepeatFilter::new_value(bool value) {
   if (value) {

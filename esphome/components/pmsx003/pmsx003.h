@@ -31,7 +31,6 @@ enum PMSX003State {
 class PMSX003Component : public uart::UARTDevice, public Component {
  public:
   PMSX003Component() = default;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
   void loop() override;
 

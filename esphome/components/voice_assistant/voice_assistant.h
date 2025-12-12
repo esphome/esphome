@@ -90,6 +90,15 @@ struct Configuration {
   uint32_t max_active_wake_words;
 };
 
+#ifdef USE_MEDIA_PLAYER
+enum class MediaPlayerResponseState {
+  IDLE,
+  URL_SENT,
+  PLAYING,
+  FINISHED,
+};
+#endif
+
 class VoiceAssistant : public Component {
  public:
   VoiceAssistant();
@@ -177,6 +186,7 @@ class VoiceAssistant : public Component {
 
   Trigger<> *get_intent_end_trigger() const { return this->intent_end_trigger_; }
   Trigger<> *get_intent_start_trigger() const { return this->intent_start_trigger_; }
+  Trigger<std::string> *get_intent_progress_trigger() const { return this->intent_progress_trigger_; }
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
   Trigger<> *get_end_trigger() const { return this->end_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
@@ -233,6 +243,7 @@ class VoiceAssistant : public Component {
   Trigger<> *tts_stream_start_trigger_ = new Trigger<>();
   Trigger<> *tts_stream_end_trigger_ = new Trigger<>();
 #endif
+  Trigger<std::string> *intent_progress_trigger_ = new Trigger<std::string>();
   Trigger<> *wake_word_detected_trigger_ = new Trigger<>();
   Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
@@ -268,8 +279,10 @@ class VoiceAssistant : public Component {
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
-  bool media_player_wait_for_announcement_start_{false};
-  bool media_player_wait_for_announcement_end_{false};
+  std::string tts_response_url_{""};
+  bool started_streaming_tts_{false};
+
+  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
 
   bool local_output_{false};
@@ -311,7 +324,7 @@ template<typename... Ts> class StartAction : public Action<Ts...>, public Parent
   TEMPLATABLE_VALUE(std::string, wake_word);
 
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->set_wake_word(this->wake_word_.value(x...));
     this->parent_->request_start(false, this->silence_detection_);
   }
@@ -324,22 +337,22 @@ template<typename... Ts> class StartAction : public Action<Ts...>, public Parent
 
 template<typename... Ts> class StartContinuousAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_start(true, true); }
+  void play(const Ts &...x) override { this->parent_->request_start(true, true); }
 };
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_stop(); }
+  void play(const Ts &...x) override { this->parent_->request_stop(); }
 };
 
 template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
 };
 
 template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
-  bool check(Ts... x) override { return this->parent_->get_api_connection() != nullptr; }
+  bool check(const Ts &...x) override { return this->parent_->get_api_connection() != nullptr; }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

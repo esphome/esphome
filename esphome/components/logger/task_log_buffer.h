@@ -11,8 +11,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/ringbuf.h>
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 class TaskLogBuffer {
  public:
@@ -63,7 +62,6 @@ class TaskLogBuffer {
   mutable uint16_t last_processed_counter_{0};  // Tracks last processed message
 };
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER

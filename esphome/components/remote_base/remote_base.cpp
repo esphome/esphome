@@ -19,6 +19,22 @@ bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset) const {
   return value >= 0 && lo <= value && value <= hi;
 }
 
+bool RemoteReceiveData::peek_mark_at_least(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t lo = this->lower_bound_(length);
+  return value >= 0 && lo <= value;
+}
+
+bool RemoteReceiveData::peek_mark_at_most(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t hi = this->upper_bound_(length);
+  return value >= 0 && value <= hi;
+}
+
 bool RemoteReceiveData::peek_space(uint32_t length, uint32_t offset) const {
   if (!this->is_valid(offset))
     return false;
@@ -34,6 +50,14 @@ bool RemoteReceiveData::peek_space_at_least(uint32_t length, uint32_t offset) co
   const int32_t value = this->peek(offset);
   const int32_t lo = this->lower_bound_(length);
   return value <= 0 && lo <= -value;
+}
+
+bool RemoteReceiveData::peek_space_at_most(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t hi = this->upper_bound_(length);
+  return value <= 0 && -value <= hi;
 }
 
 bool RemoteReceiveData::expect_mark(uint32_t length) {

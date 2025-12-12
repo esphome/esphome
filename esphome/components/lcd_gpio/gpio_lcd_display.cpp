@@ -7,7 +7,6 @@ namespace lcd_gpio {
 static const char *const TAG = "lcd_gpio";
 
 void GPIOLCDDisplay::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->rs_pin_->setup();  // OUTPUT
   this->rs_pin_->digital_write(false);
   if (this->rw_pin_ != nullptr) {

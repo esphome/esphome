@@ -20,7 +20,6 @@ static const uint8_t SM2135_RGB = 0x00;  // RGB channel
 static const uint8_t SM2135_CW = 0x80;   // CW channel (Chip default)
 
 void SM2135::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->data_pin_->setup();
   this->data_pin_->digital_write(false);
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);

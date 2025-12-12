@@ -1,14 +1,12 @@
-spi:
-  - id: spi_main_lcd
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 18
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 display:
   - platform: ili9xxx
     id: main_lcd
+    spi_id: spi_bus
     model: ili9342
-    cs_pin: 19
+    cs_pin: 15
     dc_pin: 13
     reset_pin: 21
     invert_colors: true

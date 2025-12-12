@@ -117,7 +117,7 @@ void netif_set_addr(struct netif *netif, const ip4_addr_t *ip, const ip4_addr_t 
 };
 #endif
 
-bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -258,8 +258,17 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
-    // Only allow auth modes with at least WPA
-    conf.threshold.authmode = AUTH_WPA_PSK;
+    // Set threshold based on configured minimum auth mode
+    // Note: ESP8266 doesn't support WPA3
+    switch (this->min_auth_mode_) {
+      case WIFI_MIN_AUTH_MODE_WPA:
+        conf.threshold.authmode = AUTH_WPA_PSK;
+        break;
+      case WIFI_MIN_AUTH_MODE_WPA2:
+      case WIFI_MIN_AUTH_MODE_WPA3:  // Fall back to WPA2 for ESP8266
+        conf.threshold.authmode = AUTH_WPA2_PSK;
+        break;
+    }
   }
   conf.threshold.rssi = -127;
 #endif
@@ -273,9 +282,15 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
   }
+#else
+  if (!this->wifi_sta_ip_config_({})) {
+    return false;
+  }
+#endif
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
@@ -301,7 +316,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       // if we have certs, this must be EAP-TLS
       ret = wifi_station_set_enterprise_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                  (uint8_t *) eap.client_key, client_key_len + 1,
-                                                 (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                                 (uint8_t *) eap.password.c_str(), eap.password.length());
       if (ret) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed: %d", ret);
       }
@@ -496,7 +511,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGV(TAG, "Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_addr(it.bssid).c_str(), it.channel);
+      ESP_LOGV(TAG, "Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_address_pretty(it.bssid).c_str(),
+               it.channel);
       s_sta_connected = true;
       break;
     }
@@ -509,8 +525,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
         ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
         s_sta_connect_not_found = true;
       } else {
-        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-                 format_mac_addr(it.bssid).c_str(), LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
+        char bssid_s[18];
+        format_mac_addr_upper(it.bssid, bssid_s);
+        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf, bssid_s,
+                 LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
         s_sta_connect_error = true;
       }
       s_sta_connected = false;
@@ -545,17 +563,17 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_SOFTAPMODE_STACONNECTED: {
       auto it = event->event_info.sta_connected;
-      ESP_LOGV(TAG, "AP client connected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      ESP_LOGV(TAG, "AP client connected MAC=%s aid=%u", format_mac_address_pretty(it.mac).c_str(), it.aid);
       break;
     }
     case EVENT_SOFTAPMODE_STADISCONNECTED: {
       auto it = event->event_info.sta_disconnected;
-      ESP_LOGV(TAG, "AP client disconnected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      ESP_LOGV(TAG, "AP client disconnected MAC=%s aid=%u", format_mac_address_pretty(it.mac).c_str(), it.aid);
       break;
     }
     case EVENT_SOFTAPMODE_PROBEREQRECVED: {
       auto it = event->event_info.ap_probereqrecved;
-      ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
+      ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_address_pretty(it.mac).c_str(), it.rssi);
       break;
     }
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
@@ -567,7 +585,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_SOFTAPMODE_DISTRIBUTE_STA_IP: {
       auto it = event->event_info.distribute_sta_ip;
-      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", format_mac_addr(it.mac).c_str(),
+      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", format_mac_address_pretty(it.mac).c_str(),
                format_ip_addr(it.ip).c_str(), it.aid);
       break;
     }
@@ -695,18 +713,26 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     this->retry_connect();
     return;
   }
+
+  // Count the number of results first
   auto *head = reinterpret_cast<bss_info *>(arg);
+  size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    WiFiScanResult res({it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-                       std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi,
-                       it->authmode != AUTH_OPEN, it->is_hidden != 0);
-    this->scan_result_.push_back(res);
+    count++;
+  }
+
+  this->scan_result_.init(count);
+  for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
+    this->scan_result_.emplace_back(
+        bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
+        std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN,
+        it->is_hidden != 0);
   }
   this->scan_done_ = true;
 }
 
 #ifdef USE_WIFI_AP
-bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;
@@ -814,10 +840,17 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
   }
 
+#ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
     ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
     return false;
   }
+#else
+  if (!this->wifi_ap_ip_config_({})) {
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
+    return false;
+  }
+#endif
 
   return true;
 }

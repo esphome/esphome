@@ -42,7 +42,6 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
         const std::string header_value = evt->header_value;
         ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
         user_data->response_headers[header_name].push_back(header_value);
-        break;
       }
       break;
     }
@@ -53,9 +52,10 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
   return ESP_OK;
 }
 
-std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::string method, std::string body,
-                                                       std::list<Header> request_headers,
-                                                       std::set<std::string> collect_headers) {
+std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, const std::string &method,
+                                                       const std::string &body,
+                                                       const std::list<Header> &request_headers,
+                                                       const std::set<std::string> &collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
@@ -158,8 +158,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::str
   container->status_code = esp_http_client_get_status_code(client);
   container->feed_wdt();
   container->set_response_headers(user_data.response_headers);
+  container->duration_ms = millis() - start;
   if (is_success(container->status_code)) {
-    container->duration_ms = millis() - start;
     return container;
   }
 
@@ -192,8 +192,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::str
       container->feed_wdt();
       container->status_code = esp_http_client_get_status_code(client);
       container->feed_wdt();
+      container->duration_ms = millis() - start;
       if (is_success(container->status_code)) {
-        container->duration_ms = millis() - start;
         return container;
       }
 

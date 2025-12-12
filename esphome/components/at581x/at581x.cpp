@@ -71,7 +71,7 @@ bool AT581XComponent::i2c_read_reg(uint8_t addr, uint8_t &data) {
   return this->read_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
 }
 
-void AT581XComponent::setup() { ESP_LOGCONFIG(TAG, "Running setup"); }
+void AT581XComponent::setup() {}
 void AT581XComponent::dump_config() { LOG_I2C_DEVICE(this); }
 #define ARRAY_SIZE(X) (sizeof(X) / sizeof((X)[0]))
 bool AT581XComponent::i2c_write_config() {

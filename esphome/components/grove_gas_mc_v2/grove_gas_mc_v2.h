@@ -22,8 +22,6 @@ class GroveGasMultichannelV2Component : public PollingComponent, public i2c::I2C
 
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
  protected:
   enum ErrorCode {
     UNKNOWN,

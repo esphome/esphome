@@ -28,7 +28,6 @@ namespace esphome {
 namespace openthread {
 
 void OpenThreadComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Used eventfds:
   // * netif
   // * ot task queue
@@ -106,26 +105,77 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
+  otLinkModeConfig link_mode_config = {0};
+#if CONFIG_OPENTHREAD_FTD
+  link_mode_config.mRxOnWhenIdle = true;
+  link_mode_config.mDeviceType = true;
+  link_mode_config.mNetworkData = true;
+#elif CONFIG_OPENTHREAD_MTD
+  if (this->poll_period > 0) {
+    if (otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period) != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
+    }
+    uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
+    ESP_LOGD(TAG, "Link Polling Period: %d", link_polling_period);
+  }
+  link_mode_config.mRxOnWhenIdle = this->poll_period == 0;
+  link_mode_config.mDeviceType = false;
+  link_mode_config.mNetworkData = false;
+#endif
+
+  if (otThreadSetLinkMode(esp_openthread_get_instance(), link_mode_config) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
+  }
+  link_mode_config = otThreadGetLinkMode(esp_openthread_get_instance());
+  ESP_LOGD(TAG, "Link Mode Device Type: %s", link_mode_config.mDeviceType ? "true" : "false");
+  ESP_LOGD(TAG, "Link Mode Network Data: %s", link_mode_config.mNetworkData ? "true" : "false");
+  ESP_LOGD(TAG, "Link Mode RX On When Idle: %s", link_mode_config.mRxOnWhenIdle ? "true" : "false");
+
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI
   esp_openthread_cli_create_task();
 #endif
   ESP_LOGI(TAG, "Activating dataset...");
-  otOperationalDatasetTlvs dataset;
+  otOperationalDatasetTlvs dataset = {};
 
-#ifdef CONFIG_OPENTHREAD_FORCE_DATASET
-  ESP_ERROR_CHECK(esp_openthread_auto_start(NULL));
-#else
+#ifndef USE_OPENTHREAD_FORCE_DATASET
+  // Check if openthread has a valid dataset from a previous execution
   otError error = otDatasetGetActiveTlvs(esp_openthread_get_instance(), &dataset);
-  ESP_ERROR_CHECK(esp_openthread_auto_start((error == OT_ERROR_NONE) ? &dataset : NULL));
+  if (error != OT_ERROR_NONE) {
+    // Make sure the length is 0 so we fallback to the configuration
+    dataset.mLength = 0;
+  } else {
+    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration");
+    ESP_LOGI(TAG, "(set force_dataset: true to override)");
+  }
 #endif
+
+#ifdef USE_OPENTHREAD_TLVS
+  if (dataset.mLength == 0) {
+    // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
+    size_t len = (sizeof(USE_OPENTHREAD_TLVS) - 1) / 2;
+    if (len > sizeof(dataset.mTlvs)) {
+      ESP_LOGW(TAG, "TLV buffer too small, truncating");
+      len = sizeof(dataset.mTlvs);
+    }
+    parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
+    dataset.mLength = len;
+  }
+#endif
+
+  // Pass the existing dataset, or NULL which will use the preprocessor definitions
+  ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
+
   esp_openthread_launch_mainloop();
 
   // Clean up
+  esp_openthread_deinit();
   esp_openthread_netif_glue_deinit();
   esp_netif_destroy(openthread_netif);
 
   esp_vfs_eventfd_unregister();
+  this->teardown_complete_ = true;
+  vTaskDelete(NULL);
 }
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {

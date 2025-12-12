@@ -6,28 +6,44 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <array>
 #include <cinttypes>
 #include <map>
-#include <vector>
 
 namespace esphome {
 namespace thermostat {
 
-enum ThermostatClimateTimerIndex : size_t {
-  TIMER_COOLING_MAX_RUN_TIME = 0,
-  TIMER_COOLING_OFF = 1,
-  TIMER_COOLING_ON = 2,
-  TIMER_FAN_MODE = 3,
-  TIMER_FANNING_OFF = 4,
-  TIMER_FANNING_ON = 5,
-  TIMER_HEATING_MAX_RUN_TIME = 6,
-  TIMER_HEATING_OFF = 7,
-  TIMER_HEATING_ON = 8,
-  TIMER_IDLE_ON = 9,
+enum HumidificationAction : uint8_t {
+  THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF = 0,
+  THERMOSTAT_HUMIDITY_CONTROL_ACTION_DEHUMIDIFY = 1,
+  THERMOSTAT_HUMIDITY_CONTROL_ACTION_HUMIDIFY = 2,
+  THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE,
 };
 
-enum OnBootRestoreFrom : size_t { MEMORY = 0, DEFAULT_PRESET = 1 };
+enum ThermostatClimateTimerIndex : uint8_t {
+  THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME = 0,
+  THERMOSTAT_TIMER_COOLING_OFF = 1,
+  THERMOSTAT_TIMER_COOLING_ON = 2,
+  THERMOSTAT_TIMER_FAN_MODE = 3,
+  THERMOSTAT_TIMER_FANNING_OFF = 4,
+  THERMOSTAT_TIMER_FANNING_ON = 5,
+  THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME = 6,
+  THERMOSTAT_TIMER_HEATING_OFF = 7,
+  THERMOSTAT_TIMER_HEATING_ON = 8,
+  THERMOSTAT_TIMER_IDLE_ON = 9,
+  THERMOSTAT_TIMER_COUNT = 10,
+};
+
+enum OnBootRestoreFrom : uint8_t {
+  MEMORY = 0,
+  DEFAULT_PRESET = 1,
+};
+
 struct ThermostatClimateTimer {
+  ThermostatClimateTimer() = default;
+  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started, std::function<void()> func)
+      : active(active), time(time), started(started), func(std::move(func)) {}
+
   bool active;
   uint32_t time;
   uint32_t started;
@@ -65,7 +81,7 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   void set_default_preset(const std::string &custom_preset);
   void set_default_preset(climate::ClimatePreset preset);
-  void set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from);
+  void set_on_boot_restore_from(OnBootRestoreFrom on_boot_restore_from);
   void set_set_point_minimum_differential(float differential);
   void set_cool_deadband(float deadband);
   void set_cool_overrun(float overrun);
@@ -85,6 +101,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_idle_minimum_time_in_sec(uint32_t time);
   void set_sensor(sensor::Sensor *sensor);
   void set_humidity_sensor(sensor::Sensor *humidity_sensor);
+  void set_humidity_hysteresis(float humidity_hysteresis);
   void set_use_startup_delay(bool use_startup_delay);
   void set_supports_auto(bool supports_auto);
   void set_supports_heat_cool(bool supports_heat_cool);
@@ -110,6 +127,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal);
   void set_supports_swing_mode_off(bool supports_swing_mode_off);
   void set_supports_swing_mode_vertical(bool supports_swing_mode_vertical);
+  void set_supports_dehumidification(bool supports_dehumidification);
+  void set_supports_humidification(bool supports_humidification);
   void set_supports_two_points(bool supports_two_points);
 
   void set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config);
@@ -127,6 +146,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_dry_mode_trigger() const;
   Trigger<> *get_fan_only_mode_trigger() const;
   Trigger<> *get_heat_mode_trigger() const;
+  Trigger<> *get_heat_cool_mode_trigger() const;
   Trigger<> *get_off_mode_trigger() const;
   Trigger<> *get_fan_mode_on_trigger() const;
   Trigger<> *get_fan_mode_off_trigger() const;
@@ -142,8 +162,12 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_swing_mode_horizontal_trigger() const;
   Trigger<> *get_swing_mode_off_trigger() const;
   Trigger<> *get_swing_mode_vertical_trigger() const;
+  Trigger<> *get_humidity_change_trigger() const;
   Trigger<> *get_temperature_change_trigger() const;
   Trigger<> *get_preset_change_trigger() const;
+  Trigger<> *get_humidity_control_dehumidify_action_trigger() const;
+  Trigger<> *get_humidity_control_humidify_action_trigger() const;
+  Trigger<> *get_humidity_control_off_action_trigger() const;
   /// Get current hysteresis values
   float cool_deadband();
   float cool_overrun();
@@ -159,11 +183,14 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Returns the fan mode that is locked in (check fan_mode_change_delayed(), first!)
   climate::ClimateFanMode locked_fan_mode();
   /// Set point and hysteresis validation
-  bool hysteresis_valid();  // returns true if valid
+  bool hysteresis_valid();               // returns true if valid
+  bool humidity_hysteresis_valid();      // returns true if valid
+  bool limit_setpoints_for_heat_cool();  // returns true if set points should be further limited within visual range
   void validate_target_temperature();
-  void validate_target_temperatures();
+  void validate_target_temperatures(bool pin_target_temperature_high);
   void validate_target_temperature_low();
   void validate_target_temperature_high();
+  void validate_target_humidity();
 
  protected:
   /// Override control to change settings of the climate device.
@@ -172,7 +199,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Change to a provided preset setting; will reset temperature, mode, fan, and swing modes accordingly
   void change_preset_(climate::ClimatePreset preset);
   /// Change to a provided custom preset setting; will reset temperature, mode, fan, and swing modes accordingly
-  void change_custom_preset_(const std::string &custom_preset);
+  void change_custom_preset_(const char *custom_preset);
 
   /// Applies the temperature, mode, fan, and swing modes of the provided config.
   /// This is agnostic of custom vs built in preset
@@ -185,11 +212,13 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Re-compute the required action of this climate controller.
   climate::ClimateAction compute_action_(bool ignore_timers = false);
   climate::ClimateAction compute_supplemental_action_();
+  HumidificationAction compute_humidity_control_action_();
 
   /// Switch the climate device to the given climate action.
   void switch_to_action_(climate::ClimateAction action, bool publish_state = true);
   void switch_to_supplemental_action_(climate::ClimateAction action);
   void trigger_supplemental_action_();
+  void switch_to_humidity_control_action_(HumidificationAction action);
 
   /// Switch the climate device to the given climate fan mode.
   void switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bool publish_state = true);
@@ -199,6 +228,9 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// Switch the climate device to the given climate swing mode.
   void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, bool publish_state = true);
+
+  /// Check if the humidity change trigger should be called.
+  void check_humidity_change_trigger_();
 
   /// Check if the temperature change trigger should be called.
   void check_temperature_change_trigger_();
@@ -236,14 +268,33 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool heating_required_();
   bool supplemental_cooling_required_();
   bool supplemental_heating_required_();
+  bool dehumidification_required_();
+  bool humidification_required_();
 
-  void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config,
-                           bool is_default_preset);
+  void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config);
 
-  /// The sensor used for getting the current temperature
-  sensor::Sensor *sensor_{nullptr};
-  /// The sensor used for getting the current humidity
-  sensor::Sensor *humidity_sensor_{nullptr};
+  /// Minimum allowable duration in seconds for action timers
+  const uint8_t min_timer_duration_{1};
+
+  /// Store previously-known states
+  ///
+  /// These are used to determine when a trigger/action needs to be called
+  climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
+  climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
+  climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
+
+  /// The current supplemental action
+  climate::ClimateAction supplemental_action_{climate::CLIMATE_ACTION_OFF};
+
+  /// The current humidification action
+  HumidificationAction humidification_action_{THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE};
+
+  /// Default standard preset to use on start up
+  climate::ClimatePreset default_preset_{};
+
+  /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
+  /// state will attempt to be restored if possible
+  OnBootRestoreFrom on_boot_restore_from_{OnBootRestoreFrom::MEMORY};
 
   /// Whether the controller supports auto/cooling/drying/fanning/heating.
   ///
@@ -300,6 +351,12 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// A false value means that the controller has no such support.
   bool supports_two_points_{false};
 
+  /// Whether the controller supports dehumidification and/or humidification
+  ///
+  /// A false value means that the controller has no such support.
+  bool supports_dehumidification_{false};
+  bool supports_humidification_{false};
+
   /// Flags indicating if maximum allowable run time was exceeded
   bool cooling_max_runtime_exceeded_{false};
   bool heating_max_runtime_exceeded_{false};
@@ -309,6 +366,35 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// setup_complete_ blocks modifying/resetting the temps immediately after boot
   bool setup_complete_{false};
+
+  /// Store previously-known humidity and temperatures
+  ///
+  /// These are used to determine when a temperature/humidity has changed
+  float prev_target_humidity_{NAN};
+  float prev_target_temperature_{NAN};
+  float prev_target_temperature_low_{NAN};
+  float prev_target_temperature_high_{NAN};
+
+  /// Minimum differential required between set points
+  float set_point_minimum_differential_{0};
+
+  /// Hysteresis values used for computing climate actions
+  float cooling_deadband_{0};
+  float cooling_overrun_{0};
+  float heating_deadband_{0};
+  float heating_overrun_{0};
+
+  /// Hysteresis values used for computing humidification action
+  float humidity_hysteresis_{0};
+
+  /// Maximum allowable temperature deltas before engaging supplemental cooling/heating actions
+  float supplemental_cool_delta_{0};
+  float supplemental_heat_delta_{0};
+
+  /// The sensor used for getting the current temperature
+  sensor::Sensor *sensor_{nullptr};
+  /// The sensor used for getting the current humidity
+  sensor::Sensor *humidity_sensor_{nullptr};
 
   /// The trigger to call when the controller should switch to cooling action/mode.
   ///
@@ -335,9 +421,15 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *supplemental_heat_action_trigger_{nullptr};
   Trigger<> *heat_mode_trigger_{nullptr};
 
+  /// The trigger to call when the controller should switch to heat/cool mode.
+  ///
+  /// In heat/cool mode, the controller will enable heating/cooling as necessary and switch
+  /// to idle when the temperature is within the thresholds/set points.
+  Trigger<> *heat_cool_mode_trigger_{nullptr};
+
   /// The trigger to call when the controller should switch to auto mode.
   ///
-  /// In auto mode, the controller will enable heating/cooling as necessary and switch
+  /// In auto mode, the controller will enable heating/cooling as supported/necessary and switch
   /// to idle when the temperature is within the thresholds/set points.
   Trigger<> *auto_mode_trigger_{nullptr};
 
@@ -396,11 +488,23 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// The trigger to call when the controller should switch the swing mode to "vertical".
   Trigger<> *swing_mode_vertical_trigger_{nullptr};
 
+  /// The trigger to call when the target humidity changes.
+  Trigger<> *humidity_change_trigger_{nullptr};
+
   /// The trigger to call when the target temperature(s) change(es).
   Trigger<> *temperature_change_trigger_{nullptr};
 
-  /// The triggr to call when the preset mode changes
+  /// The trigger to call when the preset mode changes
   Trigger<> *preset_change_trigger_{nullptr};
+
+  /// The trigger to call when dehumidification is required
+  Trigger<> *humidity_control_dehumidify_action_trigger_{nullptr};
+
+  /// The trigger to call when humidification is required
+  Trigger<> *humidity_control_humidify_action_trigger_{nullptr};
+
+  /// The trigger to call when (de)humidification should stop
+  Trigger<> *humidity_control_off_action_trigger_{nullptr};
 
   /// A reference to the trigger that was previously active.
   ///
@@ -410,65 +514,29 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_fan_mode_trigger_{nullptr};
   Trigger<> *prev_mode_trigger_{nullptr};
   Trigger<> *prev_swing_mode_trigger_{nullptr};
+  Trigger<> *prev_humidity_control_trigger_{nullptr};
 
-  /// Store previously-known states
-  ///
-  /// These are used to determine when a trigger/action needs to be called
-  climate::ClimateAction supplemental_action_{climate::CLIMATE_ACTION_OFF};
-  climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
-  climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
-  climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
-
-  /// Store previously-known temperatures
-  ///
-  /// These are used to determine when the temperature change trigger/action needs to be called
-  float prev_target_temperature_{NAN};
-  float prev_target_temperature_low_{NAN};
-  float prev_target_temperature_high_{NAN};
-
-  /// Minimum differential required between set points
-  float set_point_minimum_differential_{0};
-
-  /// Hysteresis values used for computing climate actions
-  float cooling_deadband_{0};
-  float cooling_overrun_{0};
-  float heating_deadband_{0};
-  float heating_overrun_{0};
-
-  /// Maximum allowable temperature deltas before engauging supplemental cooling/heating actions
-  float supplemental_cool_delta_{0};
-  float supplemental_heat_delta_{0};
-
-  /// Minimum allowable duration in seconds for action timers
-  const uint8_t min_timer_duration_{1};
+  /// Default custom preset to use on start up
+  std::string default_custom_preset_{};
 
   /// Climate action timers
-  std::vector<ThermostatClimateTimer> timer_{
-      {false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::fan_mode_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)},
+  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fan_mode_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)),
   };
 
   /// The set of standard preset configurations this thermostat supports (Eg. AWAY, ECO, etc)
   std::map<climate::ClimatePreset, ThermostatClimateTargetTempConfig> preset_config_{};
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
   std::map<std::string, ThermostatClimateTargetTempConfig> custom_preset_config_{};
-
-  /// Default standard preset to use on start up
-  climate::ClimatePreset default_preset_{};
-  /// Default custom preset to use on start up
-  std::string default_custom_preset_{};
-
-  /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
-  /// state will attempt to be restored if possible
-  thermostat::OnBootRestoreFrom on_boot_restore_from_{thermostat::OnBootRestoreFrom::MEMORY};
 };
 
 }  // namespace thermostat

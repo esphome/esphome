@@ -8,6 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/time.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/helpers.h"
 
 #include <esp_wireguard.h>
 #include <esp_wireguard_err.h>
@@ -27,8 +28,6 @@ static const char *const LOGMSG_ONLINE = "online";
 static const char *const LOGMSG_OFFLINE = "offline";
 
 void Wireguard::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->wg_config_.address = this->address_.c_str();
   this->wg_config_.private_key = this->private_key_.c_str();
   this->wg_config_.endpoint = this->peer_endpoint_.c_str();
@@ -42,7 +41,10 @@ void Wireguard::setup() {
 
   this->publish_enabled_state();
 
-  this->wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
+  {
+    LwIPLock lock;
+    this->wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
+  }
 
   if (this->wg_initialized_ == ESP_OK) {
     ESP_LOGI(TAG, "Initialized");
@@ -249,7 +251,10 @@ void Wireguard::start_connection_() {
   }
 
   ESP_LOGD(TAG, "Starting connection");
-  this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
+  {
+    LwIPLock lock;
+    this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
+  }
 
   if (this->wg_connected_ == ESP_OK) {
     ESP_LOGI(TAG, "Connection started");
@@ -280,7 +285,10 @@ void Wireguard::start_connection_() {
 void Wireguard::stop_connection_() {
   if (this->wg_initialized_ == ESP_OK && this->wg_connected_ == ESP_OK) {
     ESP_LOGD(TAG, "Stopping connection");
-    esp_wireguard_disconnect(&(this->wg_ctx_));
+    {
+      LwIPLock lock;
+      esp_wireguard_disconnect(&(this->wg_ctx_));
+    }
     this->wg_connected_ = ESP_FAIL;
   }
 }

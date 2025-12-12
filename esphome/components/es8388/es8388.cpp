@@ -23,8 +23,6 @@ static const char *const TAG = "es8388";
   }
 
 void ES8388::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // mute DAC
   this->set_mute_state_(true);
 

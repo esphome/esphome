@@ -5,10 +5,10 @@
 namespace esphome {
 namespace ld2420 {
 
-static const char *const TAG = "LD2420.sensor";
+static const char *const TAG = "ld2420.sensor";
 
 void LD2420Sensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "LD2420 Sensor:");
+  ESP_LOGCONFIG(TAG, "Sensor:");
   LOG_SENSOR("  ", "Distance", this->distance_sensor_);
 }
 

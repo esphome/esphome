@@ -6,7 +6,20 @@
 #include "helpers.h"
 #include "log.h"
 
+#ifdef USE_DEVICES
+#include "device.h"
+#endif
+
 namespace esphome {
+
+// Forward declaration for friend access
+namespace api {
+class APIConnection;
+}  // namespace api
+
+namespace web_server {
+struct UrlMatch;
+}  // namespace web_server
 
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
@@ -48,8 +61,30 @@ class EntityBase {
   }
 
   // Get/set this entity's icon
+  ESPDEPRECATED(
+      "Use get_icon_ref() instead for better performance (avoids string copy). Will be removed in ESPHome 2026.5.0",
+      "2025.11.0")
   std::string get_icon() const;
   void set_icon(const char *icon);
+  StringRef get_icon_ref() const {
+    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
+#ifdef USE_ENTITY_ICON
+    return this->icon_c_str_ == nullptr ? EMPTY_STRING : StringRef(this->icon_c_str_);
+#else
+    return EMPTY_STRING;
+#endif
+  }
+
+#ifdef USE_DEVICES
+  // Get/set this entity's device id
+  uint32_t get_device_id() const {
+    if (this->device_ == nullptr) {
+      return 0;  // No device set, return 0
+    }
+    return this->device_->get_device_id();
+  }
+  void set_device(Device *device) { this->device_ = device; }
+#endif
 
   // Check if this entity has state
   bool has_state() const { return this->flags_.has_state; }
@@ -57,16 +92,57 @@ class EntityBase {
   // Set has_state - for components that need to manually set this
   void set_has_state(bool state) { this->flags_.has_state = state; }
 
+  /**
+   * @brief Get a unique hash for storing preferences/settings for this entity.
+   *
+   * This method returns a hash that uniquely identifies the entity for the purpose of
+   * storing preferences (such as calibration, state, etc.). Unlike get_object_id_hash(),
+   * this hash also incorporates the device_id (if devices are enabled), ensuring uniqueness
+   * across multiple devices that may have entities with the same object_id.
+   *
+   * Use this method when storing or retrieving preferences/settings that should be unique
+   * per device-entity pair. Use get_object_id_hash() when you need a hash that identifies
+   * the entity regardless of the device it belongs to.
+   *
+   * For backward compatibility, if device_id is 0 (the main device), the hash is unchanged
+   * from previous versions, so existing single-device configurations will continue to work.
+   *
+   * @return uint32_t The unique hash for preferences, including device_id if available.
+   */
+  uint32_t get_preference_hash() {
+#ifdef USE_DEVICES
+    // Combine object_id_hash with device_id to ensure uniqueness across devices
+    // Note: device_id is 0 for the main device, so XORing with 0 preserves the original hash
+    // This ensures backward compatibility for existing single-device configurations
+    return this->get_object_id_hash() ^ this->get_device_id();
+#else
+    // Without devices, just use object_id_hash as before
+    return this->get_object_id_hash();
+#endif
+  }
+
  protected:
-  /// The hash_base() function has been deprecated. It is kept in this
-  /// class for now, to prevent external components from not compiling.
-  virtual uint32_t hash_base() { return 0L; }
+  friend class api::APIConnection;
+  friend struct web_server::UrlMatch;
+
+  // Get object_id as StringRef when it's static (for API usage)
+  // Returns empty StringRef if object_id is dynamic (needs allocation)
+  StringRef get_object_id_ref_for_api_() const;
+
   void calc_object_id_();
+
+  /// Check if the object_id is dynamic (changes with MAC suffix)
+  bool is_object_id_dynamic_() const;
 
   StringRef name_;
   const char *object_id_c_str_{nullptr};
+#ifdef USE_ENTITY_ICON
   const char *icon_c_str_{nullptr};
+#endif
   uint32_t object_id_hash_{};
+#ifdef USE_DEVICES
+  Device *device_{};
+#endif
 
   // Bit-packed flags to save memory (1 byte instead of 5)
   struct EntityFlags {
@@ -82,9 +158,17 @@ class EntityBase {
 class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
  public:
   /// Get the device class, using the manual override if set.
+  ESPDEPRECATED("Use get_device_class_ref() instead for better performance (avoids string copy). Will be removed in "
+                "ESPHome 2026.5.0",
+                "2025.11.0")
   std::string get_device_class();
   /// Manually set the device class.
   void set_device_class(const char *device_class);
+  /// Get the device class as StringRef
+  StringRef get_device_class_ref() const {
+    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
+    return this->device_class_ == nullptr ? EMPTY_STRING : StringRef(this->device_class_);
+  }
 
  protected:
   const char *device_class_{nullptr};  ///< Device class override
@@ -93,9 +177,17 @@ class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
 class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
  public:
   /// Get the unit of measurement, using the manual override if set.
+  ESPDEPRECATED("Use get_unit_of_measurement_ref() instead for better performance (avoids string copy). Will be "
+                "removed in ESPHome 2026.5.0",
+                "2025.11.0")
   std::string get_unit_of_measurement();
   /// Manually set the unit of measurement.
   void set_unit_of_measurement(const char *unit_of_measurement);
+  /// Get the unit of measurement as StringRef
+  StringRef get_unit_of_measurement_ref() const {
+    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
+    return this->unit_of_measurement_ == nullptr ? EMPTY_STRING : StringRef(this->unit_of_measurement_);
+  }
 
  protected:
   const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override

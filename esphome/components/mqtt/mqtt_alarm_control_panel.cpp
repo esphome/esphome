@@ -36,7 +36,7 @@ void MQTTAlarmControlPanelComponent::setup() {
     } else if (strcasecmp(payload.c_str(), "TRIGGERED") == 0) {
       call.triggered();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
     }
     call.perform();
   });
@@ -55,7 +55,8 @@ void MQTTAlarmControlPanelComponent::dump_config() {
 }
 
 void MQTTAlarmControlPanelComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  JsonArray supported_features = root.createNestedArray(MQTT_SUPPORTED_FEATURES);
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  JsonArray supported_features = root[MQTT_SUPPORTED_FEATURES].to<JsonArray>();
   const uint32_t acp_supported_features = this->alarm_control_panel_->get_supported_features();
   if (acp_supported_features & ACP_FEAT_ARM_AWAY) {
     supported_features.add("arm_away");

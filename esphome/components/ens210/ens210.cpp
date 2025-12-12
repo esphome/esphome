@@ -87,7 +87,6 @@ static uint32_t crc7(uint32_t value) {
 }
 
 void ENS210Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[2];
   uint16_t part_id = 0;
   // Reset

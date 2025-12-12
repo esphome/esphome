@@ -3,8 +3,8 @@
 namespace esphome {
 namespace ld2410 {
 
-void LightOutControlSelect::control(const std::string &value) {
-  this->publish_state(value);
+void LightOutControlSelect::control(size_t index) {
+  this->publish_state(index);
   this->parent_->set_light_out_control();
 }
 

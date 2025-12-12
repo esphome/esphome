@@ -11,7 +11,6 @@ static const uint8_t PM_2_5_VALUE_INDEX = 6;
 static const uint8_t PM_10_0_VALUE_INDEX = 7;
 
 void HM3301Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (i2c::ERROR_OK != this->write(&SELECT_COMM_CMD, 1)) {
     error_code_ = ERROR_COMM;
     this->mark_failed();

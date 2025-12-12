@@ -1,6 +1,7 @@
 from esphome import automation
 from esphome.automation import Trigger
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_RECEIVE
 from esphome.components.packet_transport import (
     CONF_BINARY_SENSORS,
     CONF_ENCRYPTION,
@@ -11,7 +12,7 @@ from esphome.components.packet_transport import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
-from esphome.core import Lambda
+from esphome.core import ID, Lambda
 from esphome.cpp_generator import ExpressionStatement, MockObj
 
 CODEOWNERS = ["@clydebarrow"]
@@ -27,7 +28,6 @@ trigger_args = cg.std_vector.template(cg.uint8)
 CONF_ADDRESSES = "addresses"
 CONF_LISTEN_ADDRESS = "listen_address"
 CONF_UDP_ID = "udp_id"
-CONF_ON_RECEIVE = "on_receive"
 CONF_LISTEN_PORT = "listen_port"
 CONF_BROADCAST_PORT = "broadcast_port"
 
@@ -158,5 +158,8 @@ async def udp_write_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        cg.add(var.set_data_static(data))
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
     return var

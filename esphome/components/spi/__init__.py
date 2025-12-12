@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -13,6 +14,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -31,8 +33,9 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
@@ -112,9 +115,7 @@ def get_target_platform():
 
 
 def get_target_variant():
-    return (
-        CORE.data[KEY_ESP32][KEY_VARIANT] if KEY_VARIANT in CORE.data[KEY_ESP32] else ""
-    )
+    return CORE.data[KEY_ESP32].get(KEY_VARIANT, "")
 
 
 # Get a list of available hardware interfaces based on target and variant.
@@ -135,6 +136,27 @@ def get_hw_interface_list():
     if target_platform == PLATFORM_RP2040:
         return [["spi"], ["spi1"]]
     return []
+
+
+def one_of_interface_validator(additional_values: list[str] | None = None) -> Any:
+    """Helper to create a one_of validator for SPI interfaces.
+
+    This delays evaluation of get_hw_interface_list() until validation time,
+    avoiding access to CORE.data during module import.
+
+    Args:
+        additional_values: List of additional valid values to include
+    """
+    if additional_values is None:
+        additional_values = []
+
+    def validator(value: str) -> str:
+        return cv.one_of(
+            *sum(get_hw_interface_list(), additional_values),
+            lower=True,
+        )(value)
+
+    return cv.All(cv.string, validator)
 
 
 # Given an SPI name, return the index of it in the available list
@@ -189,9 +211,7 @@ def validate_hw_pins(spi, index=-1):
             return False
         if sdo_pin_no not in pin_set[CONF_MOSI_PIN]:
             return False
-        if sdi_pin_no not in pin_set[CONF_MISO_PIN]:
-            return False
-        return True
+        return sdi_pin_no in pin_set[CONF_MISO_PIN]
     return False
 
 
@@ -256,9 +276,6 @@ def get_spi_interface(index):
         return ["&SPI", "&SPI1"][index]
     if index == 0:
         return "&SPI"
-    # Following code can't apply to C2, H2 or 8266 since they have only one SPI
-    if get_target_variant() in (VARIANT_ESP32S3, VARIANT_ESP32S2):
-        return "new SPIClass(FSPI)"
     return "new SPIClass(HSPI)"
 
 
@@ -272,9 +289,8 @@ SPI_SINGLE_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_SW): cv.invalid(
                 "force_sw is deprecated - use interface: software"
             ),
-            cv.Optional(CONF_INTERFACE, default="any"): cv.one_of(
-                *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
-                lower=True,
+            cv.Optional(CONF_INTERFACE, default="any"): one_of_interface_validator(
+                ["software", "hardware", "any"]
             ),
             cv.Optional(CONF_DATA_PINS): cv.invalid(
                 "'data_pins' should be used with 'type: quad or octal' only"
@@ -307,10 +323,9 @@ def spi_mode_schema(mode):
                     cv.ensure_list(pins.internal_gpio_output_pin_number),
                     cv.Length(min=pin_count, max=pin_count),
                 ),
-                cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
-                    *sum(get_hw_interface_list(), ["hardware"]),
-                    lower=True,
-                ),
+                cv.Optional(
+                    CONF_INTERFACE, default="hardware"
+                ): one_of_interface_validator(["hardware"]),
                 cv.Optional(CONF_MISO_PIN): cv.invalid(
                     f"'miso_pin' should not be used with {mode} SPI"
                 ),
@@ -333,7 +348,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1.0)
+@coroutine_with_priority(CoroPriority.BUS)
 async def to_code(configs):
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
@@ -423,3 +438,18 @@ def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso:
         {cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(hub_schema)},
         extra=cv.ALLOW_EXTRA,
     )
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "spi_arduino.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "spi_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+    }
+)

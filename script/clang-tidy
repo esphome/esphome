@@ -22,6 +22,7 @@ from helpers import (
     git_ls_files,
     load_idedata,
     print_error_for_file,
+    print_file_list,
     root_path,
     temp_header_file,
 )
@@ -104,7 +105,7 @@ def clang_options(idedata):
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
     toolchain_dir = os.path.normpath(f"{idedata['cxx_path']}/../../")
     for directory in idedata["includes"]["toolchain"]:
-        if directory.startswith(toolchain_dir):
+        if directory.startswith(toolchain_dir) and "picolibc" not in directory:
             cmd.extend(["-isystem", directory])
 
     # add library include directories using -isystem to suppress their errors
@@ -157,7 +158,11 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         invocation.extend(options)
 
         proc = subprocess.run(
-            invocation, capture_output=True, encoding="utf-8", check=False
+            invocation,
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            close_fds=False,
         )
         if proc.returncode != 0:
             with lock:
@@ -204,7 +209,12 @@ def main():
     parser.add_argument(
         "-c", "--changed", action="store_true", help="only run on changed files"
     )
-    parser.add_argument("-g", "--grep", help="only run on files containing value")
+    parser.add_argument(
+        "-g",
+        "--grep",
+        action="append",
+        help="only run on files containing value",
+    )
     parser.add_argument(
         "--split-num", type=int, help="split the files into X jobs.", default=None
     )
@@ -218,12 +228,12 @@ def main():
     )
     args = parser.parse_args()
 
-    idedata = load_idedata(args.environment)
-    options = clang_options(idedata)
+    cwd = os.getcwd()
+    files = [os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp"])]
 
-    files = []
-    for path in git_ls_files(["*.cpp"]):
-        files.append(os.path.relpath(path, os.getcwd()))
+    # Print initial file count if it's large
+    if len(files) > 50:
+        print(f"Found {len(files)} total files to process")
 
     if args.files:
         # Match against files specified on command-line
@@ -240,10 +250,28 @@ def main():
 
     if args.split_num:
         files = split_list(files, args.split_num)[args.split_at - 1]
+        print(f"Split {args.split_at}/{args.split_num}: checking {len(files)} files")
 
+    # Print file count before adding header file
+    print(f"\nTotal files to check: {len(files)}")
+
+    # Early exit if no files to check
+    if not files:
+        print("No files to check - exiting early")
+        return 0
+
+    # Only build header file if we have actual files to check
     if args.all_headers and args.split_at in (None, 1):
         build_all_include()
         files.insert(0, temp_header_file)
+        print(f"Added all-include header file, new total: {len(files)}")
+
+    # Print final file list before loading idedata
+    print_file_list(files, "Final files to process:")
+
+    # Load idedata and options only if we have files to check
+    idedata = load_idedata(args.environment)
+    options = clang_options(idedata)
 
     tmpdir = None
     if args.fix:
@@ -296,9 +324,11 @@ def main():
         print("Applying fixes ...")
         try:
             try:
-                subprocess.call(["clang-apply-replacements-18", tmpdir])
+                subprocess.call(
+                    ["clang-apply-replacements-18", tmpdir], close_fds=False
+                )
             except FileNotFoundError:
-                subprocess.call(["clang-apply-replacements", tmpdir])
+                subprocess.call(["clang-apply-replacements", tmpdir], close_fds=False)
         except FileNotFoundError:
             print(
                 "Error please install clang-apply-replacements-18 or clang-apply-replacements.\n",

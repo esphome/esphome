@@ -1,0 +1,18 @@
+logger:
+  id: logger_id
+  level: DEBUG
+  on_message:
+    - level: DEBUG
+      then:
+        - lambda: |-
+            ESP_LOGD("test", "Got message level %d: %s - %s", level, tag, message);
+    - level: WARN
+      then:
+        - lambda: |-
+            ESP_LOGW("test", "Warning level %d from %s", level, tag);
+    - level: ERROR
+      then:
+        - lambda: |-
+            // Test that level is uint8_t by using it in calculations
+            uint8_t adjusted_level = level + 1;
+            ESP_LOGE("test", "Error with adjusted level %d", adjusted_level);

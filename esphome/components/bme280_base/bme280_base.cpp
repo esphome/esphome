@@ -7,6 +7,8 @@
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
 
+#define BME280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+
 namespace esphome {
 namespace bme280_base {
 
@@ -88,7 +90,6 @@ const char *oversampling_to_str(BME280Oversampling oversampling) {  // NOLINT
 }
 
 void BME280Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t chip_id = 0;
 
   // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries
@@ -99,18 +100,18 @@ void BME280Component::setup() {
 
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   if (chip_id != 0x60) {
     this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed();
+    this->mark_failed(BME280_ERROR_WRONG_CHIP_ID);
     return;
   }
 
   // Send a soft reset.
   if (!this->write_byte(BME280_REGISTER_RESET, BME280_SOFT_RESET)) {
-    this->mark_failed();
+    this->mark_failed("Reset failed");
     return;
   }
   // Wait until the NVM data has finished loading.
@@ -119,14 +120,12 @@ void BME280Component::setup() {
   do {  // NOLINT
     delay(2);
     if (!this->read_byte(BME280_REGISTER_STATUS, &status)) {
-      ESP_LOGW(TAG, "Error reading status register.");
-      this->mark_failed();
+      this->mark_failed("Error reading status register");
       return;
     }
   } while ((status & BME280_STATUS_IM_UPDATE) && (--retry));
   if (status & BME280_STATUS_IM_UPDATE) {
-    ESP_LOGW(TAG, "Timeout loading NVM.");
-    this->mark_failed();
+    this->mark_failed("Timeout loading NVM");
     return;
   }
 
@@ -154,26 +153,26 @@ void BME280Component::setup() {
 
   uint8_t humid_control_val = 0;
   if (!this->read_byte(BME280_REGISTER_CONTROLHUMID, &humid_control_val)) {
-    this->mark_failed();
+    this->mark_failed("Read humidity control");
     return;
   }
   humid_control_val &= ~0b00000111;
   humid_control_val |= this->humidity_oversampling_ & 0b111;
   if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, humid_control_val)) {
-    this->mark_failed();
+    this->mark_failed("Write humidity control");
     return;
   }
 
   uint8_t config_register = 0;
   if (!this->read_byte(BME280_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed();
+    this->mark_failed("Read config");
     return;
   }
   config_register &= ~0b11111100;
   config_register |= 0b101 << 5;  // 1000 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->write_byte(BME280_REGISTER_CONFIG, config_register)) {
-    this->mark_failed();
+    this->mark_failed("Write config");
     return;
   }
 }
@@ -184,7 +183,7 @@ void BME280Component::dump_config() {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "BME280 has wrong chip ID! Is it a BME280?");
+      ESP_LOGE(TAG, BME280_ERROR_WRONG_CHIP_ID);
       break;
     case NONE:
     default:
@@ -224,21 +223,21 @@ void BME280Component::update() {
   this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
     uint8_t data[8];
     if (!this->read_bytes(BME280_REGISTER_MEASUREMENTS, data, 8)) {
-      ESP_LOGW(TAG, "Error reading registers.");
+      ESP_LOGW(TAG, "Error reading registers");
       this->status_set_warning();
       return;
     }
     int32_t t_fine = 0;
     float const temperature = this->read_temperature_(data, &t_fine);
     if (std::isnan(temperature)) {
-      ESP_LOGW(TAG, "Invalid temperature, cannot read pressure & humidity values.");
+      ESP_LOGW(TAG, "Invalid temperature");
       this->status_set_warning();
       return;
     }
     float const pressure = this->read_pressure_(data, t_fine);
     float const humidity = this->read_humidity_(data, t_fine);
 
-    ESP_LOGV(TAG, "Got temperature=%.1f°C pressure=%.1fhPa humidity=%.1f%%", temperature, pressure, humidity);
+    ESP_LOGV(TAG, "Temperature=%.1f°C Pressure=%.1fhPa Humidity=%.1f%%", temperature, pressure, humidity);
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
     if (this->pressure_sensor_ != nullptr)

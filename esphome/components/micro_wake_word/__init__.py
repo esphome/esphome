@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
-from esphome.components import esp32, microphone
+from esphome.components import esp32, microphone, socket
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
@@ -32,6 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@kahrendt", "@jesserockz"]
 DEPENDENCIES = ["microphone"]
+AUTO_LOAD = ["socket"]
 DOMAIN = "micro_wake_word"
 
 
@@ -201,7 +202,7 @@ def _validate_manifest_version(manifest_data):
         else:
             raise cv.Invalid("Invalid manifest version")
     else:
-        raise cv.Invalid("Invalid manifest file, missing 'version' key.")
+        raise cv.Invalid("Invalid manifest file, missing 'version' key")
 
 
 def _process_http_source(config):
@@ -421,7 +422,7 @@ def _feature_step_size_validate(config):
         if features_step_size is None:
             features_step_size = model_step_size
         elif features_step_size != model_step_size:
-            raise cv.Invalid("Cannot load models with different features step sizes.")
+            raise cv.Invalid("Cannot load models with different features step sizes")
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -443,17 +444,17 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    # Enable wake_loop_threadsafe() for low-latency wake word detection
+    # The inference task queues detection events that need immediate processing
+    socket.require_wake_loop_threadsafe()
+
     mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
     cg.add(var.set_microphone_source(mic_source))
 
     cg.add_define("USE_MICRO_WAKE_WORD")
     cg.add_define("USE_OTA_STATE_CALLBACK")
 
-    esp32.add_idf_component(
-        name="esp-tflite-micro",
-        repo="https://github.com/espressif/esp-tflite-micro",
-        ref="v1.3.3.1",
-    )
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
 
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")

@@ -21,7 +21,7 @@ class LVGLNumber : public number::Number, public Component {
   void setup() override {
     float value = this->value_lambda_();
     if (this->restore_) {
-      this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
+      this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
       if (this->pref_.load(&value)) {
         this->control_lambda_(value);
       }

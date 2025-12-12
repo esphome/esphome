@@ -1,5 +1,6 @@
 #include "display.h"
 #include <utility>
+#include <numbers>
 #include "display_color_utils.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -424,15 +425,15 @@ void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *
     // hence we rotate the shape by 270° to orient the polygon up.
     rotation_degrees += ROTATION_270_DEGREES;
     // Convert the rotation to radians, easier to use in trigonometrical calculations
-    float rotation_radians = rotation_degrees * PI / 180;
+    float rotation_radians = rotation_degrees * std::numbers::pi / 180;
     // A pointy top variation means the first vertex of the polygon is at the top center of the shape, this requires no
     // additional rotation of the shape.
     // A flat top variation means the first point of the polygon has to be rotated so that the first edge is horizontal,
     // this requires to rotate the shape by π/edges radians counter-clockwise so that the first point is located on the
     // left side of the first horizontal edge.
-    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? PI / edges : 0.0;
+    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? std::numbers::pi / edges : 0.0;
 
-    float vertex_angle = ((float) vertex_id) / edges * 2 * PI + rotation_radians;
+    float vertex_angle = ((float) vertex_id) / edges * 2 * std::numbers::pi + rotation_radians;
     *vertex_x = (int) round(cos(vertex_angle) * radius) + center_x;
     *vertex_y = (int) round(sin(vertex_angle) * radius) + center_y;
   }
@@ -774,7 +775,7 @@ void Display::test_card() {
     int shift_y = (h - image_h) / 2;
     int line_w = (image_w - 6) / 6;
     int image_c = image_w / 2;
-    for (auto i = 0; i <= image_h; i++) {
+    for (auto i = 0; i != image_h; i++) {
       int c = esp_scale(i, image_h);
       this->horizontal_line(shift_x + 0, shift_y + i, line_w, r.fade_to_white(c));
       this->horizontal_line(shift_x + line_w, shift_y + i, line_w, r.fade_to_black(c));  //
@@ -808,8 +809,11 @@ void Display::test_card() {
       }
     }
   }
-  this->rectangle(0, 0, w, h, Color(127, 0, 127));
   this->filled_rectangle(0, 0, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(w - 10, 0, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(0, h - 10, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(w - 10, h - 10, 10, 10, Color(255, 0, 255));
+  this->rectangle(0, 0, w, h, Color(255, 255, 255));
   this->stop_poller();
 }
 

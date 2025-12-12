@@ -12,12 +12,10 @@ namespace pn532_spi {
 static const char *const TAG = "pn532_spi";
 
 void PN532Spi::setup() {
-  ESP_LOGI(TAG, "PN532Spi setup started!");
   this->spi_setup();
 
   this->cs_->digital_write(false);
   delay(10);
-  ESP_LOGI(TAG, "SPI setup finished!");
   PN532::setup();
 }
 

@@ -22,19 +22,23 @@ CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_HAS_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
+        filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_ACCOUNT,
     ),
     cv.Optional(CONF_HAS_MOVING_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_MOTION,
+        filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_MOTION_SENSOR,
     ),
     cv.Optional(CONF_HAS_STILL_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
+        filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_MOTION_SENSOR,
     ),
     cv.Optional(CONF_OUT_PIN_PRESENCE_STATUS): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_PRESENCE,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_ACCOUNT,
     ),
 }

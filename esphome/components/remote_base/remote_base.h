@@ -53,8 +53,11 @@ class RemoteReceiveData {
   bool is_valid(uint32_t offset = 0) const { return this->index_ + offset < this->data_.size(); }
   int32_t peek(uint32_t offset = 0) const { return this->data_[this->index_ + offset]; }
   bool peek_mark(uint32_t length, uint32_t offset = 0) const;
+  bool peek_mark_at_least(uint32_t length, uint32_t offset = 0) const;
+  bool peek_mark_at_most(uint32_t length, uint32_t offset = 0) const;
   bool peek_space(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) const;
+  bool peek_space_at_most(uint32_t length, uint32_t offset = 0) const;
   bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) const {
     return this->peek_space(space, offset + 1) && this->peek_mark(mark, offset);
   }
@@ -273,7 +276,7 @@ template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransm
   TEMPLATABLE_VALUE(uint32_t, send_wait)
 
  protected:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->transmitter_->transmit();
     this->encode(call.get_data(), x...);
     call.set_send_times(this->send_times_.value_or(x..., 1));

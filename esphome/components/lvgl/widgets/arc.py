@@ -20,7 +20,7 @@ from ..defines import (
     CONF_START_ANGLE,
     literal,
 )
-from ..lv_validation import angle, get_start_value, lv_float
+from ..lv_validation import get_start_value, lv_angle_degrees, lv_float, lv_int
 from ..lvcode import lv, lv_expr, lv_obj
 from ..types import LvNumber, NumberType
 from . import Widget
@@ -29,11 +29,11 @@ CONF_ARC = "arc"
 ARC_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
-        cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
-        cv.Optional(CONF_MAX_VALUE, default=100): cv.int_,
-        cv.Optional(CONF_START_ANGLE, default=135): angle,
-        cv.Optional(CONF_END_ANGLE, default=45): angle,
-        cv.Optional(CONF_ROTATION, default=0.0): angle,
+        cv.Optional(CONF_MIN_VALUE, default=0): lv_int,
+        cv.Optional(CONF_MAX_VALUE, default=100): lv_int,
+        cv.Optional(CONF_START_ANGLE, default=135): lv_angle_degrees,
+        cv.Optional(CONF_END_ANGLE, default=45): lv_angle_degrees,
+        cv.Optional(CONF_ROTATION, default=0.0): lv_angle_degrees,
         cv.Optional(CONF_ADJUSTABLE, default=False): bool,
         cv.Optional(CONF_MODE, default="NORMAL"): ARC_MODES.one_of,
         cv.Optional(CONF_CHANGE_RATE, default=720): cv.uint16_t,
@@ -59,11 +59,14 @@ class ArcType(NumberType):
 
     async def to_code(self, w: Widget, config):
         if CONF_MIN_VALUE in config:
-            lv.arc_set_range(w.obj, config[CONF_MIN_VALUE], config[CONF_MAX_VALUE])
-            lv.arc_set_bg_angles(
-                w.obj, config[CONF_START_ANGLE] // 10, config[CONF_END_ANGLE] // 10
-            )
-            lv.arc_set_rotation(w.obj, config[CONF_ROTATION] // 10)
+            max_value = await lv_int.process(config[CONF_MAX_VALUE])
+            min_value = await lv_int.process(config[CONF_MIN_VALUE])
+            lv.arc_set_range(w.obj, min_value, max_value)
+            start = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+            end = await lv_angle_degrees.process(config[CONF_END_ANGLE])
+            rotation = await lv_angle_degrees.process(config[CONF_ROTATION])
+            lv.arc_set_bg_angles(w.obj, start, end)
+            lv.arc_set_rotation(w.obj, rotation)
             lv.arc_set_mode(w.obj, literal(config[CONF_MODE]))
             lv.arc_set_change_rate(w.obj, config[CONF_CHANGE_RATE])
 

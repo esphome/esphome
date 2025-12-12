@@ -155,7 +155,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "Exit reparse: %s", YESNO(exit_reparse));
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
 
-  if (this->is_updating_) {
+  if (this->connection_state_.is_updating_) {
     ESP_LOGW(TAG, "Upload in progress");
     return false;
   }
@@ -165,7 +165,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     return false;
   }
 
-  this->is_updating_ = true;
+  this->connection_state_.is_updating_ = true;
 
   if (exit_reparse) {
     ESP_LOGD(TAG, "Exit reparse mode");
@@ -177,11 +177,6 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
   // Check if baud rate is supported
   this->original_baud_rate_ = this->parent_->get_baud_rate();
-  static const std::vector<uint32_t> SUPPORTED_BAUD_RATES = {2400,   4800,   9600,   19200,  31250,  38400, 57600,
-                                                             115200, 230400, 250000, 256000, 512000, 921600};
-  if (std::find(SUPPORTED_BAUD_RATES.begin(), SUPPORTED_BAUD_RATES.end(), baud_rate) == SUPPORTED_BAUD_RATES.end()) {
-    baud_rate = this->original_baud_rate_;
-  }
   ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
 
   // Define the configuration for the HTTP client
@@ -246,7 +241,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
   // The Nextion will ignore the upload command if it is sleeping
   ESP_LOGV(TAG, "Wake-up");
-  this->ignore_is_setup_ = true;
+  this->connection_state_.ignore_is_setup_ = true;
   this->send_command_("sleep=0");
   this->send_command_("dim=100");
   vTaskDelay(pdMS_TO_TICKS(250));  // NOLINT

@@ -11,7 +11,7 @@ template<typename... Ts> class LockAction : public Action<Ts...> {
  public:
   explicit LockAction(Lock *a_lock) : lock_(a_lock) {}
 
-  void play(Ts... x) override { this->lock_->lock(); }
+  void play(const Ts &...x) override { this->lock_->lock(); }
 
  protected:
   Lock *lock_;
@@ -21,7 +21,7 @@ template<typename... Ts> class UnlockAction : public Action<Ts...> {
  public:
   explicit UnlockAction(Lock *a_lock) : lock_(a_lock) {}
 
-  void play(Ts... x) override { this->lock_->unlock(); }
+  void play(const Ts &...x) override { this->lock_->unlock(); }
 
  protected:
   Lock *lock_;
@@ -31,7 +31,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Lock *a_lock) : lock_(a_lock) {}
 
-  void play(Ts... x) override { this->lock_->open(); }
+  void play(const Ts &...x) override { this->lock_->open(); }
 
  protected:
   Lock *lock_;
@@ -40,7 +40,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
 template<typename... Ts> class LockCondition : public Condition<Ts...> {
  public:
   LockCondition(Lock *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     auto check_state = this->state_ ? LockState::LOCK_STATE_LOCKED : LockState::LOCK_STATE_UNLOCKED;
     return this->parent_->state == check_state;
   }

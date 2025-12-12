@@ -163,7 +163,7 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config):
     if not use_legacy():
         if config[CONF_DAC_TYPE] == "internal":
-            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver.")
+            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver")
         if config[CONF_I2S_COMM_FMT] == "stand_max":
             raise cv.Invalid(
                 "I2S standard max format only implemented with legacy i2s driver."
@@ -180,7 +180,7 @@ async def to_code(config):
     await speaker.register_speaker(var, config)
 
     if config[CONF_DAC_TYPE] == "internal":
-        cg.add(var.set_internal_dac_mode(config[CONF_CHANNEL]))
+        cg.add(var.set_internal_dac_mode(config[CONF_MODE]))
     else:
         cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
         if use_legacy():

@@ -12,7 +12,7 @@ template<typename... Ts> class BluetoothPasswordSetAction : public Action<Ts...>
   explicit BluetoothPasswordSetAction(LD2410Component *ld2410_comp) : ld2410_comp_(ld2410_comp) {}
   TEMPLATABLE_VALUE(std::string, password)
 
-  void play(Ts... x) override { this->ld2410_comp_->set_bluetooth_password(this->password_.value(x...)); }
+  void play(const Ts &...x) override { this->ld2410_comp_->set_bluetooth_password(this->password_.value(x...)); }
 
  protected:
   LD2410Component *ld2410_comp_;

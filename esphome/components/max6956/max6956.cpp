@@ -20,7 +20,6 @@ const uint8_t MASK_CURRENT_PIN = 0x0F;
  *    MAX6956                         *
  **************************************/
 void MAX6956::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t configuration;
   if (!this->read_reg_(MAX6956_CONFIGURATION, &configuration)) {
     this->mark_failed();

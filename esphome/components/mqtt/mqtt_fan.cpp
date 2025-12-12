@@ -24,15 +24,15 @@ void MQTTFanComponent::setup() {
     auto val = parse_on_off(payload.c_str());
     switch (val) {
       case PARSE_ON:
-        ESP_LOGD(TAG, "'%s' Turning Fan ON.", this->friendly_name().c_str());
+        ESP_LOGD(TAG, "'%s' Turning Fan ON.", this->friendly_name_().c_str());
         this->state_->turn_on().perform();
         break;
       case PARSE_OFF:
-        ESP_LOGD(TAG, "'%s' Turning Fan OFF.", this->friendly_name().c_str());
+        ESP_LOGD(TAG, "'%s' Turning Fan OFF.", this->friendly_name_().c_str());
         this->state_->turn_off().perform();
         break;
       case PARSE_TOGGLE:
-        ESP_LOGD(TAG, "'%s' Toggling Fan.", this->friendly_name().c_str());
+        ESP_LOGD(TAG, "'%s' Toggling Fan.", this->friendly_name_().c_str());
         this->state_->toggle().perform();
         break;
       case PARSE_NONE:
@@ -48,11 +48,11 @@ void MQTTFanComponent::setup() {
       auto val = parse_on_off(payload.c_str(), "forward", "reverse");
       switch (val) {
         case PARSE_ON:
-          ESP_LOGD(TAG, "'%s': Setting direction FORWARD", this->friendly_name().c_str());
+          ESP_LOGD(TAG, "'%s': Setting direction FORWARD", this->friendly_name_().c_str());
           this->state_->make_call().set_direction(fan::FanDirection::FORWARD).perform();
           break;
         case PARSE_OFF:
-          ESP_LOGD(TAG, "'%s': Setting direction REVERSE", this->friendly_name().c_str());
+          ESP_LOGD(TAG, "'%s': Setting direction REVERSE", this->friendly_name_().c_str());
           this->state_->make_call().set_direction(fan::FanDirection::REVERSE).perform();
           break;
         case PARSE_TOGGLE:
@@ -75,11 +75,11 @@ void MQTTFanComponent::setup() {
                       auto val = parse_on_off(payload.c_str(), "oscillate_on", "oscillate_off");
                       switch (val) {
                         case PARSE_ON:
-                          ESP_LOGD(TAG, "'%s': Setting oscillating ON", this->friendly_name().c_str());
+                          ESP_LOGD(TAG, "'%s': Setting oscillating ON", this->friendly_name_().c_str());
                           this->state_->make_call().set_oscillating(true).perform();
                           break;
                         case PARSE_OFF:
-                          ESP_LOGD(TAG, "'%s': Setting oscillating OFF", this->friendly_name().c_str());
+                          ESP_LOGD(TAG, "'%s': Setting oscillating OFF", this->friendly_name_().c_str());
                           this->state_->make_call().set_oscillating(false).perform();
                           break;
                         case PARSE_TOGGLE:
@@ -143,6 +143,7 @@ void MQTTFanComponent::dump_config() {
 bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
 
 void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   if (this->state_->get_traits().supports_direction()) {
     root[MQTT_DIRECTION_COMMAND_TOPIC] = this->get_direction_command_topic();
     root[MQTT_DIRECTION_STATE_TOPIC] = this->get_direction_state_topic();

@@ -11,7 +11,7 @@ template<typename... Ts> class PressAction : public Action<Ts...> {
  public:
   explicit PressAction(Button *button) : button_(button) {}
 
-  void play(Ts... x) override { this->button_->press(); }
+  void play(const Ts &...x) override { this->button_->press(); }
 
  protected:
   Button *button_;

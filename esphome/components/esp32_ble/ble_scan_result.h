@@ -4,8 +4,7 @@
 
 #include <esp_gap_ble_api.h>
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 // Structure for BLE scan results - only fields we actually use
 struct __attribute__((packed)) BLEScanResult {
@@ -18,7 +17,6 @@ struct __attribute__((packed)) BLEScanResult {
   uint8_t search_evt;
 };  // ~73 bytes vs ~400 bytes for full esp_ble_gap_cb_param_t
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif
