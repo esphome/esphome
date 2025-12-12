@@ -72,6 +72,7 @@ CONF_WAIT_FOR_SENT = "wait_for_sent"
 
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
+
 def _validate_master_key(value):
     if isinstance(value, str):
         value = list(bytes(value.encode()))
@@ -80,6 +81,7 @@ def _validate_master_key(value):
     if len(value) != ESPNOW_MASTER_KEY_SIZE:
         raise cv.Invalid(f"Key must be {ESPNOW_MASTER_KEY_SIZE} bytes in size, got {len(value)}")
     return cv.Schema([cv.hex_uint8_t])(value)
+
 
 PEER_SCHEMA = cv.Schema(
     {
@@ -230,7 +232,7 @@ async def register_peer(var, config, args):
     cg.add(var.set_address(template_))
 
     # only for espnow.peer.add
-    if lmk:= config.get(CONF_LMK):
+    if lmk := config.get(CONF_LMK):
         template_ = await cg.templatable(lmk, args, master_address_t, master_address_t)
         cg.add(var.set_lmk(template_))
 
