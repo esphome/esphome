@@ -197,6 +197,7 @@ Use GitHub-style alert syntax:
 - **Bug fixes and documentation corrections**: Target the `current` branch
 - **New features and new component docs**: Target the `next` branch
 - **Create separate branches** for each pull request (one PR per feature/fix)
+- **Always branch from the target branch**: Use `git checkout -b <branch-name> current` or `git checkout -b <branch-name> next` to ensure you're branching from the correct base, not whatever branch is currently checked out
 
 ### Commit Messages
 - Use clear, descriptive commit messages
@@ -209,8 +210,9 @@ Use GitHub-style alert syntax:
 ### Pull Request Process
 1. Ensure all changes are committed to the feature branch
 2. Push to origin: `git push -u origin <branch-name>`
-3. All automated tests must pass before review
-4. Follow retry logic for network failures (exponential backoff: 2s, 4s, 8s, 16s)
+3. Create the PR using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template
+4. All automated tests must pass before review
+5. Follow retry logic for network failures (exponential backoff: 2s, 4s, 8s, 16s)
 
 ## Testing and Preview
 
