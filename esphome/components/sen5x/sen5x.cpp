@@ -119,14 +119,14 @@ static inline std::string convert_to_string(uint16_t array[], uint8_t length) {
   return new_string;
 }
 
-void SEN5XComponent::setup() { this->internal_setup_(SM_START_1); }
+void SEN5XComponent::setup() { this->internal_setup_(SM_START); }
 
 void SEN5XComponent::internal_setup_(SetupStates state) {
   uint16_t string_number[16] = {0};
   switch (state) {
     case SM_START:
-      // the sensor needs 1000 ms to enter the idle state
-      this->set_timeout(1000, [this]() { this->internal_setup_(SM_START_1); });
+      // the sensor needs 100 ms after power up before i2c bus communication can be established
+      this->set_timeout(100, [this]() { this->internal_setup_(SM_START_1); });
       break;
     case SM_START_1:
       // Check if measurement is ready before reading the value
