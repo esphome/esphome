@@ -30,8 +30,6 @@ from esphome.const import (
     CONF_SLEEP_DURATION,
     CONF_TIME_ID,
     CONF_WAKEUP_PIN,
-    KEY_CORE,
-    KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -320,7 +318,7 @@ async def to_code(config):
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
         pins_as_list = config.get(CONF_WAKEUP_PIN, [])
-        if CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == PLATFORM_BK72XX:
+        if CORE.is_bk72xx:
             cg.add(var.init_wakeup_pins_(len(pins_as_list)))
             for item in pins_as_list:
                 cg.add(
