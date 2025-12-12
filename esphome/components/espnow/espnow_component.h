@@ -52,7 +52,7 @@ enum ESPNowState : uint8_t {
 
 struct ESPNowPeer {
   uint8_t address[ESP_NOW_ETH_ALEN];  // MAC address of the peer
-  uint8_t lmk[ESP_NOW_KEY_LEN]; // Local Master Key (optional)
+  uint8_t lmk[ESP_NOW_KEY_LEN];       // Local Master Key (optional)
   bool encrypt{false};
 
   bool operator==(const ESPNowPeer &other) const { return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0; }
@@ -104,19 +104,17 @@ class ESPNowComponent : public Component {
   float get_setup_priority() const override { return setup_priority::LATE; }
 
   // Handle Primary Master Key (PMK)
-  void set_pmk(const master_key_t& pmk);
+  void set_pmk(const master_key_t &pmk);
   bool has_pmk();
   void set_espnow_pmk();
 
   // Add a peer with the esp_now api and add to the internal list if doesnt exist already
-  esp_err_t add_peer(const uint8_t *peer, const uint8_t* lmk = nullptr);
+  esp_err_t add_peer(const uint8_t *peer, const uint8_t *lmk = nullptr);
 
   // Overloaded add_peer's
-  void add_peer(peer_address_t address, const master_key_t& lmk) {
-    this->add_peer(address, lmk.data());
-  }
+  void add_peer(peer_address_t address, const master_key_t &lmk) { this->add_peer(address, lmk.data()); }
 
-  void add_peer(peer_address_t address, const uint8_t* lmk = nullptr) {
+  void add_peer(peer_address_t address, const uint8_t *lmk = nullptr) {
     ESPNowPeer peer;
     memcpy(peer.address, address.data(), ESP_NOW_ETH_ALEN);
     if (lmk) {
@@ -128,9 +126,7 @@ class ESPNowComponent : public Component {
     this->peers_.push_back(peer);
   }
 
-  esp_err_t add_peer(const uint8_t *peer, const master_key_t& lmk) {
-    return this->add_peer(peer, lmk.data());
-  }
+  esp_err_t add_peer(const uint8_t *peer, const master_key_t &lmk) { return this->add_peer(peer, lmk.data()); }
 
   // Remove a peer with the esp_now api and remove from the internal list if exists
   esp_err_t del_peer(const uint8_t *peer);

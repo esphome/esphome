@@ -93,7 +93,7 @@ template<typename... Ts> class AddPeerAction : public Action<Ts...>, public Pare
  public:
   void play(const Ts &...x) override {
     auto address = this->address_.value(x...);
-    auto lmk     = this->lmk_.value(x...);
+    auto lmk = this->lmk_.value(x...);
 
     this->parent_->add_peer(address.data(), lmk.data());
   }

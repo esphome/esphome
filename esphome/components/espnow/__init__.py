@@ -77,9 +77,13 @@ def _validate_master_key(value):
     if isinstance(value, str):
         value = list(bytes(value.encode()))
     elif not isinstance(value, list):
-        raise cv.Invalid("Key must either be a string wrapped in quotes or a list of bytes")
+        raise cv.Invalid(
+            "Key must either be a string wrapped in quotes or a list of bytes"
+        )
     if len(value) != ESPNOW_MASTER_KEY_SIZE:
-        raise cv.Invalid(f"Key must be {ESPNOW_MASTER_KEY_SIZE} bytes in size, got {len(value)}")
+        raise cv.Invalid(
+            f"Key must be {ESPNOW_MASTER_KEY_SIZE} bytes in size, got {len(value)}"
+        )
     return cv.Schema([cv.hex_uint8_t])(value)
 
 
@@ -308,11 +312,7 @@ async def send_action(
     return var
 
 
-@automation.register_action(
-    "espnow.peer.add",
-    AddPeerAction,
-    PEER_SCHEMA
-)
+@automation.register_action("espnow.peer.add", AddPeerAction, PEER_SCHEMA)
 @automation.register_action(
     "espnow.peer.delete",
     DeletePeerAction,

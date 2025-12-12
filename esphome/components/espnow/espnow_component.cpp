@@ -162,18 +162,15 @@ void ESPNowComponent::setup() {
   }
 }
 
-void ESPNowComponent::set_pmk(const master_key_t& pmk) {
-  this->pmk_ = std::move(pmk);
-}
+void ESPNowComponent::set_pmk(const master_key_t &pmk) { this->pmk_ = std::move(pmk); }
 
-bool ESPNowComponent::has_pmk() {
-  return this->pmk_.has_value();
-}
+bool ESPNowComponent::has_pmk() { return this->pmk_.has_value(); }
 
 void ESPNowComponent::set_espnow_pmk() {
-  if (! this->has_pmk()) return;
+  if (!this->has_pmk())
+    return;
 
-  esp_err_t err = esp_now_set_pmk((const uint8_t*) this->pmk_->data());
+  esp_err_t err = esp_now_set_pmk((const uint8_t *) this->pmk_->data());
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to set Primary Master Key - %s", LOG_STR_ARG(espnow_error_to_str(err)));
     return;
@@ -441,7 +438,7 @@ void ESPNowComponent::send_() {
   }
 }
 
-esp_err_t ESPNowComponent::add_peer(const uint8_t *peer, const uint8_t* lmk) {
+esp_err_t ESPNowComponent::add_peer(const uint8_t *peer, const uint8_t *lmk) {
   if (this->state_ != ESPNOW_STATE_ENABLED || this->is_failed()) {
     return ESP_ERR_ESPNOW_NOT_INIT;
   }
