@@ -28,11 +28,15 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
     }
   }
+
+  bool ap_state = false;
   if (ap.has_value()) {
     if (ap.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
+      ap_state = true;
     }
   }
+  this->ap_started_ = ap_state;
   return true;
 }
 
@@ -50,7 +54,15 @@ bool WiFiComponent::wifi_apply_power_save_() {
       break;
   }
   int ret = cyw43_wifi_pm(&cyw43_state, pm);
-  return ret == 0;
+  bool success = ret == 0;
+#ifdef USE_WIFI_LISTENERS
+  if (success) {
+    for (auto *listener : this->power_save_listeners_) {
+      listener->on_wifi_power_save(this->power_save_);
+    }
+  }
+#endif
+  return success;
 }
 
 // TODO: The driver doesn't seem to have an API for this

@@ -106,7 +106,7 @@ class EPaperBase : public Display,
   void initialise_();
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
-  bool rotate_coordinates_(int &x, int &y) const;
+  bool rotate_coordinates_(int &x, int &y);
 
   /**
    * Methods that must be implemented by concrete classes to control the display
