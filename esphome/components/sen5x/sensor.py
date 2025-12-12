@@ -358,6 +358,7 @@ def final_validate(config):
         raise cv.Invalid(f"Model {model} does not support '{CONF_TEMPERATURE}'.")
     if CONF_HUMIDITY in config and model in {MODEL_SEN50, MODEL_SEN60}:
         raise cv.Invalid(f"Model {model} does not support '{CONF_HUMIDITY}'.")
+    i2c.final_validate_device_schema("sen5x", max_frequency="100kHz")(config)
 
 
 FINAL_VALIDATE_SCHEMA = final_validate
