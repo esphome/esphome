@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include <cstdint>
 
 // Build information is passed in via symbols defined in a linker script
 // as that is the simplest way to include build timestamps without the
@@ -54,7 +54,7 @@ namespace esphome {
 namespace buildinfo {
 
 // An 8-byte string plus terminating NUL.
-struct config_hash_struct {
+struct ConfigHashStruct {
   uintptr_t data0;
 #ifdef USE_32BIT
   uintptr_t data1;
@@ -62,11 +62,11 @@ struct config_hash_struct {
   char nul;
 } __attribute__((packed));
 
-extern const config_hash_struct CONFIG_HASH_STR = {(uintptr_t) &LINKERSYM(CONFIG_HASH_STR, 0),
+extern const ConfigHashStruct CONFIG_HASH_STR = {(uintptr_t) &LINKERSYM(CONFIG_HASH_STR, 0),
 #ifdef USE_32BIT
-                                                   (uintptr_t) &LINKERSYM(CONFIG_HASH_STR, 1),
+                                                 (uintptr_t) &LINKERSYM(CONFIG_HASH_STR, 1),
 #endif
-                                                   0};
+                                                 0};
 
 // A 21-byte string plus terminating NUL, in 24 bytes
 extern const uintptr_t BUILD_TIME_STR[] = {
