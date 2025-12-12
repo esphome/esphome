@@ -17,7 +17,6 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@kahrendt"]
-DEPENDENCIES = ["i2c"]
 
 bmp581_ns = cg.esphome_ns.namespace("bmp581")
 
@@ -98,45 +97,41 @@ def compute_measurement_conversion_time(config):
     return math.ceil(1.05 * (pressure_conversion_time + temperature_conversion_time))
 
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(BMP581Component),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Optional(CONF_OVERSAMPLING, default="NONE"): cv.enum(
-                        OVERSAMPLING_OPTIONS, upper=True
-                    ),
-                    cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
-                        IIR_FILTER_OPTIONS, upper=True
-                    ),
-                }
-            ),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PASCAL,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
-                        OVERSAMPLING_OPTIONS, upper=True
-                    ),
-                    cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
-                        IIR_FILTER_OPTIONS, upper=True
-                    ),
-                }
-            ),
-        }
-    )
-    .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x46))
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(BMP581Component),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(
+            {
+                cv.Optional(CONF_OVERSAMPLING, default="NONE"): cv.enum(
+                    OVERSAMPLING_OPTIONS, upper=True
+                ),
+                cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
+                    IIR_FILTER_OPTIONS, upper=True
+                ),
+            }
+        ),
+        cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_PASCAL,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(
+            {
+                cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
+                    OVERSAMPLING_OPTIONS, upper=True
+                ),
+                cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
+                    IIR_FILTER_OPTIONS, upper=True
+                ),
+            }
+        ),
+    }
+).extend(cv.polling_component_schema("60s"))
 
 
 async def to_code(config):
@@ -162,3 +157,4 @@ async def to_code(config):
         cg.add(var.set_pressure_iir_filter_config(pressure_config[CONF_IIR_FILTER]))
 
     cg.add(var.set_conversion_time(compute_measurement_conversion_time(config)))
+    return var

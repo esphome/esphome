@@ -3,7 +3,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
@@ -59,7 +58,7 @@ enum IIRFilter {
   IIR_FILTER_128 = 0x7
 };
 
-class BMP581Component : public PollingComponent, public i2c::I2CDevice {
+class BMP581Component : public PollingComponent {
  public:
   void dump_config() override;
 
@@ -84,6 +83,10 @@ class BMP581Component : public PollingComponent, public i2c::I2CDevice {
   void set_conversion_time(uint8_t conversion_time) { this->conversion_time_ = conversion_time; }
 
  protected:
+  virtual bmp_read_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bmp_write_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
+
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
