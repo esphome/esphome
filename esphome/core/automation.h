@@ -122,9 +122,9 @@ template<typename T, typename... X> class TemplatableValue {
     // STATELESS_LAMBDA/STATIC_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
   }
 
-  bool has_value() { return this->type_ != NONE; }
+  bool has_value() const { return this->type_ != NONE; }
 
-  T value(X... x) {
+  T value(X... x) const {
     switch (this->type_) {
       case STATELESS_LAMBDA:
         return this->stateless_f_(x...);  // Direct function pointer call
