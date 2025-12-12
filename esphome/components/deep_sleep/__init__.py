@@ -38,6 +38,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 WAKEUP_PINS = {
     VARIANT_ESP32: [
@@ -118,7 +119,7 @@ WAKEUP_PINS = {
 }
 
 
-def validate_pin_number_esp32(value):
+def validate_pin_number_esp32(value: ConfigType) -> ConfigType:
     valid_pins = WAKEUP_PINS.get(get_esp32_variant(), WAKEUP_PINS[VARIANT_ESP32])
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
@@ -127,24 +128,23 @@ def validate_pin_number_esp32(value):
     return value
 
 
-def validate_pin_number(value):
-    variant = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
+def validate_pin_number(value: ConfigType) -> ConfigType:
+    variant: str = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
     if variant != PLATFORM_ESP32:
         return value
     return validate_pin_number_esp32(value)
 
 
-def validate_pin_numbers(value):
-    if CONF_PIN in value:
-        validate_pin_number(value[CONF_PIN])
-    else:
-        validate_pin_number(value)
+def validate_pin_numbers(value: ConfigType) -> ConfigType:
+    validate_pin_number(value.get(CONF_PIN, value))
     return value
 
 
-def validate_wakeup_pin(value):
+def validate_wakeup_pin(
+    value: ConfigType | list[ConfigType],
+) -> list[ConfigType]:
     if not isinstance(value, list):
-        processed_pins = [{CONF_PIN: value}]
+        processed_pins: list[ConfigType] = [{CONF_PIN: value}]
     else:
         processed_pins = []
         for pin_config in value:
@@ -159,22 +159,21 @@ def validate_wakeup_pin(value):
     return processed_pins
 
 
-def validate_config(config):
-    variant = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
+def validate_config(config: ConfigType) -> ConfigType:
+    variant: str = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
     # right now only BK72XX supports the list format for wakeup pins
     if variant == PLATFORM_BK72XX:
         if CONF_WAKEUP_PIN_MODE in config:
-            if len(config.get(CONF_WAKEUP_PIN, [])) > 1:
+            wakeup_pins = config.get(CONF_WAKEUP_PIN, [])
+            if len(wakeup_pins) > 1:
                 raise cv.Invalid(
                     "You need to remove the global wakeup_pin_mode and define it per pin"
                 )
-            if config.get(CONF_WAKEUP_PIN, []):
-                config[CONF_WAKEUP_PIN][0][CONF_WAKEUP_PIN_MODE] = config.pop(
-                    CONF_WAKEUP_PIN_MODE
-                )
+            if wakeup_pins:
+                wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
     elif (
-        isinstance(config.get(CONF_WAKEUP_PIN, None), list)
-        and len(config.get(CONF_WAKEUP_PIN, [])) > 1
+        isinstance(config.get(CONF_WAKEUP_PIN), list)
+        and len(config[CONF_WAKEUP_PIN]) > 1
     ):
         raise cv.Invalid(
             "Your platform does not support providing multiple entries in wakeup_pin"
