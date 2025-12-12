@@ -330,12 +330,12 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         response = device->on_modbus_write_registers(function_code, data);
       } else {
         ESP_LOGW(TAG, "Unsupported function code %d", function_code);
-        this->send_exception(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
       }
       if (static_cast<uint8_t>(response.exception)) {
-        this->send_exception(address, function_code, response.exception);
+        this->send_exception_(address, function_code, response.exception);
       } else {
-        this->send_response(address, function_code, std::move(response.payload));
+        this->send_response_(address, function_code, std::move(response.payload));
       }
     }
   }
@@ -436,18 +436,18 @@ void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t star
   this->send_raw(data, device, allow_duplicates);
 }
 
-void ModbusServerHub::send_response(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
+void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
   payload.insert(payload.begin(), std::initializer_list<uint8_t>{address, function_code});
-  this->send_raw(payload);
+  this->send_raw_(payload);
 }
 
-void ModbusServerHub::send_exception(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
+void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
   std::vector<uint8_t> payload;
   payload.reserve(3);
   payload.push_back(address);
   payload.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
   payload.push_back(static_cast<uint8_t>(exception_code));
-  this->send_raw(payload);
+  this->send_raw_(payload);
 }
 
 // Helper function for lambdas
@@ -524,7 +524,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
 }
 
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
-void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
+void ModbusServerHub::send_raw_(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {
     return;
   }

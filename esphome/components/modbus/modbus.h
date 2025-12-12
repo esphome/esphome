@@ -104,9 +104,9 @@ class ModbusServerHub : public Modbus {
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data);
-  void send_exception(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
-  void send_response(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload);
-  void send_raw(const std::vector<uint8_t> &payload);
+  void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
+  void send_response_(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload);
+  void send_raw_(const std::vector<uint8_t> &payload);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 };
