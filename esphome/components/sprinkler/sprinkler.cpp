@@ -1500,7 +1500,7 @@ void Sprinkler::fsm_kick_() {
 }
 
 void Sprinkler::fsm_transition_() {
-  ESP_LOGVV(TAG, "fsm_transition_ called; state is %s", this->state_as_str_(this->state_).c_str());
+  ESP_LOGVV(TAG, "fsm_transition_ called; state is %s", this->state_as_str_(this->state_));
   switch (this->state_) {
     case IDLE:  // the system was off -> start it up
       // advances to ACTIVE
@@ -1546,7 +1546,7 @@ void Sprinkler::fsm_transition_() {
     this->set_timer_duration_(sprinkler::TIMER_SM, this->manual_selection_delay_.value_or(1));
     this->start_timer_(sprinkler::TIMER_SM);
   }
-  ESP_LOGVV(TAG, "fsm_transition_ complete; new state is %s", this->state_as_str_(this->state_).c_str());
+  ESP_LOGVV(TAG, "fsm_transition_ complete; new state is %s", this->state_as_str_(this->state_));
 }
 
 void Sprinkler::fsm_transition_from_shutdown_() {
