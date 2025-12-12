@@ -387,44 +387,45 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
 }
 
 void SEN5XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "SEN5X:");
-  LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG,
+                "SEN5X:\n"
+                "  Address: 0x%02X\n"
+                "  Model: %s\n",
+                this->address_, model_to_str(this->model_.value()));
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGE(TAG, "  Measurement initialization failed");
+        ESP_LOGE(TAG, "Measurement initialization failed");
         break;
       case SERIAL_NUMBER_IDENTIFICATION_FAILED:
-        ESP_LOGE(TAG, "  Unable to read serial number");
+        ESP_LOGE(TAG, "Unable to read serial number");
         break;
       case PRODUCT_NAME_FAILED:
-        ESP_LOGE(TAG, "  Product name issue");
+        ESP_LOGE(TAG, "Product name issue");
         break;
       case FIRMWARE_FAILED:
-        ESP_LOGE(TAG, "  Unable to read firmware version");
+        ESP_LOGE(TAG, "Unable to read firmware version");
         break;
       case UNSUPPORTED_CONF:
-        ESP_LOGE(TAG, "  Unsupported configuration");
+        ESP_LOGE(TAG, "Unsupported configuration");
         break;
       default:
-        ESP_LOGE(TAG, "  Unknown setup error");
+        ESP_LOGE(TAG, "Unknown setup error");
         break;
     }
+    return;  // don't print any more info if setup failed
   }
   if (!this->initialized_) {
-    ESP_LOGCONFIG(TAG, "  Initializing, values may be incomplete");
+    ESP_LOGW(TAG, "Initializing, values may be incomplete");
   }
   ESP_LOGCONFIG(TAG,
-                "  Address: 0x%02X\n"
                 "  Update Interval: %ums\n"
-                "  Model: %s\n"
                 "  Product name: %s\n"
                 "  Serial number: %s\n",
-                this->address_, this->update_interval_, model_to_str(this->model_.value()), this->product_name_.c_str(),
-                this->serial_number_.c_str());
+                this->update_interval_, this->product_name_.c_str(), this->serial_number_.c_str());
 
   if (this->is_sen6x_()) {
     ESP_LOGCONFIG(TAG, "  Firmware version: %u.%u", this->firmware_major_, this->firmware_minor_);
