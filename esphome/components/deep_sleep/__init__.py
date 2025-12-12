@@ -199,8 +199,8 @@ def _validate_ex1_wakeup_mode(value):
     return value
 
 
-def _validate_sleep_duration(value):
-    variant = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
+def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
+    variant: str = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
     if variant != PLATFORM_BK72XX:
         return value
     max_duration = core.TimePeriod(hours=36)
