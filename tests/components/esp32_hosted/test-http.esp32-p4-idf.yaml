@@ -1,0 +1,11 @@
+<<: !include common.yaml
+
+http_request:
+  buffer_size_rx: 2048  # GitHub redirects have large headers
+  buffer_size_tx: 2048  # GitHub redirect URLs are >1KB (Azure blob storage)
+
+update:
+  - platform: esp32_hosted
+    name: "Coprocessor Firmware Update"
+    source: https://github.com/esphome/esp-hosted-firmware/releases/download/manifest/esp32c6.json
+    update_interval: 6h
