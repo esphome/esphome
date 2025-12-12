@@ -27,9 +27,9 @@
 #endif
 
 #if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8
-#define WS 64
+#define WS 64  // NOLINT
 #else
-#define WS 32
+#define WS 32  // NOLINT
 #define USE_32BIT
 #endif
 
