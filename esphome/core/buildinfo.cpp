@@ -1,61 +1,84 @@
-// Build information using linker-provided symbols
-//
-// Including build information into the build is fun, because we *don't*
-// want the mere fact of changing the build time to *itself* cause a
-// rebuild if nothing else had changed. If we do the naïve thing of
-// just putting #defines in a header like version.h, we'll cause exactly
-// that.
-//
-// So instead we provide the config hash and build time in a linker
-// script, so they get pulled in only if the firmware is already being
-// rebuilt.
-#include "esphome/core/buildinfo.h"
-#include <cstdio>
+#include <stdint.h>
 
-// Linker-provided symbols - declare as extern variables, not functions
+// Build information is passed in via symbols defined in a linker script
+// as that is the simplest way to include build timestamps without the
+// changed timestamp itself causing a rebuild through dependencies, as
+// it would if it were in a header file like version.h.
+//
+// It's passed in in *string* form so that it can go directly into the
+// flash as .rodate instead of using precious RAM to build a date string
+// from a time_t at runtime.
+//
+// Determining the target endianness and word size from the generation
+// side is problematic, so it emits *four* sets of symbols into the
+// linker script, for each of little-endian and big-endiand, 32-bit and
+// 64-bit targets.
+//
+// The LINKERSYM macro gymnastics select the correct symbol for the
+// target, named e.g. 'ESPHOME_BUILD_TIME_STR_32LE_0'.
+
+// Not all targets have <endian.h> (e.g. LibreTiny on BK72xx).
+// Use the compiler built-in macros but defensively default to
+// little-endian and 32-bit.
+#if !defined(__BYTE_ORDER__) || __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define BO LE
+#else
+#define BO BE
+#endif
+
+#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8
+#define WS 64
+#else
+#define WS 32
+#define USE_32BIT
+#endif
+
+// If you have to ask, you don't want to know...
+#define LINKERSYM2(name, ws, bo, us, num) ESPHOME_##name##_##ws##bo##us##num
+#define LINKERSYM1(name, ws, bo, us, num) LINKERSYM2(name, ws, bo, us, num)
+#define LINKERSYM(name, num) LINKERSYM1(name, WS, BO, _, num)
+
 extern "C" {
-extern const char ESPHOME_CONFIG_HASH[];
 extern const char ESPHOME_BUILD_TIME[];
+extern const char LINKERSYM(CONFIG_HASH_STR, 0)[];
+extern const char LINKERSYM(CONFIG_HASH_STR, 1)[];
+extern const char LINKERSYM(BUILD_TIME_STR, 0)[];
+extern const char LINKERSYM(BUILD_TIME_STR, 1)[];
+extern const char LINKERSYM(BUILD_TIME_STR, 2)[];
+extern const char LINKERSYM(BUILD_TIME_STR, 3)[];
+extern const char LINKERSYM(BUILD_TIME_STR, 4)[];
+extern const char LINKERSYM(BUILD_TIME_STR, 5)[];
 }
 
 namespace esphome {
 namespace buildinfo {
 
-#if __SIZEOF_POINTER__ > 4
-// On 64-bit platforms, reference the linker symbols as uintptr_t from the *data* section to
-// avoid issues with pc-relative relocations. Don't let the compiler know they're const or
-// it'll optimise away the whole thing and emit a relocation to the ESPHOME_XXX symbols
-// directly, which defeats the whole point!
-// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-static uintptr_t config_hash_ptr = (uintptr_t) &ESPHOME_CONFIG_HASH;
-static uintptr_t build_time_ptr = (uintptr_t) &ESPHOME_BUILD_TIME;
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
-#define config_hash config_hash_ptr
-#define build_time build_time_ptr
-#else
-#define config_hash ((uintptr_t) &ESPHOME_CONFIG_HASH)
-#define build_time ((uintptr_t) &ESPHOME_BUILD_TIME)
+// An 8-byte string plus terminating NUL.
+struct config_hash_struct {
+  uintptr_t data0;
+#ifdef USE_32BIT
+  uintptr_t data1;
 #endif
+  char nul;
+} __attribute__((packed));
 
-const char *get_config_hash() {
-  static char hash_str[9];
-  if (!hash_str[0]) {
-    snprintf(hash_str, sizeof(hash_str), "%08x", (uint32_t) config_hash);
-  }
-  return hash_str;
-}
+extern const config_hash_struct CONFIG_HASH_STR = {(uintptr_t) &LINKERSYM(CONFIG_HASH_STR, 0),
+#ifdef USE_32BIT
+                                                   (uintptr_t) &LINKERSYM(CONFIG_HASH_STR, 1),
+#endif
+                                                   0};
 
-time_t get_build_time() { return (time_t) build_time; }
+// A 21-byte string plus terminating NUL, in 24 bytes
+extern const uintptr_t BUILD_TIME_STR[] = {
+    (uintptr_t) &LINKERSYM(BUILD_TIME_STR, 0), (uintptr_t) &LINKERSYM(BUILD_TIME_STR, 1),
+    (uintptr_t) &LINKERSYM(BUILD_TIME_STR, 2),
+#ifdef USE_32BIT
+    (uintptr_t) &LINKERSYM(BUILD_TIME_STR, 3), (uintptr_t) &LINKERSYM(BUILD_TIME_STR, 4),
+    (uintptr_t) &LINKERSYM(BUILD_TIME_STR, 5),
+#endif
+};
 
-const char *get_build_time_string() {
-  static char time_str[32];
-  if (!time_str[0]) {
-    time_t bt = get_build_time();
-    struct tm *tm_info = localtime(&bt);
-    strftime(time_str, sizeof(time_str), "%b %d %Y, %H:%M:%S", tm_info);
-  }
-  return time_str;
-}
+extern const uintptr_t BUILD_TIME = (uintptr_t) &ESPHOME_BUILD_TIME;
 
 }  // namespace buildinfo
 }  // namespace esphome

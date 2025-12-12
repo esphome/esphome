@@ -11,9 +11,15 @@
 namespace esphome {
 namespace buildinfo {
 
-const char *get_config_hash();
-time_t get_build_time();
-const char *get_build_time_string();
+extern const char CONFIG_HASH_STR[];
+extern const char BUILD_TIME_STR[];
+extern const uintptr_t BUILD_TIME;
+
+static inline const char *get_config_hash() { return CONFIG_HASH_STR; }
+
+static inline time_t get_build_time() { return (time_t) BUILD_TIME; }
+
+static inline const char *get_build_time_string() { return BUILD_TIME_STR; }
 
 }  // namespace buildinfo
 }  // namespace esphome
