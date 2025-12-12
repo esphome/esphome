@@ -58,10 +58,12 @@ openthread:
 - **channel** (int): Channel number from 11 to 26
 - **network_name** (string): A human-readable Network Name
 - **network_key** (string): OpenThread network key
-- **panid** (string): 2-byte Personal Area Network ID (PAN ID)
-- **extpanid** (string): 8-byte Extended Personal Area Network ID (XPAN ID)
+- **pan_id** (string): 2-byte Personal Area Network ID (PAN ID)
+- **ext_pan_id** (string): 8-byte Extended Personal Area Network ID (XPAN ID)
 - **pskc** (string): PSKc is used to authenticate an external Thread Commissioner to a Thread network
 - **mesh_local_prefix** (ipv6network): Used to build Mesh-Local IPv6 addresses (ML-EIDs), which are unique to each Thread device within the network partition
+- **force_dataset** (*Optional*, bool): Forces ESPHome configuration to override any previously stored OpenThread
+  network dataset on the device, ensuring configured parameters are always applied at startup. Defaults to `false`
 - **use_address** (*Optional*, string): Manually override what address to use to connect
   to the ESP. Defaults to auto-generated value.
 - **poll_period** (*Optional*, [Time](/guides/configuration-types#config-time)): When Poll_Period is set on an MTD device, the parent router will enqueue any messages and wait for the child to submit a poll data request

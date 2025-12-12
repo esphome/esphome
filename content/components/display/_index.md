@@ -18,6 +18,7 @@ graphical displays with fully addressable pixels.
 - Graphical displays with fully addressable pixels, such as
   {{< docref "mipi_spi" "SPI interfaced LCDs" >}},
   {{< docref "waveshare_epaper" "E-Paper" >}},
+  {{< docref "hub75" "HUB75 LED matrices" >}},
   and {{< docref "ssd1306" "OLED" >}}.
 
 For graphical displays, which offer the greatest flexibility, there are two options for displaying content:
