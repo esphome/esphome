@@ -129,15 +129,9 @@ def validate_pin_number_esp32(value: ConfigType) -> ConfigType:
 
 
 def validate_pin_number(value: ConfigType) -> ConfigType:
-    variant: str = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
-    if variant != PLATFORM_ESP32:
+    if not CORE.is_esp32:
         return value
     return validate_pin_number_esp32(value)
-
-
-def validate_pin_numbers(value: ConfigType) -> ConfigType:
-    validate_pin_number(value.get(CONF_PIN, value))
-    return value
 
 
 def validate_wakeup_pin(
@@ -158,9 +152,8 @@ def validate_wakeup_pin(
 
 
 def validate_config(config: ConfigType) -> ConfigType:
-    variant: str = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
     # right now only BK72XX supports the list format for wakeup pins
-    if variant == PLATFORM_BK72XX:
+    if CORE.is_bk72xx:
         if CONF_WAKEUP_PIN_MODE in config:
             wakeup_pins = config.get(CONF_WAKEUP_PIN, [])
             if len(wakeup_pins) > 1:
@@ -200,8 +193,7 @@ def _validate_ex1_wakeup_mode(value):
 
 
 def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
-    variant: str = CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
-    if variant != PLATFORM_BK72XX:
+    if not CORE.is_bk72xx:
         return value
     max_duration = core.TimePeriod(hours=36)
     if value > max_duration:
