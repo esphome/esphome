@@ -46,7 +46,6 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void on_powerdown() override { this->power_down_internal_(); }
-
   /// @brief Logs the new gain setting and sets internal gain variable
   ///
   /// This function is called by set gain automation. It serves as a helper function for logging
@@ -69,7 +68,6 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   /// @param[in] should_start_poller A boolean indicating whether to start the polling process after powering up.
   /// @return `true` if the sensor was successfully powered up, `false` if it was already powered up.
   bool power_up(bool should_start_poller = false);
-
   /// @brief Powers down the HX711 sensor and optionally stops the polling process.
   ///
   /// This function powers down the HX711 sensor if it is not already powered down.
@@ -92,15 +90,18 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   ///
   /// @return True if the HX711 ADC has reached a stable state, false otherwise.
   bool is_settled() const { return this->hx711_state_flags_.settled; }
-
   /// @brief Returns whether the poller is stopped.
   /// @return True if the polling interval is stopped, false otherwise.
   bool is_poller_stopped() const { return this->hx711_state_flags_.poller_stopped; }
-
-  /// @brief Returns whether the HX711 ADC is powered down (PD_SCK pin is high).
+  /// @brief Returns whether an update cycle is currently in progress.
+  /// @return True if an update is in progress, false otherwise.
+  bool is_update_in_progress() const { return this->hx711_state_flags_.update_in_progress; }
+  /// @brief Returns whether the HX711 power-up sequence is currently running.
+  /// @return True if the power-up sequence is running, false otherwise.
+  bool is_power_up_sequence_running() const { return this->hx711_state_flags_.power_up_sequence_running; }
+  /// @brief Returns whether the HX711 ADC is powered down.
   /// @return True if the HX711 ADC is powered down, false otherwise.
-  bool is_powered_down();
-
+  bool is_powered_down() const { return !this->hx711_state_flags_.powered_on_state; };
   /// @brief Returns whether the HX711 ADC measurement is ready to be read. (DOUT pin is low).
   /// @return True if the HX711 ADC conversion is done, false otherwise.
   bool is_measurement_ready();
@@ -117,11 +118,12 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   /// the sensor is powered down and marked as failed with an appropriate error message.
   /// This prevents the system from hanging indefinitely in case of sensor failure or disconnection.
   ///
+  /// @note This timeout is not restarted by this function if it's already active.
+  ///
   /// @warning `is_measurement_ready()` must be called to check sensor's data output and cancel timeout.
   ///
   /// @return `true` if the timeout was successfully started, `false` if it was already running.
   bool start_measurement_ready_timeout_();
-
   /// @brief Starts the settling timeout for the HX711 ADC after power-up.
   ///
   /// This function begins a timeout to allow the HX711 ADC to settle after being powered up or
@@ -174,10 +176,8 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
 
   /// @brief Settling time in milliseconds.
   uint16_t settling_time_ms_;
-
   /// @brief Timeout in milliseconds to wait before marking component as failed.
   uint16_t measurement_ready_timeout_ms_;
-
   /// @brief Flag to indicate whether to power down the sensor after reading.
   bool power_down_after_reading_;
 
@@ -186,29 +186,21 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   /// This struct holds multiple state-related flags that are packed into a bitfield
   /// to minimize RAM usage. Each bit represents a specific condition or control flag
   /// relevant to the operation and timing of the HX711 ADC and polling system.
-  ///
-  /// The use of bitfields allows up to 8 flags to be stored in a single byte,
-  /// reducing memory overhead compared to using individual `bool` variables.
   struct HX711StateFlags {
     /// @brief Flag to indicate whether to start the poller after settling.
     uint8_t should_start_poller : 1;
-
     /// @brief Flag to indicate whether the poller is currently stopped.
     uint8_t poller_stopped : 1;
-
     /// @brief Flag to indicate whether the HX711 ADC has reached a stable state.
     uint8_t settled : 1;
-
     /// @brief Flag to indicate whether an update cycle is currently in progress.
     ///
     /// Gets set in update(), reset in loop()
     uint8_t update_in_progress : 1;
-
     /// @brief Flag to indicate that the power-up sequence is currently running.
     ///
     /// Gets set in power_up(), reset in loop().
     uint8_t power_up_sequence_running : 1;
-
     /// @brief Flag indicating whether the measurement-ready timeout is currently active.
     ///
     /// This flag is set to `true` when `start_measurement_ready_timeout_()` initiates the timeout
@@ -216,7 +208,6 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
     /// expires or is explicitly cleared in the processing loop. Used to prevent timeout
     /// from restarting.
     uint8_t measurement_ready_timeout_active : 1;
-
     /// @brief Flag indicating whether the HX711 is currently powered on.
     uint8_t powered_on_state : 1;
 
@@ -229,7 +220,6 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
     uint8_t channel_b_sensor_read_pending : 1;
 #endif
   };
-
   /// @brief Internal state flags for the HX711 sensor component.
   HX711StateFlags hx711_state_flags_ {
     .should_start_poller = false, .poller_stopped = true, .settled = false, .update_in_progress = false,
@@ -244,9 +234,16 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *channel_b_sensor_{nullptr};
 #endif
 
+  /// @brief Data output pin (DOUT) for HX711
+  ///
+  /// Used for reading data and checking measurement readiness.
   GPIOPin *dout_pin_;
+  /// @brief Clock pin (PD_SCK) for HX711
+  ///
+  /// Used for both clocking data out and power control.
   GPIOPin *sck_pin_;
-  /// Gain to set after new measurement.
+
+  /// @brief Gain to set after new measurement.
   HX711Gain gain_{HX711Gain::HX711_GAIN_128};
   /// @brief The last gain that was set.
   ///

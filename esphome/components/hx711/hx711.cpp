@@ -7,8 +7,12 @@ namespace hx711 {
 
 static const char *const TAG = "hx711";
 
+/// Names for timeouts used in HX711 sensor component.
+
 static const char *const TIMEOUT_NAME_SETTLE = "settle";
 static const char *const TIMEOUT_NAME_MEASUREMENT_READY = "dout_ready";
+
+/// Log messages
 
 static const char *const LOG_STR_NOT_SETTLED = "not settled";
 static const char *const LOG_STR_NOT_READY = "not ready";
@@ -34,7 +38,7 @@ void HX711Sensor::setup() {
 }
 
 void HX711Sensor::loop() {
-  if (this->hx711_state_flags_.power_up_sequence_running) {
+  if (this->is_power_up_sequence_running()) {
     // Wait for HX711 to be ready
     if (!this->is_measurement_ready()) {
       this->start_measurement_ready_timeout_();
@@ -54,11 +58,9 @@ void HX711Sensor::loop() {
     this->hx711_state_flags_.power_up_sequence_running = false;
     return;
   }
-
-  if (!this->hx711_state_flags_.update_in_progress || this->is_powered_down() || !this->is_settled()) {
+  if (!this->is_update_in_progress() || this->is_powered_down() || !this->is_settled()) {
     return;
   }
-
   if (!this->is_measurement_ready()) {
     this->start_measurement_ready_timeout_();
     return;
@@ -67,7 +69,7 @@ void HX711Sensor::loop() {
 #if defined(USE_HX711_CHANNEL_B_SENSOR)
   if (this->hx711_state_flags_.channel_b_sensor_read_pending) {
     this->hx711_state_flags_.channel_b_sensor_read_pending = false;
-    uint32_t result;
+    uint32_t result = 0;
 
     // Gain will be restored by read_sensor_
     // Do not start settle timeout
@@ -81,15 +83,16 @@ void HX711Sensor::loop() {
       this->start_settle_timeout_();
     }
 
-    const float result_f = static_cast<float>(static_cast<int32_t>(result));
     if (!read_operation_result) {
       // On failed read, publish nan and do power cycle restart
       this->log_and_publish_channel_b_value_(NAN);
       this->power_cycle_restart_();
-    } else {
-      // Publish value on succesful read
-      this->log_and_publish_channel_b_value_(result_f);
+      return;
     }
+
+    const float result_f = static_cast<float>(static_cast<int32_t>(result));
+    // Publish value on succesful read
+    this->log_and_publish_channel_b_value_(result_f);
 
     this->hx711_state_flags_.update_in_progress = false;
     return;
@@ -112,7 +115,7 @@ void HX711Sensor::loop() {
 #endif
 
   // Read the sensor
-  uint32_t result;
+  uint32_t result = 0;
   if (this->read_sensor_(&result, start_settle_timeout_after_read)) {
     if (this->power_down_after_reading_) {
 #if defined(USE_HX711_CHANNEL_B_SENSOR)
@@ -160,7 +163,7 @@ void HX711Sensor::loop() {
 }
 
 void HX711Sensor::update() {
-  if (this->hx711_state_flags_.update_in_progress) {
+  if (this->is_update_in_progress()) {
     ESP_LOGW(TAG, "'%s': Previous update in progress", this->name_.c_str());
     return;
   }
@@ -239,11 +242,6 @@ void HX711Sensor::power_cycle_restart_(const bool use_internal_powerdown) {
   delayMicroseconds(80);
   // Start poller after settling
   this->power_up(true);
-}
-
-bool HX711Sensor::is_powered_down() {
-  // PD_SCK pin is always left low after reading data.
-  return !this->hx711_state_flags_.powered_on_state;
 }
 
 bool HX711Sensor::power_up(const bool should_start_poller) {
@@ -373,18 +371,15 @@ bool HX711Sensor::read_sensor_(uint32_t *result, const bool start_settle_timeout
   if (this->is_failed()) {
     return false;
   }
-
   if (this->is_powered_down()) {
     ESP_LOGE(TAG, "%s", LOG_STR_POWERED_DOWN);
     return false;
   }
-
   if (!this->is_measurement_ready()) {
     ESP_LOGW(TAG, "%s", LOG_STR_NOT_READY);
     this->status_set_warning(LOG_STR_NOT_READY);
     return false;
   }
-
   if (!this->is_settled() && !force) {
     ESP_LOGW(TAG, "%s", LOG_STR_NOT_SETTLED);
     this->status_set_warning(LOG_STR_NOT_SETTLED);
@@ -393,10 +388,8 @@ bool HX711Sensor::read_sensor_(uint32_t *result, const bool start_settle_timeout
 
   uint32_t data = 0;
   bool final_dout;
-
   ESP_LOGV(TAG, "'%s': last_gain=x%u; force=%s", this->name_.c_str(), hx711_gain_to_linear_gain(this->last_gain_),
            YESNO(force));
-
   {
     InterruptLock lock;
     for (uint8_t i = 0; i < 24; i++) {
