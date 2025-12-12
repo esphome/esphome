@@ -9,8 +9,13 @@ DEPENDENCIES = ["network"]
 
 def AUTO_LOAD() -> list[str]:
     # Socket component needed for platforms using socket-based implementation
-    # ESP32, ESP8266, and LibreTiny use AsyncTCP libraries, others use sockets
-    if not CORE.is_esp32 and not CORE.is_esp8266 and not CORE.is_libretiny:
+    # ESP32, ESP8266, RP2040, and LibreTiny use AsyncTCP libraries, others use sockets
+    if (
+        not CORE.is_esp32
+        and not CORE.is_esp8266
+        and not CORE.is_rp2040
+        and not CORE.is_libretiny
+    ):
         return ["socket"]
     return []
 
@@ -32,12 +37,15 @@ async def to_code(config):
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
+    elif CORE.is_rp2040:
+        # https://github.com/khoih-prog/AsyncTCP_RP2040W
+        cg.add_library("khoih-prog/AsyncTCP_RP2040W", "1.2.0")
     # Other platforms (host, etc) use socket-based implementation
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
     # Only compile socket implementation for platforms that don't use AsyncTCP library
-    # ESP32, ESP8266, and LibreTiny use the library, others use socket implementation
-    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_libretiny:
+    # ESP32, ESP8266, RP2040, and LibreTiny use the library, others use socket implementation
+    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny:
         return ["async_tcp_socket.cpp"]
     return []
