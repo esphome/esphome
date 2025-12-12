@@ -30,7 +30,10 @@ enum LockState : uint8_t {
   LOCK_STATE_LOCKING = 4,
   LOCK_STATE_UNLOCKING = 5
 };
-const char *lock_state_to_string(LockState state);
+const LogString *lock_state_to_string(LockState state);
+
+/// Maximum length of lock state string (including null terminator): "UNLOCKING" = 10
+static constexpr size_t LOCK_STATE_STR_SIZE = 10;
 
 class LockTraits {
  public:

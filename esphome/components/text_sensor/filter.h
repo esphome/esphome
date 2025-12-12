@@ -92,26 +92,26 @@ class ToLowerFilter : public Filter {
 /// A simple filter that adds a string to the end of another string
 class AppendFilter : public Filter {
  public:
-  AppendFilter(std::string suffix) : suffix_(std::move(suffix)) {}
+  explicit AppendFilter(const char *suffix) : suffix_(suffix) {}
   optional<std::string> new_value(std::string value) override;
 
  protected:
-  std::string suffix_;
+  const char *suffix_;
 };
 
 /// A simple filter that adds a string to the start of another string
 class PrependFilter : public Filter {
  public:
-  PrependFilter(std::string prefix) : prefix_(std::move(prefix)) {}
+  explicit PrependFilter(const char *prefix) : prefix_(prefix) {}
   optional<std::string> new_value(std::string value) override;
 
  protected:
-  std::string prefix_;
+  const char *prefix_;
 };
 
 struct Substitution {
-  std::string from;
-  std::string to;
+  const char *from;
+  const char *to;
 };
 
 /// A simple filter that replaces a substring with another substring
