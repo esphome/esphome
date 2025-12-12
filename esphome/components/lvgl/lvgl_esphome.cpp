@@ -555,12 +555,12 @@ void LvglComponent::setup() {
     buf_bytes /= MIN_BUFFER_FRAC;
     buffer = lv_malloc_core(buf_bytes);  // NOLINT
   }
+  this->buffer_frac_ = frac;
   if (buffer == nullptr) {
     this->status_set_error(LOG_STR("Memory allocation failure"));
     this->mark_failed();
     return;
   }
-  this->buffer_frac_ = frac;
   this->draw_buf_ = static_cast<uint8_t *>(buffer);
   lv_display_set_resolution(this->disp_, this->width_, this->height_);
   lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_RGB565);
