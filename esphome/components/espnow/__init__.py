@@ -131,7 +131,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
                 }
             ),
-            cv.Optional(CONF_ESPNOW_ON_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ESPNOW_ON_START): automation.validate_automation(
+                single=True
+            ),
         },
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
