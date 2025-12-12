@@ -18,7 +18,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@kahrendt"]
 
-bmp581_ns = cg.esphome_ns.namespace("bmp581")
+bmp581_ns = cg.esphome_ns.namespace("bmp581_base")
 
 Oversampling = bmp581_ns.enum("Oversampling")
 OVERSAMPLING_OPTIONS = {
@@ -132,7 +132,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
+async def to_code_base(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if temperature_config := config.get(CONF_TEMPERATURE):

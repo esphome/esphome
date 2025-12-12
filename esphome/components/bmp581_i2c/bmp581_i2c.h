@@ -16,6 +16,9 @@ class BMP581I2CComponent : public esphome::bmp581_base::BMP581Component, public 
   bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) override {
     return read_bytes(a_register, data, len);
   }
+  bool bmp_write_bytes(uint8_t a_register, uint8_t *data, size_t len) override {
+    return write_bytes(a_register, data, len);
+  }
   void dump_config() override;
 };
 
