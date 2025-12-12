@@ -184,10 +184,8 @@ async def to_code(config):
 
     # Calculate compile-time dynamic TXT value count
     # Dynamic values are those that cannot be stored in flash at compile time
+    # Note: MAC address is now stored in a fixed char[13] buffer, not dynamic storage
     dynamic_txt_count = 0
-    if "api" in CORE.config:
-        # Always: get_mac_address()
-        dynamic_txt_count += 1
     # User-provided templatable TXT values (only lambdas, not static strings)
     dynamic_txt_count += sum(
         1
@@ -196,8 +194,10 @@ async def to_code(config):
         if cg.is_template(txt_value)
     )
 
-    # Ensure at least 1 to avoid zero-size array
-    cg.add_define("MDNS_DYNAMIC_TXT_COUNT", max(1, dynamic_txt_count))
+    # Only add define if we actually need dynamic storage
+    if dynamic_txt_count > 0:
+        cg.add_define("USE_MDNS_DYNAMIC_TXT")
+        cg.add_define("MDNS_DYNAMIC_TXT_COUNT", dynamic_txt_count)
 
     # Enable storage if verbose logging is enabled (for dump_config)
     if get_logger_level() in ("VERBOSE", "VERY_VERBOSE"):
