@@ -87,6 +87,7 @@ button:
   - platform: template
     name: "Template Button"
     state_topic: some/topic/button
+    command_topic: !lambda return "some/topic/button/command";
     qos: 2
     on_press:
       - mqtt.disable
