@@ -72,9 +72,9 @@ async def to_code(config):
     if (min_freq := config.get(CONF_MIN_FREQUENCY)) is not None:
         cg.add(var.set_min_freq_mhz(min_freq))
     if config.get(CONF_PROFILING):
-        add_idf_sdkconfig_option("CONF_PM_PROFILING", True)
+        add_idf_sdkconfig_option("CONFIG_PM_PROFILING", True)
     if config.get(CONF_TRACE):
-        add_idf_sdkconfig_option("CONF_PM_TRACE", True)
+        add_idf_sdkconfig_option("CONFIG_PM_TRACE", True)
     if config.get(CONF_TICKLESS_IDLE):
         # this causes automatic light sleep if no tasks are pending
         add_idf_sdkconfig_option("CONFIG_FREERTOS_USE_TICKLESS_IDLE", True)
