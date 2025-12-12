@@ -66,7 +66,7 @@ CONF_LMK = "lmk"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
 CONF_ON_BROADCAST = "on_broadcast"
-CONF_ESPNOW_ON_START = "on_start"
+CONF_ON_START = "on_start"
 CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
@@ -131,9 +131,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
                 }
             ),
-            cv.Optional(CONF_ESPNOW_ON_START): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
         },
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
@@ -196,9 +194,9 @@ async def to_code(config):
         trigger = await _trigger_to_code(on_receive)
         cg.add(var.register_broadcasted_handler(trigger))
 
-    if CONF_ESPNOW_ON_START in config:
+    if CONF_ON_START in config:
         await automation.build_automation(
-            var.get_start_trigger(), [], config[CONF_ESPNOW_ON_START]
+            var.get_start_trigger(), [], config[CONF_ON_START]
         )
 
 
