@@ -158,10 +158,9 @@ async def to_code(config):
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
 
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
-            config.get(CONF_VERIFY_SSL),
-        )
+        if config.get(CONF_VERIFY_SSL):
+            esp32.add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_TLS_INSECURE",
             not config.get(CONF_VERIFY_SSL),
