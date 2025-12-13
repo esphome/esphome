@@ -55,15 +55,11 @@ void arch_init() {
 #endif
 #endif
 
-  // If the bootloader was compiled with CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE the current
-  // partition will get rolled back unless it is marked as valid.
-  esp_ota_img_states_t state;
-  const esp_partition_t *running = esp_ota_get_running_partition();
-  if (esp_ota_get_state_partition(running, &state) == ESP_OK) {
-    if (state == ESP_OTA_IMG_PENDING_VERIFY) {
-      esp_ota_mark_app_valid_cancel_rollback();
-    }
-  }
+  // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
+  // in which case safe_mode will mark it valid after confirming successful boot.
+#ifndef USE_OTA_ROLLBACK
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
 }
 void IRAM_ATTR HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
