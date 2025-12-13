@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import importlib
+import json
 import logging
 import os
 from pathlib import Path
@@ -249,8 +250,16 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
-    # Write buildinfo linker script and copy the PlatformIO script
-    write_file(CORE.relative_build_path("buildinfo.ld"), generate_buildinfo_ld())
+    # Write buildinfo linker script, JSON metadata, and copy the PlatformIO script
+    config_hash, build_time, build_time_str = get_buildinfo()
+    write_file(
+        CORE.relative_build_path("buildinfo.ld"),
+        generate_buildinfo_ld(config_hash, build_time, build_time_str),
+    )
+    write_file(
+        CORE.relative_build_path("buildinfo.json"),
+        json.dumps({"config_hash": config_hash, "build_time": build_time}),
+    )
     copy_file_if_changed(
         Path(__file__).parent / "core" / "buildinfo.py.script",
         CORE.relative_build_path("buildinfo.py"),
@@ -306,17 +315,27 @@ def _encode_string_symbols(
     return symbols
 
 
-def generate_buildinfo_ld() -> str:
-    """Generate buildinfo linker script with config hash and build time."""
+def get_buildinfo() -> tuple[int, int, str]:
+    """Calculate buildinfo values from current config.
+
+    Returns:
+        Tuple of (config_hash, build_time, build_time_str)
+    """
     from esphome import yaml_util
 
     # Use the same clean YAML representation as 'esphome config' command
     config_str = yaml_util.dump(CORE.config, show_secrets=True)
     config_hash = fnv1a_32bit_hash(config_str)
-    config_hash_str = f"{config_hash:08x}"
-
     build_time = int(time.time())
     build_time_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
+    return config_hash, build_time, build_time_str
+
+
+def generate_buildinfo_ld(
+    config_hash: int, build_time: int, build_time_str: str
+) -> str:
+    """Generate buildinfo linker script with config hash and build time."""
+    config_hash_str = f"{config_hash:08x}"
 
     # Generate symbols for all 4 variants: 32LE, 32BE, 64LE, 64BE
     all_variants: list[str] = []
