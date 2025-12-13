@@ -1,6 +1,8 @@
 """Test writer module functionality."""
 
 from collections.abc import Callable
+from datetime import datetime
+import json
 import os
 from pathlib import Path
 import stat
@@ -20,6 +22,7 @@ from esphome.writer import (
     clean_all,
     clean_build,
     clean_cmake_cache,
+    get_build_info,
     storage_should_clean,
     update_storage_json,
     write_cpp,
@@ -1165,3 +1168,178 @@ def test_clean_build_reraises_for_other_errors(
     finally:
         # Cleanup - restore write permission so tmp_path cleanup works
         os.chmod(subdir, stat.S_IRWXU)
+
+
+# Tests for get_build_info()
+
+
+@patch("esphome.writer.CORE")
+def test_get_build_info_new_build(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test get_build_info returns new build_time when no existing build_info.json."""
+    build_info_path = tmp_path / "build_info.json"
+    mock_core.relative_build_path.return_value = build_info_path
+    mock_core.config_hash = 0x12345678
+
+    config_hash, build_time, build_time_str = get_build_info()
+
+    assert config_hash == 0x12345678
+    assert isinstance(build_time, int)
+    assert build_time > 0
+    assert isinstance(build_time_str, str)
+    # Verify build_time_str format matches expected pattern
+    assert len(build_time_str) > 10  # e.g., "Dec 13 2025, 12:00:00"
+
+
+@patch("esphome.writer.CORE")
+def test_get_build_info_config_unchanged_version_unchanged(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test get_build_info keeps existing build_time when config and version unchanged."""
+    build_info_path = tmp_path / "build_info.json"
+    mock_core.relative_build_path.return_value = build_info_path
+    mock_core.config_hash = 0x12345678
+
+    # Create existing build_info.json with matching config_hash and version
+    existing_build_time = 1700000000
+    existing_build_time_str = "Nov 14 2023, 22:13:20"
+    build_info_path.write_text(
+        json.dumps(
+            {
+                "config_hash": 0x12345678,
+                "build_time": existing_build_time,
+                "build_time_str": existing_build_time_str,
+                "esphome_version": "2025.1.0-dev",
+            }
+        )
+    )
+
+    with patch("esphome.writer.__version__", "2025.1.0-dev"):
+        config_hash, build_time, build_time_str = get_build_info()
+
+    assert config_hash == 0x12345678
+    assert build_time == existing_build_time
+    assert build_time_str == existing_build_time_str
+
+
+@patch("esphome.writer.CORE")
+def test_get_build_info_config_changed(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test get_build_info returns new build_time when config hash changed."""
+    build_info_path = tmp_path / "build_info.json"
+    mock_core.relative_build_path.return_value = build_info_path
+    mock_core.config_hash = 0xABCDEF00  # Different from existing
+
+    # Create existing build_info.json with different config_hash
+    existing_build_time = 1700000000
+    build_info_path.write_text(
+        json.dumps(
+            {
+                "config_hash": 0x12345678,  # Different
+                "build_time": existing_build_time,
+                "build_time_str": "Nov 14 2023, 22:13:20",
+                "esphome_version": "2025.1.0-dev",
+            }
+        )
+    )
+
+    with patch("esphome.writer.__version__", "2025.1.0-dev"):
+        config_hash, build_time, build_time_str = get_build_info()
+
+    assert config_hash == 0xABCDEF00
+    assert build_time != existing_build_time  # New time generated
+    assert build_time > existing_build_time
+
+
+@patch("esphome.writer.CORE")
+def test_get_build_info_version_changed(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test get_build_info returns new build_time when ESPHome version changed."""
+    build_info_path = tmp_path / "build_info.json"
+    mock_core.relative_build_path.return_value = build_info_path
+    mock_core.config_hash = 0x12345678
+
+    # Create existing build_info.json with different version
+    existing_build_time = 1700000000
+    build_info_path.write_text(
+        json.dumps(
+            {
+                "config_hash": 0x12345678,
+                "build_time": existing_build_time,
+                "build_time_str": "Nov 14 2023, 22:13:20",
+                "esphome_version": "2024.12.0",  # Old version
+            }
+        )
+    )
+
+    with patch("esphome.writer.__version__", "2025.1.0-dev"):  # New version
+        config_hash, build_time, build_time_str = get_build_info()
+
+    assert config_hash == 0x12345678
+    assert build_time != existing_build_time  # New time generated
+    assert build_time > existing_build_time
+
+
+@patch("esphome.writer.CORE")
+def test_get_build_info_invalid_json(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test get_build_info handles invalid JSON gracefully."""
+    build_info_path = tmp_path / "build_info.json"
+    mock_core.relative_build_path.return_value = build_info_path
+    mock_core.config_hash = 0x12345678
+
+    # Create invalid JSON file
+    build_info_path.write_text("not valid json {{{")
+
+    config_hash, build_time, build_time_str = get_build_info()
+
+    assert config_hash == 0x12345678
+    assert isinstance(build_time, int)
+    assert build_time > 0
+
+
+@patch("esphome.writer.CORE")
+def test_get_build_info_missing_keys(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test get_build_info handles missing keys gracefully."""
+    build_info_path = tmp_path / "build_info.json"
+    mock_core.relative_build_path.return_value = build_info_path
+    mock_core.config_hash = 0x12345678
+
+    # Create JSON with missing keys
+    build_info_path.write_text(json.dumps({"config_hash": 0x12345678}))
+
+    with patch("esphome.writer.__version__", "2025.1.0-dev"):
+        config_hash, build_time, build_time_str = get_build_info()
+
+    assert config_hash == 0x12345678
+    assert isinstance(build_time, int)
+    assert build_time > 0
+
+
+@patch("esphome.writer.CORE")
+def test_get_build_info_build_time_str_format(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test get_build_info returns correctly formatted build_time_str."""
+    build_info_path = tmp_path / "build_info.json"
+    mock_core.relative_build_path.return_value = build_info_path
+    mock_core.config_hash = 0x12345678
+
+    config_hash, build_time, build_time_str = get_build_info()
+
+    # Verify the format matches "%b %d %Y, %H:%M:%S" (e.g., "Dec 13 2025, 14:30:45")
+    parsed = datetime.strptime(build_time_str, "%b %d %Y, %H:%M:%S")
+    assert parsed.year >= 2024
