@@ -28,6 +28,7 @@ enum EventGroupBits : uint32_t {
   TASK_RUNNING = (1 << 8),
   TASK_STOPPING = (1 << 9),
   TASK_STOPPED = (1 << 10),
+  ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
 void FileMediaSource::init_pipelines(size_t pipeline_count) {
@@ -135,6 +136,7 @@ void FileMediaSource::loop() {
         // Event group and queue already created in init_pipelines()
         // Start the task
         if (ctx.decode_task_handle == nullptr) {
+          xEventGroupClearBits(ctx.event_group, ALL_BITS);
           if (ctx.decode_task_stack_buffer == nullptr) {
             if (this->task_stack_in_psram_) {
               RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);

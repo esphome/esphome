@@ -38,6 +38,7 @@ enum EventGroupBits : uint32_t {
   DECODER_ERROR = (1 << 6),
   TASK_STARTING = (1 << 7),
   TASK_RUNNING = (1 << 8),
+  ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
 /// @brief Detect audio file type from Content-Type header or URL extension
@@ -182,6 +183,7 @@ void HTTPMediaSource::loop() {
         // Event group and queue already created in init_pipelines()
         // Start the read task
         if (ctx.read_task_handle == nullptr) {
+          xEventGroupClearBits(ctx.event_group, ALL_BITS);
           if (ctx.read_task_stack_buffer == nullptr) {
             // Reader task uses HttpContainer which uses esp_http_client. This crashes on IDF 5.4 if the task
             // stack is in PSRAM. As a workaround, always allocate the read task in internal memory.
