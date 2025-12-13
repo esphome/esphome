@@ -17,8 +17,10 @@
 #include <esp_http_server.h>
 #ifdef USE_ARDUINO
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #else
 #include <esp_http_client.h>
+#include <esp_crt_bundle.h>
 #endif
 #endif
 #endif

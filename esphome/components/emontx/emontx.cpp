@@ -456,10 +456,14 @@ void EmonTx::fetch_oem_html_() {
   std::string view_html;
 
 #ifdef USE_ARDUINO
-  // Arduino framework - use HTTPClient
+  // Arduino framework - use HTTPClient with WiFiClientSecure for HTTPS
+  WiFiClientSecure client;
+  client.setInsecure();  // Skip certificate verification (GitHub is trusted)
+
   HTTPClient http;
 
-  http.begin(OEM_INDEX_URL);
+  http.begin(client, OEM_INDEX_URL);
+  http.setTimeout(10000);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
     combined_html = http.getString().c_str();
@@ -470,7 +474,8 @@ void EmonTx::fetch_oem_html_() {
   }
   http.end();
 
-  http.begin(OEM_VIEW_URL);
+  http.begin(client, OEM_VIEW_URL);
+  http.setTimeout(10000);
   httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
     view_html = http.getString().c_str();
@@ -482,12 +487,13 @@ void EmonTx::fetch_oem_html_() {
   http.end();
 
 #else
-  // ESP-IDF framework - use esp_http_client
+  // ESP-IDF framework - use esp_http_client with certificate bundle for HTTPS
   auto fetch_url = [](const char *url, std::string &output) -> bool {
     esp_http_client_config_t config = {};
     config.url = url;
     config.timeout_ms = 10000;
     config.buffer_size = 2048;
+    config.crt_bundle_attach = esp_crt_bundle_attach;  // Use embedded CA certificates
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == nullptr) {
