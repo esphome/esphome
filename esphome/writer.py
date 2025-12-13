@@ -176,6 +176,7 @@ VERSION_H_FORMAT = """\
 """
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
+BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -209,10 +210,16 @@ def copy_src_tree():
     include_s = "\n".join(include_l)
 
     source_files_copy = source_files_map.copy()
-    ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
+    ignore_targets = [
+        Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET, BUILD_INFO_DATA_H_TARGET)
+    ]
     for t in ignore_targets:
         source_files_copy.pop(t)
 
+    # Files to exclude from sources_changed tracking (generated files)
+    generated_files = {Path("esphome/core/build_info_data.h")}
+
+    sources_changed = False
     for fname in walk_files(CORE.relative_src_path("esphome")):
         p = Path(fname)
         if p.suffix not in SOURCE_FILE_EXTENSIONS:
@@ -226,45 +233,80 @@ def copy_src_tree():
         if target not in source_files_copy:
             # Source file removed, delete target
             p.unlink()
+            if target not in generated_files:
+                sources_changed = True
         else:
             src_file = source_files_copy.pop(target)
             with src_file.path() as src_path:
-                copy_file_if_changed(src_path, p)
+                if copy_file_if_changed(src_path, p) and target not in generated_files:
+                    sources_changed = True
 
     # Now copy new files
     for target, src_file in source_files_copy.items():
         dst_path = CORE.relative_src_path(*target.parts)
         with src_file.path() as src_path:
-            copy_file_if_changed(src_path, dst_path)
+            if (
+                copy_file_if_changed(src_path, dst_path)
+                and target not in generated_files
+            ):
+                sources_changed = True
 
     # Finally copy defines
-    write_file_if_changed(
+    if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "defines.h"), generate_defines_h()
-    )
+    ):
+        sources_changed = True
     write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
-    write_file_if_changed(
+    if write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
-    )
-    write_file_if_changed(
+    ):
+        sources_changed = True
+    if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
+    ):
+        sources_changed = True
+
+    # Generate new build_info files if needed
+    build_info_data_h_path = CORE.relative_src_path(
+        "esphome", "core", "build_info_data.h"
     )
-    # Write build_info header and JSON metadata
+    build_info_json_path = CORE.relative_build_path("build_info.json")
     config_hash, build_time, build_time_str = get_build_info()
-    write_file_if_changed(
-        CORE.relative_src_path("esphome", "core", "build_info_data.h"),
-        generate_build_info_data_h(config_hash, build_time, build_time_str),
-    )
-    write_file(
-        CORE.relative_build_path("build_info.json"),
-        json.dumps(
-            {
-                "config_hash": config_hash,
-                "build_time": build_time,
-                "build_time_str": build_time_str,
-                "esphome_version": __version__,
-            }
-        ),
-    )
+
+    # Defensively force a rebuild if the build_info files don't exist, or if
+    # there was a config change which didn't actually cause a source change
+    if not build_info_data_h_path.exists():
+        sources_changed = True
+    else:
+        try:
+            existing = json.loads(build_info_json_path.read_text(encoding="utf-8"))
+            if (
+                existing.get("config_hash") != config_hash
+                or existing.get("esphome_version") != __version__
+            ):
+                sources_changed = True
+        except (json.JSONDecodeError, KeyError, OSError):
+            sources_changed = True
+
+    # Write build_info header and JSON metadata
+    if sources_changed:
+        write_file(
+            build_info_data_h_path,
+            generate_build_info_data_h(config_hash, build_time, build_time_str),
+        )
+        write_file(
+            build_info_json_path,
+            json.dumps(
+                {
+                    "config_hash": config_hash,
+                    "build_time": build_time,
+                    "build_time_str": build_time_str,
+                    "esphome_version": __version__,
+                },
+                indent=2,
+            )
+            + "\n",
+        )
 
     platform = "esphome.components." + CORE.target_platform
     try:
@@ -293,34 +335,10 @@ def generate_version_h():
 def get_build_info() -> tuple[int, int, str]:
     """Calculate build_info values from current config.
 
-    Only updates build_time when config_hash or ESPHome version changes.
-    This prevents unnecessary preference invalidation on simple recompiles.
-
     Returns:
         Tuple of (config_hash, build_time, build_time_str)
     """
     config_hash = CORE.config_hash
-
-    # Check if config_hash and version are unchanged - keep existing build_time
-    build_info_path = CORE.relative_build_path("build_info.json")
-    existing: dict[str, int | str] | None = None
-    try:
-        existing = json.loads(build_info_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, KeyError, OSError, FileNotFoundError):
-        pass
-    else:
-        if (
-            existing.get("config_hash") == config_hash
-            and existing.get("esphome_version") == __version__
-        ):
-            # Config and version unchanged - keep existing build_time
-            return (
-                config_hash,
-                existing["build_time"],
-                existing["build_time_str"],
-            )
-
-    # Config or version changed, or no existing build_info - use current time
     build_time = int(time.time())
     build_time_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
     return config_hash, build_time, build_time_str
