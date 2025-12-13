@@ -29,11 +29,6 @@
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif
 
-#ifdef USE_HOST
-#include <openssl/md5.h>
-#define MD5_CTX_TYPE MD5_CTX
-#endif
-
 namespace esphome {
 namespace md5 {
 
