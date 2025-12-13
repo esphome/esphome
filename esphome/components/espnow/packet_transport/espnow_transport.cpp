@@ -13,7 +13,7 @@ static const char *const TAG = "espnow.transport";
 bool ESPNowTransport::should_send() { return this->parent_ != nullptr && !this->parent_->is_failed(); }
 
 void ESPNowTransport::setup() {
-  packet_transport::PacketTransport::setup();
+  PacketTransport::setup();
 
   if (this->parent_ == nullptr) {
     ESP_LOGE(TAG, "ESPNow component not set");
@@ -30,11 +30,17 @@ void ESPNowTransport::setup() {
 
   // Register broadcasted handler
   this->parent_->register_broadcasted_handler(static_cast<ESPNowBroadcastedHandler *>(this));
+#ifdef USE_SENSOR
+  this->resend_data_ |= !this->sensors_.empty();
+#endif
+#ifdef USE_BINARY_SENSOR
+  this->resend_data_ |= !this->binary_sensors_.empty();
+#endif
 }
 
 void ESPNowTransport::update() {
-  packet_transport::PacketTransport::update();
-  this->updated_ = true;
+  PacketTransport::update();
+  this->updated_ = this->resend_data_;
 }
 
 void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
