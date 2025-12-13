@@ -50,8 +50,7 @@ extern const char LINKERSYM(BUILD_TIME_STR, 4)[];
 extern const char LINKERSYM(BUILD_TIME_STR, 5)[];
 }
 
-namespace esphome {
-namespace buildinfo {
+namespace esphome::buildinfo {
 
 // An 8-byte string plus terminating NUL.
 struct ConfigHashStruct {
@@ -80,5 +79,4 @@ extern const uintptr_t BUILD_TIME_STR[] = {
 
 extern const uintptr_t BUILD_TIME = (uintptr_t) &ESPHOME_BUILD_TIME;
 
-}  // namespace buildinfo
-}  // namespace esphome
+}  // namespace esphome::buildinfo
