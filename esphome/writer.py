@@ -281,7 +281,9 @@ def generate_version_h():
     )
 
 
-def _encode_string_symbols(text, prefix, bits, bit_suffix, endian, endian_suffix):
+def _encode_string_symbols(
+    text: str, prefix: str, bits: int, bit_suffix: str, endian: str, endian_suffix: str
+) -> list[str]:
     """Encode a string as linker symbols for given word size and endianness."""
     symbols = []
     # Pad to word boundary with NUL (build time strings need trailing NUL)
