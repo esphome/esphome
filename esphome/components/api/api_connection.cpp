@@ -1473,7 +1473,7 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   resp.set_esphome_version(ESPHOME_VERSION_REF);
 
   // Stack buffer for build time string
-  char build_time_str[App.BUILD_TIME_STR_SIZE];
+  char build_time_str[Application::BUILD_TIME_STR_SIZE];
   App.get_build_time_string(build_time_str);
   resp.set_compilation_time(StringRef(build_time_str));
 
