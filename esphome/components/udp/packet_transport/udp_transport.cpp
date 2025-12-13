@@ -20,15 +20,10 @@ void UDPTransport::setup() {
 #endif
   if (this->should_broadcast_)
     this->parent_->set_should_broadcast();
+  this->resend_data_ = this->should_broadcast_;
   if (!this->providers_.empty() || this->is_encrypted_()) {
     this->parent_->add_listener([this](std::vector<uint8_t> &buf) { this->process_(buf); });
   }
-}
-
-void UDPTransport::update() {
-  PacketTransport::update();
-  this->updated_ = true;
-  this->resend_data_ = this->should_broadcast_;
 }
 
 void UDPTransport::send_packet(const std::vector<uint8_t> &buf) const { this->parent_->send_packet(buf); }

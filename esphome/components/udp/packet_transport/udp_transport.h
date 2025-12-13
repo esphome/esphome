@@ -12,7 +12,6 @@ namespace udp {
 class UDPTransport : public packet_transport::PacketTransport, public Parented<UDPComponent> {
  public:
   void setup() override;
-  void update() override;
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 

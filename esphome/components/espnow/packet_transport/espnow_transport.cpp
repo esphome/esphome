@@ -38,11 +38,6 @@ void ESPNowTransport::setup() {
 #endif
 }
 
-void ESPNowTransport::update() {
-  PacketTransport::update();
-  this->updated_ |= this->resend_data_;
-}
-
 void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
   if (this->parent_ == nullptr) {
     ESP_LOGE(TAG, "ESPNow component not set");
