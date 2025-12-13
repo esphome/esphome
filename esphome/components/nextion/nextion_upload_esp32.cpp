@@ -3,6 +3,8 @@
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
 
+#include "nextion_upload.h"
+
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
 #include <cinttypes>
@@ -34,7 +36,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   }
 
   char range_header[32];
-  sprintf(range_header, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
+  build_range_header(range_header, sizeof(range_header), range_start, range_end);
   ESP_LOGV(TAG, "Range: %s", range_header);
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Open HTTP");
@@ -234,8 +236,8 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
   if (!this->upload_prepare_nextion_(baud_rate)) {
     ESP_LOGD(TAG, "Close HTTP");
-    esp_http_client_close(http_client);    // ← ESP32-specific
-    esp_http_client_cleanup(http_client);  // ← ESP32-specific
+    esp_http_client_close(http_client);
+    esp_http_client_cleanup(http_client);
     ESP_LOGV(TAG, "Connection closed");
     return this->upload_end_(false);
   }

@@ -2,6 +2,8 @@
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 
+#include "nextion_upload.h"
+
 #include "esphome/components/network/util.h"  // For network::is_connected()
 #include "esphome/core/application.h"         // For App
 #include "esphome/core/log.h"                 // For ESP_LOGW, ESP_LOGE, ESP_LOGD
@@ -113,6 +115,10 @@ bool Nextion::upload_prepare_nextion_(uint32_t baud_rate) {
     ESP_LOGE(TAG, "Upload prep failed %d '%s'", response[0], response.c_str());
     return false;
   }
+}
+
+void build_range_header(char *buffer, size_t buffer_size, uint32_t range_start, uint32_t range_end) {
+  snprintf(buffer, buffer_size, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
 }
 
 }  // namespace nextion
