@@ -36,10 +36,10 @@ bool HmacSHA256::equals_bytes(const uint8_t *expected) {
 }
 
 bool HmacSHA256::equals_hex(const char *expected) {
-  char hex_output[65];
+  char hex_output[SHA256_DIGEST_SIZE * 2 + 1];
   this->get_hex(hex_output);
-  hex_output[64] = '\0';
-  return strncmp(hex_output, expected, 64) == 0;
+  hex_output[SHA256_DIGEST_SIZE * 2] = '\0';
+  return strncmp(hex_output, expected, SHA256_DIGEST_SIZE * 2) == 0;
 }
 
 #else
