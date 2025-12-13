@@ -474,8 +474,12 @@ void EmonTx::fetch_oem_html_() {
 
   ESP_LOGI(TAG, "Fetching OEM interface from GitHub...");
 
-  HTTPClient http;
   std::string combined_html;
+  std::string view_html;
+
+#ifdef USE_ARDUINO
+  // Arduino framework - use HTTPClient
+  HTTPClient http;
 
   http.begin(OEM_INDEX_URL);
   int httpCode = http.GET();
@@ -490,7 +494,6 @@ void EmonTx::fetch_oem_html_() {
 
   http.begin(OEM_VIEW_URL);
   httpCode = http.GET();
-  std::string view_html;
   if (httpCode == HTTP_CODE_OK) {
     view_html = http.getString().c_str();
   } else {
@@ -499,6 +502,67 @@ void EmonTx::fetch_oem_html_() {
     return;
   }
   http.end();
+
+#else
+  // ESP-IDF framework - use esp_http_client
+  auto fetch_url = [](const char *url, std::string &output) -> bool {
+    esp_http_client_config_t config = {};
+    config.url = url;
+    config.timeout_ms = 10000;
+    config.buffer_size = 2048;
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (client == nullptr) {
+      ESP_LOGE(TAG, "Failed to init HTTP client");
+      return false;
+    }
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
+      esp_http_client_cleanup(client);
+      return false;
+    }
+
+    int content_length = esp_http_client_fetch_headers(client);
+    if (content_length < 0) {
+      ESP_LOGE(TAG, "Failed to fetch headers");
+      esp_http_client_close(client);
+      esp_http_client_cleanup(client);
+      return false;
+    }
+
+    int status = esp_http_client_get_status_code(client);
+    if (status != 200) {
+      ESP_LOGE(TAG, "HTTP error: %d", status);
+      esp_http_client_close(client);
+      esp_http_client_cleanup(client);
+      return false;
+    }
+
+    output.clear();
+    char buffer[512];
+    int read_len;
+    while ((read_len = esp_http_client_read(client, buffer, sizeof(buffer) - 1)) > 0) {
+      buffer[read_len] = '\0';
+      output += buffer;
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+    return true;
+  };
+
+  if (!fetch_url(OEM_INDEX_URL, combined_html)) {
+    ESP_LOGE(TAG, "Failed to fetch index.php");
+    return;
+  }
+
+  if (!fetch_url(OEM_VIEW_URL, view_html)) {
+    ESP_LOGE(TAG, "Failed to fetch serial_config_view.php");
+    return;
+  }
+#endif
 
   this->cached_html_ = this->patch_html_for_sse_(combined_html + view_html);
   this->html_fetched_ = true;

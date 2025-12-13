@@ -15,7 +15,11 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #ifdef USE_ESP32
 #include <esp_http_server.h>
+#ifdef USE_ARDUINO
 #include <HTTPClient.h>
+#else
+#include <esp_http_client.h>
+#endif
 #endif
 #endif
 
