@@ -138,24 +138,8 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
            "URL: %s",
            YESNO(exit_reparse), this->tft_url_.c_str());
 
-  if (this->connection_state_.is_updating_) {
-    ESP_LOGW(TAG, "Upload in progress");
+  if (!this->upload_validate_and_prepare_(exit_reparse)) {
     return false;
-  }
-
-  if (!network::is_connected()) {
-    ESP_LOGE(TAG, "No network");
-    return false;
-  }
-
-  this->connection_state_.is_updating_ = true;
-
-  if (exit_reparse) {
-    ESP_LOGD(TAG, "Exit reparse mode");
-    if (!this->set_protocol_reparse_mode(false)) {
-      ESP_LOGW(TAG, "Exit reparse failed");
-      return false;
-    }
   }
 
   // Check if baud rate is supported

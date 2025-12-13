@@ -1445,6 +1445,15 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool upload_end_(bool successful);
 
+  /**
+   * Validates upload preconditions and prepares for upload.
+   * Checks if upload is not already in progress, network is connected,
+   * and optionally exits reparse mode.
+   * @param exit_reparse If true, exits reparse mode before upload
+   * @return true if ready to proceed with upload, false otherwise
+   */
+  bool upload_validate_and_prepare_(bool exit_reparse);
+
 #endif  // USE_NEXTION_TFT_UPLOAD
 
   bool check_connect_();

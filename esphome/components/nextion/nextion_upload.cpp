@@ -2,7 +2,9 @@
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 
-#include "esphome/core/application.h"
+#include "esphome/components/network/util.h"  // For network::is_connected()
+#include "esphome/core/application.h"         // For App
+#include "esphome/core/log.h"                 // For ESP_LOGW, ESP_LOGE, ESP_LOGD
 
 namespace esphome {
 namespace nextion {
@@ -31,6 +33,30 @@ bool Nextion::upload_end_(bool successful) {
   }
 
   return successful;
+}
+
+bool Nextion::upload_validate_and_prepare_(bool exit_reparse) {
+  if (this->connection_state_.is_updating_) {
+    ESP_LOGW(TAG, "Upload in progress");
+    return false;
+  }
+
+  if (!network::is_connected()) {
+    ESP_LOGE(TAG, "No network");
+    return false;
+  }
+
+  this->connection_state_.is_updating_ = true;
+
+  if (exit_reparse) {
+    ESP_LOGD(TAG, "Exit reparse mode");
+    if (!this->set_protocol_reparse_mode(false)) {
+      ESP_LOGW(TAG, "Exit reparse failed");
+      return false;
+    }
+  }
+
+  return true;
 }
 
 }  // namespace nextion
