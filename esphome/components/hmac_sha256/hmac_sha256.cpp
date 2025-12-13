@@ -5,11 +5,15 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::hmac_sha256 {
+
+// HMAC block size for SHA256 (RFC 2104)
+constexpr size_t HMAC_BLOCK_SIZE = 64;
+
 void HmacSHA256::init(const uint8_t *key, size_t len) {
-  uint8_t ipad[64], opad[64];
+  uint8_t ipad[HMAC_BLOCK_SIZE], opad[HMAC_BLOCK_SIZE];
 
   memset(ipad, 0, sizeof(ipad));
-  if (len > 64) {
+  if (len > HMAC_BLOCK_SIZE) {
     sha256::SHA256 keysha256;
     keysha256.init();
     keysha256.add(key, len);
@@ -20,7 +24,7 @@ void HmacSHA256::init(const uint8_t *key, size_t len) {
   }
   memcpy(opad, ipad, sizeof(opad));
 
-  for (int i = 0; i < 64; i++) {
+  for (int i = 0; i < HMAC_BLOCK_SIZE; i++) {
     ipad[i] ^= 0x36;
     opad[i] ^= 0x5c;
   }
