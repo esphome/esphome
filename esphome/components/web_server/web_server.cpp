@@ -41,6 +41,10 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
+// Longest: UPDATE AVAILABLE (16 chars + null terminator, rounded up)
+static constexpr size_t PSTR_LOCAL_SIZE = 18;
+#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
+
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
 static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
@@ -240,8 +244,8 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
     for (auto &group : ws->sorting_groups_) {
       json::JsonBuilder builder;
       JsonObject root = builder.root();
-      root["name"] = group.second.name;
-      root["sorting_weight"] = group.second.weight;
+      root[ESPHOME_F("name")] = group.second.name;
+      root[ESPHOME_F("sorting_weight")] = group.second.weight;
       message = builder.serialize();
 
       // up to 31 groups should be able to be queued initially without defer
@@ -282,15 +286,15 @@ std::string WebServer::get_config_json() {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
-  root["comment"] = App.get_comment();
+  root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
+  root[ESPHOME_F("comment")] = App.get_comment_ref();
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
-  root["ota"] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
+  root[ESPHOME_F("ota")] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
 #else
-  root["ota"] = true;
+  root[ESPHOME_F("ota")] = true;
 #endif
-  root["log"] = this->expose_log_;
-  root["lang"] = "en";
+  root[ESPHOME_F("log")] = this->expose_log_;
+  root[ESPHOME_F("lang")] = "en";
 
   return builder.serialize();
 }
@@ -301,12 +305,7 @@ void WebServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
-    logger::global_logger->add_on_log_callback(
-        // logs are not deferred, the memory overhead would be too large
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          (void) message_len;
-          this->events_.try_send_nodefer(message, "log", millis());
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
@@ -322,6 +321,16 @@ void WebServer::setup() {
   this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
 }
 void WebServer::loop() { this->events_.loop(); }
+
+#ifdef USE_LOGGER
+void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) level;
+  (void) tag;
+  (void) message_len;
+  this->events_.try_send_nodefer(message, "log", millis());
+}
+#endif
+
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
@@ -359,8 +368,8 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse(200, "");
   response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
   response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
-  std::string mac = get_mac_address_pretty();
-  response->addHeader(HEADER_PNA_ID, mac.c_str());
+  char mac_s[18];
+  response->addHeader(HEADER_PNA_ID, get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
 #endif
@@ -398,14 +407,14 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   char id_buf[160];  // object_id can be up to 128 chars + prefix + dash + null
   const auto &object_id = obj->get_object_id();
   snprintf(id_buf, sizeof(id_buf), "%s-%s", prefix, object_id.c_str());
-  root["id"] = id_buf;
+  root[ESPHOME_F("id")] = id_buf;
   if (start_config == DETAIL_ALL) {
-    root["name"] = obj->get_name();
-    root["icon"] = obj->get_icon_ref();
-    root["entity_category"] = obj->get_entity_category();
+    root[ESPHOME_F("name")] = obj->get_name();
+    root[ESPHOME_F("icon")] = obj->get_icon_ref();
+    root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
     if (is_disabled)
-      root["is_disabled_by_default"] = is_disabled;
+      root[ESPHOME_F("is_disabled_by_default")] = is_disabled;
   }
 }
 
@@ -415,14 +424,14 @@ template<typename T>
 static void set_json_value(JsonObject &root, EntityBase *obj, const char *prefix, const T &value,
                            JsonDetail start_config) {
   set_json_id(root, obj, prefix, start_config);
-  root["value"] = value;
+  root[ESPHOME_F("value")] = value;
 }
 
 template<typename T>
 static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const char *prefix, const std::string &state,
                                       const T &value, JsonDetail start_config) {
   set_json_value(root, obj, prefix, value, start_config);
-  root["state"] = state;
+  root[ESPHOME_F("state")] = state;
 }
 
 // Helper to get request detail parameter
@@ -469,7 +478,7 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
-      root["uom"] = uom_ref;
+      root[ESPHOME_F("uom")] = uom_ref;
   }
 
   return builder.serialize();
@@ -584,7 +593,7 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail 
 
   set_json_icon_state_value(root, obj, "switch", value ? "ON" : "OFF", value, start_config);
   if (start_config == DETAIL_ALL) {
-    root["assumed_state"] = obj->assumed_state();
+    root[ESPHOME_F("assumed_state")] = obj->assumed_state();
     this->add_sorting_info_(root, obj);
   }
 
@@ -690,8 +699,14 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method_equals("turn_on") || match.method_equals("turn_off")) {
-      auto call = match.method_equals("turn_on") ? obj->turn_on() : obj->turn_off();
+    } else {
+      bool is_on = match.method_equals("turn_on");
+      bool is_off = match.method_equals("turn_off");
+      if (!is_on && !is_off) {
+        request->send(404);
+        return;
+      }
+      auto call = is_on ? obj->turn_on() : obj->turn_off();
 
       parse_int_param_(request, "speed_level", call, &decltype(call)::set_speed);
 
@@ -715,8 +730,6 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       }
       this->defer([call]() mutable { call.perform(); });
       request->send(200);
-    } else {
-      request->send(404);
     }
     return;
   }
@@ -735,11 +748,11 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
   set_json_icon_state_value(root, obj, "fan", obj->state ? "ON" : "OFF", obj->state, start_config);
   const auto traits = obj->get_traits();
   if (traits.supports_speed()) {
-    root["speed_level"] = obj->speed;
-    root["speed_count"] = traits.supported_speed_count();
+    root[ESPHOME_F("speed_level")] = obj->speed;
+    root[ESPHOME_F("speed_count")] = traits.supported_speed_count();
   }
   if (obj->get_traits().supports_oscillation())
-    root["oscillation"] = obj->oscillating;
+    root[ESPHOME_F("oscillation")] = obj->oscillating;
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -766,32 +779,35 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method_equals("turn_on")) {
-      auto call = obj->turn_on();
-
-      // Parse color parameters
-      parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
-      parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
-      parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
-      parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
-      parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
-      parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
-
-      // Parse timing parameters
-      parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
-
-      parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
-
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
-    } else if (match.method_equals("turn_off")) {
-      auto call = obj->turn_off();
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
     } else {
-      request->send(404);
+      bool is_on = match.method_equals("turn_on");
+      bool is_off = match.method_equals("turn_off");
+      if (!is_on && !is_off) {
+        request->send(404);
+        return;
+      }
+      auto call = is_on ? obj->turn_on() : obj->turn_off();
+
+      if (is_on) {
+        // Parse color parameters
+        parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
+        parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
+        parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
+        parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
+        parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
+        parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
+
+        // Parse timing parameters
+        parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
+      }
+      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
+
+      if (is_on) {
+        parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
+      }
+
+      this->defer([call]() mutable { call.perform(); });
+      request->send(200);
     }
     return;
   }
@@ -811,7 +827,7 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
   light::LightJSONSchema::dump_json(*obj, root);
   if (start_config == DETAIL_ALL) {
-    JsonArray opt = root["effects"].to<JsonArray>();
+    JsonArray opt = root[ESPHOME_F("effects")].to<JsonArray>();
     opt.add("None");
     for (auto const &option : obj->get_effects()) {
       opt.add(option->get_name());
@@ -896,12 +912,13 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
   set_json_icon_state_value(root, obj, "cover", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
+  char buf[PSTR_LOCAL_SIZE];
+  root[ESPHOME_F("current_operation")] = PSTR_LOCAL(cover::cover_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
-    root["position"] = obj->position;
+    root[ESPHOME_F("position")] = obj->position;
   if (obj->get_traits().get_supports_tilt())
-    root["tilt"] = obj->tilt;
+    root[ESPHOME_F("tilt")] = obj->tilt;
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -962,14 +979,15 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
                                                   value, step_to_accuracy_decimals(obj->traits.get_step()), uom_ref);
   set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
-    root["min_value"] =
+    root[ESPHOME_F("min_value")] =
         value_accuracy_to_string(obj->traits.get_min_value(), step_to_accuracy_decimals(obj->traits.get_step()));
-    root["max_value"] =
+    root[ESPHOME_F("max_value")] =
         value_accuracy_to_string(obj->traits.get_max_value(), step_to_accuracy_decimals(obj->traits.get_step()));
-    root["step"] = value_accuracy_to_string(obj->traits.get_step(), step_to_accuracy_decimals(obj->traits.get_step()));
-    root["mode"] = (int) obj->traits.get_mode();
+    root[ESPHOME_F("step")] =
+        value_accuracy_to_string(obj->traits.get_step(), step_to_accuracy_decimals(obj->traits.get_step()));
+    root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     if (!uom_ref.empty())
-      root["uom"] = uom_ref;
+      root[ESPHOME_F("uom")] = uom_ref;
     this->add_sorting_info_(root, obj);
   }
 
@@ -1191,11 +1209,11 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 
   std::string state = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value;
   set_json_icon_state_value(root, obj, "text", state, value, start_config);
-  root["min_length"] = obj->traits.get_min_length();
-  root["max_length"] = obj->traits.get_max_length();
-  root["pattern"] = obj->traits.get_pattern();
+  root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
+  root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
+  root[ESPHOME_F("pattern")] = obj->traits.get_pattern_c_str();
   if (start_config == DETAIL_ALL) {
-    root["mode"] = (int) obj->traits.get_mode();
+    root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     this->add_sorting_info_(root, obj);
   }
 
@@ -1249,7 +1267,7 @@ std::string WebServer::select_json(select::Select *obj, const char *value, JsonD
 
   set_json_icon_state_value(root, obj, "select", value, value, start_config);
   if (start_config == DETAIL_ALL) {
-    JsonArray opt = root["option"].to<JsonArray>();
+    JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
       opt.add(option);
     }
@@ -1259,9 +1277,6 @@ std::string WebServer::select_json(select::Select *obj, const char *value, JsonD
   return builder.serialize();
 }
 #endif
-
-// Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), 15)
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
@@ -1320,35 +1335,35 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   const auto traits = obj->get_traits();
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
-  char buf[16];
+  char buf[PSTR_LOCAL_SIZE];
 
   if (start_config == DETAIL_ALL) {
-    JsonArray opt = root["modes"].to<JsonArray>();
+    JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
     for (climate::ClimateMode m : traits.get_supported_modes())
       opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
     if (!traits.get_supported_custom_fan_modes().empty()) {
-      JsonArray opt = root["fan_modes"].to<JsonArray>();
+      JsonArray opt = root[ESPHOME_F("fan_modes")].to<JsonArray>();
       for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
         opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
     }
 
     if (!traits.get_supported_custom_fan_modes().empty()) {
-      JsonArray opt = root["custom_fan_modes"].to<JsonArray>();
+      JsonArray opt = root[ESPHOME_F("custom_fan_modes")].to<JsonArray>();
       for (auto const &custom_fan_mode : traits.get_supported_custom_fan_modes())
         opt.add(custom_fan_mode);
     }
     if (traits.get_supports_swing_modes()) {
-      JsonArray opt = root["swing_modes"].to<JsonArray>();
+      JsonArray opt = root[ESPHOME_F("swing_modes")].to<JsonArray>();
       for (auto swing_mode : traits.get_supported_swing_modes())
         opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
     }
     if (traits.get_supports_presets() && obj->preset.has_value()) {
-      JsonArray opt = root["presets"].to<JsonArray>();
+      JsonArray opt = root[ESPHOME_F("presets")].to<JsonArray>();
       for (climate::ClimatePreset m : traits.get_supported_presets())
         opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
     }
     if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
-      JsonArray opt = root["custom_presets"].to<JsonArray>();
+      JsonArray opt = root[ESPHOME_F("custom_presets")].to<JsonArray>();
       for (auto const &custom_preset : traits.get_supported_custom_presets())
         opt.add(custom_preset);
     }
@@ -1356,49 +1371,50 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   }
 
   bool has_state = false;
-  root["mode"] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
-  root["max_temp"] = value_accuracy_to_string(traits.get_visual_max_temperature(), target_accuracy);
-  root["min_temp"] = value_accuracy_to_string(traits.get_visual_min_temperature(), target_accuracy);
-  root["step"] = traits.get_visual_target_temperature_step();
+  root[ESPHOME_F("mode")] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
+  root[ESPHOME_F("max_temp")] = value_accuracy_to_string(traits.get_visual_max_temperature(), target_accuracy);
+  root[ESPHOME_F("min_temp")] = value_accuracy_to_string(traits.get_visual_min_temperature(), target_accuracy);
+  root[ESPHOME_F("step")] = traits.get_visual_target_temperature_step();
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
-    root["action"] = PSTR_LOCAL(climate_action_to_string(obj->action));
-    root["state"] = root["action"];
+    root[ESPHOME_F("action")] = PSTR_LOCAL(climate_action_to_string(obj->action));
+    root[ESPHOME_F("state")] = root[ESPHOME_F("action")];
     has_state = true;
   }
   if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
-    root["fan_mode"] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+    root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
   }
   if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
-    root["custom_fan_mode"] = obj->get_custom_fan_mode();
+    root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
   }
   if (traits.get_supports_presets() && obj->preset.has_value()) {
-    root["preset"] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
+    root[ESPHOME_F("preset")] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
   }
   if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
-    root["custom_preset"] = obj->get_custom_preset();
+    root[ESPHOME_F("custom_preset")] = obj->get_custom_preset();
   }
   if (traits.get_supports_swing_modes()) {
-    root["swing_mode"] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
+    root[ESPHOME_F("swing_mode")] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
     if (!std::isnan(obj->current_temperature)) {
-      root["current_temperature"] = value_accuracy_to_string(obj->current_temperature, current_accuracy);
+      root[ESPHOME_F("current_temperature")] = value_accuracy_to_string(obj->current_temperature, current_accuracy);
     } else {
-      root["current_temperature"] = "NA";
+      root[ESPHOME_F("current_temperature")] = "NA";
     }
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    root["target_temperature_low"] = value_accuracy_to_string(obj->target_temperature_low, target_accuracy);
-    root["target_temperature_high"] = value_accuracy_to_string(obj->target_temperature_high, target_accuracy);
+    root[ESPHOME_F("target_temperature_low")] = value_accuracy_to_string(obj->target_temperature_low, target_accuracy);
+    root[ESPHOME_F("target_temperature_high")] =
+        value_accuracy_to_string(obj->target_temperature_high, target_accuracy);
     if (!has_state) {
-      root["state"] = value_accuracy_to_string((obj->target_temperature_high + obj->target_temperature_low) / 2.0f,
-                                               target_accuracy);
+      root[ESPHOME_F("state")] = value_accuracy_to_string(
+          (obj->target_temperature_high + obj->target_temperature_low) / 2.0f, target_accuracy);
     }
   } else {
-    root["target_temperature"] = value_accuracy_to_string(obj->target_temperature, target_accuracy);
+    root[ESPHOME_F("target_temperature")] = value_accuracy_to_string(obj->target_temperature, target_accuracy);
     if (!has_state)
-      root["state"] = root["target_temperature"];
+      root[ESPHOME_F("state")] = root[ESPHOME_F("target_temperature")];
   }
 
   return builder.serialize();
@@ -1470,7 +1486,8 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "lock", lock::lock_state_to_string(value), value, start_config);
+  char buf[PSTR_LOCAL_SIZE];
+  set_json_icon_state_value(root, obj, "lock", PSTR_LOCAL(lock::lock_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1550,10 +1567,11 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
   set_json_icon_state_value(root, obj, "valve", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  root["current_operation"] = valve::valve_operation_to_str(obj->current_operation);
+  char buf[PSTR_LOCAL_SIZE];
+  root[ESPHOME_F("current_operation")] = PSTR_LOCAL(valve::valve_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
-    root["position"] = obj->position;
+    root[ESPHOME_F("position")] = obj->position;
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1631,7 +1649,7 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[16];
+  char buf[PSTR_LOCAL_SIZE];
   set_json_icon_state_value(root, obj, "alarm-control-panel", PSTR_LOCAL(alarm_control_panel_state_to_string(value)),
                             value, start_config);
   if (start_config == DETAIL_ALL) {
@@ -1674,6 +1692,7 @@ std::string WebServer::event_state_json_generator(WebServer *web_server, void *s
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json(event, get_event_type(event), DETAIL_STATE);
 }
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json(event, get_event_type(event), DETAIL_ALL);
@@ -1684,32 +1703,33 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 
   set_json_id(root, obj, "event", start_config);
   if (!event_type.empty()) {
-    root["event_type"] = event_type;
+    root[ESPHOME_F("event_type")] = event_type;
   }
   if (start_config == DETAIL_ALL) {
-    JsonArray event_types = root["event_types"].to<JsonArray>();
+    JsonArray event_types = root[ESPHOME_F("event_types")].to<JsonArray>();
     for (const char *event_type : obj->get_event_types()) {
       event_types.add(event_type);
     }
-    root["device_class"] = obj->get_device_class_ref();
+    root[ESPHOME_F("device_class")] = obj->get_device_class_ref();
     this->add_sorting_info_(root, obj);
   }
 
   return builder.serialize();
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 #endif
 
 #ifdef USE_UPDATE
-static const char *update_state_to_string(update::UpdateState state) {
+static const LogString *update_state_to_string(update::UpdateState state) {
   switch (state) {
     case update::UPDATE_STATE_NO_UPDATE:
-      return "NO UPDATE";
+      return LOG_STR("NO UPDATE");
     case update::UPDATE_STATE_AVAILABLE:
-      return "UPDATE AVAILABLE";
+      return LOG_STR("UPDATE AVAILABLE");
     case update::UPDATE_STATE_INSTALLING:
-      return "INSTALLING";
+      return LOG_STR("INSTALLING");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
@@ -1752,13 +1772,14 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "update", update_state_to_string(obj->state), obj->update_info.latest_version,
-                            start_config);
+  char buf[PSTR_LOCAL_SIZE];
+  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update_state_to_string(obj->state)),
+                            obj->update_info.latest_version, start_config);
   if (start_config == DETAIL_ALL) {
-    root["current_version"] = obj->update_info.current_version;
-    root["title"] = obj->update_info.title;
-    root["summary"] = obj->update_info.summary;
-    root["release_url"] = obj->update_info.release_url;
+    root[ESPHOME_F("current_version")] = obj->update_info.current_version;
+    root[ESPHOME_F("title")] = obj->update_info.title;
+    root[ESPHOME_F("summary")] = obj->update_info.summary;
+    root[ESPHOME_F("release_url")] = obj->update_info.release_url;
     this->add_sorting_info_(root, obj);
   }
 
@@ -1933,83 +1954,110 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   // Parse URL for component routing
   UrlMatch match = match_url(url.c_str(), url.length(), false);
 
-  // Component routing using minimal code repetition
-  struct ComponentRoute {
-    const char *domain;
-    void (WebServer::*handler)(AsyncWebServerRequest *, const UrlMatch &);
-  };
-
-  static const ComponentRoute ROUTES[] = {
+  // Route to appropriate handler based on domain
+  // NOLINTNEXTLINE(readability-simplify-boolean-expr)
+  if (false) {  // Start chain for else-if macro pattern
+  }
 #ifdef USE_SENSOR
-      {"sensor", &WebServer::handle_sensor_request},
+  else if (match.domain_equals("sensor")) {
+    this->handle_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_SWITCH
-      {"switch", &WebServer::handle_switch_request},
+  else if (match.domain_equals("switch")) {
+    this->handle_switch_request(request, match);
+  }
 #endif
 #ifdef USE_BUTTON
-      {"button", &WebServer::handle_button_request},
+  else if (match.domain_equals("button")) {
+    this->handle_button_request(request, match);
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
-      {"binary_sensor", &WebServer::handle_binary_sensor_request},
+  else if (match.domain_equals("binary_sensor")) {
+    this->handle_binary_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_FAN
-      {"fan", &WebServer::handle_fan_request},
+  else if (match.domain_equals("fan")) {
+    this->handle_fan_request(request, match);
+  }
 #endif
 #ifdef USE_LIGHT
-      {"light", &WebServer::handle_light_request},
+  else if (match.domain_equals("light")) {
+    this->handle_light_request(request, match);
+  }
 #endif
 #ifdef USE_TEXT_SENSOR
-      {"text_sensor", &WebServer::handle_text_sensor_request},
+  else if (match.domain_equals("text_sensor")) {
+    this->handle_text_sensor_request(request, match);
+  }
 #endif
 #ifdef USE_COVER
-      {"cover", &WebServer::handle_cover_request},
+  else if (match.domain_equals("cover")) {
+    this->handle_cover_request(request, match);
+  }
 #endif
 #ifdef USE_NUMBER
-      {"number", &WebServer::handle_number_request},
+  else if (match.domain_equals("number")) {
+    this->handle_number_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_DATE
-      {"date", &WebServer::handle_date_request},
+  else if (match.domain_equals("date")) {
+    this->handle_date_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_TIME
-      {"time", &WebServer::handle_time_request},
+  else if (match.domain_equals("time")) {
+    this->handle_time_request(request, match);
+  }
 #endif
 #ifdef USE_DATETIME_DATETIME
-      {"datetime", &WebServer::handle_datetime_request},
+  else if (match.domain_equals("datetime")) {
+    this->handle_datetime_request(request, match);
+  }
 #endif
 #ifdef USE_TEXT
-      {"text", &WebServer::handle_text_request},
+  else if (match.domain_equals("text")) {
+    this->handle_text_request(request, match);
+  }
 #endif
 #ifdef USE_SELECT
-      {"select", &WebServer::handle_select_request},
+  else if (match.domain_equals("select")) {
+    this->handle_select_request(request, match);
+  }
 #endif
 #ifdef USE_CLIMATE
-      {"climate", &WebServer::handle_climate_request},
+  else if (match.domain_equals("climate")) {
+    this->handle_climate_request(request, match);
+  }
 #endif
 #ifdef USE_LOCK
-      {"lock", &WebServer::handle_lock_request},
+  else if (match.domain_equals("lock")) {
+    this->handle_lock_request(request, match);
+  }
 #endif
 #ifdef USE_VALVE
-      {"valve", &WebServer::handle_valve_request},
+  else if (match.domain_equals("valve")) {
+    this->handle_valve_request(request, match);
+  }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-      {"alarm_control_panel", &WebServer::handle_alarm_control_panel_request},
+  else if (match.domain_equals("alarm_control_panel")) {
+    this->handle_alarm_control_panel_request(request, match);
+  }
 #endif
 #ifdef USE_UPDATE
-      {"update", &WebServer::handle_update_request},
-#endif
-  };
-
-  // Check each route
-  for (const auto &route : ROUTES) {
-    if (match.domain_equals(route.domain)) {
-      (this->*route.handler)(request, match);
-      return;
-    }
+  else if (match.domain_equals("update")) {
+    this->handle_update_request(request, match);
   }
-
-  // No matching handler found - send 404
-  ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-  request->send(404, "text/plain", "Not Found");
+#endif
+  else {
+    // No matching handler found - send 404
+    ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
+    request->send(404, "text/plain", "Not Found");
+  }
 }
 
 bool WebServer::isRequestHandlerTrivial() const { return false; }
@@ -2017,9 +2065,9 @@ bool WebServer::isRequestHandlerTrivial() const { return false; }
 void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 #ifdef USE_WEBSERVER_SORTING
   if (this->sorting_entitys_.find(entity) != this->sorting_entitys_.end()) {
-    root["sorting_weight"] = this->sorting_entitys_[entity].weight;
+    root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
     if (this->sorting_groups_.find(this->sorting_entitys_[entity].group_id) != this->sorting_groups_.end()) {
-      root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[entity].group_id].name;
+      root[ESPHOME_F("sorting_group")] = this->sorting_groups_[this->sorting_entitys_[entity].group_id].name;
     }
   }
 #endif

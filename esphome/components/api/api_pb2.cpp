@@ -476,8 +476,8 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_float(9, this->min_mireds);
   buffer.encode_float(10, this->max_mireds);
-  for (auto &it : this->effects) {
-    buffer.encode_string(11, it, true);
+  for (const char *it : *this->effects) {
+    buffer.encode_string(11, it, strlen(it), true);
   }
   buffer.encode_bool(13, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -499,9 +499,9 @@ void ListEntitiesLightResponse::calculate_size(ProtoSize &size) const {
   }
   size.add_float(1, this->min_mireds);
   size.add_float(1, this->max_mireds);
-  if (!this->effects.empty()) {
-    for (const auto &it : this->effects) {
-      size.add_length_force(1, it.size());
+  if (!this->effects->empty()) {
+    for (const char *it : *this->effects) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->disabled_by_default);
@@ -611,9 +611,12 @@ bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool LightCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 19:
-      this->effect = value.as_string();
+    case 19: {
+      // Use raw data directly to avoid allocation
+      this->effect = value.data();
+      this->effect_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -995,7 +998,7 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name_ref_);
   buffer.encode_uint32(2, static_cast<uint32_t>(this->type));
@@ -1010,11 +1013,13 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->args) {
     buffer.encode_message(3, it, true);
   }
+  buffer.encode_uint32(4, static_cast<uint32_t>(this->supports_response));
 }
 void ListEntitiesServicesResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name_ref_.size());
   size.add_fixed32(1, this->key);
   size.add_repeated_message(1, this->args);
+  size.add_uint32(1, static_cast<uint32_t>(this->supports_response));
 }
 bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -1075,6 +1080,23 @@ void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
   this->string_array.init(count_string_array);
   ProtoDecodableMessage::decode(buffer, length);
 }
+bool ExecuteServiceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+    case 3:
+      this->call_id = value.as_uint32();
+      break;
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+    case 4:
+      this->return_response = value.as_bool();
+      break;
+#endif
+    default:
+      return false;
+  }
+  return true;
+}
 bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2:
@@ -1100,6 +1122,24 @@ void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
   uint32_t count_args = ProtoDecodableMessage::count_repeated_field(buffer, length, 2);
   this->args.init(count_args);
   ProtoDecodableMessage::decode(buffer, length);
+}
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void ExecuteServiceResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->call_id);
+  buffer.encode_bool(2, this->success);
+  buffer.encode_string(3, this->error_message_ref_);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  buffer.encode_bytes(4, this->response_data, this->response_data_len);
+#endif
+}
+void ExecuteServiceResponse::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, this->call_id);
+  size.add_bool(1, this->success);
+  size.add_length(1, this->error_message_ref_.size());
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  size.add_length(4, this->response_data_len);
+#endif
 }
 #endif
 #ifdef USE_CAMERA
@@ -1532,9 +1572,12 @@ bool SelectCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool SelectCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->state = value.as_string();
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->state = value.data();
+      this->state_len = value.size();
       break;
+    }
     default:
       return false;
   }

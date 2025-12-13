@@ -31,6 +31,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_MEASUREMENT = 1,
   STATE_CLASS_TOTAL_INCREASING = 2,
   STATE_CLASS_TOTAL = 3,
+  STATE_CLASS_MEASUREMENT_ANGLE = 4
 };
 
 const LogString *state_class_to_string(StateClass state_class);
