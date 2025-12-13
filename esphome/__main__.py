@@ -526,7 +526,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     return 0 if idedata is not None else 1
 
 
-def _check_and_emit_buildinfo():
+def _check_and_emit_buildinfo() -> None:
     """Check if firmware was rebuilt and emit buildinfo."""
     import json
 
