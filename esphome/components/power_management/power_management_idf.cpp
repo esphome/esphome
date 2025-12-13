@@ -54,9 +54,6 @@ void PowerManagement::setup() {
   if (this->timer_lock_duration_ > 0) {
     // Acquire Initial Lock
     this->acquire_lock(PowerManagementLockUser::PM, PowerManagementLockType::TMR);
-    TimerHandle_t timer = xTimerCreate("PM Sleep Timer", pdMS_TO_TICKS(this->timer_lock_duration_), pdFALSE, this,
-                                       PowerManagement::timer_callback);
-    xTimerStart(timer, 0);
   }
 }
 
@@ -67,6 +64,7 @@ void PowerManagement::acquire_lock(PowerManagementLockUser user, PowerManagement
     esp_err_t rc = esp_pm_lock_acquire(this->pm_lock_handles_[lt]);
     if (rc != ESP_OK) {
       ESP_LOGE(TAG, "Failed esp_pm_lock_acquire %s %d", power_manager_type_to_string(lt), rc);
+      return;
     }
     ESP_LOGD(TAG, "Acquired pm lock: %s, user: %s", power_manager_type_to_string(lt),
              power_manager_user_to_string(user));
@@ -85,6 +83,7 @@ void PowerManagement::release_lock(PowerManagementLockUser user, PowerManagement
     esp_err_t rc = esp_pm_lock_release(this->pm_lock_handles_[lt]);
     if (rc != ESP_OK) {
       ESP_LOGE(TAG, "Failed esp_pm_lock_release %s %d", power_manager_type_to_string(lt), rc);
+      return;
     }
     ESP_LOGD(TAG, "Released pm lock: %s, user: %s", power_manager_type_to_string(lt),
              power_manager_user_to_string(user));
