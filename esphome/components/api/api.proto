@@ -579,7 +579,7 @@ message LightCommandRequest {
   bool has_flash_length = 16;
   uint32 flash_length = 17;
   bool has_effect = 18;
-  string effect = 19;
+  string effect = 19 [(pointer_to_buffer) = true];
   uint32 device_id = 28 [(field_ifdef) = "USE_DEVICES"];
 }
 

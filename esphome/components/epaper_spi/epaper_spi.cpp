@@ -286,7 +286,7 @@ void EPaperBase::initialise_() {
  * @param y
  * @return false if the coordinates are out of bounds
  */
-bool EPaperBase::rotate_coordinates_(int &x, int &y) const {
+bool EPaperBase::rotate_coordinates_(int &x, int &y) {
   if (!this->get_clipping().inside(x, y))
     return false;
   if (this->transform_ & SWAP_XY)
@@ -297,6 +297,10 @@ bool EPaperBase::rotate_coordinates_(int &x, int &y) const {
     y = this->height_ - y - 1;
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return false;
+  this->x_low_ = clamp_at_most(this->x_low_, x);
+  this->x_high_ = clamp_at_least(this->x_high_, x + 1);
+  this->y_low_ = clamp_at_most(this->y_low_, y);
+  this->y_high_ = clamp_at_least(this->y_high_, y + 1);
   return true;
 }
 
@@ -319,10 +323,6 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
   } else {
     this->buffer_[byte_position] = original | pixel_bit;
   }
-  this->x_low_ = clamp_at_most(this->x_low_, x);
-  this->x_high_ = clamp_at_least(this->x_high_, x + 1);
-  this->y_low_ = clamp_at_most(this->y_low_, y);
-  this->y_high_ = clamp_at_least(this->y_high_, y + 1);
 }
 
 void EPaperBase::dump_config() {
