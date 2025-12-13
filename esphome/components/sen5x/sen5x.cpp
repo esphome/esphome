@@ -157,7 +157,7 @@ void SEN5XComponent::setup() {
             encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
         // Hash with build time and serial number
         // This ensures the baseline storage is cleared after OTA
-        // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
+        // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
         uint32_t hash = static_cast<uint32_t>(App.get_build_time()) ^ combined_serial;
         this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
 
