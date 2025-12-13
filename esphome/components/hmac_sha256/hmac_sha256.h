@@ -1,16 +1,22 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
-#include "esphome/components/sha256/sha256.h"
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
+
 #include <string>
+
+#ifdef USE_ESP32
+#include "mbedtls/md.h"
+#else
+#include "esphome/components/sha256/sha256.h"
+#endif
 
 namespace esphome::hmac_sha256 {
 
 class HmacSHA256 {
  public:
   HmacSHA256() = default;
-  ~HmacSHA256() = default;
+  ~HmacSHA256();
 
   /// Initialize a new HMAC-SHA256 digest computation.
   void init(const uint8_t *key, size_t len);
@@ -39,8 +45,13 @@ class HmacSHA256 {
   bool equals_hex(const char *expected);
 
  protected:
+#ifdef USE_ESP32
+  mbedtls_md_context_t ctx_{};
+  uint8_t digest_[32]{};
+#else
   sha256::SHA256 ihash_;
   sha256::SHA256 ohash_;
+#endif
 };
 
 }  // namespace esphome::hmac_sha256

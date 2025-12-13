@@ -1,10 +1,46 @@
 #include <cstdio>
 #include <cstring>
 #include "hmac_sha256.h"
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
 #include "esphome/core/helpers.h"
 
 namespace esphome::hmac_sha256 {
+
+#ifdef USE_ESP32
+
+HmacSHA256::~HmacSHA256() { mbedtls_md_free(&this->ctx_); }
+
+void HmacSHA256::init(const uint8_t *key, size_t len) {
+  mbedtls_md_init(&this->ctx_);
+  const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+  mbedtls_md_setup(&this->ctx_, md_info, 1);  // 1 = HMAC mode
+  mbedtls_md_hmac_starts(&this->ctx_, key, len);
+}
+
+void HmacSHA256::add(const uint8_t *data, size_t len) { mbedtls_md_hmac_update(&this->ctx_, data, len); }
+
+void HmacSHA256::calculate() { mbedtls_md_hmac_finish(&this->ctx_, this->digest_); }
+
+void HmacSHA256::get_bytes(uint8_t *output) { memcpy(output, this->digest_, 32); }
+
+void HmacSHA256::get_hex(char *output) {
+  for (size_t i = 0; i < 32; i++) {
+    sprintf(output + (i * 2), "%02x", this->digest_[i]);
+  }
+}
+
+bool HmacSHA256::equals_bytes(const uint8_t *expected) { return memcmp(this->digest_, expected, 32) == 0; }
+
+bool HmacSHA256::equals_hex(const char *expected) {
+  char hex_output[65];
+  this->get_hex(hex_output);
+  hex_output[64] = '\0';
+  return strncmp(hex_output, expected, 64) == 0;
+}
+
+#else
+
+HmacSHA256::~HmacSHA256() = default;
 
 // HMAC block size for SHA256 (RFC 2104)
 constexpr size_t HMAC_BLOCK_SIZE = 64;
@@ -55,6 +91,8 @@ void HmacSHA256::get_hex(char *output) { this->ohash_.get_hex(output); }
 bool HmacSHA256::equals_bytes(const uint8_t *expected) { return this->ohash_.equals_bytes(expected); }
 
 bool HmacSHA256::equals_hex(const char *expected) { return this->ohash_.equals_hex(expected); }
+
+#endif  // USE_ESP32
 
 }  // namespace esphome::hmac_sha256
 #endif
