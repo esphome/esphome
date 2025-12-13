@@ -1,0 +1,5 @@
+esphome:
+  name: build-info-test
+host:
+api:
+logger:
