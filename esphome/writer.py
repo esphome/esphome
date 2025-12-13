@@ -281,6 +281,29 @@ def generate_version_h():
     )
 
 
+def _encode_string_symbols(text, prefix, bits, bit_suffix, endian, endian_suffix):
+    """Encode a string as linker symbols for given word size and endianness."""
+    symbols = []
+    # Pad to word boundary with NUL (build time strings need trailing NUL)
+    padded = text if prefix == "CONFIG_HASH_STR" else text + "\0"
+    while len(padded) % bits != 0:
+        padded += "\0"
+
+    for i in range(0, len(padded), bits):
+        chunk = padded[i : i + bits].encode("utf-8")
+        if bits == 8:
+            value = struct.unpack(endian + "Q", chunk)[0]
+            symbols.append(
+                f"ESPHOME_{prefix}_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:016x};"
+            )
+        else:
+            value = struct.unpack(endian + "I", chunk)[0]
+            symbols.append(
+                f"ESPHOME_{prefix}_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:08x};"
+            )
+    return symbols
+
+
 def generate_buildinfo_ld() -> str:
     """Generate buildinfo linker script with config hash and build time."""
     from esphome import yaml_util
@@ -298,41 +321,26 @@ def generate_buildinfo_ld() -> str:
 
     for bits, bit_suffix in [(4, "32"), (8, "64")]:
         for endian, endian_suffix in [("<", "LE"), (">", "BE")]:
-            # Config hash string (8 hex chars)
-            config_padded = config_hash_str
-            while len(config_padded) % bits != 0:
-                config_padded += "\0"
-
-            for i in range(0, len(config_padded), bits):
-                chunk = config_padded[i : i + bits].encode("utf-8")
-                if bits == 8:
-                    value = struct.unpack(endian + "Q", chunk)[0]
-                    all_variants.append(
-                        f"ESPHOME_CONFIG_HASH_STR_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:016x};"
-                    )
-                else:
-                    value = struct.unpack(endian + "I", chunk)[0]
-                    all_variants.append(
-                        f"ESPHOME_CONFIG_HASH_STR_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:08x};"
-                    )
-
-            # Build time string (pad to word boundary with NUL)
-            build_padded = build_time_str + "\0"
-            while len(build_padded) % bits != 0:
-                build_padded += "\0"
-
-            for i in range(0, len(build_padded), bits):
-                chunk = build_padded[i : i + bits].encode("utf-8")
-                if bits == 8:
-                    value = struct.unpack(endian + "Q", chunk)[0]
-                    all_variants.append(
-                        f"ESPHOME_BUILD_TIME_STR_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:016x};"
-                    )
-                else:
-                    value = struct.unpack(endian + "I", chunk)[0]
-                    all_variants.append(
-                        f"ESPHOME_BUILD_TIME_STR_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:08x};"
-                    )
+            all_variants.extend(
+                _encode_string_symbols(
+                    config_hash_str,
+                    "CONFIG_HASH_STR",
+                    bits,
+                    bit_suffix,
+                    endian,
+                    endian_suffix,
+                )
+            )
+            all_variants.extend(
+                _encode_string_symbols(
+                    build_time_str,
+                    "BUILD_TIME_STR",
+                    bits,
+                    bit_suffix,
+                    endian,
+                    endian_suffix,
+                )
+            )
 
     return f"""/* Auto-generated buildinfo symbols */
 ESPHOME_BUILD_TIME = {build_time};
