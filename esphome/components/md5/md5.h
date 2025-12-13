@@ -5,6 +5,10 @@
 
 #include "esphome/core/hash_base.h"
 
+#ifdef USE_HOST
+#include <openssl/evp.h>
+#endif
+
 #ifdef USE_ESP32
 #include "esp_rom_md5.h"
 #define MD5_CTX_TYPE md5_context_t
@@ -23,28 +27,6 @@
 #if defined(USE_LIBRETINY)
 #include <MD5.h>
 #define MD5_CTX_TYPE LT_MD5_CTX_T
-#endif
-
-#ifdef USE_HOST
-#include <openssl/evp.h>
-#endif
-
-#ifndef USE_HOST
-#ifdef USE_ESP32
-#define MD5_CTX_TYPE md5_context_t
-#endif
-
-#if defined(USE_ARDUINO) && defined(USE_ESP8266)
-#define MD5_CTX_TYPE md5_context_t
-#endif
-
-#ifdef USE_RP2040
-#define MD5_CTX_TYPE br_md5_context
-#endif
-
-#if defined(USE_LIBRETINY)
-#define MD5_CTX_TYPE LT_MD5_CTX_T
-#endif
 #endif
 
 namespace esphome {
