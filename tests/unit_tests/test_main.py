@@ -35,7 +35,7 @@ from esphome.__main__ import (
     upload_program,
     upload_using_esptool,
 )
-from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
     CONF_BROKER,

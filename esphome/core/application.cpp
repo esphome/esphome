@@ -12,6 +12,10 @@
 #include "esphome/components/status_led/status_led.h"
 #endif
 
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#include "esphome/components/socket/socket.h"
+#endif
+
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <cerrno>
 
@@ -627,6 +631,9 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // No sockets registered, use regular delay
     delay(delay_ms);
   }
+#elif defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  // No select support but can wake on socket activity via esp_schedule()
+  socket::socket_delay(delay_ms);
 #else
   // No select support, use regular delay
   delay(delay_ms);

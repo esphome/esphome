@@ -205,7 +205,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   virtual bool has_state() const { return this->state_.has_value(); }
   virtual const T &get_state() const { return this->state_.value(); }
   virtual T get_state_default(T default_value) const { return this->state_.value_or(default_value); }
-  void invalidate_state() { this->set_state_({}); }
+  void invalidate_state() { this->set_new_state({}); }
 
   void add_full_state_callback(std::function<void(optional<T> previous, optional<T> current)> &&callback) {
     if (this->full_state_callbacks_ == nullptr)
@@ -227,20 +227,20 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   /**
    * Set a new state for this entity. This will trigger callbacks only if the new state is different from the previous.
    *
-   * @param state The new state.
+   * @param new_state The new state.
    * @return True if the state was changed, false if it was the same as before.
    */
-  bool set_state_(const optional<T> &state) {
-    if (this->state_ != state) {
+  virtual bool set_new_state(const optional<T> &new_state) {
+    if (this->state_ != new_state) {
       // call the full state callbacks with the previous and new state
       if (this->full_state_callbacks_ != nullptr)
-        this->full_state_callbacks_->call(this->state_, state);
+        this->full_state_callbacks_->call(this->state_, new_state);
       // trigger legacy callbacks only if the new state is valid and either the trigger on initial state is enabled or
       // the previous state was valid
       auto had_state = this->has_state();
-      this->state_ = state;
-      if (this->state_callbacks_ != nullptr && state.has_value() && (this->trigger_on_initial_state_ || had_state))
-        this->state_callbacks_->call(state.value());
+      this->state_ = new_state;
+      if (this->state_callbacks_ != nullptr && new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
+        this->state_callbacks_->call(new_state.value());
       return true;
     }
     return false;
