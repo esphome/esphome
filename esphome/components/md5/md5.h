@@ -25,9 +25,26 @@
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif
 
-#if defined(USE_HOST)
+#ifdef USE_HOST
 #include <openssl/evp.h>
-#define MD5_CTX_TYPE EVP_MD_CTX *
+#endif
+
+#ifndef USE_HOST
+#ifdef USE_ESP32
+#define MD5_CTX_TYPE md5_context_t
+#endif
+
+#if defined(USE_ARDUINO) && defined(USE_ESP8266)
+#define MD5_CTX_TYPE md5_context_t
+#endif
+
+#ifdef USE_RP2040
+#define MD5_CTX_TYPE br_md5_context
+#endif
+
+#if defined(USE_LIBRETINY)
+#define MD5_CTX_TYPE LT_MD5_CTX_T
+#endif
 #endif
 
 namespace esphome {
@@ -36,7 +53,7 @@ namespace md5 {
 class MD5Digest : public HashBase {
  public:
   MD5Digest() = default;
-  ~MD5Digest() override = default;
+  ~MD5Digest() override;
 
   /// Initialize a new MD5 digest computation.
   void init() override;
@@ -52,7 +69,12 @@ class MD5Digest : public HashBase {
   size_t get_size() const override { return 16; }
 
  protected:
+#ifdef USE_HOST
+  EVP_MD_CTX *ctx_{nullptr};
+  bool calculated_{false};
+#else
   MD5_CTX_TYPE ctx_{};
+#endif
 };
 
 }  // namespace md5
