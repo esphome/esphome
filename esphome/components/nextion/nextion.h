@@ -1461,6 +1461,15 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   uint32_t upload_setup_baud_rate_(uint32_t baud_rate);
 
+  /**
+   * Prepares Nextion display for TFT upload
+   * Wakes the display, sends upload command, switches baud rate if needed,
+   * and validates the response
+   * @param baud_rate Baud rate to use for upload
+   * @return true if Nextion is ready to receive data, false otherwise
+   */
+  bool upload_prepare_nextion_(uint32_t baud_rate);
+
 #endif  // USE_NEXTION_TFT_UPLOAD
 
   bool check_connect_();

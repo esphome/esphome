@@ -232,53 +232,10 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
   ESP_LOGD(TAG, "Uploading");
 
-  // The Nextion will ignore the upload command if it is sleeping
-  ESP_LOGV(TAG, "Wake-up");
-  this->connection_state_.ignore_is_setup_ = true;
-  this->send_command_("sleep=0");
-  this->send_command_("dim=100");
-  vTaskDelay(pdMS_TO_TICKS(250));  // NOLINT
-  ESP_LOGV(TAG, "Heap: %" PRIu32, esp_get_free_heap_size());
-
-  App.feed_wdt();
-  char command[128];
-  // Tells the Nextion the content length of the tft file and baud rate it will be sent at
-  // Once the Nextion accepts the command it will wait until the file is successfully uploaded
-  // If it fails for any reason a power cycle of the display will be needed
-  snprintf(command, sizeof(command), "whmi-wris %" PRIu32 ",%" PRIu32 ",1", this->content_length_, baud_rate);
-
-  // Clear serial receive buffer
-  ESP_LOGV(TAG, "Clear RX buffer");
-  this->reset_(false);
-  vTaskDelay(pdMS_TO_TICKS(250));  // NOLINT
-  ESP_LOGV(TAG, "Heap: %" PRIu32, esp_get_free_heap_size());
-
-  ESP_LOGV(TAG, "Upload cmd: %s", command);
-  this->send_command_(command);
-
-  if (baud_rate != this->original_baud_rate_) {
-    ESP_LOGD(TAG, "Baud: %" PRIu32 "->%" PRIu32, this->original_baud_rate_, baud_rate);
-    this->parent_->set_baud_rate(baud_rate);
-    this->parent_->load_settings();
-  }
-
-  std::string response;
-  ESP_LOGV(TAG, "Wait upload resp");
-  this->recv_ret_string_(response, 5000, true);  // This can take some time to return
-
-  // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
-  ESP_LOGD(TAG, "Upload resp: [%s] %zu B",
-           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
-           response.length());
-  ESP_LOGV(TAG, "Heap: %" PRIu32, esp_get_free_heap_size());
-
-  if (response.find(0x05) != std::string::npos) {
-    ESP_LOGV(TAG, "Upload prep done");
-  } else {
-    ESP_LOGE(TAG, "Upload prep failed %d '%s'", response[0], response.c_str());
+  if (!this->upload_prepare_nextion_(baud_rate)) {
     ESP_LOGD(TAG, "Close HTTP");
-    esp_http_client_close(http_client);
-    esp_http_client_cleanup(http_client);
+    esp_http_client_close(http_client);    // ← ESP32-specific
+    esp_http_client_cleanup(http_client);  // ← ESP32-specific
     ESP_LOGV(TAG, "Connection closed");
     return this->upload_end_(false);
   }
