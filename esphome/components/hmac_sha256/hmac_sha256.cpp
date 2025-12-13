@@ -24,7 +24,7 @@ void HmacSHA256::init(const uint8_t *key, size_t len) {
   }
   memcpy(opad, ipad, sizeof(opad));
 
-  for (int i = 0; i < HMAC_BLOCK_SIZE; i++) {
+  for (size_t i = 0; i < HMAC_BLOCK_SIZE; i++) {
     ipad[i] ^= 0x36;
     opad[i] ^= 0x5c;
   }
