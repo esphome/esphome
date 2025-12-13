@@ -693,12 +693,13 @@ class EsphomeCore:
         """Get the FNV-1a 32-bit hash of the config.
 
         The hash is computed lazily and cached for performance.
+        Uses sort_keys=True to ensure deterministic ordering.
         """
         if self._config_hash is None:
             from esphome import yaml_util
             from esphome.helpers import fnv1a_32bit_hash
 
-            config_str = yaml_util.dump(self.config, show_secrets=True)
+            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
             self._config_hash = fnv1a_32bit_hash(config_str)
         return self._config_hash
 
