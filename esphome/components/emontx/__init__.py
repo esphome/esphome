@@ -4,7 +4,7 @@ from esphome.components import uart, web_server_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TRIGGER_ID
 
-AUTO_LOAD = ["json"]
+AUTO_LOAD = ["json", "api"]
 CODEOWNERS = ["@FredM67", "@TrystanLea", "@glynhudson"]
 
 emontx_ns = cg.esphome_ns.namespace("emontx")
@@ -14,6 +14,9 @@ EmonTx = emontx_ns.class_("EmonTx", cg.PollingComponent, uart.UARTDevice)
 EmonTxJsonTrigger = emontx_ns.class_(
     "EmonTxJsonTrigger", automation.Trigger.template(cg.JsonObject)
 )
+
+# Action to send command to emonTx
+EmonTxSendCommandAction = emontx_ns.class_("EmonTxSendCommandAction", automation.Action)
 
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
@@ -96,3 +99,25 @@ async def to_code(config):
             config[web_server_base.CONF_WEB_SERVER_BASE_ID]
         )
         cg.add(var.set_web_server(web_server))
+
+
+# Action: emontx.send_command
+CONF_COMMAND = "command"
+
+EMONTX_SEND_COMMAND_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(EmonTx),
+        cv.Required(CONF_COMMAND): cv.templatable(cv.string),
+    }
+)
+
+
+@automation.register_action(
+    "emontx.send_command", EmonTxSendCommandAction, EMONTX_SEND_COMMAND_ACTION_SCHEMA
+)
+async def emontx_send_command_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)
+    cg.add(var.set_command(template_))
+    return var

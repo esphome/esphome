@@ -2,6 +2,10 @@
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
 
+#ifdef USE_API
+#include "esphome/components/api/api_server.h"
+#endif
+
 namespace esphome {
 namespace emontx {
 
@@ -45,8 +49,6 @@ void EmonTx::setup() {
     this->web_server_->add_handler(new EmonTxSendHandler(this));
     this->web_server_->add_handler(new EmonTxDataHandler(this));
     ESP_LOGI(TAG, "Web config interface available at /emontx/config");
-    // Fetch OEM HTML at startup (blocking here is OK, avoids timeout during request)
-    this->fetch_oem_html_();
   }
 #endif
 }
@@ -236,6 +238,23 @@ void EmonTx::parse_json_(const std::string &data) {
     // Save the valid JSON data for callbacks
     this->last_valid_json_ = data;
 
+#ifdef USE_API
+    // Fire Home Assistant event with the received data
+    if (api::global_api_server != nullptr && api::global_api_server->is_connected()) {
+      api::HomeAssistantServiceCallResponse resp;
+      resp.service = "esphome.emontx_data";
+      resp.is_event = true;
+
+      api::HomeAssistantServiceCallResponse::HomeAssistantServiceMap data_kv;
+      data_kv.key = "data";
+      data_kv.value = data;
+      resp.data.push_back(data_kv);
+
+      api::global_api_server->send_homeassistant_service_call(resp);
+      ESP_LOGV(TAG, "Fired esphome.emontx_data event");
+    }
+#endif
+
     // Execute all registered JSON callbacks
     if (!this->json_callbacks_.empty()) {
       ESP_LOGV(TAG, "Executing %d JSON callbacks", (int) this->json_callbacks_.size());
@@ -320,6 +339,11 @@ void EmonTx::publish_value_(const std::string &tag, const std::string &val) {
  * @param listener Pointer to the listener object to register. The listener must have a 'tag'
  *                 property that identifies which JSON key it's interested in.
  */
+void EmonTx::send_command(const std::string &command) {
+  ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
+  this->write_str(command.c_str());
+}
+
 #ifdef USE_SENSOR
 void EmonTx::register_emontx_listener(EmonTxListener *listener) { emontx_listeners_.push_back(listener); }
 

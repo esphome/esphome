@@ -2,8 +2,13 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/json/json_util.h"
+
+#ifdef USE_API
+#include "esphome/components/api/custom_api_device.h"
+#endif
 
 // Conditionally include sensor
 #ifdef USE_SENSOR
@@ -117,6 +122,9 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   // Add method to get the current buffer
   std::string get_buffer() const { return this->last_valid_json_; }
 
+  // Send command to emonTx via UART
+  void send_command(const std::string &command);
+
 #ifdef USE_SENSOR
   void register_sensor(const std::string &tag_name, sensor::Sensor *sensor);
 #endif
@@ -160,6 +168,14 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   void fetch_oem_html_();
   std::string patch_html_for_polling_(const std::string &html);
 #endif
+};
+
+// Action to send command to emonTx
+template<typename... Ts> class EmonTxSendCommandAction : public Action<Ts...>, public Parented<EmonTx> {
+ public:
+  TEMPLATABLE_VALUE(std::string, command)
+
+  void play(Ts... x) override { this->parent_->send_command(this->command_.value(x...)); }
 };
 
 }  // namespace emontx
