@@ -21,7 +21,6 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
-    fnv1a_32bit_hash,
     get_str_env,
     is_ha_addon,
     read_file,
@@ -300,11 +299,7 @@ def get_build_info() -> tuple[int, int, str]:
     Returns:
         Tuple of (config_hash, build_time, build_time_str)
     """
-    from esphome import yaml_util
-
-    # Use the same clean YAML representation as 'esphome config' command
-    config_str = yaml_util.dump(CORE.config, show_secrets=True)
-    config_hash = fnv1a_32bit_hash(config_str)
+    config_hash = CORE.config_hash
 
     # Check if config_hash and version are unchanged - keep existing build_time
     build_info_path = CORE.relative_build_path("build_info.json")
