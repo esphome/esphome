@@ -243,11 +243,11 @@ void EmonTx::parse_json_(const std::string &data) {
     // Fire Home Assistant event with the received data
     if (api::global_api_server != nullptr && api::global_api_server->is_connected()) {
       api::HomeassistantActionRequest resp;
-      resp.set_service(api::StringRef("esphome.emontx_data"));
+      resp.set_service(StringRef("esphome.emontx_data"));
       resp.is_event = true;
       resp.data.init(1);
       auto &kv = resp.data.emplace_back();
-      kv.set_key(api::StringRef("data"));
+      kv.set_key(StringRef("data"));
       kv.value = data;
       api::global_api_server->send_homeassistant_action(resp);
       ESP_LOGV(TAG, "Fired esphome.emontx_data event");
