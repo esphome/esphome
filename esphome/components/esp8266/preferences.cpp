@@ -151,7 +151,7 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
       buffer = stack_buffer;
       memset(buffer, 0, buffer_size * sizeof(uint32_t));
     } else {
-      heap_buffer.reset(new uint32_t[buffer_size]());
+      heap_buffer = make_unique<uint32_t[]>(buffer_size);
       buffer = heap_buffer.get();
     }
 
@@ -174,7 +174,7 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
     if (buffer_size <= PREF_BUFFER_WORDS) {
       buffer = stack_buffer;
     } else {
-      heap_buffer.reset(new uint32_t[buffer_size]());
+      heap_buffer = make_unique<uint32_t[]>(buffer_size);
       buffer = heap_buffer.get();
     }
 
