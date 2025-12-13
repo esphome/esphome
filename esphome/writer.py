@@ -308,23 +308,24 @@ def get_build_info() -> tuple[int, int, str]:
 
     # Check if config_hash and version are unchanged - keep existing build_time
     build_info_path = CORE.relative_build_path("build_info.json")
-    if build_info_path.exists():
-        try:
-            existing = json.loads(build_info_path.read_text(encoding="utf-8"))
-            if (
-                existing.get("config_hash") == config_hash
-                and existing.get("esphome_version") == __version__
-            ):
-                # Config and version unchanged - keep existing build_time
-                return (
-                    config_hash,
-                    existing["build_time"],
-                    existing["build_time_str"],
-                )
-        except (json.JSONDecodeError, KeyError, OSError):
-            pass
+    existing: dict[str, int | str] | None = None
+    try:
+        existing = json.loads(build_info_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, KeyError, OSError, FileNotFoundError):
+        pass
+    else:
+        if (
+            existing.get("config_hash") == config_hash
+            and existing.get("esphome_version") == __version__
+        ):
+            # Config and version unchanged - keep existing build_time
+            return (
+                config_hash,
+                existing["build_time"],
+                existing["build_time_str"],
+            )
 
-    # Config or version changed - use current time
+    # Config or version changed, or no existing build_info - use current time
     build_time = int(time.time())
     build_time_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
     return config_hash, build_time, build_time_str
