@@ -7,7 +7,6 @@ from pathlib import Path
 import re
 import shutil
 import stat
-import struct
 import time
 from types import TracebackType
 
@@ -250,21 +249,16 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
-    # Write buildinfo linker script, JSON metadata, and copy the PlatformIO script
-    config_hash, build_time, build_time_str = get_buildinfo()
-    write_file(
-        CORE.relative_build_path("buildinfo.ld"),
-        generate_buildinfo_ld(config_hash, build_time, build_time_str),
+    # Write build_info header and JSON metadata
+    config_hash, build_time, build_time_str = get_build_info()
+    write_file_if_changed(
+        CORE.relative_src_path("esphome", "core", "build_info_data.h"),
+        generate_build_info_data_h(config_hash, build_time, build_time_str),
     )
     write_file(
-        CORE.relative_build_path("buildinfo.json"),
+        CORE.relative_build_path("build_info.json"),
         json.dumps({"config_hash": config_hash, "build_time": build_time}),
     )
-    copy_file_if_changed(
-        Path(__file__).parent / "core" / "buildinfo.py.script",
-        CORE.relative_build_path("buildinfo.py"),
-    )
-    CORE.add_platformio_option("extra_scripts", ["pre:buildinfo.py"])
 
     platform = "esphome.components." + CORE.target_platform
     try:
@@ -290,33 +284,8 @@ def generate_version_h():
     )
 
 
-def _encode_string_symbols(
-    text: str, prefix: str, bits: int, bit_suffix: str, endian: str, endian_suffix: str
-) -> list[str]:
-    """Encode a string as linker symbols for given word size and endianness."""
-    symbols: list[str] = []
-    # Pad to word boundary with NUL (build time strings need trailing NUL)
-    padded = text if prefix == "CONFIG_HASH_STR" else text + "\0"
-    while len(padded) % bits != 0:
-        padded += "\0"
-
-    for i in range(0, len(padded), bits):
-        chunk = padded[i : i + bits].encode("utf-8")
-        if bits == 8:
-            value = struct.unpack(endian + "Q", chunk)[0]
-            symbols.append(
-                f"ESPHOME_{prefix}_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:016x};"
-            )
-        else:
-            value = struct.unpack(endian + "I", chunk)[0]
-            symbols.append(
-                f"ESPHOME_{prefix}_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:08x};"
-            )
-    return symbols
-
-
-def get_buildinfo() -> tuple[int, int, str]:
-    """Calculate buildinfo values from current config.
+def get_build_info() -> tuple[int, int, str]:
+    """Calculate build_info values from current config.
 
     Returns:
         Tuple of (config_hash, build_time, build_time_str)
@@ -331,42 +300,20 @@ def get_buildinfo() -> tuple[int, int, str]:
     return config_hash, build_time, build_time_str
 
 
-def generate_buildinfo_ld(
+def generate_build_info_data_h(
     config_hash: int, build_time: int, build_time_str: str
 ) -> str:
-    """Generate buildinfo linker script with config hash and build time."""
-    config_hash_str = f"{config_hash:08x}"
-
-    # Generate symbols for all 4 variants: 32LE, 32BE, 64LE, 64BE
-    all_variants: list[str] = []
-
-    for bits, bit_suffix in [(4, "32"), (8, "64")]:
-        for endian, endian_suffix in [("<", "LE"), (">", "BE")]:
-            all_variants.extend(
-                _encode_string_symbols(
-                    config_hash_str,
-                    "CONFIG_HASH_STR",
-                    bits,
-                    bit_suffix,
-                    endian,
-                    endian_suffix,
-                )
-            )
-            all_variants.extend(
-                _encode_string_symbols(
-                    build_time_str,
-                    "BUILD_TIME_STR",
-                    bits,
-                    bit_suffix,
-                    endian,
-                    endian_suffix,
-                )
-            )
-
-    return f"""/* Auto-generated buildinfo symbols */
-ESPHOME_BUILD_TIME = {build_time};
-ESPHOME_CONFIG_HASH = 0x{config_hash:08x};
-{chr(10).join(all_variants)}
+    """Generate build_info_data.h header with config hash and build time."""
+    return f"""#pragma once
+// Auto-generated build_info data
+#define ESPHOME_CONFIG_HASH 0x{config_hash:08x}U
+#define ESPHOME_BUILD_TIME {build_time}
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+static const char ESPHOME_BUILD_TIME_STR[] PROGMEM = "{build_time_str}";
+#else
+static const char ESPHOME_BUILD_TIME_STR[] = "{build_time_str}";
+#endif
 """
 
 

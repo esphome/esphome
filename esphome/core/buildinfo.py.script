@@ -1,2 +1,0 @@
-Import("env")  # noqa: F821
-env.Append(LINKFLAGS=["buildinfo.ld"])  # noqa: F821

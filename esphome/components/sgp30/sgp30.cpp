@@ -1,5 +1,5 @@
 #include "sgp30.h"
-#include "esphome/core/application.h"
+#include "esphome/core/build_info.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -72,10 +72,10 @@ void SGP30Component::setup() {
     return;
   }
 
-  // Hash with compilation time and serial number
+  // Hash with build time and serial number
   // This ensures the baseline storage is cleared after OTA
   // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
-  uint32_t hash = fnv1_hash(App.get_compilation_time_ref() + std::to_string(this->serial_number_));
+  uint32_t hash = static_cast<uint32_t>(get_build_time()) ^ static_cast<uint32_t>(this->serial_number_);
   this->pref_ = global_preferences->make_preference<SGP30Baselines>(hash, true);
 
   if (this->store_baseline_ && this->pref_.load(&this->baselines_storage_)) {

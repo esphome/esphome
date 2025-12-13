@@ -1,4 +1,5 @@
 #include "esphome/core/application.h"
+#include "esphome/core/build_info.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
@@ -191,7 +192,9 @@ void Application::loop() {
 
   if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
-      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_);
+      char build_time_str[BUILD_TIME_STR_SIZE];
+      get_build_time_string(build_time_str);
+      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
       ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
 #endif

@@ -101,7 +101,7 @@ static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick 
 class Application {
  public:
   void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
-                 const char *compilation_time, bool name_add_mac_suffix) {
+                 bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -121,7 +121,6 @@ class Application {
       this->friendly_name_ = friendly_name;
     }
     this->comment_ = comment;
-    this->compilation_time_ = compilation_time;
   }
 
 #ifdef USE_DEVICES
@@ -260,10 +259,6 @@ class Application {
   StringRef get_comment_ref() const { return StringRef(this->comment_); }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
-
-  std::string get_compilation_time() const { return this->compilation_time_; }
-  /// Get the compilation time as StringRef (for API usage)
-  StringRef get_compilation_time_ref() const { return StringRef(this->compilation_time_); }
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
@@ -478,7 +473,6 @@ class Application {
   // Pointer-sized members first
   Component *current_component_{nullptr};
   const char *comment_{nullptr};
-  const char *compilation_time_{nullptr};
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components

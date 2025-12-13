@@ -519,43 +519,43 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     if rc != 0:
         return rc
 
-    # Check if firmware was rebuilt and emit buildinfo + create manifest
-    _check_and_emit_buildinfo()
+    # Check if firmware was rebuilt and emit build_info + create manifest
+    _check_and_emit_build_info()
 
     idedata = platformio_api.get_idedata(config)
     return 0 if idedata is not None else 1
 
 
-def _check_and_emit_buildinfo() -> None:
-    """Check if firmware was rebuilt and emit buildinfo."""
+def _check_and_emit_build_info() -> None:
+    """Check if firmware was rebuilt and emit build_info."""
     import json
 
     firmware_path = CORE.firmware_bin
-    buildinfo_json_path = CORE.relative_build_path("buildinfo.json")
+    build_info_json_path = CORE.relative_build_path("build_info.json")
 
     # Check if both files exist
-    if not firmware_path.exists() or not buildinfo_json_path.exists():
+    if not firmware_path.exists() or not build_info_json_path.exists():
         return
 
-    # Check if firmware is newer than buildinfo (indicating a relink occurred)
-    if firmware_path.stat().st_mtime <= buildinfo_json_path.stat().st_mtime:
+    # Check if firmware is newer than build_info (indicating a relink occurred)
+    if firmware_path.stat().st_mtime <= build_info_json_path.stat().st_mtime:
         return
 
-    # Read buildinfo from JSON
+    # Read build_info from JSON
     try:
-        with open(buildinfo_json_path, encoding="utf-8") as f:
-            buildinfo = json.load(f)
+        with open(build_info_json_path, encoding="utf-8") as f:
+            build_info = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
-        _LOGGER.debug("Failed to read buildinfo: %s", e)
+        _LOGGER.debug("Failed to read build_info: %s", e)
         return
 
-    config_hash = buildinfo.get("config_hash")
-    build_time = buildinfo.get("build_time")
+    config_hash = build_info.get("config_hash")
+    build_time = build_info.get("build_time")
 
     if config_hash is None or build_time is None:
         return
 
-    # Emit buildinfo
+    # Emit build_info
     _LOGGER.info(
         "Build Info: config_hash=0x%08x build_time=%s", config_hash, build_time
     )
