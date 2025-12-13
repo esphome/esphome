@@ -1,9 +1,16 @@
-from esphome import automation
+from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import spi
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_FREQUENCY, CONF_ID, CONF_WAIT_TIME
+from esphome.const import (
+    CONF_CHANNEL,
+    CONF_DATA,
+    CONF_FREQUENCY,
+    CONF_ID,
+    CONF_WAIT_TIME,
+)
+from esphome.core import ID
 
 CODEOWNERS = ["@lygris", "@gabest11"]
 DEPENDENCIES = ["spi"]
@@ -41,6 +48,16 @@ CONF_FILTER_LENGTH_ASK_OOK = "filter_length_ask_ook"
 CONF_FREEZE = "freeze"
 CONF_HYST_LEVEL = "hyst_level"
 
+# Packet mode config keys
+CONF_PACKET_MODE = "packet_mode"
+CONF_LENGTH_CONFIG = "length_config"
+CONF_CRC_ENABLE = "crc_enable"
+CONF_WHITENING = "whitening"
+CONF_APPEND_STATUS = "append_status"
+CONF_GDO0_PIN = "gdo0_pin"
+CONF_ON_PACKET = "on_packet"
+CONF_RX_START = "rx_start"
+
 # Enums
 SyncMode = ns.enum("SyncMode", True)
 SYNC_MODE = {
@@ -48,6 +65,10 @@ SYNC_MODE = {
     "15/16": SyncMode.SYNC_MODE_15_16,
     "16/16": SyncMode.SYNC_MODE_16_16,
     "30/32": SyncMode.SYNC_MODE_30_32,
+    "None+CS": SyncMode.SYNC_MODE_NONE_CS,
+    "15/16+CS": SyncMode.SYNC_MODE_15_16_CS,
+    "16/16+CS": SyncMode.SYNC_MODE_16_16_CS,
+    "30/32+CS": SyncMode.SYNC_MODE_30_32_CS,
 }
 
 Modulation = ns.enum("Modulation", True)
@@ -147,6 +168,13 @@ HYST_LEVEL = {
     "High": HystLevel.HYST_LEVEL_HIGH,
 }
 
+LengthConfig = ns.enum("LengthConfig", True)
+LENGTH_CONFIG = {
+    "FIXED": LengthConfig.LENGTH_CONFIG_FIXED,
+    "VARIABLE": LengthConfig.LENGTH_CONFIG_VARIABLE,
+    "INFINITE": LengthConfig.LENGTH_CONFIG_INFINITE,
+}
+
 # Config key -> Validator mapping
 CONFIG_MAP = {
     CONF_OUTPUT_POWER: cv.float_range(min=-30.0, max=11.0),
@@ -179,10 +207,22 @@ CONFIG_MAP = {
     CONF_FREEZE: cv.enum(FREEZE, upper=False),
     CONF_WAIT_TIME: cv.enum(WAIT_TIME, upper=False),
     CONF_HYST_LEVEL: cv.enum(HYST_LEVEL, upper=False),
+    CONF_PACKET_MODE: cv.boolean,
+    CONF_LENGTH_CONFIG: cv.enum(LENGTH_CONFIG, upper=True),
+    CONF_CRC_ENABLE: cv.boolean,
+    CONF_WHITENING: cv.boolean,
+    CONF_APPEND_STATUS: cv.boolean,
+    CONF_RX_START: cv.boolean,
 }
 
 CONFIG_SCHEMA = (
-    cv.Schema({cv.GenerateID(): cv.declare_id(CC1101Component)})
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(CC1101Component),
+            cv.Optional(CONF_GDO0_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
+        }
+    )
     .extend({cv.Optional(key): validator for key, validator in CONFIG_MAP.items()})
     .extend(cv.COMPONENT_SCHEMA)
     .extend(spi.spi_device_schema(cs_pin_required=True))
@@ -198,12 +238,29 @@ async def to_code(config):
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
 
+    if CONF_GDO0_PIN in config:
+        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
+        cg.add(var.set_gdo0_pin(gdo0_pin))
+    if CONF_ON_PACKET in config:
+        await automation.build_automation(
+            var.get_packet_trigger(),
+            [
+                (cg.std_vector.template(cg.uint8), "x"),
+                (cg.float_, "rssi"),
+                (cg.uint8, "lqi"),
+            ],
+            config[CONF_ON_PACKET],
+        )
+
 
 # Actions
 BeginTxAction = ns.class_("BeginTxAction", automation.Action)
 BeginRxAction = ns.class_("BeginRxAction", automation.Action)
 ResetAction = ns.class_("ResetAction", automation.Action)
 SetIdleAction = ns.class_("SetIdleAction", automation.Action)
+SendPacketAction = ns.class_(
+    "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
+)
 
 CC1101_ACTION_SCHEMA = cv.Schema(
     maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(CC1101Component)})
@@ -217,4 +274,43 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 async def cc1101_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+def validate_raw_data(value):
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid(
+        "data must either be a string wrapped in quotes or a list of bytes"
+    )
+
+
+SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+    },
+    key=CONF_DATA,
+)
+
+
+@automation.register_action(
+    "cc1101.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+)
+async def send_packet_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_DATA]
+    if isinstance(data, bytes):
+        data = list(data)
+    if cg.is_template(data):
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(templ))
+    else:
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
     return var

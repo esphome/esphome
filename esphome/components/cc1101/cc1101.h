@@ -5,8 +5,11 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "cc1101defs.h"
+#include <vector>
 
 namespace esphome::cc1101 {
+
+enum class CC1101Error { NONE = 0, TIMEOUT, CRC_ERROR, FIFO_OVERFLOW };
 
 class CC1101Component : public Component,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -15,6 +18,7 @@ class CC1101Component : public Component,
   CC1101Component();
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
 
   // Actions
@@ -26,6 +30,7 @@ class CC1101Component : public Component,
   // GDO Pin Configuration
   void set_gdo0_config(uint8_t value);
   void set_gdo2_config(uint8_t value);
+  void set_gdo0_pin(InternalGPIOPin *pin) { this->gdo0_pin_ = pin; }
 
   // Configuration Setters
   void set_output_power(float value);
@@ -63,15 +68,35 @@ class CC1101Component : public Component,
   void set_wait_time(WaitTime value);
   void set_hyst_level(HystLevel value);
 
+  // Packet mode settings
+  void set_packet_mode(bool value);
+  void set_length_config(LengthConfig value);
+  void set_crc_enable(bool value);
+  void set_whitening(bool value);
+  void set_append_status(bool value);
+  void set_rx_start(bool value) { this->rx_start_ = value; }
+
+  // Packet mode operations
+  CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
+  Trigger<std::vector<uint8_t>, float, uint8_t> *get_packet_trigger() const { return this->packet_trigger_; }
+
  protected:
   uint16_t chip_id_{0};
   bool initialized_{false};
+  bool rx_start_{false};
 
   float output_power_requested_{10.0f};
   float output_power_effective_{10.0f};
   uint8_t pa_table_[PA_TABLE_SIZE]{};
 
   CC1101State state_;
+
+  // GDO pin for packet reception
+  InternalGPIOPin *gdo0_pin_{nullptr};
+
+  // Packet handling
+  Trigger<std::vector<uint8_t>, float, uint8_t> *packet_trigger_{new Trigger<std::vector<uint8_t>, float, uint8_t>()};
+  std::vector<uint8_t> packet_;
 
   // Low-level Helpers
   uint8_t strobe_(Command cmd);
@@ -80,6 +105,10 @@ class CC1101Component : public Component,
   void write_(Register reg, const uint8_t *buffer, size_t length);
   void read_(Register reg);
   void read_(Register reg, uint8_t *buffer, size_t length);
+
+  // FIFO operations
+  void read_fifo_(std::vector<uint8_t> &packet, size_t length);
+  void write_fifo_(const std::vector<uint8_t> &packet);
 
   // State Management
   bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
@@ -105,6 +134,30 @@ template<typename... Ts> class ResetAction : public Action<Ts...>, public Parent
 template<typename... Ts> class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void play(const Ts &...x) override { this->parent_->set_idle(); }
+};
+
+template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->data_func_ = func; }
+  void set_data_static(const uint8_t *data, size_t len) {
+    this->data_static_ = data;
+    this->data_static_len_ = len;
+  }
+
+  void play(const Ts &...x) override {
+    if (this->data_func_) {
+      auto data = this->data_func_(x...);
+      this->parent_->transmit_packet(data);
+    } else if (this->data_static_ != nullptr) {
+      std::vector<uint8_t> data(this->data_static_, this->data_static_ + this->data_static_len_);
+      this->parent_->transmit_packet(data);
+    }
+  }
+
+ protected:
+  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
+  const uint8_t *data_static_{nullptr};
+  size_t data_static_len_{0};
 };
 
 }  // namespace esphome::cc1101

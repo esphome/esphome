@@ -134,6 +134,10 @@ enum class SyncMode : uint8_t {
   SYNC_MODE_15_16,
   SYNC_MODE_16_16,
   SYNC_MODE_30_32,
+  SYNC_MODE_NONE_CS,
+  SYNC_MODE_15_16_CS,
+  SYNC_MODE_16_16_CS,
+  SYNC_MODE_30_32_CS,
 };
 
 enum class Modulation : uint8_t {
@@ -216,6 +220,19 @@ enum class HystLevel : uint8_t {
   HYST_LEVEL_LOW,
   HYST_LEVEL_MEDIUM,
   HYST_LEVEL_HIGH,
+};
+
+enum class PacketFormat : uint8_t {
+  PACKET_FORMAT_FIFO,
+  PACKET_FORMAT_SYNC_SERIAL,
+  PACKET_FORMAT_RANDOM_TX,
+  PACKET_FORMAT_ASYNC_SERIAL,
+};
+
+enum class LengthConfig : uint8_t {
+  LENGTH_CONFIG_FIXED,
+  LENGTH_CONFIG_VARIABLE,
+  LENGTH_CONFIG_INFINITE,
 };
 
 struct __attribute__((packed)) CC1101State {
