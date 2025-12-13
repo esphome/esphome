@@ -8,8 +8,7 @@
 // This is kept in its own file so that only files that need build-specific
 // information have to include it explicitly.
 
-namespace esphome {
-namespace buildinfo {
+namespace esphome::buildinfo {
 
 extern const char CONFIG_HASH_STR[];
 extern const char BUILD_TIME_STR[];
@@ -21,5 +20,4 @@ static inline time_t get_build_time() { return (time_t) BUILD_TIME; }
 
 static inline const char *get_build_time_string() { return BUILD_TIME_STR; }
 
-}  // namespace buildinfo
-}  // namespace esphome
+}  // namespace esphome::buildinfo
