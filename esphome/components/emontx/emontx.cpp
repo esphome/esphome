@@ -329,10 +329,8 @@ void EmonTx::register_sensor(const std::string &tag_name, sensor::Sensor *sensor
 
 #ifdef USE_EMONTX_WEB_CONFIG
 
-// URLs for OEM serial config interface
-static const char *OEM_INDEX_URL = "https://raw.githubusercontent.com/openenergymonitor/serial/main/index.php";
-static const char *OEM_VIEW_URL =
-    "https://raw.githubusercontent.com/openenergymonitor/serial/main/serial_config_view.php";
+// URL for OEM serial config interface (hosted version with proper styling)
+static const char *OEM_SERIAL_URL = "https://openenergymonitor.org/serial/";
 
 // JavaScript patch to replace Web Serial API with polling + fetch
 static const char *POLLING_PATCH = R"(
@@ -450,37 +448,24 @@ void EmonTx::fetch_oem_html_() {
     return;
   }
 
-  ESP_LOGI(TAG, "Fetching OEM interface from GitHub...");
+  ESP_LOGI(TAG, "Fetching OEM interface from openenergymonitor.org...");
 
-  std::string combined_html;
-  std::string view_html;
+  std::string html;
 
 #ifdef USE_ARDUINO
   // Arduino framework - use HTTPClient with WiFiClientSecure for HTTPS
   WiFiClientSecure client;
-  client.setInsecure();  // Skip certificate verification (GitHub is trusted)
+  client.setInsecure();  // Skip certificate verification
 
   HTTPClient http;
 
-  http.begin(client, OEM_INDEX_URL);
-  http.setTimeout(10000);
+  http.begin(client, OEM_SERIAL_URL);
+  http.setTimeout(15000);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
-    combined_html = http.getString().c_str();
+    html = http.getString().c_str();
   } else {
-    ESP_LOGE(TAG, "Failed to fetch index.php: %d", httpCode);
-    http.end();
-    return;
-  }
-  http.end();
-
-  http.begin(client, OEM_VIEW_URL);
-  http.setTimeout(10000);
-  httpCode = http.GET();
-  if (httpCode == HTTP_CODE_OK) {
-    view_html = http.getString().c_str();
-  } else {
-    ESP_LOGE(TAG, "Failed to fetch serial_config_view.php: %d", httpCode);
+    ESP_LOGE(TAG, "Failed to fetch OEM interface: %d", httpCode);
     http.end();
     return;
   }
@@ -488,67 +473,53 @@ void EmonTx::fetch_oem_html_() {
 
 #else
   // ESP-IDF framework - use esp_http_client with certificate bundle for HTTPS
-  auto fetch_url = [](const char *url, std::string &output) -> bool {
-    esp_http_client_config_t config = {};
-    config.url = url;
-    config.timeout_ms = 10000;
-    config.buffer_size = 2048;
-    config.crt_bundle_attach = esp_crt_bundle_attach;  // Use embedded CA certificates
+  esp_http_client_config_t config = {};
+  config.url = OEM_SERIAL_URL;
+  config.timeout_ms = 15000;
+  config.buffer_size = 2048;
+  config.crt_bundle_attach = esp_crt_bundle_attach;
 
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    if (client == nullptr) {
-      ESP_LOGE(TAG, "Failed to init HTTP client");
-      return false;
-    }
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (client == nullptr) {
+    ESP_LOGE(TAG, "Failed to init HTTP client");
+    return;
+  }
 
-    esp_err_t err = esp_http_client_open(client, 0);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-      esp_http_client_cleanup(client);
-      return false;
-    }
+  esp_err_t err = esp_http_client_open(client, 0);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
+    esp_http_client_cleanup(client);
+    return;
+  }
 
-    int content_length = esp_http_client_fetch_headers(client);
-    if (content_length < 0) {
-      ESP_LOGE(TAG, "Failed to fetch headers");
-      esp_http_client_close(client);
-      esp_http_client_cleanup(client);
-      return false;
-    }
-
-    int status = esp_http_client_get_status_code(client);
-    if (status != 200) {
-      ESP_LOGE(TAG, "HTTP error: %d", status);
-      esp_http_client_close(client);
-      esp_http_client_cleanup(client);
-      return false;
-    }
-
-    output.clear();
-    char buffer[512];
-    int read_len;
-    while ((read_len = esp_http_client_read(client, buffer, sizeof(buffer) - 1)) > 0) {
-      buffer[read_len] = '\0';
-      output += buffer;
-    }
-
+  int content_length = esp_http_client_fetch_headers(client);
+  if (content_length < 0) {
+    ESP_LOGE(TAG, "Failed to fetch headers");
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
-    return true;
-  };
-
-  if (!fetch_url(OEM_INDEX_URL, combined_html)) {
-    ESP_LOGE(TAG, "Failed to fetch index.php");
     return;
   }
 
-  if (!fetch_url(OEM_VIEW_URL, view_html)) {
-    ESP_LOGE(TAG, "Failed to fetch serial_config_view.php");
+  int status = esp_http_client_get_status_code(client);
+  if (status != 200) {
+    ESP_LOGE(TAG, "HTTP error: %d", status);
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
     return;
   }
+
+  char buffer[512];
+  int read_len;
+  while ((read_len = esp_http_client_read(client, buffer, sizeof(buffer) - 1)) > 0) {
+    buffer[read_len] = '\0';
+    html += buffer;
+  }
+
+  esp_http_client_close(client);
+  esp_http_client_cleanup(client);
 #endif
 
-  this->cached_html_ = this->patch_html_for_polling_(combined_html + view_html);
+  this->cached_html_ = this->patch_html_for_polling_(html);
   this->html_fetched_ = true;
 
   ESP_LOGI(TAG, "OEM interface fetched and cached (%d bytes)", this->cached_html_.size());
@@ -558,24 +529,9 @@ void EmonTx::fetch_oem_html_() {
 std::string EmonTx::patch_html_for_polling_(const std::string &html) {
   std::string patched = html;
 
-  // Remove PHP include directive
-  size_t pos = patched.find("<?php echo file_get_contents(\"serial_config_view.php\"); ?>");
-  if (pos != std::string::npos) {
-    patched.replace(pos, 58, "");
-  }
-
-  // Remove PHP tags
-  while ((pos = patched.find("<?php")) != std::string::npos) {
-    size_t end = patched.find("?>", pos);
-    if (end != std::string::npos) {
-      patched.erase(pos, end - pos + 2);
-    } else {
-      break;
-    }
-  }
-
   // Remove the original connect() function and Web Serial API code
-  pos = patched.find("async function connect()");
+  // The hosted version has JavaScript that uses Web Serial API which we replace
+  size_t pos = patched.find("async function connect()");
   if (pos != std::string::npos) {
     size_t script_start = patched.rfind("<script>", pos);
     size_t script_end = patched.find("</script>", pos);
