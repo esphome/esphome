@@ -11,7 +11,7 @@ static const char *const TAG = "power_management";
 void PowerManagement::timer_callback(TimerHandle_t timer) {
   void *context = pvTimerGetTimerID(timer);
   PowerManagement *obj = (PowerManagement *) context;
-  obj->release_lock(PowerManagementLockUser::PM, PowerManagementLockType::CPU);
+  obj->release_lock(PowerManagementLockUser::PM, PowerManagementLockType::TMR);
 }
 
 void PowerManagement::setup() {
@@ -53,7 +53,7 @@ void PowerManagement::setup() {
 
   if (this->timer_lock_duration_ > 0) {
     // Acquire Initial Lock
-    this->acquire_lock(PowerManagementLockUser::PM, PowerManagementLockType::CPU);
+    this->acquire_lock(PowerManagementLockUser::PM, PowerManagementLockType::TMR);
     TimerHandle_t timer = xTimerCreate("PM Sleep Timer", pdMS_TO_TICKS(this->timer_lock_duration_), pdFALSE, this,
                                        PowerManagement::timer_callback);
     xTimerStart(timer, 0);
