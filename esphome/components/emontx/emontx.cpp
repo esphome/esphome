@@ -41,10 +41,10 @@ void EmonTx::setup() {
 
 #ifdef USE_EMONTX_WEB_CONFIG
   if (this->web_server_ != nullptr) {
-    this->web_server_->init();
     this->web_server_->add_handler(new EmonTxConfigHandler(this));
     this->web_server_->add_handler(new EmonTxSendHandler(this));
-    this->web_server_->add_handler(new EmonTxEventsHandler(this));
+    // Note: SSE handler temporarily disabled - needs proper AsyncEventSource implementation
+    // this->web_server_->add_handler(new EmonTxEventsHandler(this));
     ESP_LOGI(TAG, "Web config interface available at /emontx/config");
   }
 #endif
@@ -452,18 +452,23 @@ void EmonTxEventsHandler::handleRequest(AsyncWebServerRequest *request) {
 
 // EmonTx web config methods
 void EmonTx::serve_config_page(AsyncWebServerRequest *request) {
-  if (this->html_fetched_ && !this->cached_html_.empty()) {
-    request->send(200, "text/html", this->cached_html_.c_str());
-    return;
-  }
+  ESP_LOGI(TAG, "Config page requested");
 
-  this->fetch_oem_html_();
+  // For now, serve a simple test page to verify handler works
+  const char *test_html = R"(<!DOCTYPE html>
+<html>
+<head><title>EmonTx Config</title></head>
+<body>
+<h1>EmonTx Web Config</h1>
+<p>Handler is working! SSE functionality coming soon.</p>
+<p>Last JSON: <span id="json">N/A</span></p>
+<script>
+document.getElementById('json').textContent = 'Page loaded at ' + new Date().toLocaleTimeString();
+</script>
+</body>
+</html>)";
 
-  if (this->html_fetched_ && !this->cached_html_.empty()) {
-    request->send(200, "text/html", this->cached_html_.c_str());
-  } else {
-    request->send(502, "text/plain", "Failed to fetch OEM interface. Check network connection.");
-  }
+  request->send(200, "text/html", test_html);
 }
 
 void EmonTx::fetch_oem_html_() {
