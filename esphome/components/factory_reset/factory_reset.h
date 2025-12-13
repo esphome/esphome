@@ -13,7 +13,7 @@ namespace esphome::factory_reset {
 class FactoryResetComponent : public Component {
  public:
   FactoryResetComponent(uint8_t required_count, uint16_t max_interval)
-      : required_count_(required_count), max_interval_(max_interval) {}
+      : max_interval_(max_interval), required_count_(required_count) {}
 
   void dump_config() override;
   void setup() override;
