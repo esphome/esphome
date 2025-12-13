@@ -429,15 +429,19 @@ void EmonTx::serve_config_page(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "Config page requested");
 
   if (this->html_fetched_ && !this->cached_html_.empty()) {
+    ESP_LOGI(TAG, "Serving cached HTML (%d bytes)", this->cached_html_.size());
     request->send(200, "text/html", this->cached_html_.c_str());
     return;
   }
 
+  ESP_LOGI(TAG, "HTML not cached, fetching...");
   this->fetch_oem_html_();
 
   if (this->html_fetched_ && !this->cached_html_.empty()) {
+    ESP_LOGI(TAG, "Serving freshly fetched HTML (%d bytes)", this->cached_html_.size());
     request->send(200, "text/html", this->cached_html_.c_str());
   } else {
+    ESP_LOGE(TAG, "Failed to fetch HTML, sending error response");
     request->send(502, "text/plain", "Failed to fetch OEM interface. Check network connection.");
   }
 }
@@ -461,9 +465,13 @@ void EmonTx::fetch_oem_html_() {
 
   http.begin(client, OEM_SERIAL_URL);
   http.setTimeout(15000);
+  ESP_LOGI(TAG, "Sending HTTP GET request...");
   int httpCode = http.GET();
+  ESP_LOGI(TAG, "HTTP response code: %d", httpCode);
   if (httpCode == HTTP_CODE_OK) {
-    html = http.getString().c_str();
+    String response = http.getString();
+    ESP_LOGI(TAG, "Received %d bytes from server", response.length());
+    html = response.c_str();
   } else {
     ESP_LOGE(TAG, "Failed to fetch OEM interface: %d", httpCode);
     http.end();
