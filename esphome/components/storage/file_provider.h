@@ -95,6 +95,13 @@ class FileObj {
 class FileProvider {
  public:
   /**
+   * @brief  Check is filesystem is mounted and ready for access
+   *
+   * @return true  ready
+   * @return false  not ready
+   */
+  virtual bool is_ready() = 0;
+  /**
    * @brief Check if path is directory.
    *
    * @param path
