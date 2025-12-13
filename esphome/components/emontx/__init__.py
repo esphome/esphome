@@ -41,8 +41,8 @@ CONFIG_SCHEMA = (
             ),
             # Optional web config interface (proxy to OEM serial config)
             cv.Optional(CONF_WEB_CONFIG, default=False): cv.boolean,
-            # Web server base ID (auto-resolved when web_config is enabled)
-            cv.Optional(web_server_base.CONF_WEB_SERVER_BASE_ID): cv.use_id(
+            # Web server base ID (auto-resolved when only one web server exists)
+            cv.GenerateID(web_server_base.CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
         }
@@ -91,9 +91,8 @@ async def to_code(config):
     # Enable web config interface if configured
     if config[CONF_WEB_CONFIG]:
         cg.add_define("USE_EMONTX_WEB_CONFIG")
-        # Get web server base
-        if web_server_base.CONF_WEB_SERVER_BASE_ID in config:
-            web_server = await cg.get_variable(
-                config[web_server_base.CONF_WEB_SERVER_BASE_ID]
-            )
-            cg.add(var.set_web_server(web_server))
+        # Get web server base (auto-resolved via cv.GenerateID)
+        web_server = await cg.get_variable(
+            config[web_server_base.CONF_WEB_SERVER_BASE_ID]
+        )
+        cg.add(var.set_web_server(web_server))

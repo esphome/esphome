@@ -41,6 +41,7 @@ void EmonTx::setup() {
 
 #ifdef USE_EMONTX_WEB_CONFIG
   if (this->web_server_ != nullptr) {
+    this->web_server_->init();
     this->web_server_->add_handler(new EmonTxConfigHandler(this));
     this->web_server_->add_handler(new EmonTxSendHandler(this));
     this->web_server_->add_handler(new EmonTxEventsHandler(this));
