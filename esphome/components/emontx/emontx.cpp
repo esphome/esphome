@@ -45,6 +45,8 @@ void EmonTx::setup() {
     this->web_server_->add_handler(new EmonTxSendHandler(this));
     this->web_server_->add_handler(new EmonTxDataHandler(this));
     ESP_LOGI(TAG, "Web config interface available at /emontx/config");
+    // Fetch OEM HTML at startup (blocking here is OK, avoids timeout during request)
+    this->fetch_oem_html_();
   }
 #endif
 }
@@ -426,23 +428,16 @@ void EmonTxDataHandler::handleRequest(AsyncWebServerRequest *request) {
 
 // EmonTx web config methods
 void EmonTx::serve_config_page(AsyncWebServerRequest *request) {
-  ESP_LOGI(TAG, "Config page requested");
+  ESP_LOGD(TAG, "Config page requested");
 
   if (this->html_fetched_ && !this->cached_html_.empty()) {
-    ESP_LOGI(TAG, "Serving cached HTML (%d bytes)", this->cached_html_.size());
-    request->send(200, "text/html", this->cached_html_.c_str());
-    return;
-  }
-
-  ESP_LOGI(TAG, "HTML not cached, fetching...");
-  this->fetch_oem_html_();
-
-  if (this->html_fetched_ && !this->cached_html_.empty()) {
-    ESP_LOGI(TAG, "Serving freshly fetched HTML (%d bytes)", this->cached_html_.size());
+    ESP_LOGD(TAG, "Serving cached HTML (%d bytes)", this->cached_html_.size());
     request->send(200, "text/html", this->cached_html_.c_str());
   } else {
-    ESP_LOGE(TAG, "Failed to fetch HTML, sending error response");
-    request->send(502, "text/plain", "Failed to fetch OEM interface. Check network connection.");
+    // HTML was not fetched at startup - show error with retry hint
+    request->send(502, "text/plain",
+                  "OEM interface not available. It may have failed to load at startup. "
+                  "Check logs and restart the device to retry.");
   }
 }
 
