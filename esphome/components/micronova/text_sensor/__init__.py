@@ -7,11 +7,11 @@ from .. import (
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaListener,
+    final_validate_address,
     micronova_ns,
     to_code_micronova_listener,
 )
-
-CONF_STOVE_STATE = "stove_state"
+from ..const import CONF_STOVE_STATE
 
 MicroNovaTextSensor = micronova_ns.class_(
     "MicroNovaTextSensor", text_sensor.TextSensor, MicroNovaListener
@@ -22,15 +22,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
         cv.Optional(CONF_STOVE_STATE): text_sensor.text_sensor_schema(
             MicroNovaTextSensor
-        ).extend(
-            MICRONOVA_ADDRESS_SCHEMA(
-                default_memory_location=0x00,
-                default_memory_address=0x21,
-                is_polling_component=True,
-            )
-        ),
+        ).extend(MICRONOVA_ADDRESS_SCHEMA(is_polling_component=True)),
     }
 )
+
+
+FINAL_VALIDATE_SCHEMA = final_validate_address
 
 
 async def to_code(config):

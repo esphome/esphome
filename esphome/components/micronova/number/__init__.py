@@ -8,14 +8,13 @@ from .. import (
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaListener,
+    final_validate_address,
     micronova_ns,
     to_code_micronova_listener,
 )
+from ..const import CONF_POWER_LEVEL, CONF_THERMOSTAT_TEMPERATURE
 
 ICON_FLASH = "mdi:flash"
-
-CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
-CONF_POWER_LEVEL = "power_level"
 
 MicroNovaNumber = micronova_ns.class_(
     "MicroNovaNumber", number.Number, MicroNovaListener
@@ -29,13 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_CELSIUS,
             device_class=DEVICE_CLASS_TEMPERATURE,
         )
-        .extend(
-            MICRONOVA_ADDRESS_SCHEMA(
-                default_memory_location=0x20,
-                default_memory_address=0x7D,
-                is_polling_component=True,
-            )
-        )
+        .extend(MICRONOVA_ADDRESS_SCHEMA(is_polling_component=True))
         .extend(
             {
                 cv.Optional(CONF_STEP, default=1.0): cv.float_range(min=0.1, max=10.0),
@@ -44,15 +37,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_POWER_LEVEL): number.number_schema(
             MicroNovaNumber,
             icon=ICON_FLASH,
-        ).extend(
-            MICRONOVA_ADDRESS_SCHEMA(
-                default_memory_location=0x20,
-                default_memory_address=0x7F,
-                is_polling_component=True,
-            )
-        ),
+        ).extend(MICRONOVA_ADDRESS_SCHEMA(is_polling_component=True)),
     }
 )
+
+
+FINAL_VALIDATE_SCHEMA = final_validate_address
 
 
 async def to_code(config):

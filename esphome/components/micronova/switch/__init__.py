@@ -8,11 +8,12 @@ from .. import (
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
     MicroNovaListener,
+    final_validate_address,
     micronova_ns,
     to_code_micronova_listener,
 )
+from ..const import CONF_STOVE
 
-CONF_STOVE = "stove"
 CONF_MEMORY_DATA_ON = "memory_data_on"
 CONF_MEMORY_DATA_OFF = "memory_data_off"
 
@@ -27,13 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
             MicroNovaSwitch,
             icon=ICON_POWER,
         )
-        .extend(
-            MICRONOVA_ADDRESS_SCHEMA(
-                default_memory_location=0x00,
-                default_memory_address=0x21,
-                is_polling_component=True,
-            )
-        )
+        .extend(MICRONOVA_ADDRESS_SCHEMA(is_polling_component=True))
         .extend(
             {
                 cv.Optional(CONF_MEMORY_DATA_OFF, default=0x06): cv.hex_int_range(),
@@ -42,6 +37,9 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 )
+
+
+FINAL_VALIDATE_SCHEMA = final_validate_address
 
 
 async def to_code(config):

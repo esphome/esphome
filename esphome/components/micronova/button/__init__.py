@@ -8,6 +8,7 @@ from .. import (
     CONF_MICRONOVA_ID,
     MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
+    final_validate_address,
     micronova_ns,
 )
 
@@ -22,14 +23,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_CUSTOM_BUTTON): button.button_schema(
             MicroNovaButton,
         )
-        .extend(
-            MICRONOVA_ADDRESS_SCHEMA(
-                is_polling_component=False,
-            )
-        )
+        .extend(MICRONOVA_ADDRESS_SCHEMA(is_polling_component=False))
         .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range()}),
     }
 )
+
+FINAL_VALIDATE_SCHEMA = final_validate_address
 
 
 async def to_code(config):
