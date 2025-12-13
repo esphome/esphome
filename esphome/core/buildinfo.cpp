@@ -6,7 +6,7 @@
 // it would if it were in a header file like version.h.
 //
 // It's passed in in *string* form so that it can go directly into the
-// flash as .rodate instead of using precious RAM to build a date string
+// flash as .rodata instead of using precious RAM to build a date string
 // from a time_t at runtime.
 //
 // Determining the target endianness and word size from the generation
