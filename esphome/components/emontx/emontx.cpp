@@ -38,6 +38,16 @@ void EmonTx::setup() {
 #else
   ESP_LOGCONFIG(TAG, "Sensor support: DISABLED");
 #endif
+
+#ifdef USE_EMONTX_WEB_CONFIG
+  if (this->web_server_ != nullptr) {
+    auto *server = this->web_server_->get_server();
+    server->addHandler(new EmonTxConfigHandler(this));
+    server->addHandler(new EmonTxSendHandler(this));
+    server->addHandler(new EmonTxEventsHandler(this));
+    ESP_LOGI(TAG, "Web config interface available at /emontx/config");
+  }
+#endif
 }
 
 /**
@@ -233,6 +243,11 @@ void EmonTx::parse_json_(const std::string &data) {
       }
     }
 
+#ifdef USE_EMONTX_WEB_CONFIG
+    // Broadcast to SSE clients for web config interface
+    this->broadcast_to_sse(data);
+#endif
+
     return true;  // Parsing was handled successfully
   });
 
@@ -266,6 +281,14 @@ void EmonTx::dump_config() {
   }
 #else
   ESP_LOGCONFIG(TAG, "  Sensor support: DISABLED");
+#endif
+
+#ifdef USE_EMONTX_WEB_CONFIG
+  ESP_LOGCONFIG(TAG, "  Web config: ENABLED");
+  ESP_LOGCONFIG(TAG, "    Config URL: /emontx/config");
+  ESP_LOGCONFIG(TAG, "    Serial Events: /emontx/events (SSE)");
+  ESP_LOGCONFIG(TAG, "    Serial Send: /emontx/send (POST)");
+  ESP_LOGCONFIG(TAG, "    OEM HTML cached: %s", this->html_fetched_ ? "yes" : "no");
 #endif
 }
 
@@ -309,5 +332,263 @@ void EmonTx::register_sensor(const std::string &tag_name, sensor::Sensor *sensor
   this->sensors_.emplace_back(tag_name, sensor);
 }
 #endif
+
+#ifdef USE_EMONTX_WEB_CONFIG
+
+// URLs for OEM serial config interface
+static const char *OEM_INDEX_URL = "https://raw.githubusercontent.com/openenergymonitor/serial/main/index.php";
+static const char *OEM_VIEW_URL =
+    "https://raw.githubusercontent.com/openenergymonitor/serial/main/serial_config_view.php";
+
+// JavaScript patch to replace Web Serial API with SSE + fetch
+static const char *SSE_PATCH = R"(
+<script>
+// SSE + fetch bridge - replaces Web Serial API
+var eventSource = null;
+var outputStream = null;
+
+async function connect() {
+    return new Promise((resolve, reject) => {
+        eventSource = new EventSource("/emontx/events");
+
+        eventSource.onopen = () => {
+            app.connected = true;
+            app.button_connect_text = "Connected";
+
+            outputStream = {
+                getWriter: () => ({
+                    write: (data) => {
+                        fetch("/emontx/send", {
+                            method: "POST",
+                            body: data,
+                            headers: {"Content-Type": "text/plain"}
+                        });
+                    },
+                    releaseLock: () => {}
+                })
+            };
+
+            setTimeout(() => {
+                if (!app.config_received) {
+                    writeToStream("l");
+                }
+            }, 1000);
+
+            resolve();
+        };
+
+        eventSource.onerror = (err) => {
+            console.error("SSE error:", err);
+            app.connected = false;
+            app.button_connect_text = "Connect";
+            if (eventSource.readyState === EventSource.CLOSED) {
+                reject(err);
+            }
+        };
+
+        eventSource.onmessage = (event) => {
+            var lines = event.data.split('\n');
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].trim();
+                if (line) {
+                    log.textContent += line + "\n";
+                    log.scrollTop = log.scrollHeight;
+                    process_line(line);
+                }
+            }
+        };
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => connect().catch(e => console.log('Auto-connect failed:', e)), 500);
+});
+</script>
+)";
+
+// EmonTxConfigHandler implementation
+bool EmonTxConfigHandler::canHandle(AsyncWebServerRequest *request) const {
+  return request->method() == HTTP_GET && request->url() == "/emontx/config";
+}
+
+void EmonTxConfigHandler::handleRequest(AsyncWebServerRequest *request) { this->emontx_->serve_config_page(request); }
+
+// EmonTxSendHandler implementation
+bool EmonTxSendHandler::canHandle(AsyncWebServerRequest *request) const {
+  return request->method() == HTTP_POST && request->url() == "/emontx/send";
+}
+
+void EmonTxSendHandler::handleRequest(AsyncWebServerRequest *request) { request->send(200, "text/plain", "OK"); }
+
+void EmonTxSendHandler::handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index,
+                                   size_t total) {
+  std::string cmd(reinterpret_cast<char *>(data), len);
+  ESP_LOGD(TAG, "Web -> UART: %s", cmd.c_str());
+  this->emontx_->handle_serial_send(cmd);
+}
+
+// EmonTxEventsHandler implementation
+bool EmonTxEventsHandler::canHandle(AsyncWebServerRequest *request) const {
+  return request->method() == HTTP_GET && request->url() == "/emontx/events";
+}
+
+void EmonTxEventsHandler::handleRequest(AsyncWebServerRequest *request) {
+#ifdef USE_ESP32
+  httpd_req_t *req = *request;
+
+  httpd_resp_set_type(req, "text/event-stream");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+  httpd_resp_set_hdr(req, "Connection", "keep-alive");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+  const char *init_msg = "data: connected\n\n";
+  httpd_resp_send_chunk(req, init_msg, strlen(init_msg));
+
+  this->emontx_->add_sse_client(req->handle, httpd_req_to_sockfd(req));
+#else
+  request->send(501, "text/plain", "SSE not supported on this platform");
+#endif
+}
+
+// EmonTx web config methods
+void EmonTx::serve_config_page(AsyncWebServerRequest *request) {
+  if (this->html_fetched_ && !this->cached_html_.empty()) {
+    request->send(200, "text/html", this->cached_html_.c_str());
+    return;
+  }
+
+  this->fetch_oem_html_();
+
+  if (this->html_fetched_ && !this->cached_html_.empty()) {
+    request->send(200, "text/html", this->cached_html_.c_str());
+  } else {
+    request->send(502, "text/plain", "Failed to fetch OEM interface. Check network connection.");
+  }
+}
+
+void EmonTx::fetch_oem_html_() {
+#ifdef USE_ESP32
+  if (this->html_fetched_) {
+    return;
+  }
+
+  ESP_LOGI(TAG, "Fetching OEM interface from GitHub...");
+
+  HTTPClient http;
+  std::string combined_html;
+
+  http.begin(OEM_INDEX_URL);
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    combined_html = http.getString().c_str();
+  } else {
+    ESP_LOGE(TAG, "Failed to fetch index.php: %d", httpCode);
+    http.end();
+    return;
+  }
+  http.end();
+
+  http.begin(OEM_VIEW_URL);
+  httpCode = http.GET();
+  std::string view_html;
+  if (httpCode == HTTP_CODE_OK) {
+    view_html = http.getString().c_str();
+  } else {
+    ESP_LOGE(TAG, "Failed to fetch serial_config_view.php: %d", httpCode);
+    http.end();
+    return;
+  }
+  http.end();
+
+  this->cached_html_ = this->patch_html_for_sse_(combined_html + view_html);
+  this->html_fetched_ = true;
+
+  ESP_LOGI(TAG, "OEM interface fetched and cached (%d bytes)", this->cached_html_.size());
+#endif
+}
+
+std::string EmonTx::patch_html_for_sse_(const std::string &html) {
+  std::string patched = html;
+
+  // Remove PHP include directive
+  size_t pos = patched.find("<?php echo file_get_contents(\"serial_config_view.php\"); ?>");
+  if (pos != std::string::npos) {
+    patched.replace(pos, 58, "");
+  }
+
+  // Remove PHP tags
+  while ((pos = patched.find("<?php")) != std::string::npos) {
+    size_t end = patched.find("?>", pos);
+    if (end != std::string::npos) {
+      patched.erase(pos, end - pos + 2);
+    } else {
+      break;
+    }
+  }
+
+  // Remove the original connect() function and Web Serial API code
+  pos = patched.find("async function connect()");
+  if (pos != std::string::npos) {
+    size_t script_start = patched.rfind("<script>", pos);
+    size_t script_end = patched.find("</script>", pos);
+    if (script_start != std::string::npos && script_end != std::string::npos) {
+      patched.erase(script_start, script_end - script_start + 9);
+    }
+  }
+
+  // Insert our SSE patch before closing </body>
+  pos = patched.find("</body>");
+  if (pos != std::string::npos) {
+    patched.insert(pos, SSE_PATCH);
+  } else {
+    patched += SSE_PATCH;
+  }
+
+  return patched;
+}
+
+void EmonTx::handle_serial_send(const std::string &data) { this->write_str(data.c_str()); }
+
+void EmonTx::add_sse_client(httpd_handle_t hd, int fd) {
+  SSEClient client;
+  client.hd = hd;
+  client.fd = fd;
+  this->sse_clients_.push_back(client);
+  ESP_LOGI(TAG, "SSE client connected (fd=%d), total: %d", fd, this->sse_clients_.size());
+}
+
+void EmonTx::remove_sse_client(int fd) {
+  auto it = std::remove_if(this->sse_clients_.begin(), this->sse_clients_.end(),
+                           [fd](const SSEClient &c) { return c.fd == fd; });
+  if (it != this->sse_clients_.end()) {
+    this->sse_clients_.erase(it, this->sse_clients_.end());
+    ESP_LOGI(TAG, "SSE client disconnected (fd=%d), total: %d", fd, this->sse_clients_.size());
+  }
+}
+
+void EmonTx::broadcast_to_sse(const std::string &data) {
+#ifdef USE_ESP32
+  if (this->sse_clients_.empty()) {
+    return;
+  }
+
+  std::string sse_message = "data: " + data + "\n\n";
+
+  std::vector<int> to_remove;
+  for (const auto &client : this->sse_clients_) {
+    int ret = httpd_socket_send(client.hd, client.fd, sse_message.c_str(), sse_message.size(), 0);
+    if (ret < 0) {
+      to_remove.push_back(client.fd);
+    }
+  }
+
+  for (int fd : to_remove) {
+    this->remove_sse_client(fd);
+  }
+#endif
+}
+
+#endif  // USE_EMONTX_WEB_CONFIG
+
 }  // namespace emontx
 }  // namespace esphome

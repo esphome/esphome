@@ -1,12 +1,22 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/json/json_util.h"
 
 // Conditionally include sensor
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
+
+// Conditionally include web server for config interface
+#ifdef USE_EMONTX_WEB_CONFIG
+#include "esphome/components/web_server_base/web_server_base.h"
+#ifdef USE_ESP32
+#include <esp_http_server.h>
+#include <HTTPClient.h>
+#endif
 #endif
 
 #include <map>
@@ -17,6 +27,51 @@ namespace emontx {
 
 // Add callback type definition for JSON callbacks
 using EmonTxJsonCallback = std::function<void(JsonObject)>;
+
+// Forward declaration
+class EmonTx;
+
+#ifdef USE_EMONTX_WEB_CONFIG
+// SSE Client session for web config
+struct SSEClient {
+  httpd_handle_t hd;
+  int fd;
+};
+
+// Handler for /emontx/config page
+class EmonTxConfigHandler : public AsyncWebHandler {
+ public:
+  EmonTxConfigHandler(EmonTx *emontx) : emontx_(emontx) {}
+  bool canHandle(AsyncWebServerRequest *request) const override;
+  void handleRequest(AsyncWebServerRequest *request) override;
+
+ protected:
+  EmonTx *emontx_;
+};
+
+// Handler for /emontx/send POST requests
+class EmonTxSendHandler : public AsyncWebHandler {
+ public:
+  EmonTxSendHandler(EmonTx *emontx) : emontx_(emontx) {}
+  bool canHandle(AsyncWebServerRequest *request) const override;
+  void handleRequest(AsyncWebServerRequest *request) override;
+  void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override;
+
+ protected:
+  EmonTx *emontx_;
+};
+
+// Handler for /emontx/events SSE stream
+class EmonTxEventsHandler : public AsyncWebHandler {
+ public:
+  EmonTxEventsHandler(EmonTx *emontx) : emontx_(emontx) {}
+  bool canHandle(AsyncWebServerRequest *request) const override;
+  void handleRequest(AsyncWebServerRequest *request) override;
+
+ protected:
+  EmonTx *emontx_;
+};
+#endif  // USE_EMONTX_WEB_CONFIG
 
 /*
  * 198 bytes should be enough to contain a full session in historical mode with
@@ -66,6 +121,17 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   void register_sensor(const std::string &tag_name, sensor::Sensor *sensor);
 #endif
 
+#ifdef USE_EMONTX_WEB_CONFIG
+  void set_web_server(web_server_base::WebServerBase *web_server) { this->web_server_ = web_server; }
+
+  // Web interface methods
+  void serve_config_page(AsyncWebServerRequest *request);
+  void handle_serial_send(const std::string &data);
+  void add_sse_client(httpd_handle_t hd, int fd);
+  void remove_sse_client(int fd);
+  void broadcast_to_sse(const std::string &data);
+#endif
+
  protected:
 #ifdef USE_SENSOR
   std::vector<std::pair<std::string, sensor::Sensor *>> sensors_{};
@@ -87,6 +153,16 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
 
   // Add storage for JSON callbacks
   std::vector<EmonTxJsonCallback> json_callbacks_{};
+
+#ifdef USE_EMONTX_WEB_CONFIG
+  web_server_base::WebServerBase *web_server_{nullptr};
+  std::string cached_html_;
+  bool html_fetched_{false};
+  std::vector<SSEClient> sse_clients_;
+
+  void fetch_oem_html_();
+  std::string patch_html_for_sse_(const std::string &html);
+#endif
 };
 
 }  // namespace emontx
