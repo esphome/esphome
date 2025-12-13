@@ -544,30 +544,28 @@ def _check_and_emit_buildinfo():
     try:
         with open(buildinfo_ld_path, encoding="utf-8") as f:
             content = f.read()
-
-        config_hash_match = re.search(
-            r"ESPHOME_CONFIG_HASH = 0x([0-9a-fA-F]+);", content
-        )
-        build_time_match = re.search(r"ESPHOME_BUILD_TIME = (\d+);", content)
-
-        if not config_hash_match or not build_time_match:
-            return
-
-        config_hash = config_hash_match.group(1)
-        build_time = int(build_time_match.group(1))
-
-        # Emit buildinfo
-        print("=== ESPHome Build Info ===")
-        print(f"Config Hash: 0x{config_hash}")
-        print(
-            f"Build Time:  {build_time} ({time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(build_time))})"
-        )
-        print("===========================")
-
-        # TODO: Future commit will create JSON manifest with OTA metadata here
-
     except OSError as e:
-        _LOGGER.debug("Failed to emit buildinfo: %s", e)
+        _LOGGER.debug("Failed to read buildinfo: %s", e)
+        return
+
+    config_hash_match = re.search(r"ESPHOME_CONFIG_HASH = 0x([0-9a-fA-F]+);", content)
+    build_time_match = re.search(r"ESPHOME_BUILD_TIME = (\d+);", content)
+
+    if not config_hash_match or not build_time_match:
+        return
+
+    config_hash = config_hash_match.group(1)
+    build_time = int(build_time_match.group(1))
+
+    # Emit buildinfo
+    print("=== ESPHome Build Info ===")
+    print(f"Config Hash: 0x{config_hash}")
+    print(
+        f"Build Time:  {build_time} ({time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(build_time))})"
+    )
+    print("===========================")
+
+    # TODO: Future commit will create JSON manifest with OTA metadata here
 
 
 def upload_using_esptool(
