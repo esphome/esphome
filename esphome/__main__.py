@@ -530,19 +530,19 @@ def _check_and_emit_buildinfo():
     """Check if firmware was rebuilt and emit buildinfo."""
 
     firmware_path = CORE.firmware_bin
-    buildinfo_script_path = CORE.relative_build_path("buildinfo.ld")
+    buildinfo_ld_path = CORE.relative_build_path("buildinfo.ld")
 
     # Check if both files exist
-    if not firmware_path.exists() or not buildinfo_script_path.exists():
+    if not firmware_path.exists() or not buildinfo_ld_path.exists():
         return
 
-    # Check if firmware is newer than buildinfo script (indicating a relink occurred)
-    if firmware_path.stat().st_mtime <= buildinfo_script_path.stat().st_mtime:
+    # Check if firmware is newer than buildinfo linker script (indicating a relink occurred)
+    if firmware_path.stat().st_mtime <= buildinfo_ld_path.stat().st_mtime:
         return
 
     # Read buildinfo values from linker script
     try:
-        with open(buildinfo_script_path, encoding="utf-8") as f:
+        with open(buildinfo_ld_path, encoding="utf-8") as f:
             content = f.read()
 
         config_hash_match = re.search(

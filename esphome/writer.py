@@ -1,5 +1,4 @@
 from collections.abc import Callable
-import hashlib
 import importlib
 import logging
 import os
@@ -7,6 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import stat
+import struct
 import time
 from types import TracebackType
 
@@ -21,6 +21,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
+    fnv1a_32bit_hash,
     get_str_env,
     is_ha_addon,
     read_file,
@@ -248,12 +249,13 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
-    # Write buildinfo generation script
-    write_file(
-        CORE.relative_build_path("generate_buildinfo.py"), generate_buildinfo_script()
+    # Write buildinfo linker script and copy the PlatformIO script
+    write_file(CORE.relative_build_path("buildinfo.ld"), generate_buildinfo_ld())
+    copy_file_if_changed(
+        Path(__file__).parent / "core" / "buildinfo.py.script",
+        CORE.relative_build_path("buildinfo.py"),
     )
-    # Add buildinfo script to platformio extra_scripts
-    CORE.add_platformio_option("extra_scripts", ["pre:generate_buildinfo.py"])
+    CORE.add_platformio_option("extra_scripts", ["pre:buildinfo.py"])
 
     platform = "esphome.components." + CORE.target_platform
     try:
@@ -279,84 +281,64 @@ def generate_version_h():
     )
 
 
-def generate_buildinfo_script():
+def generate_buildinfo_ld() -> str:
+    """Generate buildinfo linker script with config hash and build time."""
     from esphome import yaml_util
 
     # Use the same clean YAML representation as 'esphome config' command
     config_str = yaml_util.dump(CORE.config, show_secrets=True)
+    config_hash = fnv1a_32bit_hash(config_str)
+    config_hash_str = f"{config_hash:08x}"
 
-    config_hash = hashlib.md5(config_str.encode("utf-8")).hexdigest()[:8]
     build_time = int(time.time())
-
-    # Generate build time string
     build_time_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
 
-    return (
-        """#!/usr/bin/env python3
-# Generate buildinfo with target-specific encoding
-Import("env")
-import struct
-import subprocess
-import tempfile
-import os
+    # Generate symbols for all 4 variants: 32LE, 32BE, 64LE, 64BE
+    all_variants: list[str] = []
 
-# Generate all four variants of both config hash and build time strings
-# to be handled by esphome/core/buildinfo.cpp
-build_time_str = \""""
-        + build_time_str
-        + """\"
-config_hash_str = \""""
-        + config_hash
-        + """\"
+    for bits, bit_suffix in [(4, "32"), (8, "64")]:
+        for endian, endian_suffix in [("<", "LE"), (">", "BE")]:
+            # Config hash string (8 hex chars)
+            config_padded = config_hash_str
+            while len(config_padded) % bits != 0:
+                config_padded += "\0"
 
-# Generate symbols for all 4 variants: 32LE, 32BE, 64LE, 64BE
-all_variants = []
+            for i in range(0, len(config_padded), bits):
+                chunk = config_padded[i : i + bits].encode("utf-8")
+                if bits == 8:
+                    value = struct.unpack(endian + "Q", chunk)[0]
+                    all_variants.append(
+                        f"ESPHOME_CONFIG_HASH_STR_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:016x};"
+                    )
+                else:
+                    value = struct.unpack(endian + "I", chunk)[0]
+                    all_variants.append(
+                        f"ESPHOME_CONFIG_HASH_STR_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:08x};"
+                    )
 
-for bits, bit_suffix in [(4, "32"), (8, "64")]:
-    for endian, endian_suffix in [("<", "LE"), (">", "BE")]:
-        # Config hash string (8 hex chars)
-        config_padded = config_hash_str
-        while len(config_padded) % bits != 0:
-            config_padded += '\\0'
+            # Build time string (pad to word boundary with NUL)
+            build_padded = build_time_str + "\0"
+            while len(build_padded) % bits != 0:
+                build_padded += "\0"
 
-        for i in range(0, len(config_padded), bits):
-            chunk = config_padded[i:i+bits].encode('utf-8')
-            if bits == 8:
-                value = struct.unpack(endian + "Q", chunk)[0]
-                all_variants.append(f"ESPHOME_CONFIG_HASH_STR_{bit_suffix}{endian_suffix}_{i//bits} = 0x{value:016x};")
-            else:
-                value = struct.unpack(endian + "I", chunk)[0]
-                all_variants.append(f"ESPHOME_CONFIG_HASH_STR_{bit_suffix}{endian_suffix}_{i//bits} = 0x{value:08x};")
+            for i in range(0, len(build_padded), bits):
+                chunk = build_padded[i : i + bits].encode("utf-8")
+                if bits == 8:
+                    value = struct.unpack(endian + "Q", chunk)[0]
+                    all_variants.append(
+                        f"ESPHOME_BUILD_TIME_STR_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:016x};"
+                    )
+                else:
+                    value = struct.unpack(endian + "I", chunk)[0]
+                    all_variants.append(
+                        f"ESPHOME_BUILD_TIME_STR_{bit_suffix}{endian_suffix}_{i // bits} = 0x{value:08x};"
+                    )
 
-        # Build time string
-        build_padded = build_time_str + '\\0'
-        while len(build_padded) % bits != 0:
-            build_padded += '\\0'
-
-        for i in range(0, len(build_padded), bits):
-            chunk = build_padded[i:i+bits].encode('utf-8')
-            if bits == 8:
-                value = struct.unpack(endian + "Q", chunk)[0]
-                all_variants.append(f"ESPHOME_BUILD_TIME_STR_{bit_suffix}{endian_suffix}_{i//bits} = 0x{value:016x};")
-            else:
-                value = struct.unpack(endian + "I", chunk)[0]
-                all_variants.append(f"ESPHOME_BUILD_TIME_STR_{bit_suffix}{endian_suffix}_{i//bits} = 0x{value:08x};")
-
-# Write linker script with all variants
-linker_script = f'''/* Auto-generated buildinfo symbols */
-ESPHOME_BUILD_TIME = """
-        + str(build_time)
-        + """;
+    return f"""/* Auto-generated buildinfo symbols */
+ESPHOME_BUILD_TIME = {build_time};
+ESPHOME_CONFIG_HASH = 0x{config_hash:08x};
 {chr(10).join(all_variants)}
-'''
-
-with open("buildinfo.ld", "w") as f:
-    f.write(linker_script)
-
-# Compile and link
-env.Append(LINKFLAGS=["buildinfo.ld"])
 """
-    )
 
 
 def write_cpp(code_s):
