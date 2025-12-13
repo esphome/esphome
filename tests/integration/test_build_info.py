@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
 import re
 import time
 
+from aioesphomeapi import EntityState, TextSensorState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -22,28 +25,92 @@ async def test_build_info(
         assert device_info is not None
         assert device_info.name == "build-info-test"
 
-        # Verify compilation_time is present and reasonable
+        # Verify compilation_time from device_info is present and parseable
         # The format is "Mon DD YYYY, HH:MM:SS" (e.g., "Dec 13 2024, 15:30:00")
         compilation_time = device_info.compilation_time
         assert compilation_time is not None
-        assert len(compilation_time) > 0, "compilation_time should not be empty"
 
-        # Verify it looks like a date string (contains comma and colon)
-        assert "," in compilation_time, (
-            f"compilation_time should contain comma: {compilation_time}"
+        # Parse the date string - raises ValueError if format is wrong
+        parsed = datetime.strptime(compilation_time, "%b %d %Y, %H:%M:%S")
+        assert parsed.year >= time.localtime().tm_year
+
+        # Get entities
+        entities, _ = await client.list_entities_services()
+
+        # Find our text sensors by object_id
+        config_hash_entity = next(
+            (e for e in entities if e.object_id == "config_hash"), None
         )
-        assert ":" in compilation_time, (
-            f"compilation_time should contain colon: {compilation_time}"
+        build_time_entity = next(
+            (e for e in entities if e.object_id == "build_time"), None
+        )
+        build_time_str_entity = next(
+            (e for e in entities if e.object_id == "build_time_string"), None
         )
 
-        # Verify it contains a year (4 digits) that is >= current year
-        year_match = re.search(r"\b(20\d{2})\b", compilation_time)
-        assert year_match is not None, (
-            f"compilation_time should contain a year: {compilation_time}"
+        assert config_hash_entity is not None, "Config Hash sensor not found"
+        assert build_time_entity is not None, "Build Time sensor not found"
+        assert build_time_str_entity is not None, "Build Time String sensor not found"
+
+        # Wait for all three text sensors to have valid states
+        loop = asyncio.get_running_loop()
+        states: dict[int, TextSensorState] = {}
+        all_received = loop.create_future()
+        expected_keys = {
+            config_hash_entity.key,
+            build_time_entity.key,
+            build_time_str_entity.key,
+        }
+
+        def on_state(state: EntityState) -> None:
+            if isinstance(state, TextSensorState) and not state.missing_state:
+                states[state.key] = state
+                if expected_keys <= states.keys() and not all_received.done():
+                    all_received.set_result(True)
+
+        client.subscribe_states(on_state)
+
+        try:
+            await asyncio.wait_for(all_received, timeout=5.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for text sensor states. Got: {list(states.keys())}"
+            )
+
+        config_hash_state = states[config_hash_entity.key]
+        build_time_state = states[build_time_entity.key]
+        build_time_str_state = states[build_time_str_entity.key]
+
+        # Validate config_hash format (0x followed by 8 hex digits)
+        config_hash = config_hash_state.state
+        assert re.match(r"^0x[0-9a-f]{8}$", config_hash), (
+            f"config_hash should be 0x followed by 8 hex digits, got: {config_hash}"
         )
 
-        year = int(year_match.group(1))
-        current_year = time.localtime().tm_year
-        assert year >= current_year, (
-            f"Year {year} should be >= current year {current_year}"
+        # Validate build_time is a reasonable Unix timestamp
+        build_time = int(build_time_state.state)
+        current_time = int(time.time())
+        # Build time should be within last hour and not in the future
+        assert build_time <= current_time, (
+            f"build_time {build_time} should not be in the future (current: {current_time})"
+        )
+        assert build_time > current_time - 3600, (
+            f"build_time {build_time} should be within the last hour"
+        )
+
+        # Validate build_time_str matches the same format as compilation_time
+        build_time_str = build_time_str_state.state
+        parsed_build_time = datetime.strptime(build_time_str, "%b %d %Y, %H:%M:%S")
+        assert parsed_build_time.year >= time.localtime().tm_year
+
+        # Verify build_time_str matches what we get from build_time timestamp
+        expected_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
+        assert build_time_str == expected_str, (
+            f"build_time_str '{build_time_str}' should match timestamp '{expected_str}'"
+        )
+
+        # Verify compilation_time matches build_time_str (they should be the same)
+        assert compilation_time == build_time_str, (
+            f"compilation_time '{compilation_time}' should match "
+            f"build_time_str '{build_time_str}'"
         )
