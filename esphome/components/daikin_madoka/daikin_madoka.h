@@ -95,10 +95,8 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
     traits.set_visual_min_temperature(16);
     traits.set_visual_max_temperature(32);
     traits.set_visual_temperature_step(1);
-    traits.add_feature_flags(
-        climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
-        climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE
-    );
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                             climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
     return traits;
   }
 };
