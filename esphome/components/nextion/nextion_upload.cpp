@@ -121,6 +121,17 @@ void build_range_header(char *buffer, size_t buffer_size, uint32_t range_start, 
   snprintf(buffer, buffer_size, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
 }
 
+uint32_t parse_nextion_upload_response(const std::string &response, uint32_t range_end) {
+  uint32_t result = 0;
+  for (int j = 0; j < 4; ++j) {
+    result += static_cast<uint8_t>(response[j + 1]) << (8 * j);
+  }
+  if (result > 0) {
+    return result;
+  }
+  return range_end + 1;
+}
+
 }  // namespace nextion
 }  // namespace esphome
 

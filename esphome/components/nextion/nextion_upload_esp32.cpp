@@ -114,17 +114,10 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
         ESP_LOGD(TAG, "Recv: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
-        uint32_t result = 0;
-        for (int j = 0; j < 4; ++j) {
-          result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
-        }
-        if (result > 0) {
-          ESP_LOGI(TAG, "New range: %" PRIu32, result);
-          this->content_length_ = this->tft_size_ - result;
-          range_start = result;
-        } else {
-          range_start = range_end + 1;
-        }
+        uint32_t result = parse_nextion_upload_response(recv_string, range_end);
+        ESP_LOGI(TAG, "New range: %" PRIu32, result);
+        this->content_length_ = this->tft_size_ - result;
+        range_start = result;
         // Deallocate buffer
         allocator.deallocate(buffer, 4096);
         buffer = nullptr;
