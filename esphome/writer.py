@@ -294,7 +294,7 @@ def _encode_string_symbols(
     text: str, prefix: str, bits: int, bit_suffix: str, endian: str, endian_suffix: str
 ) -> list[str]:
     """Encode a string as linker symbols for given word size and endianness."""
-    symbols = []
+    symbols: list[str] = []
     # Pad to word boundary with NUL (build time strings need trailing NUL)
     padded = text if prefix == "CONFIG_HASH_STR" else text + "\0"
     while len(padded) % bits != 0:
