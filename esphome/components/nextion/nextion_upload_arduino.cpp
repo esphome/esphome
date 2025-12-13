@@ -142,12 +142,8 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     return false;
   }
 
-  // Check if baud rate is supported
-  this->original_baud_rate_ = this->parent_->get_baud_rate();
-  if (baud_rate <= 0) {
-    baud_rate = this->original_baud_rate_;
-  }
-  ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
+  // Setup baud rate for upload
+  baud_rate = this->upload_setup_baud_rate_(baud_rate);
 
   // Define the configuration for the HTTP client
   ESP_LOGV(TAG,

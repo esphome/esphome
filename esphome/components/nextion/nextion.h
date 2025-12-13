@@ -1454,6 +1454,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool upload_validate_and_prepare_(bool exit_reparse);
 
+  /**
+   * Sets up baud rate for upload, using current rate if baud_rate parameter is 0
+   * @param baud_rate Requested baud rate (0 = use current)
+   * @return The baud rate to use for upload
+   */
+  uint32_t upload_setup_baud_rate_(uint32_t baud_rate);
+
 #endif  // USE_NEXTION_TFT_UPLOAD
 
   bool check_connect_();

@@ -59,6 +59,15 @@ bool Nextion::upload_validate_and_prepare_(bool exit_reparse) {
   return true;
 }
 
+uint32_t Nextion::upload_setup_baud_rate_(uint32_t baud_rate) {
+  this->original_baud_rate_ = this->parent_->get_baud_rate();
+  if (baud_rate <= 0) {
+    baud_rate = this->original_baud_rate_;
+  }
+  ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
+  return baud_rate;
+}
+
 }  // namespace nextion
 }  // namespace esphome
 
