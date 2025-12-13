@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
 #include "esphome/components/sha256/sha256.h"
 #include <string>
 
