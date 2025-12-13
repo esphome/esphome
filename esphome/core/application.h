@@ -1,7 +1,9 @@
 #pragma once
 
 #include <algorithm>
+#include <ctime>
 #include <limits>
+#include <span>
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
@@ -259,6 +261,19 @@ class Application {
   StringRef get_comment_ref() const { return StringRef(this->comment_); }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
+
+  /// Size of buffer required for build time string (including null terminator)
+  static constexpr size_t BUILD_TIME_STR_SIZE = 24;
+
+  /// Get the config hash as a 32-bit integer
+  uint32_t get_config_hash();
+
+  /// Get the build time as a Unix timestamp
+  time_t get_build_time();
+
+  /// Copy the build time string into the provided buffer
+  /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
+  void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }

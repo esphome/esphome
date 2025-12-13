@@ -1,6 +1,11 @@
 #include "esphome/core/application.h"
-#include "esphome/core/build_info.h"
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
+#include <cstring>
+
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -192,8 +197,8 @@ void Application::loop() {
 
   if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
-      char build_time_str[BUILD_TIME_STR_SIZE];
-      get_build_time_string(build_time_str);
+      char build_time_str[Application::BUILD_TIME_STR_SIZE];
+      this->get_build_time_string(build_time_str);
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
       ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
@@ -713,5 +718,18 @@ void Application::wake_loop_threadsafe() {
   }
 }
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+
+uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
+
+time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
+
+void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
+#ifdef USE_ESP8266
+  strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
+#else
+  strncpy(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
+#endif
+  buffer[buffer.size() - 1] = '\0';
+}
 
 }  // namespace esphome

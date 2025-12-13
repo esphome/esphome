@@ -306,8 +306,8 @@ def generate_build_info_data_h(
     """Generate build_info_data.h header with config hash and build time."""
     return f"""#pragma once
 // Auto-generated build_info data
-#define ESPHOME_CONFIG_HASH 0x{config_hash:08x}U
-#define ESPHOME_BUILD_TIME {build_time}
+#define ESPHOME_CONFIG_HASH 0x{config_hash:08x}U  // NOLINT
+#define ESPHOME_BUILD_TIME {build_time}  // NOLINT
 #ifdef USE_ESP8266
 #include <pgmspace.h>
 static const char ESPHOME_BUILD_TIME_STR[] PROGMEM = "{build_time_str}";
