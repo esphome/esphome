@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 
 import pytest
@@ -35,17 +36,14 @@ async def test_build_info(
             f"compilation_time should contain colon: {compilation_time}"
         )
 
-        # Verify it contains a year (4 digits)
-        import re
-
+        # Verify it contains a year (4 digits) that is >= current year
         year_match = re.search(r"\b(20\d{2})\b", compilation_time)
         assert year_match is not None, (
             f"compilation_time should contain a year: {compilation_time}"
         )
 
-        # Verify the year is reasonable (within last year to next year)
         year = int(year_match.group(1))
         current_year = time.localtime().tm_year
-        assert current_year - 1 <= year <= current_year + 1, (
-            f"Year {year} should be close to current year {current_year}"
+        assert year >= current_year, (
+            f"Year {year} should be >= current year {current_year}"
         )
