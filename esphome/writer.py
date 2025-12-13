@@ -214,7 +214,7 @@ def copy_src_tree():
         Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET, BUILD_INFO_DATA_H_TARGET)
     ]
     for t in ignore_targets:
-        source_files_copy.pop(t)
+        source_files_copy.pop(t, None)
 
     # Files to exclude from sources_changed tracking (generated files)
     generated_files = {Path("esphome/core/build_info_data.h")}
