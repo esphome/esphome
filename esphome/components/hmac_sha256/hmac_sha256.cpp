@@ -4,8 +4,7 @@
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace hmac_sha256 {
+namespace esphome::hmac_sha256 {
 void HmacSHA256::init(const uint8_t *key, size_t len) {
   uint8_t ipad[64], opad[64];
 
@@ -53,6 +52,5 @@ bool HmacSHA256::equals_bytes(const uint8_t *expected) { return this->ohash_.equ
 
 bool HmacSHA256::equals_hex(const char *expected) { return this->ohash_.equals_hex(expected); }
 
-}  // namespace hmac_sha256
-}  // namespace esphome
+}  // namespace esphome::hmac_sha256
 #endif

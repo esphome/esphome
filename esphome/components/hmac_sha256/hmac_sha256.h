@@ -5,8 +5,7 @@
 #include "esphome/components/sha256/sha256.h"
 #include <string>
 
-namespace esphome {
-namespace hmac_sha256 {
+namespace esphome::hmac_sha256 {
 
 class HmacSHA256 {
  public:
@@ -44,6 +43,5 @@ class HmacSHA256 {
   sha256::SHA256 ohash_;
 };
 
-}  // namespace hmac_sha256
-}  // namespace esphome
+}  // namespace esphome::hmac_sha256
 #endif
