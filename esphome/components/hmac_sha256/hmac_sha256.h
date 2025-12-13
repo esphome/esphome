@@ -12,7 +12,7 @@ class HmacSHA256 {
   HmacSHA256() = default;
   ~HmacSHA256() = default;
 
-  /// Initialize a new SHA256 digest computation.
+  /// Initialize a new HMAC-SHA256 digest computation.
   void init(const uint8_t *key, size_t len);
   void init(const char *key, size_t len) { this->init((const uint8_t *) key, len); }
   void init(const std::string &key) { this->init(key.c_str(), key.length()); }
