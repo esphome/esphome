@@ -41,10 +41,9 @@ void EmonTx::setup() {
 
 #ifdef USE_EMONTX_WEB_CONFIG
   if (this->web_server_ != nullptr) {
-    auto *server = this->web_server_->get_server();
-    server->addHandler(new EmonTxConfigHandler(this));
-    server->addHandler(new EmonTxSendHandler(this));
-    server->addHandler(new EmonTxEventsHandler(this));
+    this->web_server_->add_handler(new EmonTxConfigHandler(this));
+    this->web_server_->add_handler(new EmonTxSendHandler(this));
+    this->web_server_->add_handler(new EmonTxEventsHandler(this));
     ESP_LOGI(TAG, "Web config interface available at /emontx/config");
   }
 #endif
