@@ -6,6 +6,8 @@
 
 namespace esphome::hmac_sha256 {
 
+constexpr size_t SHA256_DIGEST_SIZE = 32;
+
 #ifdef USE_ESP32
 
 HmacSHA256::~HmacSHA256() { mbedtls_md_free(&this->ctx_); }
@@ -21,15 +23,17 @@ void HmacSHA256::add(const uint8_t *data, size_t len) { mbedtls_md_hmac_update(&
 
 void HmacSHA256::calculate() { mbedtls_md_hmac_finish(&this->ctx_, this->digest_); }
 
-void HmacSHA256::get_bytes(uint8_t *output) { memcpy(output, this->digest_, 32); }
+void HmacSHA256::get_bytes(uint8_t *output) { memcpy(output, this->digest_, SHA256_DIGEST_SIZE); }
 
 void HmacSHA256::get_hex(char *output) {
-  for (size_t i = 0; i < 32; i++) {
+  for (size_t i = 0; i < SHA256_DIGEST_SIZE; i++) {
     sprintf(output + (i * 2), "%02x", this->digest_[i]);
   }
 }
 
-bool HmacSHA256::equals_bytes(const uint8_t *expected) { return memcmp(this->digest_, expected, 32) == 0; }
+bool HmacSHA256::equals_bytes(const uint8_t *expected) {
+  return memcmp(this->digest_, expected, SHA256_DIGEST_SIZE) == 0;
+}
 
 bool HmacSHA256::equals_hex(const char *expected) {
   char hex_output[65];

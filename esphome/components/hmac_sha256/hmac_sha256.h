@@ -46,8 +46,9 @@ class HmacSHA256 {
 
  protected:
 #ifdef USE_ESP32
+  static constexpr size_t SHA256_DIGEST_SIZE = 32;
   mbedtls_md_context_t ctx_{};
-  uint8_t digest_[32]{};
+  uint8_t digest_[SHA256_DIGEST_SIZE]{};
 #else
   sha256::SHA256 ihash_;
   sha256::SHA256 ohash_;
