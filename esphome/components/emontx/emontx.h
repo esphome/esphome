@@ -36,12 +36,6 @@ using EmonTxJsonCallback = std::function<void(JsonObject)>;
 class EmonTx;
 
 #ifdef USE_EMONTX_WEB_CONFIG
-// SSE Client session for web config
-struct SSEClient {
-  httpd_handle_t hd;
-  int fd;
-};
-
 // Handler for /emontx/config page
 class EmonTxConfigHandler : public AsyncWebHandler {
  public:
@@ -65,10 +59,10 @@ class EmonTxSendHandler : public AsyncWebHandler {
   EmonTx *emontx_;
 };
 
-// Handler for /emontx/events SSE stream
-class EmonTxEventsHandler : public AsyncWebHandler {
+// Handler for /emontx/data - returns last received JSON (polling approach)
+class EmonTxDataHandler : public AsyncWebHandler {
  public:
-  EmonTxEventsHandler(EmonTx *emontx) : emontx_(emontx) {}
+  EmonTxDataHandler(EmonTx *emontx) : emontx_(emontx) {}
   bool canHandle(AsyncWebServerRequest *request) const override;
   void handleRequest(AsyncWebServerRequest *request) override;
 
@@ -131,9 +125,7 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   // Web interface methods
   void serve_config_page(AsyncWebServerRequest *request);
   void handle_serial_send(const std::string &data);
-  void add_sse_client(httpd_handle_t hd, int fd);
-  void remove_sse_client(int fd);
-  void broadcast_to_sse(const std::string &data);
+  std::string get_last_json() const { return this->last_valid_json_; }
 #endif
 
  protected:
@@ -162,10 +154,9 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   web_server_base::WebServerBase *web_server_{nullptr};
   std::string cached_html_;
   bool html_fetched_{false};
-  std::vector<SSEClient> sse_clients_;
 
   void fetch_oem_html_();
-  std::string patch_html_for_sse_(const std::string &html);
+  std::string patch_html_for_polling_(const std::string &html);
 #endif
 };
 

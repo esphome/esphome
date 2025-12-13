@@ -43,8 +43,7 @@ void EmonTx::setup() {
   if (this->web_server_ != nullptr) {
     this->web_server_->add_handler(new EmonTxConfigHandler(this));
     this->web_server_->add_handler(new EmonTxSendHandler(this));
-    // Note: SSE handler temporarily disabled - needs proper AsyncEventSource implementation
-    // this->web_server_->add_handler(new EmonTxEventsHandler(this));
+    this->web_server_->add_handler(new EmonTxDataHandler(this));
     ESP_LOGI(TAG, "Web config interface available at /emontx/config");
   }
 #endif
@@ -243,11 +242,6 @@ void EmonTx::parse_json_(const std::string &data) {
       }
     }
 
-#ifdef USE_EMONTX_WEB_CONFIG
-    // Broadcast to SSE clients for web config interface
-    this->broadcast_to_sse(data);
-#endif
-
     return true;  // Parsing was handled successfully
   });
 
@@ -286,7 +280,7 @@ void EmonTx::dump_config() {
 #ifdef USE_EMONTX_WEB_CONFIG
   ESP_LOGCONFIG(TAG, "  Web config: ENABLED");
   ESP_LOGCONFIG(TAG, "    Config URL: /emontx/config");
-  ESP_LOGCONFIG(TAG, "    Serial Events: /emontx/events (SSE)");
+  ESP_LOGCONFIG(TAG, "    Serial Data: /emontx/data (polling)");
   ESP_LOGCONFIG(TAG, "    Serial Send: /emontx/send (POST)");
   ESP_LOGCONFIG(TAG, "    OEM HTML cached: %s", this->html_fetched_ ? "yes" : "no");
 #endif
@@ -340,63 +334,55 @@ static const char *OEM_INDEX_URL = "https://raw.githubusercontent.com/openenergy
 static const char *OEM_VIEW_URL =
     "https://raw.githubusercontent.com/openenergymonitor/serial/main/serial_config_view.php";
 
-// JavaScript patch to replace Web Serial API with SSE + fetch
-static const char *SSE_PATCH = R"(
+// JavaScript patch to replace Web Serial API with polling + fetch
+static const char *POLLING_PATCH = R"(
 <script>
-// SSE + fetch bridge - replaces Web Serial API
-var eventSource = null;
+// Polling + fetch bridge - replaces Web Serial API
+var pollInterval = null;
+var lastJson = "";
 var outputStream = null;
 
 async function connect() {
     return new Promise((resolve, reject) => {
-        eventSource = new EventSource("/emontx/events");
+        app.connected = true;
+        app.button_connect_text = "Connected";
 
-        eventSource.onopen = () => {
-            app.connected = true;
-            app.button_connect_text = "Connected";
-
-            outputStream = {
-                getWriter: () => ({
-                    write: (data) => {
-                        fetch("/emontx/send", {
-                            method: "POST",
-                            body: data,
-                            headers: {"Content-Type": "text/plain"}
-                        });
-                    },
-                    releaseLock: () => {}
-                })
-            };
-
-            setTimeout(() => {
-                if (!app.config_received) {
-                    writeToStream("l");
-                }
-            }, 1000);
-
-            resolve();
+        outputStream = {
+            getWriter: () => ({
+                write: (data) => {
+                    fetch("/emontx/send", {
+                        method: "POST",
+                        body: data,
+                        headers: {"Content-Type": "text/plain"}
+                    });
+                },
+                releaseLock: () => {}
+            })
         };
 
-        eventSource.onerror = (err) => {
-            console.error("SSE error:", err);
-            app.connected = false;
-            app.button_connect_text = "Connect";
-            if (eventSource.readyState === EventSource.CLOSED) {
-                reject(err);
-            }
-        };
-
-        eventSource.onmessage = (event) => {
-            var lines = event.data.split('\n');
-            for (var i = 0; i < lines.length; i++) {
-                var line = lines[i].trim();
-                if (line) {
-                    log.textContent += line + "\n";
+        // Start polling for data
+        pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch("/emontx/data");
+                const data = await response.text();
+                if (data && data !== lastJson && data !== "{}") {
+                    lastJson = data;
+                    log.textContent += data + "\n";
                     log.scrollTop = log.scrollHeight;
-                    process_line(line);
+                    process_line(data);
                 }
+            } catch (e) {
+                console.error("Poll error:", e);
             }
-        };
+        }, 500);
+
+        setTimeout(() => {
+            if (!app.config_received) {
+                writeToStream("l");
+            }
+        }, 1000);
+
+        resolve();
     });
 }
 
@@ -427,48 +413,35 @@ void EmonTxSendHandler::handleBody(AsyncWebServerRequest *request, uint8_t *data
   this->emontx_->handle_serial_send(cmd);
 }
 
-// EmonTxEventsHandler implementation
-bool EmonTxEventsHandler::canHandle(AsyncWebServerRequest *request) const {
-  return request->method() == HTTP_GET && request->url() == "/emontx/events";
+// EmonTxDataHandler implementation - returns last received JSON for polling
+bool EmonTxDataHandler::canHandle(AsyncWebServerRequest *request) const {
+  return request->method() == HTTP_GET && request->url() == "/emontx/data";
 }
 
-void EmonTxEventsHandler::handleRequest(AsyncWebServerRequest *request) {
-#ifdef USE_ESP32
-  httpd_req_t *req = *request;
-
-  httpd_resp_set_type(req, "text/event-stream");
-  httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-  httpd_resp_set_hdr(req, "Connection", "keep-alive");
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-
-  const char *init_msg = "data: connected\n\n";
-  httpd_resp_send_chunk(req, init_msg, strlen(init_msg));
-
-  this->emontx_->add_sse_client(req->handle, httpd_req_to_sockfd(req));
-#else
-  request->send(501, "text/plain", "SSE not supported on this platform");
-#endif
+void EmonTxDataHandler::handleRequest(AsyncWebServerRequest *request) {
+  std::string json = this->emontx_->get_last_json();
+  if (json.empty()) {
+    json = "{}";
+  }
+  request->send(200, "application/json", json.c_str());
 }
 
 // EmonTx web config methods
 void EmonTx::serve_config_page(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "Config page requested");
 
-  // For now, serve a simple test page to verify handler works
-  const char *test_html = R"(<!DOCTYPE html>
-<html>
-<head><title>EmonTx Config</title></head>
-<body>
-<h1>EmonTx Web Config</h1>
-<p>Handler is working! SSE functionality coming soon.</p>
-<p>Last JSON: <span id="json">N/A</span></p>
-<script>
-document.getElementById('json').textContent = 'Page loaded at ' + new Date().toLocaleTimeString();
-</script>
-</body>
-</html>)";
+  if (this->html_fetched_ && !this->cached_html_.empty()) {
+    request->send(200, "text/html", this->cached_html_.c_str());
+    return;
+  }
 
-  request->send(200, "text/html", test_html);
+  this->fetch_oem_html_();
+
+  if (this->html_fetched_ && !this->cached_html_.empty()) {
+    request->send(200, "text/html", this->cached_html_.c_str());
+  } else {
+    request->send(502, "text/plain", "Failed to fetch OEM interface. Check network connection.");
+  }
 }
 
 void EmonTx::fetch_oem_html_() {
@@ -569,14 +542,14 @@ void EmonTx::fetch_oem_html_() {
   }
 #endif
 
-  this->cached_html_ = this->patch_html_for_sse_(combined_html + view_html);
+  this->cached_html_ = this->patch_html_for_polling_(combined_html + view_html);
   this->html_fetched_ = true;
 
   ESP_LOGI(TAG, "OEM interface fetched and cached (%d bytes)", this->cached_html_.size());
 #endif
 }
 
-std::string EmonTx::patch_html_for_sse_(const std::string &html) {
+std::string EmonTx::patch_html_for_polling_(const std::string &html) {
   std::string patched = html;
 
   // Remove PHP include directive
@@ -605,57 +578,18 @@ std::string EmonTx::patch_html_for_sse_(const std::string &html) {
     }
   }
 
-  // Insert our SSE patch before closing </body>
+  // Insert our polling patch before closing </body>
   pos = patched.find("</body>");
   if (pos != std::string::npos) {
-    patched.insert(pos, SSE_PATCH);
+    patched.insert(pos, POLLING_PATCH);
   } else {
-    patched += SSE_PATCH;
+    patched += POLLING_PATCH;
   }
 
   return patched;
 }
 
 void EmonTx::handle_serial_send(const std::string &data) { this->write_str(data.c_str()); }
-
-void EmonTx::add_sse_client(httpd_handle_t hd, int fd) {
-  SSEClient client;
-  client.hd = hd;
-  client.fd = fd;
-  this->sse_clients_.push_back(client);
-  ESP_LOGI(TAG, "SSE client connected (fd=%d), total: %d", fd, this->sse_clients_.size());
-}
-
-void EmonTx::remove_sse_client(int fd) {
-  auto it = std::remove_if(this->sse_clients_.begin(), this->sse_clients_.end(),
-                           [fd](const SSEClient &c) { return c.fd == fd; });
-  if (it != this->sse_clients_.end()) {
-    this->sse_clients_.erase(it, this->sse_clients_.end());
-    ESP_LOGI(TAG, "SSE client disconnected (fd=%d), total: %d", fd, this->sse_clients_.size());
-  }
-}
-
-void EmonTx::broadcast_to_sse(const std::string &data) {
-#ifdef USE_ESP32
-  if (this->sse_clients_.empty()) {
-    return;
-  }
-
-  std::string sse_message = "data: " + data + "\n\n";
-
-  std::vector<int> to_remove;
-  for (const auto &client : this->sse_clients_) {
-    int ret = httpd_socket_send(client.hd, client.fd, sse_message.c_str(), sse_message.size(), 0);
-    if (ret < 0) {
-      to_remove.push_back(client.fd);
-    }
-  }
-
-  for (int fd : to_remove) {
-    this->remove_sse_client(fd);
-  }
-#endif
-}
 
 #endif  // USE_EMONTX_WEB_CONFIG
 
