@@ -40,7 +40,7 @@ void ESPNowTransport::setup() {
 
 void ESPNowTransport::update() {
   PacketTransport::update();
-  this->updated_ = this->resend_data_;
+  this->updated_ |= this->resend_data_;
 }
 
 void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
