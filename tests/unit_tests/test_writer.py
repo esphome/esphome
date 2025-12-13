@@ -1,6 +1,8 @@
 """Test writer module functionality."""
 
 from collections.abc import Callable
+from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 import json
 import os
@@ -22,6 +24,8 @@ from esphome.writer import (
     clean_all,
     clean_build,
     clean_cmake_cache,
+    copy_src_tree,
+    generate_build_info_data_h,
     get_build_info,
     storage_should_clean,
     update_storage_json,
@@ -1343,3 +1347,128 @@ def test_get_build_info_build_time_str_format(
     # Verify the format matches "%b %d %Y, %H:%M:%S" (e.g., "Dec 13 2025, 14:30:45")
     parsed = datetime.strptime(build_time_str, "%b %d %Y, %H:%M:%S")
     assert parsed.year >= 2024
+
+
+def test_generate_build_info_data_h_format() -> None:
+    """Test generate_build_info_data_h produces correct header content."""
+    config_hash = 0x12345678
+    build_time = 1700000000
+    build_time_str = "Nov 14 2023, 22:13:20"
+
+    result = generate_build_info_data_h(config_hash, build_time, build_time_str)
+
+    assert "#pragma once" in result
+    assert "#define ESPHOME_CONFIG_HASH 0x12345678U" in result
+    assert "#define ESPHOME_BUILD_TIME 1700000000" in result
+    assert 'ESPHOME_BUILD_TIME_STR[] = "Nov 14 2023, 22:13:20"' in result
+
+
+def test_generate_build_info_data_h_esp8266_progmem() -> None:
+    """Test generate_build_info_data_h includes PROGMEM for ESP8266."""
+    result = generate_build_info_data_h(0xABCDEF01, 1700000000, "test")
+
+    # Should have ESP8266 PROGMEM conditional
+    assert "#ifdef USE_ESP8266" in result
+    assert "#include <pgmspace.h>" in result
+    assert "PROGMEM" in result
+
+
+def test_generate_build_info_data_h_hash_formatting() -> None:
+    """Test generate_build_info_data_h formats hash with leading zeros."""
+    # Test with small hash value that needs leading zeros
+    result = generate_build_info_data_h(0x00000001, 0, "test")
+    assert "#define ESPHOME_CONFIG_HASH 0x00000001U" in result
+
+    # Test with larger hash value
+    result = generate_build_info_data_h(0xFFFFFFFF, 0, "test")
+    assert "#define ESPHOME_CONFIG_HASH 0xffffffffU" in result
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_writes_build_info_files(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test copy_src_tree writes build_info_data.h and build_info.json."""
+    # Setup directory structure
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    esphome_core_path = src_path / "esphome" / "core"
+    esphome_core_path.mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+
+    # Create mock source files for defines.h and version.h
+    mock_defines_h = esphome_core_path / "defines.h"
+    mock_defines_h.write_text("// mock defines.h")
+    mock_version_h = esphome_core_path / "version.h"
+    mock_version_h.write_text("// mock version.h")
+
+    # Create mock FileResource that returns our temp files
+    @dataclass(frozen=True)
+    class MockFileResource:
+        package: str
+        resource: str
+        _path: Path
+
+        @contextmanager
+        def path(self):
+            yield self._path
+
+    # Create mock resources for defines.h and version.h (required by copy_src_tree)
+    mock_resources = [
+        MockFileResource(
+            package="esphome.core",
+            resource="defines.h",
+            _path=mock_defines_h,
+        ),
+        MockFileResource(
+            package="esphome.core",
+            resource="version.h",
+            _path=mock_version_h,
+        ),
+    ]
+
+    # Create mock component with resources
+    mock_component = MagicMock()
+    mock_component.resources = mock_resources
+
+    # Setup mocks
+    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
+    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = [("core", mock_component)]
+    mock_walk_files.return_value = []
+
+    # Create mock module without copy_files attribute (causes AttributeError which is caught)
+    mock_module = MagicMock(spec=[])  # Empty spec = no copy_files attribute
+
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module", return_value=mock_module),
+    ):
+        copy_src_tree()
+
+    # Verify build_info_data.h was written
+    build_info_h_path = esphome_core_path / "build_info_data.h"
+    assert build_info_h_path.exists()
+    build_info_h_content = build_info_h_path.read_text()
+    assert "#define ESPHOME_CONFIG_HASH 0xdeadbeefU" in build_info_h_content
+    assert "#define ESPHOME_BUILD_TIME" in build_info_h_content
+    assert "ESPHOME_BUILD_TIME_STR" in build_info_h_content
+
+    # Verify build_info.json was written
+    build_info_json_path = build_path / "build_info.json"
+    assert build_info_json_path.exists()
+    build_info_json = json.loads(build_info_json_path.read_text())
+    assert build_info_json["config_hash"] == 0xDEADBEEF
+    assert "build_time" in build_info_json
+    assert "build_time_str" in build_info_json
+    assert build_info_json["esphome_version"] == "2025.1.0-dev"
