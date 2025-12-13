@@ -4,6 +4,7 @@
 
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
+#include "esphome/components/api/homeassistant_service.h"
 #endif
 
 namespace esphome {
@@ -238,19 +239,17 @@ void EmonTx::parse_json_(const std::string &data) {
     // Save the valid JSON data for callbacks
     this->last_valid_json_ = data;
 
-#ifdef USE_API
+#ifdef USE_API_HOMEASSISTANT_SERVICES
     // Fire Home Assistant event with the received data
     if (api::global_api_server != nullptr && api::global_api_server->is_connected()) {
-      api::HomeAssistantServiceCallResponse resp;
-      resp.service = "esphome.emontx_data";
+      api::HomeassistantActionRequest resp;
+      resp.set_service(api::StringRef("esphome.emontx_data"));
       resp.is_event = true;
-
-      api::HomeAssistantServiceCallResponse::HomeAssistantServiceMap data_kv;
-      data_kv.key = "data";
-      data_kv.value = data;
-      resp.data.push_back(data_kv);
-
-      api::global_api_server->send_homeassistant_service_call(resp);
+      resp.data.init(1);
+      auto &kv = resp.data.emplace_back();
+      kv.set_key(api::StringRef("data"));
+      kv.value = data;
+      api::global_api_server->send_homeassistant_action(resp);
       ESP_LOGV(TAG, "Fired esphome.emontx_data event");
     }
 #endif
