@@ -16,6 +16,7 @@ namespace modbus {
 using namespace esphome::modbus::helpers;
 
 static const uint16_t MODBUS_TX_BUFFER_SIZE = 100;
+static const uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
 class Modbus : public uart::UARTDevice, public Component {
  public:
@@ -25,7 +26,7 @@ class Modbus : public uart::UARTDevice, public Component {
   void loop() override;
 
   float get_setup_priority() const override;
-  virtual bool tx_blocked(bool block_for_interframe_delays);
+  virtual bool tx_blocked();
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 
@@ -70,7 +71,7 @@ class ModbusClientHub : public Modbus {
   void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
   void set_turnaround_time(uint16_t time_in_ms) { turnaround_delay_ms_ = time_in_ms; }
   bool tx_buffer_empty();
-  bool tx_blocked(bool block_for_interframe_delays) override;
+  bool tx_blocked() override;
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             ModbusClientDevice *device = nullptr, bool allow_duplicates = false);
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
@@ -137,7 +138,7 @@ class ModbusClientDevice {
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
   // If more than one device is connected block sending a new command before a response is received
-  bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(true); }
+  bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
 
  protected:
   ModbusClientHub *parent_;
