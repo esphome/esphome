@@ -257,7 +257,14 @@ def copy_src_tree():
     )
     write_file(
         CORE.relative_build_path("build_info.json"),
-        json.dumps({"config_hash": config_hash, "build_time": build_time}),
+        json.dumps(
+            {
+                "config_hash": config_hash,
+                "build_time": build_time,
+                "build_time_str": build_time_str,
+                "esphome_version": __version__,
+            }
+        ),
     )
 
     platform = "esphome.components." + CORE.target_platform
@@ -287,6 +294,9 @@ def generate_version_h():
 def get_build_info() -> tuple[int, int, str]:
     """Calculate build_info values from current config.
 
+    Only updates build_time when config_hash or ESPHome version changes.
+    This prevents unnecessary preference invalidation on simple recompiles.
+
     Returns:
         Tuple of (config_hash, build_time, build_time_str)
     """
@@ -295,6 +305,26 @@ def get_build_info() -> tuple[int, int, str]:
     # Use the same clean YAML representation as 'esphome config' command
     config_str = yaml_util.dump(CORE.config, show_secrets=True)
     config_hash = fnv1a_32bit_hash(config_str)
+
+    # Check if config_hash and version are unchanged - keep existing build_time
+    build_info_path = CORE.relative_build_path("build_info.json")
+    if build_info_path.exists():
+        try:
+            existing = json.loads(build_info_path.read_text(encoding="utf-8"))
+            if (
+                existing.get("config_hash") == config_hash
+                and existing.get("esphome_version") == __version__
+            ):
+                # Config and version unchanged - keep existing build_time
+                return (
+                    config_hash,
+                    existing["build_time"],
+                    existing["build_time_str"],
+                )
+        except (json.JSONDecodeError, KeyError, OSError):
+            pass
+
+    # Config or version changed - use current time
     build_time = int(time.time())
     build_time_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
     return config_hash, build_time, build_time_str
