@@ -5,7 +5,7 @@
 
 #include <string>
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 #include "mbedtls/md.h"
 #else
 #include "esphome/components/sha256/sha256.h"
@@ -45,7 +45,7 @@ class HmacSHA256 {
   bool equals_hex(const char *expected);
 
  protected:
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   static constexpr size_t SHA256_DIGEST_SIZE = 32;
   mbedtls_md_context_t ctx_{};
   uint8_t digest_[SHA256_DIGEST_SIZE]{};

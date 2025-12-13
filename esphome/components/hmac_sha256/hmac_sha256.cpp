@@ -8,7 +8,7 @@ namespace esphome::hmac_sha256 {
 
 constexpr size_t SHA256_DIGEST_SIZE = 32;
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
 HmacSHA256::~HmacSHA256() { mbedtls_md_free(&this->ctx_); }
 
@@ -96,7 +96,7 @@ bool HmacSHA256::equals_bytes(const uint8_t *expected) { return this->ohash_.equ
 
 bool HmacSHA256::equals_hex(const char *expected) { return this->ohash_.equals_hex(expected); }
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || USE_LIBRETINY
 
 }  // namespace esphome::hmac_sha256
 #endif
