@@ -52,6 +52,7 @@ class PacketTransport : public PollingComponent {
  public:
   void setup() override;
   void loop() override;
+  void update() override;
   void dump_config() override;
 
 #ifdef USE_SENSOR
