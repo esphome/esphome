@@ -198,7 +198,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_DEVIATION, default=5000): cv.int_range(min=0, max=100000),
             cv.Optional(CONF_DIO0_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Required(CONF_FREQUENCY): cv.int_range(min=137000000, max=1020000000),
+            cv.Required(CONF_FREQUENCY): cv.All(
+                cv.frequency, cv.float_range(min=137000000, max=1020000000)
+            ),
             cv.Required(CONF_MODULATION): cv.enum(MOD),
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
             cv.Optional(CONF_PA_PIN, default="BOOST"): cv.enum(PA_PIN),

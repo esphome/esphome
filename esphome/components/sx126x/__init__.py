@@ -201,7 +201,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_DEVIATION, default=5000): cv.int_range(min=0, max=100000),
             cv.Required(CONF_DIO1_PIN): pins.gpio_input_pin_schema,
-            cv.Required(CONF_FREQUENCY): cv.int_range(min=137000000, max=1020000000),
+            cv.Required(CONF_FREQUENCY): cv.All(
+                cv.frequency, cv.float_range(min=137000000, max=1020000000)
+            ),
             cv.Required(CONF_HW_VERSION): cv.one_of(
                 "sx1261", "sx1262", "sx1268", "llcc68", lower=True
             ),
