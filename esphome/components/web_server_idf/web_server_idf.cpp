@@ -117,18 +117,6 @@ void AsyncWebServer::end() {
   }
 }
 
-void AsyncWebServer::set_lru_purge_enable(bool enable) {
-  if (this->lru_purge_enable_ == enable) {
-    return;  // No change needed
-  }
-  this->lru_purge_enable_ = enable;
-  // If server is already running, restart it with new config
-  if (this->server_) {
-    this->end();
-    this->begin();
-  }
-}
-
 void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
@@ -136,8 +124,11 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
-  // Enable LRU purging if requested (e.g., by captive portal to handle probe bursts)
-  config.lru_purge_enable = this->lru_purge_enable_;
+  // Always enable LRU purging to handle socket exhaustion gracefully.
+  // When max sockets is reached, the oldest connection is closed to make room for new ones.
+  // This prevents "httpd_accept_conn: error in accept (23)" errors.
+  // See: https://github.com/esphome/esphome/issues/12464
+  config.lru_purge_enable = true;
   // Use custom close function that shuts down before closing to prevent lwIP race conditions
   config.close_fn = AsyncWebServer::safe_close_with_shutdown;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
