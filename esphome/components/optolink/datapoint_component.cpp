@@ -10,7 +10,7 @@ static const char *const TAG = "optolink.datapoint_component";
 
 void DatapointComponent::setup_datapoint_() {
   switch (div_ratio_) {
-    case DIV_RATIO_DAY_SCHEDULE:
+    case DIV_RATIO_BINARY:
       datapoint_ = new Datapoint<convRaw>(get_component_name().c_str(), "optolink", address_, writeable_);
       datapoint_->setLength(bytes_);
       datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {

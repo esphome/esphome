@@ -16,6 +16,8 @@ from .. import (
     CONF_OPTOLINK_ID,
     DAY_OF_WEEK,
     SENSOR_BASE_SCHEMA,
+    check_bytes_for_types,
+    check_dow_for_types,
     optolink_ns,
 )
 
@@ -23,7 +25,10 @@ DEPENDENCIES = ["optolink"]
 CODEOWNERS = ["@j0ta29"]
 
 TextType = optolink_ns.enum("TextType")
-TYPE = {"DAY_SCHEDULE": TextType.TEXT_TYPE_DAY_SCHEDULE}
+TYPE = {
+    "DAY_SCHEDULE": TextType.TEXT_TYPE_DAY_SCHEDULE,
+    "DATETIME": TextType.TEXT_TYPE_DATETIME,
+}
 
 OptolinkText = optolink_ns.class_("OptolinkText", text.Text, cg.PollingComponent)
 
@@ -36,12 +41,14 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MODE, default="TEXT"): cv.enum(text.TEXT_MODES),
             cv.Required(CONF_TYPE): cv.enum(TYPE, upper=True),
             cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
-            cv.Required(CONF_BYTES): cv.one_of(56, int=True),
-            cv.Required(CONF_DAY_OF_WEEK): cv.enum(DAY_OF_WEEK, upper=True),
+            cv.Optional(CONF_BYTES): cv.uint8_t,
+            cv.Optional(CONF_DAY_OF_WEEK): cv.enum(DAY_OF_WEEK, upper=True),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(SENSOR_BASE_SCHEMA),
+    check_bytes_for_types(["DAY_SCHEDULE", "DATETIME"]),
+    check_dow_for_types(["DAY_SCHEDULE"]),
 )
 
 

@@ -9,7 +9,7 @@
 namespace esphome {
 namespace optolink {
 
-enum TextType { TEXT_TYPE_DAY_SCHEDULE };
+enum TextType { TEXT_TYPE_DAY_SCHEDULE, TEXT_TYPE_DATETIME };
 
 class OptolinkText : public DatapointComponent, public esphome::text::Text {
  public:

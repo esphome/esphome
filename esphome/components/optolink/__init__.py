@@ -83,6 +83,12 @@ def check_bytes_for_types(types_bytes_needed):
                 f"{CONF_BYTES} must be 56 for this types: {types_bytes_day_schedule}"
             )
 
+        types_bytes_datetime = ["DATETIME"]
+        if config[CONF_TYPE] in types_bytes_datetime and config[CONF_BYTES] != 8:
+            raise cv.Invalid(
+                f"{CONF_BYTES} must be 8 for this types: {types_bytes_datetime}"
+            )
+
         return config
 
     return validator_

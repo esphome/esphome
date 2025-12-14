@@ -27,6 +27,14 @@ std::string decode_day_schedule(const uint8_t *input);
 
 uint8_t *encode_day_schedule(const std::string &input, uint8_t *output);
 
+std::string decode_datetime(const uint8_t *buffer, size_t length);
+
+bool encode_datetime(const std::string &value, uint8_t *buffer);
+
+inline uint8_t dec_to_bcd(int val) { return ((val / 10) << 4) | (val % 10); }
+
+inline int bcd_to_dec(uint8_t bcd) { return ((bcd >> 4) * 10) + (bcd & 0x0F); }
+
 }  // namespace optolink
 }  // namespace esphome
 

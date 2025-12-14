@@ -19,9 +19,14 @@ void OptolinkTextSensor::setup() {
       set_div_ratio(DIV_RATIO_RAW);
       break;
     case TEXT_SENSOR_TYPE_DAY_SCHEDULE:
-      set_div_ratio(DIV_RATIO_DAY_SCHEDULE);
+      set_div_ratio(DIV_RATIO_BINARY);
       set_bytes(8);
       set_address(get_address_() + 8 * dow_);
+      break;
+    case TEXT_SENSOR_TYPE_DATETIME:
+      set_writeable(true);
+      set_bytes(8);
+      set_div_ratio(DIV_RATIO_BINARY);
       break;
     case TEXT_SENSOR_TYPE_DEVICE_INFO:
       set_entity_category(esphome::ENTITY_CATEGORY_DIAGNOSTIC);
@@ -61,6 +66,14 @@ void OptolinkTextSensor::datapoint_value_changed(uint8_t *value, size_t length) 
         auto schedule = decode_day_schedule(value);
         rtrim(schedule);
         publish_state(schedule);
+      } else {
+        unfitting_value_type_();
+      }
+      break;
+    case TEXT_SENSOR_TYPE_DATETIME:
+      if (length == 8) {
+        auto datetime = decode_datetime(value, length);
+        publish_state(datetime);
       } else {
         unfitting_value_type_();
       }

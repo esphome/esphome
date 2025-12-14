@@ -29,6 +29,7 @@ TYPE = {
     "MAP": TextSensorType.TEXT_SENSOR_TYPE_MAP,
     "RAW": TextSensorType.TEXT_SENSOR_TYPE_RAW,
     "DAY_SCHEDULE": TextSensorType.TEXT_SENSOR_TYPE_DAY_SCHEDULE,
+    "DATETIME": TextSensorType.TEXT_SENSOR_TYPE_DATETIME,
     "DEVICE_INFO": TextSensorType.TEXT_SENSOR_TYPE_DEVICE_INFO,
     "STATE_INFO": TextSensorType.TEXT_SENSOR_TYPE_STATE_INFO,
 }
@@ -51,8 +52,8 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(SENSOR_BASE_SCHEMA),
-    check_address_for_types(["MAP", "RAW", "DAY_SCHEDULE"]),
-    check_bytes_for_types(["MAP", "RAW", "DAY_SCHEDULE"]),
+    check_address_for_types(["MAP", "RAW", "DAY_SCHEDULE", "DATETIME"]),
+    check_bytes_for_types(["MAP", "RAW", "DAY_SCHEDULE", "DATETIME"]),
     check_dow_for_types(["DAY_SCHEDULE"]),
 )
 

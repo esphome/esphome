@@ -12,7 +12,7 @@ namespace optolink {
 
 class Optolink;
 
-enum DivRatioSpecial { DIV_RATIO_DAY_SCHEDULE = 0, DIV_RATIO_RAW = -1 };
+enum DivRatioSpecial { DIV_RATIO_BINARY = 0, DIV_RATIO_RAW = -1 };
 
 class DatapointComponent : public esphome::PollingComponent {
  public:
