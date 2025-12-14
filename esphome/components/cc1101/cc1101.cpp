@@ -164,7 +164,7 @@ void CC1101Component::setup() {
     }
     this->write_(static_cast<Register>(i));
   }
-  this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
+  this->set_output_power(this->output_power_requested_);
   this->strobe_(Command::RX);
 }
 
