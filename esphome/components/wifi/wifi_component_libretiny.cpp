@@ -291,6 +291,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "STA stop");
+      s_sta_connecting = false;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
