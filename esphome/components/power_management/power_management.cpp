@@ -29,8 +29,6 @@ const char *power_manager_user_to_string(PowerManagementLockUser user) {
       return "action";
     case API:
       return "api";
-    case OT:
-      return "openthread";
     case UNKNOWN:
     default:
       return "UNKNOWN";
