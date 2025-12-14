@@ -1200,7 +1200,8 @@ void WiFiComponent::check_connecting_finished() {
 
   uint32_t now = millis();
   if (now - this->action_started_ > WIFI_CONNECT_TIMEOUT_MS) {
-    ESP_LOGW(TAG, "Connection timeout");
+    ESP_LOGW(TAG, "Connection timeout, aborting connection attempt");
+    this->wifi_disconnect_();
     this->retry_connect();
     return;
   }
