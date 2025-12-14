@@ -533,7 +533,7 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
   if (msg.has_flash_length)
     call.set_flash_length(msg.flash_length);
   if (msg.has_effect)
-    call.set_effect(msg.effect);
+    call.set_effect(reinterpret_cast<const char *>(msg.effect), msg.effect_len);
   call.perform();
 }
 #endif
@@ -1669,7 +1669,7 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
     } else {
       ESP_LOGW(TAG, "Failed to clear encryption key");
     }
-  } else if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
+  } else if (base64_decode(msg.key, psk.data(), psk.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
   } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");

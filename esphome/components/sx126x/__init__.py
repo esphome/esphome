@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID, TimePeriod
@@ -14,7 +15,6 @@ CONF_SX126X_ID = "sx126x_id"
 CONF_BANDWIDTH = "bandwidth"
 CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
-CONF_CRC_ENABLE = "crc_enable"
 CONF_CRC_INVERTED = "crc_inverted"
 CONF_CRC_SIZE = "crc_size"
 CONF_CRC_POLYNOMIAL = "crc_polynomial"
@@ -23,7 +23,6 @@ CONF_DEVIATION = "deviation"
 CONF_DIO1_PIN = "dio1_pin"
 CONF_HW_VERSION = "hw_version"
 CONF_MODULATION = "modulation"
-CONF_ON_PACKET = "on_packet"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
 CONF_PAYLOAD_LENGTH = "payload_length"

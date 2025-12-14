@@ -611,9 +611,12 @@ bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool LightCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 19:
-      this->effect = value.as_string();
+    case 19: {
+      // Use raw data directly to avoid allocation
+      this->effect = value.data();
+      this->effect_len = value.size();
       break;
+    }
     default:
       return false;
   }
