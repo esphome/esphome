@@ -629,10 +629,8 @@ void CC1101Component::set_packet_mode(bool value) {
 
 void CC1101Component::set_packet_length(uint8_t value) {
   if (value == 0) {
-    // Variable length mode
     this->state_.LENGTH_CONFIG = static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
   } else {
-    // Fixed length mode
     this->state_.LENGTH_CONFIG = static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_FIXED);
     this->state_.PKTLEN = value;
   }
