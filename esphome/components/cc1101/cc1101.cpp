@@ -157,7 +157,7 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
-  this->begin_rx()
+  this->begin_rx();
 }
 
 void CC1101Component::loop() {
