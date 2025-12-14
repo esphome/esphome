@@ -8,7 +8,7 @@ esphome:
         hasher.init();
 
         // Test with "Hello World" - known SHA256
-        const char* test_string = "Hello World";
+        const char* test_string = "Hello World!";
         hasher.add(test_string, strlen(test_string));
         hasher.calculate();
 
