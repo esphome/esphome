@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 from .const import (
+    CONF_LOCK_TYPE,
     CONF_MAX_FREQUENCY,
     CONF_MIN_FREQUENCY,
     CONF_POWER_DOWN_FLASH,
@@ -22,22 +23,46 @@ PowerManagement = power_management_ns.class_("PowerManagement", cg.Component)
 AcquireLockAction = power_management_ns.class_("AcquireLockAction", automation.Action)
 ReleaseLockAction = power_management_ns.class_("ReleaseLockAction", automation.Action)
 
-PM_ACTION_SCHEMA = automation.maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(PowerManagement),
-    }
+PM_ACTION_ACQUIRE_SCHEMA = automation.maybe_conf(
+    CONF_LOCK_TYPE,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(PowerManagement),
+            cv.Optional(CONF_LOCK_TYPE, default="CPU"): cv.one_of(
+                "TMR", "CPU", "APB", "SLP", upper=True
+            ),
+            cv.Optional(
+                CONF_TIMER_LOCK_DURATION, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+        }
+    ),
+)
+PM_ACTION_RELEASE_SCHEMA = automation.maybe_conf(
+    CONF_LOCK_TYPE,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(PowerManagement),
+            cv.Optional(CONF_LOCK_TYPE, default="CPU"): cv.one_of(
+                "CPU", "APB", "SLP", upper=True
+            ),
+        }
+    ),
 )
 
 
 @automation.register_action(
-    "power_management.acquire_lock", AcquireLockAction, PM_ACTION_SCHEMA
+    "power_management.acquire_lock", AcquireLockAction, PM_ACTION_ACQUIRE_SCHEMA
 )
 @automation.register_action(
-    "power_management.release_lock", ReleaseLockAction, PM_ACTION_SCHEMA
+    "power_management.release_lock", ReleaseLockAction, PM_ACTION_RELEASE_SCHEMA
 )
 async def power_management_lock_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    if (lock_type := config.get(CONF_LOCK_TYPE)) is not None:
+        cg.add(var.set_lock_type(lock_type))
+    if (timer_lock_duration := config.get(CONF_TIMER_LOCK_DURATION)) is not None:
+        cg.add(var.set_timer_lock_duration(timer_lock_duration))
     return var
 
 
