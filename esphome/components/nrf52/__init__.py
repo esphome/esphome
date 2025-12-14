@@ -8,6 +8,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     copy_files as zephyr_copy_files,
+    zephyr_add_overlay,
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
@@ -201,6 +202,14 @@ async def to_code(config: ConfigType) -> None:
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(3, 2, 0):
         zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+    else:
+        zephyr_add_overlay(
+            f"""
+                &reg1 {{
+                    regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
+                }};
+            """
+        )
 
     if reg0_config := config.get(CONF_REG0):
         value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])

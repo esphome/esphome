@@ -144,6 +144,14 @@ def zephyr_to_code(config):
     # use NFC pins as GPIO
     if framework_ver < cv.Version(3, 2, 0):
         zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
+    else:
+        zephyr_add_overlay(
+            """
+                &uicr {
+                    nfct-pins-as-gpios;
+                };
+            """
+        )
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
