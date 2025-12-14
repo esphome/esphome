@@ -113,7 +113,7 @@ class BMP581Component : public PollingComponent {
   bool read_temperature_and_pressure_(float &temperature, float &pressure);
 
   // Soft resets the BMP581
-  bool reset_();
+  virtual bool reset_();
 
   // Initiates a measurement on sensor by switching to FORCED_MODE
   bool start_measurement_();
