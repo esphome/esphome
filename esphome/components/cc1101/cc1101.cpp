@@ -146,14 +146,6 @@ void CC1101Component::setup() {
   // Setup GDO0 pin if configured
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->setup();
-
-    // For packet mode, configure GDO0 for packet received indication
-    if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
-      // GDO0 = 0x01: Asserts when RX FIFO filled or end of packet, de-asserts when FIFO empty
-      this->state_.GDO0_CFG = 0x01;
-      // Set max RX FIFO threshold to ensure we only trigger on end-of-packet
-      this->state_.FIFO_THR = 15;
-    }
   }
 
   this->initialized_ = true;
@@ -165,7 +157,7 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
-  this->strobe_(Command::RX);
+  this->begin_rx()
 }
 
 void CC1101Component::loop() {
@@ -244,9 +236,12 @@ void CC1101Component::dump_config() {
 }
 
 void CC1101Component::begin_tx() {
-  // Ensure Packet Format is 3 (Async Serial), use GDO0 as input during TX
+  // Ensure Packet Format is 3 (Async Serial)
   this->write_(Register::PKTCTRL0, 0x32);
   ESP_LOGV(TAG, "Beginning TX sequence");
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  }
   this->strobe_(Command::TX);
   if (!this->wait_for_state_(State::TX, 50)) {
     ESP_LOGW(TAG, "Timed out waiting for TX state!");
@@ -255,6 +250,9 @@ void CC1101Component::begin_tx() {
 
 void CC1101Component::begin_rx() {
   ESP_LOGV(TAG, "Beginning RX sequence");
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
+  }
   this->strobe_(Command::RX);
 }
 
@@ -623,8 +621,19 @@ void CC1101Component::set_hyst_level(HystLevel value) {
 void CC1101Component::set_packet_mode(bool value) {
   this->state_.PKT_FORMAT =
       static_cast<uint8_t>(value ? PacketFormat::PACKET_FORMAT_FIFO : PacketFormat::PACKET_FORMAT_ASYNC_SERIAL);
+  if (value) {
+    // Configure GDO0 for FIFO status (asserts on RX FIFO threshold or end of packet)
+    this->state_.GDO0_CFG = 0x01;
+    // Set max RX FIFO threshold to ensure we only trigger on end-of-packet
+    this->state_.FIFO_THR = 15;
+  } else {
+    // Configure GDO0 for serial data (async serial mode)
+    this->state_.GDO0_CFG = 0x0D;
+  }
   if (this->initialized_) {
     this->write_(Register::PKTCTRL0);
+    this->write_(Register::IOCFG0);
+    this->write_(Register::FIFOTHR);
   }
 }
 
