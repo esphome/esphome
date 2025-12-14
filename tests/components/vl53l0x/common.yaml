@@ -1,0 +1,9 @@
+sensor:
+  - platform: vl53l0x
+    i2c_id: i2c_bus
+    name: VL53L0x Distance
+    address: 0x29
+    enable_pin: 3
+    timeout: 200us
+    update_interval: 60s
+    timing_budget: 30000us

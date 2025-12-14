@@ -32,7 +32,7 @@ const uint32_t FAN_MAX = 0x40;
 
 // Temperature
 const uint8_t TEMP_RANGE = TEMP_MAX - TEMP_MIN + 1;
-const uint32_t TEMP_MASK = 0XF00;
+const uint32_t TEMP_MASK = 0xF00;
 const uint32_t TEMP_SHIFT = 8;
 
 const uint16_t BITS = 28;
@@ -43,11 +43,11 @@ void LgIrClimate::transmit_state() {
   // ESP_LOGD(TAG, "climate_lg_ir mode_before_ code: 0x%02X", modeBefore_);
 
   // Set command
-  if (send_swing_cmd_) {
-    send_swing_cmd_ = false;
+  if (this->send_swing_cmd_) {
+    this->send_swing_cmd_ = false;
     remote_state |= COMMAND_SWING;
   } else {
-    bool climate_is_off = (mode_before_ == climate::CLIMATE_MODE_OFF);
+    bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
     switch (this->mode) {
       case climate::CLIMATE_MODE_COOL:
         remote_state |= climate_is_off ? COMMAND_ON_COOL : COMMAND_COOL;
@@ -71,7 +71,7 @@ void LgIrClimate::transmit_state() {
     }
   }
 
-  mode_before_ = this->mode;
+  this->mode_before_ = this->mode;
 
   ESP_LOGD(TAG, "climate_lg_ir mode code: 0x%02X", this->mode);
 
@@ -102,7 +102,7 @@ void LgIrClimate::transmit_state() {
     remote_state |= ((temp - 15) << TEMP_SHIFT);
   }
 
-  transmit_(remote_state);
+  this->transmit_(remote_state);
   this->publish_state();
 }
 
@@ -187,7 +187,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void LgIrClimate::transmit_(uint32_t value) {
-  calc_checksum_(value);
+  this->calc_checksum_(value);
   ESP_LOGD(TAG, "Sending climate_lg_ir code: 0x%02" PRIX32, value);
 
   auto transmit = this->transmitter_->transmit();

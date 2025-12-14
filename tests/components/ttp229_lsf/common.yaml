@@ -1,0 +1,7 @@
+ttp229_lsf:
+  i2c_id: i2c_bus
+
+binary_sensor:
+  - platform: ttp229_lsf
+    name: TTP229 Channel 0
+    channel: 0

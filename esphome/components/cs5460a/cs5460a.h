@@ -77,7 +77,6 @@ class CS5460AComponent : public Component,
 
   void setup() override;
   void loop() override {}
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
  protected:
@@ -115,7 +114,7 @@ template<typename... Ts> class CS5460ARestartAction : public Action<Ts...> {
  public:
   CS5460ARestartAction(CS5460AComponent *cs5460a) : cs5460a_(cs5460a) {}
 
-  void play(Ts... x) override { cs5460a_->restart(); }
+  void play(const Ts &...x) override { cs5460a_->restart(); }
 
  protected:
   CS5460AComponent *cs5460a_;

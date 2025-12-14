@@ -1,0 +1,11 @@
+# display.yaml
+
+defaults:
+  native_width: 480
+  native_height: 480
+
+display:
+  - platform: ili9xxx
+    dimensions:
+      width: ${high_dpi and native_width * 2 or native_width}
+      height: ${high_dpi and native_height * 2 or native_height}

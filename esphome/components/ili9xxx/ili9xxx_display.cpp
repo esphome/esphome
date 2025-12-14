@@ -31,8 +31,6 @@ void ILI9XXXDisplay::set_madctl() {
 }
 
 void ILI9XXXDisplay::setup() {
-  ESP_LOGD(TAG, "Setting up ILI9xxx");
-
   this->setup_pins_();
   this->init_lcd_(this->init_sequence_);
   this->init_lcd_(this->extra_init_sequence_.data());
@@ -89,8 +87,10 @@ void ILI9XXXDisplay::setup_pins_() {
 
 void ILI9XXXDisplay::dump_config() {
   LOG_DISPLAY("", "ili9xxx", this);
-  ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_x_);
-  ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_y_);
+  ESP_LOGCONFIG(TAG,
+                "  Width Offset: %u\n"
+                "  Height Offset: %u",
+                this->offset_x_, this->offset_y_);
   switch (this->buffer_color_mode_) {
     case BITS_8_INDEXED:
       ESP_LOGCONFIG(TAG, "  Color mode: 8bit Indexed");
@@ -111,11 +111,14 @@ void ILI9XXXDisplay::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
-  ESP_LOGCONFIG(TAG, "  Color order: %s", this->color_order_ == display::COLOR_ORDER_BGR ? "BGR" : "RGB");
-  ESP_LOGCONFIG(TAG, "  Swap_xy: %s", YESNO(this->swap_xy_));
-  ESP_LOGCONFIG(TAG, "  Mirror_x: %s", YESNO(this->mirror_x_));
-  ESP_LOGCONFIG(TAG, "  Mirror_y: %s", YESNO(this->mirror_y_));
-  ESP_LOGCONFIG(TAG, "  Invert colors: %s", YESNO(this->pre_invertcolors_));
+  ESP_LOGCONFIG(TAG,
+                "  Color order: %s\n"
+                "  Swap_xy: %s\n"
+                "  Mirror_x: %s\n"
+                "  Mirror_y: %s\n"
+                "  Invert colors: %s",
+                this->color_order_ == display::COLOR_ORDER_BGR ? "BGR" : "RGB", YESNO(this->swap_xy_),
+                YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->pre_invertcolors_));
 
   if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");
@@ -322,7 +325,7 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
       // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
       this->write_array(ptr, w * h * 2);
     } else {
-      for (size_t y = 0; y != h; y++) {
+      for (size_t y = 0; y != static_cast<size_t>(h); y++) {
         this->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
       }
     }
@@ -346,7 +349,7 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
         App.feed_wdt();
       }
       // end of line? Skip to the next.
-      if (++pixel == w) {
+      if (++pixel == static_cast<size_t>(w)) {
         pixel = 0;
         ptr += (x_pad + x_offset) * 2;
       }

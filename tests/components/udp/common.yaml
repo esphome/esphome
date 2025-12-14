@@ -3,33 +3,36 @@ wifi:
   password: password1
 
 udp:
-  update_interval: 5s
-  encryption: "our key goes here"
-  rolling_code_enable: true
-  ping_pong_enable: true
-  binary_sensors:
-    - binary_sensor_id1
-    - id: binary_sensor_id1
-      broadcast_id: other_id
-  sensors:
-    - sensor_id1
-    - id: sensor_id1
-      broadcast_id: other_id
-  providers:
-    - name: some-device-name
-      encryption: "their key goes here"
+  id: my_udp
+  listen_address: 239.0.60.53
+  addresses: ["239.0.60.53"]
+  on_receive:
+    - logger.log:
+        format: "Received %d bytes"
+        args: [data.size()]
+    - udp.write:
+        id: my_udp
+        data: "hello world"
+    - udp.write:
+        id: my_udp
+        data: !lambda |-
+          return std::vector<uint8_t>{1,3,4,5,6};
 
-sensor:
+number:
   - platform: template
-    id: sensor_id1
-  - platform: udp
-    provider: some-device-name
-    id: our_id
-    remote_id: some_sensor_id
+    name: "UDP Number"
+    id: my_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
 
-binary_sensor:
-  - platform: udp
-    provider: unencrypted-device
-    id: other_binary_sensor_id
+button:
   - platform: template
-    id: binary_sensor_id1
+    name: "UDP Button"
+    on_press:
+      then:
+        - udp.write:
+            data: [0x01, 0x02, 0x03]
+        - udp.write: !lambda |-
+            return {0x10, 0x20, (uint8_t)id(my_number).state};

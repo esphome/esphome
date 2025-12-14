@@ -1,21 +1,5 @@
-light:
-  - platform: esp32_rmt_led_strip
-    id: part_leds
-    default_transition_length: 500ms
-    chipset: ws2812
-    rgb_order: GRB
-    num_leds: 256
-    pin: 2
-  - platform: partition
-    name: Partition Light
-    segments:
-      - id: part_leds
-        from: 0
-        to: 0
-      - id: part_leds
-        from: 1
-        to: 10
-      - id: part_leds
-        from: 20
-        to: 25
-      - single_light_id: part_leds
+substitutions:
+  light_platform: esp32_rmt_led_strip
+  pin: GPIO12
+
+<<: !include common-idf.yaml

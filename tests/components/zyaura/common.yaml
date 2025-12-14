@@ -1,0 +1,10 @@
+sensor:
+  - platform: zyaura
+    clock_pin: ${clock_pin}
+    data_pin: ${data_pin}
+    co2:
+      name: ZyAura CO2
+    temperature:
+      name: ZyAura Temperature
+    humidity:
+      name: ZyAura Humidity

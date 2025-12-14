@@ -1,8 +1,9 @@
-output:
-  - platform: x9c
-    id: test_x9c
-    cs_pin: 3
-    inc_pin: 4
-    ud_pin: 5
-    initial_value: 0.5
-    step_delay: 50us
+substitutions:
+  cs_pin: GPIO6
+  inc_pin: GPIO7
+  ud_pin: GPIO8
+
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
+<<: !include common.yaml

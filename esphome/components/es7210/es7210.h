@@ -25,7 +25,6 @@ class ES7210 : public audio_adc::AudioAdc, public Component, public i2c::I2CDevi
    */
  public:
   void setup() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
   void set_bits_per_sample(ES7210BitsPerSample bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }

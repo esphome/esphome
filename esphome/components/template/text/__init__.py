@@ -1,17 +1,18 @@
 from esphome import automation
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_INITIAL_VALUE,
     CONF_LAMBDA,
-    CONF_OPTIMISTIC,
-    CONF_RESTORE_VALUE,
     CONF_MAX_LENGTH,
     CONF_MIN_LENGTH,
+    CONF_OPTIMISTIC,
     CONF_PATTERN,
+    CONF_RESTORE_VALUE,
     CONF_SET_ACTION,
 )
+
 from .. import template_ns
 
 TemplateText = template_ns.class_("TemplateText", text.Text, cg.PollingComponent)
@@ -45,9 +46,9 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    text.TEXT_SCHEMA.extend(
+    text.text_schema(TemplateText)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TemplateText),
             cv.Optional(CONF_MIN_LENGTH, default=0): cv.int_range(min=0, max=255),
             cv.Optional(CONF_MAX_LENGTH, default=255): cv.int_range(min=0, max=255),
             cv.Optional(CONF_PATTERN): cv.string,
@@ -57,7 +58,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
         }
-    ).extend(cv.polling_component_schema("60s")),
+    )
+    .extend(cv.polling_component_schema("60s")),
     validate,
 )
 

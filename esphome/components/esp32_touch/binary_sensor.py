@@ -1,12 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import (
-    CONF_PIN,
-    CONF_THRESHOLD,
-    CONF_ID,
-)
-from . import esp32_touch_ns, ESP32TouchComponent, validate_touch_pad
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_PIN, CONF_THRESHOLD
+
+from . import ESP32TouchComponent, esp32_touch_ns, validate_touch_pad
 
 DEPENDENCIES = ["esp32_touch", "esp32"]
 

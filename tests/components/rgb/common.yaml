@@ -1,0 +1,18 @@
+output:
+  - platform: ${light_platform}
+    id: light_output_1
+    pin: ${pin1}
+  - platform: ${light_platform}
+    id: light_output_2
+    pin: ${pin2}
+  - platform: ${light_platform}
+    id: light_output_3
+    pin: ${pin3}
+
+light:
+  - platform: rgb
+    name: RGB Light
+    id: rgb_light
+    red: light_output_1
+    green: light_output_2
+    blue: light_output_3

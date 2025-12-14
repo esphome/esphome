@@ -96,8 +96,7 @@ speed_t get_baud(int baud) {
 
 }  // namespace
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.host";
 
@@ -109,7 +108,7 @@ HostUartComponent::~HostUartComponent() {
 }
 
 void HostUartComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Opening UART port...");
+  ESP_LOGCONFIG(TAG, "Opening UART port");
   speed_t baud = get_baud(this->baud_rate_);
   if (baud == B0) {
     ESP_LOGE(TAG, "Unsupported baud rate: %d", this->baud_rate_);
@@ -188,14 +187,17 @@ void HostUartComponent::dump_config() {
     }
     return;
   }
-  ESP_LOGCONFIG(TAG, "  Port status: opened");
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %d", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Data Bits: %d", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s",
+  ESP_LOGCONFIG(TAG,
+                "  Port status: opened\n"
+                "  Baud Rate: %d\n"
+                "  Data Bits: %d\n"
+                "  Parity: %s\n"
+                "  Stop Bits: %d",
+                this->baud_rate_, this->data_bits_,
                 this->parity_ == UART_CONFIG_PARITY_NONE   ? "None"
                 : this->parity_ == UART_CONFIG_PARITY_EVEN ? "Even"
-                                                           : "Odd");
-  ESP_LOGCONFIG(TAG, "  Stop Bits: %d", this->stop_bits_);
+                                                           : "Odd",
+                this->stop_bits_);
   this->check_logger_conflict();
 }
 
@@ -283,7 +285,7 @@ void HostUartComponent::flush() {
     return;
   }
   tcflush(this->file_descriptor_, TCIOFLUSH);
-  ESP_LOGV(TAG, "    Flushing...");
+  ESP_LOGV(TAG, "    Flushing");
 }
 
 void HostUartComponent::update_error_(const std::string &error) {
@@ -293,7 +295,5 @@ void HostUartComponent::update_error_(const std::string &error) {
   ESP_LOGE(TAG, "Port error: %s", error.c_str());
 }
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_HOST

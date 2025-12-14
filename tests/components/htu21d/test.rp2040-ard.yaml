@@ -1,15 +1,4 @@
-i2c:
-  - id: i2c_htu21d
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
 
-sensor:
-  - platform: htu21d
-    model: htu21d
-    temperature:
-      name: Temperature
-    humidity:
-      name: Humidity
-    heater:
-      name: Heater
-    update_interval: 15s
+<<: !include common.yaml

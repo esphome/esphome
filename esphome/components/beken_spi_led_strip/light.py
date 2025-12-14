@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import libretiny, light
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
     CONF_IS_RGBW,

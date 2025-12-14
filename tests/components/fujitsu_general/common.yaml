@@ -1,0 +1,4 @@
+climate:
+  - platform: fujitsu_general
+    name: Fujitsu General Climate
+    transmitter_id: xmitr

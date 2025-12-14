@@ -1,13 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_EMPTY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
     CONF_MEASUREMENT_DURATION,
     CONF_STATUS,
     CONF_VERSION,
+    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_EMPTY,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_RADIOACTIVE,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_MICROSILVERTS_PER_HOUR,
     UNIT_SECOND,
 )
+
 from . import CONF_GDK101_ID, GDK101Component
 
 CONF_RADIATION_DOSE_PER_1M = "radiation_dose_per_1m"
@@ -39,9 +40,8 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_EMPTY,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_VERSION): sensor.sensor_schema(
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            accuracy_decimals=1,
+        cv.Optional(CONF_VERSION): cv.invalid(
+            "The 'version' option has been moved to the `text_sensor` component."
         ),
         cv.Optional(CONF_STATUS): sensor.sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -69,10 +69,6 @@ async def to_code(config):
     if radiation_dose_per_10m := config.get(CONF_RADIATION_DOSE_PER_10M):
         sens = await sensor.new_sensor(radiation_dose_per_10m)
         cg.add(hub.set_rad_10m_sensor(sens))
-
-    if version_config := config.get(CONF_VERSION):
-        sens = await sensor.new_sensor(version_config)
-        cg.add(hub.set_fw_version_sensor(sens))
 
     if status_config := config.get(CONF_STATUS):
         sens = await sensor.new_sensor(status_config)

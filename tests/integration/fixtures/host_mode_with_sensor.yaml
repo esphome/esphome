@@ -1,0 +1,15 @@
+esphome:
+  name: host-sensor-test
+host:
+api:
+logger:
+sensor:
+  - platform: template
+    name: Test Sensor
+    id: test_sensor
+    unit_of_measurement: °C
+    accuracy_decimals: 2
+    state_class: measurement
+    force_update: true
+    lambda: return 42.0;
+    update_interval: 0.1s

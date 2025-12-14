@@ -1,54 +1,12 @@
-substitutions:
-  verify_ssl: "true"
+<<: !include http_request.yaml
 
 wifi:
   ssid: MySSID
   password: password1
 
-esphome:
-  on_boot:
-    then:
-      - http_request.get:
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          on_error:
-            logger.log: "Request failed"
-          on_response:
-            then:
-              - logger.log:
-                  format: "Response status: %d, Duration: %lu ms"
-                  args:
-                    - response->status_code
-                    - (long) response->duration_ms
-      - http_request.post:
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          json:
-            key: value
-      - http_request.send:
-          method: PUT
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          body: "Some data"
-
-http_request:
-  useragent: esphome/tagreader
-  timeout: 10s
-  verify_ssl: ${verify_ssl}
-
-script:
-  - id: does_not_compile
-    parameters:
-      api_url: string
-    then:
-      - http_request.get:
-          url: "http://google.com"
-
 ota:
   - platform: http_request
+    id: http_request_ota
     on_begin:
       then:
         - logger.log: "OTA start"
@@ -75,10 +33,12 @@ button:
     on_press:
       then:
         - ota.http_request.flash:
+            id: http_request_ota
             md5_url: http://my.ha.net:8123/local/esphome/firmware.md5
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
         - ota.http_request.flash:
+            id: http_request_ota
             md5: 0123456789abcdef0123456789abcdef
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
@@ -88,4 +48,7 @@ update:
   - platform: http_request
     name: OTA Update
     id: ota_update
+    ota_id: http_request_ota
     source: http://my.ha.net:8123/local/esphome/manifest.json
+    on_update_available:
+      - logger.log: "A new update is available"

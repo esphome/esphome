@@ -1,17 +1,16 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/lock/lock.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 
-namespace esphome {
-namespace lock {
+namespace esphome::lock {
 
 template<typename... Ts> class LockAction : public Action<Ts...> {
  public:
   explicit LockAction(Lock *a_lock) : lock_(a_lock) {}
 
-  void play(Ts... x) override { this->lock_->lock(); }
+  void play(const Ts &...x) override { this->lock_->lock(); }
 
  protected:
   Lock *lock_;
@@ -21,7 +20,7 @@ template<typename... Ts> class UnlockAction : public Action<Ts...> {
  public:
   explicit UnlockAction(Lock *a_lock) : lock_(a_lock) {}
 
-  void play(Ts... x) override { this->lock_->unlock(); }
+  void play(const Ts &...x) override { this->lock_->unlock(); }
 
  protected:
   Lock *lock_;
@@ -31,7 +30,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Lock *a_lock) : lock_(a_lock) {}
 
-  void play(Ts... x) override { this->lock_->open(); }
+  void play(const Ts &...x) override { this->lock_->open(); }
 
  protected:
   Lock *lock_;
@@ -40,7 +39,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
 template<typename... Ts> class LockCondition : public Condition<Ts...> {
  public:
   LockCondition(Lock *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     auto check_state = this->state_ ? LockState::LOCK_STATE_LOCKED : LockState::LOCK_STATE_UNLOCKED;
     return this->parent_->state == check_state;
   }
@@ -50,38 +49,18 @@ template<typename... Ts> class LockCondition : public Condition<Ts...> {
   bool state_;
 };
 
-class LockLockTrigger : public Trigger<> {
+template<LockState State> class LockStateTrigger : public Trigger<> {
  public:
-  LockLockTrigger(Lock *a_lock) {
+  explicit LockStateTrigger(Lock *a_lock) {
     a_lock->add_on_state_callback([this, a_lock]() {
-      if (a_lock->state == LockState::LOCK_STATE_LOCKED) {
+      if (a_lock->state == State) {
         this->trigger();
       }
     });
   }
 };
 
-class LockUnlockTrigger : public Trigger<> {
- public:
-  LockUnlockTrigger(Lock *a_lock) {
-    a_lock->add_on_state_callback([this, a_lock]() {
-      if (a_lock->state == LockState::LOCK_STATE_UNLOCKED) {
-        this->trigger();
-      }
-    });
-  }
-};
+using LockLockTrigger = LockStateTrigger<LockState::LOCK_STATE_LOCKED>;
+using LockUnlockTrigger = LockStateTrigger<LockState::LOCK_STATE_UNLOCKED>;
 
-template<typename... Ts> class LockPublishAction : public Action<Ts...> {
- public:
-  LockPublishAction(Lock *a_lock) : lock_(a_lock) {}
-  TEMPLATABLE_VALUE(LockState, state)
-
-  void play(Ts... x) override { this->lock_->publish_state(this->state_.value(x...)); }
-
- protected:
-  Lock *lock_;
-};
-
-}  // namespace lock
-}  // namespace esphome
+}  // namespace esphome::lock

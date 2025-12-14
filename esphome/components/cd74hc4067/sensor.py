@@ -1,16 +1,17 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_SENSOR,
     CONF_NUMBER,
-    ICON_FLASH,
-    UNIT_VOLT,
-    STATE_CLASS_MEASUREMENT,
+    CONF_SENSOR,
     DEVICE_CLASS_VOLTAGE,
+    ICON_FLASH,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_VOLT,
 )
-from . import cd74hc4067_ns, CD74HC4067Component
+
+from . import CD74HC4067Component, cd74hc4067_ns
 
 DEPENDENCIES = ["cd74hc4067"]
 

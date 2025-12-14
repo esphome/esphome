@@ -1,15 +1,15 @@
+from esphome import pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
+    CONF_ENABLE_PIN,
+    CONF_TIMEOUT,
+    ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
-    ICON_ARROW_EXPAND_VERTICAL,
-    CONF_ADDRESS,
-    CONF_TIMEOUT,
-    CONF_ENABLE_PIN,
 )
-from esphome import pins
 
 DEPENDENCIES = ["i2c"]
 
@@ -20,6 +20,7 @@ VL53L0XSensor = vl53l0x_ns.class_(
 
 CONF_SIGNAL_RATE_LIMIT = "signal_rate_limit"
 CONF_LONG_RANGE = "long_range"
+CONF_TIMING_BUDGET = "timing_budget"
 
 
 def check_keys(obj):
@@ -54,6 +55,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LONG_RANGE, default=False): cv.boolean,
             cv.Optional(CONF_TIMEOUT, default="10ms"): check_timeout,
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_TIMING_BUDGET): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(
+                    min=cv.TimePeriod(microseconds=20000),
+                    max=cv.TimePeriod(microseconds=4294967295),
+                ),
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -72,5 +80,8 @@ async def to_code(config):
     if CONF_ENABLE_PIN in config:
         enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable))
+
+    if timing_budget := config.get(CONF_TIMING_BUDGET):
+        cg.add(var.set_timing_budget(timing_budget))
 
     await i2c.register_i2c_device(var, config)

@@ -1,10 +1,9 @@
 #if defined(USE_HOST)
 #include "logger.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
-void HOT Logger::write_msg_(const char *msg) {
+void HOT Logger::write_msg_(const char *msg, size_t) {
   time_t rawtime;
   struct tm *timeinfo;
   char buffer[80];
@@ -18,7 +17,6 @@ void HOT Logger::write_msg_(const char *msg) {
 
 void Logger::pre_setup() { global_logger = this; }
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 
 #endif

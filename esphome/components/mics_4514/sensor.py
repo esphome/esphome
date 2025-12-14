@@ -9,6 +9,8 @@ from esphome.const import (
     CONF_ID,
     CONF_METHANE,
     CONF_NITROGEN_DIOXIDE,
+    DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
@@ -22,24 +24,33 @@ MICS4514Component = mics_4514_ns.class_(
     "MICS4514Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-SENSORS = [
-    CONF_CARBON_MONOXIDE,
-    CONF_METHANE,
-    CONF_ETHANOL,
-    CONF_HYDROGEN,
-    CONF_AMMONIA,
-    CONF_NITROGEN_DIOXIDE,
-]
+SENSORS = {
+    CONF_CARBON_MONOXIDE: DEVICE_CLASS_CARBON_MONOXIDE,
+    CONF_METHANE: DEVICE_CLASS_EMPTY,
+    CONF_ETHANOL: DEVICE_CLASS_EMPTY,
+    CONF_HYDROGEN: DEVICE_CLASS_EMPTY,
+    CONF_AMMONIA: DEVICE_CLASS_EMPTY,
+    CONF_NITROGEN_DIOXIDE: DEVICE_CLASS_EMPTY,
+}
 
-common_sensor_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PARTS_PER_MILLION,
-    state_class=STATE_CLASS_MEASUREMENT,
-    accuracy_decimals=2,
-)
+
+def common_sensor_schema(*, device_class: str) -> cv.Schema:
+    return sensor.sensor_schema(
+        accuracy_decimals=2,
+        device_class=device_class,
+        state_class=STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_PARTS_PER_MILLION,
+    )
+
 
 CONFIG_SCHEMA = (
     cv.Schema({cv.GenerateID(): cv.declare_id(MICS4514Component)})
-    .extend({cv.Optional(sensor_type): common_sensor_schema for sensor_type in SENSORS})
+    .extend(
+        {
+            cv.Optional(sensor_type): common_sensor_schema(device_class=device_class)
+            for sensor_type, device_class in SENSORS.items()
+        }
+    )
     .extend(i2c.i2c_device_schema(0x75))
     .extend(cv.polling_component_schema("60s"))
 )

@@ -1,0 +1,4 @@
+climate:
+  - platform: hitachi_ac424
+    name: Hitachi Climate
+    transmitter_id: xmitr

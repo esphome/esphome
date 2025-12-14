@@ -1,6 +1,6 @@
 #include "xpt2046.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include <algorithm>
 
@@ -32,7 +32,7 @@ void XPT2046Component::update_touches() {
 
   int16_t touch_pressure_1 = this->read_adc_(0xB1 /* touch_pressure_1 */);
   int16_t touch_pressure_2 = this->read_adc_(0xC1 /* touch_pressure_2 */);
-  z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
+  z_raw = touch_pressure_1 + 0xfff - touch_pressure_2;
   ESP_LOGVV(TAG, "Touchscreen Update z = %d", z_raw);
   touch = (z_raw >= this->threshold_);
   if (touch) {
@@ -62,16 +62,17 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "XPT2046:");
 
   LOG_PIN("  IRQ Pin: ", this->irq_pin_);
-  ESP_LOGCONFIG(TAG, "  X min: %d", this->x_raw_min_);
-  ESP_LOGCONFIG(TAG, "  X max: %d", this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  Y min: %d", this->y_raw_min_);
-  ESP_LOGCONFIG(TAG, "  Y max: %d", this->y_raw_max_);
-
-  ESP_LOGCONFIG(TAG, "  Swap X/Y: %s", YESNO(this->swap_x_y_));
-  ESP_LOGCONFIG(TAG, "  Invert X: %s", YESNO(this->invert_x_));
-  ESP_LOGCONFIG(TAG, "  Invert Y: %s", YESNO(this->invert_y_));
-
-  ESP_LOGCONFIG(TAG, "  threshold: %d", this->threshold_);
+  ESP_LOGCONFIG(TAG,
+                "  X min: %d\n"
+                "  X max: %d\n"
+                "  Y min: %d\n"
+                "  Y max: %d\n"
+                "  Swap X/Y: %s\n"
+                "  Invert X: %s\n"
+                "  Invert Y: %s\n"
+                "  threshold: %d",
+                this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_, YESNO(this->swap_x_y_),
+                YESNO(this->invert_x_), YESNO(this->invert_y_), this->threshold_);
 
   LOG_UPDATE_INTERVAL(this);
 }
