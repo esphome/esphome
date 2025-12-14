@@ -1577,6 +1577,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Ockert Marais (@OckertM)](https://github.com/OckertM)
 - [Dave Walker (@oddsockmachine)](https://github.com/oddsockmachine)
 - [Odd Stråbø (@oddstr13)](https://github.com/oddstr13)
+- [Oderik (@Oderik)](https://github.com/Oderik)
 - [Andrey Ganzevich (@odya)](https://github.com/odya)
 - [Olivér Falvai (@ofalvai)](https://github.com/ofalvai)
 - [ogatatsu (@ogatatsu)](https://github.com/ogatatsu)
@@ -1749,6 +1750,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Robert Cambridge (@rcambrj)](https://github.com/rcambrj)
 - [Russell Cloran (@rcloran)](https://github.com/rcloran)
 - [Ronald Dehuysser (@rdehuyss)](https://github.com/rdehuyss)
+- [Hendrik Schicke (@realkibou)](https://github.com/realkibou)
 - [Rebbe Pod (@RebbePod)](https://github.com/RebbePod)
 - [reddn (@reddn)](https://github.com/reddn)
 - [redlukas (@redlukas)](https://github.com/redlukas)
@@ -1992,6 +1994,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Jannik (@SuperPlusUser)](https://github.com/SuperPlusUser)
 - [Hans Svedåker (@svedaker)](https://github.com/svedaker)
 - [sveip (@sveip)](https://github.com/sveip)
+- [Bogdan Sverdlyuk (@sverdlyuk)](https://github.com/sverdlyuk)
 - [Penny Wood (@Swamp-Ig)](https://github.com/Swamp-Ig)
 - [SwedishChef (@SwedishChef)](https://github.com/SwedishChef)
 - [swhaat (@swhaat)](https://github.com/swhaat)
@@ -2290,4 +2293,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated December 12, 2025.*
+*This page was last updated December 14, 2025.*
