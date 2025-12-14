@@ -11,7 +11,7 @@ namespace esphome {
 namespace dbus {
 
 template<typename... Ts> class DBusSendAction : public Action<Ts...>, public Parented<DBus> {
-public:
+ public:
   TEMPLATABLE_VALUE(bool, dbus_system)
   TEMPLATABLE_VALUE(std::string, dbus_destination)
   TEMPLATABLE_VALUE(std::string, dbus_path)

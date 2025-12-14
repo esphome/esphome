@@ -4,12 +4,12 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ICON_NEW_BOX
 
 from . import (
-    CONF_DBUS_SYSTEM,
+    CONF_DBUS_ARGS,
     CONF_DBUS_DESTINATION,
-    CONF_DBUS_PATH,
     CONF_DBUS_INTERFACE,
     CONF_DBUS_METHOD,
-    CONF_DBUS_ARGS,
+    CONF_DBUS_PATH,
+    CONF_DBUS_SYSTEM,
 )
 
 DEPENDENCIES = ["dbus"]

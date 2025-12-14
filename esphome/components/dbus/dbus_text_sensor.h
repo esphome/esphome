@@ -14,7 +14,14 @@ namespace dbus {
 
 class DBusTextSensor : public text_sensor::TextSensor, public PollingComponent, public DBusWrapper {
  public:
-  DBusTextSensor() : dbus_destination(), dbus_path(), dbus_interface(), dbus_method(), dbus_args({}), properties(), property_separator() {};
+  DBusTextSensor()
+      : dbus_destination(),
+        dbus_path(),
+        dbus_interface(),
+        dbus_method(),
+        dbus_args({}),
+        properties(),
+        property_separator(){};
   ~DBusTextSensor();
   void setup() override;
   void dump_config() override;
