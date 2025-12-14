@@ -62,10 +62,6 @@ SYNC_MODE = {
     "15/16": SyncMode.SYNC_MODE_15_16,
     "16/16": SyncMode.SYNC_MODE_16_16,
     "30/32": SyncMode.SYNC_MODE_30_32,
-    "None+CS": SyncMode.SYNC_MODE_NONE_CS,
-    "15/16+CS": SyncMode.SYNC_MODE_15_16_CS,
-    "16/16+CS": SyncMode.SYNC_MODE_16_16_CS,
-    "30/32+CS": SyncMode.SYNC_MODE_30_32_CS,
 }
 
 Modulation = ns.enum("Modulation", True)
