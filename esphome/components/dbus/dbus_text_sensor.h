@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <list>
+#include "VariantTree.h"
 
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -13,6 +14,7 @@ namespace dbus {
 
 class DBusTextSensor : public text_sensor::TextSensor, public PollingComponent, public DBusWrapper {
  public:
+  DBusTextSensor() : dbus_destination(), dbus_path(), dbus_interface(), dbus_method(), dbus_args({}), properties(), property_separator() {};
   ~DBusTextSensor();
   void setup() override;
   void dump_config() override;
@@ -25,7 +27,7 @@ class DBusTextSensor : public text_sensor::TextSensor, public PollingComponent, 
   void set_dbus_path(const std::string &dbus_path) { this->dbus_path = dbus_path; };
   void set_dbus_interface(const std::string &dbus_interface) { this->dbus_interface = dbus_interface; };
   void set_dbus_method(const std::string &dbus_method) { this->dbus_method = dbus_method; };
-  void set_dbus_args(const std::list<std::string> &dbus_args) { this->dbus_args = dbus_args; };
+  void set_dbus_args(const VariantTree &dbus_args) { this->dbus_args = dbus_args; };
   void set_properties(const std::list<std::string> &properties) { this->properties = properties; };
   void set_property_separator(const std::string &property_separator) { this->property_separator = property_separator; };
 
@@ -34,7 +36,7 @@ class DBusTextSensor : public text_sensor::TextSensor, public PollingComponent, 
   std::string dbus_path;
   std::string dbus_interface;
   std::string dbus_method;
-  std::list<std::string> dbus_args;
+  VariantTree dbus_args;
   std::list<std::string> properties;
   std::string property_separator;
   void loop() override;

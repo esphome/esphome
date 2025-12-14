@@ -5,6 +5,7 @@
 #include <dbus/dbus.h>
 
 #include "esphome/core/defines.h"
+#include "VariantTree.h"
 
 namespace esphome {
 namespace dbus {
@@ -18,7 +19,7 @@ class DBusWrapper {
   void setup();
 
   std::string send(const std::string &dbus_destination, const std::string &dbus_path, const std::string &dbus_interface,
-                   const std::string &dbus_method, const std::list<std::string> &dbus_args,
+                   const std::string &dbus_method, const VariantTree &dbus_args,
                    const std::list<std::string> &properties = {}, const std::string &property_separator = "");
 
   std::string getProperty(DBusMessage *msg, const std::string &searchKey);

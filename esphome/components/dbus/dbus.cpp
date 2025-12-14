@@ -9,6 +9,10 @@ namespace dbus {
 
 static const char *const TAG = "dbus";
 
+void VariantTree::print() const {
+    std::visit(VariantTreePrinter{}, this->data);
+}
+
 DBus::~DBus() {}
 
 void DBus::setup() {
@@ -21,7 +25,7 @@ void DBus::setup() {
  */
 void DBus::send(const optional<bool> &dbus_system, const optional<std::string> &dbus_destination,
                 const optional<std::string> &dbus_path, const optional<std::string> &dbus_interface,
-                const optional<std::string> &dbus_method, const optional<std::list<std::string> > &dbus_args) {
+                const optional<std::string> &dbus_method, const optional<VariantTree > &dbus_args) {
   printf("DBus::send ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
   if (!dbus_destination.has_value()) {
     printf("no dbus_destination\n");
@@ -43,6 +47,8 @@ void DBus::send(const optional<bool> &dbus_system, const optional<std::string> &
     printf("no dbus_args\n");
     return;
   }
+  std::list<std::string> dbus_args_list;
+
   if (dbus_system.has_value() && dbus_system.value()) {
     if (!this->system_dbus_initialized) {
       this->system_dbus.setup();

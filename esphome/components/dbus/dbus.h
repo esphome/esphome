@@ -8,6 +8,7 @@
 #include "esphome/core/automation.h"
 
 #include "dbus-wrapper.h"
+#include "VariantTree.h"
 
 namespace esphome {
 namespace dbus {
@@ -27,7 +28,7 @@ class DBus : public Component, public DBusWrapper {
   // Actions
   void send(const optional<bool> &dbus_system, const optional<std::string> &dbus_destination,
             const optional<std::string> &dbus_path, const optional<std::string> &dbus_interface,
-            const optional<std::string> &dbus_method, const optional<std::list<std::string> > &dbus_args);
+            const optional<std::string> &dbus_method, const optional<VariantTree > &dbus_args);
 
  protected:
  private:

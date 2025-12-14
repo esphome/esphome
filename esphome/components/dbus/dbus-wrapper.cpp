@@ -64,13 +64,199 @@ void DBusWrapper::setup() {
   }
 }
 
+struct VariantTreeToDbus_message {
+    int indent;
+	DBusMessageIter &iter_arg;
+
+    VariantTreeToDbus_message(int ind, DBusMessageIter &iter_arg) : indent(ind), iter_arg(iter_arg) {}
+    
+    void print_indent() const {
+        for (int i = 0; i < indent; ++i) std::cout << "  ";
+    }
+   
+   
+    void operator()(std::monostate) const {
+        print_indent();
+        std::cout << "Null" << std::endl;
+    }
+	
+    
+    void operator()(int i) const {
+        print_indent();
+        std::cout << "Integer: " << i << std::endl;
+        printf("------ add int %d\n", i);
+        if (!dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_INT32, &i)) {
+            fprintf(stderr, "Out Of Memory!\n");
+            exit(1);
+        }
+    }
+    
+    void operator()(unsigned int u) const {
+        print_indent();
+        std::cout << "Unsigned integer: " << u << std::endl;
+	    if (!dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_UINT32, &u)) {
+            fprintf(stderr, "Out Of Memory!\n");
+            exit(1);
+        }
+    }
+    
+    void operator()(bool b) const {
+        print_indent();
+        std::cout << "Bool: " << b << std::endl;
+	    if (!dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_BOOLEAN, &b)) {
+            fprintf(stderr, "Out Of Memory!\n");
+            exit(1);
+        }
+    }
+    
+    void operator()(double d) const {
+        print_indent();
+        std::cout << "Double: " << d << std::endl;
+    }
+    
+    void operator()(const std::string& s) const {
+        print_indent();
+        std::cout << "String: \"" << s << "\"" << std::endl;
+        const char *param = s.c_str();
+        printf("------ add arg: [%s]\n", param);
+        if (!dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_STRING, &param)) {
+            fprintf(stderr, "Out Of Memory!\n");
+            exit(1);
+        }
+    }
+    
+    void operator()(const std::shared_ptr<ValueList>& list) const {
+        print_indent();
+        std::cout << "List [" << list->size() << " Elemente]:" << std::endl;
+		if(indent>0) {
+            DBusMessageIter array;
+            // FIXME: ins erste element reinschaun
+            if (!dbus_message_iter_open_container(&iter_arg, DBUS_TYPE_ARRAY, "s", &array)) {
+                fprintf(stderr, "Out Of Memory!\n");
+                exit(1);
+            }
+            for (const auto& item : *list) {
+                    std::visit(VariantTreeToDbus_message{indent + 1, iter_arg}, item.data);
+            }
+            dbus_message_iter_close_container(&iter_arg, &array);
+        } else {
+            for (const auto& item : *list) {
+                std::visit(VariantTreeToDbus_message{indent + 1, iter_arg}, item.data);
+            }
+        }
+    }
+    
+    void operator()(const std::shared_ptr<ValueDict>& dict) const {
+        print_indent();
+        std::cout << "Dict {" << dict->size() << " Einträge}:" << std::endl;
+        
+		DBusMessageIter arrayIter;
+		if (!dbus_message_iter_open_container(&iter_arg, DBUS_TYPE_ARRAY, "{sv}", &arrayIter)) {
+			fprintf(stderr, "Out Of Memory!\n");
+			exit(1);
+		}
+        for (const auto& [key, value] : *dict) {
+            printf("daaaaaaaaaaaaaaaaaaaaaaaaaa\n");
+            print_indent();
+            std::cout << "  \"" << key << "\": ";
+            
+            DBusMessageIter pairIter;
+            if (!dbus_message_iter_open_container(&arrayIter, 'e', NULL, &pairIter)) {
+                fprintf(stderr, "Out Of Memory!\n");
+                exit(1);
+            }
+            const char *c_key=key.c_str();
+            dbus_message_iter_append_basic(&pairIter, 's', static_cast<void*>(&c_key));
+
+
+            // Wert auf gleicher Zeile ausgeben wenn primitiv
+            if (std::holds_alternative<std::monostate>(value.data)) {
+                std::cout << "null" << std::endl;
+                
+            } /* else if (std::holds_alternative<std::string>(value.data)) {
+                std::string s=std::get<std::string>(value.data);
+                std::cout << "\"" << s << "\"";
+                
+                DBusMessageIter valueIter;
+                if (!dbus_message_iter_open_container(&pairIter, 'v', "s", &valueIter)) {
+                    fprintf(stderr, "Out Of Memory!\n");
+                    exit(1);
+                }
+                const char *c_value=s.c_str();
+                dbus_message_iter_append_basic(&valueIter, 's', &c_value);
+                dbus_message_iter_close_container(&pairIter, &valueIter);
+
+            } */ else if (std::holds_alternative<int>(value.data) ||
+                std::holds_alternative<unsigned int>(value.data) ||
+                std::holds_alternative<bool>(value.data) ||
+                std::holds_alternative<double>(value.data) ||
+                std::holds_alternative<std::string>(value.data)) {
+                printf("daaaaaaaaaaaaaaaaaaaaaaaaaa20\n");
+                char type=' ';
+                void **data=NULL;
+                const char *dummy=NULL;
+                if(std::holds_alternative<int>(value.data)) {
+                  type='i';
+#warning testen geht des & da ???
+                  data=(void**)&std::get<int>(value.data);
+                } else if(std::holds_alternative<unsigned int>(value.data)) {
+                  type='u';
+                  data=(void**)&std::get<unsigned int>(value.data);
+                } else if(std::holds_alternative<bool>(value.data)) {
+                  type='b';
+                  data=(void**)&std::get<unsigned int>(value.data);
+                } else if(std::holds_alternative<double>(value.data)) {
+                  type='d';
+                  data=(void**)&std::get<double>(value.data);
+                } else if(std::holds_alternative<std::string>(value.data)) {
+                  type='s';
+                  dummy= ( std::get<std::string>(value.data).c_str());
+                  data=(void**)&dummy;
+                }
+                
+                DBusMessageIter valueIter;
+                char stype[2]=" ";
+                stype[0]=type;
+                if (!dbus_message_iter_open_container(&pairIter, 'v', stype, &valueIter)) {
+                    fprintf(stderr, "Out Of Memory!\n");
+                    exit(1);
+                }
+                dbus_message_iter_append_basic(&valueIter, type, data);
+                dbus_message_iter_close_container(&pairIter, &valueIter);
+
+                //std::visit([&pairIter](auto&& arg) {
+                std::visit([](auto&& arg) {
+                    using T = std::decay_t<decltype(arg)>;
+                    if constexpr (std::is_same_v<T, std::string>) {
+                        std::cout << "\"" << arg << "\"";
+                    } else if constexpr (std::is_same_v<T, std::monostate>) {
+                        std::cout << "null";
+                    } else if constexpr (!std::is_same_v<T, std::shared_ptr<ValueList>> &&
+                                       !std::is_same_v<T, std::shared_ptr<ValueDict>>) {
+                        std::cout << arg;
+                    }
+                    printf("visitor done\n");
+                }, value.data);
+                
+                std::cout << std::endl;
+            } else {
+                std::cout << std::endl;
+                std::visit(VariantTreeToDbus_message{indent + 2, arrayIter}, value.data);
+            }
+            dbus_message_iter_close_container(&arrayIter, &pairIter);
+        }
+	    dbus_message_iter_close_container(&iter_arg, &arrayIter);
+    }
+};
+
 std::string DBusWrapper::send(const std::string &dbus_destination, const std::string &dbus_path,
                               const std::string &dbus_interface, const std::string &dbus_method,
-                              const std::list<std::string> &dbus_args, const std::list<std::string> &properties,
+                              const VariantTree &dbus_args, const std::list<std::string> &properties,
                               const std::string &property_separator) {
   printf("DBus::send [%s] destination:%s, path:%s, interface.method:%s.%s, args:[%d]\n",
          this->system ? "SYSTEM" : "SESSION", dbus_destination.c_str(), dbus_path.c_str(), dbus_interface.c_str(),
-         dbus_method.c_str(), dbus_args.size());
+         dbus_method.c_str());
+  dbus_args.print();
   assert(this->conn != NULL);
 
   DBusMessage *msg;
@@ -111,7 +297,13 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
   // if (!dbus_message_append_args(msg, DBUS_TYPE_STRING, &interface, DBUS_TYPE_STRING, &param, DBUS_TYPE_INVALID)) {
   DBusMessageIter iter_arg;
   dbus_message_iter_init_append(msg, &iter_arg);
-  for (auto it = dbus_args.begin(); it != dbus_args.end(); ++it) {
+  printf("==================== VariantTreeToDbus_message\n");
+  std::visit(VariantTreeToDbus_message{0, iter_arg}, dbus_args.data);
+
+  /*
+  std::cout << "Dict {" << dict->size() << " Einträge}:" << std::endl;
+  for (const auto &it = [key, value] : *dbus_args) {
+    std::cout << "  \"" << key << "\": ";
     if (*it == "bool:True" || *it == "bool:False") {
       dbus_bool_t b = false;
       printf("have type\n");
@@ -119,9 +311,51 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
         printf("true ");
         b = 1;
       }
-      dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_BOOLEAN, &b);
+      if (!dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_BOOLEAN, &b)) {
+        fprintf(stderr, "Out Of Memory!\n");
+        exit(1);
+      }
       continue;
     }
+	if(it->rfind("uint:",0) == 0) {
+	  int val=std::stoi(it->substr(5));
+      printf("------ add uint %d\n");
+	  if (!dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_UINT32, &val)) {
+        fprintf(stderr, "Out Of Memory!\n");
+        exit(1);
+      }
+      continue;
+	}
+	if(it->rfind("int:",0) == 0) {
+	  int val=std::stoi(it->substr(4));
+      printf("------ add int %d\n");
+	  if (!dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_INT32, &val)) {
+        fprintf(stderr, "Out Of Memory!\n");
+        exit(1);
+      }
+      continue;
+	}
+    if(*it == "[]" ) {
+      printf("------ add empty array\n");
+      DBusMessageIter array;
+      if (!dbus_message_iter_open_container(&iter_arg, DBUS_TYPE_ARRAY, "s", &array)) {
+        fprintf(stderr, "Out Of Memory!\n");
+        exit(1);
+      }
+      dbus_message_iter_close_container(&iter_arg, &array);
+      continue;
+    }
+    if(*it == "{}" ) {
+      printf("------ add empty dict\n");
+      DBusMessageIter dict;
+      if (!dbus_message_iter_open_container(&iter_arg, DBUS_TYPE_ARRAY, "{sv}", &dict)) {
+        fprintf(stderr, "Out Of Memory!\n");
+        exit(1);
+      }
+      dbus_message_iter_close_container(&iter_arg, &dict);
+      continue;
+    }
+
     const char *param = it->c_str();
     printf("------ add arg: [%s]\n", param);
     if (!dbus_message_iter_append_basic(&iter_arg, DBUS_TYPE_STRING, &param)) {
@@ -129,7 +363,9 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
       exit(1);
     }
   }
-
+  */
+  
+  printf("send with reply\n");
   // send message and get a handle for a reply
   if (!dbus_connection_send_with_reply(conn, msg, &pending, -1)) {  // -1 is default timeout
     fprintf(stderr, "Out Of Memory!\n");

@@ -4,12 +4,12 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ICON_NEW_BOX
 
 from . import (
-    CONF_DBUS_ARGS,
+    CONF_DBUS_SYSTEM,
     CONF_DBUS_DESTINATION,
+    CONF_DBUS_PATH,
     CONF_DBUS_INTERFACE,
     CONF_DBUS_METHOD,
-    CONF_DBUS_PATH,
-    CONF_DBUS_SYSTEM,
+    CONF_DBUS_ARGS,
 )
 
 DEPENDENCIES = ["dbus"]
@@ -36,7 +36,6 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_DBUS_PATH): cv.string,
             cv.Required(CONF_DBUS_INTERFACE): cv.string,
             cv.Optional(CONF_DBUS_METHOD, default="Get"): cv.string,
-            # workaround: "bool:True" "bool:False" to set a boolean argument
             cv.Optional(CONF_DBUS_ARGS, default=[]): cv.ensure_list(cv.string),
             # workaround: properties: ["root"] to return the root value
             cv.Optional(CONF_PROPERTIES, default=[]): cv.ensure_list(cv.string),
