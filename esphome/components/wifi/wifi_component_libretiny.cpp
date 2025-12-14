@@ -322,7 +322,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       // wifi_sta_connect_status_() to return IDLE. The main loop then sees
       // "Unknown connection status 0" (wifi_component.cpp check_connecting_finished)
       // and calls retry_connect(), aborting a connection that may succeed moments later.
-      // Real connection failures will have ssid/bssid populated, or we'll hit the 30s timeout.
+      // Real connection failures will have ssid/bssid populated, or we'll hit the connection timeout.
       if (it.ssid_len == 0 && s_sta_connecting) {
         ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s)",
                  get_disconnect_reason_str(it.reason));
