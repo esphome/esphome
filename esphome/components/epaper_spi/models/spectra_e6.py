@@ -4,8 +4,8 @@ from . import EpaperModel
 
 
 class SpectraE6(EpaperModel):
-    def __init__(self, name, class_name="EPaperSpectraE6", **kwargs):
-        super().__init__(name, class_name, **kwargs)
+    def __init__(self, name, class_name="EPaperSpectraE6", **defaults):
+        super().__init__(name, class_name, **defaults)
 
     # fmt: off
     def get_init_sequence(self, config: dict):
@@ -30,7 +30,7 @@ class SpectraE6(EpaperModel):
         return self.defaults.get(key, fallback)
 
 
-spectra_e6 = SpectraE6("spectra-e6")
+spectra_e6 = SpectraE6("spectra-e6", minimum_update_interval="30s")
 
 spectra_e6_7p3 = spectra_e6.extend(
     "7.3in-Spectra-E6",
