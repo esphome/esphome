@@ -8,7 +8,7 @@ namespace udp {
 
 static const char *const TAG = "udp_transport";
 
-bool UDPTransport::should_send() { return this->is_provider_ && network::is_connected(); }
+bool UDPTransport::should_send() { return network::is_connected(); }
 void UDPTransport::setup() {
   PacketTransport::setup();
   if (!this->providers_.empty() || this->is_encrypted_()) {
