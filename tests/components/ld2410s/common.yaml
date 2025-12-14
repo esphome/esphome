@@ -1,0 +1,76 @@
+uart:
+  id: uart_bus
+  tx_pin: ${uart_tx}
+  rx_pin: ${uart_rx}
+  baud_rate: 115200
+  parity: NONE
+  stop_bits: 1
+
+ld2410s:
+  uart_id: uart_bus
+
+sensor:
+  - platform: ld2410s
+    target_distance:
+      name: Target Distance
+    calibration_progress:
+      name: Calibration progress
+
+binary_sensor:
+  - platform: ld2410s
+    has_target:
+      name: Presence
+    has_calibration_running:
+      name: Calibration running
+
+text_sensor:
+  - platform: ld2410s
+    fw_version:
+      name: Firmware version
+    threshold_triggers:
+      name: Threshold Triggers
+    threshold_holds:
+      name: Threshold Holds
+    threshold_snrs:
+      name: Threshold SNRs
+    energy_values:
+      name: Energy Values
+
+number:
+  - platform: ld2410s
+    max_distance:
+      name: Max detect distance
+    min_distance:
+      name: Min detect distance
+    no_delay:
+      name: No detect report delay
+    status_reporting_frequency:
+      name: Status reporting frequency
+    distance_reporting_frequency:
+      name: Distance reporting frequency
+
+    threshold_trigger:
+      name: Threshold Trigger
+    threshold_hold:
+      name: Threshold Hold
+    threshold_snr:
+      name: Threshold SNR
+    threshold_selected_gate:
+      name: Threshold Selected Gate
+
+button:
+  - platform: ld2410s
+    calibration:
+      name: Start auto calibration
+    factory_reset:
+      name: Factory reset
+
+select:
+  - platform: ld2410s
+    response_speed:
+      name: Response speed
+
+switch:
+  - platform: ld2410s
+    minimal_output:
+      name: Minimal output
