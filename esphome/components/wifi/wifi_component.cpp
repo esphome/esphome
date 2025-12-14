@@ -1421,6 +1421,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // without disrupting the captive portal/improv connection
       if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
         this->restart_adapter();
+      } else {
+        // Even when skipping full restart, disconnect to clear driver state
+        // Without this, platforms like LibreTiny may think we're still connecting
+        this->wifi_disconnect_();
       }
       // Clear scan flag - we're starting a new retry cycle
       this->did_scan_this_cycle_ = false;
