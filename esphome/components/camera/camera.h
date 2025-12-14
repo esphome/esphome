@@ -15,6 +15,41 @@ namespace camera {
  */
 enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER };
 
+/// Enumeration of different pixel formats.
+enum PixelFormat : uint8_t {
+  PIXEL_FORMAT_GRAYSCALE = 0,  ///< 8-bit grayscale.
+  PIXEL_FORMAT_RGB565,         ///< 16-bit RGB (5-6-5).
+  PIXEL_FORMAT_BGR888,         ///< RGB pixel data in 8-bit format, stored as B, G, R (1 byte each).
+};
+
+/// Returns string name for a given PixelFormat.
+inline const char *to_string(PixelFormat format) {
+  switch (format) {
+    case PIXEL_FORMAT_GRAYSCALE:
+      return "PIXEL_FORMAT_GRAYSCALE";
+    case PIXEL_FORMAT_RGB565:
+      return "PIXEL_FORMAT_RGB565";
+    case PIXEL_FORMAT_BGR888:
+      return "PIXEL_FORMAT_BGR888";
+  }
+  return "PIXEL_FORMAT_UNKNOWN";
+}
+
+// Forward declaration
+class CameraImage;
+
+/** Listener interface for camera events.
+ *
+ * Components can implement this interface to receive camera notifications
+ * (new images, stream start/stop) without the overhead of std::function callbacks.
+ */
+class CameraListener {
+ public:
+  virtual void on_camera_image(const std::shared_ptr<CameraImage> &image) {}
+  virtual void on_stream_start() {}
+  virtual void on_stream_stop() {}
+};
+
 /** Abstract camera image base class.
  *  Encapsulates the JPEG encoded data and it is shared among
  *  all connected clients.
@@ -43,13 +78,36 @@ class CameraImageReader {
   virtual ~CameraImageReader() {}
 };
 
+/// Specification of a caputured camera image.
+/// This struct defines the format and size details for images captured
+/// or processed by a camera component.
+struct CameraImageSpec {
+  uint16_t width;
+  uint16_t height;
+  PixelFormat format;
+  size_t bytes_per_pixel() {
+    switch (format) {
+      case PIXEL_FORMAT_GRAYSCALE:
+        return 1;
+      case PIXEL_FORMAT_RGB565:
+        return 2;
+      case PIXEL_FORMAT_BGR888:
+        return 3;
+    }
+
+    return 1;
+  }
+  size_t bytes_per_row() { return bytes_per_pixel() * width; }
+  size_t bytes_per_image() { return bytes_per_pixel() * width * height; }
+};
+
 /** Abstract camera base class. Collaborates with API.
- *  1) API server starts and installs callback (add_image_callback)
- *     which is called by the camera when a new image is available.
+ *  1) API server starts and registers as a listener (add_listener)
+ *     to receive new images from the camera.
  *  2) New API client connects and creates a new image reader (create_image_reader).
  *  3) API connection receives protobuf CameraImageRequest and calls request_image.
  *  3.a) API connection receives protobuf CameraImageRequest and calls start_stream.
- *  4) Camera implementation provides JPEG data in the CameraImage and calls callback.
+ *  4) Camera implementation provides JPEG data in the CameraImage and notifies listeners.
  *  5) API connection sets the image in the image reader.
  *  6) API connection consumes data from the image reader and returns the image when finished.
  *  7.a) Camera captures a new image and continues with 4) until start_stream is called.
@@ -57,8 +115,8 @@ class CameraImageReader {
 class Camera : public EntityBase, public Component {
  public:
   Camera();
-  // Camera implementation invokes callback to publish a new image.
-  virtual void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback) = 0;
+  /// Add a listener to receive camera events
+  virtual void add_listener(CameraListener *listener) = 0;
   /// Returns a new camera image reader that keeps track of the JPEG data in the camera image.
   virtual CameraImageReader *create_image_reader() = 0;
   // Connection, camera or web server requests one new JPEG image.

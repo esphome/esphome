@@ -31,7 +31,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -52,9 +52,9 @@ def default_url(config: ConfigType) -> ConfigType:
     config = config.copy()
     if config[CONF_VERSION] == 1:
         if CONF_CSS_URL not in config:
-            config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
+            config[CONF_CSS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.css"
         if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
+            config[CONF_JS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.js"
     if config[CONF_VERSION] == 2:
         if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
@@ -136,6 +136,18 @@ def _final_validate_sorting(config: ConfigType) -> ConfigType:
 
 FINAL_VALIDATE_SCHEMA = _final_validate_sorting
 
+
+def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for web_server component."""
+    from esphome.components import socket
+
+    # Web server needs 1 listening socket + typically 2 concurrent client connections
+    # (browser makes 2 connections for page + event stream)
+    sockets_needed = 3
+    socket.consume_sockets(sockets_needed, "web_server")(config)
+    return config
+
+
 sorting_group = {
     cv.Required(CONF_ID): cv.declare_id(cg.int_),
     cv.Required(CONF_NAME): cv.string,
@@ -205,6 +217,7 @@ CONFIG_SCHEMA = cv.All(
     validate_local,
     validate_sorting_groups,
     validate_ota,
+    _consume_web_server_sockets,
 )
 
 
@@ -269,12 +282,15 @@ def add_resource_as_progmem(
     cg.add_global(cg.RawExpression(size_t))
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
+
+    # Track controller registration for StaticVector sizing
+    CORE.register_controller()
 
     version = config[CONF_VERSION]
 

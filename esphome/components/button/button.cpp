@@ -1,8 +1,7 @@
 #include "button.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace button {
+namespace esphome::button {
 
 static const char *const TAG = "button";
 
@@ -14,8 +13,8 @@ void log_button(const char *tag, const char *prefix, const char *type, Button *o
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
 
-  if (!obj->get_icon().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon().c_str());
+  if (!obj->get_icon_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
   }
 }
 
@@ -26,5 +25,4 @@ void Button::press() {
 }
 void Button::add_on_press_callback(std::function<void()> &&callback) { this->press_callback_.add(std::move(callback)); }
 
-}  // namespace button
-}  // namespace esphome
+}  // namespace esphome::button

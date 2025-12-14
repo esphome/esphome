@@ -9,6 +9,7 @@
 #include "esphome/components/uart/uart.h"
 #include "nextion_base.h"
 #include "nextion_component.h"
+#include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
@@ -31,7 +32,7 @@ namespace nextion {
 class Nextion;
 class NextionComponentBase;
 
-using nextion_writer_t = std::function<void(Nextion &)>;
+using nextion_writer_t = display::DisplayWriter<Nextion>;
 
 static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<char>(255), static_cast<char>(255)};
 
@@ -170,7 +171,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the image of the component `pic` to the image with ID `4`.
    */
-  void set_component_picture(const char *component, uint8_t picture_id);
+  void set_component_picture(const char *component, uint8_t picture_id) { set_component_picc(component, picture_id); };
 
   /**
    * Set the background color of a component.
@@ -373,7 +374,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the picture id of the component `textview`.
    */
-  void set_component_pic(const char *component, uint8_t pic_id);
+  void set_component_pic(const char *component, uint16_t pic_id);
 
   /**
    * Set the background picture id of component.
@@ -387,7 +388,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the background picture id of the component `textview`.
    */
-  void set_component_picc(const char *component, uint8_t pic_id);
+  void set_component_picc(const char *component, uint16_t pic_id);
 
   /**
    * Set the font color of a component.
@@ -539,6 +540,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Switches to the page named `main`. Pages are named in the Nextion Editor.
    */
   void goto_page(uint8_t page);
+
+  /**
+   * Set the visibility of a component.
+   *
+   * @param component The component name.
+   * @param show True to show the component, false to hide it.
+   *
+   * @see show_component()
+   * @see hide_component()
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_visibility("textview", true);   // Equivalent to show_component("textview")
+   * it.set_component_visibility("textview", false);  // Equivalent to hide_component("textview")
+   * ```
+   */
+  void set_component_visibility(const char *component, bool show) override;
 
   /**
    * Hide a component.
@@ -892,7 +910,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25).
    */
   void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size = 200, uint16_t background_color = 65535,
-              uint16_t foreground_color = 0, uint8_t logo_pic = -1, uint8_t border_width = 8);
+              uint16_t foreground_color = 0, int32_t logo_pic = -1, uint8_t border_width = 8);
 
   /**
    * Draws a QR code in the screen
@@ -917,7 +935,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size,
               Color background_color = Color(255, 255, 255), Color foreground_color = Color(0, 0, 0),
-              uint8_t logo_pic = -1, uint8_t border_width = 8);
+              int32_t logo_pic = -1, uint8_t border_width = 8);
 
   /** Set the brightness of the backlight.
    *
@@ -1454,7 +1472,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void(uint8_t, uint8_t, bool)> touch_callback_{};
   CallbackManager<void()> buffer_overflow_callback_{};
 
-  optional<nextion_writer_t> writer_;
+  nextion_writer_t writer_;
   optional<float> brightness_;
 
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO

@@ -27,8 +27,13 @@ from esphome.helpers import sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting object IDs from expressions
+# Pre-compiled regex patterns for extracting object IDs from expressions
+# Matches both old format: .set_object_id("obj_id")
+# and new format: .set_name_and_object_id("name", "obj_id")
 OBJECT_ID_PATTERN = re.compile(r'\.set_object_id\(["\'](.*?)["\']\)')
+COMBINED_PATTERN = re.compile(
+    r'\.set_name_and_object_id\(["\'].*?["\']\s*,\s*["\'](.*?)["\']\)'
+)
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -273,8 +278,10 @@ def setup_test_environment() -> Generator[list[str], None, None]:
 def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
     """Extract the object ID that was set from the generated expressions."""
     for expr in expressions:
-        # Look for set_object_id calls with regex to handle various formats
-        # Matches: var.set_object_id("temperature_2") or var.set_object_id('temperature_2')
+        # First try new combined format: .set_name_and_object_id("name", "obj_id")
+        if match := COMBINED_PATTERN.search(expr):
+            return match.group(1)
+        # Fall back to old format: .set_object_id("obj_id")
         if match := OBJECT_ID_PATTERN.search(expr):
             return match.group(1)
     return None
@@ -705,3 +712,48 @@ def test_empty_or_null_device_id_on_entity() -> None:
     config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: None}
     validated2 = validator(config2)
     assert validated2 == config2
+
+
+def test_entity_duplicate_validator_non_ascii_names() -> None:
+    """Test that non-ASCII names show helpful error messages."""
+    # Create validator for binary_sensor platform
+    validator = entity_duplicate_validator("binary_sensor")
+
+    # First Russian sensor should pass
+    config1 = {CONF_NAME: "Датчик открытия основного крана"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second Russian sensor with different text but same ASCII conversion should fail
+    config2 = {CONF_NAME: "Датчик закрытия основного крана"}
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"Duplicate binary_sensor entity with name 'Датчик закрытия основного крана' found.*"
+            r"Original names: 'Датчик закрытия основного крана' and 'Датчик открытия основного крана'.*"
+            r"Both convert to ASCII ID: '_______________________________'.*"
+            r"To fix: Add unique ASCII characters \(e\.g\., '1', '2', or 'A', 'B'\)",
+            re.DOTALL,
+        ),
+    ):
+        validator(config2)
+
+
+def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:
+    """Test that identical names don't show the enhanced message."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Temperature"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second entity with exact same name should fail without enhanced message
+    config2 = {CONF_NAME: "Temperature"}
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate sensor entity with name 'Temperature' found.*"
+        r"Each entity on a device must have a unique name within its platform\.$",
+    ):
+        validator(config2)

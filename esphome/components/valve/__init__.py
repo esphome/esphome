@@ -21,7 +21,7 @@ from esphome.const import (
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -129,11 +129,6 @@ def valve_schema(
     return _VALVE_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-VALVE_SCHEMA = valve_schema()
-VALVE_SCHEMA.add_extra(cv.deprecated_schema_constant("valve"))
-
-
 async def _setup_valve_core(var, config):
     await setup_entity(var, config, "valve")
 
@@ -233,6 +228,6 @@ async def valve_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(valve_ns.using)

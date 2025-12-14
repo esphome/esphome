@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WIDTH,
 )
-from esphome.cpp_generator import IntLiteral
 
 from ..automation import action_to_code
 from ..defines import (
@@ -32,7 +31,7 @@ from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import (
     get_end_value,
     get_start_value,
-    lv_angle,
+    lv_angle_degrees,
     lv_bool,
     lv_color,
     lv_float,
@@ -163,7 +162,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_RANGE_FROM, default=0.0): cv.float_,
         cv.Optional(CONF_RANGE_TO, default=100.0): cv.float_,
         cv.Optional(CONF_ANGLE_RANGE, default=270): cv.int_range(0, 360),
-        cv.Optional(CONF_ROTATION): lv_angle,
+        cv.Optional(CONF_ROTATION): lv_angle_degrees,
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
     }
 )
@@ -188,9 +187,7 @@ class MeterType(WidgetType):
         for scale_conf in config.get(CONF_SCALES, ()):
             rotation = 90 + (360 - scale_conf[CONF_ANGLE_RANGE]) / 2
             if CONF_ROTATION in scale_conf:
-                rotation = await lv_angle.process(scale_conf[CONF_ROTATION])
-                if isinstance(rotation, IntLiteral):
-                    rotation = int(str(rotation)) // 10
+                rotation = await lv_angle_degrees.process(scale_conf[CONF_ROTATION])
             with LocalVariable(
                 "meter_var", "lv_meter_scale_t", lv_expr.meter_add_scale(var)
             ) as meter_var:

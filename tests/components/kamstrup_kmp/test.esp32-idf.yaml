@@ -1,5 +1,4 @@
-substitutions:
-  uart_tx_pin: GPIO1
-  uart_rx_pin: GPIO3
+packages:
+  uart_1200: !include ../../test_build_components/common/uart_1200/esp32-idf.yaml
 
 <<: !include common.yaml

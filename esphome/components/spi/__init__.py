@@ -3,16 +3,18 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import only_on_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     KEY_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    only_on_variant,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -35,7 +37,7 @@ from esphome.const import (
     PLATFORM_RP2040,
     PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
@@ -128,7 +130,9 @@ def get_hw_interface_list():
         if get_target_variant() in [
             VARIANT_ESP32C2,
             VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
             VARIANT_ESP32C6,
+            VARIANT_ESP32C61,
             VARIANT_ESP32H2,
         ]:
             return [["spi", "spi2"]]
@@ -276,9 +280,6 @@ def get_spi_interface(index):
         return ["&SPI", "&SPI1"][index]
     if index == 0:
         return "&SPI"
-    # Following code can't apply to C2, H2 or 8266 since they have only one SPI
-    if get_target_variant() in (VARIANT_ESP32S3, VARIANT_ESP32S2):
-        return "new SPIClass(FSPI)"
     return "new SPIClass(HSPI)"
 
 
@@ -313,7 +314,7 @@ def spi_mode_schema(mode):
     if pin_count == 8:
         onlys.append(
             only_on_variant(
-                supported=[VARIANT_ESP32S3, VARIANT_ESP32S2, VARIANT_ESP32P4]
+                supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3]
             )
         )
     return cv.All(
@@ -351,7 +352,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1.0)
+@coroutine_with_priority(CoroPriority.BUS)
 async def to_code(configs):
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)

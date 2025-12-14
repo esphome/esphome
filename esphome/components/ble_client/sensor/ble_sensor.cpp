@@ -6,8 +6,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 static const char *const TAG = "ble_sensor";
 
@@ -25,7 +24,7 @@ void BLESensor::dump_config() {
                 "  Characteristic UUID: %s\n"
                 "  Descriptor UUID    : %s\n"
                 "  Notifications      : %s",
-                this->parent()->address_str().c_str(), this->service_uuid_.to_string().c_str(),
+                this->parent()->address_str(), this->service_uuid_.to_string().c_str(),
                 this->char_uuid_.to_string().c_str(), this->descr_uuid_.to_string().c_str(), YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
@@ -77,6 +76,9 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         }
       } else {
         this->node_state = espbt::ClientState::ESTABLISHED;
+        // For non-notify characteristics, trigger an immediate read after service discovery
+        // to avoid peripherals disconnecting due to inactivity
+        this->update();
       }
       break;
     }
@@ -117,9 +119,9 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
 }
 
 float BLESensor::parse_data_(uint8_t *value, uint16_t value_len) {
-  if (this->data_to_value_func_.has_value()) {
+  if (this->has_data_to_value_) {
     std::vector<uint8_t> data(value, value + value_len);
-    return (*this->data_to_value_func_)(data);
+    return this->data_to_value_func_(data);
   } else {
     return value[0];
   }
@@ -144,6 +146,5 @@ void BLESensor::update() {
   }
 }
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 #endif
