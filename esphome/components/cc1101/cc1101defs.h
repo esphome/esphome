@@ -6,6 +6,12 @@ namespace esphome::cc1101 {
 
 static constexpr float XTAL_FREQUENCY = 26000000;
 
+static constexpr float RSSI_OFFSET = 74.0f;
+static constexpr float RSSI_STEP = 0.5f;
+
+static constexpr uint8_t STATUS_CRC_OK_MASK = 0x80;
+static constexpr uint8_t STATUS_LQI_MASK = 0x7F;
+
 static constexpr uint8_t BUS_BURST = 0x40;
 static constexpr uint8_t BUS_READ = 0x80;
 static constexpr uint8_t BUS_WRITE = 0x00;

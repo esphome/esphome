@@ -197,6 +197,7 @@ void CC1101Component::loop() {
     this->enter_idle_();
     this->strobe_(Command::FRX);
     this->strobe_(Command::RX);
+    this->wait_for_state_(State::RX);
     return;
   }
   this->packet_.resize(payload_length);
@@ -206,9 +207,9 @@ void CC1101Component::loop() {
   uint8_t status[2];
   this->read_(Register::FIFO, status, 2);
   int8_t rssi_raw = static_cast<int8_t>(status[0]);
-  float rssi = (rssi_raw / 2.0f) - 74.0f;
-  bool crc_ok = (status[1] & 0x80) != 0;
-  uint8_t lqi = status[1] & 0x7F;
+  float rssi = (rssi_raw * RSSI_STEP) - RSSI_OFFSET;
+  bool crc_ok = (status[1] & STATUS_CRC_OK_MASK) != 0;
+  uint8_t lqi = status[1] & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
     this->packet_trigger_->trigger(this->packet_, rssi, lqi);
   }
