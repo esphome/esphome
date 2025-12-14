@@ -164,10 +164,7 @@ void CC1101Component::setup() {
   }
   this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
 
-  // Automatically start RX in packet mode with GDO0 configured
-  if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) && this->gdo0_pin_ != nullptr) {
-    this->strobe_(Command::RX);
-  }
+  this->strobe_(Command::RX);
 }
 
 void CC1101Component::loop() {
