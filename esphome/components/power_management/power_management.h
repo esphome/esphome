@@ -29,7 +29,6 @@ enum PowerManagementLockUser : uint8_t {
   PM = 1,
   ACTION = 2,
   API = 3,
-  OT = 4,
 };
 const char *power_manager_user_to_string(PowerManagementLockUser user);
 
