@@ -196,11 +196,6 @@ static constexpr uint8_t WIFI_RETRY_COUNT_PER_SSID = 1;
 // Rationale: Fast connect prioritizes speed - try each AP once to find a working one quickly
 static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;
 
-// 2 forced scan cycles after credentials change via captive portal/improv
-// Rationale: After new credentials are submitted, we need fresh scan results to find the
-// best AP (strongest signal). Two cycles in case the first scan catches the network mid-transition.
-static constexpr uint8_t WIFI_FORCE_SCAN_AFTER_CREDENTIAL_CHANGE = 2;
-
 /// Cooldown duration in milliseconds after adapter restart or repeated failures
 /// Allows WiFi hardware to stabilize before next connection attempt
 static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
@@ -690,8 +685,6 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
-  // Force scan cycles to find best AP even when captive portal/improv is active
-  this->force_scan_count_ = WIFI_FORCE_SCAN_AFTER_CREDENTIAL_CHANGE;
   // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
   this->skip_cooldown_next_cycle_ = true;
 }
@@ -1338,14 +1331,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
       // Skip scanning when captive portal/improv is active to avoid disrupting AP
       // Even passive scans can cause brief AP disconnections on ESP32
-      // Exception: force scans after credential change to find best AP
       if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
-        if (this->force_scan_count_ > 0) {
-          this->force_scan_count_--;
-          ESP_LOGD(TAG, "Forcing scan despite active portal (remaining: %u)", this->force_scan_count_);
-        } else {
-          return WiFiRetryPhase::RETRY_HIDDEN;
-        }
+        return WiFiRetryPhase::RETRY_HIDDEN;
       }
       return WiFiRetryPhase::SCAN_CONNECTING;
   }

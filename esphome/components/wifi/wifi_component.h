@@ -643,10 +643,6 @@ class WiFiComponent : public Component {
   bool keep_scan_results_{false};
   bool did_scan_this_cycle_{false};
   bool skip_cooldown_next_cycle_{false};
-  /// Force scan cycles after credentials change (even when AP is active)
-  /// Set to 2 after captive portal/improv submits new credentials to ensure
-  /// we find the best AP rather than connecting to a potentially weak one
-  uint8_t force_scan_count_{0};
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   bool is_high_performance_mode_{false};
