@@ -53,7 +53,6 @@ class CC1101Component : public Component,
   void set_num_preamble(uint8_t value);
   void set_sync1(uint8_t value);
   void set_sync0(uint8_t value);
-  void set_pktlen(uint8_t value);
 
   // AGC settings
   void set_magn_target(MagnTarget value);
@@ -70,7 +69,7 @@ class CC1101Component : public Component,
 
   // Packet mode settings
   void set_packet_mode(bool value);
-  void set_length_config(LengthConfig value);
+  void set_packet_length(uint8_t value);
   void set_crc_enable(bool value);
   void set_whitening(bool value);
 

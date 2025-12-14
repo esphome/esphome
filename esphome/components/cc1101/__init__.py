@@ -36,7 +36,6 @@ CONF_MANCHESTER = "manchester"
 CONF_NUM_PREAMBLE = "num_preamble"
 CONF_SYNC1 = "sync1"
 CONF_SYNC0 = "sync0"
-CONF_PKTLEN = "pktlen"
 CONF_MAGN_TARGET = "magn_target"
 CONF_MAX_LNA_GAIN = "max_lna_gain"
 CONF_MAX_DVGA_GAIN = "max_dvga_gain"
@@ -50,7 +49,7 @@ CONF_HYST_LEVEL = "hyst_level"
 
 # Packet mode config keys
 CONF_PACKET_MODE = "packet_mode"
-CONF_LENGTH_CONFIG = "length_config"
+CONF_PACKET_LENGTH = "packet_length"
 CONF_CRC_ENABLE = "crc_enable"
 CONF_WHITENING = "whitening"
 CONF_GDO0_PIN = "gdo0_pin"
@@ -166,13 +165,6 @@ HYST_LEVEL = {
     "High": HystLevel.HYST_LEVEL_HIGH,
 }
 
-LengthConfig = ns.enum("LengthConfig", True)
-LENGTH_CONFIG = {
-    "FIXED": LengthConfig.LENGTH_CONFIG_FIXED,
-    "VARIABLE": LengthConfig.LENGTH_CONFIG_VARIABLE,
-    "INFINITE": LengthConfig.LENGTH_CONFIG_INFINITE,
-}
-
 # Config key -> Validator mapping
 CONFIG_MAP = {
     CONF_OUTPUT_POWER: cv.float_range(min=-30.0, max=11.0),
@@ -193,7 +185,6 @@ CONFIG_MAP = {
     CONF_NUM_PREAMBLE: cv.int_range(min=0, max=7),
     CONF_SYNC1: cv.hex_uint8_t,
     CONF_SYNC0: cv.hex_uint8_t,
-    CONF_PKTLEN: cv.uint8_t,
     CONF_MAGN_TARGET: cv.enum(MAGN_TARGET, upper=False),
     CONF_MAX_LNA_GAIN: cv.enum(MAX_LNA_GAIN, upper=False),
     CONF_MAX_DVGA_GAIN: cv.enum(MAX_DVGA_GAIN, upper=False),
@@ -206,7 +197,7 @@ CONFIG_MAP = {
     CONF_WAIT_TIME: cv.enum(WAIT_TIME, upper=False),
     CONF_HYST_LEVEL: cv.enum(HYST_LEVEL, upper=False),
     CONF_PACKET_MODE: cv.boolean,
-    CONF_LENGTH_CONFIG: cv.enum(LENGTH_CONFIG, upper=True),
+    CONF_PACKET_LENGTH: cv.uint8_t,
     CONF_CRC_ENABLE: cv.boolean,
     CONF_WHITENING: cv.boolean,
 }

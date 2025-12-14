@@ -640,13 +640,6 @@ void CC1101Component::set_sync0(uint8_t value) {
   }
 }
 
-void CC1101Component::set_pktlen(uint8_t value) {
-  this->state_.PKTLEN = value;
-  if (this->initialized_) {
-    this->write_(Register::PKTLEN);
-  }
-}
-
 void CC1101Component::set_magn_target(MagnTarget value) {
   this->state_.MAGN_TARGET = static_cast<uint8_t>(value);
   if (this->initialized_) {
@@ -732,10 +725,18 @@ void CC1101Component::set_packet_mode(bool value) {
   }
 }
 
-void CC1101Component::set_length_config(LengthConfig value) {
-  this->state_.LENGTH_CONFIG = static_cast<uint8_t>(value);
+void CC1101Component::set_packet_length(uint8_t value) {
+  if (value == 0) {
+    // Variable length mode
+    this->state_.LENGTH_CONFIG = static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
+  } else {
+    // Fixed length mode
+    this->state_.LENGTH_CONFIG = static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_FIXED);
+    this->state_.PKTLEN = value;
+  }
   if (this->initialized_) {
     this->write_(Register::PKTCTRL0);
+    this->write_(Register::PKTLEN);
   }
 }
 
