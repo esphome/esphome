@@ -42,7 +42,7 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
-#ifdef USE_POWER_MANAGEMENT
+#if defined(USE_POWER_MANAGEMENT) && defined(USE_OPENTHREAD)
 #include "esphome/components/power_management/power_management.h"
 #endif
 
@@ -150,7 +150,7 @@ APIConnection::~APIConnection() {
 
 void APIConnection::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-#ifdef USE_POWER_MANAGEMENT
+#if defined(USE_POWER_MANAGEMENT) && defined(USE_OPENTHREAD)
   if ((this->flags_.next_close) || (this->flags_.batch_scheduled) || (!this->list_entities_iterator_.completed())
 #ifdef USE_CAMERA
       || (this->image_reader_ && this->image_reader_->available())
@@ -166,7 +166,7 @@ void APIConnection::loop() {
     // requested a disconnect
     this->helper_->close();
     this->flags_.remove = true;
-#ifdef USE_POWER_MANAGEMENT
+#if defined(USE_POWER_MANAGEMENT) && defined(USE_OPENTHREAD)
     this->pm_loop_release_lock_();
 #endif
     return;
@@ -180,7 +180,7 @@ void APIConnection::loop() {
 
   // Check if socket has data ready before attempting to read
   if (this->helper_->is_socket_ready()) {
-#ifdef USE_POWER_MANAGEMENT
+#if defined(USE_POWER_MANAGEMENT) && defined(USE_OPENTHREAD)
     this->pm_loop_acquire_lock_();
 #endif
     // Read up to MAX_MESSAGES_PER_LOOP messages per loop to improve throughput
@@ -192,7 +192,7 @@ void APIConnection::loop() {
         break;
       } else if (err != APIError::OK) {
         this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
-#ifdef USE_POWER_MANAGEMENT
+#if defined(USE_POWER_MANAGEMENT) && defined(USE_OPENTHREAD)
         this->pm_loop_release_lock_();
 #endif
         return;
@@ -201,7 +201,7 @@ void APIConnection::loop() {
         // read a packet
         this->read_message(buffer.data_len, buffer.type, buffer.data);
         if (this->flags_.remove) {
-#ifdef USE_POWER_MANAGEMENT
+#if defined(USE_POWER_MANAGEMENT) && defined(USE_OPENTHREAD)
           this->pm_loop_release_lock_();
 #endif
           return;
@@ -284,7 +284,7 @@ void APIConnection::loop() {
   }
 #endif
 
-#ifdef USE_POWER_MANAGEMENT
+#if defined(USE_POWER_MANAGEMENT) && defined(USE_OPENTHREAD)
   if (!((this->flags_.next_close) || (this->flags_.batch_scheduled) || (!this->list_entities_iterator_.completed())
 #ifdef USE_CAMERA
         || (this->image_reader_ && this->image_reader_->available())
@@ -2020,7 +2020,7 @@ void APIConnection::log_warning_(const LogString *message, APIError err) {
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
-#ifdef USE_POWER_MANAGEMENT
+#if defined(USE_POWER_MANAGEMENT) && defined(USE_OPENTHREAD)
 void APIConnection::pm_loop_acquire_lock_() {
   if (!this->pm_loop_lock_) {
     power_management::global_pm->acquire_lock(power_management::PowerManagementLockUser::API,
