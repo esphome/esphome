@@ -73,7 +73,6 @@ class CC1101Component : public Component,
   void set_length_config(LengthConfig value);
   void set_crc_enable(bool value);
   void set_whitening(bool value);
-  void set_append_status(bool value);
 
   // Packet mode operations
   CC1101Error transmit_packet(const std::vector<uint8_t> &packet);

@@ -53,7 +53,6 @@ CONF_PACKET_MODE = "packet_mode"
 CONF_LENGTH_CONFIG = "length_config"
 CONF_CRC_ENABLE = "crc_enable"
 CONF_WHITENING = "whitening"
-CONF_APPEND_STATUS = "append_status"
 CONF_GDO0_PIN = "gdo0_pin"
 CONF_ON_PACKET = "on_packet"
 
@@ -210,7 +209,6 @@ CONFIG_MAP = {
     CONF_LENGTH_CONFIG: cv.enum(LENGTH_CONFIG, upper=True),
     CONF_CRC_ENABLE: cv.boolean,
     CONF_WHITENING: cv.boolean,
-    CONF_APPEND_STATUS: cv.boolean,
 }
 
 CONFIG_SCHEMA = (

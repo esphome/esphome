@@ -163,7 +163,6 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
-
   this->strobe_(Command::RX);
 }
 
@@ -230,17 +229,12 @@ void CC1101Component::loop() {
   this->packet_.resize(payload_length);
   this->read_fifo_(this->packet_, payload_length);
 
-  // Read status bytes if APPEND_STATUS is enabled
-  float rssi = 0;
-  uint8_t lqi = 0;
-  if (this->state_.APPEND_STATUS) {
-    uint8_t status[2];
-    this->read_(Register::FIFO, status, 2);
-    int8_t rssi_raw = static_cast<int8_t>(status[0]);
-    // Convert to dBm: RSSI_dBm = (RSSI_dec / 2) - RSSI_offset (typically 74)
-    rssi = (rssi_raw / 2.0f) - 74.0f;
-    lqi = status[1] & 0x7F;  // LQI is 7 bits, bit 7 is CRC_OK
-  }
+  // Read appended status bytes (RSSI + LQI)
+  uint8_t status[2];
+  this->read_(Register::FIFO, status, 2);
+  int8_t rssi_raw = static_cast<int8_t>(status[0]);
+  float rssi = (rssi_raw / 2.0f) - 74.0f;
+  uint8_t lqi = status[1] & 0x7F;
 
   // Trigger automation
   this->packet_trigger_->trigger(this->packet_, rssi, lqi);
@@ -756,13 +750,6 @@ void CC1101Component::set_whitening(bool value) {
   this->state_.WHITE_DATA = value ? 1 : 0;
   if (this->initialized_) {
     this->write_(Register::PKTCTRL0);
-  }
-}
-
-void CC1101Component::set_append_status(bool value) {
-  this->state_.APPEND_STATUS = value ? 1 : 0;
-  if (this->initialized_) {
-    this->write_(Register::PKTCTRL1);
   }
 }
 
