@@ -198,7 +198,14 @@ CONFIG_MAP = {
     CONF_WHITENING: cv.boolean,
 }
 
-CONFIG_SCHEMA = (
+
+def _validate_packet_mode(config):
+    if config.get(CONF_PACKET_MODE, False) and CONF_GDO0_PIN not in config:
+        raise cv.Invalid("gdo0_pin is required when packet_mode is enabled")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CC1101Component),
@@ -208,7 +215,8 @@ CONFIG_SCHEMA = (
     )
     .extend({cv.Optional(key): validator for key, validator in CONFIG_MAP.items()})
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(spi.spi_device_schema(cs_pin_required=True))
+    .extend(spi.spi_device_schema(cs_pin_required=True)),
+    _validate_packet_mode,
 )
 
 
