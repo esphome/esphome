@@ -1198,11 +1198,11 @@ def test_get_build_info_new_build(
 
 
 @patch("esphome.writer.CORE")
-def test_get_build_info_config_unchanged_version_unchanged(
+def test_get_build_info_always_returns_current_time(
     mock_core: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Test get_build_info keeps existing build_time when config and version unchanged."""
+    """Test get_build_info always returns current build_time."""
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
@@ -1225,8 +1225,10 @@ def test_get_build_info_config_unchanged_version_unchanged(
         config_hash, build_time, build_time_str = get_build_info()
 
     assert config_hash == 0x12345678
-    assert build_time == existing_build_time
-    assert build_time_str == existing_build_time_str
+    # get_build_info now always returns current time
+    assert build_time != existing_build_time
+    assert build_time > existing_build_time
+    assert build_time_str != existing_build_time_str
 
 
 @patch("esphome.writer.CORE")
