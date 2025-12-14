@@ -179,8 +179,8 @@ void CC1101Component::loop() {
   if (overflow || rx_bytes == 0) {
     ESP_LOGW(TAG, "RX FIFO overflow, flushing");
     this->enter_idle_();
-    this->strobe_(Command::FRX);  // Flush RX FIFO
-    this->strobe_(Command::RX);   // Back to RX
+    this->strobe_(Command::FRX);
+    this->strobe_(Command::RX);
     this->wait_for_state_(State::RX);
     return;
   }
