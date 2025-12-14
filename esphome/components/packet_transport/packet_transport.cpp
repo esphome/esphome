@@ -318,7 +318,7 @@ void PacketTransport::send_data_(bool all) {
 
 void PacketTransport::update() {
   // resend all sensors if required
-  if (this->resend_data_)
+  if (this->is_provider_)
     this->send_data_(true);
   if (!this->ping_pong_enable_) {
     return;
