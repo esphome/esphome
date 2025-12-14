@@ -164,7 +164,8 @@ void CC1101Component::setup() {
   }
   this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
 
-  if (this->rx_start_) {
+  // Automatically start RX in packet mode with GDO0 configured
+  if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) && this->gdo0_pin_ != nullptr) {
     this->strobe_(Command::RX);
   }
 }
@@ -462,10 +463,8 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
     }
   }
 
-  // Return to RX if rx_start is set
-  if (this->rx_start_) {
-    this->strobe_(Command::RX);
-  }
+  // Return to RX in packet mode
+  this->strobe_(Command::RX);
 
   return CC1101Error::NONE;
 }

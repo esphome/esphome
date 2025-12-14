@@ -56,7 +56,6 @@ CONF_WHITENING = "whitening"
 CONF_APPEND_STATUS = "append_status"
 CONF_GDO0_PIN = "gdo0_pin"
 CONF_ON_PACKET = "on_packet"
-CONF_RX_START = "rx_start"
 
 # Enums
 SyncMode = ns.enum("SyncMode", True)
@@ -212,7 +211,6 @@ CONFIG_MAP = {
     CONF_CRC_ENABLE: cv.boolean,
     CONF_WHITENING: cv.boolean,
     CONF_APPEND_STATUS: cv.boolean,
-    CONF_RX_START: cv.boolean,
 }
 
 CONFIG_SCHEMA = (

@@ -74,7 +74,6 @@ class CC1101Component : public Component,
   void set_crc_enable(bool value);
   void set_whitening(bool value);
   void set_append_status(bool value);
-  void set_rx_start(bool value) { this->rx_start_ = value; }
 
   // Packet mode operations
   CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
@@ -83,7 +82,6 @@ class CC1101Component : public Component,
  protected:
   uint16_t chip_id_{0};
   bool initialized_{false};
-  bool rx_start_{false};
 
   float output_power_requested_{10.0f};
   float output_power_effective_{10.0f};
