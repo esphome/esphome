@@ -167,10 +167,8 @@ void CC1101Component::setup() {
 }
 
 void CC1101Component::loop() {
-  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
-    return;
-  }
-  if (this->gdo0_pin_ == nullptr || !this->gdo0_pin_->digital_read()) {
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
+      !this->gdo0_pin_->digital_read()) {
     return;
   }
 
@@ -183,7 +181,7 @@ void CC1101Component::loop() {
     this->enter_idle_();
     this->strobe_(Command::FRX);  // Flush RX FIFO
     this->strobe_(Command::RX);   // Back to RX
-    this->wait_for_state_(State::RX, 50);
+    this->wait_for_state_(State::RX);
     return;
   }
 
@@ -216,10 +214,7 @@ void CC1101Component::loop() {
   this->enter_idle_();
   this->strobe_(Command::FRX);
   this->strobe_(Command::RX);
-  if (!this->wait_for_state_(State::RX, 50)) {
-    this->read_(Register::MARCSTATE);
-    ESP_LOGW(TAG, "Failed to enter RX state, MARCSTATE=0x%02X", this->state_.MARC_STATE);
-  }
+  this->wait_for_state_(State::RX);
 }
 
 void CC1101Component::dump_config() {
@@ -336,69 +331,34 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
 }
 
 CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet) {
-  // Only works in FIFO packet mode
-  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
-    ESP_LOGW(TAG, "transmit_packet only works in FIFO packet mode");
-    return CC1101Error::TIMEOUT;
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr) {
+    return CC1101Error::PARAMS;
   }
 
+  // Write packet
+  uint32_t start = millis();
   this->enter_idle_();
-
-  // Flush TX FIFO
   this->strobe_(Command::FTX);
-
-  // Write length byte for variable length mode
   if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
-    uint8_t len = static_cast<uint8_t>(packet.size());
-    this->write_(Register::FIFO, len);
+    this->write_(Register::FIFO, static_cast<uint8_t>(packet.size()));
   }
-
-  // Write packet data to FIFO
   this->write_(Register::FIFO, packet.data(), packet.size());
-
-  // Start TX
   this->strobe_(Command::TX);
-
-  // Wait for TX to complete (GDO0 goes high then low, or timeout)
-  if (this->gdo0_pin_ != nullptr) {
-    // Wait for sync word to be sent (GDO0 high)
-    uint32_t start = millis();
-    while (!this->gdo0_pin_->digital_read()) {
-      if (millis() - start > 100) {
-        ESP_LOGW(TAG, "TX timeout waiting for sync");
-        this->enter_idle_();
-        return CC1101Error::TIMEOUT;
-      }
-      delayMicroseconds(10);
-    }
-    // Wait for packet to finish (GDO0 low)
-    start = millis();
-    while (this->gdo0_pin_->digital_read()) {
-      if (millis() - start > 1000) {
-        ESP_LOGW(TAG, "TX timeout waiting for completion");
-        this->enter_idle_();
-        return CC1101Error::TIMEOUT;
-      }
-      delayMicroseconds(10);
-    }
-  } else {
-    // No GDO pin, just wait for state to change
-    if (!this->wait_for_state_(State::TX, 100)) {
-      ESP_LOGW(TAG, "TX timeout waiting for TX state");
+  this->wait_for_state_(State::TX);
+  while (this->gdo0_pin_->digital_read()) {
+    if (millis() - start > 1000) {
+      ESP_LOGW(TAG, "TX timeout waiting for completion");
       this->enter_idle_();
+      this->strobe_(Command::RX);
+      this->wait_for_state_(State::RX);
       return CC1101Error::TIMEOUT;
     }
-    // Wait for TX to finish
-    if (!this->wait_for_state_(State::IDLE, 1000)) {
-      ESP_LOGW(TAG, "TX timeout waiting for idle");
-      this->enter_idle_();
-      return CC1101Error::TIMEOUT;
-    }
+    delayMicroseconds(10);
   }
 
-  // Return to RX in packet mode
+  // Return to rx
   this->strobe_(Command::RX);
-
+  this->wait_for_state_(State::RX);
   return CC1101Error::NONE;
 }
 
