@@ -218,7 +218,7 @@ static constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 31000;
 /// If this timeout fires prematurely while a connection is still in progress, it causes
 /// cascading failures: the subsequent scan will also fail because the WiFi driver is
 /// still busy with the previous connection attempt.
-static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 42000;
+static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 46000;
 
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
