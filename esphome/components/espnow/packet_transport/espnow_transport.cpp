@@ -26,16 +26,10 @@ void ESPNowTransport::setup() {
            this->peer_address_[2], this->peer_address_[3], this->peer_address_[4], this->peer_address_[5]);
 
   // Register received handler
-  this->parent_->register_received_handler(static_cast<ESPNowReceivedPacketHandler *>(this));
+  this->parent_->register_received_handler(this);
 
   // Register broadcasted handler
-  this->parent_->register_broadcasted_handler(static_cast<ESPNowBroadcastedHandler *>(this));
-#ifdef USE_SENSOR
-  this->resend_data_ |= !this->sensors_.empty();
-#endif
-#ifdef USE_BINARY_SENSOR
-  this->resend_data_ |= !this->binary_sensors_.empty();
-#endif
+  this->parent_->register_broadcasted_handler(this);
 }
 
 void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {

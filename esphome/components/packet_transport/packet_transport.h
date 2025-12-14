@@ -91,6 +91,7 @@ class PacketTransport : public PollingComponent {
     }
   }
 
+  void set_resend_data(bool resend_data) { this->resend_data_ = resend_data; }
   void set_encryption_key(std::vector<uint8_t> key) { this->encryption_key_ = std::move(key); }
   void set_rolling_code_enable(bool enable) { this->rolling_code_enable_ = enable; }
   void set_ping_pong_enable(bool enable) { this->ping_pong_enable_ = enable; }
