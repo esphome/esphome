@@ -15,6 +15,13 @@
 
 namespace esphome::infrared_proxy {
 
+/// Hardware type enumeration for infrared proxy instances
+enum HardwareType : uint8_t {
+  HARDWARE_TYPE_INFRARED = 0,  // Infrared hardware
+  HARDWARE_TYPE_RF_433 = 1,    // RF hardware @ ~433 MHz
+  HARDWARE_TYPE_RF_900 = 2,    // RF hardware @ ~900 MHz
+};
+
 /// Feature flags for infrared proxy component availability
 enum InfraredProxyFeature : uint32_t {
   FEATURE_INFRARED_PROXY_ENABLED = 1 << 0,
@@ -24,7 +31,9 @@ enum InfraredProxyFeature : uint32_t {
 enum InfraredProxyCapability : uint32_t {
   CAPABILITY_TRANSMITTER = 1 << 0,  // Can transmit signals
   CAPABILITY_RECEIVER = 1 << 1,     // Can receive signals
-  CAPABILITY_RADIO_FREQ = 1 << 2,   // Supports RF if set, otherwise infrared (IR) signals
+  CAPABILITY_INFRARED = 1 << 2,     // Supports infrared (IR) if set
+  CAPABILITY_RF_433 = 1 << 3,       // Supports RF @ ~433 MHz if set
+  CAPABILITY_RF_900 = 1 << 4,       // Supports RF @ ~900 MHz if set
 };
 
 #ifdef USE_API
@@ -42,11 +51,13 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
+  void set_hardware_type(HardwareType hardware_type) { this->hardware_type_ = hardware_type; }
+  void set_receiver(remote_receiver::RemoteReceiverComponent *receiver) { this->receiver_ = receiver; }
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
   }
-  void set_receiver(remote_receiver::RemoteReceiverComponent *receiver) { this->receiver_ = receiver; }
 
+  HardwareType get_hardware_type() const { return this->hardware_type_; }
   bool has_transmitter() const { return this->transmitter_ != nullptr; }
   bool has_receiver() const { return this->receiver_ != nullptr; }
 
@@ -62,15 +73,17 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
 #endif
 
  protected:
-  // Underlying hardware components
-  remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
-  remote_receiver::RemoteReceiverComponent *receiver_{nullptr};
-
 #ifdef USE_API
   /// Encode data bytes into raw timings based on timing parameters
   void encode_data_(const api::InfraredProxyTimingParams &timing, const std::vector<uint8_t> &data,
                     remote_base::RemoteTransmitData *transmit_data);
 #endif
+
+  // Underlying hardware components
+  remote_receiver::RemoteReceiverComponent *receiver_{nullptr};
+  remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
+  // Configured hardware type (for reporting to API/HA)
+  HardwareType hardware_type_{HARDWARE_TYPE_INFRARED};
 };
 
 }  // namespace esphome::infrared_proxy

@@ -19,22 +19,53 @@ void InfraredProxyComponent::setup() {
 }
 
 void InfraredProxyComponent::dump_config() {
+  const char *hardware_type_str;
+  switch (this->hardware_type_) {
+    case HARDWARE_TYPE_INFRARED:
+      hardware_type_str = "Infrared";
+      break;
+    case HARDWARE_TYPE_RF_433:
+      hardware_type_str = "RF 433 MHz";
+      break;
+    case HARDWARE_TYPE_RF_900:
+      hardware_type_str = "RF 900 MHz";
+      break;
+    default:
+      hardware_type_str = "Unknown";
+      break;
+  }
+
   ESP_LOGCONFIG(TAG,
                 "Infrared Proxy:\n"
+                "  Hardware Type: %s\n"
                 "  Has Transmitter: %s\n"
                 "  Has Receiver: %s",
-                YESNO(this->has_transmitter()), YESNO(this->has_receiver()));
+                hardware_type_str, YESNO(this->has_transmitter()), YESNO(this->has_receiver()));
 }
 
 #ifdef USE_API
 
 uint32_t InfraredProxyComponent::get_capability_flags() const {
-  uint32_t flags = InfraredProxyCapability::CAPABILITY_RADIO_FREQ;  // Always included
+  uint32_t flags = 0;
 
+  // Add transmit/receive capability based on configuration
   if (this->has_transmitter())
     flags |= InfraredProxyCapability::CAPABILITY_TRANSMITTER;
   if (this->has_receiver())
     flags |= InfraredProxyCapability::CAPABILITY_RECEIVER;
+
+  // Add hardware type capability
+  switch (this->hardware_type_) {
+    case HARDWARE_TYPE_INFRARED:
+      flags |= InfraredProxyCapability::CAPABILITY_INFRARED;
+      break;
+    case HARDWARE_TYPE_RF_433:
+      flags |= InfraredProxyCapability::CAPABILITY_RF_433;
+      break;
+    case HARDWARE_TYPE_RF_900:
+      flags |= InfraredProxyCapability::CAPABILITY_RF_900;
+      break;
+  }
 
   return flags;
 }
@@ -171,7 +202,7 @@ bool InfraredProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
   // Get the raw timings
   const auto &raw_data = data.get_raw_data();
 
-  ESP_LOGD(TAG, "Received %u timings", raw_data.size());
+  ESP_LOGD(TAG, "Measured %u timings", raw_data.size());
 
   // Send the raw timings to the API
   api::global_api_server->send_infrared_proxy_receive_event(this->get_object_id_hash(), raw_data);

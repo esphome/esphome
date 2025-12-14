@@ -13,37 +13,33 @@ InfraredProxyComponent = infrared_proxy_ns.class_(
     "InfraredProxyComponent", cg.Component, cg.EntityBase
 )
 
-CONF_REMOTE_TRANSMITTER_ID = "remote_transmitter_id"
+CONF_HARDWARE_TYPE = "hardware_type"
 CONF_REMOTE_RECEIVER_ID = "remote_receiver_id"
+CONF_REMOTE_TRANSMITTER_ID = "remote_transmitter_id"
 
-
-def _validate_transmitter_or_receiver(config):
-    """Validate that at least one of transmitter or receiver is specified."""
-    if (
-        CONF_REMOTE_TRANSMITTER_ID not in config
-        and CONF_REMOTE_RECEIVER_ID not in config
-    ):
-        raise cv.Invalid(
-            "At least one of 'remote_transmitter_id' or 'remote_receiver_id' must be specified"
-        )
-    return config
-
+# Hardware type constants
+HARDWARE_TYPE_INFRARED = "infrared"
+HARDWARE_TYPE_RF_433 = "rf_433"
+HARDWARE_TYPE_RF_900 = "rf_900"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(InfraredProxyComponent),
-            cv.Optional(CONF_REMOTE_TRANSMITTER_ID): cv.use_id(
-                remote_transmitter.RemoteTransmitterComponent
+            cv.Required(CONF_HARDWARE_TYPE): cv.one_of(
+                HARDWARE_TYPE_INFRARED, HARDWARE_TYPE_RF_433, HARDWARE_TYPE_RF_900
             ),
             cv.Optional(CONF_REMOTE_RECEIVER_ID): cv.use_id(
                 remote_receiver.RemoteReceiverComponent
+            ),
+            cv.Optional(CONF_REMOTE_TRANSMITTER_ID): cv.use_id(
+                remote_transmitter.RemoteTransmitterComponent
             ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(cv.ENTITY_BASE_SCHEMA),
-    _validate_transmitter_or_receiver,
+    cv.has_exactly_one_key(CONF_REMOTE_TRANSMITTER_ID, CONF_REMOTE_RECEIVER_ID),
 )
 
 
@@ -51,6 +47,15 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await setup_entity(var, config, "infrared_proxy")
+
+    # Set hardware type
+    hardware_type = config[CONF_HARDWARE_TYPE]
+    if hardware_type == HARDWARE_TYPE_INFRARED:
+        cg.add(var.set_hardware_type(infrared_proxy_ns.HARDWARE_TYPE_INFRARED))
+    elif hardware_type == HARDWARE_TYPE_RF_433:
+        cg.add(var.set_hardware_type(infrared_proxy_ns.HARDWARE_TYPE_RF_433))
+    elif hardware_type == HARDWARE_TYPE_RF_900:
+        cg.add(var.set_hardware_type(infrared_proxy_ns.HARDWARE_TYPE_RF_900))
 
     # Link transmitter if specified
     if CONF_REMOTE_TRANSMITTER_ID in config:
