@@ -16,7 +16,7 @@ from esphome.const import (
     UNIT_PASCAL,
 )
 
-CODEOWNERS = ["@kahrendt"]
+CODEOWNERS = ["@kahrendt", "@daniekent-net"]
 
 bmp581_ns = cg.esphome_ns.namespace("bmp581_base")
 
