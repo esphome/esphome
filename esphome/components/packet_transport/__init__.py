@@ -190,7 +190,8 @@ async def register_packet_transport(var, config):
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_binary_sensor(bcst_id, sensor))
 
-    cg.add(var.set_is_provider(is_provider))
+    if is_provider:
+        cg.add(var.set_is_provider(True))
     if encryption := config.get(CONF_ENCRYPTION):
         cg.add(var.set_encryption_key(hash_encryption_key(encryption)))
     return providers
