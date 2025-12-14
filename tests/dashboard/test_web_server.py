@@ -1570,6 +1570,32 @@ async def test_dashboard_yaml_loading_with_packages_and_secrets(
 
 
 @pytest.mark.asyncio
+async def test_websocket_check_origin_default_same_origin(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket uses default same-origin check when ESPHOME_TRUSTED_DOMAINS not set."""
+    # Ensure ESPHOME_TRUSTED_DOMAINS is not set
+    env = os.environ.copy()
+    env.pop("ESPHOME_TRUSTED_DOMAINS", None)
+    with patch.dict(os.environ, env, clear=True):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        # Same origin should work (default Tornado behavior)
+        request = HTTPRequest(
+            url, headers={"Origin": f"http://127.0.0.1:{dashboard.port}"}
+        )
+        ws = await websocket_connect(request)
+        try:
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+        finally:
+            ws.close()
+
+
+@pytest.mark.asyncio
 async def test_websocket_check_origin_trusted_domain(
     dashboard: DashboardTestHelper,
 ) -> None:
