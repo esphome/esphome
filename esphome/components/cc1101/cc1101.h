@@ -9,7 +9,7 @@
 
 namespace esphome::cc1101 {
 
-enum class CC1101Error { NONE = 0, TIMEOUT, CRC_ERROR, FIFO_OVERFLOW };
+enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW };
 
 class CC1101Component : public Component,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
