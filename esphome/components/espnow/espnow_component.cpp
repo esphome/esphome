@@ -480,6 +480,12 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer, const uint8_t *lmk) {
   if (!found) {
     ESPNowPeer new_peer;
     memcpy(new_peer.address, peer, ESP_NOW_ETH_ALEN);
+    if (lmk != nullptr) {
+      memcpy(new_peer.lmk, lmk, ESP_NOW_KEY_LEN);
+      new_peer.encrypt = true;
+    } else {
+      new_peer.encrypt = false;
+    }
     this->peers_.push_back(new_peer);
   }
 
