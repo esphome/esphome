@@ -157,7 +157,13 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
-  this->begin_rx();
+  this->strobe_(Command::RX);
+
+  // Defer pin mode setup until after all components have completed setup()
+  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
+  if (this->gdo0_pin_ != nullptr) {
+    this->defer([this]() { this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT); });
+  }
 }
 
 void CC1101Component::loop() {
