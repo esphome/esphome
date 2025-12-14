@@ -227,7 +227,7 @@ void CC1101Component::loop() {
 
   // Read payload
   this->packet_.resize(payload_length);
-  this->read_fifo_(this->packet_, payload_length);
+  this->read_(Register::FIFO, this->packet_.data(), payload_length);
 
   // Read appended status bytes (RSSI + LQI)
   uint8_t status[2];
@@ -378,21 +378,6 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
   this->disable();
 }
 
-void CC1101Component::read_fifo_(std::vector<uint8_t> &packet, size_t length) {
-  packet.resize(length);
-  this->enable();
-  this->write_byte(static_cast<uint8_t>(Register::FIFO) | BUS_READ | BUS_BURST);
-  this->read_array(packet.data(), length);
-  this->disable();
-}
-
-void CC1101Component::write_fifo_(const std::vector<uint8_t> &packet) {
-  this->enable();
-  this->write_byte(static_cast<uint8_t>(Register::FIFO) | BUS_BURST);
-  this->write_array(packet.data(), packet.size());
-  this->disable();
-}
-
 CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet) {
   // Only works in FIFO packet mode
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
@@ -412,7 +397,7 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
   }
 
   // Write packet data to FIFO
-  this->write_fifo_(packet);
+  this->write_(Register::FIFO, packet.data(), packet.size());
 
   // Start TX
   this->strobe_(Command::TX);

@@ -102,10 +102,6 @@ class CC1101Component : public Component,
   void read_(Register reg);
   void read_(Register reg, uint8_t *buffer, size_t length);
 
-  // FIFO operations
-  void read_fifo_(std::vector<uint8_t> &packet, size_t length);
-  void write_fifo_(const std::vector<uint8_t> &packet);
-
   // State Management
   bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
   void enter_idle_();
