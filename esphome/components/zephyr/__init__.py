@@ -3,7 +3,8 @@ import textwrap
 from typing import TypedDict
 
 import esphome.codegen as cg
-from esphome.const import CONF_BOARD
+import esphome.config_validation as cv
+from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 
@@ -117,13 +118,18 @@ def zephyr_to_code(config):
     # build is done by west so bypass board checking in platformio
     cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
 
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     # c++ support
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
-    zephyr_add_prj_conf("CONFIG_FPU", True)
+    zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
-    zephyr_add_prj_conf("CPLUSPLUS", True)
-    zephyr_add_prj_conf("CONFIG_STD_CPP20", True)
-    zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
+    if framework_ver < cv.Version(3, 2, 0):
+        zephyr_add_prj_conf("CPLUSPLUS", True)
+        zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
+    else:
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+    zephyr_add_prj_conf("STD_CPP20", True)
     # preferences
     zephyr_add_prj_conf("SETTINGS", True)
     zephyr_add_prj_conf("NVS", True)
@@ -136,7 +142,8 @@ def zephyr_to_code(config):
     zephyr_add_prj_conf("UART_CONSOLE", False)
     zephyr_add_prj_conf("CONSOLE", False, False)
     # use NFC pins as GPIO
-    zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
+    if framework_ver < cv.Version(3, 2, 0):
+        zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
