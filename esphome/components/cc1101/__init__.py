@@ -2,6 +2,7 @@ from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -50,10 +51,8 @@ CONF_HYST_LEVEL = "hyst_level"
 # Packet mode config keys
 CONF_PACKET_MODE = "packet_mode"
 CONF_PACKET_LENGTH = "packet_length"
-CONF_CRC_ENABLE = "crc_enable"
 CONF_WHITENING = "whitening"
 CONF_GDO0_PIN = "gdo0_pin"
-CONF_ON_PACKET = "on_packet"
 
 # Enums
 SyncMode = ns.enum("SyncMode", True)
