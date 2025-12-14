@@ -18,6 +18,7 @@ CONF_DELTASOL_BS_PLUS = "deltasol_bs_plus"
 CONF_DELTASOL_BS_2009 = "deltasol_bs_2009"
 CONF_DELTASOL_C = "deltasol_c"
 CONF_DELTASOL_CS2 = "deltasol_cs2"
+CONF_DELTASOL_CS4 = "deltasol_cs4"
 CONF_DELTASOL_CS_PLUS = "deltasol_cs_plus"
 
 CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
