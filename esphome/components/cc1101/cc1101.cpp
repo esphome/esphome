@@ -143,6 +143,11 @@ void CC1101Component::setup() {
     return;
   }
 
+  // Setup GDO0 pin if configured
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->setup();
+  }
+
   this->initialized_ = true;
 
   for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
@@ -151,8 +156,69 @@ void CC1101Component::setup() {
     }
     this->write_(static_cast<Register>(i));
   }
-  this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
+  this->set_output_power(this->output_power_requested_);
   this->strobe_(Command::RX);
+
+  // Defer pin mode setup until after all components have completed setup()
+  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
+  if (this->gdo0_pin_ != nullptr) {
+    this->defer([this]() { this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT); });
+  }
+}
+
+void CC1101Component::loop() {
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
+      !this->gdo0_pin_->digital_read()) {
+    return;
+  }
+
+  // Read state
+  this->read_(Register::RXBYTES);
+  uint8_t rx_bytes = this->state_.NUM_RXBYTES;
+  bool overflow = this->state_.RXFIFO_OVERFLOW;
+  if (overflow || rx_bytes == 0) {
+    ESP_LOGW(TAG, "RX FIFO overflow, flushing");
+    this->enter_idle_();
+    this->strobe_(Command::FRX);
+    this->strobe_(Command::RX);
+    this->wait_for_state_(State::RX);
+    return;
+  }
+
+  // Read packet
+  uint8_t payload_length;
+  if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
+    this->read_(Register::FIFO, &payload_length, 1);
+  } else {
+    payload_length = this->state_.PKTLEN;
+  }
+  if (payload_length == 0 || payload_length > 64) {
+    ESP_LOGW(TAG, "Invalid payload length: %u", payload_length);
+    this->enter_idle_();
+    this->strobe_(Command::FRX);
+    this->strobe_(Command::RX);
+    this->wait_for_state_(State::RX);
+    return;
+  }
+  this->packet_.resize(payload_length);
+  this->read_(Register::FIFO, this->packet_.data(), payload_length);
+
+  // Read status and trigger
+  uint8_t status[2];
+  this->read_(Register::FIFO, status, 2);
+  int8_t rssi_raw = static_cast<int8_t>(status[0]);
+  float rssi = (rssi_raw * RSSI_STEP) - RSSI_OFFSET;
+  bool crc_ok = (status[1] & STATUS_CRC_OK_MASK) != 0;
+  uint8_t lqi = status[1] & STATUS_LQI_MASK;
+  if (this->state_.CRC_EN == 0 || crc_ok) {
+    this->packet_trigger_->trigger(this->packet_, rssi, lqi);
+  }
+
+  // Return to rx
+  this->enter_idle_();
+  this->strobe_(Command::FRX);
+  this->strobe_(Command::RX);
+  this->wait_for_state_(State::RX);
 }
 
 void CC1101Component::dump_config() {
@@ -177,9 +243,12 @@ void CC1101Component::dump_config() {
 }
 
 void CC1101Component::begin_tx() {
-  // Ensure Packet Format is 3 (Async Serial), use GDO0 as input during TX
+  // Ensure Packet Format is 3 (Async Serial)
   this->write_(Register::PKTCTRL0, 0x32);
   ESP_LOGV(TAG, "Beginning TX sequence");
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  }
   this->strobe_(Command::TX);
   if (!this->wait_for_state_(State::TX, 50)) {
     ESP_LOGW(TAG, "Timed out waiting for TX state!");
@@ -188,6 +257,9 @@ void CC1101Component::begin_tx() {
 
 void CC1101Component::begin_rx() {
   ESP_LOGV(TAG, "Beginning RX sequence");
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
+  }
   this->strobe_(Command::RX);
 }
 
@@ -199,20 +271,6 @@ void CC1101Component::reset() {
 void CC1101Component::set_idle() {
   ESP_LOGV(TAG, "Setting IDLE state");
   this->enter_idle_();
-}
-
-void CC1101Component::set_gdo0_config(uint8_t value) {
-  this->state_.GDO0_CFG = value;
-  if (this->initialized_) {
-    this->write_(Register::IOCFG0);
-  }
-}
-
-void CC1101Component::set_gdo2_config(uint8_t value) {
-  this->state_.GDO2_CFG = value;
-  if (this->initialized_) {
-    this->write_(Register::IOCFG2);
-  }
 }
 
 bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
@@ -280,6 +338,33 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
   this->write_byte(index | BUS_READ | BUS_BURST);
   this->read_array(buffer, length);
   this->disable();
+}
+
+CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet) {
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+    return CC1101Error::PARAMS;
+  }
+
+  // Write packet
+  this->enter_idle_();
+  this->strobe_(Command::FTX);
+  if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
+    this->write_(Register::FIFO, static_cast<uint8_t>(packet.size()));
+  }
+  this->write_(Register::FIFO, packet.data(), packet.size());
+  this->strobe_(Command::TX);
+  if (!this->wait_for_state_(State::IDLE, 1000)) {
+    ESP_LOGW(TAG, "TX timeout");
+    this->enter_idle_();
+    this->strobe_(Command::RX);
+    this->wait_for_state_(State::RX);
+    return CC1101Error::TIMEOUT;
+  }
+
+  // Return to rx
+  this->strobe_(Command::RX);
+  this->wait_for_state_(State::RX);
+  return CC1101Error::NONE;
 }
 
 // Setters
@@ -428,6 +513,7 @@ void CC1101Component::set_modulation_type(Modulation value) {
   this->state_.PA_POWER = value == Modulation::MODULATION_ASK_OOK ? 1 : 0;
   if (this->initialized_) {
     this->enter_idle_();
+    this->set_output_power(this->output_power_requested_);
     this->write_(Register::MDMCFG2);
     this->write_(Register::FREND0);
     this->strobe_(Command::RX);
@@ -459,13 +545,6 @@ void CC1101Component::set_sync0(uint8_t value) {
   this->state_.SYNC0 = value;
   if (this->initialized_) {
     this->write_(Register::SYNC0);
-  }
-}
-
-void CC1101Component::set_pktlen(uint8_t value) {
-  this->state_.PKTLEN = value;
-  if (this->initialized_) {
-    this->write_(Register::PKTLEN);
   }
 }
 
@@ -543,6 +622,52 @@ void CC1101Component::set_hyst_level(HystLevel value) {
   this->state_.HYST_LEVEL = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL0);
+  }
+}
+
+void CC1101Component::set_packet_mode(bool value) {
+  this->state_.PKT_FORMAT =
+      static_cast<uint8_t>(value ? PacketFormat::PACKET_FORMAT_FIFO : PacketFormat::PACKET_FORMAT_ASYNC_SERIAL);
+  if (value) {
+    // Configure GDO0 for FIFO status (asserts on RX FIFO threshold or end of packet)
+    this->state_.GDO0_CFG = 0x01;
+    // Set max RX FIFO threshold to ensure we only trigger on end-of-packet
+    this->state_.FIFO_THR = 15;
+  } else {
+    // Configure GDO0 for serial data (async serial mode)
+    this->state_.GDO0_CFG = 0x0D;
+  }
+  if (this->initialized_) {
+    this->write_(Register::PKTCTRL0);
+    this->write_(Register::IOCFG0);
+    this->write_(Register::FIFOTHR);
+  }
+}
+
+void CC1101Component::set_packet_length(uint8_t value) {
+  if (value == 0) {
+    this->state_.LENGTH_CONFIG = static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
+  } else {
+    this->state_.LENGTH_CONFIG = static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_FIXED);
+    this->state_.PKTLEN = value;
+  }
+  if (this->initialized_) {
+    this->write_(Register::PKTCTRL0);
+    this->write_(Register::PKTLEN);
+  }
+}
+
+void CC1101Component::set_crc_enable(bool value) {
+  this->state_.CRC_EN = value ? 1 : 0;
+  if (this->initialized_) {
+    this->write_(Register::PKTCTRL0);
+  }
+}
+
+void CC1101Component::set_whitening(bool value) {
+  this->state_.WHITE_DATA = value ? 1 : 0;
+  if (this->initialized_) {
+    this->write_(Register::PKTCTRL0);
   }
 }
 
