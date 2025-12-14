@@ -47,7 +47,7 @@ struct VariantTree {
         : data(std::make_shared<ValueDict>(dict)) {} */
   VariantTree(const ValueDict &dict) : data(std::make_shared<ValueDict>(dict)) {}
 
-  VariantTree() : data(std::make_shared<ValueList>()) { std::cout << "default constructor" << std::endl; }
+  VariantTree() : data(std::make_shared<ValueList>()) { std::cout << "default constructor" << '\n'; }
 
   // Helper-Methoden
   bool is_null() const { return std::holds_alternative<std::monostate>(data); }
@@ -77,37 +77,37 @@ struct VariantTreePrinter {
 
   void operator()(std::monostate) const {
     print_indent();
-    std::cout << "Null" << std::endl;
+    std::cout << "Null" << '\n';
   }
 
   void operator()(int i) const {
     print_indent();
-    std::cout << "Integer: " << i << std::endl;
+    std::cout << "Integer: " << i << '\n';
   }
 
   void operator()(unsigned int i) const {
     print_indent();
-    std::cout << "Unsigned integer: " << i << std::endl;
+    std::cout << "Unsigned integer: " << i << '\n';
   }
 
   void operator()(bool b) const {
     print_indent();
-    std::cout << "Bool: " << (b ? "true" : "false") << std::endl;
+    std::cout << "Bool: " << (b ? "true" : "false") << '\n';
   }
 
   void operator()(double d) const {
     print_indent();
-    std::cout << "Double: " << d << std::endl;
+    std::cout << "Double: " << d << '\n';
   }
 
   void operator()(const std::string &s) const {
     print_indent();
-    std::cout << "String: \"" << s << "\"" << std::endl;
+    std::cout << "String: \"" << s << "\"" << '\n';
   }
 
   void operator()(const std::shared_ptr<ValueList> &list) const {
     print_indent();
-    std::cout << "List [" << list->size() << " Elemente]:" << std::endl;
+    std::cout << "List [" << list->size() << " Elemente]:" << '\n';
 
     for (const auto &item : *list) {
       std::visit(VariantTreePrinter{indent + 1}, item.data);
@@ -116,7 +116,7 @@ struct VariantTreePrinter {
 
   void operator()(const std::shared_ptr<ValueDict> &dict) const {
     print_indent();
-    std::cout << "Dict {" << dict->size() << " Einträge}:" << std::endl;
+    std::cout << "Dict {" << dict->size() << " Einträge}:" << '\n';
 
     for (const auto &[key, value] : *dict) {
       print_indent();
@@ -124,7 +124,7 @@ struct VariantTreePrinter {
 
       // Wert auf gleicher Zeile ausgeben wenn primitiv
       if (std::holds_alternative<std::monostate>(value.data)) {
-        std::cout << "null" << std::endl;
+        std::cout << "null" << '\n';
       } else if (std::holds_alternative<int>(value.data) || std::holds_alternative<unsigned int>(value.data) ||
                  std::holds_alternative<bool>(value.data) || std::holds_alternative<double>(value.data) ||
                  std::holds_alternative<std::string>(value.data)) {
@@ -141,9 +141,9 @@ struct VariantTreePrinter {
               }
             },
             value.data);
-        std::cout << std::endl;
+        std::cout << '\n';
       } else {
-        std::cout << std::endl;
+        std::cout << '\n';
         std::visit(VariantTreePrinter{indent + 2}, value.data);
       }
     }

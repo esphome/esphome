@@ -22,7 +22,7 @@
 
 #include "dbus-print-message.h"
 
-#include <stdlib.h>
+#include <cstdlib>
 
 static const char *type_to_name(int message_type) {
   switch (message_type) {

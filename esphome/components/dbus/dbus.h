@@ -15,7 +15,7 @@ namespace dbus {
 
 class DBus : public Component, public DBusWrapper {
  public:
-  DBus() : system_dbus(true){};
+  DBus() : system_dbus_(true){};
   ~DBus();
   void setup() override;
   void dump_config() override;
@@ -32,10 +32,10 @@ class DBus : public Component, public DBusWrapper {
 
  protected:
  private:
-  DBusWrapper user_dbus;
-  DBusWrapper system_dbus;
-  bool user_dbus_initialized = false;
-  bool system_dbus_initialized = false;
+  DBusWrapper user_dbus_;
+  DBusWrapper system_dbus_;
+  bool user_dbus_initialized_ = false;
+  bool system_dbus_initialized_ = false;
 };
 
 }  // namespace dbus

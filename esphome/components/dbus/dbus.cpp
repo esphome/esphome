@@ -48,22 +48,22 @@ void DBus::send(const optional<bool> &dbus_system, const optional<std::string> &
   std::list<std::string> dbus_args_list;
 
   if (dbus_system.has_value() && dbus_system.value()) {
-    if (!this->system_dbus_initialized) {
-      this->system_dbus.setup();
-      this->system_dbus_initialized = true;
-      printf("[%s] DBus::system_dbus::setup()\n", "DBUS");
+    if (!this->system_dbus_initialized_) {
+      this->system_dbus_.setup();
+      this->system_dbus_initialized_ = true;
+      printf("[%s] DBus::system_dbus_::setup()\n", "DBUS");
     }
-    this->system_dbus.send(dbus_destination.value(), dbus_path.value(), dbus_interface.value(), dbus_method.value(),
-                           dbus_args.value());
+    this->system_dbus_.send(dbus_destination.value(), dbus_path.value(), dbus_interface.value(), dbus_method.value(),
+                            dbus_args.value());
   } else {
-    if (!this->user_dbus_initialized) {
-      this->user_dbus.setup();
-      this->user_dbus_initialized = true;
-      printf("[%s] DBus::user_dbus::setup()\n", "DBUS");
+    if (!this->user_dbus_initialized_) {
+      this->user_dbus_.setup();
+      this->user_dbus_initialized_ = true;
+      printf("[%s] DBus::user_dbus_::setup()\n", "DBUS");
     }
 
-    this->user_dbus.send(dbus_destination.value(), dbus_path.value(), dbus_interface.value(), dbus_method.value(),
-                         dbus_args.value());
+    this->user_dbus_.send(dbus_destination.value(), dbus_path.value(), dbus_interface.value(), dbus_method.value(),
+                          dbus_args.value());
   }
 }
 

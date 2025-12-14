@@ -10,11 +10,11 @@
 namespace esphome {
 namespace dbus {
 
-std::string dbusIterToString(DBusMessageIter *iter);
+std::string dbus_iter_to_string(DBusMessageIter *iter);
 
 class DBusWrapper {
  public:
-  DBusWrapper(bool dbus_system = false) : system(dbus_system){};
+  DBusWrapper(bool dbus_system = false) : system_(dbus_system){};
   ~DBusWrapper();
   void setup();
 
@@ -22,14 +22,14 @@ class DBusWrapper {
                    const std::string &dbus_method, const VariantTree &dbus_args,
                    const std::list<std::string> &properties = {}, const std::string &property_separator = "");
 
-  std::string getProperty(DBusMessage *msg, const std::string &searchKey);
+  std::string get_property(DBusMessage *msg, const std::string &search_key);
 
-  void set_system(bool system) { this->system = system; };
+  void set_system(bool system) { this->system_ = system; };
 
  protected:
-  DBusConnection *conn{NULL};
-  void registerForSignal(const std::string &dbus_properties, const std::string &dbus_path);
-  bool system = false;
+  DBusConnection *conn_{NULL};
+  void register_for_signal_(const std::string &dbus_properties, const std::string &dbus_path);
+  bool system_ = false;
 };
 
 }  // namespace dbus

@@ -17,19 +17,20 @@ void DBusTextSensor::setup() {
   this->publish_state("DBusTextSensor::setup()");
 
   this->DBusWrapper::setup();
-  printf("[%s] DBusTextSensor::setup() conn=%p\n", this->get_name().c_str(), this->conn);
+  printf("[%s] DBusTextSensor::setup() conn_=%p\n", this->get_name().c_str(), this->conn_);
   this->update();
-  this->DBusWrapper::registerForSignal(this->dbus_interface, this->dbus_path);
+  this->DBusWrapper::register_for_signal_(this->dbus_interface_, this->dbus_path_);
 }
 
 void DBusTextSensor::update() {
   printf("[%s] DBusTextSensor::update() destination:%s path:%s interface.method:%s.%s properties:[%d]\n",
-         this->get_name().c_str(), this->dbus_destination.c_str(), this->dbus_path.c_str(),
-         this->dbus_interface.c_str(), this->dbus_method.c_str(), this->properties.size());
+         this->get_name().c_str(), this->dbus_destination_.c_str(), this->dbus_path_.c_str(),
+         this->dbus_interface_.c_str(), this->dbus_method_.c_str(), this->properties_.size());
   ESP_LOGV(TAG, "%s  DBusTextSensor::update(): '%s'", prefix, (obj)->unique_id().c_str());
 
-  std::string ret = DBusWrapper::send(this->dbus_destination, this->dbus_path, this->dbus_interface, this->dbus_method,
-                                      this->dbus_args, this->properties, this->property_separator);
+  std::string ret =
+      DBusWrapper::send(this->dbus_destination_, this->dbus_path_, this->dbus_interface_, this->dbus_method_,
+                        this->dbus_args_, this->properties_, this->property_separator_);
 
   // this->publish_state("dbus sync data!");
   printf("[%s] DBusTextSensor::update()   ==================== sending reply:%s\n", this->get_name().c_str(),
@@ -45,8 +46,8 @@ void DBusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "dbus Text Sensor", thi
 void DBusTextSensor::loop() {
   // spam
   // printf("[%s] DBusTextSensor::loop\n", this->get_name().c_str());
-  dbus_connection_read_write(conn, 0);
-  DBusMessage *msg = dbus_connection_pop_message(conn);
+  dbus_connection_read_write(this->conn_, 0);
+  DBusMessage *msg = dbus_connection_pop_message(this->conn_);
   char *sigvalue = NULL;
 
   // loop again if we haven't read a message

@@ -7,7 +7,7 @@ namespace dbus {
 
 static const char *const TAG = "dbus-wrapper";
 
-std::string dbusIterToString(DBusMessageIter *iter) {
+std::string dbus_iter_to_string(DBusMessageIter *iter) {
   std::string ret = "";
   if (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_STRING) {
     char *value = NULL;
@@ -16,13 +16,13 @@ std::string dbusIterToString(DBusMessageIter *iter) {
   } else if (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_VARIANT) {
     DBusMessageIter variter;
     dbus_message_iter_recurse(iter, &variter);
-    return dbusIterToString(&variter);
+    return dbus_iter_to_string(&variter);
   } else if (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_ARRAY) {
-    DBusMessageIter arrayiter;
-    dbus_message_iter_recurse(iter, &arrayiter);
-    while (dbus_message_iter_get_arg_type(&arrayiter) != DBUS_TYPE_INVALID) {
-      ret += dbusIterToString(&arrayiter);
-      dbus_message_iter_next(&arrayiter);
+    DBusMessageIter array_iter;
+    dbus_message_iter_recurse(iter, &array_iter);
+    while (dbus_message_iter_get_arg_type(&array_iter) != DBUS_TYPE_INVALID) {
+      ret += dbus_iter_to_string(&array_iter);
+      dbus_message_iter_next(&array_iter);
     }
 
   } else {
@@ -34,8 +34,8 @@ std::string dbusIterToString(DBusMessageIter *iter) {
 }
 
 DBusWrapper::~DBusWrapper() {
-  dbus_connection_close(this->conn);
-  dbus_connection_unref(this->conn);
+  dbus_connection_close(this->conn_);
+  dbus_connection_unref(this->conn_);
 }
 
 void DBusWrapper::setup() {
@@ -45,30 +45,30 @@ void DBusWrapper::setup() {
   DBusError err;
   // initialiset the errors
   dbus_error_init(&err);
-  DBusBusType busType;
-  if (this->system) {
+  DBusBusType bus_type;
+  if (this->system_) {
     printf("~~~~~~~~~+ DBUS_BUS_SYSTEM\n");
-    busType = DBUS_BUS_SYSTEM;
+    bus_type = DBUS_BUS_SYSTEM;
   } else {
     printf("~~~~~~~~~+ DBUS_BUS_SESSION\n");
-    busType = DBUS_BUS_SESSION;
+    bus_type = DBUS_BUS_SESSION;
   }
   // create a new connection instead of using an existing connection
-  this->conn = dbus_bus_get_private(busType, &err);
+  this->conn_ = dbus_bus_get_private(bus_type, &err);
   if (dbus_error_is_set(&err)) {
     fprintf(stderr, "Connection Error (%s)\n", err.message);
     dbus_error_free(&err);
   }
-  if (NULL == this->conn) {
+  if (NULL == this->conn_) {
     exit(1);
   }
 }
 
-struct VariantTreeToDbus_message {
+struct VariantTreeToDbusMessage {
   int indent;
   DBusMessageIter &iter_arg;
 
-  VariantTreeToDbus_message(int ind, DBusMessageIter &iter_arg) : indent(ind), iter_arg(iter_arg) {}
+  VariantTreeToDbusMessage(int ind, DBusMessageIter &iter_arg) : indent(ind), iter_arg(iter_arg) {}
 
   void print_indent() const {
     for (int i = 0; i < indent; ++i)
@@ -135,12 +135,12 @@ struct VariantTreeToDbus_message {
         exit(1);
       }
       for (const auto &item : *list) {
-        std::visit(VariantTreeToDbus_message{indent + 1, iter_arg}, item.data);
+        std::visit(VariantTreeToDbusMessage{indent + 1, iter_arg}, item.data);
       }
       dbus_message_iter_close_container(&iter_arg, &array);
     } else {
       for (const auto &item : *list) {
-        std::visit(VariantTreeToDbus_message{indent + 1, iter_arg}, item.data);
+        std::visit(VariantTreeToDbusMessage{indent + 1, iter_arg}, item.data);
       }
     }
   }
@@ -149,8 +149,8 @@ struct VariantTreeToDbus_message {
     print_indent();
     std::cout << "Dict {" << dict->size() << " Einträge}:" << std::endl;
 
-    DBusMessageIter arrayIter;
-    if (!dbus_message_iter_open_container(&iter_arg, DBUS_TYPE_ARRAY, "{sv}", &arrayIter)) {
+    DBusMessageIter array_iter;
+    if (!dbus_message_iter_open_container(&iter_arg, DBUS_TYPE_ARRAY, "{sv}", &array_iter)) {
       fprintf(stderr, "Out Of Memory!\n");
       exit(1);
     }
@@ -160,7 +160,7 @@ struct VariantTreeToDbus_message {
       std::cout << "  \"" << key << "\": ";
 
       DBusMessageIter pairIter;
-      if (!dbus_message_iter_open_container(&arrayIter, 'e', NULL, &pairIter)) {
+      if (!dbus_message_iter_open_container(&array_iter, 'e', NULL, &pairIter)) {
         fprintf(stderr, "Out Of Memory!\n");
         exit(1);
       }
@@ -240,11 +240,11 @@ struct VariantTreeToDbus_message {
         std::cout << std::endl;
       } else {
         std::cout << std::endl;
-        std::visit(VariantTreeToDbus_message{indent + 2, arrayIter}, value.data);
+        std::visit(VariantTreeToDbusMessage{indent + 2, array_iter}, value.data);
       }
-      dbus_message_iter_close_container(&arrayIter, &pairIter);
+      dbus_message_iter_close_container(&array_iter, &pairIter);
     }
-    dbus_message_iter_close_container(&iter_arg, &arrayIter);
+    dbus_message_iter_close_container(&iter_arg, &array_iter);
   }
 };
 
@@ -253,10 +253,10 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
                               const VariantTree &dbus_args, const std::list<std::string> &properties,
                               const std::string &property_separator) {
   printf("DBus::send [%s] destination:%s, path:%s, interface.method:%s.%s, args:[%d]\n",
-         this->system ? "SYSTEM" : "SESSION", dbus_destination.c_str(), dbus_path.c_str(), dbus_interface.c_str(),
+         this->system_ ? "SYSTEM" : "SESSION", dbus_destination.c_str(), dbus_path.c_str(), dbus_interface.c_str(),
          dbus_method.c_str());
   dbus_args.print();
-  assert(this->conn != NULL);
+  assert(this->conn_ != NULL);
 
   DBusMessage *msg;
   DBusMessageIter args;
@@ -270,7 +270,7 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
 
   /*
       // request our name on the bus
-      int ret = dbus_bus_request_name(conn, "test.method.caller", DBUS_NAME_FLAG_REPLACE_EXISTING , &err);
+      int ret = dbus_bus_request_name(conn_, "test.method.caller", DBUS_NAME_FLAG_REPLACE_EXISTING , &err);
       if (dbus_error_is_set(&err)) {
           fprintf(stderr, "Name Error (%s)\n", err.message);
           dbus_error_free(&err);
@@ -296,8 +296,8 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
   // if (!dbus_message_append_args(msg, DBUS_TYPE_STRING, &interface, DBUS_TYPE_STRING, &param, DBUS_TYPE_INVALID)) {
   DBusMessageIter iter_arg;
   dbus_message_iter_init_append(msg, &iter_arg);
-  printf("==================== VariantTreeToDbus_message\n");
-  std::visit(VariantTreeToDbus_message{0, iter_arg}, dbus_args.data);
+  printf("==================== VariantTreeToDbusMessage\n");
+  std::visit(VariantTreeToDbusMessage{0, iter_arg}, dbus_args.data);
 
   /*
   std::cout << "Dict {" << dict->size() << " Einträge}:" << std::endl;
@@ -366,7 +366,7 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
 
   printf("send with reply\n");
   // send message and get a handle for a reply
-  if (!dbus_connection_send_with_reply(conn, msg, &pending, -1)) {  // -1 is default timeout
+  if (!dbus_connection_send_with_reply(this->conn_, msg, &pending, -1)) {  // -1 is default timeout
     fprintf(stderr, "Out Of Memory!\n");
     exit(1);
   }
@@ -374,7 +374,7 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
     fprintf(stderr, "Pending Call Null\n");
     exit(1);
   }
-  dbus_connection_flush(conn);
+  dbus_connection_flush(this->conn_);
 
   printf("Request Sent\n");
 
@@ -406,7 +406,7 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
     if (ret.length() > 0) {
       ret += property_separator;
     }
-    ret += this->getProperty(msg, it);
+    ret += this->get_property(msg, it);
   }
 
   // free reply
@@ -415,8 +415,8 @@ std::string DBusWrapper::send(const std::string &dbus_destination, const std::st
   return ret;
 }
 
-std::string DBusWrapper::getProperty(DBusMessage *msg, const std::string &searchKey) {
-  printf("DBusTextSensor::getProperty(msg=%p, searchKey='%s')\n", msg, searchKey.c_str());
+std::string DBusWrapper::get_property(DBusMessage *msg, const std::string &search_key) {
+  printf("DBusTextSensor::get_property(msg=%p, search_key='%s')\n", msg, search_key.c_str());
   DBusMessageIter iter, iter_variant;
   char *value_str_ptr;
   std::string ret;
@@ -479,7 +479,7 @@ std::string DBusWrapper::getProperty(DBusMessage *msg, const std::string &search
             if (dbus_message_iter_get_arg_type(&subiter) == DBUS_TYPE_STRING) {
               dbus_message_iter_get_basic(&subiter, &key);
               printf("key: >>>%s<<<\n", key);
-              if (searchKey == key) {
+              if (search_key == key) {
                 add = true;
               }
             } else {
@@ -488,7 +488,7 @@ std::string DBusWrapper::getProperty(DBusMessage *msg, const std::string &search
             }
             dbus_message_iter_next(&subiter);
             if (add) {
-              std::string value = dbusIterToString(&subiter);
+              std::string value = dbus_iter_to_string(&subiter);
               printf("add      value=%s\n", value.c_str());
               return value;
             }
@@ -531,8 +531,8 @@ std::string DBusWrapper::getProperty(DBusMessage *msg, const std::string &search
 }
 
 // https://github.com/freedesktop/dbus/blob/master/dbus/dbus-bus.c
-void DBusWrapper::registerForSignal(const std::string &dbus_properties, const std::string &dbus_path) {
-  printf("DBusWrapper::registerForSignal(properties=%s, path=%s)\n", dbus_properties.c_str(), dbus_path.c_str());
+void DBusWrapper::register_for_signal_(const std::string &dbus_properties, const std::string &dbus_path) {
+  printf("DBusWrapper::register_for_signal(properties=%s, path=%s)\n", dbus_properties.c_str(), dbus_path.c_str());
   DBusError err;
   dbus_error_init(&err);
 
@@ -545,9 +545,9 @@ void DBusWrapper::registerForSignal(const std::string &dbus_properties, const st
    * path='/bar/foo',
    * destination=':452345.34'"
    */
-  dbus_bus_add_match(conn, ("type='signal',interface='" + dbus_properties + "',path='" + dbus_path + "'").c_str(),
-                     &err);
-  dbus_connection_flush(conn);
+  dbus_bus_add_match(this->conn_,
+                     ("type='signal',interface='" + dbus_properties + "',path='" + dbus_path + "'").c_str(), &err);
+  dbus_connection_flush(this->conn_);
   if (dbus_error_is_set(&err)) {
     fprintf(stderr, "Match Error (%s)\n", err.message);
     exit(1);
@@ -559,8 +559,8 @@ void DBusWrapper::registerForSignal(const std::string &dbus_properties, const st
 void DBus::loop() {
     // spam printf("DBusTextSensor::loop\n");
 
-  dbus_connection_read_write(conn, 0);
-    DBusMessage* msg = dbus_connection_pop_message(conn);
+  dbus_connection_read_write(conn_, 0);
+    DBusMessage* msg = dbus_connection_pop_message(conn_);
   char* sigvalue=NULL;
 
       // loop again if we haven't read a message
