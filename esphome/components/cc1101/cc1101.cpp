@@ -151,6 +151,8 @@ void CC1101Component::setup() {
     if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
       // GDO0 = 0x01: Asserts when RX FIFO filled or end of packet, de-asserts when FIFO empty
       this->state_.GDO0_CFG = 0x01;
+      // Set max RX FIFO threshold to ensure we only trigger on end-of-packet
+      this->state_.FIFO_THR = 15;
     }
   }
 
@@ -202,13 +204,16 @@ void CC1101Component::loop() {
   this->packet_.resize(payload_length);
   this->read_(Register::FIFO, this->packet_.data(), payload_length);
 
-  // Read status
+  // Read status and trigger
   uint8_t status[2];
   this->read_(Register::FIFO, status, 2);
   int8_t rssi_raw = static_cast<int8_t>(status[0]);
   float rssi = (rssi_raw / 2.0f) - 74.0f;
+  bool crc_ok = (status[1] & 0x80) != 0;
   uint8_t lqi = status[1] & 0x7F;
-  this->packet_trigger_->trigger(this->packet_, rssi, lqi);
+  if (this->state_.CRC_EN == 0 || crc_ok) {
+    this->packet_trigger_->trigger(this->packet_, rssi, lqi);
+  }
 
   // Return to rx
   this->enter_idle_();
@@ -331,12 +336,11 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
 }
 
 CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet) {
-  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr) {
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
     return CC1101Error::PARAMS;
   }
 
   // Write packet
-  uint32_t start = millis();
   this->enter_idle_();
   this->strobe_(Command::FTX);
   if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
@@ -344,16 +348,12 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
   }
   this->write_(Register::FIFO, packet.data(), packet.size());
   this->strobe_(Command::TX);
-  this->wait_for_state_(State::TX);
-  while (this->gdo0_pin_->digital_read()) {
-    if (millis() - start > 1000) {
-      ESP_LOGW(TAG, "TX timeout waiting for completion");
-      this->enter_idle_();
-      this->strobe_(Command::RX);
-      this->wait_for_state_(State::RX);
-      return CC1101Error::TIMEOUT;
-    }
-    delayMicroseconds(10);
+  if (!this->wait_for_state_(State::IDLE, 1000)) {
+    ESP_LOGW(TAG, "TX timeout");
+    this->enter_idle_();
+    this->strobe_(Command::RX);
+    this->wait_for_state_(State::RX);
+    return CC1101Error::TIMEOUT;
   }
 
   // Return to rx
@@ -508,6 +508,7 @@ void CC1101Component::set_modulation_type(Modulation value) {
   this->state_.PA_POWER = value == Modulation::MODULATION_ASK_OOK ? 1 : 0;
   if (this->initialized_) {
     this->enter_idle_();
+    this->set_output_power(this->output_power_requested_);
     this->write_(Register::MDMCFG2);
     this->write_(Register::FREND0);
     this->strobe_(Command::RX);
