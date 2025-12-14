@@ -28,8 +28,6 @@ class CC1101Component : public Component,
   void set_idle();
 
   // GDO Pin Configuration
-  void set_gdo0_config(uint8_t value);
-  void set_gdo2_config(uint8_t value);
   void set_gdo0_pin(InternalGPIOPin *pin) { this->gdo0_pin_ = pin; }
 
   // Configuration Setters

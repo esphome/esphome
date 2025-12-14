@@ -167,26 +167,18 @@ void CC1101Component::setup() {
 }
 
 void CC1101Component::loop() {
-  // Only process in FIFO packet mode with a GDO pin configured
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
     return;
   }
-
-  if (this->gdo0_pin_ == nullptr) {
+  if (this->gdo0_pin_ == nullptr || !this->gdo0_pin_->digital_read()) {
     return;
   }
 
-  // Check if GDO0 indicates packet received
-  if (!this->gdo0_pin_->digital_read()) {
-    return;
-  }
-
-  // Read RXBYTES to get number of bytes in FIFO
+  // Read state
   this->read_(Register::RXBYTES);
   uint8_t rx_bytes = this->state_.NUM_RXBYTES;
   bool overflow = this->state_.RXFIFO_OVERFLOW;
-
-  if (overflow) {
+  if (overflow || rx_bytes == 0) {
     ESP_LOGW(TAG, "RX FIFO overflow, flushing");
     this->enter_idle_();
     this->strobe_(Command::FRX);  // Flush RX FIFO
@@ -195,28 +187,13 @@ void CC1101Component::loop() {
     return;
   }
 
-  if (rx_bytes == 0) {
-    // GDO high but no bytes - flush and restart
-    this->enter_idle_();
-    this->strobe_(Command::FRX);
-    this->strobe_(Command::RX);
-    this->wait_for_state_(State::RX, 50);
-    return;
-  }
-
-  // Determine packet length
-  size_t payload_length;
+  // Read packet
+  uint8_t payload_length;
   if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
-    // Variable length: first byte is length
-    uint8_t len_byte;
-    this->read_(Register::FIFO, &len_byte, 1);
-    payload_length = len_byte;
+    this->read_(Register::FIFO, &payload_length, 1);
   } else {
-    // Fixed length from PKTLEN register
     payload_length = this->state_.PKTLEN;
   }
-
-  // Sanity check payload length
   if (payload_length == 0 || payload_length > 64) {
     ESP_LOGW(TAG, "Invalid payload length: %u", payload_length);
     this->enter_idle_();
@@ -224,27 +201,21 @@ void CC1101Component::loop() {
     this->strobe_(Command::RX);
     return;
   }
-
-  // Read payload
   this->packet_.resize(payload_length);
   this->read_(Register::FIFO, this->packet_.data(), payload_length);
 
-  // Read appended status bytes (RSSI + LQI)
+  // Read status
   uint8_t status[2];
   this->read_(Register::FIFO, status, 2);
   int8_t rssi_raw = static_cast<int8_t>(status[0]);
   float rssi = (rssi_raw / 2.0f) - 74.0f;
   uint8_t lqi = status[1] & 0x7F;
-
-  // Trigger automation
   this->packet_trigger_->trigger(this->packet_, rssi, lqi);
 
-  // Flush any remaining bytes and return to RX mode
+  // Return to rx
   this->enter_idle_();
   this->strobe_(Command::FRX);
   this->strobe_(Command::RX);
-
-  // Wait for RX state (calibration takes time)
   if (!this->wait_for_state_(State::RX, 50)) {
     this->read_(Register::MARCSTATE);
     ESP_LOGW(TAG, "Failed to enter RX state, MARCSTATE=0x%02X", this->state_.MARC_STATE);
@@ -295,20 +266,6 @@ void CC1101Component::reset() {
 void CC1101Component::set_idle() {
   ESP_LOGV(TAG, "Setting IDLE state");
   this->enter_idle_();
-}
-
-void CC1101Component::set_gdo0_config(uint8_t value) {
-  this->state_.GDO0_CFG = value;
-  if (this->initialized_) {
-    this->write_(Register::IOCFG0);
-  }
-}
-
-void CC1101Component::set_gdo2_config(uint8_t value) {
-  this->state_.GDO2_CFG = value;
-  if (this->initialized_) {
-    this->write_(Register::IOCFG2);
-  }
 }
 
 bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
