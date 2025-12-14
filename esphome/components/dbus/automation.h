@@ -21,7 +21,7 @@ template<typename... Ts> class DBusSendAction : public Action<Ts...>, public Par
   TEMPLATABLE_VALUE(VariantTree, dbus_args)
   void set_dbus_args(const VariantTree &dbus_args) { this->dbus_args_ = dbus_args; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->send(this->dbus_system_.optional_value(x...), this->dbus_destination_.optional_value(x...),
                         this->dbus_path_.optional_value(x...), this->dbus_interface_.optional_value(x...),
                         this->dbus_method_.optional_value(x...), this->dbus_args_.optional_value(x...));
