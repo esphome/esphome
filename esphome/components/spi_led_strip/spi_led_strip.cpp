@@ -16,7 +16,8 @@ void SpiLedStrip::setup() {
     ESP_LOGE(TAG, "Failed to allocate effect data of size %u", this->num_leds_);
     return;
   }
-  memset(this->buf_, 0x0, this->get_buffer_size());
+  memset(this->buf_, 0xFF, this->get_buffer_size());  // Initialize with 0xFF to be compatible with DotStar
+  memset(this->buf_, 0x00, 4);  // Initialize first four bytes with 0x00 to be compatible with DotStar
 
   if (this->effect_data_ == nullptr || this->buf_ == nullptr) {
     this->mark_failed();
