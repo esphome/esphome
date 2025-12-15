@@ -1,9 +1,17 @@
-from esphome import automation
+from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_FREQUENCY, CONF_ID, CONF_WAIT_TIME
+from esphome.const import (
+    CONF_CHANNEL,
+    CONF_DATA,
+    CONF_FREQUENCY,
+    CONF_ID,
+    CONF_WAIT_TIME,
+)
+from esphome.core import ID
 
 CODEOWNERS = ["@lygris", "@gabest11"]
 DEPENDENCIES = ["spi"]
@@ -29,7 +37,6 @@ CONF_MANCHESTER = "manchester"
 CONF_NUM_PREAMBLE = "num_preamble"
 CONF_SYNC1 = "sync1"
 CONF_SYNC0 = "sync0"
-CONF_PKTLEN = "pktlen"
 CONF_MAGN_TARGET = "magn_target"
 CONF_MAX_LNA_GAIN = "max_lna_gain"
 CONF_MAX_DVGA_GAIN = "max_dvga_gain"
@@ -40,6 +47,12 @@ CONF_FILTER_LENGTH_FSK_MSK = "filter_length_fsk_msk"
 CONF_FILTER_LENGTH_ASK_OOK = "filter_length_ask_ook"
 CONF_FREEZE = "freeze"
 CONF_HYST_LEVEL = "hyst_level"
+
+# Packet mode config keys
+CONF_PACKET_MODE = "packet_mode"
+CONF_PACKET_LENGTH = "packet_length"
+CONF_WHITENING = "whitening"
+CONF_GDO0_PIN = "gdo0_pin"
 
 # Enums
 SyncMode = ns.enum("SyncMode", True)
@@ -167,7 +180,6 @@ CONFIG_MAP = {
     CONF_NUM_PREAMBLE: cv.int_range(min=0, max=7),
     CONF_SYNC1: cv.hex_uint8_t,
     CONF_SYNC0: cv.hex_uint8_t,
-    CONF_PKTLEN: cv.uint8_t,
     CONF_MAGN_TARGET: cv.enum(MAGN_TARGET, upper=False),
     CONF_MAX_LNA_GAIN: cv.enum(MAX_LNA_GAIN, upper=False),
     CONF_MAX_DVGA_GAIN: cv.enum(MAX_DVGA_GAIN, upper=False),
@@ -179,13 +191,36 @@ CONFIG_MAP = {
     CONF_FREEZE: cv.enum(FREEZE, upper=False),
     CONF_WAIT_TIME: cv.enum(WAIT_TIME, upper=False),
     CONF_HYST_LEVEL: cv.enum(HYST_LEVEL, upper=False),
+    CONF_PACKET_MODE: cv.boolean,
+    CONF_PACKET_LENGTH: cv.uint8_t,
+    CONF_CRC_ENABLE: cv.boolean,
+    CONF_WHITENING: cv.boolean,
 }
 
-CONFIG_SCHEMA = (
-    cv.Schema({cv.GenerateID(): cv.declare_id(CC1101Component)})
+
+def _validate_packet_mode(config):
+    if config.get(CONF_PACKET_MODE, False):
+        if CONF_GDO0_PIN not in config:
+            raise cv.Invalid("gdo0_pin is required when packet_mode is enabled")
+        if CONF_PACKET_LENGTH not in config:
+            raise cv.Invalid("packet_length is required when packet_mode is enabled")
+        if config[CONF_PACKET_LENGTH] > 64:
+            raise cv.Invalid("packet_length must be <= 64 (FIFO size)")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(CC1101Component),
+            cv.Optional(CONF_GDO0_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
+        }
+    )
     .extend({cv.Optional(key): validator for key, validator in CONFIG_MAP.items()})
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(spi.spi_device_schema(cs_pin_required=True))
+    .extend(spi.spi_device_schema(cs_pin_required=True)),
+    _validate_packet_mode,
 )
 
 
@@ -198,12 +233,29 @@ async def to_code(config):
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
 
+    if CONF_GDO0_PIN in config:
+        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
+        cg.add(var.set_gdo0_pin(gdo0_pin))
+    if CONF_ON_PACKET in config:
+        await automation.build_automation(
+            var.get_packet_trigger(),
+            [
+                (cg.std_vector.template(cg.uint8), "x"),
+                (cg.float_, "rssi"),
+                (cg.uint8, "lqi"),
+            ],
+            config[CONF_ON_PACKET],
+        )
+
 
 # Actions
 BeginTxAction = ns.class_("BeginTxAction", automation.Action)
 BeginRxAction = ns.class_("BeginRxAction", automation.Action)
 ResetAction = ns.class_("ResetAction", automation.Action)
 SetIdleAction = ns.class_("SetIdleAction", automation.Action)
+SendPacketAction = ns.class_(
+    "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
+)
 
 CC1101_ACTION_SCHEMA = cv.Schema(
     maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(CC1101Component)})
@@ -217,4 +269,43 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 async def cc1101_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+def validate_raw_data(value):
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid(
+        "data must either be a string wrapped in quotes or a list of bytes"
+    )
+
+
+SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+    },
+    key=CONF_DATA,
+)
+
+
+@automation.register_action(
+    "cc1101.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+)
+async def send_packet_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_DATA]
+    if isinstance(data, bytes):
+        data = list(data)
+    if cg.is_template(data):
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(templ))
+    else:
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
     return var
