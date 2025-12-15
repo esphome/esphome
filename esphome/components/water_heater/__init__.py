@@ -2,16 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import web_server
 from esphome.const import (
-    CONF_ID,
-    CONF_INTERNAL,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
-    CONF_MODE,
     CONF_TARGET_TEMPERATURE,
     CONF_VISUAL,
-    CONF_WATER_HEATER,
 )
-from esphome.core import COROUTINE_SUSPENDED
 
 CODEOWNERS = ["@dhoeben"]
 
@@ -62,3 +57,4 @@ async def register_water_heater(var, config):
             cg.add(var.set_visual_min_temperature_override(visual[CONF_MIN_TEMPERATURE]))
         if CONF_MAX_TEMPERATURE in visual:
             cg.add(var.set_visual_max_temperature_override(visual[CONF_MAX_TEMPERATURE]))
+            
