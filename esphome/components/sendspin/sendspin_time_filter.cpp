@@ -89,7 +89,7 @@ void SendspinTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
   if (this->count_ < 100) {
     // Build sufficient history before enabling adaptive forgetting
     ++this->count_;
-  } else if (residual > max_residual_cutoff) {
+  } else if (std::abs(residual) > max_residual_cutoff) {
     // Large prediction error detected - likely network disruption or clock adjustment
     // Apply forgetting factor to increase Kalman gain and accelerate convergence
     new_drift_covariance *= this->forget_variance_factor_;
