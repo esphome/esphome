@@ -7,15 +7,7 @@ namespace power_management {
 
 static const char *const TAG = "power_management";
 
-// static only use is in setup
-void PowerManagement::timer_callback(TimerHandle_t timer) {
-  void *context = pvTimerGetTimerID(timer);
-  PowerManagement *obj = (PowerManagement *) context;
-  obj->release_lock(PowerManagementLockUser::PM, PowerManagementLockType::TMR);
-}
-
 void PowerManagement::setup() {
-  power_management::global_pm = this;
   esp_err_t rc = ESP_OK;
   // Configure PM
   int max_freq_mhz = this->max_freq_mhz_ > 0 ? this->max_freq_mhz_ : CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
@@ -50,15 +42,10 @@ void PowerManagement::setup() {
       return;
     }
   }
-
-  if (this->timer_lock_duration_ > 0) {
-    // Acquire Initial Lock
-    this->acquire_lock(PowerManagementLockUser::PM, PowerManagementLockType::TMR);
-  }
 }
 
 // Thread Safe
-void PowerManagement::acquire_lock(PowerManagementLockUser user, PowerManagementLockType lt) {
+void PowerManagement::acquire_lock(PowerManagementLockType lt) {
   if (this->is_ready()) {
     std::lock_guard<std::mutex> lock(this->pm_lock_mutex_);
     esp_err_t rc = esp_pm_lock_acquire(this->pm_lock_handles_[lt]);
@@ -66,18 +53,12 @@ void PowerManagement::acquire_lock(PowerManagementLockUser user, PowerManagement
       ESP_LOGE(TAG, "Failed esp_pm_lock_acquire %s %d", power_manager_type_to_string(lt), rc);
       return;
     }
-    ESP_LOGD(TAG, "Acquired pm lock: %s, user: %s", power_manager_type_to_string(lt),
-             power_manager_user_to_string(user));
-    if (lt == PowerManagementLockType::TMR && this->timer_lock_duration_ > 0) {
-      TimerHandle_t timer = xTimerCreate("PM Sleep Timer", pdMS_TO_TICKS(this->timer_lock_duration_), pdFALSE, this,
-                                         PowerManagement::timer_callback);
-      xTimerStart(timer, 0);
-    }
+    ESP_LOGD(TAG, "Acquired pm lock: %s", power_manager_type_to_string(lt));
   }
 }
 
 // Thread Safe
-void PowerManagement::release_lock(PowerManagementLockUser user, PowerManagementLockType lt) {
+void PowerManagement::release_lock(PowerManagementLockType lt) {
   if (this->is_ready()) {
     std::lock_guard<std::mutex> lock(this->pm_lock_mutex_);
     esp_err_t rc = esp_pm_lock_release(this->pm_lock_handles_[lt]);
@@ -85,15 +66,12 @@ void PowerManagement::release_lock(PowerManagementLockUser user, PowerManagement
       ESP_LOGE(TAG, "Failed esp_pm_lock_release %s %d", power_manager_type_to_string(lt), rc);
       return;
     }
-    ESP_LOGD(TAG, "Released pm lock: %s, user: %s", power_manager_type_to_string(lt),
-             power_manager_user_to_string(user));
+    ESP_LOGD(TAG, "Released pm lock: %s", power_manager_type_to_string(lt));
   }
 }
 
 void PowerManagement::dump_config() {
   ESP_LOGCONFIG(TAG, "Power Management:");
-  uint32_t duration = this->timer_lock_duration_ / 1000;
-  ESP_LOGCONFIG(TAG, "  Timer Lock Duration: %" PRIu32 "s", duration);
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   ESP_LOGCONFIG(TAG, "  Light Sleep Enabled");
 #if CONFIG_ESP_SLEEP_POWER_DOWN_FLASH

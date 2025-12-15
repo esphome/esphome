@@ -12,7 +12,6 @@ from .const import (
     CONF_POWER_DOWN_PERIPHERALS,
     CONF_PROFILING,
     CONF_TICKLESS_IDLE,
-    CONF_TIMER_LOCK_DURATION,
     CONF_TRACE,
 )
 
@@ -23,26 +22,12 @@ PowerManagement = power_management_ns.class_("PowerManagement", cg.Component)
 AcquireLockAction = power_management_ns.class_("AcquireLockAction", automation.Action)
 ReleaseLockAction = power_management_ns.class_("ReleaseLockAction", automation.Action)
 
-PM_ACTION_ACQUIRE_SCHEMA = automation.maybe_conf(
+PM_ACTION_SCHEMA = automation.maybe_conf(
     CONF_LOCK_TYPE,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(PowerManagement),
-            cv.Optional(CONF_LOCK_TYPE, default="CPU"): cv.one_of(
-                "TMR", "CPU", "APB", "SLP", upper=True
-            ),
-            cv.Optional(
-                CONF_TIMER_LOCK_DURATION, default="0ms"
-            ): cv.positive_time_period_milliseconds,
-        }
-    ),
-)
-PM_ACTION_RELEASE_SCHEMA = automation.maybe_conf(
-    CONF_LOCK_TYPE,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(PowerManagement),
-            cv.Optional(CONF_LOCK_TYPE, default="CPU"): cv.one_of(
+            cv.Optional(CONF_LOCK_TYPE, default="SLP"): cv.one_of(
                 "CPU", "APB", "SLP", upper=True
             ),
         }
@@ -51,18 +36,16 @@ PM_ACTION_RELEASE_SCHEMA = automation.maybe_conf(
 
 
 @automation.register_action(
-    "power_management.acquire_lock", AcquireLockAction, PM_ACTION_ACQUIRE_SCHEMA
+    "power_management.acquire_lock", AcquireLockAction, PM_ACTION_SCHEMA
 )
 @automation.register_action(
-    "power_management.release_lock", ReleaseLockAction, PM_ACTION_RELEASE_SCHEMA
+    "power_management.release_lock", ReleaseLockAction, PM_ACTION_SCHEMA
 )
 async def power_management_lock_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     if (lock_type := config.get(CONF_LOCK_TYPE)) is not None:
         cg.add(var.set_lock_type(lock_type))
-    if (timer_lock_duration := config.get(CONF_TIMER_LOCK_DURATION)) is not None:
-        cg.add(var.set_timer_lock_duration(timer_lock_duration))
     return var
 
 
@@ -70,7 +53,6 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PowerManagement),
-            cv.Optional(CONF_TIMER_LOCK_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_MAX_FREQUENCY): cv.All(cv.frequency, cv.int_),
             cv.Optional(CONF_MIN_FREQUENCY): cv.All(cv.frequency, cv.int_),
             cv.Optional(CONF_POWER_DOWN_PERIPHERALS): cv.boolean,
@@ -90,8 +72,6 @@ async def to_code(config):
     cg.add_define("USE_POWER_MANAGEMENT", True)
     add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
 
-    if (timer_lock_duration := config.get(CONF_TIMER_LOCK_DURATION)) is not None:
-        cg.add(var.set_timer_lock_duration(timer_lock_duration))
     if (max_freq := config.get(CONF_MAX_FREQUENCY)) is not None:
         cg.add(var.set_max_freq_mhz(max_freq))
     if (min_freq := config.get(CONF_MIN_FREQUENCY)) is not None:
