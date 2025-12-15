@@ -145,10 +145,10 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
 
 // FNV-1 hash - deprecated, use fnv1a_hash() for new code
 uint32_t fnv1_hash(const char *str) {
-  uint32_t hash = 2166136261UL;
+  uint32_t hash = FNV1_OFFSET_BASIS;
   if (str) {
     while (*str) {
-      hash *= 16777619UL;
+      hash *= FNV1_PRIME;
       hash ^= *str++;
     }
   }
@@ -160,7 +160,7 @@ uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
   if (str) {
     while (*str) {
       hash ^= *str++;
-      hash *= 16777619UL;
+      hash *= FNV1_PRIME;
     }
   }
   return hash;
