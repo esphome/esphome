@@ -2,7 +2,6 @@
 #ifdef USE_WIFI
 #include <cassert>
 #include <cinttypes>
-#include "esphome/core/application.h"
 
 #ifdef USE_ESP32
 #if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
@@ -24,6 +23,7 @@
 #include "lwip/dns.h"
 #include "lwip/err.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -375,7 +375,7 @@ void WiFiComponent::start() {
                 get_mac_address_pretty_into_buffer(mac_s));
   this->last_connected_ = millis();
 
-  uint32_t hash = this->has_sta() ? static_cast<uint32_t>(App.get_build_time()) : 88491487UL;
+  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time_ref().c_str()) : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
