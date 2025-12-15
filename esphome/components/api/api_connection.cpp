@@ -1322,11 +1322,7 @@ uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConne
   resp.current_temperature = wh->current_temperature;
   resp.target_temperature = wh->target_temperature;
 
-  // Manual base field population
   resp.key = wh->get_object_id_hash();
-#ifdef USE_DEVICES
-  resp.device_id = wh->get_device_id();
-#endif
 
   return encode_message_to_buffer(resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -1340,7 +1336,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
 
   msg.key = wh->get_object_id_hash();
   StringRef static_ref = wh->get_object_id_ref_for_api_();
-  std::string object_id;  // Keep alive scope
+  std::string object_id; 
   if (!static_ref.empty()) {
     msg.set_object_id(static_ref);
   } else {
@@ -1357,15 +1353,22 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
 #endif
   msg.disabled_by_default = wh->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(wh->get_entity_category());
-#ifdef USE_DEVICES
-  msg.device_id = wh->get_device_id();
-#endif
 
   return encode_message_to_buffer(msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
 void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
-  ENTITY_COMMAND_MAKE_CALL(water_heater::WaterHeater, water_heater, water_heater)
+  #ifdef USE_DEVICES
+    water_heater::WaterHeater *water_heater = App.get_water_heater_by_key(msg.key, 0); 
+  #else
+    water_heater::WaterHeater *water_heater = App.get_water_heater_by_key(msg.key);
+  #endif
+  
+  if (water_heater == nullptr)
+    return;
+    
+  auto call = water_heater->make_call();
+
   if (msg.has_mode) {
     call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
   }

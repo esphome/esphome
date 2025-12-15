@@ -44,7 +44,6 @@ CONFIG_SCHEMA = water_heater.WATER_HEATER_SCHEMA.extend(
         ),
         cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(cv.temperature),
         cv.Optional(CONF_MODE): cv.templatable(water_heater.validate_water_heater_mode),
-        # Hier voegen we de min/max opties toe die in je vorige error ontbraken
         cv.Optional(CONF_MIN_TEMPERATURE, default=10.0): cv.temperature,
         cv.Optional(CONF_MAX_TEMPERATURE, default=60.0): cv.temperature,
     }

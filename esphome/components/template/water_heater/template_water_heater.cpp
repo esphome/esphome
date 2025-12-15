@@ -92,7 +92,5 @@ void TemplateWaterHeater::control(const water_heater::WaterHeaterCall &call) {
   if (this->optimistic_) {
     this->publish_state();
   }
-}
-
-}  // namespace template_
+}  // namespace esphome::template_
 }  // namespace esphome
