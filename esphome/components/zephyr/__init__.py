@@ -175,6 +175,9 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
 
 
 def zephyr_add_cdc_acm(config, id):
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver >= cv.Version(3, 2, 0):
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     # prevent device to go to susspend, without this communication stop working in python
@@ -235,7 +238,7 @@ def copy_files():
 
     if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT or zephyr_data()[
         KEY_BOARD
-    ] in ["xiao_ble"]:
+    ] in ["xiao_ble", "adafruit_itsybitsy"]:
         fake_board_manifest = """
 {
     "frameworks": [

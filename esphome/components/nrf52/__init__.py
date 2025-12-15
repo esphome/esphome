@@ -56,6 +56,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
+    # nrf-sdk v3.2.0 changed the name of this board
+    if config[CONF_BOARD] == "adafruit_itsybitsy_nrf52840":
+        config[CONF_BOARD] = "adafruit_itsybitsy"
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
