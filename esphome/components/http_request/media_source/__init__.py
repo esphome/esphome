@@ -23,8 +23,8 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
-            cv.Optional(CONF_BUFFER_SIZE, default=24 * 1024): cv.int_range(
-                min=8 * 1024, max=128 * 1024
+            cv.Optional(CONF_BUFFER_SIZE, default=51200): cv.int_range(
+                min=8 * 1024, max=500 * 1024
             ),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.boolean,
         }
