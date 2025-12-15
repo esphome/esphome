@@ -16,7 +16,7 @@
 void setup();
 void loop();
 
-// Weak stub for initArduino - overridden when Arduino framework is present
+// Weak stub for initArduino - overridden when the Arduino component is present
 extern "C" __attribute__((weak)) void initArduino() {}
 
 namespace esphome {
