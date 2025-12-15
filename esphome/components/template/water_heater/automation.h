@@ -6,7 +6,8 @@
 namespace esphome {
 namespace template_ {
 
-template<typename... Ts> class TemplateWaterHeaterPublishAction : public Action<Ts...>, public Parented<TemplateWaterHeater> {
+template<typename... Ts>
+class TemplateWaterHeaterPublishAction : public Action<Ts...>, public Parented<TemplateWaterHeater> {
  public:
   TEMPLATABLE_VALUE(float, current_temperature)
   TEMPLATABLE_VALUE(float, target_temperature)

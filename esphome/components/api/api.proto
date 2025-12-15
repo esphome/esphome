@@ -1113,7 +1113,7 @@ enum WaterHeaterMode {
 }
 
 message ListEntitiesWaterHeaterResponse {
-  option (id) = 132;  
+  option (id) = 132;
   option (source) = SOURCE_SERVER;
   string object_id = 1;
   fixed32 key = 2;

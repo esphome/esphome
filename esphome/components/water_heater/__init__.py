@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
@@ -43,6 +43,7 @@ WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     }
 )
 
+
 async def register_water_heater(var, config):
     await cg.register_component(var, config)
     cg.add(cg.App.register_water_heater(var))
@@ -54,7 +55,10 @@ async def register_water_heater(var, config):
     if CONF_VISUAL in config:
         visual = config[CONF_VISUAL]
         if CONF_MIN_TEMPERATURE in visual:
-            cg.add(var.set_visual_min_temperature_override(visual[CONF_MIN_TEMPERATURE]))
+            cg.add(
+                var.set_visual_min_temperature_override(visual[CONF_MIN_TEMPERATURE])
+            )
         if CONF_MAX_TEMPERATURE in visual:
-            cg.add(var.set_visual_max_temperature_override(visual[CONF_MAX_TEMPERATURE]))
-            
+            cg.add(
+                var.set_visual_max_temperature_override(visual[CONF_MAX_TEMPERATURE])
+            )
