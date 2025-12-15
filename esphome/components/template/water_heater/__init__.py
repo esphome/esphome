@@ -1,16 +1,16 @@
 from esphome import automation
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import water_heater
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
     CONF_MODE,
     CONF_OPTIMISTIC,
     CONF_RESTORE_MODE,
     CONF_SET_ACTION,
     CONF_TARGET_TEMPERATURE,
-    CONF_MIN_TEMPERATURE,
-    CONF_MAX_TEMPERATURE,
 )
 
 from .. import template_ns

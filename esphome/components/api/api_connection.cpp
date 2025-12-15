@@ -1340,7 +1340,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
 
   msg.key = wh->get_object_id_hash();
   StringRef static_ref = wh->get_object_id_ref_for_api_();
-  std::string object_id; // Keep alive scope
+  std::string object_id;  // Keep alive scope
   if (!static_ref.empty()) {
     msg.set_object_id(static_ref);
   } else {
