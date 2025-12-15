@@ -143,7 +143,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       break;
     }
 
-    if (bufsize > 0 && bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
+    if (bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
       // add read bytes to MD5
       md5_receive.add(buf, bufsize);
 
