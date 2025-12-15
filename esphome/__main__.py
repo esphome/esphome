@@ -550,15 +550,14 @@ def _check_and_emit_build_info() -> None:
         return
 
     config_hash = build_info.get("config_hash")
-    build_time = build_info.get("build_time")
+    build_time_str = build_info.get("build_time_str")
 
-    if config_hash is None or build_time is None:
+    if config_hash is None or build_time_str is None:
         return
 
     # Emit build_info with human-readable time
-    build_time_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
     _LOGGER.info(
-        "Build Info: config_hash=0x%08x build_time=%s", config_hash, build_time_str
+        "Build Info: config_hash=0x%08x build_time_str=%s", config_hash, build_time_str
     )
 
 
