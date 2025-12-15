@@ -164,6 +164,25 @@ class CustomAPIDevice {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
+
+  // Backward compatibility overloads for callbacks that take std::string by value
+  // Remove before 2026.6.0
+  template<typename T>
+  ESPDEPRECATED("Use void callback(const std::string &) instead. Removed in 2026.6.0", "2025.12.0")
+  void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    auto f = std::bind(callback, (T *) this, std::placeholders::_1);
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
+  }
+
+  // Remove before 2026.6.0
+  template<typename T>
+  ESPDEPRECATED("Use void callback(const std::string &, const std::string &) instead. Removed in 2026.6.0", "2025.12.0")
+  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
+  }
 #else
   template<typename T>
   void subscribe_homeassistant_state(void (T::*callback)(const std::string &), const std::string &entity_id,
@@ -176,6 +195,23 @@ class CustomAPIDevice {
   template<typename T>
   void subscribe_homeassistant_state(void (T::*callback)(const std::string &, const std::string &),
                                      const std::string &entity_id, const std::string &attribute = "") {
+    static_assert(sizeof(T) == 0,
+                  "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
+                  "of your YAML configuration");
+  }
+
+  // Backward compatibility overloads - stubs
+  template<typename T>
+  void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    static_assert(sizeof(T) == 0,
+                  "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
+                  "of your YAML configuration");
+  }
+
+  template<typename T>
+  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
     static_assert(sizeof(T) == 0,
                   "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
                   "of your YAML configuration");
