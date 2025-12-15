@@ -16,7 +16,7 @@ Protocols = spi_led_strip_ns.enum("Protocols")
 
 PROTOCOLS = {
     "DOTSTAR": Protocols.DOTSTAR,
-    "CLASSIC": Protocols.CLASSIC,
+    "RAW": Protocols.RAW,
 }
 
 CONF_CHANNEL_MAP = "channel_map"

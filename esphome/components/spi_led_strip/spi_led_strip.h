@@ -10,7 +10,7 @@ namespace spi_led_strip {
 
 enum Protocol : uint8_t {
   DOTSTAR,  // <32 Bit 0s> <3 Bit 1s, 5 Bit brightness> <8 Bit Blue> <8 Bit Green> <8 Bit Red> ... <32 Bit 1s>
-  CLASSIC,  // <24 Bit Color> ...
+  RAW,      // <24 Bit Color> ...
 };
 
 static const char *const TAG = "spi_led_strip";

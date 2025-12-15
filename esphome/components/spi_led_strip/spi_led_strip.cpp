@@ -47,9 +47,9 @@ void SpiLedStrip::dump_config() {
   esph_log_config(TAG, "SPI LED Strip:");
   esph_log_config(TAG, "  LEDs: %d", this->num_leds_);
   esph_log_config(TAG, "  Protocol: %s",
-                  this->protocol_ == DOTSTAR   ? "DOTSTAR"
-                  : this->protocol_ == CLASSIC ? "CLASSIC"
-                                               : "Unknown");
+                  this->protocol_ == DOTSTAR ? "DOTSTAR"
+                  : this->protocol_ == RAW   ? "RAW"
+                                             : "Unknown");
   esph_log_config(TAG, "  Channel Map: %s", this->channel_map_.to_string().c_str());
   if (this->data_rate_ >= spi::DATA_RATE_1MHZ) {
     esph_log_config(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
