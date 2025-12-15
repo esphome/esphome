@@ -4,7 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 #include <nvs_flash.h>
-#include <charconv>
+#include <cinttypes>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -115,8 +115,7 @@ class ESP32Preferences : public ESPPreferences {
     auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
     pref->nvs_handle = this->nvs_handle;
 
-    auto [ptr, ec] = std::to_chars(pref->key, pref->key + sizeof(pref->key), type);
-    *ptr = '\0';
+    snprintf(pref->key, sizeof(pref->key), "%" PRIu32, type);
 
     return ESPPreferenceObject(pref);
   }
