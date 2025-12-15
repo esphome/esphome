@@ -93,4 +93,4 @@ void TemplateWaterHeater::control(const water_heater::WaterHeaterCall &call) {
     this->publish_state();
   }
 }  // namespace esphome::template_
-}  // namespace esphome
+}  // namespace esphome::template_

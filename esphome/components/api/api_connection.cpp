@@ -1336,7 +1336,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
 
   msg.key = wh->get_object_id_hash();
   StringRef static_ref = wh->get_object_id_ref_for_api_();
-  std::string object_id; 
+  std::string object_id;
   if (!static_ref.empty()) {
     msg.set_object_id(static_ref);
   } else {
@@ -1358,15 +1358,15 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
 }
 
 void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
-  #ifdef USE_DEVICES
-    water_heater::WaterHeater *water_heater = App.get_water_heater_by_key(msg.key, 0); 
-  #else
-    water_heater::WaterHeater *water_heater = App.get_water_heater_by_key(msg.key);
-  #endif
-  
+#ifdef USE_DEVICES
+  water_heater::WaterHeater *water_heater = App.get_water_heater_by_key(msg.key, 0);
+#else
+  water_heater::WaterHeater *water_heater = App.get_water_heater_by_key(msg.key);
+#endif
+
   if (water_heater == nullptr)
     return;
-    
+
   auto call = water_heater->make_call();
 
   if (msg.has_mode) {
