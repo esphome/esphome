@@ -322,8 +322,8 @@ def perform_ota(
         hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
         perform_auth(sock, password, hash_func, nonce_size, hash_name)
 
-    # Set higher timeout during upload
-    sock.settimeout(30.0)
+    # Timeout must match device-side OTA_SOCKET_TIMEOUT_DATA to prevent premature failures
+    sock.settimeout(90.0)
 
     upload_size = len(upload_contents)
     upload_size_encoded = [
