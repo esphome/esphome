@@ -50,6 +50,9 @@ void EmonTx::setup() {
     this->web_server_->add_handler(new EmonTxSendHandler(this));
     this->web_server_->add_handler(new EmonTxDataHandler(this));
     ESP_LOGI(TAG, "Web config interface available at /emontx/config");
+
+    // Fetch OEM HTML interface after a delay (allow WiFi to connect)
+    this->set_timeout("fetch_oem", 5000, [this]() { this->fetch_oem_html_(); });
   }
 #endif
 }
@@ -477,10 +480,19 @@ void EmonTx::serve_config_page(AsyncWebServerRequest *request) {
     ESP_LOGD(TAG, "Serving cached HTML (%d bytes)", this->cached_html_.size());
     request->send(200, "text/html", this->cached_html_.c_str());
   } else {
-    // HTML was not fetched at startup - show error with retry hint
-    request->send(502, "text/plain",
-                  "OEM interface not available. It may have failed to load at startup. "
-                  "Check logs and restart the device to retry.");
+    // HTML not fetched yet - try to fetch it now
+    ESP_LOGW(TAG, "HTML not cached, attempting to fetch now...");
+    this->fetch_oem_html_();
+
+    if (this->html_fetched_ && !this->cached_html_.empty()) {
+      ESP_LOGI(TAG, "Successfully fetched HTML on-demand");
+      request->send(200, "text/html", this->cached_html_.c_str());
+    } else {
+      // Failed to fetch - show error
+      request->send(502, "text/plain",
+                    "OEM interface not available. Failed to fetch from openenergymonitor.org. "
+                    "Check WiFi connection and logs. Try restarting the device.");
+    }
   }
 }
 
