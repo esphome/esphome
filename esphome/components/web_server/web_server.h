@@ -475,6 +475,18 @@ class WebServer : public Controller,
                                        alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
 #endif
 
+#ifdef USE_WATER_HEATER
+  void on_water_heater_update(water_heater::WaterHeater *obj) override;
+
+  /// Handle a water_heater request under '/water_heater/<id>/<mode/set>'.
+  void handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static std::string water_heater_state_json_generator(WebServer *web_server, void *source);
+  static std::string water_heater_all_json_generator(WebServer *web_server, void *source);
+  /// Dump the water_heater state as a JSON string.
+  std::string water_heater_json(water_heater::WaterHeater *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_EVENT
   void on_event(event::Event *obj) override;
 

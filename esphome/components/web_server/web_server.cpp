@@ -28,6 +28,10 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
+
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
@@ -1652,6 +1656,93 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
   char buf[PSTR_LOCAL_SIZE];
   set_json_icon_state_value(root, obj, "alarm-control-panel", PSTR_LOCAL(alarm_control_panel_state_to_string(value)),
                             value, start_config);
+  if (start_config == DETAIL_ALL) {
+    this->add_sorting_info_(root, obj);
+  }
+
+  return builder.serialize();
+}
+#endif
+
+#ifdef USE_WATER_HEATER
+void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
+  this->events_.deferrable_send_state(obj, "state", water_heater_state_json_generator);
+}
+
+void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
+    if (!match.id_equals_entity(obj))
+      continue;
+
+    if (request->method() == HTTP_GET && match.method_empty()) {
+      auto detail = get_request_detail(request);
+      std::string data = this->water_heater_json(obj, detail);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    // Water heaters hebben meestal geen directe methodes zoals "open/close",
+    // maar we ondersteunen de "set" methode voor mode en temperatuur.
+    if (!match.method_equals("set")) {
+      request->send(404);
+      return;
+    }
+
+    // Parse target_temperature (float)
+    parse_float_param_(request, "target_temperature", call, &decltype(call)::set_target_temperature);
+
+    // Parse mode (string)
+    if (request->hasParam("mode")) {
+      String mode = request->getParam("mode")->value();
+      call.set_mode(mode.c_str());
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::water_heater_state_json_generator(WebServer *web_server, void *source) {
+  return web_server->water_heater_json((water_heater::WaterHeater *) (source), DETAIL_STATE);
+}
+
+std::string WebServer::water_heater_all_json_generator(WebServer *web_server, void *source) {
+  return web_server->water_heater_json((water_heater::WaterHeater *) (source), DETAIL_ALL);
+}
+
+std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+
+  // Converteer mode naar string voor de webinterface
+  const char *mode_s = "UNKNOWN";
+  switch (obj->mode) {
+    case water_heater::WATER_HEATER_MODE_OFF: mode_s = "OFF"; break;
+    case water_heater::WATER_HEATER_MODE_ECO: mode_s = "ECO"; break;
+    case water_heater::WATER_HEATER_MODE_ELECTRIC: mode_s = "ELECTRIC"; break;
+    case water_heater::WATER_HEATER_MODE_PERFORMANCE: mode_s = "PERFORMANCE"; break;
+    case water_heater::WATER_HEATER_MODE_HIGH_DEMAND: mode_s = "HIGH_DEMAND"; break;
+    case water_heater::WATER_HEATER_MODE_HEAT_PUMP: mode_s = "HEAT_PUMP"; break;
+    case water_heater::WATER_HEATER_MODE_GAS: mode_s = "GAS"; break;
+  }
+
+  set_json_icon_state_value(root, obj, "water-heater", mode_s, obj->mode, start_config);
+  
+  // Voeg specifieke water heater attributen toe
+  if (!std::isnan(obj->current_temperature))
+    root["current_temperature"] = obj->current_temperature;
+  root["target_temperature"] = obj->target_temperature;
+  
+  auto traits = obj->get_traits();
+  root["min_temperature"] = traits.get_min_temperature();
+  root["max_temperature"] = traits.get_max_temperature();
+
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
