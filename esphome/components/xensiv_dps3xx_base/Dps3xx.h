@@ -4,7 +4,7 @@
 #define DPS3xx_H_INCLUDED
 
 #include "DpsClass.h"
-#include "dps3xx_config.h"
+#include "dps_config.h"
 
 namespace esphome {
 namespace xensiv_dps3xx_base {
