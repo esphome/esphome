@@ -7,60 +7,61 @@ namespace esphome {
 namespace xensiv_dps3xx_base {
 
 ///////////     DPS3xx    ///////////
-#define DPS3xx__PROD_ID 0x00
-#define DPS3xx__SPI_WRITE_CMD 0x00U
-#define DPS3xx__SPI_READ_CMD 0x80U
-#define DPS3xx__SPI_RW_MASK 0x80U
-#define DPS3xx__SPI_MAX_FREQ 1000000U
+static const uint8_t DPS3xx__PROD_ID = 0x00u;
+static const uint8_t DPS3xx__SPI_WRITE_CMD = 0x00u;
+static const uint8_t DPS3xx__SPI_READ_CMD = 0x80u;
+static const uint8_t DPS3xx__SPI_RW_MASK = 0x80u;
+static const uint32_t DPS3xx__SPI_MAX_FREQ = 1000000u;
 
-#define DPS3xx__OSR_SE 3U
+static const uint8_t DPS3xx__OSR_SE = 3u;
 
 // DPS3xx has 10 milliseconds of spare time for each synchronous measurement / per second for asynchronous measurements
 // this is for error prevention on friday-afternoon-products :D
 // you can set it to 0 if you dare, but there is no warranty that it will still work
-#define DPS3xx__BUSYTIME_FAILSAFE 10U
-#define DPS3xx__MAX_BUSYTIME ((1000U - DPS3xx__BUSYTIME_FAILSAFE) * DPS__BUSYTIME_SCALING)
+static const uint16_t DPS3xx__BUSYTIME_FAILSAFE = 10u;
+static const uint16_t DPS__BUSYTIME_SCALING = 10u;  // moved up for dependency
+static const uint32_t DPS3xx__MAX_BUSYTIME =
+    static_cast<uint32_t>((1000u - DPS3xx__BUSYTIME_FAILSAFE) * DPS__BUSYTIME_SCALING);
 
-#define DPS3xx__REG_ADR_SPI3W 0x09U
-#define DPS3xx__REG_CONTENT_SPI3W 0x01U
+static const uint8_t DPS3xx__REG_ADR_SPI3W = 0x09u;
+static const uint8_t DPS3xx__REG_CONTENT_SPI3W = 0x01u;
 
 ///////////     common    ///////////
 
 // slave address same for 3xx
-#define DPS__FIFO_SIZE 32
-#define DPS__STD_SLAVE_ADDRESS 0x77U
-#define DPS__RESULT_BLOCK_LENGTH 3
-#define NUM_OF_COMMON_REGMASKS 16
+static const uint8_t DPS__FIFO_SIZE = 32u;
+static const uint8_t DPS__STD_SLAVE_ADDRESS = 0x77u;
+static const uint8_t DPS__RESULT_BLOCK_LENGTH = 3u;
+static const uint8_t NUM_OF_COMMON_REGMASKS = 16u;
 
-#define DPS__MEASUREMENT_RATE_1 0
-#define DPS__MEASUREMENT_RATE_2 1
-#define DPS__MEASUREMENT_RATE_4 2
-#define DPS__MEASUREMENT_RATE_8 3
-#define DPS__MEASUREMENT_RATE_16 4
-#define DPS__MEASUREMENT_RATE_32 5
-#define DPS__MEASUREMENT_RATE_64 6
-#define DPS__MEASUREMENT_RATE_128 7
+static const int DPS__MEASUREMENT_RATE_1 = 0;
+static const int DPS__MEASUREMENT_RATE_2 = 1;
+static const int DPS__MEASUREMENT_RATE_4 = 2;
+static const int DPS__MEASUREMENT_RATE_8 = 3;
+static const int DPS__MEASUREMENT_RATE_16 = 4;
+static const int DPS__MEASUREMENT_RATE_32 = 5;
+static const int DPS__MEASUREMENT_RATE_64 = 6;
+static const int DPS__MEASUREMENT_RATE_128 = 7;
 
-#define DPS__OVERSAMPLING_RATE_1 DPS__MEASUREMENT_RATE_1
-#define DPS__OVERSAMPLING_RATE_2 DPS__MEASUREMENT_RATE_2
-#define DPS__OVERSAMPLING_RATE_4 DPS__MEASUREMENT_RATE_4
-#define DPS__OVERSAMPLING_RATE_8 DPS__MEASUREMENT_RATE_8
-#define DPS__OVERSAMPLING_RATE_16 DPS__MEASUREMENT_RATE_16
-#define DPS__OVERSAMPLING_RATE_32 DPS__MEASUREMENT_RATE_32
-#define DPS__OVERSAMPLING_RATE_64 DPS__MEASUREMENT_RATE_64
-#define DPS__OVERSAMPLING_RATE_128 DPS__MEASUREMENT_RATE_128
+static const int DPS__OVERSAMPLING_RATE_1 = DPS__MEASUREMENT_RATE_1;
+static const int DPS__OVERSAMPLING_RATE_2 = DPS__MEASUREMENT_RATE_2;
+static const int DPS__OVERSAMPLING_RATE_4 = DPS__MEASUREMENT_RATE_4;
+static const int DPS__OVERSAMPLING_RATE_8 = DPS__MEASUREMENT_RATE_8;
+static const int DPS__OVERSAMPLING_RATE_16 = DPS__MEASUREMENT_RATE_16;
+static const int DPS__OVERSAMPLING_RATE_32 = DPS__MEASUREMENT_RATE_32;
+static const int DPS__OVERSAMPLING_RATE_64 = DPS__MEASUREMENT_RATE_64;
+static const int DPS__OVERSAMPLING_RATE_128 = DPS__MEASUREMENT_RATE_128;
 
 // we use 0.1 ms units for time calculations, so 10 units are one millisecond
-#define DPS__BUSYTIME_SCALING 10U
 
-#define DPS__NUM_OF_SCAL_FACTS 8
+static const uint8_t DPS__NUM_OF_SCAL_FACTS = 8u;
 
 // status code
-#define DPS__SUCCEEDED 0
-#define DPS__FAIL_UNKNOWN -1
-#define DPS__FAIL_INIT_FAILED -2
-#define DPS__FAIL_TOOBUSY -3
-#define DPS__FAIL_UNFINISHED -4
+static const int DPS__SUCCEEDED = 0;
+static const int DPS__FAIL_UNKNOWN = -1;
+static const int DPS__FAIL_INIT_FAILED = -2;
+static const int DPS__FAIL_TOOBUSY = -3;
+static const int DPS__FAIL_UNFINISHED = -4;
 
 namespace dps {
 
