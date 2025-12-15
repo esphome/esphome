@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef DPS3xx_H_INCLUDED
 #define DPS3xx_H_INCLUDED
 
