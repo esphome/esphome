@@ -1643,3 +1643,125 @@ def test_copy_src_tree_handles_invalid_build_info_json(
     assert build_info_h_path.exists()
     new_json = json.loads(build_info_json_path.read_text())
     assert new_json["config_hash"] == 0xDEADBEEF
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_build_info_timestamp_behavior(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test build_info behaviour: regenerated on change, preserved when unchanged."""
+    # Setup directory structure
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    esphome_core_path = src_path / "esphome" / "core"
+    esphome_core_path.mkdir(parents=True)
+    esphome_components_path = src_path / "esphome" / "components"
+    esphome_components_path.mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+
+    # Create a source file
+    source_file = tmp_path / "source" / "test.cpp"
+    source_file.parent.mkdir()
+    source_file.write_text("// version 1")
+
+    # Create destination file in build tree
+    dest_file = esphome_components_path / "test.cpp"
+
+    # Create mock FileResource
+    @dataclass(frozen=True)
+    class MockFileResource:
+        package: str
+        resource: str
+        _path: Path
+
+        @contextmanager
+        def path(self):
+            yield self._path
+
+    mock_resources = [
+        MockFileResource(
+            package="esphome.components",
+            resource="test.cpp",
+            _path=source_file,
+        ),
+    ]
+
+    mock_component = MagicMock()
+    mock_component.resources = mock_resources
+
+    # Setup mocks
+    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
+    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = [("test", mock_component)]
+
+    build_info_json_path = build_path / "build_info.json"
+
+    # First run: initial setup, should create build_info
+    mock_walk_files.return_value = []
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    # Manually set an old timestamp for testing
+    old_timestamp = 1700000000
+    old_timestamp_str = "2023-11-14 22:13:20 +0000"
+    build_info_json_path.write_text(
+        json.dumps(
+            {
+                "config_hash": 0xDEADBEEF,
+                "build_time": old_timestamp,
+                "build_time_str": old_timestamp_str,
+                "esphome_version": "2025.1.0-dev",
+            }
+        )
+    )
+
+    # Second run: no changes, should NOT regenerate build_info
+    mock_walk_files.return_value = [str(dest_file)]
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    second_json = json.loads(build_info_json_path.read_text())
+    second_timestamp = second_json["build_time"]
+
+    # Verify timestamp was NOT changed
+    assert second_timestamp == old_timestamp, (
+        f"build_info should not be regenerated when no files change: "
+        f"{old_timestamp} != {second_timestamp}"
+    )
+
+    # Third run: change source file, should regenerate build_info with new timestamp
+    source_file.write_text("// version 2")
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    third_json = json.loads(build_info_json_path.read_text())
+    third_timestamp = third_json["build_time"]
+
+    # Verify timestamp WAS changed
+    assert third_timestamp != old_timestamp, (
+        f"build_info should be regenerated when source file changes: "
+        f"{old_timestamp} == {third_timestamp}"
+    )
+    assert third_timestamp > old_timestamp
