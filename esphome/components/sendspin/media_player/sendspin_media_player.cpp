@@ -69,6 +69,11 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     return;
   }
 
+  if (call.get_volume().has_value()) {
+    uint8_t new_volume = static_cast<uint8_t>(std::roundf(call.get_volume().value() * 100.0f));
+    this->parent_->send_client_command(SendspinCommandType::VOLUME, new_volume, std::nullopt);
+  }
+
   if (call.get_command().has_value()) {
     switch (call.get_command().value()) {
       case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
@@ -111,7 +116,23 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
         this->parent_->send_client_command(SendspinCommandType::SWITCH);
         break;
-      // TODO: Group volume/mute commands need to be sent
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+        // TODO: Make the volume step configurable
+        this->parent_->send_client_command(
+            SendspinCommandType::VOLUME, std::min(100, this->parent_->get_controller_state().volume + 5), std::nullopt);
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+        // TODO: Make the volume step configurable
+        this->parent_->send_client_command(
+            SendspinCommandType::VOLUME,
+            std::max(0, static_cast<int>(this->parent_->get_controller_state().volume) - 5), std::nullopt);
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_MUTE:
+        this->parent_->send_client_command(SendspinCommandType::MUTE, std::nullopt, true);
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
+        this->parent_->send_client_command(SendspinCommandType::MUTE, std::nullopt, false);
+        break;
       default:
         break;
     }

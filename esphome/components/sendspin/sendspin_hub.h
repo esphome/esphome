@@ -146,6 +146,8 @@ class SendspinHub : public Component {
 #ifdef USE_SENDSPIN_CONTROLLER
   void send_client_command(SendspinCommandType command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
+
+  ServerStateControllerObject get_controller_state() { return this->controller_state_; }
 #endif
 
   void disconnect_from_server(SendspinGoodbyeReason reason);
@@ -243,6 +245,10 @@ class SendspinHub : public Component {
 #ifdef USE_SENDSPIN_ARTWORK
   std::vector<ImageSlotCallback> image_slot_callbacks_;
   std::vector<ImageSlotPreference> preferred_image_formats_;
+#endif
+
+#ifdef USE_SENDSPIN_CONTROLLER
+  ServerStateControllerObject controller_state_{};
 #endif
 
 #ifdef USE_SENDSPIN_METADATA

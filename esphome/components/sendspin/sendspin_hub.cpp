@@ -587,29 +587,30 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
       break;
     }
     case SendspinServerToClientMessageType::SERVER_STATE: {
-#ifdef USE_SENDSPIN_METADATA
       ServerStateMessage state_msg;
       if (process_server_state_message(message, &state_msg)) {
         // Copy the message data and defer processing to main loop
         auto msg_copy = state_msg;
+#ifdef USE_SENDSPIN_CONTROLLER
+        if (msg_copy.controller.has_value()) {
+          this->controller_state_ = msg_copy.controller.value();
+        }
+#endif
+#ifdef USE_SENDSPIN_METADATA
         defer([this, msg_copy]() {
           if (msg_copy.metadata.has_value()) {
             // Apply delta updates to stored metadata
             apply_metadata_state_deltas(&this->metadata_, msg_copy.metadata.value());
             this->metadata_callbacks_.call(this->metadata_);
           }
-
-          // Handle controller state if present (future expansion)
-          if (msg_copy.controller.has_value()) {
-            // TODO: Handle controller state updates
-          }
         });
         // Wake the main loop immediately to process the deferred callback (~12μs latency vs 0-16ms)
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
         App.wake_loop_threadsafe();
 #endif
-      }
 #endif
+      }
+
       break;
     }
     case SendspinServerToClientMessageType::SERVER_COMMAND: {
@@ -704,6 +705,8 @@ void SendspinHub::publish_client_state() {
   ClientPlayerStateObject player_state;
   player_state.volume = this->volume_;
   player_state.muted = this->muted_;
+
+  state_msg.player = player_state;
 
   this->sendspin_websocket_->send_client_state_message(&state_msg);
 }

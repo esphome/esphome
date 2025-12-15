@@ -561,8 +561,8 @@ bool process_server_state_message(const std::string &message, ServerStateMessage
       return false;
     }
 
-#ifdef USE_SENDSPIN_METADATA
     if (state_msg != nullptr) {
+#ifdef USE_SENDSPIN_METADATA
       // Parse optional metadata object
       if (root["payload"]["metadata"].is<JsonObject>()) {
         ServerMetadataStateObject metadata_state;
@@ -570,10 +570,43 @@ bool process_server_state_message(const std::string &message, ServerStateMessage
           state_msg->metadata = metadata_state;
         }
       }
+#endif
+#ifdef USE_SENDSPIN_CONTROLLER
+      if (root["payload"]["controller"].is<JsonObject>()) {
+        ServerStateControllerObject controller_state;
+        JsonObject controller_object = root["payload"]["controller"];
+
+        // Parse supported_commands array
+        if (controller_object["supported_commands"].is<JsonArray>()) {
+          std::vector<SendspinCommandType> commands;
+          for (JsonVariant command_var : controller_object["supported_commands"].as<JsonArray>()) {
+            if (command_var.is<const char *>()) {
+              std::string command_str = command_var.as<std::string>();
+              auto command = command_type_from_string(command_str);
+              if (command.has_value()) {
+                commands.push_back(command.value());
+              }
+            }
+          }
+          controller_state.supported_commands = commands;
+        }
+
+        // Parse volume
+        if (controller_object["volume"].is<JsonVariant>()) {
+          controller_state.volume = controller_object["volume"].as<uint8_t>();
+        }
+
+        // Parse muted
+        if (controller_object["muted"].is<JsonVariant>()) {
+          controller_state.muted = controller_object["muted"].as<bool>();
+        }
+
+        state_msg->controller = controller_state;
+      }
+#endif
       // Parse optional controller object (for future use)
       // TODO: Implement controller state parsing when needed
     }
-#endif
 
     return true;
   }));
