@@ -5,3 +5,10 @@ light:
     id: rgb_led
     name: RGB LED
     data_rate: 8MHz
+  - platform: spi_led_strip
+    num_leds: 100
+    protocol: CLASSIC
+    channel_map: "G,B,R"
+    id: rgb_led_classic
+    name: RGB LED Classic
+    data_rate: 2MHz
