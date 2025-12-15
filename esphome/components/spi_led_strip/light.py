@@ -41,12 +41,14 @@ def validate_channel_map(value):
 def check_deprecated_settings(config):
     if CONF_PROTOCOL not in config:
         _LOGGER.warning(
-            f"Not setting a protocol via '{CONF_PROTOCOL}' will be deprecated in a future version."
+            "Not setting a protocol via '%s' will be deprecated in a future version.",
+            CONF_PROTOCOL,
         )
         config[CONF_PROTOCOL] = "DOTSTAR"
     if CONF_CHANNEL_MAP not in config:
         _LOGGER.warning(
-            f"Not setting a channel map via '{CONF_CHANNEL_MAP}' will be deprecated in a future version."
+            "Not setting a channel map via '%s' will be deprecated in a future version.",
+            CONF_CHANNEL_MAP,
         )
         config[CONF_CHANNEL_MAP] = "B,G,R"
     return config

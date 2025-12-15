@@ -19,7 +19,7 @@ struct ChannelMap {
 
   uint8_t channel_count_ = -1;
 
-  bool set_channel(const std::string &channel_name, int index) {
+  bool set_channel_(const std::string &channel_name, int index) {
     for (auto &[name, channel] : this->channels_) {
       if (channel_name == name) {
         channel.exists_ = true;
@@ -63,11 +63,11 @@ struct ChannelMap {
     size_t start = 0, pos = 0;
     int index = 0;
     while ((pos = s.find(',', start)) != std::string::npos) {
-      this->set_channel(s.substr(start, pos - start), index);
+      this->set_channel_(s.substr(start, pos - start), index);
       start = pos + 1;
       index++;
     }
-    if (this->set_channel(s.substr(start), index)) {  // Last channel
+    if (this->set_channel_(s.substr(start), index)) {  // Last channel
       index++;  // Only increment when a valid channel was found and a channel was actually set
     }
 
