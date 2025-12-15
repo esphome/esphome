@@ -269,7 +269,7 @@ class Application {
   StringRef get_compilation_time_ref() const { return StringRef(this->compilation_time_); }
 
   /// Size of buffer required for build time string (including null terminator)
-  static constexpr size_t BUILD_TIME_STR_SIZE = 24;
+  static constexpr size_t BUILD_TIME_STR_SIZE = 26;
 
   /// Get the config hash as a 32-bit integer
   uint32_t get_config_hash();
