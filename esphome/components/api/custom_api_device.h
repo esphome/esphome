@@ -122,7 +122,7 @@ class CustomAPIDevice {
    *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "climate.kitchen", "current_temperature");
    * }
    *
-   * void on_state_changed(std::string state) {
+   * void on_state_changed(const std::string &state) {
    *   // State of sensor.weather_forecast is `state`
    * }
    * ```
@@ -133,7 +133,7 @@ class CustomAPIDevice {
    * @param attribute The entity state attribute to track.
    */
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
+  void subscribe_homeassistant_state(void (T::*callback)(const std::string &), const std::string &entity_id,
                                      const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
@@ -148,7 +148,7 @@ class CustomAPIDevice {
    *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "sensor.weather_forecast");
    * }
    *
-   * void on_state_changed(std::string entity_id, std::string state) {
+   * void on_state_changed(const std::string &entity_id, const std::string &state) {
    *   // State of `entity_id` is `state`
    * }
    * ```
@@ -159,14 +159,14 @@ class CustomAPIDevice {
    * @param attribute The entity state attribute to track.
    */
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
-                                     const std::string &attribute = "") {
+  void subscribe_homeassistant_state(void (T::*callback)(const std::string &, const std::string &),
+                                     const std::string &entity_id, const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
 #else
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
+  void subscribe_homeassistant_state(void (T::*callback)(const std::string &), const std::string &entity_id,
                                      const std::string &attribute = "") {
     static_assert(sizeof(T) == 0,
                   "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
@@ -174,8 +174,8 @@ class CustomAPIDevice {
   }
 
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
-                                     const std::string &attribute = "") {
+  void subscribe_homeassistant_state(void (T::*callback)(const std::string &, const std::string &),
+                                     const std::string &entity_id, const std::string &attribute = "") {
     static_assert(sizeof(T) == 0,
                   "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
                   "of your YAML configuration");
