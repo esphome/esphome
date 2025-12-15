@@ -1194,7 +1194,7 @@ def test_get_build_info_new_build(
     assert build_time > 0
     assert isinstance(build_time_str, str)
     # Verify build_time_str format matches expected pattern
-    assert len(build_time_str) > 10  # e.g., "Dec 13 2025, 12:00:00"
+    assert len(build_time_str) >= 19  # e.g., "2025-12-15 16:27:44 +0000"
 
 
 @patch("esphome.writer.CORE")
@@ -1209,7 +1209,7 @@ def test_get_build_info_always_returns_current_time(
 
     # Create existing build_info.json with matching config_hash and version
     existing_build_time = 1700000000
-    existing_build_time_str = "Nov 14 2023, 22:13:20"
+    existing_build_time_str = "2023-11-14 22:13:20 +0000"
     build_info_path.write_text(
         json.dumps(
             {
@@ -1248,7 +1248,7 @@ def test_get_build_info_config_changed(
             {
                 "config_hash": 0x12345678,  # Different
                 "build_time": existing_build_time,
-                "build_time_str": "Nov 14 2023, 22:13:20",
+                "build_time_str": "2023-11-14 22:13:20 +0000",
                 "esphome_version": "2025.1.0-dev",
             }
         )
@@ -1279,7 +1279,7 @@ def test_get_build_info_version_changed(
             {
                 "config_hash": 0x12345678,
                 "build_time": existing_build_time,
-                "build_time_str": "Nov 14 2023, 22:13:20",
+                "build_time_str": "2023-11-14 22:13:20 +0000",
                 "esphome_version": "2024.12.0",  # Old version
             }
         )
@@ -1346,8 +1346,9 @@ def test_get_build_info_build_time_str_format(
 
     config_hash, build_time, build_time_str = get_build_info()
 
-    # Verify the format matches "%b %d %Y, %H:%M:%S" (e.g., "Dec 13 2025, 14:30:45")
-    parsed = datetime.strptime(build_time_str, "%b %d %Y, %H:%M:%S")
+    # Verify the format matches "%Y-%m-%d %H:%M:%S %z"
+    # e.g., "2025-12-15 16:27:44 +0000"
+    parsed = datetime.strptime(build_time_str, "%Y-%m-%d %H:%M:%S %z")
     assert parsed.year >= 2024
 
 
@@ -1355,14 +1356,14 @@ def test_generate_build_info_data_h_format() -> None:
     """Test generate_build_info_data_h produces correct header content."""
     config_hash = 0x12345678
     build_time = 1700000000
-    build_time_str = "Nov 14 2023, 22:13:20"
+    build_time_str = "2023-11-14 22:13:20 +0000"
 
     result = generate_build_info_data_h(config_hash, build_time, build_time_str)
 
     assert "#pragma once" in result
     assert "#define ESPHOME_CONFIG_HASH 0x12345678U" in result
     assert "#define ESPHOME_BUILD_TIME 1700000000" in result
-    assert 'ESPHOME_BUILD_TIME_STR[] = "Nov 14 2023, 22:13:20"' in result
+    assert 'ESPHOME_BUILD_TIME_STR[] = "2023-11-14 22:13:20 +0000"' in result
 
 
 def test_generate_build_info_data_h_esp8266_progmem() -> None:

@@ -30,8 +30,8 @@ async def test_build_info(
         compilation_time = device_info.compilation_time
         assert compilation_time is not None
 
-        # Parse the date string - raises ValueError if format is wrong
-        parsed = datetime.strptime(compilation_time, "%b %d %Y, %H:%M:%S")
+        # Validate the ISO format: "YYYY-MM-DD HH:MM:SS +ZZZZ"
+        parsed = datetime.strptime(compilation_time, "%Y-%m-%d %H:%M:%S %z")
         assert parsed.year >= time.localtime().tm_year
 
         # Get entities
@@ -98,13 +98,14 @@ async def test_build_info(
             f"build_time {build_time} should be within the last hour"
         )
 
-        # Validate build_time_str matches the same format as compilation_time
+        # Validate build_time_str matches the new ISO format
         build_time_str = build_time_str_state.state
-        parsed_build_time = datetime.strptime(build_time_str, "%b %d %Y, %H:%M:%S")
+        # Format: "YYYY-MM-DD HH:MM:SS +ZZZZ"
+        parsed_build_time = datetime.strptime(build_time_str, "%Y-%m-%d %H:%M:%S %z")
         assert parsed_build_time.year >= time.localtime().tm_year
 
         # Verify build_time_str matches what we get from build_time timestamp
-        expected_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
+        expected_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))
         assert build_time_str == expected_str, (
             f"build_time_str '{build_time_str}' should match timestamp '{expected_str}'"
         )

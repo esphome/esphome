@@ -340,7 +340,7 @@ def get_build_info() -> tuple[int, int, str]:
     """
     config_hash = CORE.config_hash
     build_time = int(time.time())
-    build_time_str = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(build_time))
+    build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))
     return config_hash, build_time, build_time_str
 
 
