@@ -13,7 +13,7 @@ void VersionTextSensor::setup() {
   if (this->hide_timestamp_) {
     this->publish_state(ESPHOME_VERSION);
   } else {
-    char build_time_str[App.BUILD_TIME_STR_SIZE];
+    char build_time_str[esphome::Application::BUILD_TIME_STR_SIZE];
     App.get_build_time_string(build_time_str);
     this->publish_state(str_sprintf(ESPHOME_VERSION " %s", build_time_str));
   }
