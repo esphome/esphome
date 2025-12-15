@@ -4,6 +4,7 @@ import itertools
 import logging
 import os
 from pathlib import Path
+import re
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -615,11 +616,23 @@ def require_vfs_dir() -> None:
 
 
 def _parse_idf_component(value: str) -> ConfigType:
-    """Parse IDF component shorthand syntax like 'owner/component^version'"""
-    if "^" not in value:
-        raise cv.Invalid(f"Invalid IDF component shorthand '{value}'")
-    name, ref = value.split("^", 1)
-    return {CONF_NAME: name, CONF_REF: ref}
+    """Parse IDF component shorthand syntax like 'owner/component^version'
+
+    Supports version operators: ^, ~, ~=, ==, !=, >=, >, <=, <
+    Examples:
+        espressif/arduino-esp32^3.3.3   -> ref: ^3.3.3
+        espressif/mdns==1.2.0           -> ref: ==1.2.0
+        espressif/esp_tinyusb>=1.0.0    -> ref: >=1.0.0
+    """
+    # Match operator followed by version-like string (digit or *)
+    match = re.search(r"(~=|>=|<=|==|!=|>|<|\^|~)(\d|\*)", value)
+    if match:
+        pos = match.start()
+        return {CONF_NAME: value[:pos], CONF_REF: value[pos:]}
+    raise cv.Invalid(
+        f"Invalid IDF component shorthand '{value}'. "
+        f"Expected format: 'owner/component<op>version' where <op> is one of: ^, ~, ~=, ==, !=, >=, >, <=, <"
+    )
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
