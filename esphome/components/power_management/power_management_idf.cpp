@@ -2,8 +2,7 @@
 #ifdef USE_ESP_IDF
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace power_management {
+namespace esphome::power_management {
 
 static const char *const TAG = "power_management";
 
@@ -92,6 +91,5 @@ void PowerManagement::dump_config() {
 #endif
 }
 
-}  // namespace power_management
-}  // namespace esphome
+}  // namespace esphome::power_management
 #endif

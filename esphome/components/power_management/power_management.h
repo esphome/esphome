@@ -10,8 +10,7 @@
 #include <mutex>
 #endif
 
-namespace esphome {
-namespace power_management {
+namespace esphome::power_management {
 
 enum PowerManagementLockType {
   CPU = 0,
@@ -44,5 +43,4 @@ class PowerManagement : public Component {
   uint32_t min_freq_mhz_{0};
 };
 
-}  // namespace power_management
-}  // namespace esphome
+}  // namespace esphome::power_management
