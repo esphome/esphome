@@ -15,12 +15,18 @@ EmonTxJsonTrigger = emontx_ns.class_(
     "EmonTxJsonTrigger", automation.Trigger.template(cg.JsonObject)
 )
 
+# Add trigger class for on_line (available when web_config is enabled)
+EmonTxLineTrigger = emontx_ns.class_(
+    "EmonTxLineTrigger", automation.Trigger.template(cg.std_string)
+)
+
 # Action to send command to emonTx
 EmonTxSendCommandAction = emontx_ns.class_("EmonTxSendCommandAction", automation.Action)
 
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
+CONF_ON_LINE = "on_line"
 CONF_WEB_CONFIG = "web_config"
 
 EMONTX_LISTENER_SCHEMA = cv.Schema(
@@ -40,6 +46,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ON_JSON): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxJsonTrigger),
+                }
+            ),
+            # Add on_line trigger for handling all serial lines (plain text + JSON)
+            cv.Optional(CONF_ON_LINE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxLineTrigger),
                 }
             ),
             # Optional web config interface (proxy to OEM serial config)
@@ -99,6 +111,18 @@ async def to_code(config):
             config[web_server_base.CONF_WEB_SERVER_BASE_ID]
         )
         cg.add(var.set_web_server(web_server))
+
+        # Process on_line triggers (only available when web_config is enabled)
+        if CONF_ON_LINE in config:
+            for conf in config[CONF_ON_LINE]:
+                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+                await automation.build_automation(
+                    trigger,
+                    [
+                        (cg.std_string, "line"),
+                    ],
+                    conf,
+                )
 
 
 # Action: emontx.send_command

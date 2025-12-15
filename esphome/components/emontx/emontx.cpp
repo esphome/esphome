@@ -143,50 +143,70 @@ bool EmonTx::read_chars_until_(bool drop, uint8_t c) {
 }
 
 /**
- * @brief Implements the main state machine for parsing JSON data from the serial port.
+ * @brief Implements the main state machine for parsing data from the serial port.
  *
  * @details The state machine continuously processes incoming UART data through these states:
  * - OFF: Initial state, waiting for update() to activate the component.
- * - WAITING_FOR_START: Looks for the opening brace '{' of a JSON object.
+ * - WAITING_FOR_START: Looks for the opening brace '{' of a JSON object OR collects
+ *   characters for plain text lines (when web_config is enabled).
  * - COLLECTING_JSON: Collects characters until the closing brace '}' is found.
- *   Any newline characters during this phase will cause the buffer to be discarded.
- * - JSON_COLLECTED: Processes the complete JSON object, updating sensors and
- *   executing callbacks, then immediately returns to WAITING_FOR_START to process
- *   the next JSON object.
+ * - JSON_COLLECTED: Processes the complete JSON object or plain text line.
  *
- * This continuous processing ensures no data is lost when multiple JSON messages
+ * When web_config is enabled, all received lines are captured and forwarded via
+ * line callbacks. JSON lines are additionally parsed for sensor updates.
+ *
+ * This continuous processing ensures no data is lost when multiple messages
  * arrive in quick succession between polling intervals.
  */
 void EmonTx::loop() {
-  switch (state_) {
-    case OFF:
-      // Do nothing, waiting for setup
-      break;
+  if (state_ == OFF) {
+    return;
+  }
 
-    case WAITING_FOR_START:
-      if (read_chars_until_(true, '{')) {
-        // Start of JSON object detected
-        state_ = COLLECTING_JSON;
-      }
-      // Ignore any other characters
-      break;
+  uint16_t bytes_read = 0;
+  while (available() > 0 && bytes_read < 512) {
+    bytes_read++;
+    uint8_t received = read();
 
-    case COLLECTING_JSON:
-      if (read_chars_until_(false, '}')) {
-        state_ = JSON_COLLECTED;
-      }
-      break;
-
-    case JSON_COLLECTED:
+    // Handle different characters
+    if (received == '\r') {
+      continue;  // Ignore CR
+    } else if (received == '\n') {
+      // End of line - process the buffer
       if (!buffer_.empty()) {
-        ESP_LOGI(TAG, "Received data: %s", buffer_.c_str());
-        parse_json_(buffer_);
-      } else {
-        ESP_LOGW(TAG, "Received empty buffer, skipping JSON parsing");
+        std::string line = buffer_;
+        buffer_.clear();
+
+        ESP_LOGD(TAG, "Received line: %s", line.c_str());
+
+#ifdef USE_EMONTX_WEB_CONFIG
+        // Fire line callbacks for ALL received lines (config responses)
+        if (!this->line_callbacks_.empty()) {
+          for (const auto &callback : this->line_callbacks_) {
+            callback(line);
+          }
+        }
+#endif
+
+        // Check if this line is JSON (starts with '{')
+        if (!line.empty() && line[0] == '{') {
+          ESP_LOGV(TAG, "Line is JSON, parsing...");
+          parse_json_(line);
+        }
       }
-      buffer_.clear();             // Clear buffer for next JSON object
-      state_ = WAITING_FOR_START;  // Continue processing immediately
-      break;
+    } else {
+      // Regular character - add to buffer
+      if (buffer_.length() >= 1024) {
+        ESP_LOGW(TAG, "Buffer overflow (>1024 bytes), discarding buffer");
+        buffer_.clear();
+      } else {
+        buffer_ += received;
+      }
+    }
+  }
+
+  if (bytes_read >= 512 && available() > 0) {
+    ESP_LOGV(TAG, "Reached per-iteration read limit (512 bytes), will continue in next loop()");
   }
 }
 

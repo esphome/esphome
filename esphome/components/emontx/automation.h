@@ -16,5 +16,17 @@ class EmonTxJsonTrigger : public Trigger<JsonObject, std::string> {
   }
 };
 
+#ifdef USE_EMONTX_WEB_CONFIG
+class EmonTxLineTrigger : public Trigger<std::string> {
+ public:
+  explicit EmonTxLineTrigger(EmonTx *parent) {
+    parent->add_on_line_callback([this](const std::string &line) {
+      // Trigger with the received line (plain text or JSON)
+      this->trigger(line);
+    });
+  }
+};
+#endif
+
 }  // namespace emontx
 }  // namespace esphome
