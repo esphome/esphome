@@ -23,7 +23,7 @@ CONF_CHANNEL_MAP = "channel_map"
 CONF_MIN_MIREDS = "min_mireds"
 CONF_MAX_MIREDS = "max_mireds"
 
-VALID_CHANNELS = ["R", "G", "B", "W", "CW", "WW"]
+VALID_CHANNELS = ["R", "G", "B", "W"]
 
 
 def validate_channel_map(value):

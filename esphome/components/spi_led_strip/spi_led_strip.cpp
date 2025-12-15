@@ -16,8 +16,13 @@ void SpiLedStrip::setup() {
     ESP_LOGE(TAG, "Failed to allocate effect data of size %u", this->num_leds_);
     return;
   }
-  memset(this->buf_, 0xFF, this->get_buffer_size());  // Initialize with 0xFF to be compatible with DotStar
-  memset(this->buf_, 0x00, 4);  // Initialize first four bytes with 0x00 to be compatible with DotStar
+
+  if (this->protocol_ == Protocol::DOTSTAR) {
+    memset(this->buf_, 0xFF, this->get_buffer_size());
+    memset(this->buf_, 0x00, 4);
+  } else {
+    memset(this->buf_, 0x00, this->get_buffer_size());
+  }
 
   if (this->effect_data_ == nullptr || this->buf_ == nullptr) {
     this->mark_failed();
@@ -71,7 +76,7 @@ void SpiLedStrip::write_state(light::LightState *state) {
 light::ESPColorView SpiLedStrip::get_view_internal(int32_t index) const {
   uint8_t multiplier = this->channel_map_.get_channel_count();
   if (this->protocol_ == DOTSTAR) {
-    multiplier += 1;  // extra byte for brightness
+    multiplier = 4;  // BGR + extra byte for brightness
   }
   uint8_t *base = this->buf_ + (index * multiplier);
   if (this->protocol_ == DOTSTAR) {

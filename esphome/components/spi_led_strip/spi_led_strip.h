@@ -33,7 +33,8 @@ class SpiLedStrip : public light::AddressableLight,
   int32_t size() const override { return this->num_leds_; }
 
   size_t get_buffer_size() const {
-    return this->num_leds_ * ((this->protocol_ == DOTSTAR) ? 4 : 3) + ((this->protocol_ == DOTSTAR) ? 8 : 0);
+    return this->num_leds_ * ((this->protocol_ == DOTSTAR) ? 4 : this->channel_map_.get_channel_count()) +
+           ((this->protocol_ == DOTSTAR) ? 8 : 0);
   }
 
   light::LightTraits get_traits() override;
