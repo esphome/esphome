@@ -341,7 +341,9 @@ void EmonTx::publish_value_(const std::string &tag, const std::string &val) {
  */
 void EmonTx::send_command(const std::string &command) {
   ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
-  this->write_str(command.c_str());
+  // Append CR+LF as required by emonTx firmware
+  std::string cmd = command + "\r\n";
+  this->write_str(cmd.c_str());
 }
 
 #ifdef USE_SENSOR
