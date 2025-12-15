@@ -62,7 +62,7 @@ class DpsClass {
    * performs one temperature measurement
    *
    * @param &result:      reference to a float value where the result will be written
-   * @return 	status code
+   * @return status code
    */
   int16_t measureTempOnce(float &result);
 
