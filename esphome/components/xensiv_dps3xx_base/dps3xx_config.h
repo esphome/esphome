@@ -46,7 +46,6 @@ const RegMask_t registers[DPS3xx_NUM_OF_REGMASKS] = {
     {0x09, 0x70, 4},  // INT_SEL
 };
 
-const RegBlock_t coeffBlock = {0x10, 18};
 }  // namespace dps3xx
 
 }  // namespace xensiv_dps3xx_base
