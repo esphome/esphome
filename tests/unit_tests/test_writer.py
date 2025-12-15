@@ -1475,3 +1475,171 @@ def test_copy_src_tree_writes_build_info_files(
     assert "build_time" in build_info_json
     assert "build_time_str" in build_info_json
     assert build_info_json["esphome_version"] == "2025.1.0-dev"
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_detects_config_hash_change(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test copy_src_tree detects when config_hash changes."""
+    # Setup directory structure
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    esphome_core_path = src_path / "esphome" / "core"
+    esphome_core_path.mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+
+    # Create existing build_info.json with different config_hash
+    build_info_json_path = build_path / "build_info.json"
+    build_info_json_path.write_text(
+        json.dumps(
+            {
+                "config_hash": 0x12345678,  # Different from current
+                "build_time": 1700000000,
+                "build_time_str": "2023-11-14 22:13:20 +0000",
+                "esphome_version": "2025.1.0-dev",
+            }
+        )
+    )
+
+    # Create existing build_info_data.h
+    build_info_h_path = esphome_core_path / "build_info_data.h"
+    build_info_h_path.write_text("// old build_info_data.h")
+
+    # Setup mocks
+    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
+    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF  # Different from existing
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = []
+    mock_walk_files.return_value = []
+
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    # Verify build_info files were updated due to config_hash change
+    assert build_info_h_path.exists()
+    new_content = build_info_h_path.read_text()
+    assert "0xdeadbeef" in new_content.lower()
+
+    new_json = json.loads(build_info_json_path.read_text())
+    assert new_json["config_hash"] == 0xDEADBEEF
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_detects_version_change(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test copy_src_tree detects when esphome_version changes."""
+    # Setup directory structure
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    esphome_core_path = src_path / "esphome" / "core"
+    esphome_core_path.mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+
+    # Create existing build_info.json with different version
+    build_info_json_path = build_path / "build_info.json"
+    build_info_json_path.write_text(
+        json.dumps(
+            {
+                "config_hash": 0xDEADBEEF,
+                "build_time": 1700000000,
+                "build_time_str": "2023-11-14 22:13:20 +0000",
+                "esphome_version": "2024.12.0",  # Old version
+            }
+        )
+    )
+
+    # Create existing build_info_data.h
+    build_info_h_path = esphome_core_path / "build_info_data.h"
+    build_info_h_path.write_text("// old build_info_data.h")
+
+    # Setup mocks
+    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
+    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = []
+    mock_walk_files.return_value = []
+
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),  # New version
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    # Verify build_info files were updated due to version change
+    assert build_info_h_path.exists()
+    new_json = json.loads(build_info_json_path.read_text())
+    assert new_json["esphome_version"] == "2025.1.0-dev"
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_handles_invalid_build_info_json(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test copy_src_tree handles invalid build_info.json gracefully."""
+    # Setup directory structure
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    esphome_core_path = src_path / "esphome" / "core"
+    esphome_core_path.mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+
+    # Create invalid build_info.json
+    build_info_json_path = build_path / "build_info.json"
+    build_info_json_path.write_text("invalid json {{{")
+
+    # Create existing build_info_data.h
+    build_info_h_path = esphome_core_path / "build_info_data.h"
+    build_info_h_path.write_text("// old build_info_data.h")
+
+    # Setup mocks
+    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
+    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = []
+    mock_walk_files.return_value = []
+
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    # Verify build_info files were created despite invalid JSON
+    assert build_info_h_path.exists()
+    new_json = json.loads(build_info_json_path.read_text())
+    assert new_json["config_hash"] == 0xDEADBEEF
