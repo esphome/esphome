@@ -51,19 +51,26 @@ void ZephyrGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::Inte
 
 void ZephyrGPIOPin::setup() {
   const struct device *gpio = nullptr;
-  if (this->pin_ < 32) {
-#define GPIO0 DT_NODELABEL(gpio0)
-#if DT_NODE_HAS_STATUS(GPIO0, okay)
-    gpio = DEVICE_DT_GET(GPIO0);
+  if (this->pin_ < 16) {
+#define GPIO DT_NODELABEL(gpioa)
+#if DT_NODE_HAS_STATUS(GPIO, okay)
+    gpio = DEVICE_DT_GET(GPIO);
 #else
-#error "gpio0 is disabled"
+#error "gpioa is disabled"
 #endif
-  } else {
-#define GPIO1 DT_NODELABEL(gpio1)
-#if DT_NODE_HAS_STATUS(GPIO1, okay)
-    gpio = DEVICE_DT_GET(GPIO1);
+  } else if (this->pin_ < 32) {
+#define GPIO DT_NODELABEL(gpiob)
+#if DT_NODE_HAS_STATUS(GPIO, okay)
+    gpio = DEVICE_DT_GET(GPIO);
 #else
-#error "gpio1 is disabled"
+#error "gpiob is disabled"
+#endif
+  } else if (this->pin_ < 48) {
+#define GPIO DT_NODELABEL(gpioc)
+#if DT_NODE_HAS_STATUS(GPIO, okay)
+    gpio = DEVICE_DT_GET(GPIO);
+#else
+#error "gpioc is disabled"
 #endif
   }
   if (device_is_ready(gpio)) {

@@ -51,6 +51,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    PLATFORM_STM32,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
@@ -90,6 +91,8 @@ LOG_LEVEL_SEVERITY = [
 UART0 = "UART0"
 UART1 = "UART1"
 UART2 = "UART2"
+UART3 = "UART3"
+UART4 = "UART4"
 UART0_SWAP = "UART0_SWAP"
 USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
@@ -125,11 +128,15 @@ UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
 
+UART_SELECTION_STM32 = [UART0, UART1, UART2, UART3, UART4]
+
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
     UART0_SWAP: logger_ns.UART_SELECTION_UART0_SWAP,
     UART1: logger_ns.UART_SELECTION_UART1,
     UART2: logger_ns.UART_SELECTION_UART2,
+    UART3: logger_ns.UART_SELECTION_UART3,
+    UART4: logger_ns.UART_SELECTION_UART4,
     USB_CDC: logger_ns.UART_SELECTION_USB_CDC,
     USB_SERIAL_JTAG: logger_ns.UART_SELECTION_USB_SERIAL_JTAG,
     DEFAULT: logger_ns.UART_SELECTION_DEFAULT,
@@ -173,6 +180,8 @@ def uart_selection(value):
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
+    if CORE.is_stm32:
+        return cv.one_of(*UART_SELECTION_STM32, upper=True)(value)
     raise NotImplementedError
 
 
@@ -255,6 +264,7 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
+                stm32=UART4,
             ): cv.All(
                 cv.only_on(
                     [
@@ -265,6 +275,7 @@ CONFIG_SCHEMA = cv.All(
                         PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
                         PLATFORM_NRF52,
+                        PLATFORM_STM32,
                     ]
                 ),
                 uart_selection,
@@ -391,6 +402,12 @@ async def to_code(config):
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:
             zephyr_add_overlay("""&uart1 { status = "okay";};""")
+        if config[CONF_HARDWARE_UART] == UART2:
+            zephyr_add_overlay("""&uart2 { status = "okay";};""")
+        if config[CONF_HARDWARE_UART] == UART3:
+            zephyr_add_overlay("""&uart3 { status = "okay";};""")
+        if config[CONF_HARDWARE_UART] == UART4:
+            zephyr_add_overlay("""&uart4 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == USB_CDC:
             zephyr_add_prj_conf("UART_LINE_CTRL", True)
             zephyr_add_cdc_acm(config, 0)

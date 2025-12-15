@@ -43,6 +43,15 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
         break;
+      case UART_SELECTION_UART2:
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart2));
+        break;
+      case UART_SELECTION_UART3:
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart3));
+        break;
+      case UART_SELECTION_UART4:
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart4));
+        break;
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
@@ -82,6 +91,12 @@ const LogString *Logger::get_uart_selection_() {
       return LOG_STR("UART0");
     case UART_SELECTION_UART1:
       return LOG_STR("UART1");
+    case UART_SELECTION_UART2:
+      return LOG_STR("UART2");
+    case UART_SELECTION_UART3:
+      return LOG_STR("UART3");
+    case UART_SELECTION_UART4:
+      return LOG_STR("UART4");
 #ifdef USE_LOGGER_USB_CDC
     case UART_SELECTION_USB_CDC:
       return LOG_STR("USB_CDC");
