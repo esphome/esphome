@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef DPS3xx_CONFIG_H_
 #define DPS3xx_CONFIG_H_
 
