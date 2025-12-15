@@ -4,8 +4,7 @@
 
 #include <set>
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ { 
 
 static const char *const TAG = "template.water_heater";
 
