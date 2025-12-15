@@ -48,7 +48,6 @@ CONFIG_SCHEMA = water_heater.WATER_HEATER_SCHEMA.extend(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await water_heater.register_water_heater(var, config)
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
