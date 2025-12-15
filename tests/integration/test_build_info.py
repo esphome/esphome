@@ -26,7 +26,7 @@ async def test_build_info(
         assert device_info.name == "build-info-test"
 
         # Verify compilation_time from device_info is present and parseable
-        # The format is "Mon DD YYYY, HH:MM:SS" (e.g., "Dec 13 2024, 15:30:00")
+        # The format is ISO 8601 with timezone: "YYYY-MM-DD HH:MM:SS +ZZZZ"
         compilation_time = device_info.compilation_time
         assert compilation_time is not None
 

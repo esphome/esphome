@@ -1472,7 +1472,10 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 
   resp.set_esphome_version(ESPHOME_VERSION_REF);
 
-  resp.set_compilation_time(App.get_compilation_time_ref());
+  // Stack buffer for build time string
+  char build_time_str[Application::BUILD_TIME_STR_SIZE];
+  App.get_build_time_string(build_time_str);
+  resp.set_compilation_time(StringRef(build_time_str));
 
   // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
