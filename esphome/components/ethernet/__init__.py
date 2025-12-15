@@ -434,9 +434,12 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
     # Check all used pins against RMII reserved pins
     for pin_list in pins.PIN_SCHEMA_REGISTRY.pins_used.values():
-        for pin_path, _, pin_config in pin_list:
+        for pin_path, pin_device, pin_config in pin_list:
             pin_num = pin_config.get(CONF_NUMBER)
             if pin_num not in rmii_pins:
+                continue
+            # Skip if pin is not directly on ESP, but at some expander (device set to something else than 'None')
+            if pin_device is not None:
                 continue
             # Found a conflict - show helpful error message
             pin_function = rmii_pins[pin_num]
