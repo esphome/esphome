@@ -215,6 +215,7 @@ esphome/components/hlk_fm22x/* @OnFreund
 esphome/components/hlw8032/* @rici4kubicek
 esphome/components/hm3301/* @freekode
 esphome/components/hmac_md5/* @dwmw2
+esphome/components/hmac_sha256/* @dwmw2
 esphome/components/homeassistant/* @esphome/core @OttoWinter
 esphome/components/homeassistant/number/* @landonr
 esphome/components/homeassistant/switch/* @Links2004
