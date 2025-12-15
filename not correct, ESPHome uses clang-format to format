@@ -1,0 +1,24 @@
+[1mdiff --git a/esphome/components/template/water_heater/__init__.py b/esphome/components/template/water_heater/__init__.py[m
+[1mindex 60401a5e0..6cd4c020a 100644[m
+[1m--- a/esphome/components/template/water_heater/__init__.py[m
+[1m+++ b/esphome/components/template/water_heater/__init__.py[m
+[36m@@ -7,8 +7,8 @@[m [mfrom esphome.const import ([m
+     CONF_MODE,[m
+     CONF_OPTIMISTIC,[m
+     CONF_RESTORE_MODE,[m
+[32m+[m[32m    CONF_SET_ACTION,[m
+     CONF_TARGET_TEMPERATURE,[m
+[31m-    CONF_SET_ACTION,  [m
+ )[m
+ [m
+ from .. import template_ns[m
+[1mdiff --git a/esphome/components/water_heater/__init__.py b/esphome/components/water_heater/__init__.py[m
+[1mindex d87081520..e138c3056 100644[m
+[1m--- a/esphome/components/water_heater/__init__.py[m
+[1m+++ b/esphome/components/water_heater/__init__.py[m
+[36m@@ -1,5 +1,4 @@[m
+ import esphome.codegen as cg[m
+[31m-from esphome.components import web_server[m
+ import esphome.config_validation as cv[m
+ from esphome.const import ([m
+     CONF_MAX_TEMPERATURE,[m

@@ -7,8 +7,8 @@ from esphome.const import (
     CONF_MODE,
     CONF_OPTIMISTIC,
     CONF_RESTORE_MODE,
+    CONF_SET_ACTION,
     CONF_TARGET_TEMPERATURE,
-    CONF_SET_ACTION,  
 )
 
 from .. import template_ns
