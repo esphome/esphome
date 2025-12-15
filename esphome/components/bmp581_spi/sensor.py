@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from ..bmp581_base import CONFIG_SCHEMA_BASE, to_code_base
 
 AUTO_LOAD = ["bmp581_base"]
-CODEOWNERS = ["@ademuri", "@danielkent-net"]
+CODEOWNERS = ["@kahrendt", "@danielkent-net"]
 DEPENDENCIES = ["spi"]
 
 bmp581_ns = cg.esphome_ns.namespace("bmp581_spi")
