@@ -113,6 +113,7 @@
 #define USE_UART_WAKE_LOOP_ON_RX
 #define USE_UPDATE
 #define USE_VALVE
+#define USE_WATER_HEATER
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
@@ -336,3 +337,4 @@
 #define ESPHOME_ENTITY_TIME_COUNT 1
 #define ESPHOME_ENTITY_UPDATE_COUNT 1
 #define ESPHOME_ENTITY_VALVE_COUNT 1
+#define ESPHOME_ENTITY_WATER_HEATER_COUNT 1

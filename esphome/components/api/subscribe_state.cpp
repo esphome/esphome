@@ -60,6 +60,9 @@ INITIAL_STATE_HANDLER(media_player, media_player::MediaPlayer)
 #ifdef USE_ALARM_CONTROL_PANEL
 INITIAL_STATE_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPanel)
 #endif
+#ifdef USE_WATER_HEATER
+INITIAL_STATE_HANDLER(water_heater, water_heater::WaterHeater)
+#endif
 #ifdef USE_UPDATE
 INITIAL_STATE_HANDLER(update, update::UpdateEntity)
 #endif

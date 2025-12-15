@@ -1306,6 +1306,43 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 }
 #endif
 
+#ifdef USE_WATER_HEATER
+bool APIConnection::send_water_heater_state(water_heater::WaterHeater *water_heater) {
+  return this->send_message_smart_(water_heater, &APIConnection::try_send_water_heater_state,
+                                   WaterHeaterStateResponse::MESSAGE_TYPE, WaterHeaterStateResponse::ESTIMATED_SIZE);
+}
+uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                                    bool is_single) {
+  auto *wh = static_cast<water_heater::WaterHeater *>(entity);
+  WaterHeaterStateResponse resp;
+  resp.mode = static_cast<enums::WaterHeaterMode>(wh->mode);
+  resp.current_temperature = wh->current_temperature;
+  resp.target_temperature = wh->target_temperature;
+  return fill_and_encode_entity_state(wh, resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size,
+                                      is_single);
+}
+uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                                   bool is_single) {
+  auto *wh = static_cast<water_heater::WaterHeater *>(entity);
+  ListEntitiesWaterHeaterResponse msg;
+  auto traits = wh->get_traits();
+  msg.min_temperature = traits.get_min_temperature();
+  msg.max_temperature = traits.get_max_temperature();
+  return fill_and_encode_entity_info(wh, msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE, conn, remaining_size,
+                                     is_single);
+}
+void APIConnection::water_heater_command(const WaterHeaterCommandRequest &msg) {
+  ENTITY_COMMAND_MAKE_CALL(water_heater::WaterHeater, water_heater, water_heater)
+  if (msg.has_mode) {
+    call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
+  }
+  if (msg.has_target_temperature) {
+    call.set_target_temperature(msg.target_temperature);
+  }
+  call.perform();
+}
+#endif
+
 #ifdef USE_EVENT
 void APIConnection::send_event(event::Event *event, const char *event_type) {
   this->send_message_smart_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,

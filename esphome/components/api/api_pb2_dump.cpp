@@ -94,7 +94,8 @@ static void dump_field(std::string &out, const char *field_name, const char *val
   out.append("\n");
 }
 
-template<typename T> static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
+template<typename T>
+static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
   out.append("\n");
@@ -348,6 +349,26 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
   }
 }
 #endif
+template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::WaterHeaterMode value) {
+  switch (value) {
+    case enums::WATER_HEATER_MODE_OFF:
+      return "WATER_HEATER_MODE_OFF";
+    case enums::WATER_HEATER_MODE_ECO:
+      return "WATER_HEATER_MODE_ECO";
+    case enums::WATER_HEATER_MODE_ELECTRIC:
+      return "WATER_HEATER_MODE_ELECTRIC";
+    case enums::WATER_HEATER_MODE_PERFORMANCE:
+      return "WATER_HEATER_MODE_PERFORMANCE";
+    case enums::WATER_HEATER_MODE_HIGH_DEMAND:
+      return "WATER_HEATER_MODE_HIGH_DEMAND";
+    case enums::WATER_HEATER_MODE_HEAT_PUMP:
+      return "WATER_HEATER_MODE_HEAT_PUMP";
+    case enums::WATER_HEATER_MODE_GAS:
+      return "WATER_HEATER_MODE_GAS";
+    default:
+      return "UNKNOWN";
+  }
+}
 #ifdef USE_NUMBER
 template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
   switch (value) {
@@ -461,8 +482,7 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerFormatPurpose>(enu
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-template<>
-const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
+template<> const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT";
@@ -511,8 +531,7 @@ template<> const char *proto_enum_to_string<enums::BluetoothScannerMode>(enums::
   }
 }
 #endif
-template<>
-const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
+template<> const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_SUBSCRIBE_NONE:
       return "VOICE_ASSISTANT_SUBSCRIBE_NONE";
@@ -615,8 +634,7 @@ template<> const char *proto_enum_to_string<enums::AlarmControlPanelState>(enums
       return "UNKNOWN";
   }
 }
-template<>
-const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
+template<> const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
   switch (value) {
     case enums::ALARM_CONTROL_PANEL_DISARM:
       return "ALARM_CONTROL_PANEL_DISARM";
@@ -691,6 +709,7 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
   }
 }
 #endif
+
 
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
@@ -1113,7 +1132,7 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
 void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyRequest");
   out.append("  key: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->key.data()), this->key.size()));
+  out.append(format_hex_pretty(reinterpret_cast<const uint8_t*>(this->key.data()), this->key.size()));
   out.append("\n");
 }
 void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
@@ -1386,6 +1405,33 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 #endif
 }
 #endif
+void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesWaterHeaterResponse");
+  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "key", this->key);
+  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "unique_id", this->unique_id_ref_);
+  dump_field(out, "min_temperature", this->min_temperature);
+  dump_field(out, "max_temperature", this->max_temperature);
+  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "disabled_by_default", this->disabled_by_default);
+  dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
+}
+void WaterHeaterStateResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "WaterHeaterStateResponse");
+  dump_field(out, "key", this->key);
+  dump_field(out, "current_temperature", this->current_temperature);
+  dump_field(out, "target_temperature", this->target_temperature);
+  dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
+}
+void WaterHeaterCommandRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "WaterHeaterCommandRequest");
+  dump_field(out, "key", this->key);
+  dump_field(out, "has_mode", this->has_mode);
+  dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
+  dump_field(out, "has_target_temperature", this->has_target_temperature);
+  dump_field(out, "target_temperature", this->target_temperature);
+}
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesNumberResponse");
@@ -1863,10 +1909,10 @@ void VoiceAssistantAudio::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAudio");
   out.append("  data: ");
   if (this->data_ptr_ != nullptr) {
-    out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
-  } else {
-    out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size()));
-  }
+      out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
+    } else {
+      out.append(format_hex_pretty(reinterpret_cast<const uint8_t*>(this->data.data()), this->data.size()));
+    }
   out.append("\n");
   dump_field(out, "end", this->end);
 }

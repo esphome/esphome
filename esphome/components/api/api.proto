@@ -1101,6 +1101,50 @@ message ClimateCommandRequest {
   uint32 device_id = 24 [(field_ifdef) = "USE_DEVICES"];
 }
 
+// ==================== WATER_HEATER ====================
+enum WaterHeaterMode {
+  WATER_HEATER_MODE_OFF = 0;
+  WATER_HEATER_MODE_ECO = 1;
+  WATER_HEATER_MODE_ELECTRIC = 2;
+  WATER_HEATER_MODE_PERFORMANCE = 3;
+  WATER_HEATER_MODE_HIGH_DEMAND = 4;
+  WATER_HEATER_MODE_HEAT_PUMP = 5;
+  WATER_HEATER_MODE_GAS = 6;
+}
+
+message ListEntitiesWaterHeaterResponse {
+  option (id) = 132;  
+  option (source) = SOURCE_SERVER;
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+  float min_temperature = 5;
+  float max_temperature = 6;
+  string icon = 7;
+  bool disabled_by_default = 8;
+  EntityCategory entity_category = 9;
+}
+
+message WaterHeaterStateResponse {
+  option (id) = 133;
+  option (source) = SOURCE_SERVER;
+  fixed32 key = 1;
+  float current_temperature = 2;
+  float target_temperature = 3;
+  WaterHeaterMode mode = 4;
+}
+
+message WaterHeaterCommandRequest {
+  option (id) = 134;
+  option (source) = SOURCE_CLIENT;
+  fixed32 key = 1;
+  bool has_mode = 2;
+  WaterHeaterMode mode = 3;
+  bool has_target_temperature = 4;
+  float target_temperature = 5;
+}
+
 // ==================== NUMBER ====================
 enum NumberMode {
   NUMBER_MODE_AUTO = 0;
