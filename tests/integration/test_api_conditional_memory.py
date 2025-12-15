@@ -88,13 +88,13 @@ async def test_api_conditional_memory(
             assert arg_types["arg_float"] == UserServiceArgType.FLOAT
 
             # Call simple service
-            client.execute_service(simple_service, {})
+            await client.execute_service(simple_service, {})
 
             # Wait for service log
             await asyncio.wait_for(service_simple_future, timeout=5.0)
 
             # Call service with arguments
-            client.execute_service(
+            await client.execute_service(
                 service_with_args,
                 {
                     "arg_string": "test_string",
