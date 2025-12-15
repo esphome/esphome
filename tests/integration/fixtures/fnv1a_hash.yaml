@@ -8,6 +8,14 @@ esphome:
         using esphome::fnv1a_hash;
         using esphome::fnv1a_hash_extend;
 
+        // Test empty string (should return offset basis)
+        uint32_t hash_empty = fnv1a_hash("");
+        if (hash_empty == 0x811c9dc5) {
+          ESP_LOGI("FNV1A", "empty PASSED");
+        } else {
+          ESP_LOGE("FNV1A", "empty FAILED: 0x%08x != 0x811c9dc5", hash_empty);
+        }
+
         // Test known FNV-1a hashes
         uint32_t hash_hello = fnv1a_hash("hello");
         if (hash_hello == 0x4f9f2cab) {

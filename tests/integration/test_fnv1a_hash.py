@@ -20,7 +20,7 @@ async def test_fnv1a_hash(
 
     test_results = {}
     all_tests_complete = asyncio.Event()
-    expected_tests = {"known_hello", "known_helloworld", "extend", "string"}
+    expected_tests = {"empty", "known_hello", "known_helloworld", "extend", "string"}
 
     def on_log_line(line: str) -> None:
         """Capture log lines with test results."""
@@ -51,6 +51,9 @@ async def test_fnv1a_hash(
             pytest.fail(f"Tests timed out. Got results for: {set(test_results.keys())}")
 
         # Verify all tests passed
+        assert "empty" in test_results, "empty string test not found"
+        assert test_results["empty"] == "PASSED", "empty string test failed"
+
         assert "known_hello" in test_results, "known_hello test not found"
         assert test_results["known_hello"] == "PASSED", "known_hello test failed"
 
