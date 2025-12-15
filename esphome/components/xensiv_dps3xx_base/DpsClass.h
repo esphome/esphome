@@ -83,7 +83,7 @@ class DpsClass {
   /**
    * starts a single temperature measurement
    *
-   * @return 	status code
+   * @return status code
    */
   int16_t startMeasureTempOnce(void);
 
@@ -101,7 +101,7 @@ class DpsClass {
    * performs one pressure measurement
    *
    * @param &result:              reference to a float value where the result will be written
-   * @return 	status code
+   * @return status code
    */
   int16_t measurePressureOnce(float &result);
 
@@ -118,7 +118,7 @@ class DpsClass {
   /**
    * starts a single pressure measurement
    *
-   * @return 	status code
+   * @return status code
    */
   int16_t startMeasurePressureOnce(void);
 
@@ -127,7 +127,7 @@ class DpsClass {
    *
    * @param oversamplingRate:     DPS__OVERSAMPLING_RATE_1, DPS__OVERSAMPLING_RATE_2,
    *                              DPS__OVERSAMPLING_RATE_4 ... DPS__OVERSAMPLING_RATE_128
-   * @return  status code
+   * @return status code
    */
   int16_t startMeasurePressureOnce(uint8_t oversamplingRate);
 
@@ -135,7 +135,7 @@ class DpsClass {
    * gets the result a single temperature or pressure measurement in °C or Pa
    *
    * @param &result:              reference to a float value where the result will be written
-   * @return 	status code
+   * @return status code
    */
   int16_t getSingleResult(float &result);
 
@@ -181,7 +181,7 @@ class DpsClass {
   /**
    * Gets the interrupt status flag of the FIFO
    *
-   * @return 	    1 if the FIFO is full and caused an interrupt
+   * @return     1 if the FIFO is full and caused an interrupt
    *              0 if the FIFO is not full or FIFO interrupt is disabled
    *              -1 on fail
    */
@@ -190,7 +190,7 @@ class DpsClass {
   /**
    * Gets the interrupt status flag that indicates a finished temperature measurement
    *
-   * @return 	    1 if a finished temperature measurement caused an interrupt;
+   * @return     1 if a finished temperature measurement caused an interrupt;
    *              0 if there is no finished temperature measurement or interrupts are disabled;
    *              -1 on fail.
    */
@@ -255,7 +255,7 @@ class DpsClass {
    * reads the compensation coefficients from the sensor
    * this is called once from init(), which is called from begin()
    *
-   * @return 	0 on success, -1 on fail
+   * @return 0 on success, -1 on fail
    */
   virtual int16_t readcoeffs(void) = 0;
 
@@ -276,7 +276,7 @@ class DpsClass {
    * @param temp_osr:         DPS__OVERSAMPLING_RATE_1, DPS__OVERSAMPLING_RATE_2, DPS__OVERSAMPLING_RATE_4 ...
    * DPS__OVERSAMPLING_RATE_128
    *
-   * @return 	0 normally or -1 on fail
+   * @return 0 normally or -1 on fail
    */
   virtual int16_t configTemp(uint8_t temp_mr, uint8_t temp_osr);
 
@@ -287,7 +287,7 @@ class DpsClass {
    * DPS__MEASUREMENT_RATE_128
    * @param prs_osr:          DPS__OVERSAMPLING_RATE_1, DPS__OVERSAMPLING_RATE_2, DPS__OVERSAMPLING_RATE_4 ...
    * DPS__OVERSAMPLING_RATE_128
-   * @return 	                0 normally or
+   * @return                  0 normally or
    *                          -1 on fail
    */
   virtual int16_t configPressure(uint8_t prs_mr, uint8_t prs_osr);
