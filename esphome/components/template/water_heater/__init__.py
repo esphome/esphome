@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_RESTORE_MODE,
     CONF_TARGET_TEMPERATURE,
+    CONF_SET_ACTION,  
 )
 
 from .. import template_ns
@@ -23,8 +24,6 @@ TemplateWaterHeaterPublishAction = template_ns.class_(
     automation.Action,
     cg.Parented.template(TemplateWaterHeater),
 )
-
-CONF_SET_ACTION = "set_action"
 
 TemplateWaterHeaterRestoreMode = template_ns.enum("TemplateWaterHeaterRestoreMode")
 RESTORE_MODES = {
