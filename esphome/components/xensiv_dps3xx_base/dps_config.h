@@ -1,3 +1,4 @@
+#pragma once
 
 #ifndef DPS_CONSTS_H_
 #define DPS_CONSTS_H_
@@ -28,9 +29,9 @@ static const uint8_t DPS3xx__REG_CONTENT_SPI3W = 0x01u;
 
 ///////////     common    ///////////
 
-// slave address same for 3xx
+// device address same for 3xx
 static const uint8_t DPS__FIFO_SIZE = 32u;
-static const uint8_t DPS__STD_SLAVE_ADDRESS = 0x77u;
+static const uint8_t DPS__STD_DEVICE_ADDRESS = 0x77u;
 static const uint8_t DPS__RESULT_BLOCK_LENGTH = 3u;
 static const uint8_t NUM_OF_COMMON_REGMASKS = 16u;
 

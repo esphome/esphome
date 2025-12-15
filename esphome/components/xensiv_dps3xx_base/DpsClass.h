@@ -244,9 +244,6 @@ class DpsClass {
   // last measured scaled temperature (necessary for pressure compensation)
   float m_lastTempScal;
 
-  // used for I2C
-  uint8_t m_slaveAddress;
-
   /**
    * Initializes the sensor.
    * This function has to be called from begin()

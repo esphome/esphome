@@ -4,7 +4,7 @@
 namespace esphome {
 namespace xensiv_dps3xx_base {
 
-#define DPS3xx_NUM_OF_REGMASKS 16
+static const int DPS3xx_NUM_OF_REGMASKS = 16;
 
 enum Interrupt_source_3xx_e {
   DPS3xx_NO_INTR = 0,

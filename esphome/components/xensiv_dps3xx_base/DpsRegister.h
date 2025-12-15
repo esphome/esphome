@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef DPSREGISTER_H_INCLUDED
 #define DPSREGISTER_H_INCLUDED
 
