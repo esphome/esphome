@@ -982,14 +982,8 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
-        add_idf_sdkconfig_option(
-            "CONFIG_ARDUINO_LOOP_STACK_SIZE",
-            conf[CONF_ADVANCED][CONF_LOOP_TASK_STACK_SIZE],
-        )
-        add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
         # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
         if get_esp32_variant() == VARIANT_ESP32S2:
