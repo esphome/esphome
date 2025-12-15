@@ -16,7 +16,12 @@ class WiFiSignalSensor : public sensor::Sensor, public PollingComponent {
 #ifdef USE_WIFI_LISTENERS
   void setup() override { wifi::global_wifi_component->add_connect_state_listener(this); }
 #endif
-  void update() override { this->publish_state(wifi::global_wifi_component->wifi_rssi()); }
+  void update() override {
+    int8_t rssi = wifi::global_wifi_component->wifi_rssi();
+    if (rssi != wifi::WIFI_RSSI_DISCONNECTED) {
+      this->publish_state(rssi);
+    }
+  }
   void dump_config() override;
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
