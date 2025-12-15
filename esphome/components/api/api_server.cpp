@@ -421,7 +421,7 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
 #ifdef USE_API_HOMEASSISTANT_STATES
 // Helper to add subscription (reduces duplication)
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
-                                        std::function<void(std::string)> f, bool once) {
+                                        std::function<void(const std::string &)> f, bool once) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
       .entity_id = entity_id, .attribute = attribute, .callback = std::move(f), .once = once,
       // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
@@ -430,7 +430,7 @@ void APIServer::add_state_subscription_(const char *entity_id, const char *attri
 
 // Helper to add subscription with heap-allocated strings (reduces duplication)
 void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(std::string)> f, bool once) {
+                                        std::function<void(const std::string &)> f, bool once) {
   HomeAssistantStateSubscription sub;
   // Allocate heap storage for the strings
   sub.entity_id_dynamic_storage = std::make_unique<std::string>(std::move(entity_id));
@@ -450,23 +450,23 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
 
 // New const char* overload (for internal components - zero allocation)
 void APIServer::subscribe_home_assistant_state(const char *entity_id, const char *attribute,
-                                               std::function<void(std::string)> f) {
+                                               std::function<void(const std::string &)> f) {
   this->add_state_subscription_(entity_id, attribute, std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(const char *entity_id, const char *attribute,
-                                         std::function<void(std::string)> f) {
+                                         std::function<void(const std::string &)> f) {
   this->add_state_subscription_(entity_id, attribute, std::move(f), true);
 }
 
 // Existing std::string overload (for custom_api_device.h - heap allocation)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                               std::function<void(std::string)> f) {
+                                               std::function<void(const std::string &)> f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                         std::function<void(std::string)> f) {
+                                         std::function<void(const std::string &)> f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
 }
 
