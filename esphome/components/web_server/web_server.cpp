@@ -1723,22 +1723,36 @@ std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDet
   // Converteer mode naar string voor de webinterface
   const char *mode_s = "UNKNOWN";
   switch (obj->mode) {
-    case water_heater::WATER_HEATER_MODE_OFF: mode_s = "OFF"; break;
-    case water_heater::WATER_HEATER_MODE_ECO: mode_s = "ECO"; break;
-    case water_heater::WATER_HEATER_MODE_ELECTRIC: mode_s = "ELECTRIC"; break;
-    case water_heater::WATER_HEATER_MODE_PERFORMANCE: mode_s = "PERFORMANCE"; break;
-    case water_heater::WATER_HEATER_MODE_HIGH_DEMAND: mode_s = "HIGH_DEMAND"; break;
-    case water_heater::WATER_HEATER_MODE_HEAT_PUMP: mode_s = "HEAT_PUMP"; break;
-    case water_heater::WATER_HEATER_MODE_GAS: mode_s = "GAS"; break;
+    case water_heater::WATER_HEATER_MODE_OFF:
+      mode_s = "OFF";
+      break;
+    case water_heater::WATER_HEATER_MODE_ECO:
+      mode_s = "ECO";
+      break;
+    case water_heater::WATER_HEATER_MODE_ELECTRIC:
+      mode_s = "ELECTRIC";
+      break;
+    case water_heater::WATER_HEATER_MODE_PERFORMANCE:
+      mode_s = "PERFORMANCE";
+      break;
+    case water_heater::WATER_HEATER_MODE_HIGH_DEMAND:
+      mode_s = "HIGH_DEMAND";
+      break;
+    case water_heater::WATER_HEATER_MODE_HEAT_PUMP:
+      mode_s = "HEAT_PUMP";
+      break;
+    case water_heater::WATER_HEATER_MODE_GAS:
+      mode_s = "GAS";
+      break;
   }
 
   set_json_icon_state_value(root, obj, "water-heater", mode_s, obj->mode, start_config);
-  
+
   // Voeg specifieke water heater attributen toe
   if (!std::isnan(obj->current_temperature))
     root["current_temperature"] = obj->current_temperature;
   root["target_temperature"] = obj->target_temperature;
-  
+
   auto traits = obj->get_traits();
   root["min_temperature"] = traits.get_min_temperature();
   root["max_temperature"] = traits.get_max_temperature();
