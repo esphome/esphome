@@ -6,6 +6,12 @@ namespace esphome::cc1101 {
 
 static constexpr float XTAL_FREQUENCY = 26000000;
 
+static constexpr float RSSI_OFFSET = 74.0f;
+static constexpr float RSSI_STEP = 0.5f;
+
+static constexpr uint8_t STATUS_CRC_OK_MASK = 0x80;
+static constexpr uint8_t STATUS_LQI_MASK = 0x7F;
+
 static constexpr uint8_t BUS_BURST = 0x40;
 static constexpr uint8_t BUS_READ = 0x80;
 static constexpr uint8_t BUS_WRITE = 0x00;
@@ -134,6 +140,10 @@ enum class SyncMode : uint8_t {
   SYNC_MODE_15_16,
   SYNC_MODE_16_16,
   SYNC_MODE_30_32,
+  SYNC_MODE_NONE_CS,
+  SYNC_MODE_15_16_CS,
+  SYNC_MODE_16_16_CS,
+  SYNC_MODE_30_32_CS,
 };
 
 enum class Modulation : uint8_t {
@@ -216,6 +226,19 @@ enum class HystLevel : uint8_t {
   HYST_LEVEL_LOW,
   HYST_LEVEL_MEDIUM,
   HYST_LEVEL_HIGH,
+};
+
+enum class PacketFormat : uint8_t {
+  PACKET_FORMAT_FIFO,
+  PACKET_FORMAT_SYNC_SERIAL,
+  PACKET_FORMAT_RANDOM_TX,
+  PACKET_FORMAT_ASYNC_SERIAL,
+};
+
+enum class LengthConfig : uint8_t {
+  LENGTH_CONFIG_FIXED,
+  LENGTH_CONFIG_VARIABLE,
+  LENGTH_CONFIG_INFINITE,
 };
 
 struct __attribute__((packed)) CC1101State {
