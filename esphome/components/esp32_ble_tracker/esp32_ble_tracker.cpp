@@ -435,24 +435,31 @@ void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
     ESP_LOGVV(TAG, "  Ad Flag: %u", *this->ad_flag_);
   }
   for (auto &uuid : this->service_uuids_) {
-    ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
+    char uuid_buf[esp32_ble::UUID_STR_LEN];
+    uuid.to_str(uuid_buf);
+    ESP_LOGVV(TAG, "  Service UUID: %s", uuid_buf);
   }
   for (auto &data : this->manufacturer_datas_) {
     auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(data);
     if (ibeacon.has_value()) {
       ESP_LOGVV(TAG, "  Manufacturer iBeacon:");
-      ESP_LOGVV(TAG, "    UUID: %s", ibeacon.value().get_uuid().to_string().c_str());
+      char uuid_buf[esp32_ble::UUID_STR_LEN];
+      ibeacon.value().get_uuid().to_str(uuid_buf);
+      ESP_LOGVV(TAG, "    UUID: %s", uuid_buf);
       ESP_LOGVV(TAG, "    Major: %u", ibeacon.value().get_major());
       ESP_LOGVV(TAG, "    Minor: %u", ibeacon.value().get_minor());
       ESP_LOGVV(TAG, "    TXPower: %d", ibeacon.value().get_signal_power());
     } else {
-      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", data.uuid.to_string().c_str(),
-                format_hex_pretty(data.data).c_str());
+      char uuid_buf[esp32_ble::UUID_STR_LEN];
+      data.uuid.to_str(uuid_buf);
+      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", uuid_buf, format_hex_pretty(data.data).c_str());
     }
   }
   for (auto &data : this->service_datas_) {
     ESP_LOGVV(TAG, "  Service data:");
-    ESP_LOGVV(TAG, "    UUID: %s", data.uuid.to_string().c_str());
+    char uuid_buf[esp32_ble::UUID_STR_LEN];
+    data.uuid.to_str(uuid_buf);
+    ESP_LOGVV(TAG, "    UUID: %s", uuid_buf);
     ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty(data.data).c_str());
   }
 

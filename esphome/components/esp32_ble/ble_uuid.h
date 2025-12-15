@@ -7,10 +7,14 @@
 #ifdef USE_ESP32
 #ifdef USE_ESP32_BLE_UUID
 
+#include <span>
 #include <string>
 #include <esp_bt_defs.h>
 
 namespace esphome::esp32_ble {
+
+/// Buffer size for UUID string: "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX\0"
+static constexpr size_t UUID_STR_LEN = 37;
 
 class ESPBTUUID {
  public:
@@ -37,6 +41,7 @@ class ESPBTUUID {
   esp_bt_uuid_t get_uuid() const;
 
   std::string to_string() const;
+  void to_str(std::span<char, UUID_STR_LEN> output) const;
 
  protected:
   esp_bt_uuid_t uuid_;
