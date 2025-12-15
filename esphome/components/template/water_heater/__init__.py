@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import water_heater
 import esphome.config_validation as cv
+from esphome.components import water_heater
 from esphome.const import (
     CONF_ID,
     CONF_MODE,
@@ -40,8 +40,8 @@ CONFIG_SCHEMA = water_heater.WATER_HEATER_SCHEMA.extend(
         cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
             RESTORE_MODES, upper=True
         ),
-        cv.Optional(CONF_CURRENT_TEMPERATURE): cv.returning_lambda,
-        cv.Optional(CONF_MODE): cv.returning_lambda,
+        cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(cv.temperature),
+        cv.Optional(CONF_MODE): cv.templatable(water_heater.validate_water_heater_mode),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -61,16 +61,24 @@ async def to_code(config):
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if CONF_CURRENT_TEMPERATURE in config:
+        conf = config[CONF_CURRENT_TEMPERATURE]
+        if not isinstance(conf, cv.Lambda):
+            conf = cv.Lambda(f"return {conf};")
+
         template_ = await cg.process_lambda(
-            config[CONF_CURRENT_TEMPERATURE],
+            conf,
             [],
             return_type=cg.optional.template(cg.float_),
         )
         cg.add(var.set_current_temperature_lambda(template_))
 
     if CONF_MODE in config:
+        conf = config[CONF_MODE]
+        if not isinstance(conf, cv.Lambda):
+            conf = cv.Lambda(f"return {conf};")
+
         template_ = await cg.process_lambda(
-            config[CONF_MODE],
+            conf,
             [],
             return_type=cg.optional.template(water_heater.WaterHeaterMode),
         )
