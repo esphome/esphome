@@ -1,11 +1,12 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import uart, web_server_base
+from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TRIGGER_ID
 
 AUTO_LOAD = ["json", "api"]
 CODEOWNERS = ["@FredM67", "@TrystanLea", "@glynhudson"]
+DEPENDENCIES = ["uart"]
 
 emontx_ns = cg.esphome_ns.namespace("emontx")
 EmonTx = emontx_ns.class_("EmonTx", cg.PollingComponent, uart.UARTDevice)
@@ -27,7 +28,6 @@ CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
 CONF_ON_LINE = "on_line"
-CONF_WEB_CONFIG = "web_config"
 
 EMONTX_LISTENER_SCHEMA = cv.Schema(
     {
@@ -54,12 +54,6 @@ CONFIG_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxLineTrigger),
                 }
             ),
-            # Optional web config interface (proxy to OEM serial config)
-            cv.Optional(CONF_WEB_CONFIG, default=False): cv.boolean,
-            # Web server base ID (auto-resolved when only one web server exists)
-            cv.GenerateID(web_server_base.CONF_WEB_SERVER_BASE_ID): cv.use_id(
-                web_server_base.WebServerBase
-            ),
         }
     )
     .extend(cv.polling_component_schema("10s"))
@@ -68,18 +62,11 @@ CONFIG_SCHEMA = (
 
 
 def final_validate(config):
-    # Validate that on_line requires web_config
-    if CONF_ON_LINE in config and not config.get(CONF_WEB_CONFIG, False):
-        raise cv.Invalid(
-            f"'{CONF_ON_LINE}' trigger requires '{CONF_WEB_CONFIG}: true' to be set"
-        )
-
-    # TX is required when web_config is enabled (for sending commands)
-    require_tx = config.get(CONF_WEB_CONFIG, False)
+    # Validate UART settings
     schema = uart.final_validate_device_schema(
         "emontx",
         baud_rate=115200,
-        require_tx=require_tx,
+        require_tx=False,  # TX is optional (only needed if user wants to send commands)
         require_rx=True,
         data_bits=8,
         parity=None,
@@ -109,26 +96,17 @@ async def to_code(config):
                 conf,
             )
 
-    # Enable web config interface if configured
-    if config[CONF_WEB_CONFIG]:
-        cg.add_define("USE_EMONTX_WEB_CONFIG")
-        # Get web server base (auto-resolved via cv.GenerateID)
-        web_server = await cg.get_variable(
-            config[web_server_base.CONF_WEB_SERVER_BASE_ID]
-        )
-        cg.add(var.set_web_server(web_server))
-
-        # Process on_line triggers (only available when web_config is enabled)
-        if CONF_ON_LINE in config:
-            for conf in config[CONF_ON_LINE]:
-                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-                await automation.build_automation(
-                    trigger,
-                    [
-                        (cg.std_string, "line"),
-                    ],
-                    conf,
-                )
+    # Process on_line triggers
+    if CONF_ON_LINE in config:
+        for conf in config[CONF_ON_LINE]:
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            await automation.build_automation(
+                trigger,
+                [
+                    (cg.std_string, "line"),
+                ],
+                conf,
+            )
 
 
 # Action: emontx.send_command

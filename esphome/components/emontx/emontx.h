@@ -15,21 +15,6 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
-// Conditionally include web server for config interface
-#ifdef USE_EMONTX_WEB_CONFIG
-#include "esphome/components/web_server_base/web_server_base.h"
-#ifdef USE_ESP32
-#include <esp_http_server.h>
-#ifdef USE_ARDUINO
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
-#else
-#include <esp_http_client.h>
-#include <esp_crt_bundle.h>
-#endif
-#endif
-#endif
-
 #include <map>
 #include <vector>
 
@@ -41,42 +26,6 @@ using EmonTxJsonCallback = std::function<void(JsonObject)>;
 
 // Forward declaration
 class EmonTx;
-
-#ifdef USE_EMONTX_WEB_CONFIG
-// Handler for /emontx/config page
-class EmonTxConfigHandler : public AsyncWebHandler {
- public:
-  EmonTxConfigHandler(EmonTx *emontx) : emontx_(emontx) {}
-  bool canHandle(AsyncWebServerRequest *request) const override;
-  void handleRequest(AsyncWebServerRequest *request) override;
-
- protected:
-  EmonTx *emontx_;
-};
-
-// Handler for /emontx/send POST requests
-class EmonTxSendHandler : public AsyncWebHandler {
- public:
-  EmonTxSendHandler(EmonTx *emontx) : emontx_(emontx) {}
-  bool canHandle(AsyncWebServerRequest *request) const override;
-  void handleRequest(AsyncWebServerRequest *request) override;
-  void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override;
-
- protected:
-  EmonTx *emontx_;
-};
-
-// Handler for /emontx/data - returns last received JSON (polling approach)
-class EmonTxDataHandler : public AsyncWebHandler {
- public:
-  EmonTxDataHandler(EmonTx *emontx) : emontx_(emontx) {}
-  bool canHandle(AsyncWebServerRequest *request) const override;
-  void handleRequest(AsyncWebServerRequest *request) override;
-
- protected:
-  EmonTx *emontx_;
-};
-#endif  // USE_EMONTX_WEB_CONFIG
 
 /*
  * 198 bytes should be enough to contain a full session in historical mode with
@@ -119,11 +68,9 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   // Add method to register JSON callbacks
   void add_on_json_callback(const EmonTxJsonCallback &callback) { this->json_callbacks_.push_back(callback); }
 
-#ifdef USE_EMONTX_WEB_CONFIG
   // Add method to register line callbacks (for config responses)
   using EmonTxLineCallback = std::function<void(const std::string &)>;
   void add_on_line_callback(const EmonTxLineCallback &callback) { this->line_callbacks_.push_back(callback); }
-#endif
 
   // Add method to get the current buffer
   std::string get_buffer() const { return this->last_valid_json_; }
@@ -133,15 +80,6 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
 
 #ifdef USE_SENSOR
   void register_sensor(const std::string &tag_name, sensor::Sensor *sensor);
-#endif
-
-#ifdef USE_EMONTX_WEB_CONFIG
-  void set_web_server(web_server_base::WebServerBase *web_server) { this->web_server_ = web_server; }
-
-  // Web interface methods
-  void serve_config_page(AsyncWebServerRequest *request);
-  void handle_serial_send(const std::string &data);
-  std::string get_last_json() const { return this->last_valid_json_; }
 #endif
 
  protected:
@@ -166,19 +104,8 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   // Add storage for JSON callbacks
   std::vector<EmonTxJsonCallback> json_callbacks_{};
 
-#ifdef USE_EMONTX_WEB_CONFIG
   // Add storage for line callbacks (raw serial data)
   std::vector<EmonTxLineCallback> line_callbacks_{};
-#endif
-
-#ifdef USE_EMONTX_WEB_CONFIG
-  web_server_base::WebServerBase *web_server_{nullptr};
-  std::string cached_html_;
-  bool html_fetched_{false};
-
-  void fetch_oem_html_();
-  std::string patch_html_for_polling_(const std::string &html);
-#endif
 };
 
 // Action to send command to emonTx

@@ -43,18 +43,6 @@ void EmonTx::setup() {
 #else
   ESP_LOGCONFIG(TAG, "Sensor support: DISABLED");
 #endif
-
-#ifdef USE_EMONTX_WEB_CONFIG
-  if (this->web_server_ != nullptr) {
-    this->web_server_->add_handler(new EmonTxConfigHandler(this));
-    this->web_server_->add_handler(new EmonTxSendHandler(this));
-    this->web_server_->add_handler(new EmonTxDataHandler(this));
-    ESP_LOGI(TAG, "Web config interface available at /emontx/config");
-
-    // Fetch OEM HTML interface after a delay (allow WiFi to connect)
-    this->set_timeout("fetch_oem", 5000, [this]() { this->fetch_oem_html_(); });
-  }
-#endif
 }
 
 /**
@@ -182,14 +170,12 @@ void EmonTx::loop() {
 
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
-#ifdef USE_EMONTX_WEB_CONFIG
         // Fire line callbacks for ALL received lines (config responses)
         if (!this->line_callbacks_.empty()) {
           for (const auto &callback : this->line_callbacks_) {
             callback(line);
           }
         }
-#endif
 
         // Check if this line is JSON (starts with '{')
         if (!line.empty() && line[0] == '{') {
@@ -319,14 +305,6 @@ void EmonTx::dump_config() {
 #else
   ESP_LOGCONFIG(TAG, "  Sensor support: DISABLED");
 #endif
-
-#ifdef USE_EMONTX_WEB_CONFIG
-  ESP_LOGCONFIG(TAG, "  Web config: ENABLED");
-  ESP_LOGCONFIG(TAG, "    Config URL: /emontx/config");
-  ESP_LOGCONFIG(TAG, "    Serial Data: /emontx/data (polling)");
-  ESP_LOGCONFIG(TAG, "    Serial Send: /emontx/send (POST)");
-  ESP_LOGCONFIG(TAG, "    OEM HTML cached: %s", this->html_fetched_ ? "yes" : "no");
-#endif
 }
 
 /**
@@ -374,244 +352,6 @@ void EmonTx::register_sensor(const std::string &tag_name, sensor::Sensor *sensor
   this->sensors_.emplace_back(tag_name, sensor);
 }
 #endif
-
-#ifdef USE_EMONTX_WEB_CONFIG
-
-// URL for OEM serial config interface (hosted version with proper styling)
-static const char *OEM_SERIAL_URL = "https://openenergymonitor.org/serial/";
-
-// JavaScript patch to replace Web Serial API with polling + fetch
-static const char *POLLING_PATCH = R"(
-<script>
-// Polling + fetch bridge - replaces Web Serial API
-var pollInterval = null;
-var lastJson = "";
-var outputStream = null;
-
-async function connect() {
-    return new Promise((resolve, reject) => {
-        app.connected = true;
-        app.button_connect_text = "Connected";
-
-        outputStream = {
-            getWriter: () => ({
-                write: (data) => {
-                    fetch("/emontx/send", {
-                        method: "POST",
-                        body: data,
-                        headers: {"Content-Type": "text/plain"}
-                    });
-                },
-                releaseLock: () => {}
-            })
-        };
-
-        // Start polling for data
-        pollInterval = setInterval(async () => {
-            try {
-                const response = await fetch("/emontx/data");
-                const data = await response.text();
-                if (data && data !== lastJson && data !== "{}") {
-                    lastJson = data;
-                    log.textContent += data + "\n";
-                    log.scrollTop = log.scrollHeight;
-                    process_line(data);
-                }
-            } catch (e) {
-                console.error("Poll error:", e);
-            }
-        }, 500);
-
-        setTimeout(() => {
-            if (!app.config_received) {
-                writeToStream("l");
-            }
-        }, 1000);
-
-        resolve();
-    });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => connect().catch(e => console.log('Auto-connect failed:', e)), 500);
-});
-</script>
-)";
-
-// EmonTxConfigHandler implementation
-bool EmonTxConfigHandler::canHandle(AsyncWebServerRequest *request) const {
-  return request->method() == HTTP_GET && request->url() == "/emontx/config";
-}
-
-void EmonTxConfigHandler::handleRequest(AsyncWebServerRequest *request) { this->emontx_->serve_config_page(request); }
-
-// EmonTxSendHandler implementation
-bool EmonTxSendHandler::canHandle(AsyncWebServerRequest *request) const {
-  return request->method() == HTTP_POST && request->url() == "/emontx/send";
-}
-
-void EmonTxSendHandler::handleRequest(AsyncWebServerRequest *request) { request->send(200, "text/plain", "OK"); }
-
-void EmonTxSendHandler::handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index,
-                                   size_t total) {
-  std::string cmd(reinterpret_cast<char *>(data), len);
-  ESP_LOGD(TAG, "Web -> UART: %s", cmd.c_str());
-  this->emontx_->handle_serial_send(cmd);
-}
-
-// EmonTxDataHandler implementation - returns last received JSON for polling
-bool EmonTxDataHandler::canHandle(AsyncWebServerRequest *request) const {
-  return request->method() == HTTP_GET && request->url() == "/emontx/data";
-}
-
-void EmonTxDataHandler::handleRequest(AsyncWebServerRequest *request) {
-  std::string json = this->emontx_->get_last_json();
-  if (json.empty()) {
-    json = "{}";
-  }
-  request->send(200, "application/json", json.c_str());
-}
-
-// EmonTx web config methods
-void EmonTx::serve_config_page(AsyncWebServerRequest *request) {
-  ESP_LOGD(TAG, "Config page requested");
-
-  if (this->html_fetched_ && !this->cached_html_.empty()) {
-    ESP_LOGD(TAG, "Serving cached HTML (%d bytes)", this->cached_html_.size());
-    request->send(200, "text/html", this->cached_html_.c_str());
-  } else {
-    // HTML not fetched yet - try to fetch it now
-    ESP_LOGW(TAG, "HTML not cached, attempting to fetch now...");
-    this->fetch_oem_html_();
-
-    if (this->html_fetched_ && !this->cached_html_.empty()) {
-      ESP_LOGI(TAG, "Successfully fetched HTML on-demand");
-      request->send(200, "text/html", this->cached_html_.c_str());
-    } else {
-      // Failed to fetch - show error
-      request->send(502, "text/plain",
-                    "OEM interface not available. Failed to fetch from openenergymonitor.org. "
-                    "Check WiFi connection and logs. Try restarting the device.");
-    }
-  }
-}
-
-void EmonTx::fetch_oem_html_() {
-#ifdef USE_ESP32
-  if (this->html_fetched_) {
-    return;
-  }
-
-  ESP_LOGI(TAG, "Fetching OEM interface from openenergymonitor.org...");
-
-  std::string html;
-
-#ifdef USE_ARDUINO
-  // Arduino framework - use HTTPClient with WiFiClientSecure for HTTPS
-  WiFiClientSecure client;
-  client.setInsecure();  // Skip certificate verification
-
-  HTTPClient http;
-
-  http.begin(client, OEM_SERIAL_URL);
-  http.setTimeout(15000);
-  ESP_LOGI(TAG, "Sending HTTP GET request...");
-  int httpCode = http.GET();
-  ESP_LOGI(TAG, "HTTP response code: %d", httpCode);
-  if (httpCode == HTTP_CODE_OK) {
-    String response = http.getString();
-    ESP_LOGI(TAG, "Received %d bytes from server", response.length());
-    html = response.c_str();
-  } else {
-    ESP_LOGE(TAG, "Failed to fetch OEM interface: %d", httpCode);
-    http.end();
-    return;
-  }
-  http.end();
-
-#else
-  // ESP-IDF framework - use esp_http_client with certificate bundle for HTTPS
-  esp_http_client_config_t config = {};
-  config.url = OEM_SERIAL_URL;
-  config.timeout_ms = 15000;
-  config.buffer_size = 2048;
-  config.crt_bundle_attach = esp_crt_bundle_attach;
-
-  esp_http_client_handle_t client = esp_http_client_init(&config);
-  if (client == nullptr) {
-    ESP_LOGE(TAG, "Failed to init HTTP client");
-    return;
-  }
-
-  esp_err_t err = esp_http_client_open(client, 0);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-    esp_http_client_cleanup(client);
-    return;
-  }
-
-  int content_length = esp_http_client_fetch_headers(client);
-  if (content_length < 0) {
-    ESP_LOGE(TAG, "Failed to fetch headers");
-    esp_http_client_close(client);
-    esp_http_client_cleanup(client);
-    return;
-  }
-
-  int status = esp_http_client_get_status_code(client);
-  if (status != 200) {
-    ESP_LOGE(TAG, "HTTP error: %d", status);
-    esp_http_client_close(client);
-    esp_http_client_cleanup(client);
-    return;
-  }
-
-  char buffer[512];
-  int read_len;
-  while ((read_len = esp_http_client_read(client, buffer, sizeof(buffer) - 1)) > 0) {
-    buffer[read_len] = '\0';
-    html += buffer;
-  }
-
-  esp_http_client_close(client);
-  esp_http_client_cleanup(client);
-#endif
-
-  this->cached_html_ = this->patch_html_for_polling_(html);
-  this->html_fetched_ = true;
-
-  ESP_LOGI(TAG, "OEM interface fetched and cached (%d bytes)", this->cached_html_.size());
-#endif
-}
-
-std::string EmonTx::patch_html_for_polling_(const std::string &html) {
-  std::string patched = html;
-
-  // Remove the original connect() function and Web Serial API code
-  // The hosted version has JavaScript that uses Web Serial API which we replace
-  size_t pos = patched.find("async function connect()");
-  if (pos != std::string::npos) {
-    size_t script_start = patched.rfind("<script>", pos);
-    size_t script_end = patched.find("</script>", pos);
-    if (script_start != std::string::npos && script_end != std::string::npos) {
-      patched.erase(script_start, script_end - script_start + 9);
-    }
-  }
-
-  // Insert our polling patch before closing </body>
-  pos = patched.find("</body>");
-  if (pos != std::string::npos) {
-    patched.insert(pos, POLLING_PATCH);
-  } else {
-    patched += POLLING_PATCH;
-  }
-
-  return patched;
-}
-
-void EmonTx::handle_serial_send(const std::string &data) { this->write_str(data.c_str()); }
-
-#endif  // USE_EMONTX_WEB_CONFIG
 
 }  // namespace emontx
 }  // namespace esphome

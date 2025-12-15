@@ -16,7 +16,6 @@ class EmonTxJsonTrigger : public Trigger<JsonObject, std::string> {
   }
 };
 
-#ifdef USE_EMONTX_WEB_CONFIG
 class EmonTxLineTrigger : public Trigger<std::string> {
  public:
   explicit EmonTxLineTrigger(EmonTx *parent) {
@@ -26,7 +25,6 @@ class EmonTxLineTrigger : public Trigger<std::string> {
     });
   }
 };
-#endif
 
 }  // namespace emontx
 }  // namespace esphome
