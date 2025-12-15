@@ -254,7 +254,9 @@ components that are available in the [ESP Component Registry](https://components
 
 ### Simple
 
-For components from the ESP Component Registry, you can use the shorthand syntax `owner/component^version`:
+For components from the ESP Component Registry, you can use the shorthand syntax `owner/component<operator>version`.
+All [IDF Component Manager version operators](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/versioning.html)
+are supported (e.g., `^`, `~`, `==`, `>=`):
 
 ```yaml
 esp32:
