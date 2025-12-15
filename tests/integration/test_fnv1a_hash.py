@@ -19,6 +19,8 @@ async def test_fnv1a_hash(
     """Test that FNV-1a hash functions work correctly."""
 
     test_results = {}
+    all_tests_complete = asyncio.Event()
+    expected_tests = {"known_hello", "known_helloworld", "extend", "string"}
 
     def on_log_line(line: str) -> None:
         """Capture log lines with test results."""
@@ -31,6 +33,8 @@ async def test_fnv1a_hash(
             test_name = match.group(1)
             result = match.group(2)
             test_results[test_name] = result
+            if set(test_results.keys()) >= expected_tests:
+                all_tests_complete.set()
 
     async with (
         run_compiled(yaml_config, line_callback=on_log_line),
@@ -40,8 +44,11 @@ async def test_fnv1a_hash(
         assert device_info is not None
         assert device_info.name == "fnv1a-hash-test"
 
-        # Wait for boot to complete
-        await asyncio.sleep(2.0)
+        # Wait for all tests to complete or timeout
+        try:
+            await asyncio.wait_for(all_tests_complete.wait(), timeout=2.0)
+        except TimeoutError:
+            pytest.fail(f"Tests timed out. Got results for: {set(test_results.keys())}")
 
         # Verify all tests passed
         assert "known_hello" in test_results, "known_hello test not found"
