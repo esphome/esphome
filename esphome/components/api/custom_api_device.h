@@ -166,18 +166,18 @@ class CustomAPIDevice {
   }
 
   // Backward compatibility overloads for callbacks that take std::string by value
-  // Remove before 2026.6.0
+  // Remove before 2026.7.0
   template<typename T>
-  ESPDEPRECATED("Use void callback(const std::string &) instead. Removed in 2026.6.0", "2025.12.0")
+  ESPDEPRECATED("Use void callback(const std::string &) instead. Removed in 2026.7.0", "2026.1.0")
   void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
                                      const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
 
-  // Remove before 2026.6.0
+  // Remove before 2026.7.0
   template<typename T>
-  ESPDEPRECATED("Use void callback(const std::string &, const std::string &) instead. Removed in 2026.6.0", "2025.12.0")
+  ESPDEPRECATED("Use void callback(const std::string &, const std::string &) instead. Removed in 2026.7.0", "2026.1.0")
   void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
                                      const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
